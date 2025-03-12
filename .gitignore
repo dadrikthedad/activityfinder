@@ -52,3 +52,19 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# ASP.NET Core (AFBack)
+AFBack/bin/
+AFBack/obj/
+AFBack/appsettings.json
+
+# React (activityfront)
+activityfront/node_modules/
+activityfront/build/
+activityfront/.env
+
+# Generelle Git-ignore-filer
+.vscode/
+.idea/
+.DS_Store
+*.log
