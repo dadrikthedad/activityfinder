@@ -1,6 +1,0 @@
-@AFBack_HostAddress = http://localhost:5058
-
-GET {{AFBack_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
