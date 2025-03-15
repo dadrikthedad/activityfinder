@@ -31,4 +31,13 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.0" />
   </ItemGroup>
 
+   <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
