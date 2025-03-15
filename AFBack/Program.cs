@@ -104,8 +104,8 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
         
         ValidateIssuerSigningKey = true,
         //Hvis feil i deploy, bruk kanskje denne:
-        // IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)),
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        // IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)),
         ValidateIssuer = true,
         ValidIssuer = jwtIssuer,
         ValidateAudience = true,
@@ -145,11 +145,8 @@ app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 var summaries = new[]
 {

@@ -69,10 +69,10 @@ public class AuthService
         };
         
         // Krypterer da den hemmelig miljøvariabelen til en hemmelig key som vi bruker da til tokenen. GetBytes for å gjøre den om til en bites.
-        var key = new SymmetricSecurityKey(Convert.FromBase64String(jwtKey));
+        // var key = new SymmetricSecurityKey(Convert.FromBase64String(jwtKey));
         
         // Hvis feil med å deploye til nett bruk denne kanskje? Lagt in 15.03
-        // var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
         
         // Dette sikrer at ingen kan forfalske tokenet uten å ha riktig nøkkkel. HmacSha512 er algoritmen vi singerer tokenen med.
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha512);
