@@ -56,7 +56,7 @@ nunit-*.xml
 # ASP.NET Core (AFBack)
 AFBack/bin/
 AFBack/obj/
-AFBack/appsettings.json
+AFBack/.env
 
 # React (activityfront)
 activityfront/node_modules/

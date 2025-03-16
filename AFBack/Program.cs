@@ -32,23 +32,10 @@ builder.Configuration.SetBasePath(Directory.GetCurrentDirectory())
 // Henter passordet vi har lagret ved å bruke GetEnvironmentVariable og variabel navnet, hvis den returnere null så sender vi en exception. 10.03
 var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? throw new Exception("DB_PASSWORD IS NOT SET."); 
 
-
-// // Her lagrer vi connection-stringen til databasen for senere bruk.
-// var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ??
-//                        builder.Configuration.GetConnectionString("DefaultConnection") ??
-//                        throw new Exception("Database connection string is missing.");
-
 // Ny connectionstring for å koble oss på Azure sin miljøvariabel som er connection stringen
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ??
                        builder.Configuration.GetConnectionString("DefaultConnection") ??
                        throw new Exception("Database connection string is missing.");
-
-
-
-//Koble oss opp mot Databasen. Vi lagrer en variabel med navn ConnectionString som da blir DefaultConnection-stringen i appsettings.json
-// vi bytter ut env_password med passordet vi har laget i dbPassword. 10.03
-// var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-//     .Replace("{ENV_PASSWORD}", dbPassword);
 
 // Kobler oss opp til databasen med variabelen med connectionstring og miljøvariabelen til passord.
 //Denne linjen registerer databasekoblingen i ASP.NET Core Dependency Injection systemet. Legger til ApplicationDbContext som en tjeneste slik at API-et kan bruke databasen.
@@ -62,13 +49,6 @@ var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "h
 builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
     policy => policy.WithOrigins(allowedOrigins.Split(",")).AllowAnyMethod().AllowAnyHeader()));
 
-// CORS-konfigurasjon, lagt inn 07.03
-// Cross-Origin Resource Sharing som gjør at frontend kan kommunisere med BackEnd. Gir tiltattelse til React for å gjøre API-kall til backend.
-// builder.Services.AddCors(options =>
-// {
-//     options.AddPolicy("AllowReactApp",
-//         policy => policy.WithOrigins("http://localhost:3000").AllowAnyMethod().AllowAnyHeader());
-// });
 
 // For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
 var appInsightsKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
@@ -103,9 +83,7 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
     {
         
         ValidateIssuerSigningKey = true,
-        //Hvis feil i deploy, bruk kanskje denne:
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-        // IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(jwtKey)),
         ValidateIssuer = true,
         ValidIssuer = jwtIssuer,
         ValidateAudience = true,
