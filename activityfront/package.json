@@ -22,17 +22,18 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "proxy": "http://localhost:5058",
     "dev:backend": "cd ../AFBack && dotnet watch run",
     "dev:frontend": "react-scripts start",
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\""
   },
+  "proxy": "http://localhost:5058",
   "eslintConfig": {
     "extends": [
       "react-app",
       "react-app/jest"
     ]
   },
+  "homepage": ".",
   "browserslist": {
     "production": [
       ">0.2%",
