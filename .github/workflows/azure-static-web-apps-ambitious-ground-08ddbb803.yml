@@ -29,7 +29,6 @@ jobs:
         run: |
           cd activitynext
           npm run build
-          npm run export # 🔥 Viktig for Azure Static Web Apps!
 
       - name: Build And Deploy
         id: builddeploy

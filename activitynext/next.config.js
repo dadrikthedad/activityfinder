@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    output: "export",
     images: {
-      unoptimized: true, // Fjerner Next.js' innebygde bildeoptimalisering for Azure
-    },
+      unoptimized: true
+    }
   };
-  
-  module.exports = nextConfig;
+  export default nextConfig;
   
