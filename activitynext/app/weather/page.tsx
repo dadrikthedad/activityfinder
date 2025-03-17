@@ -1,4 +1,6 @@
-export const runtime = "edge"; // 👈 Bruk Edge Runtime for dynamisk datahenting i statisk eksport
+"use client"; // 👈 Sørger for at dette kjører i browseren
+
+import { useEffect, useState } from "react";
 
 interface WeatherData {
   date: string;
@@ -6,34 +8,37 @@ interface WeatherData {
   summary: string;
 }
 
-async function getWeather(): Promise<WeatherData[]> {
-  try {
-    const res = await fetch(
-      "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/weatherforecast",
-      {
-        cache: "no-store", // 🔥 Sørger for ferske data hver gang
-        next: { revalidate: 60 }, // 🔄 Oppdaterer hvert 60 sek (kan justeres)
+export default function WeatherPage() {
+  const [weather, setWeather] = useState<WeatherData[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchWeather() {
+      try {
+        const res = await fetch(
+          "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/weatherforecast"
+        );
+
+        if (!res.ok) throw new Error("Kunne ikke hente værdata");
+
+        const data = await res.json();
+        setWeather(data);
+      } catch (err) {
+        setError("❌ Feil ved henting av værdata.");
+        console.error("Feil ved henting av værdata:", err);
       }
-    );
+    }
 
-    if (!res.ok) throw new Error("Kunne ikke hente værdata");
-
-    return await res.json();
-  } catch (error) {
-    console.error("Feil ved henting av værdata:", error);
-    return [];
-  }
-}
-
-// Next.js Server Component
-export default async function WeatherPage() {
-  const weather = await getWeather();
+    fetchWeather();
+  }, []);
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white dark:bg-gray-800 shadow-md rounded-lg">
       <h1 className="text-2xl font-bold text-blue-600">Værmelding</h1>
 
-      {weather.length > 0 ? (
+      {error ? (
+        <p className="text-red-500 mt-4 font-semibold">{error}</p>
+      ) : weather.length > 0 ? (
         <ul className="mt-4 space-y-2">
           {weather.map((item, index) => (
             <li key={index} className="p-4 border rounded-md bg-gray-100 dark:bg-gray-700">
@@ -42,7 +47,7 @@ export default async function WeatherPage() {
           ))}
         </ul>
       ) : (
-        <p className="text-red-500 mt-4 font-semibold">❌ Kunne ikke hente værdata.</p>
+        <p className="text-gray-500 mt-4">Laster værdata...</p>
       )}
     </div>
   );
