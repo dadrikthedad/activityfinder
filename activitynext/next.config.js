@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-    output: "export",
+module.exports = {
+    output: "export", // Bruker statisk eksport
     images: {
-      unoptimized: true
+      unoptimized: true // Fjerner Next.js' innebygde bildeoptimalisering
     }
   };
-  export default nextConfig;
   
