@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const runtime = "edge"; // 👈 Bruk Edge Runtime for dynamisk datahenting i statisk eksport
 
 interface WeatherData {
   date: string;
@@ -10,7 +10,10 @@ async function getWeather(): Promise<WeatherData[]> {
   try {
     const res = await fetch(
       "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/weatherforecast",
-      { cache: "no-store" } // 🔥 Henter alltid ferske data
+      {
+        cache: "no-store", // 🔥 Sørger for ferske data hver gang
+        next: { revalidate: 60 }, // 🔄 Oppdaterer hvert 60 sek (kan justeres)
+      }
     );
 
     if (!res.ok) throw new Error("Kunne ikke hente værdata");
