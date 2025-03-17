@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: "export", // 🔥 Kreves for Azure Static Web Apps
     images: {
-      unoptimized: true, // 🔥 Fjerner Next.js' innebygde bildeoptimalisering
+      unoptimized: true, // Fjerner Next.js' innebygde bildeoptimalisering for Azure
     },
   };
   

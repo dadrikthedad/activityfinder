@@ -39,7 +39,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations ######
-          app_location: "activitynext/out" # 🔥 Bruker nå riktig path for statisk eksport
+          app_location: "activitynext" # 🔥 Bruker nå riktig path for statisk eksport
           api_location: "" # Ingen API-endepunkt nødvendig
           ###### End of Repository/Build Configurations ######
 
