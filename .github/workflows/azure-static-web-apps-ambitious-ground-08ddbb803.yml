@@ -23,12 +23,13 @@ jobs:
       - name: Install dependencies
         run: |
           cd activitynext
-          npm install
+          npm ci
 
-      - name: Build Next.js app
+      - name: Build and Export Next.js app
         run: |
           cd activitynext
           npm run build
+          npm run export # 🔥 Viktig for Azure Static Web Apps!
 
       - name: Build And Deploy
         id: builddeploy
@@ -37,10 +38,9 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_GROUND_08DDBB803 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations (i.e. PR comments)
           action: "upload"
-          ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          app_location: "activitynext" # Endret fra /activityfront til /activitynext
+          ###### Repository/Build Configurations ######
+          app_location: "activitynext/out" # 🔥 Bruker nå riktig path for statisk eksport
           api_location: "" # Ingen API-endepunkt nødvendig
-          output_location: "activitynext/out" # Endret fra "build" til ".next"
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
@@ -54,4 +54,3 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_AMBITIOUS_GROUND_08DDBB803 }}
           action: "close"
-
