@@ -43,11 +43,11 @@ var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
 
 //Her lagrer vi alle domenene som kan kobles på
-var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:3000";
+var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:3000,https://ambitious-ground-08ddbb803.6.azurestaticapps.net";
 
 // Gjør at alle domene kan koble seg på frontend
 builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
-    policy => policy.WithOrigins(allowedOrigins.Split(",")).AllowAnyMethod().AllowAnyHeader()));
+    policy => policy.WithOrigins(allowedOrigins.Split(",")).AllowAnyMethod().AllowAnyHeader().SetIsOriginAllowedToAllowWildcardSubdomains().WithExposedHeaders("Access-Control-Allow-Origin").AllowCredentials()));
 
 
 // For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
@@ -107,10 +107,13 @@ var app = builder.Build();
 // Middleware:
 // UseRouting() betemmer hvilken URL som skal håndtere sine spesifikke API-metoder/kontroller. 
 app.UseRouting();
+
+//Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization. Flyttet hit, burde egentlig være før app.UseAuthorization().
+app.UseCors("AllowFrontend");
+
 // Aktiverer autentisering vi lagde i AddAuthentication
 app.UseAuthentication();
-//Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization.
-app.UseCors("AllowFrontend");
+
 // Sikrer at alle som prøver å gå til http blir sendt til https.
 app.UseHttpsRedirection();
 // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
