@@ -7,64 +7,60 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Ww][Ii][Nn]32/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
-
-# .NET Core
-project.lock.json
-project.fragment.lock.json
-artifacts/
-
-# ASP.NET Scaffolding
-ScaffoldingReadMe.txt
-
-# NuGet Packages
-*.nupkg
-# NuGet Symbol Packages
-*.snupkg
-
-# Others
-~$*
-*~
-CodeCoverage/
-
-# MSBuild Binary and Structured Log
-*.binlog
-
-# MSTest test Results
-[Tt]est[Rr]esult*/
-[Bb]uild[Ll]og.*
-
-# NUnit
-*.VisualState.xml
-TestResult.xml
-nunit-*.xml
-
-# ASP.NET Core (AFBack)
-AFBack/bin/
-AFBack/obj/
-AFBack/.env
-
-# React (activityfront)
-activityfront/node_modules/
-activityfront/build/
-activityfront/.env
-
-# Generelle Git-ignore-filer
+## 🛠 Generelle utviklingsfiler
 .vscode/
 .idea/
 .DS_Store
 *.log
+*.pem
+Thumbs.db
+
+## 🔥 Git-debugging og cache
+.gitignore
+!.gitignore
+.gitmodules
+.gitattributes
+
+## 📦 NPM & Yarn (felles for backend og frontend)
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.npmrc
+.npm/
+
+## 🛠 .NET / ASP.NET Core (Backend i `AFBack/`)
+AFBack/bin/
+AFBack/obj/
+AFBack/.env
+
+## ⚡ Next.js (Frontend i `activitynext/`)
+activitynext/node_modules/
+activitynext/.next/
+activitynext/out/
+activitynext/.turbo/
+activitynext/.swc/
+activitynext/.vercel/
+activitynext/build/
+
+## 🔑 Miljøvariabler (felles for hele repoet)
+.env*
+.env.local
+.env.development
+.env.production
+.env.test
+
+## 🧪 Testing & Coverage
+coverage/
+*.coverage
+TestResults/
+[Tt]est[Rr]esult*/
+
+## 🏗 Bygg- og loggfiler
+*.binlog
+*.tsbuildinfo
+*.lock
