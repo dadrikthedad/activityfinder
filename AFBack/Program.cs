@@ -43,11 +43,18 @@ var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
 
 //Her lagrer vi alle domenene som kan kobles på
-var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS") ?? "http://localhost:3000,https://ambitious-ground-08ddbb803.6.azurestaticapps.net";
+var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',', StringSplitOptions.TrimEntries) ?? new[] { "http://localhost:3000,https://ambitious-ground-08ddbb803.6.azurestaticapps.net" };
 
 // Gjør at alle domene kan koble seg på frontend
 builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
-    policy => policy.WithOrigins(allowedOrigins.Split(",")).AllowAnyMethod().AllowAnyHeader().SetIsOriginAllowedToAllowWildcardSubdomains().WithExposedHeaders("Access-Control-Allow-Origin").AllowCredentials()));
+    policy =>
+    {
+        policy.WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()
+            .SetIsOriginAllowed(origin => true);
+    }));
 
 
 // For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
