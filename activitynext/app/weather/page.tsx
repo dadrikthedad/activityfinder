@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 interface WeatherData {
   date: string;
   temperatureC: number;
@@ -8,7 +10,7 @@ async function getWeather(): Promise<WeatherData[]> {
   try {
     const res = await fetch(
       "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/weatherforecast",
-      { cache: "no-store" } // ❌ Ikke bruk revalidate
+      { cache: "no-store" } // 🔥 Henter alltid ferske data
     );
 
     if (!res.ok) throw new Error("Kunne ikke hente værdata");
