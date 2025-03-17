@@ -43,9 +43,11 @@ var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
 
 //Her lagrer vi alle domenene som kan kobles på
-var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',', StringSplitOptions.TrimEntries) ?? new[] { "http://localhost:3000", "https://ambitious-ground-08ddbb803.6.azurestaticapps.net" };
+var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',', StringSplitOptions.TrimEntries) ?? new[] { "http://localhost:3000", "https://ambitious-ground-08ddbb803.6.azurestaticapps.net", "https://magee.no", "https://www.magee.no" };
 
-// Gjør at alle domene kan koble seg på frontend
+// Gjør at alle domene kan koble seg på frontend. Måtte legge til AllowCredentials og SetIsOriginAllowedToAllowWildcardSubdomains som da tillater underdomener til nettsiden.
+// With Origins sikrer at kun de domene vi spesifiserer med variabelen allowedOrigins får tilgang. AllowAnyMethod lar oss bruke Get, POST, PUT og DELETE.
+// AllowAnyHeader gjør at vi kan autorisere med JWT-Tokens og sendte JSON-data. Tillater cookies og JWT-tokens.
 builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
     policy =>
     {
@@ -114,13 +116,10 @@ var app = builder.Build();
 // Middleware:
 // UseRouting() betemmer hvilken URL som skal håndtere sine spesifikke API-metoder/kontroller. 
 app.UseRouting();
-
-//Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization. Flyttet hit, burde egentlig være før app.UseAuthorization().
+//Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization.
 app.UseCors("AllowFrontend");
-
 // Aktiverer autentisering vi lagde i AddAuthentication
 app.UseAuthentication();
-
 // Sikrer at alle som prøver å gå til http blir sendt til https.
 app.UseHttpsRedirection();
 // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
