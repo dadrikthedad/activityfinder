@@ -38,7 +38,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for GitHub integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
-          app_location: "/activitynext" # Endret fra /activityfront til /activitynext
+          app_location: "activitynext" # Endret fra /activityfront til /activitynext
           api_location: "" # Ingen API-endepunkt nødvendig
           output_location: "activitynext/out" # Endret fra "build" til ".next"
           ###### End of Repository/Build Configurations ######
