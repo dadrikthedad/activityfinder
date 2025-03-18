@@ -163,6 +163,29 @@ public class UserController : ControllerBase
     }
     
     
+    // Sjekker at epost ikke er brukt tidligere
+    [HttpGet("check-email")]
+    public async Task<IActionResult> CheckEmailAvailability([FromQuery] string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { message = "Email can't be empty." });
+        }
+
+        try
+        {
+            bool emailExists = await _context.Users.AnyAsync(user => EF.Functions.Like(user.Email, email));
+
+            return Ok(new { exists = emailExists });
+        }
+        catch (Exception e)
+        {
+            _logger.LogError("Error while checking email: {Error}", e.Message);
+            return StatusCode(500, new { message = "Database error. Try again later." });
+        }
+    }
+    
+    
     
     
 }

@@ -57,6 +57,8 @@ public class User
     [MaxLength(25)]
     public string? PostalCode { get; set; }
     
+    // Lagrer landet
+    
     // Metode for å verifisere passord laget 11.03. Sjekker om passordet er korrekt når brukeren taster den inn.
     public bool VerifyPassword(string password) => BCrypt.Net.BCrypt.Verify(password, PasswordHash);
     
