@@ -1,5 +1,5 @@
 "use client";
-import { useState} from "react";
+import { useState, useEffect} from "react";
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -17,24 +17,52 @@ export default function Signup() {
 
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [message, setMessage] = useState("");
+    const [countries, setCountries] = useState<string[]>([]);
+    const [regions, setRegions] = useState<string[]>([]);
+  
 
-  // Håndterer inputendringer
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await fetch("https://restcountries.com/v3.1/all");
+        const data = await response.json();
+        // Henter bare landnavnene fra API-et
+        const countryNames = data.map((country: any) => country.name.common).sort();
+        setCountries(countryNames);
+      } catch (error) {
+        console.error("Feil ved henting av land:", error);
+      }
+    };
+  
+    fetchCountries();
+  }, []);
+
+    // Håndterer inputendringer
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+  
 
   // Håndterer regioner ut ifra hvilket land man har valgt.
-  const [regions, setRegions] = useState<string[]>([]);
+  
 
 const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
   const selectedCountry = e.target.value;
   setFormData({ ...formData, country: selectedCountry });
 
+  if (!selectedCountry) {
+    setRegions([]);
+    return;
+  }
+
   try {
     const res = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${selectedCountry}`);
+    if (!res.ok) throw new Error("Kunne ikke hente regioner.");
+
     const data = await res.json();
     setRegions(data);
-  } catch {
+  } catch (error) {
+    console.error("Feil ved henting av regioner:", error);
     setRegions([]);
   }
 };
@@ -125,12 +153,12 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
 
         {/* Land-dropdown */}
         <div>
-          <select name="country" value={formData.country} onChange={handleCountryChange} className="px-4 py-2 border rounded-md w-full">
-            <option value="">Velg land</option>
-            <option value="Norway">Norge</option>
-            <option value="Sweden">Sverige</option>
-            <option value="Denmark">Danmark</option>
-          </select>
+        <select name="country" value={formData.country} onChange={handleCountryChange}>
+              <option value="">Velg land</option>
+              {countries.map((country) => (
+                <option key={country} value={country}>{country}</option>
+              ))}
+            </select>
           {errors["Country"] && <p className="text-red-500 text-sm">{errors["Country"]}</p>}
         </div>
 
