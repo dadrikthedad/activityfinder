@@ -16,7 +16,6 @@
 # next.js
 /.next/
 /out/
-/.vercel/
 /.swc/
 /turbo/
 
@@ -40,11 +39,8 @@ yarn-error.log*
 .env.production
 .env.test
 
-# vercel
-.vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
