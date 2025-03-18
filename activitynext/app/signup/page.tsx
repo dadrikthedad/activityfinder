@@ -76,6 +76,7 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         }
       }
     } catch (error) {
+      console.error("Feil under registering:", error)
       setMessage("❌ Nettverksfeil. Prøv igjen senere.");
     }
   };
