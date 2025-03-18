@@ -19,18 +19,20 @@ export default function Signup() {
     const [message, setMessage] = useState("");
     const [countries, setCountries] = useState<string[]>([]);
     const [regions, setRegions] = useState<string[]>([]);
+    const [loadingCountries, setLoadingCountries] = useState(true);
   
 
   useEffect(() => {
     const fetchCountries = async () => {
       try {
         const response = await fetch("https://restcountries.com/v3.1/all");
-        const data = await response.json();
-        // Henter bare landnavnene fra API-et
-        const countryNames = data.map((country: any) => country.name.common).sort();
+        const data: { name: { common: string } }[] = await response.json(); // Spesifiserer forventet responsstruktur
+        const countryNames = data.map((country) => country.name.common).sort();
         setCountries(countryNames);
       } catch (error) {
         console.error("Feil ved henting av land:", error);
+      } finally {
+        setLoadingCountries(false);
       }
     };
   
@@ -153,24 +155,25 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
 
         {/* Land-dropdown */}
         <div>
-        <select name="country" value={formData.country} onChange={handleCountryChange}>
-              <option value="">Velg land</option>
-              {countries.map((country) => (
-                <option key={country} value={country}>{country}</option>
-              ))}
-            </select>
+          <select name="country" value={formData.country} onChange={handleCountryChange} className="px-4 py-2 border rounded-md w-full">
+            <option value="" disabled>{loadingCountries ? "Laster inn land..." : "Kunne ikke laste land"}</option>
+            {countries.map((country) => (
+              <option key={country} value={country}>{country}</option>
+            ))}
+          </select>
           {errors["Country"] && <p className="text-red-500 text-sm">{errors["Country"]}</p>}
         </div>
 
         {/* Region-dropdown */}
         <div>
-          <select name="region" value={formData.region} onChange={handleChange} className="px-4 py-2 border rounded-md w-full">
-            <option value="">Velg region</option>
-            {regions.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
-          </select>
+        <select name="region" value={formData.region} onChange={handleChange} disabled={!formData.country} className="px-4 py-2 border rounded-md w-full">
+          <option value="">Velg region</option>
+          {regions.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
           {errors["Region"] && <p className="text-red-500 text-sm">{errors["Region"]}</p>}
+          {regions.length === 0 && formData.country && <p className="text-gray-500 text-sm">Ingen regioner funnet for {formData.country}</p>}
         </div>
 
         <div>
