@@ -20,8 +20,13 @@ export default function Signup() {
     const [countries, setCountries] = useState<string[]>([]);
     const [regions, setRegions] = useState<string[]>([]);
     const [loadingCountries, setLoadingCountries] = useState(true);
-  
+    const [searchQuery, setSearchQuery] = useState("");
 
+    const filteredCountries = countries.filter(country =>
+      country.toLowerCase().includes(searchQuery.toLowerCase()) // 🔥 Filtrer basert på søk
+    );
+  
+  //Hent land fra API
   useEffect(() => {
     const fetchCountries = async () => {
       try {
@@ -39,13 +44,19 @@ export default function Signup() {
     fetchCountries();
   }, []);
 
+  //Hent IP fra API
   useEffect(() => {
     const fetchUserCountry = async () => {
       try {
-        const response = await fetch("https://ip-api.com/json/");
+        const response = await fetch("https://ipapi.co/json/");
         const data = await response.json();
-        if (data && data.country) {
-          setFormData((prev) => ({ ...prev, country: data.country }));
+        if (data && data.country_name && !formData.country) {
+          setFormData((prev) => ({ ...prev, country: data.country_name }));
+
+          // Hent regioner automatisk
+          await handleCountryChange({
+            target: { value: data.country_name },
+          } as React.ChangeEvent<HTMLSelectElement>);
         }
       } catch (error) {
         console.error("Kunne ikke hente brukerens land:", error);
@@ -53,7 +64,7 @@ export default function Signup() {
     };
 
     fetchUserCountry();
-  }, []);
+  }, [formData.country]);
 
     // Håndterer inputendringer
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -133,88 +144,110 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
       <p className="mt-4 text-lg text-gray-700 dark:text-gray-300">
         Opprett en ny konto for å bli med.
       </p>
-
+  
       <form onSubmit={registerUser} className="mt-6 flex flex-col gap-4 w-80">
+        {/* 🔍 Søkeinput for land */}
+        <input
+          type="text"
+          placeholder="Søk etter land..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="px-4 py-2 border rounded-md w-full"
+        />
+  
+        {/* 🌍 Land-dropdown */}
         <div>
-          <input type="text" name="firstName" placeholder="Fornavn" value={formData.firstName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-          {errors["FirstName"] && <p className="text-red-500 text-sm">{errors["FirstName"]}</p>}
-        </div>
-
-        <div>
-          <input type="text" name="middleName" placeholder="Mellomnavn (valgfritt)" value={formData.middleName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-        </div>
-
-        <div>
-          <input type="text" name="lastName" placeholder="Etternavn" value={formData.lastName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-          {errors["LastName"] && <p className="text-red-500 text-sm">{errors["LastName"]}</p>}
-        </div>
-
-        <div>
-          <input type="email" name="email" placeholder="E-post" value={formData.email} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-          {errors["Email"] && <p className="text-red-500 text-sm">{errors["Email"]}</p>}
-        </div>
-
-        <div>
-          <input type="password" name="password" placeholder="Passord" value={formData.password} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-          {errors["Password"] && <p className="text-red-500 text-sm">{errors["Password"]}</p>}
-        </div>
-
-        <div>
-          <input type="tel" name="phone" placeholder="Telefonnummer" value={formData.phone} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-          {errors["Phone"] && <p className="text-red-500 text-sm">{errors["Phone"]}</p>}
-        </div>
-
-        <div>
-          <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
-          {errors["DateOfBirth"] && <p className="text-red-500 text-sm">{errors["DateOfBirth"]}</p>}
-        </div>
-
-        {/* Land-dropdown */}
-        <select
+          <select
             name="country"
             value={formData.country}
             onChange={handleCountryChange}
             className="px-4 py-2 border rounded-md w-full"
-            disabled={loadingCountries || countries.length === 0} // Deaktiver ved lasting eller feil
+            disabled={loadingCountries || filteredCountries.length === 0}
           >
             <option value="" disabled>
-              {loadingCountries ? "Laster inn land..." : countries.length ? "Velg et land" : "Kunne ikke laste land"}
+              {loadingCountries ? "Laster inn land..." : filteredCountries.length ? "Velg et land" : "Ingen land funnet"}
             </option>
-            {countries.map((country) => (
+            {filteredCountries.map((country) => (
               <option key={country} value={country}>
                 {country}
               </option>
             ))}
           </select>
           {errors["Country"] && <p className="text-red-500 text-sm">{errors["Country"]}</p>}
-
-        {/* Region-dropdown */}
-        <div>
-        <select name="region" value={formData.region} onChange={handleChange} disabled={!formData.country} className="px-4 py-2 border rounded-md w-full">
-          <option value="">Velg region</option>
-          {regions.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
-          {errors["Region"] && <p className="text-red-500 text-sm">{errors["Region"]}</p>}
-          {regions.length === 0 && formData.country && <p className="text-gray-500 text-sm">Ingen regioner funnet for {formData.country}</p>}
         </div>
-
+  
+        {/* 🏙️ Region-dropdown */}
+        <div>
+          <select
+            name="region"
+            value={formData.region}
+            onChange={handleChange}
+            disabled={!formData.country}
+            className="px-4 py-2 border rounded-md w-full"
+          >
+            <option value="">Velg region</option>
+            {regions.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          {errors["Region"] && <p className="text-red-500 text-sm">{errors["Region"]}</p>}
+          {regions.length === 0 && formData.country && (
+            <p className="text-gray-500 text-sm">Ingen regioner funnet for {formData.country}</p>
+          )}
+        </div>
+  
+        {/* 📩 Alle inputfeltene inkludert */}
+        <div>
+          <input type="text" name="firstName" placeholder="Fornavn" value={formData.firstName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["FirstName"] && <p className="text-red-500 text-sm">{errors["FirstName"]}</p>}
+        </div>
+  
+        <div>
+          <input type="text" name="middleName" placeholder="Mellomnavn (valgfritt)" value={formData.middleName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+        </div>
+  
+        <div>
+          <input type="text" name="lastName" placeholder="Etternavn" value={formData.lastName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["LastName"] && <p className="text-red-500 text-sm">{errors["LastName"]}</p>}
+        </div>
+  
+        <div>
+          <input type="email" name="email" placeholder="E-post" value={formData.email} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["Email"] && <p className="text-red-500 text-sm">{errors["Email"]}</p>}
+        </div>
+  
+        <div>
+          <input type="password" name="password" placeholder="Passord" value={formData.password} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["Password"] && <p className="text-red-500 text-sm">{errors["Password"]}</p>}
+        </div>
+  
+        <div>
+          <input type="tel" name="phone" placeholder="Telefonnummer" value={formData.phone} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["Phone"] && <p className="text-red-500 text-sm">{errors["Phone"]}</p>}
+        </div>
+  
+        <div>
+          <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["DateOfBirth"] && <p className="text-red-500 text-sm">{errors["DateOfBirth"]}</p>}
+        </div>
+  
         <div>
           <input type="text" name="postalCode" placeholder="Postnummer" value={formData.postalCode} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
           {errors["PostalCode"] && <p className="text-red-500 text-sm">{errors["PostalCode"]}</p>}
         </div>
-
-        <button 
-            type="submit" 
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition w-full disabled:bg-gray-400 disabled:cursor-not-allowed"
-            disabled={!formData.firstName || !formData.email || !formData.password}
-          >
-            Registrer deg
-          </button>
+  
+        {/* 📩 Registreringsknapp */}
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition w-full disabled:bg-gray-400 disabled:cursor-not-allowed"
+          disabled={!formData.firstName || !formData.email || !formData.password}
+        >
+          Registrer deg
+        </button>
       </form>
-
+  
       {message && <p className="mt-4 font-semibold text-red-500">{message}</p>}
     </div>
-  );
-}
+  )};

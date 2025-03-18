@@ -44,7 +44,6 @@ activitynext/.next/
 activitynext/out/
 activitynext/.turbo/
 activitynext/.swc/
-activitynext/.vercel/
 activitynext/build/
 
 ## 🔑 Miljøvariabler (felles for hele repoet)
