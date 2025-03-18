@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { Info } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -16,6 +18,7 @@ export default function Signup() {
     postalCode: "",
     });
 
+    const router = useRouter();
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [message, setMessage] = useState("");
     const [countries, setCountries] = useState<string[]>([]);
@@ -30,6 +33,8 @@ export default function Signup() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordMatchError, setPasswordMatchError] = useState("");
     const [hasSubmitted, setHasSubmitted] = useState(false);
+    const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
+    const [isRegistered, setIsRegistered] = useState(false);
 
     const filteredCountries = countries.filter(country =>
       country.toLowerCase().includes(searchQuery.toLowerCase()) // 🔥 Filtrer basert på søk
@@ -70,15 +75,26 @@ export default function Signup() {
     }
   }, [formData.password, formData.confirmPassword]);
 
+  useEffect(() => {
+    if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) return;
+
+    if (emailCheckTimeout.current) clearTimeout(emailCheckTimeout.current);
+
+    emailCheckTimeout.current = setTimeout(() => {
+      checkEmailAvailability(formData.email);
+    }, 500); // Vent 500ms før vi sjekker
+  }, [formData.email]);
+
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     validateSingleField(name, value);
     if (name === "email") {
       checkEmailAvailability(value); // 🔥 Sjekker e-post i backend
     }
-
   };
   
+  
+
   const checkEmailAvailability = async (email: string) => {
     if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email)) return; // Ikke sjekk hvis e-post er tom eller ugyldig
   
@@ -290,6 +306,12 @@ useEffect(() => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (isRegistered) {
+      router.push("/login"); // 🚀 Naviger kun etter at state har endret seg
+    }
+  }, [isRegistered, router]);
+
   const registerUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(""); 
@@ -308,6 +330,12 @@ useEffect(() => {
       if (response.ok) {
         setMessage("✅ Bruker registrert!");
         setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
+        setTimeout(() => {
+          setMessage(""); 
+          setIsRegistered(true); // 🚀 Oppdater state i stedet for å navigere direkte
+        }, 1000);
+
+
       } else {
         setErrors(data.errors || { general: "Kunne ikke registrere bruker." });
       }
@@ -323,154 +351,232 @@ useEffect(() => {
       <p className="mt-4 text-lg text-gray-700 dark:text-gray-300">
         Create a new user.
       </p>
-        <form className="mt-6 flex flex-col w-80 space-y-4">
-        {/* 📩 Alle inputfeltene inkludert */}
-      <div>
-      <input type="text" name="firstName" placeholder="Fornavn" value={formData.firstName} onChange={handleChange} onBlur={handleBlur}  className="w-full h-12 px-4 border rounded-md" />
-          {errors["FirstName"] && <p className="text-red-500 text-sm">{errors["FirstName"]}</p>}
-          {errors.firstName && <p className="text-red-500 text-sm">{errors.firstName}</p>}
-        </div>
   
-        <div>
-          <input type="text" name="middleName" placeholder="Mellomnavn (valgfritt)" value={formData.middleName} onChange={handleChange} onBlur={handleBlur} className="w-full h-12 px-4 border rounded-md" />
-        </div>
+      <form className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
   
-        <div>
-          <input type="text" name="lastName" placeholder="Etternavn" value={formData.lastName} onChange={handleChange} onBlur={handleBlur} className="w-full h-12 px-4 border rounded-md" />
-          {errors.lastName && <p className="text-red-500 text-sm">{errors.lastName}</p>}
-        </div>
-  
-        <div>
-          <input type="email" name="email" placeholder="E-post" value={formData.email} onChange={handleChange} onBlur={handleBlur} className="w-full h-12 px-4 border rounded-md" />
-          {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
-        </div>
+  {/* 🔥 FORNAVN */}
+  <label className="text-gray-300 font-medium text-right">Fornavn:</label>
 
-                <div className="relative">
-          <input
-            type={showPassword ? "text" : "password"}
-            name="password"
-            placeholder="Passord"
-            value={formData.password}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            className="w-full h-12 px-4 border rounded-md"
-          />
-          <button
-            type="button"
-            onClick={togglePasswordVisibility}
-            aria-label="Vis/skjul passord"
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-600"
-          >
-            {showPassword ? "👁️" : "🙈"}
-          </button>
-          {errors["Password"] && <p className="text-red-500 text-sm">{errors["Password"]}</p>}
-          {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
-        </div>
+  <div className="flex flex-col w-full">
+    <input
+      type="text"
+      name="firstName"
+      placeholder="Fornavn"
+      value={formData.firstName}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${errors.firstName ? "border-red-500" : "border-gray-500"}`}
+    />
+    {errors.firstName && (
+      <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>
+    )}
+  </div>
 
-        <div className="relative">
-          <input
-            type={showConfirmPassword ? "text" : "password"}
-            name="confirmPassword"
-            placeholder="Bekreft passord"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            className="w-full h-12 px-4 border rounded-md"
-          />
-          <button
-            type="button"
-            onClick={toggleConfirmPasswordVisibility}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-600"
-          >
-            {showConfirmPassword ? "👁️" : "🙈"}
-          </button>
-          {passwordMatchError && <p className="text-red-500 text-sm">{passwordMatchError}</p>}
-          {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword}</p>}
-        </div>
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
 
-  
-        <div>
-          <input type="tel" name="phone" placeholder="Telefonnummer (valgfritt)" value={formData.phone} onChange={handleChange} onBlur={handleBlur} className="w-full h-12 px-4 border rounded-md" />
-          {errors.phone && <p className="text-red-500 text-sm">{errors.phone}</p>}
-        </div>
-  
-        <div>
-          <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} onBlur={handleBlur} className="w-full h-12 px-4 border rounded-md" />
-          {errors.DateOfBirth && <p className="text-red-500 text-sm">{errors.DateOfBirth}</p>}
-        </div>
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
 
+  {/* 🔥 MELLOMNAVN */}
+  <label className="text-gray-300 font-medium text-right">Mellomnavn (valgfritt):</label>
 
-        {/* 🏆 Søkbar land-dropdown */}
-        <div className="relative">
-        <input
-            type="text"
-            name="country"
-            placeholder="Velg land..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setShowDropdown(filteredCountries.length > 0); // 🔥 Åpner dropdown KUN hvis treff
-              setActiveIndex(-1);
-            }}
-            onFocus={() => setShowDropdown(true)}
-            onKeyDown={handleKeyDown} // 👈 Legg til tastaturhåndtering
-            className="w-full h-12 px-4 border rounded-md"
-          />
-           {errors.country && <p className="text-red-500 text-sm">{errors.country}</p>}
-        {showDropdown && (
-          <ul  ref={dropdownRef} // 🔥 Legg til ref her!
-          className="absolute z-10 bg-white border rounded-md w-full mt-1 max-h-40 overflow-y-auto shadow-lg country-dropdown">
-            {filteredCountries.map((country, index) => (
-              <li 
-                key={country}
-                onClick={() => selectCountry(country)}
-                className={`px-4 py-2 cursor-pointer ${
-                  activeIndex === index ? "bg-blue-500 text-white" : "hover:bg-gray-100"
-                }`}
-              >
-                {country}
-              </li>
-            ))}
-          </ul>
-)}
-        </div>
+  <input
+    type="text"
+    name="middleName"
+    placeholder="Mellomnavn"
+    value={formData.middleName}
+    onChange={handleChange}
+    className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+  />
 
-        {/* 🏙️ Region-dropdown */}
-        <select name="region" value={formData.region} onChange={handleChange} disabled={!formData.country} className="w-full h-12 px-4 border rounded-md">
-          <option value="">Velg region</option>
-          {regions.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-          {errors.region && (
-            <p className="absolute left-0 text-red-500 text-sm mt-1">{errors.region}</p>
-          )}
-        <div>
-          <input type="text" name="postalCode" placeholder="Postnummer (valgfritt)" value={formData.postalCode} onChange={handleChange} onBlur={handleBlur} className="w-full h-12 px-4 border rounded-md" />
-          {errors["PostalCode"] && <p className="text-red-500 text-sm">{errors["PostalCode"]}</p>}
-        </div>
+<div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
 
-        {/* 📩 Registreringsknapp */}
-        <button
-          type="submit"
-          className="w-full h-12 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-          disabled={
-            Object.keys(errors).length > 0 ||
-            !formData.firstName ||
-            !formData.lastName ||
-            !formData.email ||
-            !formData.password ||
-            !formData.confirmPassword ||
-            !formData.dateOfBirth ||
-            !formData.country ||
-            !formData.region
-          }
-        >
-          Sign up
-        </button>
-      </form>
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 ETTERNAVN */}
+  <label className="text-gray-300 font-medium text-right">Etternavn:</label>
+
+  <div className="flex flex-col w-full">
+    <input
+      type="text"
+      name="lastName"
+      placeholder="Etternavn"
+      value={formData.lastName}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${errors.lastName ? "border-red-500" : "border-gray-500"}`}
+    />
+    {errors.lastName && (
+      <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>
+    )}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 E-POST */}
+  <label className="text-gray-300 font-medium text-right">E-post:</label>
+
+  <div className="flex flex-col w-full">
+    <input
+      type="email"
+      name="email"
+      placeholder="E-post"
+      value={formData.email}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${errors.email ? "border-red-500" : "border-gray-500"}`}
+    />
+    {errors.email && (
+      <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+    )}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 PASSORD */}
+  <label className="text-gray-300 font-medium text-right">Passord:</label>
+
+  <div className="relative w-full">
+    <input
+      type={showPassword ? "text" : "password"}
+      name="password"
+      placeholder="Passord"
+      value={formData.password}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${errors.password ? "border-red-500" : "border-gray-500"}`}
+    />
+    <button
+      type="button"
+      onClick={togglePasswordVisibility}
+      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-600"
+    >
+      {showPassword ? "👁️" : "🙈"}
+    </button>
+    {errors.password && (
+      <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+    )}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 BEKREFT PASSORD */}
+  <label className="text-gray-300 font-medium text-right">Bekreft passord:</label>
+
+  <div className="relative w-full">
+    <input
+      type={showConfirmPassword ? "text" : "password"}
+      name="confirmPassword"
+      placeholder="Bekreft passord"
+      value={formData.confirmPassword}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${errors.confirmPassword ? "border-red-500" : "border-gray-500"}`}
+    />
+    <button
+      type="button"
+      onClick={toggleConfirmPasswordVisibility}
+      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-600"
+    >
+      {showConfirmPassword ? "👁️" : "🙈"}
+    </button>
+    {errors.confirmPassword && (
+      <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
+    )}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 TELEFONNUMMER */}
+  <label className="text-gray-300 font-medium text-right">Telefonnummer (valgfritt):</label>
+
+  <input
+    type="tel"
+    name="phone"
+    placeholder="Telefonnummer"
+    value={formData.phone}
+    onChange={handleChange}
+    className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+  />
+
+<div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 SIGN UP BUTTON */}
+  <div className="col-span-3 flex justify-center mt-4">
+    <button
+      type="submit"
+      className="w-full max-w-sm h-12 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
+      disabled={
+        Object.keys(errors).length > 0 ||
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.password ||
+        !formData.confirmPassword
+      }
+    >
+      Sign up
+    </button>
+  </div>
+
+</form>
     </div>
   );
+  
 }
