@@ -39,6 +39,22 @@ export default function Signup() {
     fetchCountries();
   }, []);
 
+  useEffect(() => {
+    const fetchUserCountry = async () => {
+      try {
+        const response = await fetch("https://ip-api.com/json/");
+        const data = await response.json();
+        if (data && data.country) {
+          setFormData((prev) => ({ ...prev, country: data.country }));
+        }
+      } catch (error) {
+        console.error("Kunne ikke hente brukerens land:", error);
+      }
+    };
+
+    fetchUserCountry();
+  }, []);
+
     // Håndterer inputendringer
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -154,20 +170,23 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         </div>
 
         {/* Land-dropdown */}
-        <select 
-          name="country" 
-          value={formData.country} 
-          onChange={handleCountryChange} 
-          className="px-4 py-2 border rounded-md w-full"
-          disabled={loadingCountries || countries.length === 0} // Deaktiver ved lasting eller feil
-        >
-          <option value="" disabled>
-            {loadingCountries ? "Laster inn land..." : countries.length ? "Velg et land" : "Kunne ikke laste land"}
-          </option>
-          {countries.map((country) => (
-            <option key={country} value={country}>{country}</option>
-          ))}
-        </select>
+        <select
+            name="country"
+            value={formData.country}
+            onChange={handleCountryChange}
+            className="px-4 py-2 border rounded-md w-full"
+            disabled={loadingCountries || countries.length === 0} // Deaktiver ved lasting eller feil
+          >
+            <option value="" disabled>
+              {loadingCountries ? "Laster inn land..." : countries.length ? "Velg et land" : "Kunne ikke laste land"}
+            </option>
+            {countries.map((country) => (
+              <option key={country} value={country}>
+                {country}
+              </option>
+            ))}
+          </select>
+          {errors["Country"] && <p className="text-red-500 text-sm">{errors["Country"]}</p>}
 
         {/* Region-dropdown */}
         <div>
