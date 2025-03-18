@@ -154,15 +154,20 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         </div>
 
         {/* Land-dropdown */}
-        <div>
-          <select name="country" value={formData.country} onChange={handleCountryChange} className="px-4 py-2 border rounded-md w-full">
-            <option value="" disabled>{loadingCountries ? "Laster inn land..." : "Kunne ikke laste land"}</option>
-            {countries.map((country) => (
-              <option key={country} value={country}>{country}</option>
-            ))}
-          </select>
-          {errors["Country"] && <p className="text-red-500 text-sm">{errors["Country"]}</p>}
-        </div>
+        <select 
+          name="country" 
+          value={formData.country} 
+          onChange={handleCountryChange} 
+          className="px-4 py-2 border rounded-md w-full"
+          disabled={loadingCountries || countries.length === 0} // Deaktiver ved lasting eller feil
+        >
+          <option value="" disabled>
+            {loadingCountries ? "Laster inn land..." : countries.length ? "Velg et land" : "Kunne ikke laste land"}
+          </option>
+          {countries.map((country) => (
+            <option key={country} value={country}>{country}</option>
+          ))}
+        </select>
 
         {/* Region-dropdown */}
         <div>
@@ -181,9 +186,13 @@ const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
           {errors["PostalCode"] && <p className="text-red-500 text-sm">{errors["PostalCode"]}</p>}
         </div>
 
-        <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition w-full">
-          Registrer deg
-        </button>
+        <button 
+            type="submit" 
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition w-full disabled:bg-gray-400 disabled:cursor-not-allowed"
+            disabled={!formData.firstName || !formData.email || !formData.password}
+          >
+            Registrer deg
+          </button>
       </form>
 
       {message && <p className="mt-4 font-semibold text-red-500">{message}</p>}
