@@ -49,6 +49,7 @@ export default function Signup() {
         setMessage("❌ Feil: " + (data.message || "Kunne ikke registrere bruker."));
       }
     } catch (error) {
+      console.error("registreringsfeil:", error);
       setMessage("❌ Nettverksfeil. Prøv igjen senere.");
     }
   };
