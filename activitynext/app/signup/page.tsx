@@ -15,6 +15,7 @@ export default function Signup() {
     postalCode: "",
     });
 
+    const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [message, setMessage] = useState("");
 
   // Håndterer inputendringer
@@ -22,10 +23,31 @@ export default function Signup() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Håndterer regioner ut ifra hvilket land man har valgt.
+  const [regions, setRegions] = useState<string[]>([]);
+
+const handleCountryChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const selectedCountry = e.target.value;
+  setFormData({ ...formData, country: selectedCountry });
+
+  try {
+    const res = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${selectedCountry}`);
+    const data = await res.json();
+    setRegions(data);
+  } catch {
+    setRegions([]);
+  }
+};
+
   const registerUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(""); // Resetter eventuelle feilmeldinger
+    setMessage(""); // Resetter tidligere meldinger
+    setErrors({}); // Resetter tidligere feilmeldinger
+  
+  
 
+
+  
     try {
       const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/register", {
         method: "POST",
@@ -34,22 +56,26 @@ export default function Signup() {
         },
         body: JSON.stringify(formData),
       });
-
+  
       let data;
       const isJson = response.headers.get("content-type")?.includes("application/json");
       if (isJson) {
         data = await response.json();
       } else {
-        data = {message: "Ukjent feil oppstod."};
+        data = { message: "Ukjent feil oppstod." };
       }
-
+  
       if (response.ok) {
         setMessage("✅ Bruker registrert!");
       } else {
-        setMessage("❌ Feil: " + (data.message || "Kunne ikke registrere bruker."));
+        // Hvis backend sender flere feilmeldinger, vis alle
+        if (data.errors) {
+          setErrors(data.errors); // Lagre feilmeldinger i state
+        } else {
+          setMessage("❌ Feil: " + (data.message || "Kunne ikke registrere bruker."));
+        }
       }
     } catch (error) {
-      console.error("registreringsfeil:", error);
       setMessage("❌ Nettverksfeil. Prøv igjen senere.");
     }
   };
@@ -62,17 +88,68 @@ export default function Signup() {
       </p>
 
       <form onSubmit={registerUser} className="mt-6 flex flex-col gap-4 w-80">
-        <input type="text" name="firstName" placeholder="Fornavn" value={formData.firstName} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="text" name="middleName" placeholder="Mellomnavn (valgfritt)" value={formData.middleName} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="text" name="lastName" placeholder="Etternavn" value={formData.lastName} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="email" name="email" placeholder="E-post" value={formData.email} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="password" name="password" placeholder="Passord" value={formData.password} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="tel" name="phone" placeholder="Telefonnummer" value={formData.phone} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="date" name="dateOfBirth" placeholder="Fødselsdato" value={formData.dateOfBirth} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="text" name="region" placeholder="Region" value={formData.region} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        <input type="text" name="postalCode" placeholder="Postnummer" value={formData.postalCode} onChange={handleChange} className="px-4 py-2 border rounded-md" />
-        
-        <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition">
+        <div>
+          <input type="text" name="firstName" placeholder="Fornavn" value={formData.firstName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["FirstName"] && <p className="text-red-500 text-sm">{errors["FirstName"]}</p>}
+        </div>
+
+        <div>
+          <input type="text" name="middleName" placeholder="Mellomnavn (valgfritt)" value={formData.middleName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+        </div>
+
+        <div>
+          <input type="text" name="lastName" placeholder="Etternavn" value={formData.lastName} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["LastName"] && <p className="text-red-500 text-sm">{errors["LastName"]}</p>}
+        </div>
+
+        <div>
+          <input type="email" name="email" placeholder="E-post" value={formData.email} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["Email"] && <p className="text-red-500 text-sm">{errors["Email"]}</p>}
+        </div>
+
+        <div>
+          <input type="password" name="password" placeholder="Passord" value={formData.password} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["Password"] && <p className="text-red-500 text-sm">{errors["Password"]}</p>}
+        </div>
+
+        <div>
+          <input type="tel" name="phone" placeholder="Telefonnummer" value={formData.phone} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["Phone"] && <p className="text-red-500 text-sm">{errors["Phone"]}</p>}
+        </div>
+
+        <div>
+          <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["DateOfBirth"] && <p className="text-red-500 text-sm">{errors["DateOfBirth"]}</p>}
+        </div>
+
+        {/* Land-dropdown */}
+        <div>
+          <select name="country" value={formData.country} onChange={handleCountryChange} className="px-4 py-2 border rounded-md w-full">
+            <option value="">Velg land</option>
+            <option value="Norway">Norge</option>
+            <option value="Sweden">Sverige</option>
+            <option value="Denmark">Danmark</option>
+          </select>
+          {errors["Country"] && <p className="text-red-500 text-sm">{errors["Country"]}</p>}
+        </div>
+
+        {/* Region-dropdown */}
+        <div>
+          <select name="region" value={formData.region} onChange={handleChange} className="px-4 py-2 border rounded-md w-full">
+            <option value="">Velg region</option>
+            {regions.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+          {errors["Region"] && <p className="text-red-500 text-sm">{errors["Region"]}</p>}
+        </div>
+
+        <div>
+          <input type="text" name="postalCode" placeholder="Postnummer" value={formData.postalCode} onChange={handleChange} className="px-4 py-2 border rounded-md w-full" />
+          {errors["PostalCode"] && <p className="text-red-500 text-sm">{errors["PostalCode"]}</p>}
+        </div>
+
+        <button type="submit" className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition w-full">
           Registrer deg
         </button>
       </form>
