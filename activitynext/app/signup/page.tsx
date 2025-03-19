@@ -26,8 +26,6 @@ export default function Signup() {
     const hasSetCountry = useRef(false); // 👈 Lagrer om vi allerede har satt landet
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [passwordMatchError, setPasswordMatchError] = useState("");
-    const [hasSubmitted, setHasSubmitted] = useState(false);
     const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
@@ -58,13 +56,6 @@ export default function Signup() {
   };
   
   // Sjekker om passordene matcher live
-  useEffect(() => {
-    if (formData.confirmPassword && formData.password !== formData.confirmPassword) {
-      setPasswordMatchError("The passwords must match.");
-    } else {
-      setPasswordMatchError("");
-    }
-  }, [formData.password, formData.confirmPassword]);
 
   useEffect(() => {
     if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) return;
@@ -120,7 +111,7 @@ export default function Signup() {
 
   // Funksjon for å validere ett enkelt felt
   const validateSingleField = (name: string, value: string) => {
-    let newErrors = { ...errors };
+    const newErrors = { ...errors };
   
     if (name === "firstName") {
       if (!value.trim()) newErrors.firstName = "First name is required.";
@@ -276,42 +267,11 @@ const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectE
   } catch (error) {
     console.error("Feil ved henting av regioner:", error);
     setRegions([]);
-    setFormData((prev) => ({ ...prev, region: "" }));
+    setFormData((prev) => ({ ...prev, region: "null" }));
   }
 };
 
 
-
-const validateForm = () => {
-  let newErrors: { [key: string]: string } = {};
-
-  if (!formData.firstName.trim()) newErrors.firstName = "Fornavn er påkrevd.";
-  if (!formData.lastName.trim()) newErrors.lastName = "Etternavn er påkrevd.";
-  if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = "Ugyldig e-postformat.";
-
-  if (formData.middleName.trim() && formData.middleName.length > 50) {
-    newErrors.middleName = "Middle name can't be more than 50 characters.";
-  }
-  
-  
-  if (!formData.password.trim()) newErrors.password = "Passord er påkrevd.";
-  else if (formData.password.length < 8) newErrors.password = "Passordet må være minst 8 tegn.";
-  else if (!/[A-Z]/.test(formData.password) || !/[a-z]/.test(formData.password) || !/\d/.test(formData.password)) {
-    newErrors.password = "Passordet må inneholde minst én stor bokstav, én liten bokstav og ett tall.";
-  }
-
-  if (!formData.confirmPassword.trim()) newErrors.confirmPassword = "Bekreft passord er påkrevd.";
-  else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = "Passordene stemmer ikke overens.";
-
-  if (!formData.dateOfBirth) newErrors.dateOfBirth = "Fødselsdato er påkrevd.";
-  if (!formData.country) newErrors.country = "Land er påkrevd.";
-  if (!formData.region && regions.length > 0) {
-    newErrors.region = "Region is required.";
-  }
-
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0; // ✅ Returnerer true hvis skjemaet er gyldig
-};
 
 useEffect(() => {
   console.log("Akkurat nå, errors:", errors);
@@ -343,7 +303,6 @@ useEffect(() => {
   const registerUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(""); 
-    setHasSubmitted(true); // Nå vises feilmeldinger kun etter innsending
     
     const payload: Partial<typeof formData> = { ...formData };
 
@@ -363,10 +322,10 @@ useEffect(() => {
         body: JSON.stringify(payload),
       });
   
-      let data = await response.json();
+      const data = await response.json();
       if (response.ok) {
         console.log("Sending dateOfBirth:", formData.dateOfBirth);
-        setMessage("✅ Bruker registrert!");
+        setMessage("✅ Register success! Welcome aboard!");
         setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
         setTimeout(() => {
           setMessage(""); 
@@ -757,6 +716,9 @@ useEffect(() => {
     >
       Sign up
     </button>
+    {message && (
+    <p className="mt-2 text-sm text-green-500">{message}</p>
+      )}
   </div>
 
 </form>
