@@ -14,7 +14,7 @@ export default function Signup() {
     phone: "",
     dateOfBirth: "",
     country: "",
-    region: "" as string | null,
+    region: "",
     postalCode: "",
     });
 
@@ -262,7 +262,7 @@ const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectE
 
     setFormData((prev) => ({
       ...prev,
-      region: data.length > 0 ? prev.region : null // 🚀 Setter region til null hvis ingen regioner finnes
+      region: data.length > 0 ? prev.region : "" // 🚀 Setter region til null hvis ingen regioner finnes
     }));
 
   } catch (error) {
@@ -270,7 +270,7 @@ const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectE
     setRegions([]);
     setFormData((prev) => ({
       ...prev,
-      region: null // ✅ Sikrer at vi ikke sender "null" som string
+      region: "" // ✅ Sikrer at vi ikke sender "null" som string
     }));
   }
 };
@@ -314,9 +314,9 @@ useEffect(() => {
     delete payload.phone; // 🚀 Fjern phone-feltet hvis det er tomt
     }
 
-    if (!payload.region) {
-      delete payload.region; // ✅ Fjern region fra payload hvis den er null
-  }
+    if (!formData.region || formData.region === "null") {
+      delete payload.region;
+    }
 
 
       console.log("Data som sendes til backend:", JSON.stringify(payload, null, 2));

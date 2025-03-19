@@ -77,6 +77,7 @@ public class UserController : ControllerBase
     // UserRegisterDTO er klassen vi har laget som bekrefter igjen at all dataen er riktig og oppretter et objekt.
     public async Task<IActionResult> RegisterUser([FromBody] UserRegisterDTO userDto)
     {
+        _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
         // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
         if (!ModelState.IsValid)
         {   
@@ -123,7 +124,7 @@ public class UserController : ControllerBase
             DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
             CreatedAt = DateTime.UtcNow,
             Country = userDto.Country,
-            Region = userDto.Region,
+            Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
             PostalCode = userDto.PostalCode
         };
         
