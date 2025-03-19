@@ -61,7 +61,10 @@ public class UserController : ControllerBase
         
         // Hvis det ikke er noen regioner i listen så får vi en feilmelding på det.
         if (regions == null || !regions.Any())
-            return NotFound(new { message = "No regions found for this country." });
+        {
+            _logger.LogInformation("Ingen regioner funnet for {CountryName}. Returnerer tom liste.", countryName);
+            return Ok(new List<string>());
+        }
         
         // Returner listen med navnene til regionene
         return Ok(regions.Select(region => region.Name).ToList());
