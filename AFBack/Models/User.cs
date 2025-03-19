@@ -52,7 +52,8 @@ public class User
     
     [Required]
     [MaxLength(100)]
-    public string Region { get; set; } = null!;
+    // Kun null hvis det er et land uten regioner
+    public string? Region { get; set; }
     
     [MaxLength(25)]
     public string? PostalCode { get; set; }

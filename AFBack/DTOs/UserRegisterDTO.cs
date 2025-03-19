@@ -81,9 +81,8 @@ public class UserRegisterDTO
     }
     
     // TODO: Kan fjerne MaxLength etterhvert når vi får satt inn droppdown menyen.
-    [Required(ErrorMessage = "Must be a valid providence.")]
     [MaxLength(100, ErrorMessage = "Providence can't be more than 100 characters.")]
-    public string Region { get; set; } = null!;
+    public string? Region { get; set; }
     
     [MaxLength(25, ErrorMessage = "Postal code can't be more than 25 characters.")]
     public string? PostalCode { get; set; }

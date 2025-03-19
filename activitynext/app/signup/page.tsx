@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Info } from "lucide-react";
+import { Info, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export default function Signup() {
@@ -14,7 +14,7 @@ export default function Signup() {
     phone: "",
     dateOfBirth: "",
     country: "",
-    region: "",
+    region: "" as string | null,
     postalCode: "",
     });
 
@@ -23,22 +23,15 @@ export default function Signup() {
     const [message, setMessage] = useState("");
     const [countries, setCountries] = useState<string[]>([]);
     const [regions, setRegions] = useState<string[]>([]);
-    const [loadingCountries, setLoadingCountries] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [showDropdown, setShowDropdown] = useState(false);
-    const [activeIndex, setActiveIndex] = useState(-1);
     const hasSetCountry = useRef(false); // 👈 Lagrer om vi allerede har satt landet
-    const dropdownRef = useRef<HTMLUListElement>(null)
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordMatchError, setPasswordMatchError] = useState("");
     const [hasSubmitted, setHasSubmitted] = useState(false);
     const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
+    const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
 
-    const filteredCountries = countries.filter(country =>
-      country.toLowerCase().includes(searchQuery.toLowerCase()) // 🔥 Filtrer basert på søk
-    );
   
   //Hent land fra API
   useEffect(() => {
@@ -50,8 +43,6 @@ export default function Signup() {
         setCountries(countryNames);
       } catch (error) {
         console.error("Feil ved henting av land:", error);
-      } finally {
-        setLoadingCountries(false);
       }
     };
   
@@ -87,10 +78,13 @@ export default function Signup() {
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    validateSingleField(name, value);
+
     if (name === "email") {
       checkEmailAvailability(value); // 🔥 Sjekker e-post i backend
     }
+
+    setTouchedFields((prev) => ({ ...prev, [name]: true })); // 👈 Registrerer at feltet er besøkt
+    validateSingleField(name, value); // 🔥 Kjør validering kun når feltet er besøkt
   };
   
   
@@ -126,37 +120,77 @@ export default function Signup() {
 
   // Funksjon for å validere ett enkelt felt
   const validateSingleField = (name: string, value: string) => {
-    let error = "";
+    let newErrors = { ...errors };
   
-    if (name === "firstName" && !value.trim()) error = "Fornavn er påkrevd.";
-    if (name === "lastName" && !value.trim()) error = "Etternavn er påkrevd.";
-    if (name === "email" && (!value.trim() || !/^\S+@\S+\.\S+$/.test(value))) error = "Ugyldig e-postformat.";
+    if (name === "firstName") {
+      if (!value.trim()) newErrors.firstName = "First name is required.";
+      else if (value.length > 50) newErrors.firstName = "First name can't be more than 50 characters.";
+      else delete newErrors.firstName;
+    }
+  
+    if (name === "middleName") {
+      if (value.trim() && value.length > 50) newErrors.middleName = "Middle name can't be more than 50 characters.";
+      else delete newErrors.middleName;
+    }
+  
+    if (name === "lastName") {
+      if (!value.trim()) newErrors.lastName = "Last name is required.";
+      else if (value.length > 50) newErrors.lastName = "Last name can't be more than 50 characters.";
+      else delete newErrors.lastName;
+    }
+  
+    if (name === "email") {
+      if (!value.trim()) newErrors.email = "Valid email is required.";
+      else if (!/^\S+@\S+\.\S+$/.test(value)) newErrors.email = "Invalid email format.";
+      else if (value.length > 100) newErrors.email = "Email can't be more than 100 characters.";
+      else delete newErrors.email;
+    }
+  
+    if (name === "phone") {
+      const phoneRegex = /^\+?[0-9]{7,15}$/;
+      if (value.trim() && !phoneRegex.test(value)) newErrors.phone = "Invalid phone number format.";
+      else if (value.length > 30) newErrors.phone = "Phone number can't be more than 30 characters.";
+      else delete newErrors.phone;
+    }
   
     if (name === "password") {
-      if (!value.trim()) error = "Passord er påkrevd.";
-      else if (value.length < 8) error = "Passordet må være minst 8 tegn.";
+      if (!value.trim()) newErrors.password = "Password is required.";
+      else if (value.length < 8) newErrors.password = "Password must be at least 8 characters long.";
+      else if (value.length > 128) newErrors.password = "Password can't be more than 128 characters.";
       else if (!/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/\d/.test(value)) {
-        error = "Passordet må inneholde minst én stor bokstav, én liten bokstav og ett tall.";
-      }
+        newErrors.password = "Password must contain at least one uppercase letter, one lowercase letter, and one number.";
+      } else delete newErrors.password;
     }
   
-    if (name === "confirmPassword" && value !== formData.password) {
-      error = "Passordene stemmer ikke overens.";
+    if (name === "confirmPassword") {
+      if (!value.trim()) newErrors.confirmPassword = "Confirm password is required.";
+      else if (value !== formData.password) newErrors.confirmPassword = "Passwords do not match.";
+      else delete newErrors.confirmPassword;
     }
   
-    setErrors((prevErrors) => {
-      const newErrors = { ...prevErrors };
-      
-      if (error) {
-        // 🔴 Legger til feilmelding
-        newErrors[name] = error;
-      } else {
-        // ✅ Fjerner feilmelding hvis feltet er gyldig
-        delete newErrors[name];
-      }
+    if (name === "dateOfBirth") {
+      if (!value.trim()) newErrors.dateOfBirth = "Date of birth is required.";
+      else delete newErrors.dateOfBirth;
+    }
   
-      return newErrors;
-    });
+    if (name === "country") {
+      if (!value.trim()) newErrors.country = "Country is required.";
+      else if (value.length > 100) newErrors.country = "Country name can't be more than 100 characters.";
+      else delete newErrors.country;
+    }
+  
+    if (name === "region") {
+      if (!value.trim()) newErrors.region = "Region is required.";
+      else if (value.length > 100) newErrors.region = "Region name can't be more than 100 characters.";
+      else delete newErrors.region;
+    }
+  
+    if (name === "postalCode") {
+      if (value.trim() && value.length > 25) newErrors.postalCode = "Postal code can't be more than 25 characters.";
+      else delete newErrors.postalCode;
+    }
+  
+    setErrors(newErrors);
   };
 
   //Hent IP fra API
@@ -221,8 +255,7 @@ export default function Signup() {
  // Håndterer valg av land
 const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectElement> | string) => {
   const selectedCountry = typeof eventOrCountry === "string" ? eventOrCountry : eventOrCountry.target.value;
-  setFormData({ ...formData, country: selectedCountry });
-  setSearchQuery(selectedCountry); // 👈 Oppdater søkefeltet
+  setFormData({ ...formData, country: selectedCountry, region: ""}); 
 
   if (!selectedCountry) {
     setRegions([]);
@@ -235,19 +268,19 @@ const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectE
     
     const data = await res.json();
     setRegions(data);
+
+    if (data.length === 0) {
+      setFormData((prev) => ({ ...prev, region: "" }));
+    }
+
   } catch (error) {
     console.error("Feil ved henting av regioner:", error);
     setRegions([]);
+    setFormData((prev) => ({ ...prev, region: "" }));
   }
 };
 
 
-const selectCountry = (country: string) => {
-  setFormData({ ...formData, country: country }); // 👈 Sørg for at landet oppdateres riktig
-  setSearchQuery(country);
-  setShowDropdown(false);
-  setActiveIndex(-1); // ✅ Nullstill aktivt valg // ✅ Skjul dropdown etter valg
-};
 
 const validateForm = () => {
   let newErrors: { [key: string]: string } = {};
@@ -255,6 +288,11 @@ const validateForm = () => {
   if (!formData.firstName.trim()) newErrors.firstName = "Fornavn er påkrevd.";
   if (!formData.lastName.trim()) newErrors.lastName = "Etternavn er påkrevd.";
   if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = "Ugyldig e-postformat.";
+
+  if (formData.middleName.trim() && formData.middleName.length > 50) {
+    newErrors.middleName = "Middle name can't be more than 50 characters.";
+  }
+  
   
   if (!formData.password.trim()) newErrors.password = "Passord er påkrevd.";
   else if (formData.password.length < 8) newErrors.password = "Passordet må være minst 8 tegn.";
@@ -267,37 +305,18 @@ const validateForm = () => {
 
   if (!formData.dateOfBirth) newErrors.dateOfBirth = "Fødselsdato er påkrevd.";
   if (!formData.country) newErrors.country = "Land er påkrevd.";
-  if (!formData.region) newErrors.region = "Region er påkrevd.";
+  if (!formData.region && regions.length > 0) {
+    newErrors.region = "Region is required.";
+  }
 
   setErrors(newErrors);
   return Object.keys(newErrors).length === 0; // ✅ Returnerer true hvis skjemaet er gyldig
-};
-
-const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    setActiveIndex((prev) => (prev < filteredCountries.length - 1 ? prev + 1 : 0));
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    setActiveIndex((prev) => (prev > 0 ? prev - 1 : prev));
-  } else if (e.key === "Enter" && activeIndex >= 0) {
-    e.preventDefault();
-    selectCountry(filteredCountries[activeIndex]); // ✅ Velg aktivt land
-    setShowDropdown(false); // ✅ Lukk dropdown
-  } else if (e.key === "Escape") {
-    setShowDropdown(false); // ✅ Lukker dropdown hvis Esc trykkes
-  }
 };
 
 useEffect(() => {
   console.log("Akkurat nå, errors:", errors);
 }, [errors]);
 
-useEffect(() => {
-  if (dropdownRef.current && activeIndex >= 0) {
-    dropdownRef.current.children[activeIndex]?.scrollIntoView({ block: "nearest" });
-  }
-}, [activeIndex]);
 
   useEffect(() => {
     if (!formData.country) return;
@@ -317,16 +336,7 @@ useEffect(() => {
     fetchRegions();
   }, [formData.country]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!event.target || !(event.target as HTMLElement).closest(".country-dropdown")) {
-        setShowDropdown(false);
-      }
-    };
-  
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+
 
   
 
@@ -392,7 +402,7 @@ useEffect(() => {
       <form onSubmit={registerUser} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
   
   {/* 🔥 FORNAVN */}
-  <label className="text-gray-300 font-medium text-right">Fornavn:</label>
+  <label className="text-gray-300 font-medium text-right">First name:</label>
 
   <div className="flex flex-col w-full">
     <input
@@ -403,9 +413,9 @@ useEffect(() => {
       onChange={handleChange}
       onBlur={handleBlur}
       className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${errors.firstName ? "border-red-500" : "border-gray-500"}`}
+        ${touchedFields.firstName && errors.firstName ? "border-red-500" : "border-gray-500"}`}
     />
-    {errors.firstName && (
+    {touchedFields.firstName && errors.firstName && (
       <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>
     )}
   </div>
@@ -416,21 +426,29 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Your first name. Max characters: 50.
   </div>
 </div>
 
   {/* 🔥 MELLOMNAVN */}
-  <label className="text-gray-300 font-medium text-right">Mellomnavn (valgfritt):</label>
+  <label className="text-gray-300 font-medium text-right">Middle name: (valgfritt):</label>
 
-  <input
-    type="text"
-    name="middleName"
-    placeholder="Mellomnavn"
-    value={formData.middleName}
-    onChange={handleChange}
-    className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
-  />
+  <div className="flex flex-col w-full">
+    <input
+      type="text"
+      name="middleName"
+      placeholder="Mellomnavn"
+      value={formData.middleName}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${touchedFields.middleName && errors.middleName ? "border-red-500" : "border-gray-500"}`}
+    />
+    {touchedFields.middleName && errors.middleName && (
+      <p className="text-red-500 text-sm mt-1">{errors.middleName}</p>
+    )}
+  </div>
+
 
 <div className="relative flex justify-start group">
   <Info className="text-gray-400 cursor-pointer" size={18} />
@@ -438,12 +456,12 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Not required: Your middle name. Max characters: 50.
   </div>
 </div>
 
   {/* 🔥 ETTERNAVN */}
-  <label className="text-gray-300 font-medium text-right">Etternavn:</label>
+  <label className="text-gray-300 font-medium text-right">Last name:</label>
 
   <div className="flex flex-col w-full">
     <input
@@ -454,9 +472,9 @@ useEffect(() => {
       onChange={handleChange}
       onBlur={handleBlur}
       className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${errors.lastName ? "border-red-500" : "border-gray-500"}`}
+        ${touchedFields.lastName && errors.lastName ? "border-red-500" : "border-gray-500"}`}
     />
-    {errors.lastName && (
+    {touchedFields.lastName && errors.lastName && (
       <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>
     )}
   </div>
@@ -467,12 +485,12 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Your last name. Max characters: 50.
   </div>
 </div>
 
   {/* 🔥 E-POST */}
-  <label className="text-gray-300 font-medium text-right">E-post:</label>
+  <label className="text-gray-300 font-medium text-right">Email:</label>
 
   <div className="flex flex-col w-full">
     <input
@@ -483,9 +501,9 @@ useEffect(() => {
       onChange={handleChange}
       onBlur={handleBlur}
       className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${errors.email ? "border-red-500" : "border-gray-500"}`}
+        ${touchedFields.email && errors.email ? "border-red-500" : "border-gray-500"}`}
     />
-    {errors.email && (
+    {touchedFields.email && errors.email && (
       <p className="text-red-500 text-sm mt-1">{errors.email}</p>
     )}
   </div>
@@ -496,13 +514,14 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Email. Only one user per email. Max characters: 100.
   </div>
 </div>
 
-  {/* 🔥 PASSORD */}
-  <label className="text-gray-300 font-medium text-right">Passord:</label>
+{/* 🔥 PASSORD */}
+<label className="text-gray-300 font-medium text-right">Passord:</label>
 
+<div className="relative w-full flex flex-col"> {/* Holder øyeikonet låst */}
   <div className="relative w-full">
     <input
       type={showPassword ? "text" : "password"}
@@ -511,34 +530,40 @@ useEffect(() => {
       value={formData.password}
       onChange={handleChange}
       onBlur={handleBlur}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${errors.password ? "border-red-500" : "border-gray-500"}`}
+      className={`w-full h-12 px-4 pr-10 border rounded-md bg-gray-700 text-white
+        ${touchedFields.password && errors.password ? "border-red-500" : "border-gray-500"}`}
     />
+
+    {/* ØYE-IKONET FOR VISNING AV PASSORD */}
     <button
       type="button"
       onClick={togglePasswordVisibility}
-      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-600"
+      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
     >
-      {showPassword ? "👁️" : "🙈"}
+      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
     </button>
-    {errors.password && (
-      <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-    )}
   </div>
 
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
+  {/* FEILMELDING SOM SKYVER FELTET UNDER */}
+  {touchedFields.password && errors.password && (
+    <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+  )}
+</div>
 
-  {/* 🛠️ Tooltip som holder seg synlig */}
+{/* 🔥 TOOLTIP FOR PASSORDREGLER */}
+<div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-56 z-10">
+    Password must contain at least one lowercase letter, uppercase letter, and a number. 
+    Must be at least 8 characters long and less than 128.
   </div>
 </div>
 
   {/* 🔥 BEKREFT PASSORD */}
-  <label className="text-gray-300 font-medium text-right">Bekreft passord:</label>
+<label className="text-gray-300 font-medium text-right">Confirm password:</label>
 
+<div className="relative w-full flex flex-col">
   <div className="relative w-full">
     <input
       type={showConfirmPassword ? "text" : "password"}
@@ -547,20 +572,27 @@ useEffect(() => {
       value={formData.confirmPassword}
       onChange={handleChange}
       onBlur={handleBlur}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${errors.confirmPassword ? "border-red-500" : "border-gray-500"}`}
+      className={`w-full h-12 px-4 pr-10 border rounded-md bg-gray-700 text-white
+        ${touchedFields.confirmPassword && errors.confirmPassword ? "border-red-500" : "border-gray-500"}`}
     />
+
+    {/* ØYE-IKONET FOR BEKREFT PASSORD */}
     <button
       type="button"
       onClick={toggleConfirmPasswordVisibility}
-      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-600"
+      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
     >
-      {showConfirmPassword ? "👁️" : "🙈"}
+      {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
     </button>
-    {errors.confirmPassword && (
-      <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
-    )}
   </div>
+
+  {/* FEILMELDING SOM SKYVER FELTET UNDER */}
+  {touchedFields.confirmPassword && errors.confirmPassword && (
+    <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>
+  )}
+</div>
+
+
 
   <div className="relative flex justify-start group">
   <Info className="text-gray-400 cursor-pointer" size={18} />
@@ -568,21 +600,26 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Password. Must match.
   </div>
 </div>
 
   {/* 🔥 TELEFONNUMMER */}
   <label className="text-gray-300 font-medium text-right">Telefonnummer (valgfritt):</label>
 
+  <div className="flex flex-col w-full">
   <input
     type="tel"
     name="phone"
     placeholder="Telefonnummer"
     value={formData.phone}
     onChange={handleChange}
-    className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+    onBlur={handleBlur}
+    className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+      ${touchedFields.phone && errors.phone ? "border-red-500" : "border-gray-500"}`}
   />
+  {touchedFields.phone && errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
+</div>
 
 <div className="relative flex justify-start group">
   <Info className="text-gray-400 cursor-pointer" size={18} />
@@ -590,12 +627,12 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Not required: Must be a valid phonenumber. Will maybe be for verification later.
   </div>
 </div>
 
 {/* 🔥 FØDSELSDATO */}
-<label className="text-gray-300 font-medium text-right">Fødselsdato:</label>
+<label className="text-gray-300 font-medium text-right">Date of birth:</label>
   <div className="flex flex-col w-full">
     <input 
       type="date" 
@@ -603,9 +640,10 @@ useEffect(() => {
       value={formData.dateOfBirth} 
       onChange={handleChange} 
       onBlur={handleBlur} 
-      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${touchedFields.dateOfBirth && errors.dateOfBirth ? "border-red-500" : "border-gray-500"}`}
     />
-    {errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
+    {touchedFields.dateOfBirth && errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
   </div>
 
   <div className="relative flex justify-start group">
@@ -614,53 +652,35 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Date of birth. Required for age verification.
   </div>
 </div>
 
   {/* 🔥 LAND */}
-  <label className="text-gray-300 font-medium text-right">Land:</label>
-  <div className="relative w-full">
-    <input
-      type="text"
-      name="country"
-      placeholder="Velg land..."
-      value={searchQuery}
-      onChange={(e) => {
-        setSearchQuery(e.target.value);
-        setShowDropdown(filteredCountries.length > 0);
-        setActiveIndex(-1);
-      }}
-      onFocus={() => setShowDropdown(true)}
-      onKeyDown={handleKeyDown}
-      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
-    />
-    {errors.country && <p className="text-red-500 text-sm">{errors.country}</p>}
-    {showDropdown && (
-      <ul 
-        ref={dropdownRef} 
-        className="absolute z-10 bg-white border rounded-md w-full mt-1 max-h-40 overflow-y-auto shadow-lg country-dropdown"
-      >
-        {filteredCountries.map((country, index) => (
-          <li 
-            key={country}
-            onClick={() => selectCountry(country)}
-            className={`px-4 py-2 cursor-pointer ${activeIndex === index ? "bg-blue-500 text-white" : "hover:bg-gray-100"}`}
-          >
-            {country}
-          </li>
-        ))}
-      </ul>
-    )}
-  </div>
+  <label className="text-gray-300 font-medium text-right">Country:</label>
+<div className="flex flex-col w-full">
+  <select 
+    name="country" 
+    value={formData.country} 
+    onChange={handleCountryChange} 
+    className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+      ${touchedFields.country && errors.country ? "border-red-500" : "border-gray-500"}`}
+  >
+    <option value="">Velg land</option>
+    {countries.map((country) => (
+      <option key={country} value={country}>{country}</option>
+    ))}
+  </select>
+  {touchedFields.country && errors.country && <p className="text-red-500 text-sm mt-1">{errors.country}</p>}
+</div>
 
-  <div className="relative flex justify-start group">
+<div className="relative flex justify-start group">
   <Info className="text-gray-400 cursor-pointer" size={18} />
 
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Country. Required to follow the law.
   </div>
 </div>
 
@@ -669,17 +689,18 @@ useEffect(() => {
   <div className="flex flex-col w-full">
     <select 
       name="region" 
-      value={formData.region} 
+      value={formData.region || ""} 
       onChange={handleChange} 
       disabled={!formData.country} 
-      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${touchedFields.region && errors.region ? "border-red-500" : "border-gray-500"}`}
     >
       <option value="">Velg region</option>
       {regions.map((r) => (
         <option key={r} value={r}>{r}</option>
       ))}
     </select>
-    {errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
+    {touchedFields.region && errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
   </div>
 
   <div className="relative flex justify-start group">
@@ -688,12 +709,12 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Required: Region. For updates in your region, might need more work.
   </div>
 </div>
 
   {/* 🔥 POSTNUMMER */}
-  <label className="text-gray-300 font-medium text-right">Postnummer:</label>
+  <label className="text-gray-300 font-medium text-right">PostalCode:</label>
   <div className="flex flex-col w-full">
     <input 
       type="text" 
@@ -704,7 +725,7 @@ useEffect(() => {
       onBlur={handleBlur} 
       className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
     />
-    {errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode}</p>}
+    {touchedFields.postalCode && errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode}</p>}
   </div>
 
   <div className="relative flex justify-start group">
@@ -713,7 +734,7 @@ useEffect(() => {
   {/* 🛠️ Tooltip som holder seg synlig */}
   <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
       bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Ditt offisielle fornavn.
+    Not required: PostalCode. For activites/updates in your local area, get warnings/important news/activities. Might use GPS-location later.
   </div>
 </div>
 
@@ -728,7 +749,10 @@ useEffect(() => {
         !formData.lastName ||
         !formData.email ||
         !formData.password ||
-        !formData.confirmPassword
+        !formData.confirmPassword ||
+        !formData.dateOfBirth ||  // 👈 Må fylles ut
+        !formData.country ||      // 👈 Må fylles ut
+        !formData.region   
       }
     >
       Sign up
