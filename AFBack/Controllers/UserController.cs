@@ -107,9 +107,17 @@ public class UserController : ControllerBase
             _logger.LogError("Database connection failed: {Error}", e.Message);
             return StatusCode(500, new { message = "Database connection error. Please try again later." });
         }
+        
+        
         // Da får vi en feilmelding.
         if (emailExists)
             return BadRequest(new { message = "Email already in use." });
+        
+        // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
+        if (userDto.DateOfBirth > DateTime.UtcNow)
+        {
+            return BadRequest(new { message = "Date of birth cannot be in the future." });
+        }
         
         // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
         string hashedPassword = BCrypt.HashPassword(userDto.Password);

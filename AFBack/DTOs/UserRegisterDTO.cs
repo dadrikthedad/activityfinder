@@ -19,7 +19,8 @@ public class UserRegisterDTO
     [Required(ErrorMessage = "Last name is required.")]
     [MaxLength(50, ErrorMessage = "Last name can't be more than 50 characters.")]
     public string LastName { get; set; } = null!;
-
+    
+    
     [Required(ErrorMessage = "Date of birth is required.")]
     public DateTime DateOfBirth { get; set; }
 

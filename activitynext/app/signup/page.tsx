@@ -160,8 +160,15 @@ export default function Signup() {
     }
   
     if (name === "dateOfBirth") {
-      if (!value.trim()) newErrors.dateOfBirth = "Date of birth is required.";
-      else delete newErrors.dateOfBirth;
+      const today = new Date().toISOString().split("T")[0]; // Få dagens dato i YYYY-MM-DD format
+      
+      if (!value.trim()) {
+        newErrors.dateOfBirth = "Date of birth is required.";
+      } else if (value > today) {
+        newErrors.dateOfBirth = "Date of birth cannot be in the future.";
+      } else {
+        delete newErrors.dateOfBirth;
+      }
     }
   
     if (name === "country") {
@@ -223,6 +230,10 @@ export default function Signup() {
           });
         }
       }
+
+      if (name === "dateOfBirth") {
+    validateSingleField(name, formattedValue);
+  }
 
       setFormData((prev) => ({
         ...prev,
@@ -607,7 +618,8 @@ useEffect(() => {
       name="dateOfBirth" 
       value={formData.dateOfBirth} 
       onChange={handleChange} 
-      onBlur={handleBlur} 
+      onBlur={handleBlur}
+      max={new Date().toISOString().split("T")[0]}
       className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
         ${touchedFields.dateOfBirth && errors.dateOfBirth ? "border-red-500" : "border-gray-500"}`}
     />
