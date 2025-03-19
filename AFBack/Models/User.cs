@@ -50,7 +50,6 @@ public class User
     [MaxLength(100)]
     public string Country { get; set; } = null!;
     
-    [Required]
     [MaxLength(100)]
     // Kun null hvis det er et land uten regioner
     public string? Region { get; set; }

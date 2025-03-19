@@ -246,11 +246,11 @@ export default function Signup() {
  // Håndterer valg av land
 const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectElement> | string) => {
   const selectedCountry = typeof eventOrCountry === "string" ? eventOrCountry : eventOrCountry.target.value;
-  setFormData({ ...formData, country: selectedCountry, region: ""}); 
+  setFormData({ ...formData, country: selectedCountry, region: "" });
 
   if (!selectedCountry) {
     setRegions([]);
-    return; // ❌ Unngå unødvendige API-kall
+    return;
   }
 
   try {
@@ -260,14 +260,18 @@ const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectE
     const data = await res.json();
     setRegions(data);
 
-    if (data.length === 0) {
-      setFormData((prev) => ({ ...prev, region: "" }));
-    }
+    setFormData((prev) => ({
+      ...prev,
+      region: data.length > 0 ? prev.region : null // 🚀 Setter region til null hvis ingen regioner finnes
+    }));
 
   } catch (error) {
     console.error("Feil ved henting av regioner:", error);
     setRegions([]);
-    setFormData((prev) => ({ ...prev, region: "null" }));
+    setFormData((prev) => ({
+      ...prev,
+      region: null // ✅ Sikrer at vi ikke sender "null" som string
+    }));
   }
 };
 
@@ -309,6 +313,11 @@ useEffect(() => {
     if (!payload.phone || payload.phone.trim() === "") {
     delete payload.phone; // 🚀 Fjern phone-feltet hvis det er tomt
     }
+
+    if (!payload.region) {
+      delete payload.region; // ✅ Fjern region fra payload hvis den er null
+  }
+
 
       console.log("Data som sendes til backend:", JSON.stringify(payload, null, 2));
 
@@ -711,7 +720,7 @@ useEffect(() => {
         !formData.confirmPassword ||
         !formData.dateOfBirth ||  // 👈 Må fylles ut
         !formData.country ||      // 👈 Må fylles ut
-        !formData.region   
+        (regions.length > 0 && !formData.region)  
       }
     >
       Sign up
