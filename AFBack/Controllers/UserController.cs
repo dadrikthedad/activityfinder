@@ -127,7 +127,7 @@ public class UserController : ControllerBase
             DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
             CreatedAt = DateTime.UtcNow,
             Country = userDto.Country,
-            Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
+            Region = userDto.Region,
             PostalCode = userDto.PostalCode
         };
         
