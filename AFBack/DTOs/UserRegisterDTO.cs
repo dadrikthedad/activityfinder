@@ -42,7 +42,7 @@ public class UserRegisterDTO
     public string? Phone
     {
         get => _phone;
-        set => _phone = value?.Trim();
+        set => _phone = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
     // Passord Må være med og har en min lengde på 8 og maks lengde på 128 og RegularExpression sjekker at det en stor og liten bokstav, samt et nummer.

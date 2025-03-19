@@ -181,9 +181,31 @@ export default function Signup() {
     // Håndterer inputendringer
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
+
+      let formattedValue = value;
     
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    
+      
+
+      if (name === "phone") {
+        formattedValue = value.replace(/\s+/g, ""); // Fjern mellomrom
+        if (!/^\+?[0-9]{7,15}$/.test(formattedValue) && formattedValue !== "") {
+          setErrors((prev) => ({ ...prev, phone: "Telefonnummeret er ugyldig." }));
+        } else {
+          setErrors((prev) => {
+            const newErrors = { ...prev };
+            delete newErrors.phone; // ✅ Fjern feil hvis telefonnummeret er gyldig
+            return newErrors;
+          });
+        }
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        [name]: name === "dateOfBirth"
+          ? value // Behold kun YYYY-MM-DD format
+          : value,
+      }));
+
       // Fjern feil for feltet hvis det har blitt rettet
       setErrors((prevErrors) => {
         if (prevErrors[name]) {
@@ -306,28 +328,34 @@ useEffect(() => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (isRegistered) {
-      router.push("/login"); // 🚀 Naviger kun etter at state har endret seg
-    }
-  }, [isRegistered, router]);
+  
 
   const registerUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(""); 
     setHasSubmitted(true); // Nå vises feilmeldinger kun etter innsending
-  
+    
+    const payload: Partial<typeof formData> = { ...formData };
+
+    if (!payload.phone || payload.phone.trim() === "") {
+    delete payload.phone; // 🚀 Fjern phone-feltet hvis det er tomt
+    }
+
+      console.log("Data som sendes til backend:", JSON.stringify(payload, null, 2));
+
+
     try {
       const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
   
       let data = await response.json();
       if (response.ok) {
+        console.log("Sending dateOfBirth:", formData.dateOfBirth);
         setMessage("✅ Bruker registrert!");
         setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
         setTimeout(() => {
@@ -345,6 +373,15 @@ useEffect(() => {
     }
   };
 
+  useEffect(() => {
+    if (isRegistered) {
+      console.log("Navigerer til /login...");
+      setTimeout(() => {
+        router.replace("/login");
+      }, 1000); // 🚀 Naviger kun etter at state har endret seg
+    }
+  }, [isRegistered, router]);
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12 text-center">
       <h1 className="text-4xl font-bold text-blue-600">Register</h1>
@@ -352,7 +389,7 @@ useEffect(() => {
         Create a new user.
       </p>
   
-      <form className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
+      <form onSubmit={registerUser} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
   
   {/* 🔥 FORNAVN */}
   <label className="text-gray-300 font-medium text-right">Fornavn:</label>
@@ -548,6 +585,129 @@ useEffect(() => {
   />
 
 <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+{/* 🔥 FØDSELSDATO */}
+<label className="text-gray-300 font-medium text-right">Fødselsdato:</label>
+  <div className="flex flex-col w-full">
+    <input 
+      type="date" 
+      name="dateOfBirth" 
+      value={formData.dateOfBirth} 
+      onChange={handleChange} 
+      onBlur={handleBlur} 
+      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+    />
+    {errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 LAND */}
+  <label className="text-gray-300 font-medium text-right">Land:</label>
+  <div className="relative w-full">
+    <input
+      type="text"
+      name="country"
+      placeholder="Velg land..."
+      value={searchQuery}
+      onChange={(e) => {
+        setSearchQuery(e.target.value);
+        setShowDropdown(filteredCountries.length > 0);
+        setActiveIndex(-1);
+      }}
+      onFocus={() => setShowDropdown(true)}
+      onKeyDown={handleKeyDown}
+      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+    />
+    {errors.country && <p className="text-red-500 text-sm">{errors.country}</p>}
+    {showDropdown && (
+      <ul 
+        ref={dropdownRef} 
+        className="absolute z-10 bg-white border rounded-md w-full mt-1 max-h-40 overflow-y-auto shadow-lg country-dropdown"
+      >
+        {filteredCountries.map((country, index) => (
+          <li 
+            key={country}
+            onClick={() => selectCountry(country)}
+            className={`px-4 py-2 cursor-pointer ${activeIndex === index ? "bg-blue-500 text-white" : "hover:bg-gray-100"}`}
+          >
+            {country}
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 REGION */}
+  <label className="text-gray-300 font-medium text-right">Region:</label>
+  <div className="flex flex-col w-full">
+    <select 
+      name="region" 
+      value={formData.region} 
+      onChange={handleChange} 
+      disabled={!formData.country} 
+      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+    >
+      <option value="">Velg region</option>
+      {regions.map((r) => (
+        <option key={r} value={r}>{r}</option>
+      ))}
+    </select>
+    {errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
+  </div>
+
+  <div className="relative flex justify-start group">
+  <Info className="text-gray-400 cursor-pointer" size={18} />
+
+  {/* 🛠️ Tooltip som holder seg synlig */}
+  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+    Ditt offisielle fornavn.
+  </div>
+</div>
+
+  {/* 🔥 POSTNUMMER */}
+  <label className="text-gray-300 font-medium text-right">Postnummer:</label>
+  <div className="flex flex-col w-full">
+    <input 
+      type="text" 
+      name="postalCode" 
+      placeholder="Postnummer (valgfritt)" 
+      value={formData.postalCode} 
+      onChange={handleChange} 
+      onBlur={handleBlur} 
+      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
+    />
+    {errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode}</p>}
+  </div>
+
+  <div className="relative flex justify-start group">
   <Info className="text-gray-400 cursor-pointer" size={18} />
 
   {/* 🛠️ Tooltip som holder seg synlig */}
