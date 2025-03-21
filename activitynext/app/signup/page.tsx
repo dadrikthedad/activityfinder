@@ -385,10 +385,8 @@ useEffect(() => {
       const data = await response.json();
       if (response.ok) {
         console.log("Sending dateOfBirth:", formData.dateOfBirth);
-        setMessage("✅ Register success! Welcome aboard!");
         setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
         setTimeout(() => {
-          setMessage(""); 
           setIsRegistered(true); // 🚀 Oppdater state i stedet for å navigere direkte
         }, 1000);
 
@@ -398,7 +396,7 @@ useEffect(() => {
       }
     } catch (error) {
       console.error("Feil under registrering:", error);
-      setMessage("❌ Nettverksfeil. Prøv igjen senere.");
+      setMessage("❌ Nettwork error. Try again later.");
     }
   };
 
