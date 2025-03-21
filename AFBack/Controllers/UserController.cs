@@ -150,7 +150,8 @@ public class UserController : ControllerBase
             {
                 await transaction.RollbackAsync();
 
-                if (e.InnerException?.Message.Contains("duplicate key value") == true)
+                if (e.InnerException is Npgsql.PostgresException postgresException && 
+                    postgresException.SqlState == "23505") // 23505 = Unique Violation
                 {
                     _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
                     return BadRequest(new { message = "Email is already registered." });

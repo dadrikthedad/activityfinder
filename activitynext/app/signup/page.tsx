@@ -91,7 +91,7 @@ export default function Signup() {
     setTouchedFields(allTouched);
   
     // 👉 Midlertidig objekt for å samle feil
-    let newErrors: { [key: string]: string } = {};
+    const newErrors: { [key: string]: string } = {};
   
     // 👉 Kjør validering på alle felter
     Object.entries(formData).forEach(([key, value]) => {
@@ -240,7 +240,7 @@ export default function Signup() {
     };
   
     fetchUserCountry();
-  }, []);
+  }, [formData.country]);
 
     // Håndterer inputendringer
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
