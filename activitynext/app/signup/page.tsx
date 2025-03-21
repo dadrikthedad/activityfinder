@@ -29,6 +29,8 @@ export default function Signup() {
     const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
+    const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
+
 
   
   //Hent land fra API
@@ -77,6 +79,36 @@ export default function Signup() {
     setTouchedFields((prev) => ({ ...prev, [name]: true })); // 👈 Registrerer at feltet er besøkt
     validateSingleField(name, value); // 🔥 Kjør validering kun når feltet er besøkt
   };
+
+  // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
+  const handleAttemptSubmit = () => {
+    // 👉 Sett alle felt som "touched"
+    const allTouched = Object.keys(formData).reduce((acc, key) => {
+      acc[key] = true;
+      return acc;
+    }, {} as { [key: string]: boolean });
+  
+    setTouchedFields(allTouched);
+  
+    // 👉 Midlertidig objekt for å samle feil
+    let newErrors: { [key: string]: string } = {};
+  
+    // 👉 Kjør validering på alle felter
+    Object.entries(formData).forEach(([key, value]) => {
+      validateSingleField(key, value);
+      if (!value.trim() && key !== "middleName" && key !== "phone" && key !== "postalCode") {
+        newErrors[key] = "This field is required."; // Sett feil for påkrevde felt
+      }
+    });
+  
+    // 👉 Oppdater errors state
+    setErrors((prevErrors) => ({ ...prevErrors, ...newErrors }));
+  
+    // 👉 Hvis ingen feil, send skjema
+    if (Object.keys(newErrors).length === 0) {
+      registerUser(new Event("submit") as unknown as React.FormEvent);}
+  };
+  
   
   
 
@@ -322,6 +354,10 @@ useEffect(() => {
   const registerUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(""); 
+
+    // Forhindrer flere klikk etter vi har klikket engang
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     
     const payload: Partial<typeof formData> = { ...formData };
 
@@ -736,21 +772,12 @@ useEffect(() => {
   {/* 🔥 SIGN UP BUTTON */}
   <div className="col-span-3 flex justify-center mt-4">
     <button
-      type="submit"
-      className="w-full max-w-sm h-12 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-      disabled={
-        Object.keys(errors).length > 0 ||
-        !formData.firstName ||
-        !formData.lastName ||
-        !formData.email ||
-        !formData.password ||
-        !formData.confirmPassword ||
-        !formData.dateOfBirth ||  // 👈 Må fylles ut
-        !formData.country ||      // 👈 Må fylles ut
-        (regions.length > 0 && !formData.region)  
-      }
+      type="button"
+      className="w-full max-w-sm h-12 bg-[#166016] text-white rounded-lg font-semibold hover:bg-[#0F3D0F] transition"
+      onClick={handleAttemptSubmit}
+      disabled={isSubmitting} //Har man trykket uten errors så blir knappen låst
     >
-      Sign up
+      {isSubmitting ? "Submitting..." : "Sign up"}
     </button>
     {message && (
     <p className="mt-2 text-sm text-green-500">{message}</p>

@@ -10,4 +10,10 @@ public class ApplicationDbContext : DbContext
     
     // Her definerer vi tabellene i databasen. Users er brukere.
     public DbSet<User> Users { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
+    }
 }

@@ -95,63 +95,77 @@ public class UserController : ControllerBase
             return BadRequest(new {message = $"Validation failed. Check errors.", errors});
         }
         
-        
-        //En sjekk for å sjekke at eposten ikke er registrert tidligere. Bruker try og catch slik at programmet ikke stopper hvis den databasen er nede
-        bool emailExists;
-        try
+        //
+        using (var transaction = await _context.Database.BeginTransactionAsync())
         {
-            emailExists = await _context.Users.AnyAsync(user => EF.Functions.Like(user.Email, userDto.Email));
-        }
-        catch (Exception e)
-        {
-            _logger.LogError("Database connection failed: {Error}", e.Message);
-            return StatusCode(500, new { message = "Database connection error. Please try again later." });
-        }
-        
-        
-        // Da får vi en feilmelding.
-        if (emailExists)
-            return BadRequest(new { message = "Email already in use." });
-        
-        // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
-        if (userDto.DateOfBirth > DateTime.UtcNow)
-        {
-            return BadRequest(new { message = "Date of birth cannot be in the future." });
-        }
-        
-        // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
-        string hashedPassword = BCrypt.HashPassword(userDto.Password);
-        
-        //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
-        var user = new User
-        {
-            FirstName = userDto.FirstName,
-            MiddleName = userDto.MiddleName,
-            LastName = userDto.LastName,
-            Email = userDto.Email,
-            PasswordHash = hashedPassword,
-            Phone = userDto.Phone,
-            // Sirker at DateOfBirth tolkes og lagres som UTC da Postgres krever det. SpecifyKind tolker verdien riktig for UTC.
-            DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
-            CreatedAt = DateTime.UtcNow,
-            Country = userDto.Country,
-            Region = userDto.Region,
-            PostalCode = userDto.PostalCode
-        };
-        
-        // Her gjør vi brukeren klar til å legges til i databasen, context er databasen og Users har vi definert i ApplicationDbContext. 
-        _context.Users.Add(user);
-        // Her lagrer vi brukeren til databasen.
-        await _context.SaveChangesAsync();
-        
-        // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
-        return Ok(new
-        {
-            message = "User registered successfully!",
-            userId = user.Id,
-            email = user.Email
-        });
+               
+            try
+            {   
+                // Fjerner ekstra mellomrom, eller så kan vi få duplikate eposter pga mellomrommet
+                userDto.Email = userDto.Email.Trim();
+                // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
+                if (userDto.DateOfBirth > DateTime.UtcNow)
+                {
+                    return BadRequest(new { message = "Date of birth cannot be in the future." });
+                }
+                
+                // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
+                string hashedPassword = BCrypt.HashPassword(userDto.Password);
+                
+                //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
+                var user = new User
+                {
+                    FirstName = userDto.FirstName,
+                    MiddleName = userDto.MiddleName,
+                    LastName = userDto.LastName,
+                    Email = userDto.Email,
+                    PasswordHash = hashedPassword,
+                    Phone = userDto.Phone,
+                    // Sirker at DateOfBirth tolkes og lagres som UTC da Postgres krever det. SpecifyKind tolker verdien riktig for UTC.
+                    DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
+                    CreatedAt = DateTime.UtcNow,
+                    Country = userDto.Country,
+                    Region = userDto.Region,
+                    PostalCode = userDto.PostalCode
+                };
 
+                
+                // Her gjør vi brukeren klar til å legges til i databasen, context er databasen og Users har vi definert i ApplicationDbContext. 
+                await _context.Users.AddAsync(user);
+                // Her lagrer vi brukeren til databasen.
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+                
+                
+                // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
+                return Ok(new
+                {
+                    message = "User registered successfully!",
+                    userId = user.Id,
+                    email = user.Email
+                });
+            }
+            catch (DbUpdateException e)
+            {
+                await transaction.RollbackAsync();
+
+                if (e.InnerException?.Message.Contains("duplicate key value") == true)
+                {
+                    _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
+                    return BadRequest(new { message = "Email is already registered." });
+                }
+
+                _logger.LogError("Error saving user: {Error}", e.Message);
+                return StatusCode(500, new { message = "An error occured while saving the user." });
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Database connection failed: {Error}", e.Message);
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "Database connection error. Please try again later." });
+            }
+        }
     }
     
     // Her sjekker vi at brukeren 
