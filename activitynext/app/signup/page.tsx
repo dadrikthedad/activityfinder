@@ -308,7 +308,11 @@ useEffect(() => {
       }
     };
 
-    fetchRegions();
+    if (formData.country)
+    {
+      fetchRegions();
+    }
+
   }, [formData.country]);
 
 
@@ -381,10 +385,11 @@ useEffect(() => {
       <form onSubmit={registerUser} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
   
   {/* 🔥 FORNAVN */}
-  <label className="text-gray-300 font-medium text-right">First name:</label>
+  <label htmlFor="firstName" className="text-gray-300 font-medium text-right">First name:</label>
 
   <div className="flex flex-col w-full">
     <input
+      id="firstName"
       type="text"
       name="firstName"
       placeholder="First name"
@@ -410,10 +415,11 @@ useEffect(() => {
 </div>
 
   {/* 🔥 MELLOMNAVN */}
-  <label className="text-gray-300 font-medium text-right">Middle name:</label>
+  <label htmlFor="middleName" className="text-gray-300 font-medium text-right">Middle name:</label>
 
   <div className="flex flex-col w-full">
     <input
+      id="middleName"
       type="text"
       name="middleName"
       placeholder="Middle name (not required)"
@@ -440,10 +446,11 @@ useEffect(() => {
 </div>
 
   {/* 🔥 ETTERNAVN */}
-  <label className="text-gray-300 font-medium text-right">Last name:</label>
+  <label htmlFor="lastName" className="text-gray-300 font-medium text-right">Last name:</label>
 
   <div className="flex flex-col w-full">
     <input
+      id="lastName"
       type="text"
       name="lastName"
       placeholder="Last name"
@@ -469,10 +476,11 @@ useEffect(() => {
 </div>
 
   {/* 🔥 E-POST */}
-  <label className="text-gray-300 font-medium text-right">Email:</label>
+  <label htmlFor="email" className="text-gray-300 font-medium text-right">Email:</label>
 
   <div className="flex flex-col w-full">
     <input
+      id="email"
       type="email"
       name="email"
       placeholder="Email"
@@ -498,11 +506,12 @@ useEffect(() => {
 </div>
 
 {/* 🔥 PASSORD */}
-<label className="text-gray-300 font-medium text-right">Passord:</label>
+<label htmlFor="password" className="text-gray-300 font-medium text-right">Passord:</label>
 
 <div className="relative w-full flex flex-col"> {/* Holder øyeikonet låst */}
   <div className="relative w-full">
     <input
+      id="password"
       type={showPassword ? "text" : "password"}
       name="password"
       placeholder="Password"
@@ -540,11 +549,12 @@ useEffect(() => {
 </div>
 
   {/* 🔥 BEKREFT PASSORD */}
-<label className="text-gray-300 font-medium text-right">Confirm password:</label>
+<label htmlFor="confirmPassword" className="text-gray-300 font-medium text-right">Confirm password:</label>
 
 <div className="relative w-full flex flex-col">
   <div className="relative w-full">
     <input
+      id="confirmPassword"
       type={showConfirmPassword ? "text" : "password"}
       name="confirmPassword"
       placeholder="Confirm Password"
@@ -584,10 +594,11 @@ useEffect(() => {
 </div>
 
   {/* 🔥 TELEFONNUMMER */}
-  <label className="text-gray-300 font-medium text-right">Telefonnummer (valgfritt):</label>
+  <label htmlFor="phone" className="text-gray-300 font-medium text-right">Telefonnummer (valgfritt):</label>
 
   <div className="flex flex-col w-full">
   <input
+    id="phone"
     type="tel"
     name="phone"
     placeholder="Phonenumber"
@@ -611,9 +622,10 @@ useEffect(() => {
 </div>
 
 {/* 🔥 FØDSELSDATO */}
-<label className="text-gray-300 font-medium text-right">Date of birth:</label>
+<label htmlFor="dateOfBirth" className="text-gray-300 font-medium text-right">Date of birth:</label>
   <div className="flex flex-col w-full">
-    <input 
+    <input
+      id ="dateOfBirth"
       type="date" 
       name="dateOfBirth" 
       value={formData.dateOfBirth} 
@@ -637,9 +649,10 @@ useEffect(() => {
 </div>
 
   {/* 🔥 LAND */}
-  <label className="text-gray-300 font-medium text-right">Country:</label>
+  <label htmlFor="country" className="text-gray-300 font-medium text-right">Country:</label>
 <div className="flex flex-col w-full">
   <select 
+    id="country"
     name="country" 
     value={formData.country} 
     onChange={handleCountryChange} 
@@ -665,9 +678,10 @@ useEffect(() => {
 </div>
 
   {/* 🔥 REGION */}
-  <label className="text-gray-300 font-medium text-right">Region:</label>
+  <label htmlFor="region" className="text-gray-300 font-medium text-right">Region:</label>
   <div className="flex flex-col w-full">
     <select 
+      id="region"
       name="region" 
       value={formData.region || ""} 
       onChange={handleChange} 
@@ -694,9 +708,10 @@ useEffect(() => {
 </div>
 
   {/* 🔥 POSTNUMMER */}
-  <label className="text-gray-300 font-medium text-right">PostalCode:</label>
+  <label htmlFor="postalCode" className="text-gray-300 font-medium text-right">PostalCode:</label>
   <div className="flex flex-col w-full">
-    <input 
+    <input
+      id="postalCode"
       type="text" 
       name="postalCode" 
       placeholder="Postal code (not required)" 

@@ -29,22 +29,32 @@ const handleLogin = async (e: React.FormEvent) => {
 
     // Hvis responsen er noe annet enn 200 ok så blir det en error
     if (!response.ok) {
-      throw new Error(data.message || "Login failed.");
+      const errorMessage = data?.message || "Login failed.";
+      throw new Error(errorMessage);
     }
 
     //Lagre tokenet i localStorage eller cookie for videre bruk
     try {
-      localStorage.setItem("token", data.token);
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      } else {
+        throw new Error("Login successful, but no token received.");
+      }
     } catch (error) {
-      console.warn("Kunne ikke lagre token i localStorage:", error);
+      console.warn("Could not save token in localStorage:", error);
+      setErrorMessage("Could not save login. Try again.");
     }
     
 
     //Omdiriger hjem etter vi har en suksessful innlogging
     router.push("/");
     // Fanger alle feil og skriver en message. Kanskje komme tilbake med spesifikke feil.
-  } catch (error: any) {
-    setErrorMessage(error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      setErrorMessage(error.message);
+    } else {
+      setErrorMessage("An unexpected error occurred.");
+    }
   }
 }
 
@@ -64,11 +74,11 @@ const handleLogin = async (e: React.FormEvent) => {
         {/* Enkel login-form */}
         <form className="mt-6 max-w-sm space-y-4" onSubmit={handleLogin}>
           <div className="text-left">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
               Email
             </label>
-            <input
-              type="email"
+            <input id="email"
+              type="email" name="email" autoComplete="email"
               className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center"
               placeholder="Your email"
               //Her lagrer vi eposten i denne inputen-tilformen
@@ -80,11 +90,11 @@ const handleLogin = async (e: React.FormEvent) => {
           </div>
   
           <div className="text-left">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
               Password
             </label>
-            <input
-              type="password"
+            <input id="password"
+              type="password" name="password" autoComplete="current-password"
               className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center"
               placeholder="Your password"
               value={password}
