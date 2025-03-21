@@ -77,7 +77,7 @@ public class AuthService
         // Her slår vi sammen Token-strengen med issueren og audiencen vi har lagret i appesettings.json og lagrer informasjonen om brukeren med claims deretter antall dager før brukeren trenger å logge inn igjen.
         // Til slutt legger vi til signeringen.
         var token = new JwtSecurityToken(issuer: jwtIssuer, audience: jwtAudience,
-            claims: claims, expires: DateTime.UtcNow.AddDays(1), signingCredentials: creds);
+            claims: claims, expires: DateTime.UtcNow.AddDays(7), signingCredentials: creds);
         
         // returnerer JwtSecurityToken objektet til en string slik at vi kan sende det til frontenden.
         return new JwtSecurityTokenHandler().WriteToken(token);

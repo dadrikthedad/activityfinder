@@ -387,7 +387,7 @@ useEffect(() => {
     <input
       type="text"
       name="firstName"
-      placeholder="Fornavn"
+      placeholder="First name"
       value={formData.firstName}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -410,13 +410,13 @@ useEffect(() => {
 </div>
 
   {/* 🔥 MELLOMNAVN */}
-  <label className="text-gray-300 font-medium text-right">Middle name: (valgfritt):</label>
+  <label className="text-gray-300 font-medium text-right">Middle name:</label>
 
   <div className="flex flex-col w-full">
     <input
       type="text"
       name="middleName"
-      placeholder="Mellomnavn"
+      placeholder="Middle name (not required)"
       value={formData.middleName}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -446,7 +446,7 @@ useEffect(() => {
     <input
       type="text"
       name="lastName"
-      placeholder="Etternavn"
+      placeholder="Last name"
       value={formData.lastName}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -475,7 +475,7 @@ useEffect(() => {
     <input
       type="email"
       name="email"
-      placeholder="E-post"
+      placeholder="Email"
       value={formData.email}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -505,7 +505,7 @@ useEffect(() => {
     <input
       type={showPassword ? "text" : "password"}
       name="password"
-      placeholder="Passord"
+      placeholder="Password"
       value={formData.password}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -547,7 +547,7 @@ useEffect(() => {
     <input
       type={showConfirmPassword ? "text" : "password"}
       name="confirmPassword"
-      placeholder="Bekreft passord"
+      placeholder="Confirm Password"
       value={formData.confirmPassword}
       onChange={handleChange}
       onBlur={handleBlur}
@@ -590,7 +590,7 @@ useEffect(() => {
   <input
     type="tel"
     name="phone"
-    placeholder="Telefonnummer"
+    placeholder="Phonenumber"
     value={formData.phone}
     onChange={handleChange}
     onBlur={handleBlur}
@@ -675,7 +675,7 @@ useEffect(() => {
       className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
         ${touchedFields.region && errors.region ? "border-red-500" : "border-gray-500"}`}
     >
-      <option value="">Velg region</option>
+      <option value="">Choose region</option>
       {regions.map((r) => (
         <option key={r} value={r}>{r}</option>
       ))}
@@ -699,7 +699,7 @@ useEffect(() => {
     <input 
       type="text" 
       name="postalCode" 
-      placeholder="Postnummer (valgfritt)" 
+      placeholder="Postal code (not required)" 
       value={formData.postalCode} 
       onChange={handleChange} 
       onBlur={handleBlur} 

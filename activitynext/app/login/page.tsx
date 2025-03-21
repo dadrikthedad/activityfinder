@@ -1,49 +1,113 @@
+"use client";
+import { useState } from "react";
+import {useRouter} from "next/navigation";
+
 export default function LoginPage() {
+
+const [email, setEmail] = useState("");
+const [password, setPassword] = useState("");
+const [errorMessage, setErrorMessage] = useState("");
+const router = useRouter();
+
+
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setErrorMessage("");
+
+
+  // Sender en forespørsel til backenden, med email og password som er blitt gjort om til json.
+  try {
+    const response = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({email, password }),
+    });
+    // Venter på svar og lagrer det i data
+    const data = await response.json();
+
+    // Hvis responsen er noe annet enn 200 ok så blir det en error
+    if (!response.ok) {
+      throw new Error(data.message || "Login failed.");
+    }
+
+    //Lagre tokenet i localStorage eller cookie for videre bruk
+    try {
+      localStorage.setItem("token", data.token);
+    } catch (error) {
+      console.warn("Kunne ikke lagre token i localStorage:", error);
+    }
+    
+
+    //Omdiriger hjem etter vi har en suksessful innlogging
+    router.push("/");
+    // Fanger alle feil og skriver en message. Kanskje komme tilbake med spesifikke feil.
+  } catch (error: any) {
+    setErrorMessage(error.message);
+  }
+}
+
+
+
+
+
+
+
     return (
-      <div className="max-w-md mx-auto mt-16 p-6 bg-white dark:bg-gray-800 shadow-md rounded-lg">
-        <h1 className="text-2xl font-bold text-blue-600 text-center">Logg inn</h1>
-        <p className="text-gray-700 dark:text-gray-300 text-center mt-2">
-          Logg inn på kontoen din for å fortsette.
+      <div className="flex flex-col items-center justify-start min-h-screen px-6 py-12 text-center mt-24">
+        <h1 className="text-4xl font-bold text-[#1C6B1C]">Login</h1>
+        <p className="mt-4 text-lg text-gray-700 dark:text-gray-300">
+          Login to continue.
         </p>
   
         {/* Enkel login-form */}
-        <form className="mt-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              E-post
+        <form className="mt-6 max-w-sm space-y-4" onSubmit={handleLogin}>
+          <div className="text-left">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
+              Email
             </label>
             <input
               type="email"
-              className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Din e-post"
+              className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center"
+              placeholder="Your email"
+              //Her lagrer vi eposten i denne inputen-tilformen
+              value={email}
+              // Endrer eposten hvis vi forandrer i teksten igjen
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
   
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Passord
+          <div className="text-left">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
+              Password
             </label>
             <input
               type="password"
-              className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Ditt passord"
+              className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center"
+              placeholder="Your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
+
+          {errorMessage && (
+            <p className="text-red-500 text-sm">{errorMessage}</p>)}
   
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-md font-semibold hover:bg-blue-700 transition"
+            className="w-full bg-[#166016] text-white py-2 rounded-md font-semibold hover:bg-[#0F3D0F] transition"
           >
             Logg inn
           </button>
         </form>
   
         <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-4">
-          Har du ikke en konto?{" "}
-          <a href="/signup" className="text-blue-500 hover:underline">
-            Registrer deg her
+          No account?{" "}
+          <a href="/signup" className="text-[#1C6B1C] hover:text-[#0F3D0F] hover:underline">
+            Sign up here!
           </a>
         </p>
       </div>
