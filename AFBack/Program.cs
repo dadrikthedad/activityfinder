@@ -9,6 +9,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using AFBack.Services;
 using DotNetEnv;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
@@ -109,6 +111,34 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Beskytter mot bruntforce, spam og lignende angrep ved å  begrense hvor mange forespørseler som kan bli sendt i løpet av kort tid
+// Må ha inn en options som vi kan da tilpasse til vårt behov.
+builder.Services.AddRateLimiter(options =>
+{   
+    // GlobalLimiter gjelder for alle innkommende requester, ved å bruke PartitionedRateLimitir så deler vi opp i grupper
+    // og de har hver sin teller.
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        // RateLimitPartition teller antall forespørseler innenfor en fast tid som vi definerer med GetFixedWindowLimiter 
+        RateLimitPartition.GetFixedWindowLimiter(
+            // Her definerer vi at hver Ip-adresse for sin egen teller, slik at vi teller hvem som sender request.
+            // Finnes ikke IP-en så får vi unknow, svært sjeldent det skal skkje.
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            // Factory er en funkksjon som returnerer innstillinger, og her gir vi hver gruppe (altså hver IP) egne innstillinger.
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                // Tillater 5 requests per IP i hver tidsperiode
+                PermitLimit = 5, // f.eks. 5 kall
+                // Maks 5 request pr 10 sekunder
+                Window = TimeSpan.FromSeconds(10),
+                // Mer enn 5 requester, så havner man i kø.
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                // Ikke mer enn 2 forespørsler i kø. Totalt forespørsler pr 10 sekund som blir behandlet er da 7
+                QueueLimit = 2
+            }));
+    // For mange forespørsler i forhold til det vi har definert så får bruker error 429
+    options.RejectionStatusCode = 429; // Too Many Requests
+});
+
 // Kjører applikasjonen med alle tjenester, middleware og avhengigheter. Alle servicesene og alt vi har lagt til blir låst
 // og klart til bruk. 
 var app = builder.Build();
@@ -124,12 +154,15 @@ app.UseAuthentication();
 app.UseHttpsRedirection();
 // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
 app.UseAuthorization();
+// Aktivirer rate-limiteren vi har spesifisert litt over oss.
+app.UseRateLimiter();
 // Hører sammen med AddControllers og forteller ASp.NET CORE at Api-endepunktene finnes og skal håndteres av kontrollerne.
 app.MapControllers();
 // Med denne kan API-et servere statiske filer som HTML, CSS, bilder osv direkte fra wwwroot-mappen.
 app.UseStaticFiles();
 // Hvis noen prøver å gå inn på en side som ikke eksisterer så blir de sendt tilbake til home eller index.
 app.MapFallbackToFile("index.html");
+
 
 // Configure the HTTP request pipeline.
 app.UseSwagger();
