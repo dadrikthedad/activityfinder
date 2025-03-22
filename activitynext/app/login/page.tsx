@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import {useRouter} from "next/navigation";
+import { useAuth} from "@/context/AuthContext"
 
 export default function LoginPage() {
 
@@ -8,11 +9,14 @@ const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
 const [errorMessage, setErrorMessage] = useState("");
 const router = useRouter();
+const {login} = useAuth();
+const [isSubmitting, setIsSubmitting] = useState(false);
 
 
 const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
   setErrorMessage("");
+  if (isSubmitting) return;
 
 
   // Sender en forespørsel til backenden, med email og password som er blitt gjort om til json.
@@ -36,7 +40,7 @@ const handleLogin = async (e: React.FormEvent) => {
     //Lagre tokenet i localStorage eller cookie for videre bruk
     try {
       if (data.token) {
-        localStorage.setItem("token", data.token);
+        login(data.token);
       } else {
         throw new Error("Login successful, but no token received.");
       }
@@ -55,6 +59,8 @@ const handleLogin = async (e: React.FormEvent) => {
     } else {
       setErrorMessage("An unexpected error occurred.");
     }
+  } finally {
+    setIsSubmitting(false);
   }
 }
 
@@ -86,6 +92,7 @@ const handleLogin = async (e: React.FormEvent) => {
               // Endrer eposten hvis vi forandrer i teksten igjen
               onChange={(e) => setEmail(e.target.value)}
               required
+              disabled={isSubmitting}
             />
           </div>
   
@@ -100,6 +107,7 @@ const handleLogin = async (e: React.FormEvent) => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isSubmitting}
             />
           </div>
 
@@ -108,9 +116,12 @@ const handleLogin = async (e: React.FormEvent) => {
   
           <button
             type="submit"
-            className="w-full bg-[#166016] text-white py-2 rounded-md font-semibold hover:bg-[#0F3D0F] transition"
+            disabled={isSubmitting}
+            className={`w-full bg-[#166016] text-white py-2 rounded-md font-semibold transition ${
+              isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-[#0F3D0F]"
+            }`}
           >
-            Logg inn
+           { isSubmitting ? "Logging in..." : "Logg inn"}
           </button>
         </form>
   

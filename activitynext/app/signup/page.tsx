@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Info, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
+import SuccessModal from "@/components/SuccessModal";
+
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -30,6 +32,7 @@ export default function Signup() {
     const [isRegistered, setIsRegistered] = useState(false);
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
     const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
 
 
   
@@ -386,7 +389,9 @@ useEffect(() => {
       if (response.ok) {
         console.log("Sending dateOfBirth:", formData.dateOfBirth);
         setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
+        setShowSuccessModal(true);
         setTimeout(() => {
+          setShowSuccessModal(false);
           setIsRegistered(true); // 🚀 Oppdater state i stedet for å navigere direkte
         }, 1000);
 
@@ -780,9 +785,11 @@ useEffect(() => {
     {message && (
     <p className="mt-2 text-sm text-green-500">{message}</p>
       )}
+      
   </div>
-
-</form>
+      
+  </form>
+  {showSuccessModal && <SuccessModal onClose={() => setShowSuccessModal(false)} />}
     </div>
   );
   
