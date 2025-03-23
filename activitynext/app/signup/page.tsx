@@ -33,7 +33,6 @@ export default function Signup() {
     postalCode: "",
     });
 
-    const router = useRouter();
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
     const [message, setMessage] = useState("");
     const [countries, setCountries] = useState<string[]>([]);
@@ -46,6 +45,7 @@ export default function Signup() {
     const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
     const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
     const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const router = useRouter();
 
 
   
@@ -324,7 +324,6 @@ useEffect(() => {
   
       const data = await response.json();
       if (response.ok) {
-        console.log("Sending dateOfBirth:", formData.dateOfBirth);
         setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
         setShowSuccessModal(true);
         setTimeout(() => {
@@ -334,7 +333,7 @@ useEffect(() => {
 
 
       } else {
-        setErrors(data.errors || { general: "Kunne ikke registrere bruker." });
+        setErrors(data.errors || { general: "Could not register user." });
       }
     } catch (error) {
       console.error("Feil under registrering:", error);
@@ -347,10 +346,9 @@ useEffect(() => {
 
   useEffect(() => {
     if (isRegistered) {
-      console.log("Navigerer til /login...");
       setTimeout(() => {
         router.replace("/login");
-      }, 1000); // 🚀 Naviger kun etter at state har endret seg
+      }, 1000);
     }
   }, [isRegistered, router]);
 

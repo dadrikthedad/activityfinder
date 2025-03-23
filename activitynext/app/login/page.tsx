@@ -8,7 +8,6 @@ export default function LoginPage() {
 const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
 const [errorMessage, setErrorMessage] = useState("");
-const router = useRouter();
 const {login} = useAuth();
 const [isSubmitting, setIsSubmitting] = useState(false);
 
