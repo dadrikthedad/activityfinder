@@ -16,9 +16,9 @@ const [isSubmitting, setIsSubmitting] = useState(false);
 const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
   setErrorMessage("");
+  
   if (isSubmitting) return;
-
-
+  setIsSubmitting(true);
   // Sender en forespørsel til backenden, med email og password som er blitt gjort om til json.
   try {
     const response = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login`, {
@@ -41,17 +41,13 @@ const handleLogin = async (e: React.FormEvent) => {
     try {
       if (data.token) {
         login(data.token);
-      } else {
-        throw new Error("Login successful, but no token received.");
+        return;
       }
     } catch (error) {
       console.warn("Could not save token in localStorage:", error);
       setErrorMessage("Could not save login. Try again.");
     }
     
-
-    //Omdiriger hjem etter vi har en suksessful innlogging
-    router.push("/");
     // Fanger alle feil og skriver en message. Kanskje komme tilbake med spesifikke feil.
   } catch (error: unknown) {
     if (error instanceof Error) {

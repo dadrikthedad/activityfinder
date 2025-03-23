@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
-import { Settings } from "lucide-react";
+import { Settings, Bell, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
@@ -41,10 +41,9 @@ export default function Navbar() {
 
   return (
     <nav className="flex justify-between items-center bg-[#145214] p-4 text-white shadow-md">
-      <div className="text-2xl font-bold">Magee.no</div>
-
-      <div className="flex justify-between w-full max-w-4xl">
-        {/* Venstre links */}
+      {/* Venstre del: Logo + lenker */}
+      <div className="flex items-center gap-8">
+        <div className="text-2xl font-bold">Magee.no</div>
         <ul className="flex gap-6">
           <li>
             <Link href="/" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
@@ -62,65 +61,83 @@ export default function Navbar() {
             </Link>
           </li>
         </ul>
+      </div>
+  
+      {/* Høyre del: Login/Profile/Settings */}
+      <ul className="flex gap-6 items-center relative">
+        {isLoggedIn ? (
+          <>
+             {/* Messages */}
+            <li>
+              <Link href="/inbox" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
+                <Mail size={18} />
+                <span>Messages</span>
+              </Link>
+            </li>
 
-        {/* Høyre links */}
-        <ul className="flex gap-6 items-center relative" >
-          {isLoggedIn ? (
-            <>
+            {/* Notifications */}
+            <li>
+              <Link href="/notifications" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
+                <Bell size={18} />
+                <span>Notifications</span>
+              </Link>
+            </li>
+
             <li>
               <Link href="/profile" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
-              Profile
+                Profile
               </Link>
             </li>
             <li className="relative">
-              <button onClick={() => setShowDropdown((prev) => !prev)}
+              <button
+                onClick={() => setShowDropdown((prev) => !prev)}
                 className="hover:bg-[#0F3D0F] p-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-white"
                 aria-label="Settings"
+              >
+                <Settings size={20} />
+              </button>
+  
+              {showDropDown && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute right-0 top-12 bg-white text-black rounded-md shadow-md p-2 z-10 w-32"
                 >
-                  <Settings size={20}/>
-                </button>
-
-                {showDropDown && (
-                  <div 
-                    ref={dropdownRef}
-                    className="absolute right-0 top-12 bg-white text-black rounded-md shadow-md p-2 z-10 w-32">
-                    <button
-                      className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                      onClick={() => {
-                        setShowDropdown(false);
-                        router.push("/settings");
-                      }}
-                      >
-                        Settings
-                      </button>
-                      <button
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-100"
-                        onClick={handleLogout}
-                        >
-                          Logout
-                        </button>
-                    </div>
-                )}
-              </li>
-            </>
-          ) : (
-            <>
-              <li>
-                <Link href="/login" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
-                  Login
-                </Link>
-              </li>
-              <li>
-                <Link href="/signup" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
-                  Sign up
-                </Link>
-              </li>
-            </>
-          )}
-        </ul>
-      </div>
-      </nav>
-    );
+                  <button
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    onClick={() => {
+                      setShowDropdown(false);
+                      router.push("/settings");
+                    }}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    onClick={handleLogout}
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </li>
+          </>
+        ) : (
+          <>
+            <li>
+              <Link href="/login" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
+                Login
+              </Link>
+            </li>
+            <li>
+              <Link href="/signup" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
+                Sign up
+              </Link>
+            </li>
+          </>
+        )}
+      </ul>
+    </nav>
+  );
   }      
 
           

@@ -74,18 +74,17 @@ export default function Signup() {
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-
-    if (name === "email") {
-      checkEmailAvailability(value); // 🔥 Sjekker e-post i backend
-    }
-
-    setTouchedFields((prev) => ({ ...prev, [name]: true })); // 👈 Registrerer at feltet er besøkt
-    validateSingleField(name, value); // 🔥 Kjør validering kun når feltet er besøkt
+    setTouchedFields((prev) => ({ ...prev, [name]: true }));
+  
+    const error = validateSingleField(name, value);
+    setErrors((prevErrors) => ({
+      ...prevErrors,
+      [name]: error || "",
+    }));
   };
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
   const handleAttemptSubmit = () => {
-    // 👉 Sett alle felt som "touched"
     const allTouched = Object.keys(formData).reduce((acc, key) => {
       acc[key] = true;
       return acc;
@@ -93,24 +92,29 @@ export default function Signup() {
   
     setTouchedFields(allTouched);
   
-    // 👉 Midlertidig objekt for å samle feil
     const newErrors: { [key: string]: string } = {};
   
-    // 👉 Kjør validering på alle felter
-    Object.entries(formData).forEach(([key, value]) => {
-      validateSingleField(key, value);
-      if (!value.trim() && key !== "middleName" && key !== "phone" && key !== "postalCode") {
-        newErrors[key] = "This field is required."; // Sett feil for påkrevde felt
+    for (const [key, value] of Object.entries(formData)) {
+      if (key !== "middleName" && key !== "phone" && key !== "postalCode") {
+        const error = validateSingleField(key, value);
+        if (error) {
+          newErrors[key] = error;
+        }
       }
-    });
+    }
   
-    // 👉 Oppdater errors state
-    setErrors((prevErrors) => ({ ...prevErrors, ...newErrors }));
+    setErrors(newErrors);
   
-    // 👉 Hvis ingen feil, send skjema
-    if (Object.keys(newErrors).length === 0) {
-      registerUser(new Event("submit") as unknown as React.FormEvent);}
+    if (Object.keys(newErrors).length > 0) {
+      setMessage("Please fix all required fields.");
+      return;
+    }
+  
+    setMessage("");
+    setIsSubmitting(true);
+    registerUser(new Event("submit") as unknown as React.FormEvent);
   };
+  
   
   
   
@@ -145,85 +149,68 @@ export default function Signup() {
 
 
   // Funksjon for å validere ett enkelt felt
-  const validateSingleField = (name: string, value: string) => {
-    const newErrors = { ...errors };
-  
+  const validateSingleField = (name: string, value: string): string | null => {
     if (name === "firstName") {
-      if (!value.trim()) newErrors.firstName = "First name is required.";
-      else if (value.length > 50) newErrors.firstName = "First name can't be more than 50 characters.";
-      else delete newErrors.firstName;
+      if (!value.trim()) return "First name is required.";
+      if (value.length > 50) return "First name can't be more than 50 characters.";
     }
   
     if (name === "middleName") {
-      if (value.trim() && value.length > 50) newErrors.middleName = "Middle name can't be more than 50 characters.";
-      else delete newErrors.middleName;
+      if (value.trim() && value.length > 50) return "Middle name can't be more than 50 characters.";
     }
   
     if (name === "lastName") {
-      if (!value.trim()) newErrors.lastName = "Last name is required.";
-      else if (value.length > 50) newErrors.lastName = "Last name can't be more than 50 characters.";
-      else delete newErrors.lastName;
+      if (!value.trim()) return "Last name is required.";
+      if (value.length > 50) return "Last name can't be more than 50 characters.";
     }
   
     if (name === "email") {
-      if (!value.trim()) newErrors.email = "Valid email is required.";
-      else if (!/^\S+@\S+\.\S+$/.test(value)) newErrors.email = "Invalid email format.";
-      else if (value.length > 100) newErrors.email = "Email can't be more than 100 characters.";
-      else delete newErrors.email;
+      if (!value.trim()) return "Valid email is required.";
+      if (!/^\S+@\S+\.\S+$/.test(value)) return "Invalid email format.";
+      if (value.length > 100) return "Email can't be more than 100 characters.";
     }
   
     if (name === "phone") {
       const phoneRegex = /^\+?[0-9]{7,15}$/;
-      if (value.trim() && !phoneRegex.test(value)) newErrors.phone = "Invalid phone number format.";
-      else if (value.length > 30) newErrors.phone = "Phone number can't be more than 30 characters.";
-      else delete newErrors.phone;
+      if (value.trim() && !phoneRegex.test(value)) return "Invalid phone number format.";
+      if (value.length > 30) return "Phone number can't be more than 30 characters.";
     }
   
     if (name === "password") {
-      if (!value.trim()) newErrors.password = "Password is required.";
-      else if (value.length < 8) newErrors.password = "Password must be at least 8 characters long.";
-      else if (value.length > 128) newErrors.password = "Password can't be more than 128 characters.";
-      else if (!/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/\d/.test(value)) {
-        newErrors.password = "Password must contain at least one uppercase letter, one lowercase letter, and one number.";
-      } else delete newErrors.password;
-    }
-  
-    if (name === "confirmPassword") {
-      if (!value.trim()) newErrors.confirmPassword = "Confirm password is required.";
-      else if (value !== formData.password) newErrors.confirmPassword = "Passwords do not match.";
-      else delete newErrors.confirmPassword;
-    }
-  
-    if (name === "dateOfBirth") {
-      const today = new Date().toISOString().split("T")[0]; // Få dagens dato i YYYY-MM-DD format
-      
-      if (!value.trim()) {
-        newErrors.dateOfBirth = "Date of birth is required.";
-      } else if (value > today) {
-        newErrors.dateOfBirth = "Date of birth cannot be in the future.";
-      } else {
-        delete newErrors.dateOfBirth;
+      if (!value.trim()) return "Password is required.";
+      if (value.length < 8) return "Password must be at least 8 characters long.";
+      if (value.length > 128) return "Password can't be more than 128 characters.";
+      if (!/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/\d/.test(value)) {
+        return "Password must contain at least one uppercase letter, one lowercase letter, and one number.";
       }
     }
   
+    if (name === "confirmPassword") {
+      if (!value.trim()) return "Confirm password is required.";
+      if (value !== formData.password) return "Passwords do not match.";
+    }
+  
+    if (name === "dateOfBirth") {
+      const today = new Date().toISOString().split("T")[0];
+      if (!value.trim()) return "Date of birth is required.";
+      if (value > today) return "Date of birth cannot be in the future.";
+    }
+  
     if (name === "country") {
-      if (!value.trim()) newErrors.country = "Country is required.";
-      else if (value.length > 100) newErrors.country = "Country name can't be more than 100 characters.";
-      else delete newErrors.country;
+      if (!value.trim()) return "Country is required.";
+      if (value.length > 100) return "Country name can't be more than 100 characters.";
     }
   
     if (name === "region") {
-      if (!value.trim()) newErrors.region = "Region is required.";
-      else if (value.length > 100) newErrors.region = "Region name can't be more than 100 characters.";
-      else delete newErrors.region;
+      if (!value.trim()) return "Region is required.";
+      if (value.length > 100) return "Region name can't be more than 100 characters.";
     }
   
     if (name === "postalCode") {
-      if (value.trim() && value.length > 25) newErrors.postalCode = "Postal code can't be more than 25 characters.";
-      else delete newErrors.postalCode;
+      if (value.trim() && value.length > 25) return "Postal code can't be more than 25 characters.";
     }
   
-    setErrors(newErrors);
+    return null;
   };
 
   //Hent IP fra API
@@ -247,8 +234,9 @@ export default function Signup() {
 
     // Håndterer inputendringer
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      
+      setMessage("");
       const { name, value } = e.target;
-
       let formattedValue = value;
     
       
@@ -402,6 +390,9 @@ useEffect(() => {
     } catch (error) {
       console.error("Feil under registrering:", error);
       setMessage("❌ Nettwork error. Try again later.");
+    } finally
+    {
+      setIsSubmitting(false);
     }
   };
 
