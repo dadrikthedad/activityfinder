@@ -3,6 +3,19 @@ import { useState, useEffect, useRef } from "react";
 import { Info, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SuccessModal from "@/components/SuccessModal";
+import {
+  validateFirstName,
+  validateMiddleName,
+  validateLastName,
+  validateEmail,
+  validatePhone,
+  validatePassword,
+  validateConfirmPassword,
+  validateDateOfBirth,
+  validateCountry,
+  validateRegion,
+  validatePostalCode,
+} from "@/utils/validators";
 
 
 export default function Signup() {
@@ -77,10 +90,16 @@ export default function Signup() {
     setTouchedFields((prev) => ({ ...prev, [name]: true }));
   
     const error = validateSingleField(name, value);
-    setErrors((prevErrors) => ({
-      ...prevErrors,
-      [name]: error || "",
-    }));
+  
+    setErrors((prevErrors) => {
+      const newErrors = { ...prevErrors };
+      if (error) {
+        newErrors[name] = error;
+      } else {
+        delete newErrors[name];
+      }
+      return newErrors;
+    });
   };
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
@@ -150,67 +169,20 @@ export default function Signup() {
 
   // Funksjon for å validere ett enkelt felt
   const validateSingleField = (name: string, value: string): string | null => {
-    if (name === "firstName") {
-      if (!value.trim()) return "First name is required.";
-      if (value.length > 50) return "First name can't be more than 50 characters.";
+    switch (name) {
+      case "firstName": return validateFirstName(value);
+      case "middleName": return validateMiddleName(value);
+      case "lastName": return validateLastName(value);
+      case "email": return validateEmail(value);
+      case "phone": return validatePhone(value);
+      case "password": return validatePassword(value);
+      case "confirmPassword": return validateConfirmPassword(value, formData.password);
+      case "dateOfBirth": return validateDateOfBirth(value);
+      case "country": return validateCountry(value);
+      case "region": return validateRegion(value);
+      case "postalCode": return validatePostalCode(value);
+      default: return null;
     }
-  
-    if (name === "middleName") {
-      if (value.trim() && value.length > 50) return "Middle name can't be more than 50 characters.";
-    }
-  
-    if (name === "lastName") {
-      if (!value.trim()) return "Last name is required.";
-      if (value.length > 50) return "Last name can't be more than 50 characters.";
-    }
-  
-    if (name === "email") {
-      if (!value.trim()) return "Valid email is required.";
-      if (!/^\S+@\S+\.\S+$/.test(value)) return "Invalid email format.";
-      if (value.length > 100) return "Email can't be more than 100 characters.";
-    }
-  
-    if (name === "phone") {
-      const phoneRegex = /^\+?[0-9]{7,15}$/;
-      if (value.trim() && !phoneRegex.test(value)) return "Invalid phone number format.";
-      if (value.length > 30) return "Phone number can't be more than 30 characters.";
-    }
-  
-    if (name === "password") {
-      if (!value.trim()) return "Password is required.";
-      if (value.length < 8) return "Password must be at least 8 characters long.";
-      if (value.length > 128) return "Password can't be more than 128 characters.";
-      if (!/[A-Z]/.test(value) || !/[a-z]/.test(value) || !/\d/.test(value)) {
-        return "Password must contain at least one uppercase letter, one lowercase letter, and one number.";
-      }
-    }
-  
-    if (name === "confirmPassword") {
-      if (!value.trim()) return "Confirm password is required.";
-      if (value !== formData.password) return "Passwords do not match.";
-    }
-  
-    if (name === "dateOfBirth") {
-      const today = new Date().toISOString().split("T")[0];
-      if (!value.trim()) return "Date of birth is required.";
-      if (value > today) return "Date of birth cannot be in the future.";
-    }
-  
-    if (name === "country") {
-      if (!value.trim()) return "Country is required.";
-      if (value.length > 100) return "Country name can't be more than 100 characters.";
-    }
-  
-    if (name === "region") {
-      if (!value.trim()) return "Region is required.";
-      if (value.length > 100) return "Region name can't be more than 100 characters.";
-    }
-  
-    if (name === "postalCode") {
-      if (value.trim() && value.length > 25) return "Postal code can't be more than 25 characters.";
-    }
-  
-    return null;
   };
 
   //Hent IP fra API
@@ -234,46 +206,23 @@ export default function Signup() {
 
     // Håndterer inputendringer
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      
       setMessage("");
-      const { name, value } = e.target;
-      let formattedValue = value;
     
-      
-
-      if (name === "phone") {
-        formattedValue = value.replace(/\s+/g, ""); // Fjern mellomrom
-        if (!/^\+?[0-9]{7,15}$/.test(formattedValue) && formattedValue !== "") {
-          setErrors((prev) => ({ ...prev, phone: "Telefonnummeret er ugyldig." }));
-        } else {
-          setErrors((prev) => {
-            const newErrors = { ...prev };
-            delete newErrors.phone; // ✅ Fjern feil hvis telefonnummeret er gyldig
-            return newErrors;
-          });
-        }
-      }
-
-      if (name === "dateOfBirth") {
-    validateSingleField(name, formattedValue);
-  }
-
+      const { name, value } = e.target;
+    
       setFormData((prev) => ({
         ...prev,
-        [name]: name === "dateOfBirth"
-          ? value // Behold kun YYYY-MM-DD format
-          : value,
+        [name]: value,
       }));
-
-      // Fjern feil for feltet hvis det har blitt rettet
-      setErrors((prevErrors) => {
-        if (prevErrors[name]) {
-          const newErrors = { ...prevErrors };
-          delete newErrors[name]; // 🔥 Riktig fjerning av feil
-          return newErrors;
-        }
-        return prevErrors;
-      });
+    
+      // Hvis feltet er berørt og det finnes en feil, valider det på nytt mens man skriver
+      if (touchedFields[name]) {
+        const error = validateSingleField(name, value);
+        setErrors((prevErrors) => ({
+          ...prevErrors,
+          [name]: error || "",
+        }));
+      }
     };
     
 
@@ -764,20 +713,23 @@ useEffect(() => {
 </div>
 
   {/* 🔥 SIGN UP BUTTON */}
-  <div className="col-span-3 flex justify-center mt-4">
-    <button
-      type="button"
-      className="w-full max-w-sm h-12 bg-[#166016] text-white rounded-lg font-semibold hover:bg-[#0F3D0F] transition"
-      onClick={handleAttemptSubmit}
-      disabled={isSubmitting} //Har man trykket uten errors så blir knappen låst
-    >
-      {isSubmitting ? "Submitting..." : "Sign up"}
-    </button>
-    {message && (
-    <p className="mt-2 text-sm text-green-500">{message}</p>
-      )}
-      
-  </div>
+  <div className="col-span-3 flex flex-col items-center mt-4 space-y-2">
+  {(message || errors.general) && (
+    <div className="text-sm text-center">
+      {message && <p className="text-red-500">{message}</p>}
+      {errors.general && <p className="text-red-500">{errors.general}</p>}
+    </div>
+  )}
+  
+  <button
+    type="button"
+    className="w-full max-w-sm h-12 bg-[#166016] text-white rounded-lg font-semibold hover:bg-[#0F3D0F] transition"
+    onClick={handleAttemptSubmit}
+    disabled={isSubmitting}
+  >
+    {isSubmitting ? "Submitting..." : "Sign up"}
+  </button>
+</div>
       
   </form>
   {showSuccessModal && <SuccessModal onClose={() => setShowSuccessModal(false)} />}
