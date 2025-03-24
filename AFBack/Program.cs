@@ -139,6 +139,8 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = 429; // Too Many Requests
 });
 
+builder.Services.AddSingleton<CountryService>();
+
 // Kjører applikasjonen med alle tjenester, middleware og avhengigheter. Alle servicesene og alt vi har lagt til blir låst
 // og klart til bruk. 
 var app = builder.Build();

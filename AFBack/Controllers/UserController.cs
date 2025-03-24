@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-
 namespace AFBack.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using AFBack.DTOs;
@@ -10,6 +9,7 @@ using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using CountryData.Standard;
 using AFBack.Services;
+
 
 // Forteller backend at alle API-endepunktene i denne klassen skal ha api/user som base-url
 [Route("api/user")]
@@ -27,14 +27,39 @@ public class UserController : ControllerBase
     
     // Lager token og sjekker at passord og epost er riktig.
     private readonly AuthService _authService;
+    
+    private readonly CountryService _countryService;
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
-    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService)
+    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService)
     {
         _context = context;
-        _countryHelper = new CountryHelper();
+        _countryService = countryService;
         _logger = logger;
         _authService = authService;
+    }
+    
+    // Henter alle land:
+    [HttpGet("countries")]
+    public IActionResult GetAllCountries()
+    {
+        try
+        {
+            var countries = _countryService.GetAllCountries().ToList();
+
+            if (!countries.Any())
+            {
+                _logger.LogWarning("No countries found in cache.");
+                return NotFound(new { message = "No countries available at the moment." });
+            }
+
+            return Ok(countries);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Error retrieving countries: {Error}", ex.Message);
+            return StatusCode(500, new { message = "Failed to fetch countries. Try again later." });
+        }
     }
     
     
@@ -48,7 +73,7 @@ public class UserController : ControllerBase
             return BadRequest(new { message = "Country code is required." });
         
         //Hvis ikke så lagrer vi alle regionene i en liste
-        var regions = _countryHelper.GetRegionByCountryCode(countryCode);
+        var regions = _countryHelper.GetRegionByCountryCode(countryCode.ToUpper());
         
         // Hvis det ikke er noen regioner i listen så får vi en feilmelding på det.
         if (regions == null || !regions.Any())
@@ -59,7 +84,6 @@ public class UserController : ControllerBase
         
         // Returner listen med navnene til regionene
         return Ok(regions.Select(region => region.Name).ToList());
-
     }
     
     
@@ -76,10 +100,16 @@ public class UserController : ControllerBase
             _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
        
         
-        var validCountries = new HashSet<string>(_countryHelper.GetCountries(), StringComparer.OrdinalIgnoreCase);
-        
-        if (!validCountries.Contains(userDto.Country))
-            ModelState.AddModelError("Country", "Invalid country");
+            var canonicalCountry = _countryService.GetCanonicalName(userDto.Country);
+
+            if (canonicalCountry is null)
+            {
+                ModelState.AddModelError("Country", $"Invalid country: '{userDto.Country}'");
+            }
+            else
+            {
+                userDto.Country = canonicalCountry!;
+            }
         
         // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
         if (!ModelState.IsValid)
