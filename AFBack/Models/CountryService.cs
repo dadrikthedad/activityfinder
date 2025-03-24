@@ -5,7 +5,8 @@ namespace AFBack.Models;
 public class CountryService
 {
     private readonly ILogger<CountryService> _logger;
-    private List<string> _cachedCountries = new();
+    private Dictionary<string, string> _codeToName = new(); // "NO" -> "Norway"
+    private HashSet<string> _validCountryCodes = new();   
 
     public CountryService(ILogger<CountryService> logger)
     {
@@ -22,38 +23,43 @@ public class CountryService
 
             var countriesRaw = JsonSerializer.Deserialize<List<RestCountry>>(response);
 
-            _cachedCountries = countriesRaw?
-                .Select(c => c.Name.Common)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(n => n)
-                .ToList() ?? new();
+            _codeToName = countriesRaw
+                .Where(c => !string.IsNullOrWhiteSpace(c.Cca2) && !string.IsNullOrWhiteSpace(c.Name.Common))
+                .ToDictionary(
+                    c => c.Cca2.ToUpper(), // "NO"
+                    c => c.Name.Common     // "Norway"
+                );
 
-            _logger.LogInformation("✅ Loaded {Count} countries from REST Countries API.", _cachedCountries.Count);
+            _validCountryCodes = new HashSet<string>(_codeToName.Keys);
+
+            _logger.LogInformation("✅ Loaded {Count} countries from REST Countries API.", _codeToName.Count);
+
         }
         catch (Exception ex)
         {
             _logger.LogError("❌ Failed to load countries from API: {Error}", ex.Message);
         }
     }
+    
 
-    public bool IsValidCountry(string input)
+    public IEnumerable<object> GetAllCountries() =>
+        _codeToName.Select(kvp => new { Code = kvp.Key, Name = kvp.Value });
+    
+    public string? GetCountryNameFromCode(string code)
     {
-        return _cachedCountries.Contains(input.Trim(), StringComparer.OrdinalIgnoreCase);
+        return _codeToName.TryGetValue(code.Trim().ToUpper(), out var name) ? name : null;
     }
 
-    public string? GetCanonicalName(string input)
+    public bool IsValidCountryCode(string code)
     {
-        input = input.Replace("-", " ").Trim();
-        return _cachedCountries.FirstOrDefault(c =>
-            string.Equals(c, input.Trim(), StringComparison.OrdinalIgnoreCase));
+        return _validCountryCodes.Contains(code.Trim().ToUpper());
     }
-
-    public IEnumerable<string> GetAllCountries() => _cachedCountries;
 
     private class RestCountry
     {
         public NameInfo Name { get; set; } = new();
+        public string Cca2 { get; set; } = string.Empty; // <-- LEGG TIL DENNE!
+
         public class NameInfo
         {
             public string Common { get; set; } = string.Empty;

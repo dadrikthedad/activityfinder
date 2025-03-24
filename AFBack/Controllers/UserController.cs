@@ -100,15 +100,14 @@ public class UserController : ControllerBase
             _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
        
         
-            var canonicalCountry = _countryService.GetCanonicalName(userDto.Country);
-
-            if (canonicalCountry is null)
+            var countryName = _countryService.GetCountryNameFromCode(userDto.Country);
+            if (countryName is null)
             {
-                ModelState.AddModelError("Country", $"Invalid country: '{userDto.Country}'");
+                ModelState.AddModelError("Country", $"Invalid country code: '{userDto.Country}'");
             }
             else
             {
-                userDto.Country = canonicalCountry!;
+                userDto.Country = countryName;
             }
         
         // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.

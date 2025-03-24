@@ -64,9 +64,9 @@ public class UserRegisterDTO
     public string ConfirmPassword { get; set; } = null!;
     
     
-    [Required(ErrorMessage = "Must be a valid country.")]
-    [MaxLength(100, ErrorMessage = "Country can't be more than 100 characters.")]
-    public string Country { get; set; }
+    [Required(ErrorMessage = "Must be a valid country code.")]
+    [MaxLength(2, ErrorMessage = "Country code must be a valid ISO 3166-1 alpha-2 code, e.g., 'NO'.")]
+    public string Country { get; set; } = null!;
     
     // TODO: Kan fjerne MaxLength etterhvert når vi får satt inn droppdown menyen.
     [MaxLength(100, ErrorMessage = "Providence can't be more than 100 characters.")]
