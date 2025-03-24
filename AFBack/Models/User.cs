@@ -46,6 +46,7 @@ public class User
     public bool EmailConfirmed { get; set; } = false;
     public string? EmailConfirmationToken { get; set; }
     
+    // Lagrer landet
     [Required]
     [MaxLength(100)]
     public string Country { get; set; } = null!;
@@ -56,10 +57,14 @@ public class User
     
     [MaxLength(25)]
     public string? PostalCode { get; set; }
-    
-    // Lagrer landet
+    // Her lagrer vi profilen som blir opprettet når brukeren blir laget
+    public Profile? Profile { get; set; }
+    //Her lagrer vi innstillingene som blir opprettet når brukeren blir laget
+    public UserSettings? Settings { get; set; }
     
     // Metode for å verifisere passord laget 11.03. Sjekker om passordet er korrekt når brukeren taster den inn.
     public bool VerifyPassword(string password) => BCrypt.Net.BCrypt.Verify(password, PasswordHash);
+    
+    
     
 }

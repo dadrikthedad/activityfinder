@@ -59,7 +59,13 @@ export const validateFirstName = (value: string): string | null => {
   };
   
   export const validateRegion = (value: string): string | null => {
-    if (!value.trim()) return "Region is required.";
+    if (!value || value === "-- Choose --") {
+        return "Region is required.";
+      }
+    
+    if (value === "No regions available") {
+        return null; // ✅ Godkjent hvis landet ikke har noen regioner
+    }
     if (value.length > 100) return "Region name can't be more than 100 characters.";
     return null;
   };
@@ -68,4 +74,30 @@ export const validateFirstName = (value: string): string | null => {
     if (value.trim() && value.length > 25) return "Postal code can't be more than 25 characters.";
     return null;
   };
+
+  export type FieldName =
+  | "firstName" | "middleName" | "lastName"
+  | "email" | "phone"
+  | "password" | "confirmPassword"
+  | "dateOfBirth" | "country" | "region" | "postalCode";
   
+  export const validateSingleField = (
+    name: FieldName,
+    value: string,
+    passwordToCompare?: string
+  ): string | null => {
+    switch (name) {
+      case "firstName": return validateFirstName(value);
+      case "middleName": return validateMiddleName(value);
+      case "lastName": return validateLastName(value);
+      case "email": return validateEmail(value);
+      case "phone": return validatePhone(value);
+      case "password": return validatePassword(value);
+      case "confirmPassword": return validateConfirmPassword(value, passwordToCompare || "");
+      case "dateOfBirth": return validateDateOfBirth(value);
+      case "country": return validateCountry(value);
+      case "region": return validateRegion(value);
+      case "postalCode": return validatePostalCode(value);
+      default: return null;
+    }
+  };

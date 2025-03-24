@@ -35,26 +35,15 @@ public class UserController : ControllerBase
         _authService = authService;
     }
     
-   
     
-    // // Her bruker vi LINQ til å finne landkoden til valgt land ved hjelp av Where og Select. Vi bruker denne feks til GetRegionsByCountry til å sende
-    // regionene til frontend etter bruker har valgt land.
-    private string? GetCountryCodeByName(string countryName)
-    {
-        return _countryHelper.GetCountryData().Where(country => country.CountryName.Equals(countryName, StringComparison.OrdinalIgnoreCase)).Select(country => country.CountryShortCode).FirstOrDefault();
-    }
-    
-   
     
     // Endepunkt som blir sendt fra frontend basert på valgt land og sender tilbake en liste med alle regionene til valgt land
-    [HttpGet("regions/{countryName}")]
-    public IActionResult GetRegionsByCountry(string countryName)
+    [HttpGet("regions/{countryCode}")]
+    public IActionResult GetRegionsByCountry(string countryCode)
     {
-        
-        var countryCode = GetCountryCodeByName(countryName);
         // Hvis stringen er tom eller null, hvis vi ikke finner et navnm så gir vi feilbeskjed
-        if (string.IsNullOrEmpty(countryCode))
-            return BadRequest(new { message = "Invalid country name." });
+        if (string.IsNullOrWhiteSpace(countryCode))
+            return BadRequest(new { message = "Country code is required." });
         
         //Hvis ikke så lagrer vi alle regionene i en liste
         var regions = _countryHelper.GetRegionByCountryCode(countryCode);
@@ -62,7 +51,7 @@ public class UserController : ControllerBase
         // Hvis det ikke er noen regioner i listen så får vi en feilmelding på det.
         if (regions == null || !regions.Any())
         {
-            _logger.LogInformation("Ingen regioner funnet for {CountryName}. Returnerer tom liste.", countryName);
+            _logger.LogInformation("Ingen regioner funnet for {CountryCode}. Returnerer tom liste.", countryCode);
             return Ok(new List<string>());
         }
         

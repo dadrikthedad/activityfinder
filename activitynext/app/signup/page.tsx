@@ -15,11 +15,28 @@ import {
   validateCountry,
   validateRegion,
   validatePostalCode,
+  validateSingleField,
+  FieldName
 } from "@/utils/validators";
+import { useFormHandlers } from "@/hooks/useFormHandlers";
+import FormField from "@/components/FormField";
+import PasswordField from "@/components/PasswordField";
 
 
 export default function Signup() {
-  const [formData, setFormData] = useState({
+  const {
+    formData,
+    errors,
+    setErrors,
+    touchedFields,
+    handleChange,
+    handleBlur,
+    validateAllFields,
+    message,
+    setMessage,
+    setFormData,
+    resetForm,
+  } = useFormHandlers({
     firstName: "",
     middleName: "",
     lastName: "",
@@ -31,10 +48,8 @@ export default function Signup() {
     country: "",
     region: "",
     postalCode: "",
-    });
+  });
 
-    const [errors, setErrors] = useState<{ [key: string]: string }>({});
-    const [message, setMessage] = useState("");
     const [countries, setCountries] = useState<string[]>([]);
     const [regions, setRegions] = useState<string[]>([]);
     const hasSetCountry = useRef(false); // 👈 Lagrer om vi allerede har satt landet
@@ -42,31 +57,30 @@ export default function Signup() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
-    const [touchedFields, setTouchedFields] = useState<{ [key: string]: boolean }>({});
     const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const router = useRouter();
+    const [ countryCodes, setCountryCodes ] = useState<Record<string, string>>({});
 
 
   
   //Hent land fra API
-  useEffect(() => {
-    const fetchCountries = async () => {
-      try {
-        const response = await fetch("https://restcountries.com/v3.1/all");
-        const data: { name: { common: string } }[] = await response.json(); // Spesifiserer forventet responsstruktur
-        const countryNames = data.map((country) => country.name.common).sort();
-        setCountries(countryNames);
-      } catch (error) {
-        console.error("Feil ved henting av land:", error);
-      }
-    };
+  const fetchCountries = async () => {
+    try {
+      const response = await fetch("https://restcountries.com/v3.1/all");
+      const data: { name: { common: string }, cca2: string }[] = await response.json();
   
-    fetchCountries();
-  }, []);
-
-  const togglePasswordVisibility = () => {
-    setShowPassword((prev) => !prev);
+      const countryMap: Record<string, string> = {};
+      const countryNames = data.map((country) => {
+        countryMap[country.name.common] = country.cca2;
+        return country.name.common;
+      }).sort();
+  
+      setCountries(countryNames);
+      setCountryCodes(countryMap);
+    } catch (error) {
+      console.error("Feil ved henting av land:", error);
+    }
   };
   
   const toggleConfirmPasswordVisibility = () => {
@@ -85,46 +99,12 @@ export default function Signup() {
     }, 500); // Vent 500ms før vi sjekker
   }, [formData.email]);
 
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setTouchedFields((prev) => ({ ...prev, [name]: true }));
-  
-    const error = validateSingleField(name, value);
-  
-    setErrors((prevErrors) => {
-      const newErrors = { ...prevErrors };
-      if (error) {
-        newErrors[name] = error;
-      } else {
-        delete newErrors[name];
-      }
-      return newErrors;
-    });
-  };
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
   const handleAttemptSubmit = () => {
-    const allTouched = Object.keys(formData).reduce((acc, key) => {
-      acc[key] = true;
-      return acc;
-    }, {} as { [key: string]: boolean });
+    const isValid = validateAllFields();
   
-    setTouchedFields(allTouched);
-  
-    const newErrors: { [key: string]: string } = {};
-  
-    for (const [key, value] of Object.entries(formData)) {
-      if (key !== "middleName" && key !== "phone" && key !== "postalCode") {
-        const error = validateSingleField(key, value);
-        if (error) {
-          newErrors[key] = error;
-        }
-      }
-    }
-  
-    setErrors(newErrors);
-  
-    if (Object.keys(newErrors).length > 0) {
+    if (!isValid) {
       setMessage("Please fix all required fields.");
       return;
     }
@@ -166,97 +146,68 @@ export default function Signup() {
     }
   };
 
-
-  // Funksjon for å validere ett enkelt felt
-  const validateSingleField = (name: string, value: string): string | null => {
-    switch (name) {
-      case "firstName": return validateFirstName(value);
-      case "middleName": return validateMiddleName(value);
-      case "lastName": return validateLastName(value);
-      case "email": return validateEmail(value);
-      case "phone": return validatePhone(value);
-      case "password": return validatePassword(value);
-      case "confirmPassword": return validateConfirmPassword(value, formData.password);
-      case "dateOfBirth": return validateDateOfBirth(value);
-      case "country": return validateCountry(value);
-      case "region": return validateRegion(value);
-      case "postalCode": return validatePostalCode(value);
-      default: return null;
+  //Hent IP fra API
+  useEffect(() => {
+  const fetchUserCountry = async () => {
+    try {
+      const response = await fetch("https://ipapi.co/json/");
+      const data = await response.json();
+      
+      if (data && data.country_name && !hasSetCountry.current) {
+        hasSetCountry.current = true;
+        setFormData((prev) => ({ ...prev, country: data.country_name }));
+      }
+    } catch (error) {
+      console.error("Kunne ikke hente brukerens land:", error);
     }
   };
 
-  //Hent IP fra API
-  useEffect(() => {
-    const fetchUserCountry = async () => {
-      try {
-        const response = await fetch("https://ipapi.co/json/");
-        const data = await response.json();
-        
-        if (data && data.country_name && !formData.country && !hasSetCountry.current) {
-          hasSetCountry.current = true; // 👈 Sørg for at vi bare setter dette én gang
-          setFormData((prev) => ({ ...prev, country: data.country_name }));
-        }
-      } catch (error) {
-        console.error("Kunne ikke hente brukerens land:", error);
-      }
-    };
-  
-    fetchUserCountry();
-  }, [formData.country]);
-
-    // Håndterer inputendringer
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      setMessage("");
-    
-      const { name, value } = e.target;
-    
-      setFormData((prev) => ({
-        ...prev,
-        [name]: value,
-      }));
-    
-      // Hvis feltet er berørt og det finnes en feil, valider det på nytt mens man skriver
-      if (touchedFields[name]) {
-        const error = validateSingleField(name, value);
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          [name]: error || "",
-        }));
-      }
-    };
-    
+  fetchUserCountry();
+}, []);
 
  // Håndterer valg av land
-const handleCountryChange = async (eventOrCountry: React.ChangeEvent<HTMLSelectElement> | string) => {
-  const selectedCountry = typeof eventOrCountry === "string" ? eventOrCountry : eventOrCountry.target.value;
+ const handleCountryChange = (
+  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+) => {
+  const selectedCountry = e.target.value;
+  const countryCode = countryCodes[selectedCountry];
+
   setFormData({ ...formData, country: selectedCountry, region: "" });
 
-  if (!selectedCountry) {
+  if (!countryCode) {
+    console.error("Fant ikke landkode for", selectedCountry);
     setRegions([]);
     return;
   }
 
-  try {
-    const res = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${selectedCountry}`);
-    if (!res.ok) throw new Error("Kunne ikke hente regioner.");
-    
-    const data = await res.json();
-    setRegions(data);
+  fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${encodeURIComponent(countryCode)}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (!Array.isArray(data)) {
+        console.error("Ugyldig respons fra region-endepunktet:", data);
+        setRegions([]);
+        setFormData((prev) => ({ ...prev, region: "" }));
+        return;
+      }
 
-    setFormData((prev) => ({
-      ...prev,
-      region: data.length > 0 ? prev.region : "" // 🚀 Setter region til null hvis ingen regioner finnes
-    }));
-
-  } catch (error) {
-    console.error("Feil ved henting av regioner:", error);
-    setRegions([]);
-    setFormData((prev) => ({
-      ...prev,
-      region: "" // ✅ Sikrer at vi ikke sender "null" som string
-    }));
-  }
+      if (data.length === 0) {
+        setRegions(["No regions available"]);
+        setFormData((prev) => ({ ...prev, region: "No regions available" }));
+      } else {
+        setRegions(data);
+        setFormData((prev) => ({
+          ...prev,
+          region: data[0],
+        }));
+      }
+    })
+    .catch((error) => {
+      console.error("Feil ved henting av regioner:", error);
+      setRegions([]);
+      setFormData((prev) => ({ ...prev, region: "" }));
+    });
 };
+
 
 
 
@@ -269,7 +220,11 @@ useEffect(() => {
     if (!formData.country) return;
     const fetchRegions = async () => {
       try {
-        const res = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${formData.country}`);
+        const countryCode = countryCodes[formData.country];
+        if (!countryCode) return;
+
+        const res = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${encodeURIComponent(countryCode)}`)
+
         if (!res.ok) throw new Error("Kunne ikke hente regioner.");
 
         const data = await res.json();
@@ -305,7 +260,7 @@ useEffect(() => {
     delete payload.phone; // 🚀 Fjern phone-feltet hvis det er tomt
     }
 
-    if (!formData.region || formData.region === "null") {
+    if (!formData.region || formData.region === "null" || formData.region === "No regions available") {
       delete payload.region;
     }
 
@@ -361,373 +316,184 @@ useEffect(() => {
   
       <form onSubmit={registerUser} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
   
-  {/* 🔥 FORNAVN */}
-  <label htmlFor="firstName" className="text-gray-300 font-medium text-right">First name:</label>
+        {/* 🔥 FORNAVN */}
 
-  <div className="flex flex-col w-full">
-    <input
-      id="firstName"
-      type="text"
-      name="firstName"
-      placeholder="First name"
-      value={formData.firstName}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${touchedFields.firstName && errors.firstName ? "border-red-500" : "border-gray-500"}`}
-    />
-    {touchedFields.firstName && errors.firstName && (
-      <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>
-    )}
-  </div>
+        <FormField
+        id="firstName"
+        label="First name:"
+        value={formData.firstName}
+        onChange={(e) => handleChange("firstName", e.target.value)}
+        onBlur={(e) => handleBlur("firstName")}
+        error={errors.firstName}
+        touched={touchedFields.firstName}
+        placeholder="First name"
+        tooltip="Required: Your first name. Max characters: 50."
+        />
 
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
+        {/* 🔥 MELLOMNAVN */}
+        <FormField
+        id="middleName"
+        label="Middle name:"
+        value={formData.middleName}
+        onChange={(e) => handleChange("middleName", e.target.value)}
+        onBlur={(e) => handleBlur("middleName")}
+        error={errors.middleName}
+        touched={touchedFields.middleName}
+        placeholder="Middle name (not required)"
+        tooltip="Not required: Your middle name. Max characters: 50."
+        />
 
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Your first name. Max characters: 50.
-  </div>
-</div>
+        {/* 🔥 ETTERNAVN */}
+        <FormField
+        id="lastName"
+        label="Last name:"
+        value={formData.lastName}
+        onChange={(e) => handleChange("lastName", e.target.value)}
+        onBlur={(e) => handleBlur("lastName")}
+        error={errors.lastName}
+        touched={touchedFields.lastName}
+        placeholder="Last name"
+        tooltip="Required: Your last name. Max characters: 50."
+        />
 
-  {/* 🔥 MELLOMNAVN */}
-  <label htmlFor="middleName" className="text-gray-300 font-medium text-right">Middle name:</label>
+        {/* 🔥 E-POST */}
+        <FormField
+        id="email"
+        label="Email:"
+        type="email"
+        value={formData.email}
+        onChange={(e) => handleChange("email", e.target.value)}
+        onBlur={(e) => handleBlur("email")}
+        error={errors.email}
+        touched={touchedFields.email}
+        placeholder="Email"
+        tooltip="Required: Email. Only one user per email. Max characters: 100."
+        />
 
-  <div className="flex flex-col w-full">
-    <input
-      id="middleName"
-      type="text"
-      name="middleName"
-      placeholder="Middle name (not required)"
-      value={formData.middleName}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${touchedFields.middleName && errors.middleName ? "border-red-500" : "border-gray-500"}`}
-    />
-    {touchedFields.middleName && errors.middleName && (
-      <p className="text-red-500 text-sm mt-1">{errors.middleName}</p>
-    )}
-  </div>
+        {/* 🔥 Passowrd */}
+        <PasswordField
+        id="password"
+        label="Password:"
+        value={formData.password}
+        onChange={(e) => handleChange("password", e.target.value)}
+        onBlur={(e) => handleBlur("password")}
+        error={errors.password}
+        touched={touchedFields.password}
+        placeholder="Password"
+        tooltip="Password must contain uppercase, lowercase and a number. 8-128 chars."
+        />
+        {/* 🔥 ConfirmPassword */}
+        <PasswordField
+        id="confirmPassword"
+        label="Confirm Password:"
+        value={formData.confirmPassword}
+        onChange={(e) => handleChange("confirmPassword", e.target.value)}
+        onBlur={(e) => handleBlur("confirmPassword")}
+        error={errors.confirmPassword}
+        touched={touchedFields.confirmPassword}
+        placeholder="Confirm Password"
+        tooltip="Must match your password."
+        />
 
+        {/* 🔥 Phone */}
+        <FormField
+        id="phone"
+        label="Telefonnummer (valgfritt):"
+        type="tel"
+        value={formData.phone}
+        onChange={(e) => handleChange("phone", e.target.value)}
+        onBlur={(e) => handleBlur("phone")}
+        error={errors.phone}
+        touched={touchedFields.phone}
+        placeholder="Phonenumber"
+        tooltip="Not required: Must be a valid phonenumber. Might be used for verification later."
+        />
 
-<div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
+      {/* 🔥 FØDSELSDATO */}
+      <label htmlFor="dateOfBirth" className="text-gray-300 font-medium text-right">Date of birth:</label>
+        <div className="flex flex-col w-full">
+          <input
+            id ="dateOfBirth"
+            type="date" 
+            name="dateOfBirth" 
+            value={formData.dateOfBirth} 
+            onChange={(e) => handleChange(e.target.name as FieldName, e.target.value)}
+            onBlur={(e) => handleBlur(e.target.name as FieldName)} // eller bruk en mer dynamisk metode
+            max={new Date().toISOString().split("T")[0]}
+            className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+              ${touchedFields.dateOfBirth && errors.dateOfBirth ? "border-red-500" : "border-gray-500"}`}
+          />
+          {touchedFields.dateOfBirth && errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
+        </div>
 
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Not required: Your middle name. Max characters: 50.
-  </div>
-</div>
+        <div className="relative flex justify-start group">
+        <Info className="text-gray-400 cursor-pointer" size={18} />
 
-  {/* 🔥 ETTERNAVN */}
-  <label htmlFor="lastName" className="text-gray-300 font-medium text-right">Last name:</label>
+        {/* 🛠️ Tooltip som holder seg synlig */}
+        <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+            bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+          Required: Date of birth. Required for age verification.
+        </div>
+      </div>
 
-  <div className="flex flex-col w-full">
-    <input
-      id="lastName"
-      type="text"
-      name="lastName"
-      placeholder="Last name"
-      value={formData.lastName}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${touchedFields.lastName && errors.lastName ? "border-red-500" : "border-gray-500"}`}
-    />
-    {touchedFields.lastName && errors.lastName && (
-      <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>
-    )}
-  </div>
+        {/* 🔥 LAND */}
+        <FormField
+        id="country"
+        label="Country:"
+        value={formData.country}
+        onChange={handleCountryChange}
+        error={errors.country}
+        touched={touchedFields.country}
+        tooltip="Required: Country. Required to follow the law."
+        as="select"
+        options={countries}
+        disabled={countries.length === 0}
+        />
 
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
+        {/* 🔥 REGION */}
+        <FormField
+        id="region"
+        label="Region:"
+        value={formData.region}
+        onChange={(e) => handleChange("region", e.target.value)}
+        error={errors.region}
+        touched={touchedFields.region}
+        tooltip="Required: Region. For updates in your region."
+        as="select"
+        options={regions}
+        disabled={!formData.country}
+        />
+        {/* 🔥 PostalCode */}
+        <FormField
+          id="postalCode"
+          label="Postal code:"
+          value={formData.postalCode}
+          onChange={(e) => handleChange("postalCode", e.target.value)}
+          onBlur={(e) => handleBlur("postalCode")}
+          error={errors.postalCode}
+          touched={touchedFields.postalCode}
+          placeholder="Postal code (not required)"
+          tooltip="Not required: For updates/activities in your local area. Might use GPS later."
+          />
 
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Your last name. Max characters: 50.
-  </div>
-</div>
-
-  {/* 🔥 E-POST */}
-  <label htmlFor="email" className="text-gray-300 font-medium text-right">Email:</label>
-
-  <div className="flex flex-col w-full">
-    <input
-      id="email"
-      type="email"
-      name="email"
-      placeholder="Email"
-      value={formData.email}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${touchedFields.email && errors.email ? "border-red-500" : "border-gray-500"}`}
-    />
-    {touchedFields.email && errors.email && (
-      <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-    )}
-  </div>
-
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Email. Only one user per email. Max characters: 100.
-  </div>
-</div>
-
-{/* 🔥 PASSORD */}
-<label htmlFor="password" className="text-gray-300 font-medium text-right">Passord:</label>
-
-<div className="relative w-full flex flex-col"> {/* Holder øyeikonet låst */}
-  <div className="relative w-full">
-    <input
-      id="password"
-      type={showPassword ? "text" : "password"}
-      name="password"
-      placeholder="Password"
-      value={formData.password}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      className={`w-full h-12 px-4 pr-10 border rounded-md bg-gray-700 text-white
-        ${touchedFields.password && errors.password ? "border-red-500" : "border-gray-500"}`}
-    />
-
-    {/* ØYE-IKONET FOR VISNING AV PASSORD */}
-    <button
-      type="button"
-      onClick={togglePasswordVisibility}
-      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
-    >
-      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-    </button>
-  </div>
-
-  {/* FEILMELDING SOM SKYVER FELTET UNDER */}
-  {touchedFields.password && errors.password && (
-    <p className="text-red-500 text-xs mt-1">{errors.password}</p>
-  )}
-</div>
-
-{/* 🔥 TOOLTIP FOR PASSORDREGLER */}
-<div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-56 z-10">
-    Password must contain at least one lowercase letter, uppercase letter, and a number. 
-    Must be at least 8 characters long and less than 128.
-  </div>
-</div>
-
-  {/* 🔥 BEKREFT PASSORD */}
-<label htmlFor="confirmPassword" className="text-gray-300 font-medium text-right">Confirm password:</label>
-
-<div className="relative w-full flex flex-col">
-  <div className="relative w-full">
-    <input
-      id="confirmPassword"
-      type={showConfirmPassword ? "text" : "password"}
-      name="confirmPassword"
-      placeholder="Confirm Password"
-      value={formData.confirmPassword}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      className={`w-full h-12 px-4 pr-10 border rounded-md bg-gray-700 text-white
-        ${touchedFields.confirmPassword && errors.confirmPassword ? "border-red-500" : "border-gray-500"}`}
-    />
-
-    {/* ØYE-IKONET FOR BEKREFT PASSORD */}
-    <button
-      type="button"
-      onClick={toggleConfirmPasswordVisibility}
-      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
-    >
-      {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-    </button>
-  </div>
-
-  {/* FEILMELDING SOM SKYVER FELTET UNDER */}
-  {touchedFields.confirmPassword && errors.confirmPassword && (
-    <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>
-  )}
-</div>
-
-
-
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Password. Must match.
-  </div>
-</div>
-
-  {/* 🔥 TELEFONNUMMER */}
-  <label htmlFor="phone" className="text-gray-300 font-medium text-right">Telefonnummer (valgfritt):</label>
-
-  <div className="flex flex-col w-full">
-  <input
-    id="phone"
-    type="tel"
-    name="phone"
-    placeholder="Phonenumber"
-    value={formData.phone}
-    onChange={handleChange}
-    onBlur={handleBlur}
-    className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-      ${touchedFields.phone && errors.phone ? "border-red-500" : "border-gray-500"}`}
-  />
-  {touchedFields.phone && errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
-</div>
-
-<div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Not required: Must be a valid phonenumber. Will maybe be for verification later.
-  </div>
-</div>
-
-{/* 🔥 FØDSELSDATO */}
-<label htmlFor="dateOfBirth" className="text-gray-300 font-medium text-right">Date of birth:</label>
-  <div className="flex flex-col w-full">
-    <input
-      id ="dateOfBirth"
-      type="date" 
-      name="dateOfBirth" 
-      value={formData.dateOfBirth} 
-      onChange={handleChange} 
-      onBlur={handleBlur}
-      max={new Date().toISOString().split("T")[0]}
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${touchedFields.dateOfBirth && errors.dateOfBirth ? "border-red-500" : "border-gray-500"}`}
-    />
-    {touchedFields.dateOfBirth && errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
-  </div>
-
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Date of birth. Required for age verification.
-  </div>
-</div>
-
-  {/* 🔥 LAND */}
-  <label htmlFor="country" className="text-gray-300 font-medium text-right">Country:</label>
-<div className="flex flex-col w-full">
-  <select 
-    id="country"
-    name="country" 
-    value={formData.country} 
-    onChange={handleCountryChange} 
-    className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-      ${touchedFields.country && errors.country ? "border-red-500" : "border-gray-500"}`}
-  >
-    <option value="">Velg land</option>
-    {countries.map((country) => (
-      <option key={country} value={country}>{country}</option>
-    ))}
-  </select>
-  {touchedFields.country && errors.country && <p className="text-red-500 text-sm mt-1">{errors.country}</p>}
-</div>
-
-<div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Country. Required to follow the law.
-  </div>
-</div>
-
-  {/* 🔥 REGION */}
-  <label htmlFor="region" className="text-gray-300 font-medium text-right">Region:</label>
-  <div className="flex flex-col w-full">
-    <select 
-      id="region"
-      name="region" 
-      value={formData.region || ""} 
-      onChange={handleChange} 
-      disabled={!formData.country} 
-      className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-        ${touchedFields.region && errors.region ? "border-red-500" : "border-gray-500"}`}
-    >
-      <option value="">Choose region</option>
-      {regions.map((r) => (
-        <option key={r} value={r}>{r}</option>
-      ))}
-    </select>
-    {touchedFields.region && errors.region && <p className="text-red-500 text-sm mt-1">{errors.region}</p>}
-  </div>
-
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Required: Region. For updates in your region, might need more work.
-  </div>
-</div>
-
-  {/* 🔥 POSTNUMMER */}
-  <label htmlFor="postalCode" className="text-gray-300 font-medium text-right">PostalCode:</label>
-  <div className="flex flex-col w-full">
-    <input
-      id="postalCode"
-      type="text" 
-      name="postalCode" 
-      placeholder="Postal code (not required)" 
-      value={formData.postalCode} 
-      onChange={handleChange} 
-      onBlur={handleBlur} 
-      className="w-full h-12 px-4 border rounded-md bg-gray-700 text-white"
-    />
-    {touchedFields.postalCode && errors.postalCode && <p className="text-red-500 text-sm mt-1">{errors.postalCode}</p>}
-  </div>
-
-  <div className="relative flex justify-start group">
-  <Info className="text-gray-400 cursor-pointer" size={18} />
-
-  {/* 🛠️ Tooltip som holder seg synlig */}
-  <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-      bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-    Not required: PostalCode. For activites/updates in your local area, get warnings/important news/activities. Might use GPS-location later.
-  </div>
-</div>
-
-  {/* 🔥 SIGN UP BUTTON */}
-  <div className="col-span-3 flex flex-col items-center mt-4 space-y-2">
-  {(message || errors.general) && (
-    <div className="text-sm text-center">
-      {message && <p className="text-red-500">{message}</p>}
-      {errors.general && <p className="text-red-500">{errors.general}</p>}
-    </div>
-  )}
-  
-  <button
-    type="button"
-    className="w-full max-w-sm h-12 bg-[#166016] text-white rounded-lg font-semibold hover:bg-[#0F3D0F] transition"
-    onClick={handleAttemptSubmit}
-    disabled={isSubmitting}
-  >
-    {isSubmitting ? "Submitting..." : "Sign up"}
-  </button>
-</div>
+          {/* 🔥 SIGN UP BUTTON */}
+          <div className="col-span-3 flex flex-col items-center mt-4 space-y-2">
+          {(message || errors["general"]) && (
+          <div className="text-sm text-center">
+            {message && <p className="text-red-500">{message}</p>}
+            {errors["general"] && <p className="text-red-500">{errors["general"]}</p>}
+          </div>
+        )}
+        
+        <button
+          type="button"
+          className="w-full max-w-sm h-12 bg-[#166016] text-white rounded-lg font-semibold hover:bg-[#0F3D0F] transition"
+          onClick={handleAttemptSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Submitting..." : "Sign up"}
+        </button>
+      </div>
       
   </form>
   {showSuccessModal && <SuccessModal onClose={() => setShowSuccessModal(false)} />}
