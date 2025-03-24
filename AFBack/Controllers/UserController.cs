@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
+
 namespace AFBack.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using AFBack.DTOs;
@@ -7,7 +9,6 @@ using BCrypt.Net;
 using System.Threading.Tasks;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
-using CountryData.Standard;
 using AFBack.Services;
 
 
@@ -17,11 +18,11 @@ using AFBack.Services;
 [ApiController]
 public class UserController : ControllerBase
 {
+    
+   
     // Egenskapen for å koble oss til databasen, settes kun engang i konstruktøren
     private readonly ApplicationDbContext _context;
     
-    // CountryData for å hente alle land og providenser til en liste.
-    private readonly CountryHelper _countryHelper;
     // Loggeren
     private readonly ILogger<UserController> _logger;
     
@@ -66,25 +67,39 @@ public class UserController : ControllerBase
     
     // Endepunkt som blir sendt fra frontend basert på valgt land og sender tilbake en liste med alle regionene til valgt land
     [HttpGet("regions/{countryCode}")]
-    public IActionResult GetRegionsByCountry(string countryCode)
+    public async Task<IActionResult> GetRegionsByCountry(string countryCode)
     {
         // Hvis stringen er tom eller null, hvis vi ikke finner et navnm så gir vi feilbeskjed
         if (string.IsNullOrWhiteSpace(countryCode))
             return BadRequest(new { message = "Country code is required." });
+        
         try
         {
-            //Hvis ikke så lagrer vi alle regionene i en liste
-            var regions = _countryHelper.GetRegionByCountryCode(countryCode.ToUpper());
-
-            // Hvis det ikke er noen regioner i listen så får vi en feilmelding på det.
-            if (regions == null || !regions.Any())
+            
+            using var client = new HttpClient();
+            var response = await client.GetAsync($"https://restcountries.com/v3.1/alpha/{countryCode}");
+            
+            if (!response.IsSuccessStatusCode)
             {
-                _logger.LogInformation("Ingen regioner funnet for {CountryCode}. Returnerer tom liste.", countryCode);
-                return Ok(new List<string>());
+                _logger.LogWarning("Landkode {Code} ga ingen treff hos restcountries.com", countryCode);
+                return Ok(new List<string>()); // Returnerer tom liste hvis landet ikke finnes
             }
+            
+            var json = await response.Content.ReadAsStringAsync();
+            var countryData = JsonSerializer.Deserialize<List<RestCountry>>(json);
+            
+            var country = countryData.First();
+            
+            var regionList = new List<string>();
+            
+            if (!string.IsNullOrWhiteSpace(country.Region))
+                regionList.Add(country.Region);
+            
+            if (!string.IsNullOrWhiteSpace(country.Subregion))
+                regionList.Add(country.Subregion);
 
-            // Returner listen med navnene til regionene
-            return Ok(regions.Select(region => region.Name).ToList());
+            return Ok(regionList.Distinct());
+            
         }
         catch (Exception e)
         {
@@ -259,6 +274,12 @@ public class UserController : ControllerBase
         }
     }
     
+    private class RestCountry
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Region { get; set; } = string.Empty;
+        public string Subregion { get; set; } = string.Empty;
+    }
     
     
     
