@@ -1,10 +1,9 @@
 ﻿namespace AFBack.Models;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-// Her er alle aktivitetene og dens egenskaper.
-public class Activity
-{
+
+public class Community
+{   
     [Key]
-    public int ActivityId { get; set; }
-    
+    public int CommunityId { get; set; }
 }

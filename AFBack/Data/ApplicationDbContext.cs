@@ -15,5 +15,7 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
+        modelBuilder.Entity<Profile>().HasOne(p => p.User).WithOne(u => u.Profile)
+            .HasForeignKey<Profile>(p => p.UserId);
     }
 }

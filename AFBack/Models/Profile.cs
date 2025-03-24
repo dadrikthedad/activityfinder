@@ -43,13 +43,14 @@ public class Profile
     public DateTime? UpdatedAt { get; set; }
     
     // Listen med alle venner
+    [NotMapped]
     public List<User>? Friends { get; set; }
     
     // Aktiviteter brukeren er interresert i
     public List<UserActivity>? Activities { get; set; }
     
     // Communitites brukeren er medlem av
-    public List<Communities>? Communities { get; set; }
+    public List<Community>? Communities { get; set; }
     
     // Antall likes brukeren har gitt. Kun for statistikk
     public int TotalLikesGiven { get; set; } = 0;
