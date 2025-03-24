@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Services;
+using CountryData.Standard;
 
 
 // Forteller backend at alle API-endepunktene i denne klassen skal ha api/user som base-url
@@ -50,8 +51,8 @@ public class UserController : ControllerBase
 
             if (!countries.Any())
             {
-                _logger.LogWarning("No countries found in cache.");
-                return NotFound(new { message = "No countries available at the moment." });
+                _logger.LogWarning("No countries found.");
+                return NotFound(new { message = "No countries available." });
             }
 
             return Ok(countries);
@@ -59,7 +60,7 @@ public class UserController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError("Error retrieving countries: {Error}", ex.Message);
-            return StatusCode(500, new { message = "Failed to fetch countries. Try again later." });
+            return StatusCode(500, new { message = "Failed to fetch countries." });
         }
     }
     
@@ -67,47 +68,28 @@ public class UserController : ControllerBase
     
     // Endepunkt som blir sendt fra frontend basert på valgt land og sender tilbake en liste med alle regionene til valgt land
     [HttpGet("regions/{countryCode}")]
-    public async Task<IActionResult> GetRegionsByCountry(string countryCode)
+    public IActionResult GetRegionsByCountry(string countryCode)
     {
-        // Hvis stringen er tom eller null, hvis vi ikke finner et navnm så gir vi feilbeskjed
         if (string.IsNullOrWhiteSpace(countryCode))
             return BadRequest(new { message = "Country code is required." });
-        
+
         try
         {
-            
-            using var client = new HttpClient();
-            var response = await client.GetAsync($"https://restcountries.com/v3.1/alpha/{countryCode}");
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Landkode {Code} ga ingen treff hos restcountries.com", countryCode);
-                return Ok(new List<string>()); // Returnerer tom liste hvis landet ikke finnes
-            }
-            
-            var json = await response.Content.ReadAsStringAsync();
-            var countryData = JsonSerializer.Deserialize<List<RestCountry>>(json);
-            
-            var country = countryData.First();
-            
-            var regionList = new List<string>();
-            
-            if (!string.IsNullOrWhiteSpace(country.Region))
-                regionList.Add(country.Region);
-            
-            if (!string.IsNullOrWhiteSpace(country.Subregion))
-                regionList.Add(country.Subregion);
+            var regions = _countryService.GetRegionsByCountryCode(countryCode);
 
-            return Ok(regionList.Distinct());
-            
+            if (!regions.Any())
+            {
+                _logger.LogInformation("Ingen regioner funnet for {Code}", countryCode);
+                return Ok(new List<string>());
+            }
+
+            return Ok(regions);
         }
         catch (Exception e)
         {
-            _logger.LogError("Feil ved henting av regioner for {CountryCode}: {Error}", countryCode, e.Message);
-            return StatusCode(500, new { message = "Feil ved henting av regioner. Prøv igjen senere." });
+            _logger.LogError("Feil ved henting av regioner for {Code}: {Error}", countryCode, e.Message);
+            return StatusCode(500, new { message = "Kunne ikke hente regioner. Prøv igjen senere." });
         }
-       
-        
     }
     
     
@@ -273,14 +255,5 @@ public class UserController : ControllerBase
             return StatusCode(500, new { message = "Database error. Try again later." });
         }
     }
-    
-    private class RestCountry
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Region { get; set; } = string.Empty;
-        public string Subregion { get; set; } = string.Empty;
-    }
-    
-    
     
 }
