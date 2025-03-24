@@ -1,21 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Info, Eye, EyeOff } from "lucide-react";
+import { Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SuccessModal from "@/components/SuccessModal";
 import {
-  validateFirstName,
-  validateMiddleName,
-  validateLastName,
-  validateEmail,
-  validatePhone,
-  validatePassword,
-  validateConfirmPassword,
-  validateDateOfBirth,
-  validateCountry,
-  validateRegion,
-  validatePostalCode,
-  validateSingleField,
   FieldName
 } from "@/utils/validators";
 import { useFormHandlers } from "@/hooks/useFormHandlers";
@@ -35,7 +23,6 @@ export default function Signup() {
     message,
     setMessage,
     setFormData,
-    resetForm,
   } = useFormHandlers({
     firstName: "",
     middleName: "",
@@ -53,8 +40,6 @@ export default function Signup() {
     const [countries, setCountries] = useState<string[]>([]);
     const [regions, setRegions] = useState<string[]>([]);
     const hasSetCountry = useRef(false); // 👈 Lagrer om vi allerede har satt landet
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
@@ -82,12 +67,30 @@ export default function Signup() {
       console.error("Feil ved henting av land:", error);
     }
   };
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const response = await fetch("https://restcountries.com/v3.1/all");
+        const data: { name: { common: string }, cca2: string }[] = await response.json();
   
-  const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword((prev) => !prev);
-  };
+        const countryMap: Record<string, string> = {};
+        const countryNames = data
+          .map((country) => {
+            countryMap[country.name.common] = country.cca2;
+            return country.name.common;
+          })
+          .sort();
   
-  // Sjekker om passordene matcher live
+        setCountries(["-- Choose --", ...countryNames]); // ✅ Legg til default-valg
+        setCountryCodes(countryMap);
+      } catch (error) {
+        console.error("Feil ved henting av land:", error);
+      }
+    };
+  
+    fetchCountries();
+  }, []);
 
   useEffect(() => {
     if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) return;

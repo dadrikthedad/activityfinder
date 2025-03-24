@@ -1,4 +1,6 @@
-﻿namespace AFBack.Controllers;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace AFBack.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using AFBack.DTOs;
 using AFBack.Models;
@@ -69,7 +71,9 @@ public class UserController : ControllerBase
     // UserRegisterDTO er klassen vi har laget som bekrefter igjen at all dataen er riktig og oppretter et objekt.
     public async Task<IActionResult> RegisterUser([FromBody] UserRegisterDTO userDto)
     {
-        _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
+        try
+        {
+            _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
         // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
         if (!ModelState.IsValid)
         {   
@@ -90,12 +94,15 @@ public class UserController : ControllerBase
                
             try
             {   
-                // Fjerner ekstra mellomrom, eller så kan vi få duplikate eposter pga mellomrommet
-                userDto.Email = userDto.Email.Trim();
                 // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
                 if (userDto.DateOfBirth > DateTime.UtcNow)
                 {
                     return BadRequest(new { message = "Date of birth cannot be in the future." });
+                }
+                
+                if (string.Equals(userDto.Region, "No regions available", StringComparison.OrdinalIgnoreCase))
+                {
+                    userDto.Region = null;
                 }
                 
                 // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
@@ -114,7 +121,7 @@ public class UserController : ControllerBase
                     DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
                     CreatedAt = DateTime.UtcNow,
                     Country = userDto.Country,
-                    Region = userDto.Region,
+                    Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
                     PostalCode = userDto.PostalCode
                 };
 
@@ -155,6 +162,12 @@ public class UserController : ControllerBase
                 await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Database connection error. Please try again later." });
             }
+        }
+        }
+        catch (ValidationException ve)
+        {
+            _logger.LogWarning("Validation error: {Error}", ve.Message);
+            return BadRequest(new { message = ve.Message });
         }
     }
     
