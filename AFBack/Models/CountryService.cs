@@ -32,6 +32,7 @@ public class CountryService
 
             _validCountryCodes = new HashSet<string>(_codeToName.Keys);
 
+            _logger.LogInformation("Tilgjengelige landkoder: {Codes}", string.Join(", ", _validCountryCodes));
             _logger.LogInformation("✅ Loaded {Count} countries from REST Countries API.", _codeToName.Count);
 
         }
@@ -47,6 +48,7 @@ public class CountryService
     
     public string? GetCountryNameFromCode(string code)
     {
+        _logger.LogInformation("Forespurt landkode: {Code}", code);
         return _codeToName.TryGetValue(code.Trim().ToUpper(), out var name) ? name : null;
     }
 

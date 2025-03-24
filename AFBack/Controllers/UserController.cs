@@ -71,19 +71,28 @@ public class UserController : ControllerBase
         // Hvis stringen er tom eller null, hvis vi ikke finner et navnm så gir vi feilbeskjed
         if (string.IsNullOrWhiteSpace(countryCode))
             return BadRequest(new { message = "Country code is required." });
-        
-        //Hvis ikke så lagrer vi alle regionene i en liste
-        var regions = _countryHelper.GetRegionByCountryCode(countryCode.ToUpper());
-        
-        // Hvis det ikke er noen regioner i listen så får vi en feilmelding på det.
-        if (regions == null || !regions.Any())
+        try
         {
-            _logger.LogInformation("Ingen regioner funnet for {CountryCode}. Returnerer tom liste.", countryCode);
-            return Ok(new List<string>());
+            //Hvis ikke så lagrer vi alle regionene i en liste
+            var regions = _countryHelper.GetRegionByCountryCode(countryCode.ToUpper());
+
+            // Hvis det ikke er noen regioner i listen så får vi en feilmelding på det.
+            if (regions == null || !regions.Any())
+            {
+                _logger.LogInformation("Ingen regioner funnet for {CountryCode}. Returnerer tom liste.", countryCode);
+                return Ok(new List<string>());
+            }
+
+            // Returner listen med navnene til regionene
+            return Ok(regions.Select(region => region.Name).ToList());
         }
+        catch (Exception e)
+        {
+            _logger.LogError("Feil ved henting av regioner for {CountryCode}: {Error}", countryCode, e.Message);
+            return StatusCode(500, new { message = "Feil ved henting av regioner. Prøv igjen senere." });
+        }
+       
         
-        // Returner listen med navnene til regionene
-        return Ok(regions.Select(region => region.Name).ToList());
     }
     
     
