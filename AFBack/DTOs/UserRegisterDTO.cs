@@ -63,23 +63,10 @@ public class UserRegisterDTO
     [Compare("Password", ErrorMessage = "Password doesn't match.")]
     public string ConfirmPassword { get; set; } = null!;
     
-    // Lagrer en liste med alle land for å sammenligne mot country.
-    private static readonly HashSet<string> _validCountries;
-    
-    public string _country = null!;
     
     [Required(ErrorMessage = "Must be a valid country.")]
     [MaxLength(100, ErrorMessage = "Country can't be more than 100 characters.")]
-    public string Country
-    {
-        get => _country;
-        set
-        {
-            if (!_validCountries.Contains(value))
-                throw new ValidationException("Invalid country.");
-            _country = value;
-        }
-    }
+    public string Country { get; set; }
     
     // TODO: Kan fjerne MaxLength etterhvert når vi får satt inn droppdown menyen.
     [MaxLength(100, ErrorMessage = "Providence can't be more than 100 characters.")]
@@ -87,12 +74,5 @@ public class UserRegisterDTO
     
     [MaxLength(25, ErrorMessage = "Postal code can't be more than 25 characters.")]
     public string? PostalCode { get; set; }
-    
-    // Lagd en statisk konstruktør som oppretter en liste med alle land ved å bruke CountryHelper sin GetCountries()
-    static UserRegisterDTO()
-    {
-        var countryHelper = new CountryHelper();
-        _validCountries = new HashSet<string>(countryHelper.GetCountries());
-    }
     
 }

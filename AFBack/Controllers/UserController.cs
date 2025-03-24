@@ -74,6 +74,13 @@ public class UserController : ControllerBase
         try
         {
             _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
+       
+        
+        var validCountries = new HashSet<string>(_countryHelper.GetCountries(), StringComparer.OrdinalIgnoreCase);
+        
+        if (!validCountries.Contains(userDto.Country))
+            ModelState.AddModelError("Country", "Invalid country");
+        
         // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
         if (!ModelState.IsValid)
         {   
@@ -88,10 +95,10 @@ public class UserController : ControllerBase
             return BadRequest(new {message = $"Validation failed. Check errors.", errors});
         }
         
-        //
         using (var transaction = await _context.Database.BeginTransactionAsync())
         {
-               
+            
+            
             try
             {   
                 // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
@@ -164,10 +171,10 @@ public class UserController : ControllerBase
             }
         }
         }
-        catch (ValidationException ve)
+        catch (Exception e)
         {
-            _logger.LogWarning("Validation error: {Error}", ve.Message);
-            return BadRequest(new { message = ve.Message });
+            _logger.LogWarning("Unhandled error: {Error}", e.Message);
+            return StatusCode(500, new { message = $"{e.Message} Unexpected server error." });
         }
     }
     
