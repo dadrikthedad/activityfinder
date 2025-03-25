@@ -55,18 +55,21 @@ export const validateFirstName = (value: string): string | null => {
   export const validateCountry = (value: string): string | null => {
     if (!value.trim()) return "Country is required.";
     if (value.length > 100) return "Country name can't be more than 100 characters.";
-    return null;
-  };
+  return null;
+};
+
   
-  export const validateRegion = (value: string): string | null => {
-    if (!value || value === "-- Choose --") {
-        return "Region is required.";
-      }
-    
-    if (value === "No regions available") {
-        return null; // ✅ Godkjent hvis landet ikke har noen regioner
+export const validateRegion = (value: string): string | null => {
+    if (!value.trim() || value === "-- Choose --") {
+      return "Region is required.";
     }
+  
+    if (value === "No regions available") {
+      return null; // ✅ Godkjent hvis landet ikke har noen regioner
+    }
+  
     if (value.length > 100) return "Region name can't be more than 100 characters.";
+  
     return null;
   };
   

@@ -7,13 +7,13 @@ interface FormFieldProps {
   tooltip?: string;
   type?: string;
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  onBlur?: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onChange: (e: React.ChangeEvent<any>) => void;
+  onBlur?: (e: React.FocusEvent<any>) => void;
   error?: string;
   touched?: boolean;
   placeholder?: string;
   as?: "input" | "select";
-  options?: string[]; // For select dropdown
+  options?: { label: string; value: string }[];
   disabled?: boolean;
 }
 
@@ -65,14 +65,11 @@ const FormField: React.FC<FormFieldProps> = ({
             className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
               ${showError ? "border-red-500" : "border-gray-500"}`}
           >
-            <option value="" disabled hidden>
-              -- Choose --
+            {options.map((opt, index) => (
+            <option key={`${opt.value}-${index}`} value={opt.value}>
+                {opt.label}
             </option>
-                        {options.map((opt) => (
-            <option key={opt} value={opt}>
-                {opt === "No regions available" ? "No regions available" : opt}
-            </option>
-))}
+            ))}
           </select>
         )}
         {showError && <p className="text-red-500 text-sm mt-1">{error}</p>}

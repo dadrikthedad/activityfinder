@@ -1,7 +1,14 @@
-"use client";
+"use client";// Use client bestemmer at vi skal kjøre i nettleseren(client) og ikke kun på serveren. Må være øverst før alle imports
+
+// useSate gjør at vi kan lagre en "state", og det er verdier som kan endres. useEffect brukes til API-kall og events. Kjøres kun når vi mounter den og en når en effekt blir endret
+// useRef lagrer referanser eller verdier uten rerender, bra for å telle noe eller timeout/invervals som ikkek skal miste veriden ved rerender.
+// render betyr at react bygger og viser komponentene på skjermen. Det skjer når siden lastest og hvis vi endrer noe, feks trykker på en tast. 
 import { useState, useEffect, useRef } from "react";
+// 
 import { Info } from "lucide-react";
+// Henter router slik at vi kan navigere til andre sider
 import { useRouter } from "next/navigation";
+// Popup vinduet vårt som sier at vi har hat suksess med innlogging
 import SuccessModal from "@/components/SuccessModal";
 import {
   FieldName
@@ -9,6 +16,7 @@ import {
 import { useFormHandlers } from "@/hooks/useFormHandlers";
 import FormField from "@/components/FormField";
 import PasswordField from "@/components/PasswordField";
+import { SelectOption } from "@/types/select";
 
 
 export default function Signup() {
@@ -37,8 +45,9 @@ export default function Signup() {
     postalCode: "",
   });
 
-    const [countries, setCountries] = useState<string[]>([]);
-    const [regions, setRegions] = useState<string[]>([]);
+  // countries er veriden som kan endres, setCountries brukes for å oppdatere verdien når den blir kalt
+  const [countries, setCountries] = useState<SelectOption[]>([]);
+  const [regions, setRegions] = useState<SelectOption[]>([]);
     const hasSetCountry = useRef(false); // 👈 Lagrer om vi allerede har satt landet
     const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
@@ -46,55 +55,40 @@ export default function Signup() {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const router = useRouter();
     const [ countryCodes, setCountryCodes ] = useState<Record<string, string>>({});
+    
 
 
   
   //Hent land fra API
   const fetchCountries = async () => {
     try {
-      const response = await fetch("https://restcountries.com/v3.1/all");
-      const data: { name: { common: string }, cca2: string }[] = await response.json();
+      const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/countries");
+      const data: { code: string; name: string }[] = await response.json();
   
-      const countryMap: Record<string, string> = {};
-      const countryNames = data.map((country) => {
-        countryMap[country.name.common] = country.cca2;
-        return country.name.common;
-      }).sort();
+      const countryOptions: SelectOption[] = data
+        .map((country) => ({
+          label: country.name,
+          value: country.name, // 👈 vi bruker navn som value i formData
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label));
   
-      setCountries(countryNames);
-      setCountryCodes(countryMap);
+      setCountries(countryOptions);
+  
+      const codeMap: Record<string, string> = {};
+      data.forEach((country) => {
+        codeMap[country.name] = country.code;
+      });
+      setCountryCodes(codeMap);
     } catch (error) {
       console.error("Feil ved henting av land:", error);
     }
   };
 
   useEffect(() => {
-    const fetchCountries = async () => {
-      try {
-        const response = await fetch("https://restcountries.com/v3.1/all");
-        const data: { name: { common: string }, cca2: string }[] = await response.json();
-  
-        const countryMap: Record<string, string> = {};
-        const countryNames = data
-          .map((country) => {
-            countryMap[country.name.common] = country.cca2;
-            return country.name.common;
-          })
-          .sort();
-  
-        setCountries(["-- Choose --", ...countryNames]); // ✅ Legg til default-valg
-        setCountryCodes(countryMap);
-      } catch (error) {
-        console.error("Feil ved henting av land:", error);
-      }
-    };
-  
     fetchCountries();
   }, []);
 
   useEffect(() => {
-    if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) return;
-
     if (emailCheckTimeout.current) clearTimeout(emailCheckTimeout.current);
 
     emailCheckTimeout.current = setTimeout(() => {
@@ -107,8 +101,21 @@ export default function Signup() {
   const handleAttemptSubmit = () => {
     const isValid = validateAllFields();
   
-    if (!isValid) {
+    const isRegionValid =
+      formData.region &&
+      formData.region !== "null" &&
+      formData.region !== "No regions available" &&
+      formData.region !== "-- Choose --";
+  
+    if (!isValid || !isRegionValid) {
       setMessage("Please fix all required fields.");
+  
+      // ✅ Only add region error if needed
+      setErrors((prev) => ({
+        ...prev,
+        ...(isRegionValid ? {} : { region: "Region is required." }),
+      }));
+  
       return;
     }
   
@@ -151,65 +158,77 @@ export default function Signup() {
 
   //Hent IP fra API
   useEffect(() => {
-  const fetchUserCountry = async () => {
-    try {
-      const response = await fetch("https://ipapi.co/json/");
-      const data = await response.json();
-      
-      if (data && data.country_name && !hasSetCountry.current) {
-        hasSetCountry.current = true;
-        setFormData((prev) => ({ ...prev, country: data.country_name }));
+    const fetchInitialLocationData = async () => {
+      try {
+        const ipRes = await fetch("https://ipapi.co/json/");
+        const ipData = await ipRes.json();
+  
+        if (ipData?.country_name && !hasSetCountry.current) {
+          hasSetCountry.current = true;
+          const userCountry = ipData.country_name;
+  
+          setFormData((prev) => ({ ...prev, country: userCountry }));
+          await fetchAndSetRegions(userCountry);
+        }
+      } catch (err) {
+        console.error("Feil ved henting av brukerland:", err);
       }
+    };
+  
+    if (Object.keys(countryCodes).length > 0) {
+      fetchInitialLocationData();
+    }
+  }, [countryCodes]);
+  
+  
+  
+
+  const fetchAndSetRegions = async (countryName: string) => {
+    const countryCode = countryCodes[countryName];
+    if (!countryCode) {
+      console.warn("Fant ikke landkode for:", countryName);
+      setRegions([]);
+      return;
+    }
+  
+    try {
+      const res = await fetch(
+        `https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${encodeURIComponent(countryCode)}`
+      );
+      const data: string[] = await res.json();
+  
+      if (!Array.isArray(data)) {
+        console.warn("Ugyldig regiondata:", data);
+        setRegions([]);
+        return;
+      }
+  
+      const options = [
+        { label: "-- Choose --", value: "" }, // 🛑 alltid først
+        ...data.map((region) => ({ label: region, value: region })),
+      ];
+  
+      setRegions(options);
+      setFormData((prev) => ({ ...prev, region: "" })); // Tving bruker til å velge
     } catch (error) {
-      console.error("Kunne ikke hente brukerens land:", error);
+      console.error("Feil ved henting av regioner:", error);
+      setRegions([]);
     }
   };
 
-  fetchUserCountry();
-}, []);
-
  // Håndterer valg av land
  const handleCountryChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  e: React.ChangeEvent<HTMLSelectElement>
 ) => {
-  const selectedCountry = e.target.value;
-  const countryCode = countryCodes[selectedCountry];
+  const selectedCountryName = e.target.value;
 
-  setFormData({ ...formData, country: selectedCountry, region: "" });
-
-  if (!countryCode) {
-    console.error("Fant ikke landkode for", selectedCountry);
-    setRegions([]);
-    return;
-  }
-
-  fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${encodeURIComponent(countryCode)}`)
-    .then((res) => res.json())
-    .then((data) => {
-      if (!Array.isArray(data)) {
-        console.error("Ugyldig respons fra region-endepunktet:", data);
-        setRegions([]);
-        setFormData((prev) => ({ ...prev, region: "" }));
-        return;
-      }
-
-      if (data.length === 0) {
-        setRegions(["No regions available"]);
-        setFormData((prev) => ({ ...prev, region: "No regions available" }));
-      } else {
-        setRegions(data);
-        setFormData((prev) => ({
-          ...prev,
-          region: data[0],
-        }));
-      }
-    })
-    .catch((error) => {
-      console.error("Feil ved henting av regioner:", error);
-      setRegions([]);
-      setFormData((prev) => ({ ...prev, region: "" }));
-    });
+  setFormData((prev) => ({
+    ...prev,
+    country: selectedCountryName,
+    region: "", // alltid tving til å velge ny region
+  }));
 };
+
 
 
 
@@ -217,33 +236,6 @@ export default function Signup() {
 useEffect(() => {
   console.log("Akkurat nå, errors:", errors);
 }, [errors]);
-
-
-  useEffect(() => {
-    if (!formData.country) return;
-    const fetchRegions = async () => {
-      try {
-        const countryCode = countryCodes[formData.country];
-        if (!countryCode) return;
-
-        const res = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${encodeURIComponent(countryCode)}`)
-
-        if (!res.ok) throw new Error("Kunne ikke hente regioner.");
-
-        const data = await res.json();
-        setRegions(data);
-      } catch (error) {
-        console.error("Feil ved henting av regioner:", error);
-        setRegions([]);
-      }
-    };
-
-    if (formData.country)
-    {
-      fetchRegions();
-    }
-
-  }, [formData.country]);
 
 
 
@@ -257,13 +249,21 @@ useEffect(() => {
     if (isSubmitting) return;
     setIsSubmitting(true);
     
-    const payload: Partial<typeof formData> = { ...formData };
+    const payload: Partial<typeof formData> = {
+      ...formData,
+      country: countryCodes[formData.country] || formData.country, // 💡 fallback til name hvis noe går galt
+    };
 
     if (!payload.phone || payload.phone.trim() === "") {
     delete payload.phone; // 🚀 Fjern phone-feltet hvis det er tomt
     }
 
-    if (!formData.region || formData.region === "null" || formData.region === "No regions available") {
+    if (
+      !formData.region ||
+      formData.region === "null" ||
+      formData.region === "No regions available" ||
+      formData.region === "-- Choose --"
+    ) {
       delete payload.region;
     }
 
@@ -450,7 +450,7 @@ useEffect(() => {
         tooltip="Required: Country. Required to follow the law."
         as="select"
         options={countries}
-        disabled={countries.length === 0}
+        placeholder="Select a country"
         />
 
         {/* 🔥 REGION */}
@@ -466,6 +466,7 @@ useEffect(() => {
         options={regions}
         disabled={!formData.country}
         />
+    
         {/* 🔥 PostalCode */}
         <FormField
           id="postalCode"

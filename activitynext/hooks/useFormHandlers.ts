@@ -45,7 +45,7 @@ export function useFormHandlers(initialValues: FormData) {
     for (const key in formData) {
       const name = key as FieldName;
       const value = formData[name];
-      if (name !== "middleName" && name !== "phone" && name !== "postalCode") {
+      if (!["middleName", "phone", "postalCode", "region"].includes(name)) {
         const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
         if (error) newErrors[name] = error;
       }
