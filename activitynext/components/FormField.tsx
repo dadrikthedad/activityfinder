@@ -53,7 +53,7 @@ const FormField: React.FC<FormFieldProps> = ({
             onBlur={onBlur}
             placeholder={placeholder}
             disabled={disabled}
-            className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+            className={`w-[280px] h-12 px-4 border rounded-md bg-gray-700 text-white 
               ${showError ? "border-red-500" : "border-gray-500"}`}
           />
         ) : (
@@ -64,7 +64,7 @@ const FormField: React.FC<FormFieldProps> = ({
             onChange={onChange}
             onBlur={onBlur}
             disabled={disabled}
-            className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
+            className={`w-[280px] h-12 px-4 border rounded-md bg-gray-700 text-white 
               ${showError ? "border-red-500" : "border-gray-500"}`}
           >
             {options.map((opt, index) => (
@@ -79,13 +79,13 @@ const FormField: React.FC<FormFieldProps> = ({
 
       {/* Tooltip */}
       {tooltip ? (
-        <div className="relative flex justify-start group">
-          <Info className="text-gray-400 cursor-pointer" size={18} />
-          <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-              bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-            {tooltip}
-          </div>
+        <div className="ml-[75px] relative flex justify-start group">
+        <Info className="text-gray-400 cursor-pointer" size={18} />
+        <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+            bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
+          {tooltip}
         </div>
+      </div>
       ) : (
         <div /> // Keeps grid layout aligned
       )}

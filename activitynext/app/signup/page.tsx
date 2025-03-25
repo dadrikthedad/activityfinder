@@ -435,31 +435,44 @@ useEffect(() => {
         />
 
       {/* 🔥 FØDSELSDATO */}
-      <label htmlFor="dateOfBirth" className="text-gray-300 font-medium text-right">Date of birth:</label>
-        <div className="flex flex-col w-full">
+        <label htmlFor="dateOfBirth" className="text-gray-300 font-medium text-right">
+          Date of birth:
+        </label>
+
+        <div className="flex flex-col w-full relative">
           <input
-            id ="dateOfBirth"
-            type="date" 
-            name="dateOfBirth" 
-            value={formData.dateOfBirth} 
-            onChange={(e) => handleChange(e.target.name as FieldName, e.target.value)}
-            onBlur={(e) => handleBlur(e.target.name as FieldName)} // eller bruk en mer dynamisk metode
+            id="dateOfBirth"
+            type="date"
+            name="dateOfBirth"
+            value={formData.dateOfBirth}
+            onChange={(e) =>
+              handleChange(e.target.name as FieldName, e.target.value)
+            }
+            onBlur={(e) => handleBlur(e.target.name as FieldName)}
             max={new Date().toISOString().split("T")[0]}
-            className={`w-full h-12 px-4 border rounded-md bg-gray-700 text-white 
-              ${touchedFields.dateOfBirth && errors.dateOfBirth ? "border-red-500" : "border-gray-500"}`}
+            className={`w-[280px] h-12 px-4 border rounded-md bg-gray-700 text-white 
+              ${
+                touchedFields.dateOfBirth && errors.dateOfBirth
+                  ? "border-red-500"
+                  : "border-gray-500"
+              }`}
           />
-          {touchedFields.dateOfBirth && errors.dateOfBirth && <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>}
+
+          {touchedFields.dateOfBirth && errors.dateOfBirth && (
+            <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>
+          )}
         </div>
 
-        <div className="relative flex justify-start group">
-        <Info className="text-gray-400 cursor-pointer" size={18} />
-
-        {/* 🛠️ Tooltip som holder seg synlig */}
-        <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-            bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">
-          Required: Date of birth. Required for age verification.
+        {/* Tooltip-ikonet på plass i tredje kolonne */}
+        <div className="ml-[75px] relative flex justify-start group">
+          <Info className="text-gray-400 cursor-pointer" size={18} />
+          <div
+            className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
+              bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10"
+          >
+            Required: Date of birth. Required for age verification.
+          </div>
         </div>
-      </div>
 
         {/* 🔥 LAND */}
         <FormField
