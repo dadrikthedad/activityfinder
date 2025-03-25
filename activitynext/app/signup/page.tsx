@@ -3,7 +3,7 @@
 // useSate gjør at vi kan lagre en "state", og det er verdier som kan endres. useEffect brukes til API-kall og events. Kjøres kun når vi mounter den og en når en effekt blir endret
 // useRef lagrer referanser eller verdier uten rerender, bra for å telle noe eller timeout/invervals som ikkek skal miste veriden ved rerender.
 // render betyr at react bygger og viser komponentene på skjermen. Det skjer når siden lastest og hvis vi endrer noe, feks trykker på en tast. 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 // 
 import { Info } from "lucide-react";
 // Henter router slik at vi kan navigere til andre sider
@@ -98,41 +98,50 @@ export default function Signup() {
 
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
-  const handleAttemptSubmit = () => {
-    const isValid = validateAllFields();
-  
-    const isRegionValid =
-      formData.region &&
-      formData.region !== "null" &&
-      formData.region !== "No regions available" &&
-      formData.region !== "-- Choose --";
-  
-    if (!isValid || !isRegionValid) {
-      setMessage("Please fix all required fields.");
-  
-      // ✅ Only add region error if needed
-      setErrors((prev) => ({
-        ...prev,
-        ...(isRegionValid ? {} : { region: "Region is required." }),
-      }));
-  
-      return;
-    }
-  
-    setMessage("");
-    setIsSubmitting(true);
-    registerUser(new Event("submit") as unknown as React.FormEvent);
-  };
+  const handleAttemptSubmit = async () => {
+  const emailAvailable = await checkEmailAvailability(formData.email);
+  if (!emailAvailable) {
+    setMessage("E-posten er allerede registrert.");
+    return; // 🚫 STOPP submit hvis e-post er opptatt
+  }
+
+  const isValid = validateAllFields();
+
+  const isRegionValid =
+    formData.region &&
+    formData.region !== "null" &&
+    formData.region !== "No regions available" &&
+    formData.region !== "-- Choose --";
+
+  const hasEmailError = !!errors.email;
+
+  if (!isValid || !isRegionValid || hasEmailError) {
+    setMessage("Please fix all required fields.");
+
+    setErrors((prev) => ({
+      ...prev,
+      ...(isRegionValid ? {} : { region: "Region is required." }),
+    }));
+
+    return;
+  }
+
+  setMessage("");
+  setIsSubmitting(true);
+  registerUser(new Event("submit") as unknown as React.FormEvent);
+};
   
   
   
   
 
-  const checkEmailAvailability = async (email: string) => {
-    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email)) return; // Ikke sjekk hvis e-post er tom eller ugyldig
+  const checkEmailAvailability = useCallback(async (email: string): Promise<boolean> => {
+    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email)) return false;
   
     try {
-      const response = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/check-email?email=${email}`);
+      const response = await fetch(
+        `https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/check-email?email=${email}`
+      );
       const data = await response.json();
   
       if (!response.ok) {
@@ -144,17 +153,20 @@ export default function Signup() {
           ...prevErrors,
           email: "Denne e-posten er allerede registrert.",
         }));
+        return false;
       } else {
         setErrors((prevErrors) => {
           const newErrors = { ...prevErrors };
-          delete newErrors.email; // ✅ Fjerner feilmeldingen hvis e-posten ikke finnes
+          delete newErrors.email;
           return newErrors;
         });
+        return true;
       }
     } catch (error) {
       console.error("Feil ved sjekking av e-post:", error);
+      return false;
     }
-  };
+  }, [setErrors]);
 
   //Hent IP fra API
   useEffect(() => {
@@ -183,7 +195,7 @@ export default function Signup() {
   
   
 
-  const fetchAndSetRegions = async (countryName: string) => {
+  const fetchAndSetRegions: (countryName: string) => Promise<void> = useCallback(async (countryName: string) => {
     const countryCode = countryCodes[countryName];
     if (!countryCode) {
       console.warn("Fant ikke landkode for:", countryName);
@@ -214,7 +226,13 @@ export default function Signup() {
       console.error("Feil ved henting av regioner:", error);
       setRegions([]);
     }
-  };
+  }, [formData.country, countryCodes,]);
+
+  useEffect(() => {
+    if (formData.country && countryCodes[formData.country]) {
+      fetchAndSetRegions(formData.country);
+    }
+  }, [formData.country, countryCodes, fetchAndSetRegions]);
 
  // Håndterer valg av land
  const handleCountryChange = (
@@ -326,7 +344,7 @@ useEffect(() => {
         label="First name:"
         value={formData.firstName}
         onChange={(e) => handleChange("firstName", e.target.value)}
-        onBlur={(e) => handleBlur("firstName")}
+        onBlur={() => handleBlur("firstName")}
         error={errors.firstName}
         touched={touchedFields.firstName}
         placeholder="First name"
@@ -339,7 +357,7 @@ useEffect(() => {
         label="Middle name:"
         value={formData.middleName}
         onChange={(e) => handleChange("middleName", e.target.value)}
-        onBlur={(e) => handleBlur("middleName")}
+        onBlur={() => handleBlur("middleName")}
         error={errors.middleName}
         touched={touchedFields.middleName}
         placeholder="Middle name (not required)"
@@ -352,7 +370,7 @@ useEffect(() => {
         label="Last name:"
         value={formData.lastName}
         onChange={(e) => handleChange("lastName", e.target.value)}
-        onBlur={(e) => handleBlur("lastName")}
+        onBlur={() => handleBlur("lastName")}
         error={errors.lastName}
         touched={touchedFields.lastName}
         placeholder="Last name"
@@ -366,7 +384,7 @@ useEffect(() => {
         type="email"
         value={formData.email}
         onChange={(e) => handleChange("email", e.target.value)}
-        onBlur={(e) => handleBlur("email")}
+        onBlur={() => handleBlur("email")}
         error={errors.email}
         touched={touchedFields.email}
         placeholder="Email"
@@ -379,7 +397,7 @@ useEffect(() => {
         label="Password:"
         value={formData.password}
         onChange={(e) => handleChange("password", e.target.value)}
-        onBlur={(e) => handleBlur("password")}
+        onBlur={() => handleBlur("password")}
         error={errors.password}
         touched={touchedFields.password}
         placeholder="Password"
@@ -391,7 +409,7 @@ useEffect(() => {
         label="Confirm Password:"
         value={formData.confirmPassword}
         onChange={(e) => handleChange("confirmPassword", e.target.value)}
-        onBlur={(e) => handleBlur("confirmPassword")}
+        onBlur={() => handleBlur("confirmPassword")}
         error={errors.confirmPassword}
         touched={touchedFields.confirmPassword}
         placeholder="Confirm Password"
@@ -405,7 +423,7 @@ useEffect(() => {
         type="tel"
         value={formData.phone}
         onChange={(e) => handleChange("phone", e.target.value)}
-        onBlur={(e) => handleBlur("phone")}
+        onBlur={() => handleBlur("phone")}
         error={errors.phone}
         touched={touchedFields.phone}
         placeholder="Phonenumber"
@@ -473,7 +491,7 @@ useEffect(() => {
           label="Postal code:"
           value={formData.postalCode}
           onChange={(e) => handleChange("postalCode", e.target.value)}
-          onBlur={(e) => handleBlur("postalCode")}
+          onBlur={() => handleBlur("postalCode")}
           error={errors.postalCode}
           touched={touchedFields.postalCode}
           placeholder="Postal code (not required)"
