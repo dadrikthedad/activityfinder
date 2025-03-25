@@ -88,13 +88,7 @@ export default function Signup() {
     fetchCountries();
   }, []);
 
-  useEffect(() => {
-    if (emailCheckTimeout.current) clearTimeout(emailCheckTimeout.current);
-
-    emailCheckTimeout.current = setTimeout(() => {
-      checkEmailAvailability(formData.email);
-    }, 500); // Vent 500ms før vi sjekker
-  }, [formData.email]);
+  
 
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
@@ -168,29 +162,15 @@ export default function Signup() {
     }
   }, [setErrors]);
 
-  //Hent IP fra API
   useEffect(() => {
-    const fetchInitialLocationData = async () => {
-      try {
-        const ipRes = await fetch("https://ipapi.co/json/");
-        const ipData = await ipRes.json();
+    if (emailCheckTimeout.current) clearTimeout(emailCheckTimeout.current);
+
+    emailCheckTimeout.current = setTimeout(() => {
+      checkEmailAvailability(formData.email);
+    }, 500); // Vent 500ms før vi sjekker
+  }, [formData.email, checkEmailAvailability]);
+
   
-        if (ipData?.country_name && !hasSetCountry.current) {
-          hasSetCountry.current = true;
-          const userCountry = ipData.country_name;
-  
-          setFormData((prev) => ({ ...prev, country: userCountry }));
-          await fetchAndSetRegions(userCountry);
-        }
-      } catch (err) {
-        console.error("Feil ved henting av brukerland:", err);
-      }
-    };
-  
-    if (Object.keys(countryCodes).length > 0) {
-      fetchInitialLocationData();
-    }
-  }, [countryCodes]);
   
   
   
@@ -232,11 +212,11 @@ export default function Signup() {
     if (formData.country && countryCodes[formData.country]) {
       fetchAndSetRegions(formData.country);
     }
-  }, [formData.country, countryCodes, fetchAndSetRegions]);
+  }, [formData.country, countryCodes, fetchAndSetRegions, setFormData]);
 
  // Håndterer valg av land
  const handleCountryChange = (
-  e: React.ChangeEvent<HTMLSelectElement>
+  e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>
 ) => {
   const selectedCountryName = e.target.value;
 
@@ -246,6 +226,30 @@ export default function Signup() {
     region: "", // alltid tving til å velge ny region
   }));
 };
+
+//Hent IP fra API
+useEffect(() => {
+  const fetchInitialLocationData = async () => {
+    try {
+      const ipRes = await fetch("https://ipapi.co/json/");
+      const ipData = await ipRes.json();
+
+      if (ipData?.country_name && !hasSetCountry.current) {
+        hasSetCountry.current = true;
+        const userCountry = ipData.country_name;
+
+        setFormData((prev) => ({ ...prev, country: userCountry }));
+        await fetchAndSetRegions(userCountry);
+      }
+    } catch (err) {
+      console.error("Feil ved henting av brukerland:", err);
+    }
+  };
+
+  if (Object.keys(countryCodes).length > 0) {
+    fetchInitialLocationData();
+  }
+}, [countryCodes, fetchAndSetRegions, setFormData]);
 
 
 

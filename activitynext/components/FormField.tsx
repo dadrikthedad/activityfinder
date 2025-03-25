@@ -7,8 +7,10 @@ interface FormFieldProps {
   tooltip?: string;
   type?: string;
   value: string;
-  onChange: (e: React.ChangeEvent<any>) => void;
-  onBlur?: (e: React.FocusEvent<any>) => void;
+  onChange: (
+    e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>
+  ) => void;
+  onBlur?: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => void;
   error?: string;
   touched?: boolean;
   placeholder?: string;
