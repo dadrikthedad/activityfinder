@@ -1,4 +1,6 @@
-﻿namespace AFBack.DTOs;
+﻿using AFBack.Models;
+
+namespace AFBack.DTOs;
 using System.ComponentModel.DataAnnotations;
 using CountryData.Standard;
 
@@ -74,5 +76,7 @@ public class UserRegisterDTO
     
     [MaxLength(25, ErrorMessage = "Postal code can't be more than 25 characters.")]
     public string? PostalCode { get; set; }
+    
+    public Gender? Gender { get; set; }
     
 }

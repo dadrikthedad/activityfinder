@@ -150,6 +150,11 @@ public class UserController : ControllerBase
                 // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
                 string hashedPassword = BCrypt.HashPassword(userDto.Password);
                 
+                if (userDto.Gender.HasValue && !Enum.IsDefined(typeof(Gender), userDto.Gender.Value))
+                {
+                    return BadRequest(new { message = "Invalid gender value." });
+                }
+                
                 //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
                 var user = new User
                 {
@@ -164,7 +169,8 @@ public class UserController : ControllerBase
                     CreatedAt = DateTime.UtcNow,
                     Country = userDto.Country,
                     Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
-                    PostalCode = userDto.PostalCode
+                    PostalCode = userDto.PostalCode,
+                    Gender = userDto.Gender
                 };
                 
                 // Oppretter en profil med brukerens info

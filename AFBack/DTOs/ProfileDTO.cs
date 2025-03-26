@@ -1,4 +1,6 @@
-﻿namespace AFBack.DTOs;
+﻿using AFBack.Models;
+
+namespace AFBack.DTOs;
 
 public class ProfileDTO
 {
@@ -8,12 +10,7 @@ public class ProfileDTO
     
     public string? Bio { get; set; }
     
-    public string? Gender { get; set; }
-
     public List<string> Websites { get; set; } = new();
-    
-    public string? Location { get; set; }
-    
     public DateTime? UpdatedAt { get; set; }
     
     public bool IsOnline { get; set; }
