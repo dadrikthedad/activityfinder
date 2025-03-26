@@ -1,4 +1,6 @@
-﻿namespace AFBack.Models;
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace AFBack.Models;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 // 10.03
@@ -57,14 +59,45 @@ public class User
     
     [MaxLength(25)]
     public string? PostalCode { get; set; }
+    
+    // Dropdown meny for med valg av kjønn
+    [Column(TypeName= "varchar(20)")]
+    [EnumDataType(typeof(Gender))]
+    public Gender? Gender { get; set; }
+    
     // Her lagrer vi profilen som blir opprettet når brukeren blir laget
     public Profile? Profile { get; set; }
     //Her lagrer vi innstillingene som blir opprettet når brukeren blir laget
     public UserSettings? Settings { get; set; }
+    // Sist innlogget
+    public DateTime? LastSeen { get; set; }
+    
+    // Bruker kan velge å ha synlig lokalasjon. Brukes for å hente kartet til brukeren
+    // Lokasjonsdata basert på IP ved siste innlogging
+    [MaxLength(45)]
+    public string? LastLoginIp { get; set; }
+
+    [MaxLength(100)]
+    public string? LastLoginCity { get; set; }
+
+    [MaxLength(100)]
+    public string? LastLoginRegion { get; set; }
+
+    [MaxLength(100)]
+    public string? LastLoginCountry { get; set; }
+    
+    public bool IsOnline => LastSeen.HasValue && (DateTime.UtcNow - LastSeen.Value).TotalMinutes < 5;
     
     // Metode for å verifisere passord laget 11.03. Sjekker om passordet er korrekt når brukeren taster den inn.
     public bool VerifyPassword(string password) => BCrypt.Net.BCrypt.Verify(password, PasswordHash);
     
     
     
+}
+
+public enum Gender
+{
+    Male,
+    Female,
+    Unspecified
 }

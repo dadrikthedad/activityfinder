@@ -10,6 +10,8 @@ public class ApplicationDbContext : DbContext
     
     // Her definerer vi tabellene i databasen. Users er brukere.
     public DbSet<User> Users { get; set; }
+    public DbSet<Profile> Profiles { get; set; }
+    public DbSet<UserSettings> UserSettings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

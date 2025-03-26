@@ -10,13 +10,16 @@ public class UserSettings
 
     public User User { get; set; } = null;
 
+    public bool PublicProfile { get; set; } = true;
+    public bool ShowGender { get; set; } = true;
     public bool ShowEmail { get; set; } = false;
     public bool ShowPhone { get; set; } = false;
-    public bool ShowProfileImage { get; set; } = true;
+    public bool ShowRegion { get; set; } = true;
 
     public string Language { get; set; } = "en";
-    
-    public DateTime? LastSeen { get; set; }
+
+    public bool RecieveEmailNotifications { get; set; } = true;
+    public bool RecievePushNotifications { get; set; } = true;
     
     public bool IsSuspended { get; set; } = false;
     public string? SuspensionReason { get; set; }

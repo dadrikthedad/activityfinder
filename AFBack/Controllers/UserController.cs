@@ -166,10 +166,27 @@ public class UserController : ControllerBase
                     Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
                     PostalCode = userDto.PostalCode
                 };
+                
+                // Oppretter en profil med brukerens info
+                var profile = new Profile
+                {
+                    User = user,
+                    UserId = user.Id,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                
+                // Oppretter en innstillings profil samtidig
+                var settings = new UserSettings
+                {
+                    User = user,
+                    UserId = user.Id,
+                };
 
                 
                 // Her gjør vi brukeren klar til å legges til i databasen, context er databasen og Users har vi definert i ApplicationDbContext. 
                 await _context.Users.AddAsync(user);
+                await _context.Profiles.AddAsync(profile);
+                await _context.UserSettings.AddAsync(settings);
                 // Her lagrer vi brukeren til databasen.
                 await _context.SaveChangesAsync();
 
@@ -228,9 +245,26 @@ public class UserController : ControllerBase
             return Unauthorized(new { message = "Invalid email or password." });
         }
 
+        try
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == userLoginDto.Email);
+            if (user != null)
+            {
+                user.LastLoginIp = userLoginDto.Ip;
+                user.LastLoginCity = userLoginDto.City;
+                user.LastLoginRegion = userLoginDto.Region;
+                user.LastLoginCountry = userLoginDto.Country;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning("Could not save login location for {Email}: {Error}", userLoginDto.Email, e.Message);
+        }
+
         return Ok(new { token });
-
-
+        
     }
     
     

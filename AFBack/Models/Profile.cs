@@ -11,10 +11,6 @@ public class Profile
     // Gjør at vi kan hente ut alt fra User i profile.cs
     public User User { get; set; } = null!;
     
-    // visningsnavn
-    [MaxLength(100)]
-    public string? DisplayName { get; set; }
-    
     // Bilde blir lagret som en Url
     [MaxLength(500)]
     public string? ProfileImageUrl { get; set; }
@@ -26,7 +22,7 @@ public class Profile
     // WebSitesCsv lagres i databasen, og det er lettere å lagre en lang string kontra en liste.
     [MaxLength(500)]
     public string? WebsitesCsv { get; set; }
-    // 
+    
 
     public List<string> Websites => WebsitesCsv?.Split(',').ToList() ?? new List<string>();
     // Setter listen med Websistes tilbake til WebsitesCsv som lagres i databasen
@@ -35,9 +31,6 @@ public class Profile
         WebsitesCsv = string.Join(",", websites.Select(w => w.Trim()));
     }
     
-    // Bruker kan velge å ha synlig lokalasjon
-    [MaxLength(100)]
-    public string? Location { get; set; }
     
     // Sist brukeren gjorde endringer
     public DateTime? UpdatedAt { get; set; }
@@ -61,11 +54,11 @@ public class Profile
     // Antall kommentarer lagd
     public int TotalCommentsMade { get; set; } = 0;
     
-    // Sist innlogget
-    public DateTime? LastSeen { get; set; }
-    public bool IsOnline => LastSeen.HasValue && (DateTime.UtcNow - LastSeen.Value).TotalMinutes < 5;
-
-
-
-
+    // Totale meldinger
+    public int TotalMessagesRecieved { get; set; } = 0;
+    // Totale meldinger sendt
+    public int TotalMessagesSendt { get; set; }
+    
+    
+    
 }
