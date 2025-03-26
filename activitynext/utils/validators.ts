@@ -78,11 +78,17 @@ export const validateRegion = (value: string): string | null => {
     return null;
   };
 
+  export const validateGender = (value: string): string | null => {
+    if (!value || value === "" || value === "Select Gender") return "Please select a gender.";
+    if (!["Male", "Female", "Unspecified"].includes(value)) return "Invalid gender selected.";
+    return null;
+  };
+
   export type FieldName =
   | "firstName" | "middleName" | "lastName"
   | "email" | "phone"
   | "password" | "confirmPassword"
-  | "dateOfBirth" | "country" | "region" | "postalCode";
+  | "dateOfBirth" | "country" | "region" | "postalCode" | "gender";
   
   export const validateSingleField = (
     name: FieldName,
@@ -101,6 +107,7 @@ export const validateRegion = (value: string): string | null => {
       case "country": return validateCountry(value);
       case "region": return validateRegion(value);
       case "postalCode": return validatePostalCode(value);
+      case "gender": return validateGender(value); 
       default: return null;
     }
   };

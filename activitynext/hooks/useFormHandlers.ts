@@ -33,6 +33,7 @@ export function useFormHandlers(initialValues: FormData) {
     });
   };
 
+  // Må vi endre slik at vi ikkke bruker any her?
   const validateAllFields = () => {
     const allTouched: { [key in FieldName]: boolean } = Object.keys(formData).reduce((acc, key) => {
       acc[key as FieldName] = true;

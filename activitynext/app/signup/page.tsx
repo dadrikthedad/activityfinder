@@ -43,6 +43,7 @@ export default function Signup() {
     country: "",
     region: "",
     postalCode: "",
+    gender: "",
   });
 
   // countries er veriden som kan endres, setCountries brukes for å oppdatere verdien når den blir kalt
@@ -93,37 +94,34 @@ export default function Signup() {
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
   const handleAttemptSubmit = async () => {
-  const emailAvailable = await checkEmailAvailability(formData.email);
-  if (!emailAvailable) {
-    setMessage("E-posten er allerede registrert.");
-    return; // 🚫 STOPP submit hvis e-post er opptatt
-  }
-
-  const isValid = validateAllFields();
-
-  const isRegionValid =
-    formData.region &&
-    formData.region !== "null" &&
-    formData.region !== "No regions available" &&
-    formData.region !== "-- Choose --";
-
-  const hasEmailError = !!errors.email;
-
-  if (!isValid || !isRegionValid || hasEmailError) {
-    setMessage("Please fix all required fields.");
-
-    setErrors((prev) => ({
-      ...prev,
-      ...(isRegionValid ? {} : { region: "Region is required." }),
-    }));
-
-    return;
-  }
-
-  setMessage("");
-  setIsSubmitting(true);
-  registerUser(new Event("submit") as unknown as React.FormEvent);
-};
+    const isValid = validateAllFields();
+  
+    const isRegionValid =
+      formData.region &&
+      formData.region !== "null" &&
+      formData.region !== "No regions available" &&
+      formData.region !== "-- Choose --";
+  
+    if (!isValid || !isRegionValid) {
+      setMessage("Please fix all required fields.");
+      setErrors((prev) => ({
+        ...prev,
+        ...(isRegionValid ? {} : { region: "Region is required." }),
+      }));
+      return;
+    }
+  
+    // ✅ Nå kan vi sjekke e-post etter at alle andre felt er gyldige
+    const emailAvailable = await checkEmailAvailability(formData.email);
+    if (!emailAvailable) {
+      setMessage("An account with this email already exists.");
+      return;
+    }
+  
+    setMessage("");
+    setIsSubmitting(true);
+    registerUser(new Event("submit") as unknown as React.FormEvent);
+  };
   
   
   
@@ -304,7 +302,7 @@ useEffect(() => {
   
       const data = await response.json();
       if (response.ok) {
-        setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "" });
+        setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "", gender: "" });
         setShowSuccessModal(true);
         setTimeout(() => {
           setShowSuccessModal(false);
@@ -514,6 +512,25 @@ useEffect(() => {
           placeholder="Postal code (not required)"
           tooltip="Not required: For updates/activities in your local area. Might use GPS later."
           />
+        {/* 🔥 Gender */}
+        <FormField
+          id="gender"
+          label="Gender"
+          as="select"
+          value={formData.gender}
+          onChange={(e) => handleChange("gender", e.target.value)}
+          onBlur={() => handleBlur("gender")}
+          error={errors.gender}
+          touched={touchedFields.gender}
+          options={[
+            { label: "Select Gender", value: "" }, // <- default
+            { label: "Male", value: "Male" },
+            { label: "Female", value: "Female" },
+            { label: "Unspecified", value: "Unspecified" },
+            ]}
+          tooltip="Required: For personalization and optional filtering."
+          />
+
 
           {/* 🔥 SIGN UP BUTTON */}
           <div className="col-span-3 flex flex-col items-center mt-4 space-y-2">
