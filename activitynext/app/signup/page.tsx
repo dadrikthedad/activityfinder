@@ -17,6 +17,7 @@ import { useFormHandlers } from "@/hooks/useFormHandlers";
 import FormField from "@/components/FormField";
 import PasswordField from "@/components/PasswordField";
 import { SelectOption } from "@/types/select";
+import FormButton from "@/components/FormButton";
 
 
 export default function Signup() {
@@ -93,34 +94,28 @@ export default function Signup() {
 
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
-  const handleAttemptSubmit = async () => {
-    const isValid = validateAllFields();
+  const handleAttemptSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
   
-    const isRegionValid =
-      formData.region &&
-      formData.region !== "null" &&
-      formData.region !== "No regions available" &&
-      formData.region !== "-- Choose --";
+    const { isValid, errors: newErrors } = validateAllFields();
   
-    if (!isValid || !isRegionValid) {
+    if (!isValid) {
+      setErrors(newErrors);
       setMessage("Please fix all required fields.");
-      setErrors((prev) => ({
-        ...prev,
-        ...(isRegionValid ? {} : { region: "Region is required." }),
-      }));
       return;
     }
   
-    // ✅ Nå kan vi sjekke e-post etter at alle andre felt er gyldige
+    setErrors({});
+    setMessage(""); // 🧽 Fjern eventuell gammel error
+  
     const emailAvailable = await checkEmailAvailability(formData.email);
     if (!emailAvailable) {
       setMessage("An account with this email already exists.");
       return;
     }
   
-    setMessage("");
     setIsSubmitting(true);
-    registerUser(new Event("submit") as unknown as React.FormEvent);
+    await registerUser(e);
   };
   
   
@@ -541,14 +536,13 @@ useEffect(() => {
           </div>
         )}
         
-        <button
-          type="button"
-          className="w-full max-w-sm h-12 bg-[#166016] text-white rounded-lg font-semibold hover:bg-[#0F3D0F] transition"
+        <FormButton
+          text="Sign up"
+          submittingText="Submitting..."
+          isSubmitting={isSubmitting}
+          type="submit"
           onClick={handleAttemptSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Submitting..." : "Sign up"}
-        </button>
+        />
       </div>
       
   </form>

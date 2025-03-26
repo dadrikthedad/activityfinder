@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useAuth} from "@/context/AuthContext"
+import FormField from "@/components/FormField";
+import FormButton from "@/components/FormButton";
 
 export default function LoginPage() {
 
@@ -67,12 +69,6 @@ const handleLogin = async (e: React.FormEvent) => {
   }
 };
 
-
-
-
-
-
-
     return (
       <div className="flex flex-col items-center justify-start min-h-screen px-6 py-12 text-center mt-24">
         <h1 className="text-4xl font-bold text-[#1C6B1C]">Login</h1>
@@ -82,50 +78,34 @@ const handleLogin = async (e: React.FormEvent) => {
   
         {/* Enkel login-form */}
         <form className="mt-6 max-w-sm space-y-4" onSubmit={handleLogin}>
-          <div className="text-left">
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
-              Email
-            </label>
-            <input id="email"
-              type="email" name="email" autoComplete="email"
-              className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center"
-              placeholder="Your email"
-              //Her lagrer vi eposten i denne inputen-tilformen
-              value={email}
-              // Endrer eposten hvis vi forandrer i teksten igjen
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
-  
-          <div className="text-left">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
-              Password
-            </label>
-            <input id="password"
-              type="password" name="password" autoComplete="current-password"
-              className="w-full mt-1 p-2 border rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white text-center"
-              placeholder="Your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </div>
+        <FormField
+          id="email"
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Your email"
+          disabled={isSubmitting}
+        />
 
-          {errorMessage && (
-            <p className="text-red-500 text-sm">{errorMessage}</p>)}
+        <FormField
+          id="password"
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Your password"
+          disabled={isSubmitting}
+        />
   
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`w-full bg-[#166016] text-white py-2 rounded-md font-semibold transition ${
-              isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-[#0F3D0F]"
-            }`}
-          >
-           { isSubmitting ? "Logging in..." : "Logg inn"}
-          </button>
+        <FormButton
+          text="Logg inn"
+          submittingText="Logging in..."
+          isSubmitting={isSubmitting}
+        />
+        {errorMessage && (
+          <p className="text-red-500 text-sm mt-2 text-center">{errorMessage}</p>
+        )}
         </form>
   
         <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-4">

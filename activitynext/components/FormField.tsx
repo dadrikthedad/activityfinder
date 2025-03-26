@@ -34,7 +34,7 @@ const FormField: React.FC<FormFieldProps> = ({
   options = [],
   disabled = false,
 }) => {
-  const showError = touched && error;
+  const showError = touched && !!error;
 
   return (
     <>
