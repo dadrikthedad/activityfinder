@@ -10,43 +10,52 @@ const [errorMessage, setErrorMessage] = useState("");
 const {login} = useAuth();
 const [isSubmitting, setIsSubmitting] = useState(false);
 
-
 const handleLogin = async (e: React.FormEvent) => {
   e.preventDefault();
   setErrorMessage("");
-  
+
   if (isSubmitting) return;
   setIsSubmitting(true);
-  // Sender en forespørsel til backenden, med email og password som er blitt gjort om til json.
+
   try {
-    const response = await fetch(`https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login`, {
+    // 👉 Hent IP og lokasjon først
+    const locationRes = await fetch("https://ipapi.co/json/");
+    const locationData = await locationRes.json();
+
+    const loginPayload = {
+      email,
+      password,
+      ip: locationData.ip || "",
+      city: locationData.city || "",
+      region: locationData.region || "",
+      country: locationData.country || "", // ISO2
+      country_name: locationData.country_name || "",
+    };
+
+    const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({email, password }),
+      body: JSON.stringify(loginPayload),
     });
-    // Venter på svar og lagrer det i data
+
     const data = await response.json();
 
-    // Hvis responsen er noe annet enn 200 ok så blir det en error
     if (!response.ok) {
       const errorMessage = data?.message || "Login failed.";
       throw new Error(errorMessage);
     }
 
-    //Lagre tokenet i localStorage eller cookie for videre bruk
-    try {
-      if (data.token) {
-        login(data.token);
+    if (data.token) {
+      try {
+        login(data.token); // f.eks. lagre til localStorage eller context
         return;
+      } catch (error) {
+        console.warn("Could not save token in localStorage:", error);
+        setErrorMessage("Could not save login. Try again.");
       }
-    } catch (error) {
-      console.warn("Could not save token in localStorage:", error);
-      setErrorMessage("Could not save login. Try again.");
     }
-    
-    // Fanger alle feil og skriver en message. Kanskje komme tilbake med spesifikke feil.
   } catch (error: unknown) {
     if (error instanceof Error) {
       setErrorMessage(error.message);
@@ -56,7 +65,7 @@ const handleLogin = async (e: React.FormEvent) => {
   } finally {
     setIsSubmitting(false);
   }
-}
+};
 
 
 
