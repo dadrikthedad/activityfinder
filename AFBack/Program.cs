@@ -7,6 +7,7 @@ using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json.Serialization;
 using AFBack.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
@@ -71,7 +72,11 @@ if (!string.IsNullOrEmpty(appInsightsKey))
 
 // Denne koden gjør at API-et kan håndtere HTTP-orespørsler som GET, POST, PUT og DELETE. Nødvendig for at ASP.NET CORE skal håndtere API.
 // Lagt til kontrllere 10.03
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // Henter vi Key fra miljøvariabelen og issuer og audience fra json.
 var jwtKey = Environment.GetEnvironmentVariable($"JWT_SECRET_KEY");

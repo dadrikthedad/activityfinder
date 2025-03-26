@@ -76,7 +76,13 @@ public class UserRegisterDTO
     
     [MaxLength(25, ErrorMessage = "Postal code can't be more than 25 characters.")]
     public string? PostalCode { get; set; }
+
+    private Gender? _gender;
     
-    public Gender? Gender { get; set; }
+    public Gender? Gender
+    {
+        get => _gender;
+        set => _gender = value; // Her kunne du også validert manuelt om ønskelig
+    }
     
 }
