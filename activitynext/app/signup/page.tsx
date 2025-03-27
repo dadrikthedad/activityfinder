@@ -18,8 +18,6 @@ import PasswordField from "@/components/PasswordField";
 import FormButton from "@/components/FormButton";
 import {
   checkEmailAvailability,
-  registerUserAPI,
-  RegisterUserPayload,
 } from "@/services/user";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useRegisterUser } from "@/hooks/useRegisterUser";
@@ -90,7 +88,7 @@ export default function Signup() {
     }, {} as typeof touchedFields);
     setTouchedFields(allTouched);
 
-    const { isValid, errors: newErrors } = validateAllFields();
+    const { errors: newErrors } = validateAllFields();
     const emailAvailable = await checkEmailAvailability(formData.email);
 
     if (!emailAvailable) {
