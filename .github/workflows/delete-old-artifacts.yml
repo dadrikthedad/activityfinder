@@ -1,0 +1,47 @@
+name: Delete old artifacts (keep latest 3)
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # Kjør hver mandag kl. 03:00 UTC
+  workflow_dispatch:      # Du kan også kjøre det manuelt fra Actions-fanen
+
+jobs:
+  delete-artifacts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete old artifacts but keep latest 3
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const daysOld = 7;
+            const keepLatest = 3;
+
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - daysOld);
+
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+              }
+            );
+
+            // Sort artifacts by creation date (newest first)
+            artifacts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+            const artifactsToDelete = artifacts
+              .slice(keepLatest) // Skip the latest X
+              .filter(artifact => new Date(artifact.created_at) < cutoff);
+
+            for (const artifact of artifactsToDelete) {
+              console.log(`Deleting artifact: ${artifact.name} (created: ${artifact.created_at})`);
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+              });
+            }
