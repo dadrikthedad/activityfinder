@@ -43,19 +43,34 @@ const FormField: React.FC<FormFieldProps> = ({
       </label>
 
       <div className="flex flex-col w-full">
-        {as === "input" ? (
-          <input
+      {as === "input" ? (
+        type === "date" ? (
+            <input
             id={id}
-            type={type}
+            type="date"
             name={id}
             value={value}
             onChange={onChange}
             onBlur={onBlur}
-            placeholder={placeholder}
+            max={new Date().toISOString().split("T")[0]}
             disabled={disabled}
             className={`w-[280px] h-12 px-4 border rounded-md bg-gray-700 text-white 
-              ${showError ? "border-red-500" : "border-gray-500"}`}
-          />
+                ${showError ? "border-red-500" : "border-gray-500"}`}
+        />
+  ) : (
+    <input
+      id={id}
+      type={type}
+      name={id}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={`w-[280px] h-12 px-4 border rounded-md bg-gray-700 text-white 
+        ${showError ? "border-red-500" : "border-gray-500"}`}
+    />
+  )
         ) : (
           <select
             id={id}

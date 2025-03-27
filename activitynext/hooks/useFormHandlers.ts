@@ -15,67 +15,53 @@ export function useFormHandlers(initialValues: FormData) {
   const handleChange = (name: FieldName, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
 
+    // Hvis feltet er allerede "touched", så oppdater feilmelding
     if (touchedFields[name]) {
       const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
-      setErrors((prevErrors) => {
-        const updated = { ...prevErrors };
-        if (error) {
-          updated[name] = error;
-        } else {
-          delete updated[name]; // 🚀 Fjern helt hvis ingen feil
-        }
-        return updated;
-      });
+      setErrors((prevErrors) => ({ ...prevErrors, [name]: error || "" }));
     }
   };
 
   const handleBlur = (name: FieldName) => {
     setTouchedFields((prev) => ({ ...prev, [name]: true }));
+
     const value = formData[name];
     const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
-  
+
     setErrors((prev) => {
       const updated = { ...prev };
-      if (error) updated[name] = error;
-      else delete updated[name];
-  
-      // 🔍 Sjekk etterpå: finnes det noen errors igjen?
+      if (error) {
+        updated[name] = error;
+      } else {
+        delete updated[name];
+      }
+
       const stillHasErrors = Object.values(updated).some((val) => val);
-      if (!stillHasErrors) setMessage(""); // ✅ Fjern error-melding automatisk!
-  
+      if (!stillHasErrors) {
+        setMessage(""); // ✅ Fjern top-message hvis ingen errors igjen
+      }
+
       return updated;
     });
   };
 
-  // Må vi endre slik at vi ikkke bruker any her?
   const validateAllFields = () => {
-  const allTouched: { [key in FieldName]: boolean } = Object.keys(formData).reduce((acc, key) => {
-    acc[key as FieldName] = true;
-    return acc;
-  }, {} as { [key in FieldName]: boolean });
+    const newErrors: Partial<FormData> = {};
 
-  setTouchedFields(allTouched);
+    for (const key in formData) {
+      const name = key as FieldName;
+      const value = formData[name];
 
-  const newErrors: { [key in FieldName]?: string } = {};
-
-  for (const key in formData) {
-    const name = key as FieldName;
-    const value = formData[name];
-
-    if (!["middleName", "phone", "postalCode"].includes(name)) {
-      const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
-      if (error) {
-        newErrors[name] = error;
+      if (!["middleName", "phone", "postalCode"].includes(name)) {
+        const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
+        if (error) newErrors[name] = error;
       }
     }
-  }
 
-  setErrors(newErrors);
+    const isValid = Object.keys(newErrors).length === 0;
 
-  const isValid = Object.keys(newErrors).length === 0;
-
-  return { isValid, errors: newErrors };
-};
+    return { isValid, errors: newErrors };
+  };
 
   const resetForm = () => {
     setFormData(initialValues);
@@ -90,7 +76,7 @@ export function useFormHandlers(initialValues: FormData) {
     errors,
     setErrors,
     touchedFields,
-    setTouchedFields,
+    setTouchedFields, // ✅ eksponert her
     message,
     setMessage,
     handleChange,

@@ -5,7 +5,6 @@
 // render betyr at react bygger og viser komponentene på skjermen. Det skjer når siden lastest og hvis vi endrer noe, feks trykker på en tast. 
 import { useState, useEffect, useRef, useCallback } from "react";
 // 
-import { Info } from "lucide-react";
 // Henter router slik at vi kan navigere til andre sider
 import { useRouter } from "next/navigation";
 // Popup vinduet vårt som sier at vi har hat suksess med innlogging
@@ -16,8 +15,14 @@ import {
 import { useFormHandlers } from "@/hooks/useFormHandlers";
 import FormField from "@/components/FormField";
 import PasswordField from "@/components/PasswordField";
-import { SelectOption } from "@/types/select";
 import FormButton from "@/components/FormButton";
+import {
+  checkEmailAvailability,
+  registerUserAPI,
+  RegisterUserPayload,
+} from "@/services/user";
+import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
+
 
 
 export default function Signup() {
@@ -26,6 +31,7 @@ export default function Signup() {
     errors,
     setErrors,
     touchedFields,
+    setTouchedFields,
     handleChange,
     handleBlur,
     validateAllFields,
@@ -48,47 +54,15 @@ export default function Signup() {
   });
 
   // countries er veriden som kan endres, setCountries brukes for å oppdatere verdien når den blir kalt
-  const [countries, setCountries] = useState<SelectOption[]>([]);
-  const [regions, setRegions] = useState<SelectOption[]>([]);
-    const hasSetCountry = useRef(false); // 👈 Lagrer om vi allerede har satt landet
-    const emailCheckTimeout = useRef<NodeJS.Timeout | null>(null);
     const [isRegistered, setIsRegistered] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const router = useRouter();
-    const [ countryCodes, setCountryCodes ] = useState<Record<string, string>>({});
-    
-
-
+    const { countries, regions, handleCountryChange, countryCodes  } = useCountryAndRegion({
+      country: formData.country,
+      setFormData,
+    });
   
-  //Hent land fra API
-  const fetchCountries = async () => {
-    try {
-      const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/countries");
-      const data: { code: string; name: string }[] = await response.json();
-  
-      const countryOptions: SelectOption[] = data
-        .map((country) => ({
-          label: country.name,
-          value: country.name, // 👈 vi bruker navn som value i formData
-        }))
-        .sort((a, b) => a.label.localeCompare(b.label));
-  
-      setCountries(countryOptions);
-  
-      const codeMap: Record<string, string> = {};
-      data.forEach((country) => {
-        codeMap[country.name] = country.code;
-      });
-      setCountryCodes(codeMap);
-    } catch (error) {
-      console.error("Feil ved henting av land:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchCountries();
-  }, []);
 
   
 
@@ -97,156 +71,38 @@ export default function Signup() {
   const handleAttemptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
   
+    // 1. Marker ALLE felt som "touched" for å vise feil visuelt
+    const allTouched = Object.keys(formData).reduce((acc, key) => {
+      acc[key as FieldName] = true;
+      return acc;
+    }, {} as typeof touchedFields);
+    setTouchedFields(allTouched);
+  
+    // 2. Valider alt
     const { isValid, errors: newErrors } = validateAllFields();
   
-    if (!isValid) {
+    // 3. Sjekk e-post
+    const emailAvailable = await checkEmailAvailability(formData.email);
+  
+    // 4. Hvis e-posten er tatt, legg det til i errors
+    if (!emailAvailable) {
+      newErrors.email = "An account with this email already exists.";
+    }
+  
+    // 5. Hvis det finnes noen feil totalt, vis dem
+    if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setMessage("Please fix all required fields.");
       return;
     }
   
+    // 6. Alt er OK – nullstill feil og gå videre
     setErrors({});
-    setMessage(""); // 🧽 Fjern eventuell gammel error
-  
-    const emailAvailable = await checkEmailAvailability(formData.email);
-    if (!emailAvailable) {
-      setMessage("An account with this email already exists.");
-      return;
-    }
-  
+    setMessage("");
     setIsSubmitting(true);
     await registerUser(e);
   };
   
-  
-  
-  
-
-  const checkEmailAvailability = useCallback(async (email: string): Promise<boolean> => {
-    if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email)) return false;
-  
-    try {
-      const response = await fetch(
-        `https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/check-email?email=${email}`
-      );
-      const data = await response.json();
-  
-      if (!response.ok) {
-        throw new Error(data.message || "Kunne ikke sjekke e-post.");
-      }
-  
-      if (data.exists) {
-        setErrors((prevErrors) => ({
-          ...prevErrors,
-          email: "Denne e-posten er allerede registrert.",
-        }));
-        return false;
-      } else {
-        setErrors((prevErrors) => {
-          const newErrors = { ...prevErrors };
-          delete newErrors.email;
-          return newErrors;
-        });
-        return true;
-      }
-    } catch (error) {
-      console.error("Feil ved sjekking av e-post:", error);
-      return false;
-    }
-  }, [setErrors]);
-
-  useEffect(() => {
-    if (emailCheckTimeout.current) clearTimeout(emailCheckTimeout.current);
-
-    emailCheckTimeout.current = setTimeout(() => {
-      checkEmailAvailability(formData.email);
-    }, 500); // Vent 500ms før vi sjekker
-  }, [formData.email, checkEmailAvailability]);
-
-  
-  
-  
-  
-
-  const fetchAndSetRegions: (countryName: string) => Promise<void> = useCallback(async (countryName: string) => {
-    const countryCode = countryCodes[countryName];
-    if (!countryCode) {
-      console.warn("Fant ikke landkode for:", countryName);
-      setRegions([]);
-      return;
-    }
-  
-    try {
-      const res = await fetch(
-        `https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/regions/${encodeURIComponent(countryCode)}`
-      );
-      const data: string[] = await res.json();
-  
-      if (!Array.isArray(data)) {
-        console.warn("Ugyldig regiondata:", data);
-        setRegions([]);
-        return;
-      }
-  
-      const options = [
-        { label: "-- Choose --", value: "" }, // 🛑 alltid først
-        ...data.map((region) => ({ label: region, value: region })),
-      ];
-  
-      setRegions(options);
-      setFormData((prev) => ({ ...prev, region: "" })); // Tving bruker til å velge
-    } catch (error) {
-      console.error("Feil ved henting av regioner:", error);
-      setRegions([]);
-    }
-  }, [formData.country, countryCodes,]);
-
-  useEffect(() => {
-    if (formData.country && countryCodes[formData.country]) {
-      fetchAndSetRegions(formData.country);
-    }
-  }, [formData.country, countryCodes, fetchAndSetRegions, setFormData]);
-
- // Håndterer valg av land
- const handleCountryChange = (
-  e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>
-) => {
-  const selectedCountryName = e.target.value;
-
-  setFormData((prev) => ({
-    ...prev,
-    country: selectedCountryName,
-    region: "", // alltid tving til å velge ny region
-  }));
-};
-
-//Hent IP fra API
-useEffect(() => {
-  const fetchInitialLocationData = async () => {
-    try {
-      const ipRes = await fetch("https://ipapi.co/json/");
-      const ipData = await ipRes.json();
-
-      if (ipData?.country_name && !hasSetCountry.current) {
-        hasSetCountry.current = true;
-        const userCountry = ipData.country_name;
-
-        setFormData((prev) => ({ ...prev, country: userCountry }));
-        await fetchAndSetRegions(userCountry);
-      }
-    } catch (err) {
-      console.error("Feil ved henting av brukerland:", err);
-    }
-  };
-
-  if (Object.keys(countryCodes).length > 0) {
-    fetchInitialLocationData();
-  }
-}, [countryCodes, fetchAndSetRegions, setFormData]);
-
-
-
-
 
 useEffect(() => {
   console.log("Akkurat nå, errors:", errors);
@@ -256,66 +112,57 @@ useEffect(() => {
 
   
 
-  const registerUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(""); 
+const registerUser = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setMessage("");
+  if (isSubmitting) return;
+  setIsSubmitting(true);
 
-    // Forhindrer flere klikk etter vi har klikket engang
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-    
-    const payload: Partial<typeof formData> = {
-      ...formData,
-      country: countryCodes[formData.country] || formData.country, // 💡 fallback til name hvis noe går galt
-    };
+  const payload = {
+    ...formData,
+    country: countryCodes[formData.country] || formData.country,
+  } as Partial<RegisterUserPayload>;
 
-    if (!payload.phone || payload.phone.trim() === "") {
-    delete payload.phone; // 🚀 Fjern phone-feltet hvis det er tomt
-    }
+  if (!payload.phone?.trim()) delete payload.phone;
+  if (
+    !formData.region ||
+    ["null", "No regions available", "-- Choose --"].includes(formData.region)
+  ) {
+    delete payload.region;
+  }
 
-    if (
-      !formData.region ||
-      formData.region === "null" ||
-      formData.region === "No regions available" ||
-      formData.region === "-- Choose --"
-    ) {
-      delete payload.region;
-    }
+  try {
+    console.log("📦 Sender følgende til API:", JSON.stringify(payload, null, 2));
+    const data = await registerUserAPI(payload as RegisterUserPayload);
+    console.log("✅ Respons fra API:", data);
 
+    setFormData({
+      firstName: "",
+      middleName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      phone: "",
+      dateOfBirth: "",
+      country: "",
+      region: "",
+      postalCode: "",
+      gender: "",
+    });
 
-      console.log("Data som sendes til backend:", JSON.stringify(payload, null, 2));
-
-
-    try {
-      const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-  
-      const data = await response.json();
-      if (response.ok) {
-        setFormData({ firstName: "", middleName: "", lastName: "", email: "", password: "", confirmPassword: "", phone: "", dateOfBirth: "", country: "", region: "", postalCode: "", gender: "" });
-        setShowSuccessModal(true);
-        setTimeout(() => {
-          setShowSuccessModal(false);
-          setIsRegistered(true); // 🚀 Oppdater state i stedet for å navigere direkte
-        }, 1000);
-
-
-      } else {
-        setErrors(data.errors || { general: "Could not register user." });
-      }
-    } catch (error) {
-      console.error("Feil under registrering:", error);
-      setMessage("❌ Nettwork error. Try again later.");
-    } finally
-    {
-      setIsSubmitting(false);
-    }
-  };
+    setShowSuccessModal(true);
+    setTimeout(() => {
+      setShowSuccessModal(false);
+      setIsRegistered(true);
+    }, 1000);
+  } catch (error: any) {
+    console.error("❌ Feil under registrering:", error);
+    setErrors({ general: error.message || "Could not register user." });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   useEffect(() => {
     if (isRegistered) {
@@ -428,44 +275,18 @@ useEffect(() => {
         />
 
       {/* 🔥 FØDSELSDATO */}
-        <label htmlFor="dateOfBirth" className="text-gray-300 font-medium text-right">
-          Date of birth:
-        </label>
+      <FormField
+        id="dateOfBirth"
+        label="Date of birth:"
+        type="date"
+        value={formData.dateOfBirth}
+        onChange={(e) => handleChange("dateOfBirth", e.target.value)}
+        onBlur={(e) => handleBlur("dateOfBirth")}
+        error={errors.dateOfBirth}
+        touched={touchedFields.dateOfBirth}
+        tooltip="Required: Date of birth. Required for age verification."
+      />
 
-        <div className="flex flex-col w-full relative">
-          <input
-            id="dateOfBirth"
-            type="date"
-            name="dateOfBirth"
-            value={formData.dateOfBirth}
-            onChange={(e) =>
-              handleChange(e.target.name as FieldName, e.target.value)
-            }
-            onBlur={(e) => handleBlur(e.target.name as FieldName)}
-            max={new Date().toISOString().split("T")[0]}
-            className={`w-[280px] h-12 px-4 border rounded-md bg-gray-700 text-white 
-              ${
-                touchedFields.dateOfBirth && errors.dateOfBirth
-                  ? "border-red-500"
-                  : "border-gray-500"
-              }`}
-          />
-
-          {touchedFields.dateOfBirth && errors.dateOfBirth && (
-            <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>
-          )}
-        </div>
-
-        {/* Tooltip-ikonet på plass i tredje kolonne */}
-        <div className="ml-[75px] relative flex justify-start group">
-          <Info className="text-gray-400 cursor-pointer" size={18} />
-          <div
-            className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
-              bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10"
-          >
-            Required: Date of birth. Required for age verification.
-          </div>
-        </div>
 
         {/* 🔥 LAND */}
         <FormField
