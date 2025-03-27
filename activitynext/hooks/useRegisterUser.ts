@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { RegisterUserPayload, registerUserAPI } from "@/services/user";
+import { FormDataType } from "@/types/form";
 
 interface UseRegisterUserProps {
   formData: Record<string, string>;
   countryCodes: Record<string, string>;
-  setFormData: (data: Record<string, string>) => void;
+  setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
   setErrors: (errors: Record<string, string>) => void;
   setMessage: (msg: string) => void;
   onSuccess: () => void;

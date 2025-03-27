@@ -22,6 +22,7 @@ import {
   RegisterUserPayload,
 } from "@/services/user";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
+import { useRegisterUser } from "@/hooks/useRegisterUser";
 
 
 
@@ -55,14 +56,27 @@ export default function Signup() {
 
   // countries er veriden som kan endres, setCountries brukes for å oppdatere verdien når den blir kalt
     const [isRegistered, setIsRegistered] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false); // Sjekker om vi har submitta eller ikke
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const router = useRouter();
     const { countries, regions, handleCountryChange, countryCodes  } = useCountryAndRegion({
       country: formData.country,
       setFormData,
     });
-  
+    
+    const { registerUser, isSubmitting } = useRegisterUser({
+      formData,
+      countryCodes,
+      setFormData,
+      setErrors,
+      setMessage,
+      onSuccess: () => {
+        setShowSuccessModal(true);
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          setIsRegistered(true);
+        }, 1000);
+      },
+    });
 
   
 
@@ -70,103 +84,34 @@ export default function Signup() {
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
   const handleAttemptSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  
-    // 1. Marker ALLE felt som "touched" for å vise feil visuelt
     const allTouched = Object.keys(formData).reduce((acc, key) => {
       acc[key as FieldName] = true;
       return acc;
     }, {} as typeof touchedFields);
     setTouchedFields(allTouched);
-  
-    // 2. Valider alt
-    const { errors: newErrors } = validateAllFields();
-  
-    // 3. Sjekk e-post
+
+    const { isValid, errors: newErrors } = validateAllFields();
     const emailAvailable = await checkEmailAvailability(formData.email);
-  
-    // 4. Hvis e-posten er tatt, legg det til i errors
+
     if (!emailAvailable) {
       newErrors.email = "An account with this email already exists.";
     }
-  
-    // 5. Hvis det finnes noen feil totalt, vis dem
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setMessage("Please fix all required fields.");
       return;
     }
-  
-    // 6. Alt er OK – nullstill feil og gå videre
+
     setErrors({});
     setMessage("");
-    setIsSubmitting(true);
-    await registerUser(e);
+    await registerUser();
   };
   
 
 useEffect(() => {
   console.log("Akkurat nå, errors:", errors);
 }, [errors]);
-
-
-
-  
-
-const registerUser = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setMessage("");
-  if (isSubmitting) return;
-  setIsSubmitting(true);
-
-  const payload = {
-    ...formData,
-    country: countryCodes[formData.country] || formData.country,
-  } as Partial<RegisterUserPayload>;
-
-  if (!payload.phone?.trim()) delete payload.phone;
-  if (
-    !formData.region ||
-    ["null", "No regions available", "-- Choose --"].includes(formData.region)
-  ) {
-    delete payload.region;
-  }
-
-  try {
-    console.log("📦 Sender følgende til API:", JSON.stringify(payload, null, 2));
-    const data = await registerUserAPI(payload as RegisterUserPayload);
-    console.log("✅ Respons fra API:", data);
-
-    setFormData({
-      firstName: "",
-      middleName: "",
-      lastName: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-      phone: "",
-      dateOfBirth: "",
-      country: "",
-      region: "",
-      postalCode: "",
-      gender: "",
-    });
-
-    setShowSuccessModal(true);
-    setTimeout(() => {
-      setShowSuccessModal(false);
-      setIsRegistered(true);
-    }, 1000);
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      console.error("❌ Feil under registrering:", error.message);
-      setErrors({ general: error.message });
-    } else {
-      setErrors({ general: "Unknown error occurred." });
-    }
-  } finally {
-    setIsSubmitting(false);
-  }
-};
 
   useEffect(() => {
     if (isRegistered) {
@@ -203,7 +148,7 @@ const registerUser = async (e: React.FormEvent) => {
         <FormField
         id="middleName"
         label="Middle name:"
-        value={formData.middleName}
+        value={formData.middleName  ?? ""}
         onChange={(e) => handleChange("middleName", e.target.value)}
         onBlur={() => handleBlur("middleName")}
         error={errors.middleName}
@@ -269,7 +214,7 @@ const registerUser = async (e: React.FormEvent) => {
         id="phone"
         label="Telefonnummer (valgfritt):"
         type="tel"
-        value={formData.phone}
+        value={formData.phone  ?? ""}
         onChange={(e) => handleChange("phone", e.target.value)}
         onBlur={() => handleBlur("phone")}
         error={errors.phone}
@@ -310,7 +255,7 @@ const registerUser = async (e: React.FormEvent) => {
         <FormField
         id="region"
         label="Region:"
-        value={formData.region}
+        value={formData.region ?? ""}
         onChange={(e) => handleChange("region", e.target.value)}
         error={errors.region}
         touched={touchedFields.region}
@@ -324,7 +269,7 @@ const registerUser = async (e: React.FormEvent) => {
         <FormField
           id="postalCode"
           label="Postal code:"
-          value={formData.postalCode}
+          value={formData.postalCode ?? ""}
           onChange={(e) => handleChange("postalCode", e.target.value)}
           onBlur={() => handleBlur("postalCode")}
           error={errors.postalCode}
