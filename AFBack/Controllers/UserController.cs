@@ -1,5 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
 using Microsoft.AspNetCore.Mvc;
@@ -293,6 +295,38 @@ public class UserController : ControllerBase
         {
             _logger.LogError("Error while checking email: {Error}", e.Message);
             return StatusCode(500, new { message = "Database error. Try again later." });
+        }
+    }
+    
+    // Henter informasjonen fra databasen til å vise på profil-siden
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        {
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            {
+                return Unauthorized(new { message = "Invalid user ID in token." });
+            }
+        
+            var user = await _context.Users.FindAsync(userId);
+            
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            var dto = new UserDTO
+            {
+                FullName = user.FullName,
+                Email = user.Email,
+                DateOfBirth = user.DateOfBirth,
+                Phone = user.Phone,
+                Country = user.Country,
+                Region = user.Region,
+                PostalCode = user.PostalCode,
+                Gender = user.Gender
+            };
+
+            return Ok(dto);
         }
     }
     
