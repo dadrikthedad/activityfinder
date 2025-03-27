@@ -3,7 +3,7 @@
 // useSate gjør at vi kan lagre en "state", og det er verdier som kan endres. useEffect brukes til API-kall og events. Kjøres kun når vi mounter den og en når en effekt blir endret
 // useRef lagrer referanser eller verdier uten rerender, bra for å telle noe eller timeout/invervals som ikkek skal miste veriden ved rerender.
 // render betyr at react bygger og viser komponentene på skjermen. Det skjer når siden lastest og hvis vi endrer noe, feks trykker på en tast. 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 // 
 // Henter router slik at vi kan navigere til andre sider
 import { useRouter } from "next/navigation";
@@ -79,7 +79,7 @@ export default function Signup() {
     setTouchedFields(allTouched);
   
     // 2. Valider alt
-    const { isValid, errors: newErrors } = validateAllFields();
+    const { errors: newErrors } = validateAllFields();
   
     // 3. Sjekk e-post
     const emailAvailable = await checkEmailAvailability(formData.email);
@@ -156,9 +156,13 @@ const registerUser = async (e: React.FormEvent) => {
       setShowSuccessModal(false);
       setIsRegistered(true);
     }, 1000);
-  } catch (error: any) {
-    console.error("❌ Feil under registrering:", error);
-    setErrors({ general: error.message || "Could not register user." });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error("❌ Feil under registrering:", error.message);
+      setErrors({ general: error.message });
+    } else {
+      setErrors({ general: "Unknown error occurred." });
+    }
   } finally {
     setIsSubmitting(false);
   }
@@ -281,7 +285,7 @@ const registerUser = async (e: React.FormEvent) => {
         type="date"
         value={formData.dateOfBirth}
         onChange={(e) => handleChange("dateOfBirth", e.target.value)}
-        onBlur={(e) => handleBlur("dateOfBirth")}
+        onBlur={() => handleBlur("dateOfBirth")}
         error={errors.dateOfBirth}
         touched={touchedFields.dateOfBirth}
         tooltip="Required: Date of birth. Required for age verification."
