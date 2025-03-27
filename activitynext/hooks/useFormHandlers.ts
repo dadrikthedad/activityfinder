@@ -16,6 +16,7 @@ export function useFormHandlers(initialValues: FormDataType) {
     handleBlur,
     validateAllFields,
   } = useFieldValidation(formData);
+  
 
   const handleChange = (name: FieldName, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -25,6 +26,7 @@ export function useFormHandlers(initialValues: FormDataType) {
       setErrors((prevErrors) => ({ ...prevErrors, [name]: error || "" }));
     }
   };
+
 
   return {
     formData,

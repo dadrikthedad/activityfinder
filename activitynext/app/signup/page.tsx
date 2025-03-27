@@ -9,18 +9,19 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 // Popup vinduet vårt som sier at vi har hat suksess med innlogging
 import SuccessModal from "@/components/SuccessModal";
-import {
-  FieldName
-} from "@/utils/validators";
 import { useFormHandlers } from "@/hooks/useFormHandlers";
-import FormField from "@/components/FormField";
-import PasswordField from "@/components/PasswordField";
 import FormButton from "@/components/FormButton";
 import {
   checkEmailAvailability,
 } from "@/services/user";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useRegisterUser } from "@/hooks/useRegisterUser";
+import NameFields from "@/components/signup/NameFields";
+import ContactFields from "@/components/signup/ContactFields";
+import PasswordFields from "@/components/signup/PasswordFields";
+import LocationFields from "@/components/signup/LocationFields";
+import DemoFields from "@/components/signup/DemoFields";
+import { handleSubmit } from "@/utils/form/submitHandler";
 
 
 
@@ -80,30 +81,26 @@ export default function Signup() {
 
 
   // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
-  const handleAttemptSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const allTouched = Object.keys(formData).reduce((acc, key) => {
-      acc[key as FieldName] = true;
-      return acc;
-    }, {} as typeof touchedFields);
-    setTouchedFields(allTouched);
-
-    const { errors: newErrors } = validateAllFields();
-    const emailAvailable = await checkEmailAvailability(formData.email);
-
-    if (!emailAvailable) {
-      newErrors.email = "An account with this email already exists.";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      setMessage("Please fix all required fields.");
-      return;
-    }
-
-    setErrors({});
-    setMessage("");
-    await registerUser();
+  const handleAttemptSubmit = (e: React.FormEvent) => {
+    handleSubmit({
+      e,
+      formData,
+      setTouchedFields,
+      validateAllFields,
+      setErrors,
+      setMessage,
+      onSubmit: registerUser,
+      extraValidation: async () => {
+        const errors: Record<string, string> = {};
+        if (!formData.email) return errors; // skip API call
+  
+        const emailAvailable = await checkEmailAvailability(formData.email);
+        if (!emailAvailable) {
+          errors.email = "An account with this email already exists.";
+        }
+        return errors;
+      },
+    });
   };
   
 
@@ -126,174 +123,51 @@ useEffect(() => {
         Create a new user.
       </p>
   
-      <form onSubmit={registerUser} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-2xl">
+      <form onSubmit={handleAttemptSubmit} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-4xl">
   
-        {/* 🔥 FORNAVN */}
 
-        <FormField
-        id="firstName"
-        label="First name:"
-        value={formData.firstName}
-        onChange={(e) => handleChange("firstName", e.target.value)}
-        onBlur={() => handleBlur("firstName")}
-        error={errors.firstName}
-        touched={touchedFields.firstName}
-        placeholder="First name"
-        tooltip="Required: Your first name. Max characters: 50."
+        <NameFields
+          formData={formData}
+          handleChange={handleChange}
+          handleBlur={handleBlur}
+          errors={errors}
+          touchedFields={touchedFields}
         />
 
-        {/* 🔥 MELLOMNAVN */}
-        <FormField
-        id="middleName"
-        label="Middle name:"
-        value={formData.middleName  ?? ""}
-        onChange={(e) => handleChange("middleName", e.target.value)}
-        onBlur={() => handleBlur("middleName")}
-        error={errors.middleName}
-        touched={touchedFields.middleName}
-        placeholder="Middle name (not required)"
-        tooltip="Not required: Your middle name. Max characters: 50."
+        <ContactFields
+          formData={formData}
+          handleChange={handleChange}
+          handleBlur={handleBlur}
+          errors={errors}
+          touchedFields={touchedFields}
         />
 
-        {/* 🔥 ETTERNAVN */}
-        <FormField
-        id="lastName"
-        label="Last name:"
-        value={formData.lastName}
-        onChange={(e) => handleChange("lastName", e.target.value)}
-        onBlur={() => handleBlur("lastName")}
-        error={errors.lastName}
-        touched={touchedFields.lastName}
-        placeholder="Last name"
-        tooltip="Required: Your last name. Max characters: 50."
+        <PasswordFields
+          formData={formData}
+          handleChange={handleChange}
+          handleBlur={handleBlur}
+          errors={errors}
+          touchedFields={touchedFields}
         />
 
-        {/* 🔥 E-POST */}
-        <FormField
-        id="email"
-        label="Email:"
-        type="email"
-        value={formData.email}
-        onChange={(e) => handleChange("email", e.target.value)}
-        onBlur={() => handleBlur("email")}
-        error={errors.email}
-        touched={touchedFields.email}
-        placeholder="Email"
-        tooltip="Required: Email. Only one user per email. Max characters: 100."
+        <LocationFields
+          formData={formData}
+          handleChange={handleChange}
+          handleBlur={handleBlur}
+          errors={errors}
+          touchedFields={touchedFields}
+          countries={countries}
+          regions={regions}
+          handleCountryChange={handleCountryChange}
         />
 
-        {/* 🔥 Passowrd */}
-        <PasswordField
-        id="password"
-        label="Password:"
-        value={formData.password}
-        onChange={(e) => handleChange("password", e.target.value)}
-        onBlur={() => handleBlur("password")}
-        error={errors.password}
-        touched={touchedFields.password}
-        placeholder="Password"
-        tooltip="Password must contain uppercase, lowercase and a number. 8-128 chars."
+        <DemoFields
+          formData={formData}
+          handleChange={handleChange}
+          handleBlur={handleBlur}
+          errors={errors}
+          touchedFields={touchedFields}
         />
-        {/* 🔥 ConfirmPassword */}
-        <PasswordField
-        id="confirmPassword"
-        label="Confirm Password:"
-        value={formData.confirmPassword}
-        onChange={(e) => handleChange("confirmPassword", e.target.value)}
-        onBlur={() => handleBlur("confirmPassword")}
-        error={errors.confirmPassword}
-        touched={touchedFields.confirmPassword}
-        placeholder="Confirm Password"
-        tooltip="Must match your password."
-        />
-
-        {/* 🔥 Phone */}
-        <FormField
-        id="phone"
-        label="Telefonnummer (valgfritt):"
-        type="tel"
-        value={formData.phone  ?? ""}
-        onChange={(e) => handleChange("phone", e.target.value)}
-        onBlur={() => handleBlur("phone")}
-        error={errors.phone}
-        touched={touchedFields.phone}
-        placeholder="Phonenumber"
-        tooltip="Not required: Must be a valid phonenumber. Might be used for verification later."
-        />
-
-      {/* 🔥 FØDSELSDATO */}
-      <FormField
-        id="dateOfBirth"
-        label="Date of birth:"
-        type="date"
-        value={formData.dateOfBirth}
-        onChange={(e) => handleChange("dateOfBirth", e.target.value)}
-        onBlur={() => handleBlur("dateOfBirth")}
-        error={errors.dateOfBirth}
-        touched={touchedFields.dateOfBirth}
-        tooltip="Required: Date of birth. Required for age verification."
-      />
-
-
-        {/* 🔥 LAND */}
-        <FormField
-        id="country"
-        label="Country:"
-        value={formData.country}
-        onChange={handleCountryChange}
-        error={errors.country}
-        touched={touchedFields.country}
-        tooltip="Required: Country. Required to follow the law."
-        as="select"
-        options={countries}
-        placeholder="Select a country"
-        />
-
-        {/* 🔥 REGION */}
-        <FormField
-        id="region"
-        label="Region:"
-        value={formData.region ?? ""}
-        onChange={(e) => handleChange("region", e.target.value)}
-        error={errors.region}
-        touched={touchedFields.region}
-        tooltip="Required: Region. For updates in your region."
-        as="select"
-        options={regions}
-        disabled={!formData.country}
-        />
-    
-        {/* 🔥 PostalCode */}
-        <FormField
-          id="postalCode"
-          label="Postal code:"
-          value={formData.postalCode ?? ""}
-          onChange={(e) => handleChange("postalCode", e.target.value)}
-          onBlur={() => handleBlur("postalCode")}
-          error={errors.postalCode}
-          touched={touchedFields.postalCode}
-          placeholder="Postal code (not required)"
-          tooltip="Not required: For updates/activities in your local area. Might use GPS later."
-          />
-        {/* 🔥 Gender */}
-        <FormField
-          id="gender"
-          label="Gender"
-          as="select"
-          value={formData.gender}
-          onChange={(e) => handleChange("gender", e.target.value)}
-          onBlur={() => handleBlur("gender")}
-          error={errors.gender}
-          touched={touchedFields.gender}
-          options={[
-            { label: "Select Gender", value: "" }, // <- default
-            { label: "Male", value: "Male" },
-            { label: "Female", value: "Female" },
-            { label: "Unspecified", value: "Unspecified" },
-            ]}
-          tooltip="Required: For personalization and optional filtering."
-          />
-
 
           {/* 🔥 SIGN UP BUTTON */}
           <div className="col-span-3 flex flex-col items-center mt-4 space-y-2">

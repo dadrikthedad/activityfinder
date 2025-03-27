@@ -51,7 +51,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
                 <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute right-[-50px] top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
                 >
             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -62,7 +62,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
 
       {/* Tooltip */}
       {tooltip ? (
-        <div className="ml-[75px] relative flex justify-start group">
+        <div className="ml-4 relative flex justify-start group">
           <Info className="text-gray-400 cursor-pointer" size={18} />
           <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
               bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-56 z-10">

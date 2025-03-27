@@ -94,7 +94,7 @@ const FormField: React.FC<FormFieldProps> = ({
 
       {/* Tooltip */}
       {tooltip ? (
-        <div className="ml-[75px] relative flex justify-start group">
+        <div className="ml-4 relative flex justify-start group">
         <Info className="text-gray-400 cursor-pointer" size={18} />
         <div className="absolute left-6 bottom-full mb-2 hidden group-hover:flex 
             bg-gray-800 text-white text-xs p-2 rounded-md shadow-md w-40 z-10">

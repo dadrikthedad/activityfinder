@@ -26,7 +26,7 @@ const FormButton: React.FC<FormButtonProps> = ({
       onClick={onClick}
       disabled={isSubmitting || disabled}
       className={`${
-        fullWidth ? "w-full" : ""
+        fullWidth ? "w-1/2 mx-auto" : ""
       } bg-[#166016] text-white py-2 rounded-md font-semibold transition ${
         isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-[#0F3D0F]"
       }`}
