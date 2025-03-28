@@ -82,7 +82,7 @@ export default function Navbar() {
                 <span>Notifications</span>
               </Link>
             </li>
-
+              
             <li>
               <Link href="/profile" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
                 Profile

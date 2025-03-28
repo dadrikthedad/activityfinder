@@ -33,7 +33,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning={true}>
         <AuthProvider>
           <Navbar />
-          <main>{children}</main>
+          <main className="flex-grow">{children}</main>
         </AuthProvider> 
       </body>
     </html>

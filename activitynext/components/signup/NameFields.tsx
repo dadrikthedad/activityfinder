@@ -35,7 +35,7 @@ export default function NameFields({
       {/* 🔥 MELLOMNAVN */}
       <FormField
         id="middleName"
-        label="Middle name:"
+        label="Middle name (not required):"
         value={formData.middleName ?? ""}
         onChange={(e) => handleChange("middleName", e.target.value)}
         onBlur={() => handleBlur("middleName")}

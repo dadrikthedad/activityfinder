@@ -36,7 +36,7 @@ export default function ContactFields({
       {/* 🔥 Phone */}
       <FormField
         id="phone"
-        label="Telefonnummer (valgfritt):"
+        label="Phonenumber (not required):"
         type="tel"
         value={formData.phone ?? ""}
         onChange={(e) => handleChange("phone", e.target.value)}

@@ -9,6 +9,7 @@ interface FormButtonProps {
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   fullWidth?: boolean;
+  className?: string;
 }
 
 const FormButton: React.FC<FormButtonProps> = ({
@@ -19,6 +20,7 @@ const FormButton: React.FC<FormButtonProps> = ({
   onClick,
   disabled = false,
   fullWidth = true,
+  className = "",
 }) => {
   return (
     <button
@@ -29,7 +31,7 @@ const FormButton: React.FC<FormButtonProps> = ({
         fullWidth ? "w-1/2 mx-auto" : ""
       } bg-[#166016] text-white py-2 rounded-md font-semibold transition ${
         isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-[#0F3D0F]"
-      }`}
+      } ${className || ""}`}
     >
       {isSubmitting ? submittingText : text}
     </button>

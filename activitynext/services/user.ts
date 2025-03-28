@@ -1,6 +1,9 @@
-const API_BASE_URL =
+import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
+
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
+
 
 // Type for land
 export interface Country {
@@ -86,5 +89,15 @@ export async function registerUserAPI(payload: RegisterUserPayload): Promise<any
   } catch (error) {
     console.error("❌ Error registering user:", error);
     throw error;
+  }
+}
+
+export async function getCurrentUser(token: string) {
+  try {
+    const user = await fetchWithAuth(`${API_BASE_URL}/api/user/me`, {}, token);
+    return user;
+  } catch (err: any) {
+    console.error("❌ Failed to fetch current user:", err.message);
+    throw err;
   }
 }

@@ -21,7 +21,7 @@ export default function DemoFields({
     <>
       <FormField
         id="gender"
-        label="Gender"
+        label="Gender:"
         as="select"
         value={formData.gender}
         onChange={(e) => handleChange("gender", e.target.value)}
