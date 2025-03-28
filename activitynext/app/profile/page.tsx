@@ -6,11 +6,15 @@ import FormButton from "@/components/FormButton";
 import Link from "next/link";
 
 // Hjelpefunksjon for å sjekke om en verdi er "tom"
-const isEmpty = (value: any) =>
-  value === null ||
-  value === undefined ||
-  value === "" ||
-  (Array.isArray(value) && value.length === 0);
+const isEmpty = (value: unknown): boolean => {
+    if (value === null || value === undefined) return true;
+  
+    if (typeof value === "string" && value.trim() === "") return true;
+  
+    if (Array.isArray(value) && value.length === 0) return true;
+  
+    return false;
+  };
   
 
 export default function ProfilePage() {
