@@ -17,12 +17,17 @@ export function useCurrentUser() {
 
     const fetchUser = async () => {
       try {
-        const data = await fetchWithAuth(`${API_BASE_URL}/api/user/me`, {}, token);
+        const data = await fetchWithAuth<User>(`${API_BASE_URL}/api/user/me`, {}, token);
         console.log("✅ Current user fetched:", data);
         setUser(data);
-      } catch (err: any) {
-        console.error("❌ Error fetching current user:", err.message);
-        setError(err.message);
+      } catch (err) {
+        if (err instanceof Error) {
+          console.error("❌ Error fetching current user:", err.message);
+          setError(err.message)
+        } else {
+          setError("Unknown error occurred.");
+        }
+        
       } finally {
         setLoading(false);
       }

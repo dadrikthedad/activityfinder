@@ -1,8 +1,8 @@
-export async function fetchWithAuth(
+export async function fetchWithAuth<T = unknown>(
   url: string,
   options: RequestInit = {},
   token?: string
-): Promise<any> {
+): Promise<T | null> {
   const authToken = token || localStorage.getItem("token");
 
   console.log("🟡 fetchWithAuth - URL:", url);
@@ -40,11 +40,11 @@ export async function fetchWithAuth(
   }
 
   try {
-    const json = JSON.parse(text);
+    const json = JSON.parse(text) as T;
     console.log("✅ Parsed JSON:", json);
     return json;
   } catch (err) {
-    console.error("❌ Invalid JSON response:", text);
+    console.error("❌ Invalid JSON response:", text, err);
     return null; // 👈 Ikke kast error her – returner bare null
   }
 }

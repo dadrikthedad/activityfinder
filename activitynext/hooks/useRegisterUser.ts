@@ -61,9 +61,14 @@ export function useRegisterUser({
       });
 
       onSuccess(); // trigger modal + redirect
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Feil under registrering:", error);
-      setErrors({ general: error.message || "Could not register user." });
+    
+      if (error instanceof Error) {
+        setErrors({ general: error.message || "Could not register user." });
+      } else {
+        setErrors({ general: "Unknown error occurred during registration." });
+      }
     } finally {
       setIsSubmitting(false);
     }

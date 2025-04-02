@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SelectOption } from "@/types/select";
 import { fetchCountries, fetchRegions } from "@/services/user";
+import { FormDataType } from "@/types/form";
 
 interface UseCountryAndRegionProps {
   country: string;
-  setFormData: (fn: (prev: any) => any) => void;
+  setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
 }
 
 export function useCountryAndRegion({ country, setFormData }: UseCountryAndRegionProps) {

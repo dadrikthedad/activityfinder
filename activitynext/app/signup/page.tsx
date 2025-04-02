@@ -13,7 +13,7 @@ import { useFormHandlers } from "@/hooks/useFormHandlers";
 import FormButton from "@/components/FormButton";
 import {
   checkEmailAvailability,
-} from "@/services/user";
+} from "@/utils/api/email";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useRegisterUser } from "@/hooks/useRegisterUser";
 import NameFields from "@/components/signup/NameFields";
@@ -94,7 +94,8 @@ export default function Signup() {
         const errors: Record<string, string> = {};
         if (!formData.email) return errors; // skip API call
   
-        const emailAvailable = await checkEmailAvailability(formData.email);
+        const normalizedEmail = formData.email.trim().toLowerCase();
+        const emailAvailable = await checkEmailAvailability(normalizedEmail);
         if (!emailAvailable) {
           errors.email = "An account with this email already exists.";
         }

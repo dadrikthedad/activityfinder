@@ -118,118 +118,118 @@ public class UserController : ControllerBase
                 userDto.Country = countryName;
             }
         
-        // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
-        if (!ModelState.IsValid)
-        {   
-            // Henter ut alle errorene og lagrer det til en liste
-            // var errors = ModelState.Values.SelectMany(values => values.Errors).Select(error => error.ErrorMessage)
-            //     .ToList();
-
-            var errors = ModelState.ToDictionary(kvp => kvp.Key,
-                kvp => kvp.Value.Errors.Select(error => error.ErrorMessage).ToList());
-
-            _logger.LogWarning("Validation failed for user registration. Errors: {@Errors}", errors);
-            return BadRequest(new {message = $"Validation failed. Check errors.", errors});
-        }
-        
-        using (var transaction = await _context.Database.BeginTransactionAsync())
-        {
-            
-            
-            try
+            // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
+            if (!ModelState.IsValid)
             {   
-                // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
-                if (userDto.DateOfBirth > DateTime.UtcNow)
-                {
-                    return BadRequest(new { message = "Date of birth cannot be in the future." });
-                }
-                
-                if (string.Equals(userDto.Region, "No regions available", StringComparison.OrdinalIgnoreCase))
-                {
-                    userDto.Region = null;
-                }
-                
-                // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
-                string hashedPassword = BCrypt.HashPassword(userDto.Password);
-                
-                if (userDto.Gender.HasValue && !Enum.IsDefined(typeof(Gender), userDto.Gender.Value))
-                {
-                    return BadRequest(new { message = "Invalid gender value." });
-                }
-                
-                //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
-                var user = new User
-                {
-                    FirstName = userDto.FirstName,
-                    MiddleName = userDto.MiddleName,
-                    LastName = userDto.LastName,
-                    Email = userDto.Email,
-                    PasswordHash = hashedPassword,
-                    Phone = userDto.Phone,
-                    // Sirker at DateOfBirth tolkes og lagres som UTC da Postgres krever det. SpecifyKind tolker verdien riktig for UTC.
-                    DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
-                    CreatedAt = DateTime.UtcNow,
-                    Country = userDto.Country,
-                    Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
-                    PostalCode = userDto.PostalCode,
-                    Gender = userDto.Gender
-                };
-                
-                // Oppretter en profil med brukerens info
-                var profile = new Profile
-                {
-                    User = user,
-                    UserId = user.Id,
-                    UpdatedAt = DateTime.UtcNow,
-                };
-                
-                // Oppretter en innstillings profil samtidig
-                var settings = new UserSettings
-                {
-                    User = user,
-                    UserId = user.Id,
-                };
+                // Henter ut alle errorene og lagrer det til en liste
+                // var errors = ModelState.Values.SelectMany(values => values.Errors).Select(error => error.ErrorMessage)
+                //     .ToList();
 
-                
-                // Her gjør vi brukeren klar til å legges til i databasen, context er databasen og Users har vi definert i ApplicationDbContext. 
-                await _context.Users.AddAsync(user);
-                await _context.Profiles.AddAsync(profile);
-                await _context.UserSettings.AddAsync(settings);
-                // Her lagrer vi brukeren til databasen.
-                await _context.SaveChangesAsync();
+                var errors = ModelState.ToDictionary(kvp => kvp.Key,
+                    kvp => kvp.Value.Errors.Select(error => error.ErrorMessage).ToList());
 
-                await transaction.CommitAsync();
-                
-                
-                // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
-                return Ok(new
-                {
-                    message = "User registered successfully!",
-                    userId = user.Id,
-                    email = user.Email
-                });
+                _logger.LogWarning("Validation failed for user registration. Errors: {@Errors}", errors);
+                return BadRequest(new {message = $"Validation failed. Check errors.", errors});
             }
-            catch (DbUpdateException e)
+        
+            using (var transaction = await _context.Database.BeginTransactionAsync())
             {
-                await transaction.RollbackAsync();
+            
+            
+                try
+                {   
+                    // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
+                    if (userDto.DateOfBirth > DateTime.UtcNow)
+                    {
+                        return BadRequest(new { message = "Date of birth cannot be in the future." });
+                    }
+                
+                    if (string.Equals(userDto.Region, "No regions available", StringComparison.OrdinalIgnoreCase))
+                    {
+                        userDto.Region = null;
+                    }
+                
+                    // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
+                    string hashedPassword = BCrypt.HashPassword(userDto.Password);
+                
+                    if (userDto.Gender.HasValue && !Enum.IsDefined(typeof(Gender), userDto.Gender.Value))
+                    {
+                        return BadRequest(new { message = "Invalid gender value." });
+                    }
+                
+                    //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
+                    var user = new User
+                    {
+                        FirstName = userDto.FirstName,
+                        MiddleName = userDto.MiddleName,
+                        LastName = userDto.LastName,
+                        Email = userDto.Email.Trim().ToLowerInvariant(),
+                        PasswordHash = hashedPassword,
+                        Phone = userDto.Phone,
+                        // Sirker at DateOfBirth tolkes og lagres som UTC da Postgres krever det. SpecifyKind tolker verdien riktig for UTC.
+                        DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
+                        CreatedAt = DateTime.UtcNow,
+                        Country = userDto.Country,
+                        Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
+                        PostalCode = userDto.PostalCode,
+                        Gender = userDto.Gender
+                    };
+                
+                    // Oppretter en profil med brukerens info
+                    var profile = new Profile
+                    {
+                        User = user,
+                        UserId = user.Id,
+                        UpdatedAt = DateTime.UtcNow,
+                    };
+                
+                    // Oppretter en innstillings profil samtidig
+                    var settings = new UserSettings
+                    {
+                        User = user,
+                        UserId = user.Id,
+                    };
 
-                if (e.InnerException is Npgsql.PostgresException postgresException && 
-                    postgresException.SqlState == "23505") // 23505 = Unique Violation
-                {
-                    _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
-                    return BadRequest(new { message = "Email is already registered." });
+                
+                    // Her gjør vi brukeren klar til å legges til i databasen, context er databasen og Users har vi definert i ApplicationDbContext. 
+                    await _context.Users.AddAsync(user);
+                    await _context.Profiles.AddAsync(profile);
+                    await _context.UserSettings.AddAsync(settings);
+                    // Her lagrer vi brukeren til databasen.
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+                
+                
+                    // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
+                    return Ok(new
+                    {
+                        message = "User registered successfully!",
+                        userId = user.Id,
+                        email = user.Email
+                    });
                 }
+                catch (DbUpdateException e)
+                {
+                    await transaction.RollbackAsync();
 
-                _logger.LogError("Error saving user: {Error}", e.Message);
-                return StatusCode(500, new { message = "An error occured while saving the user." });
+                    if (e.InnerException is Npgsql.PostgresException postgresException && 
+                        postgresException.SqlState == "23505") // 23505 = Unique Violation
+                    {
+                        _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
+                        return BadRequest(new { message = "Email is already registered." });
+                    }
+
+                    _logger.LogError("Error saving user: {Error}", e.Message);
+                    return StatusCode(500, new { message = "An error occured while saving the user." });
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError("Database connection failed: {Error}", e.Message);
+                    await transaction.RollbackAsync();
+                    return StatusCode(500, new { message = "Database connection error. Please try again later." });
+                }
             }
-            catch (Exception e)
-            {
-                _logger.LogError("Database connection failed: {Error}", e.Message);
-                await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Database connection error. Please try again later." });
-            }
-        }
         }
         catch (Exception e)
         {
@@ -244,9 +244,11 @@ public class UserController : ControllerBase
     {
         if (!ModelState.IsValid)
             return BadRequest(new { message = "Invalid login requests." });
-
-        var token = await _authService.LoginAsync(userLoginDto.Email, userLoginDto.Password);
-
+        
+        string normalizedEmail = userLoginDto.Email.Trim().ToLowerInvariant();
+        
+        var token = await _authService.LoginAsync(normalizedEmail, userLoginDto.Password);
+        
         if (token == null)
         {
             _logger.LogWarning("Failed login attempt for email: {Email}", userLoginDto.Email);
@@ -255,7 +257,7 @@ public class UserController : ControllerBase
 
         try
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == userLoginDto.Email);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             if (user != null)
             {
                 user.LastLoginIp = userLoginDto.Ip;
@@ -272,7 +274,6 @@ public class UserController : ControllerBase
         }
 
         return Ok(new { token });
-        
     }
     
     
@@ -287,7 +288,9 @@ public class UserController : ControllerBase
 
         try
         {
-            bool emailExists = await _context.Users.AnyAsync(user => EF.Functions.Like(user.Email, email));
+            string normalizedEmail = email.Trim().ToLowerInvariant();
+            
+            bool emailExists = await _context.Users.AnyAsync(user => user.Email == normalizedEmail);
 
             return Ok(new { exists = emailExists });
         }
@@ -330,4 +333,179 @@ public class UserController : ControllerBase
         }
     }
     
+    // Små patcher som brukes til å endre feltene fra brukeren
+    [HttpPatch("first-name")]
+    [Authorize]
+    public async Task<IActionResult> UpdateFirstName([FromBody] UpdateFirstNameDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        user.FirstName = dto.FirstName;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "First name updated." });
+    }
+
+    [HttpPatch("middle-name")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMiddleName([FromBody] UpdateMiddleNameDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        user.MiddleName = dto.MiddleName;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Middle name updated." });
+    }
+
+    [HttpPatch("last-name")]
+    [Authorize]
+    public async Task<IActionResult> UpdateLastName([FromBody] UpdateLastNameDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        user.LastName = dto.LastName;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Last name updated." });
+    }
+
+    [HttpPatch("phone")]
+    [Authorize]
+    public async Task<IActionResult> UpdatePhone([FromBody] UpdatePhoneDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        user.Phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim();
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Phone updated." });
+    }
+
+    [HttpPatch("location")]
+    [Authorize]
+    public async Task<IActionResult> UpdateLocation([FromBody] UpdateLocationDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        // Valider land
+        var countryName = _countryService.GetCountryNameFromCode(dto.Country);
+        if (countryName == null)
+        {
+            return BadRequest(new { message = "Invalid country code." });
+        }
+
+        user.Country = countryName;
+        user.Region = dto.Region;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Location updated." });
+    }
+
+    [HttpPatch("postalcode")]
+    [Authorize]
+    public async Task<IActionResult> UpdatePostalCode([FromBody] UpdatePostalCodeDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        user.PostalCode = dto.PostalCode;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Postal code updated." });
+    }
+
+    [HttpPatch("gender")]
+    [Authorize]
+    public async Task<IActionResult> UpdateGender([FromBody] UpdateGenderDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        user.Gender = dto.Gender;
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Gender updated." });
+    }
+
+    private async Task<User?> GetUserFromClaims()
+    {
+        
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return null;
+
+        return await _context.Users.FindAsync(userId);
+    }
+    
+    // Sikkerhet
+    [HttpPatch("email")]
+    [Authorize]
+    public async Task<IActionResult> UpdateEmail([FromBody] UpdateEmailDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        if (await _context.Users.AnyAsync(u => u.Email == dto.NewEmail && u.Id != user.Id))
+        {
+            return BadRequest(new { message = "This email is already in use." });
+        }
+
+        user.Email = dto.NewEmail.Trim().ToLowerInvariant();
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Email updated.", newEmail = user.Email });
+    }
+    
+    [HttpPatch("password")]
+    [Authorize]
+    public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        
+        var user = await GetUserFromClaims();
+        if (user == null) return Unauthorized();
+
+        // Sjekk om passordet stemmer
+        if (!BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+        {
+            return Unauthorized(new { message = "Current password is incorrect." });
+        }
+
+        // Hash og lagre nytt passord
+        user.PasswordHash = BCrypt.HashPassword(dto.NewPassword);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Password updated successfully." });
+    }
 }

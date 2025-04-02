@@ -1,4 +1,5 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
+import { User } from "@/types/user";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -33,6 +34,11 @@ export interface RegisterUserPayload {
   gender: string;
 }
 
+interface RegisterResponse {
+  message: string;
+  userId?: string;
+} 
+
 export async function fetchCountries(): Promise<Country[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/user/countries`);
@@ -55,25 +61,7 @@ export async function fetchRegions(code: string): Promise<string[]> {
   }
 }
 
-export async function checkEmailAvailability(email: string): Promise<boolean> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/user/check-email?email=${email}`);
-  
-      // 👉 Håndter status før vi parser JSON
-      if (!res.ok) {
-        const text = await res.text(); // unngå JSON.parse-feil
-        throw new Error(text || "Email check failed");
-      }
-  
-      const data = await res.json();
-      return !data.exists;
-    } catch (error) {
-      console.error("❌ Error checking email:", error);
-      return false;
-    }
-  }
-
-export async function registerUserAPI(payload: RegisterUserPayload): Promise<any> {
+export async function registerUserAPI(payload: RegisterUserPayload): Promise<RegisterResponse> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/user/register`, {
       method: "POST",
@@ -92,12 +80,21 @@ export async function registerUserAPI(payload: RegisterUserPayload): Promise<any
   }
 }
 
-export async function getCurrentUser(token: string) {
+export async function getCurrentUser(token: string): Promise<User> {
   try {
-    const user = await fetchWithAuth(`${API_BASE_URL}/api/user/me`, {}, token);
+    const user = await fetchWithAuth<User>(`${API_BASE_URL}/api/user/me`, {}, token);
+
+    if (!user) {
+      throw new Error("No user returned from server.");
+    }
+
     return user;
-  } catch (err: any) {
-    console.error("❌ Failed to fetch current user:", err.message);
-    throw err;
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error("❌ Failed to fetch current user:", err.message);
+      throw err;
+    } else {
+      throw new Error("Unknown error occurred when fetching user.");
+    }
   }
 }

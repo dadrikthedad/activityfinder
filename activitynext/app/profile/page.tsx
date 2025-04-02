@@ -156,7 +156,7 @@ export default function ProfilePage() {
                     className="text-lg px-20 py-3"
                     />
                 </Link>
-</div>
+            </div>
         </div>
       </div>
     </div>
