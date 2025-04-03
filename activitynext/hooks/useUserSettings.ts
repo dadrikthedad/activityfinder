@@ -24,8 +24,10 @@ export function useUserSettings() {
   useEffect(() => {
     if (!token) return;
 
+    console.log("🌍 API_BASE_URL:", API_BASE_URL);
+
     const fetchSettings = async () => {
-      const url = `${API_BASE_URL}/api/user/me/settings`;
+      const url = `${API_BASE_URL}/api/user/profilesettings`;
       console.log("🔄 Henter brukerinnstillinger fra:", url);
       console.log("🔐 Bruker token:", token?.slice(0, 20) + "...");
 

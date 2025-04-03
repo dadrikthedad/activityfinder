@@ -1,4 +1,4 @@
-export async function fetchWithAuth<T = unknown>(
+export async function fetchWithAuth<T>(
   url: string,
   options: RequestInit = {},
   token?: string
@@ -21,19 +21,24 @@ export async function fetchWithAuth<T = unknown>(
     },
   });
 
-  const text = await res.text(); // 👈 alltid les som tekst først
+  const text = await res.text(); // les alltid som tekst først
 
   if (!res.ok) {
-    console.error("🔴 API error response (status", res.status, "):", text);
-    try {
-      const errorJson = JSON.parse(text);
-      throw new Error(errorJson.message || "Something went wrong.");
-    } catch {
-      throw new Error("Something went wrong.");
+    console.error(`🔴 API error (${res.status}) from ${url}:`, text);
+
+    // Forsøk å parse JSON bare hvis det ser ut som JSON
+    if (text.startsWith("{")) {
+      try {
+        const errorJson = JSON.parse(text);
+        throw new Error(errorJson.message || "Something went wrong.");
+      } catch {
+        throw new Error("Something went wrong (invalid error JSON).");
+      }
+    } else {
+      throw new Error("Something went wrong (non-JSON error response).");
     }
   }
 
-  // 👉 håndter tomt body (f.eks. ved 204 No Content)
   if (!text || text.trim() === "") {
     console.warn("⚠️ Empty response body");
     return null;
@@ -44,7 +49,7 @@ export async function fetchWithAuth<T = unknown>(
     console.log("✅ Parsed JSON:", json);
     return json;
   } catch (err) {
-    console.error("❌ Invalid JSON response:", text, err);
-    return null; // 👈 Ikke kast error her – returner bare null
+    console.error("❌ Invalid JSON response (not parseable):", text, err);
+    return null;
   }
 }

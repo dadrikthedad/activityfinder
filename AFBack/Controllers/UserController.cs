@@ -334,11 +334,10 @@ public class UserController : ControllerBase
     }
     
     // Henter informasjonen fra databasen til å vise på profil-siden
-    [HttpGet("me/settings")]
+    [HttpGet("profilesettings")]
     [Authorize]
     public async Task<IActionResult> GetUserSettings()
     {
-        {
             if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             {
                 return Unauthorized(new { message = "Invalid user ID in token." });
@@ -362,8 +361,8 @@ public class UserController : ControllerBase
             };
 
             return Ok(dto);
-        }
     }
+    
     
     // Små patcher som brukes til å endre feltene fra brukeren
     [HttpPatch("first-name")]
