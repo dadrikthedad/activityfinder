@@ -6,16 +6,19 @@ import { FormDataType } from "@/types/form";
 interface UseCountryAndRegionProps {
   country: string;
   setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
-  editing?: boolean; // 👈 legges til
+  editing?: boolean;
 }
 
-export function useCountryAndRegion({ country, setFormData, editing = false }: UseCountryAndRegionProps) {
+export function useCountryAndRegion({
+  setFormData,
+  editing = false,
+}: UseCountryAndRegionProps) {
   const [countries, setCountries] = useState<SelectOption[]>([]);
   const [regions, setRegions] = useState<SelectOption[]>([]);
   const [countryCodes, setCountryCodes] = useState<Record<string, string>>({});
+  const [codesReady, setCodesReady] = useState(false);
   const hasSetCountry = useRef(false);
 
-  // Hent land + bygg countryCodes
   const fetchCountriesFromAPI = async () => {
     const data = await fetchCountries();
 
@@ -29,26 +32,35 @@ export function useCountryAndRegion({ country, setFormData, editing = false }: U
     data.forEach((country) => {
       codeMap[country.name] = country.code;
     });
+
     setCountryCodes(codeMap);
+    setCodesReady(true); // ✅ Markér at koder er klare
   };
 
-  const fetchAndSetRegions = useCallback(
+  const fetchRegionsForCountry = useCallback(
     async (countryName: string) => {
       const code = countryCodes[countryName];
-      if (!code) return setRegions([]);
+      if (!code) {
+        console.warn("❌ Mangler ISO-kode for:", countryName);
+        setRegions([]);
+        return;
+      }
 
-      const data = await fetchRegions(code);
-      const regionOptions = [
-        { label: "-- Choose --", value: "" },
-        ...data.map((r) => ({ label: r, value: r })),
-      ];
-      setRegions(regionOptions);
-      setFormData((prev) => ({ ...prev, region: "" }));
+      try {
+        const data = await fetchRegions(code);
+        const regionOptions = [
+          { label: "-- Choose --", value: "" },
+          ...data.map((r) => ({ label: r, value: r })),
+        ];
+        setRegions(regionOptions);
+      } catch (err) {
+        console.error("❌ Kunne ikke hente regioner:", err);
+        setRegions([]);
+      }
     },
-    [countryCodes, setFormData]
+    [countryCodes]
   );
 
-  // Automatisk forhåndsutfyll fra IP
   const fetchInitialLocation = async () => {
     try {
       const ipRes = await fetch("https://ipapi.co/json/");
@@ -57,7 +69,7 @@ export function useCountryAndRegion({ country, setFormData, editing = false }: U
         hasSetCountry.current = true;
         setFormData((prev) => ({ ...prev, country: ipData.country_name }));
         if (editing) {
-          await fetchAndSetRegions(ipData.country_name);
+          await fetchRegionsForCountry(ipData.country_name);
         }
       }
     } catch (err) {
@@ -65,17 +77,9 @@ export function useCountryAndRegion({ country, setFormData, editing = false }: U
     }
   };
 
-  // Hent land ved mount
   useEffect(() => {
     fetchCountriesFromAPI();
   }, []);
-
-  // Hent regioner automatisk KUN hvis editing er aktivt
-  useEffect(() => {
-    if (editing && country && countryCodes[country]) {
-      fetchAndSetRegions(country);
-    }
-  }, [editing, country, countryCodes, fetchAndSetRegions]);
 
   useEffect(() => {
     if (Object.keys(countryCodes).length > 0) {
@@ -87,6 +91,8 @@ export function useCountryAndRegion({ country, setFormData, editing = false }: U
     countries,
     regions,
     countryCodes,
+    codesReady, // ✅ eksponert
+    fetchRegionsForCountry,
     handleCountryChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const selected = e.target.value;
       setFormData((prev) => ({ ...prev, country: selected, region: "" }));

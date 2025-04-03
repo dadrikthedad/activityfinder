@@ -33,14 +33,18 @@ export default function ProfileSettingsPage() {
     gender: "",
   });
 
-  const { countries, regions, countryCodes } = useCountryAndRegion({
+  const {
+    countries,
+    regions,
+    countryCodes,
+    fetchRegionsForCountry, // 👈 henter den her
+  } = useCountryAndRegion({
     country: formData.country,
     setFormData,
-    editing: true, // 👈 viktig!
   });
 
   const { updateField, error, success } = useUpdateUserField();
-  const { settings } = useUserSettings();
+  const { settings, loading } = useUserSettings();
 
   
   useEffect(() => {
@@ -62,6 +66,17 @@ export default function ProfileSettingsPage() {
     }
   }, [settings, setFormData]);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-green-600"></div>
+          <p className="mt-4 text-gray-500">Loading profile settings...</p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="flex flex-col items-center justify-start min-h-screen px-6 py-12 text-center">
         <div className="max-w-4xl mx-auto mt-12 px-4">
@@ -122,22 +137,45 @@ export default function ProfileSettingsPage() {
           region={formData.region || ""}
           countries={countries}
           regions={regions}
-          onTempCountryChange={(val) => setFormData((prev) => ({ ...prev, country: val }))}
-          onTempRegionChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
+          onTempCountryChange={(val) =>
+            setFormData((prev) => ({ ...prev, country: val }))
+          }
+          onTempRegionChange={(val) =>
+            setFormData((prev) => ({ ...prev, region: val }))
+          }
+          onEditStart={async (countryName) => {
+            const code = countryCodes[countryName];
+            if (!countryName || !code) {
+              console.warn("❌ Kan ikke hente regioner, land mangler eller ukjent:", countryName);
+              return;
+            }
+            await fetchRegionsForCountry(countryName);
+          }}
           onSave={async (countryName, region) => {
             const countryCode = countryCodes[countryName];
-            console.log("🔍 Sending to API:", { country: countryCode, region }); // 👈 få ISO2-kode
             if (!countryCode) {
-              console.error("❌ Fant ikke landskode for:", countryName);
+              console.error("❌ Fant ikke kode for land:", countryName);
               return;
             }
 
             await updateField("updateLocation", {
-              country: countryCode, // 👈 send kode, ikke navn
+              country: countryCode,
               region,
             });
 
-            setFormData((prev) => ({ ...prev, country: countryName, region }));
+            setFormData((prev) => ({
+              ...prev,
+              country: countryName,
+              region,
+            }));
+          }}
+          onCancel={() => {
+            // 👇 Bruk samme verdier som du satte i handleCancel internt
+            setFormData((prev) => ({
+              ...prev,
+              country: settings?.country || "",
+              region: settings?.region || "",
+            }));
           }}
         />
 

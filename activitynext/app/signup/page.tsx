@@ -60,6 +60,7 @@ export default function Signup() {
     const { countries, regions, handleCountryChange, countryCodes  } = useCountryAndRegion({
       country: formData.country,
       setFormData,
+      editing: true,
     });
     
     const { registerUser, isSubmitting } = useRegisterUser({

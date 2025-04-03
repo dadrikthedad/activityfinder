@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { validateSingleField } from "@/utils/validators";
 import EditableButtons from "./EditableButtons";
 
@@ -12,6 +12,8 @@ interface EditableCountryRegionGroupProps {
   onTempCountryChange: (val: string) => void;
   onTempRegionChange: (val: string) => void;
   onSave: (country: string, region: string) => Promise<void>;
+  onEditStart: (country: string) => Promise<void>;
+  onCancel: () => void;
 }
 
 export default function EditableCountryRegionGroup({
@@ -22,6 +24,7 @@ export default function EditableCountryRegionGroup({
   onTempCountryChange,
   onTempRegionChange,
   onSave,
+  onEditStart,
 }: EditableCountryRegionGroupProps) {
   const [editing, setEditing] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState(country);
@@ -39,7 +42,14 @@ export default function EditableCountryRegionGroup({
 
   const handleSave = async () => {
     const countryError = validateSingleField("country", selectedCountry);
-    const regionError = validateSingleField("region", selectedRegion);
+    const isRegionValid = regions.some((opt) => opt.value === selectedRegion);
+
+    const regionError =
+      selectedRegion === "" ||
+      selectedRegion === "-- Choose --" ||
+      !isRegionValid
+        ? "Please select a valid region."
+        : validateSingleField("region", selectedRegion);
 
     if (countryError || regionError) {
       setError(countryError || regionError);
@@ -58,6 +68,26 @@ export default function EditableCountryRegionGroup({
       setIsSaving(false);
     }
   };
+
+  const handleEditClick = async () => {
+    await onEditStart(selectedCountry); // henter regionene første gang
+    setEditing(true);
+  };
+
+  useEffect(() => {
+    if (!editing || !selectedCountry) return;
+  
+    // Ikke hent på nytt hvis vi allerede har riktige regioner
+    const alreadyLoaded = regions.length > 0 && regions[0].label !== "-- Choose --";
+    if (!alreadyLoaded) {
+      onEditStart(selectedCountry);
+    }
+  }, [selectedCountry, editing]);
+
+  useEffect(() => {
+    setSelectedCountry(country);
+    setSelectedRegion(region);
+  }, [country, region]);
 
   return (
     <div className="grid grid-cols-3 gap-4 items-center py-4">
@@ -117,9 +147,10 @@ export default function EditableCountryRegionGroup({
         editing={editing}
         saved={saved}
         isSaving={isSaving}
-        onEdit={() => setEditing(true)}
+        onEdit={handleEditClick}
         onSave={handleSave}
         onCancel={handleCancel}
+        disableSave={selectedRegion === ""}
       />
     </div>
   );

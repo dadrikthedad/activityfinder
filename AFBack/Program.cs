@@ -161,7 +161,7 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 // Tillater 5 requests per IP i hver tidsperiode
-                PermitLimit = 5, // f.eks. 5 kall
+                PermitLimit = 15, // f.eks. 5 kall
                 // Maks 5 request pr 10 sekunder
                 Window = TimeSpan.FromSeconds(10),
                 // Mer enn 5 requester, så havner man i kø.

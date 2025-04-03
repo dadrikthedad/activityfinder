@@ -6,6 +6,7 @@ interface EditableButtonsProps {
   editing: boolean;
   saved?: boolean;
   isSaving: boolean;
+  disableSave?: boolean;
   onEdit: () => void;
   onSave: () => void;
   onCancel: () => void;
@@ -15,6 +16,7 @@ export default function EditableButtons({
   editing,
   saved,
   isSaving,
+  disableSave,
   onEdit,
   onSave,
   onCancel,
@@ -26,9 +28,9 @@ export default function EditableButtons({
           <button
             onClick={onSave}
             className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white font-semibold px-5 py-2 rounded text-sm w-[80px]"
-            disabled={isSaving}
+            disabled={isSaving || disableSave}
           >
-            Save
+            {isSaving ? "Saving..." : "Save"}
           </button>
           <button
             onClick={onCancel}
