@@ -9,6 +9,7 @@ import { useFormHandlers } from "@/hooks/useFormHandlers";
 import { useUpdateUserField } from "@/hooks/useUpdateUserField";
 import Link from "next/link";
 import { useUserSettings } from "@/hooks/useUserSettings";
+import { useEffect } from "react";
 
 
 
@@ -38,8 +39,27 @@ export default function ProfileSettingsPage() {
   });
 
   const { updateField, error, success } = useUpdateUserField();
+  const { settings } = useUserSettings();
 
-
+  
+  useEffect(() => {
+    if (settings) {
+      setFormData({
+        firstName: settings.firstName || "",
+        middleName: settings.middleName || "",
+        lastName: settings.lastName || "",
+        phone: settings.phone || "",
+        country: settings.country || "",
+        region: settings.region || "",
+        postalCode: settings.postalCode || "",
+        gender: settings.gender || "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+        dateOfBirth: "", // hvis den finnes
+      });
+    }
+  }, [settings, setFormData]);
 
   return (
     <div className="flex flex-col items-center justify-start min-h-screen px-6 py-12 text-center">
