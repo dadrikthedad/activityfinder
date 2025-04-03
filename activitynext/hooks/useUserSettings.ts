@@ -31,6 +31,8 @@ export function useUserSettings() {
       console.log("🔄 Henter brukerinnstillinger fra:", url);
       console.log("🔐 Bruker token:", token?.slice(0, 20) + "...");
 
+      console.log("🔍 Tester fetch fra:", url);
+
       try {
         const data = await fetchWithAuth<UserProfileSettingsDTO>(
           url,

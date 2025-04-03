@@ -13,4 +13,7 @@ public class UpdateEmailDTO
         get => _newEmail;
         set => _newEmail = value.Trim();
     }
+    
+    [Required(ErrorMessage = "Current password is required.")]
+    public string CurrentPassword { get; set; } = null!;
 }

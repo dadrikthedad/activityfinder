@@ -505,6 +505,11 @@ public class UserController : ControllerBase
         
         var user = await GetUserFromClaims();
         if (user == null) return Unauthorized();
+        
+        if (!BCrypt.Verify(dto.CurrentPassword, user.PasswordHash))
+        {
+            return Unauthorized(new { message = "Current password is incorrect." });
+        }
 
         if (await _context.Users.AnyAsync(u => u.Email == dto.NewEmail && u.Id != user.Id))
         {

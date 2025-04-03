@@ -25,17 +25,17 @@ export async function fetchWithAuth<T>(
 
   if (!res.ok) {
     console.error(`🔴 API error (${res.status}) from ${url}:`, text);
-
-    // Forsøk å parse JSON bare hvis det ser ut som JSON
-    if (text.startsWith("{")) {
-      try {
-        const errorJson = JSON.parse(text);
-        throw new Error(errorJson.message || "Something went wrong.");
-      } catch {
-        throw new Error("Something went wrong (invalid error JSON).");
+  
+    try {
+      const json = JSON.parse(text);
+  
+      if (typeof json === "object" && json !== null && "message" in json) {
+        throw new Error(json.message);
       }
-    } else {
-      throw new Error("Something went wrong (non-JSON error response).");
+  
+      throw new Error("Something went wrong.");
+    } catch {
+      throw new Error(text || "Something went wrong.");
     }
   }
 

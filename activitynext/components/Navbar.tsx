@@ -102,15 +102,27 @@ export default function Navbar() {
                   ref={dropdownRef}
                   className="absolute right-0 top-12 bg-white text-black rounded-md shadow-md p-2 z-10 w-32"
                 >
+
+                <button
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    onClick={() => {
+                      setShowDropdown(false);
+                      router.push("/biosettings");
+                    }}
+                  >
+                    Update bio
+                  </button>
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gray-100"
                     onClick={() => {
                       setShowDropdown(false);
-                      router.push("/settings");
+                      router.push("/profilesettings");
                     }}
                   >
                     Settings
                   </button>
+                  
+                  
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gray-100"
                     onClick={handleLogout}

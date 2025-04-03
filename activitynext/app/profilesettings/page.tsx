@@ -206,23 +206,23 @@ export default function ProfileSettingsPage() {
         />
       </div>
       <div className="flex flex-col sm:flex-row justify-center gap-4 mt-12">
-            <Link href="/profile" passHref>
-                <FormButton
-                text="Back to Profile"
-                type="button"
-                fullWidth={false}
-                className="text-lg px-10 py-3"
-                />
-            </Link>
+  <Link href="/profile" passHref>
+    <FormButton
+      text="Back to Profile"
+      type="button"
+      fullWidth={false}
+      className="text-lg px-6 py-3 min-w-[240px] h-[52px]"
+    />
+  </Link>
 
-            <Link href="/biosettings" passHref>
-                <FormButton
-                text="Edit Bio"
-                type="button"
-                fullWidth={false}
-                className="text-lg px-10 py-3"
-                />
-            </Link>
+  <Link href="/securitycred" passHref>
+    <FormButton
+      text="Change Login Credentials"
+      type="button"
+      fullWidth={false}
+      className="text-base px-6 py-3 min-w-[240px] h-[52px]"
+    />
+  </Link>
 </div>
     </div>
     </div>
