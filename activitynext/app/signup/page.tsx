@@ -57,7 +57,12 @@ export default function Signup() {
     const [isRegistered, setIsRegistered] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const router = useRouter();
-    const { countries, regions, handleCountryChange, countryCodes  } = useCountryAndRegion({
+    const {
+      countries,
+      regions,
+      countryCodes,
+      fetchRegionsForCountry,
+    } = useCountryAndRegion({
       country: formData.country,
       setFormData,
       editing: true,
@@ -160,7 +165,16 @@ useEffect(() => {
           touchedFields={touchedFields}
           countries={countries}
           regions={regions}
-          handleCountryChange={handleCountryChange}
+          handleCountryChange={async (e) => {
+            const selected = e.target.value;
+            setFormData((prev) => ({
+              ...prev,
+              country: selected,
+              region: "", // 🔁 nullstill
+            }));
+
+            await fetchRegionsForCountry(selected); // ✅ henter regioner for valgt land
+          }}
         />
 
         <DemoFields
