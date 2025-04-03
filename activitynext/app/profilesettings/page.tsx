@@ -8,6 +8,8 @@ import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useFormHandlers } from "@/hooks/useFormHandlers";
 import { useUpdateUserField } from "@/hooks/useUpdateUserField";
 import Link from "next/link";
+import { useUserSettings } from "@/hooks/useUserSettings";
+
 
 
 export default function ProfileSettingsPage() {
@@ -30,7 +32,7 @@ export default function ProfileSettingsPage() {
     gender: "",
   });
 
-  const { countries, regions } = useCountryAndRegion({
+  const { countries, regions, countryCodes } = useCountryAndRegion({
     country: formData.country,
     setFormData,
   });
@@ -101,9 +103,20 @@ export default function ProfileSettingsPage() {
           regions={regions}
           onTempCountryChange={(val) => setFormData((prev) => ({ ...prev, country: val }))}
           onTempRegionChange={(val) => setFormData((prev) => ({ ...prev, region: val }))}
-          onSave={async (country, region) => {
-            await updateField("updateLocation", { country, region }); // ✅ Her bruker du den nye
-            setFormData((prev) => ({ ...prev, country, region }));
+          onSave={async (countryName, region) => {
+            const countryCode = countryCodes[countryName];
+            console.log("🔍 Sending to API:", { country: countryCode, region }); // 👈 få ISO2-kode
+            if (!countryCode) {
+              console.error("❌ Fant ikke landskode for:", countryName);
+              return;
+            }
+
+            await updateField("updateLocation", {
+              country: countryCode, // 👈 send kode, ikke navn
+              region,
+            });
+
+            setFormData((prev) => ({ ...prev, country: countryName, region }));
           }}
         />
 

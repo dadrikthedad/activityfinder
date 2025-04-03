@@ -23,11 +23,15 @@ export function useProfile() {
   
     const fetchProfile = async () => {
       try {
-        const data = await fetchWithAuth(`${API_BASE_URL}/api/profile`, {}, token);
+        const data = await fetchWithAuth<Profile>(`${API_BASE_URL}/api/profile`, {}, token);
         console.log("Fetched profile:", data); // 👈
         setProfile(data);
-      } catch (err: any) {
-        setError(err.message);
+      }catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Ukjent feil oppsto.");
+        }
       } finally {
         setLoading(false);
       }

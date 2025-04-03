@@ -333,6 +333,38 @@ public class UserController : ControllerBase
         }
     }
     
+    // Henter informasjonen fra databasen til å vise på profil-siden
+    [HttpGet("me/settings")]
+    [Authorize]
+    public async Task<IActionResult> GetUserSettings()
+    {
+        {
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            {
+                return Unauthorized(new { message = "Invalid user ID in token." });
+            }
+        
+            var user = await _context.Users.FindAsync(userId);
+            
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            var dto = new UserProfileSettingDTO
+            {
+                FirstName = user.FirstName,
+                MiddleName = user.MiddleName,
+                LastName = user.LastName,
+                Phone = user.Phone,
+                Country = user.Country,
+                Region = user.Region,
+                PostalCode = user.PostalCode,
+                Gender = user.Gender
+            };
+
+            return Ok(dto);
+        }
+    }
+    
     // Små patcher som brukes til å endre feltene fra brukeren
     [HttpPatch("first-name")]
     [Authorize]

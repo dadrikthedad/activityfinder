@@ -1,7 +1,9 @@
-// hooks/useUpdateUserField.ts
 import { useState } from "react";
 import { updateUser } from "../services/updateUser";
 import { useAuth } from "../context/AuthContext";
+
+// 👇 Importer typen direkte fra updateUser-filen
+import type { UpdateFieldArgs } from "../services/updateUser";
 
 export function useUpdateUserField() {
   const { token } = useAuth();
@@ -9,9 +11,11 @@ export function useUpdateUserField() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const updateField = async (
-    field: keyof typeof updateUser,
-    value: any
+  type UpdateFieldKey = keyof UpdateFieldArgs;
+
+  const updateField = async <K extends UpdateFieldKey>(
+    field: K,
+    value: UpdateFieldArgs[K]
   ): Promise<boolean> => {
     if (!token) {
       setError("You are not authenticated.");
@@ -26,8 +30,12 @@ export function useUpdateUserField() {
       await updateUser[field](value, token);
       setSuccess(true);
       return true;
-    } catch (err: any) {
-      setError(err.message || "An error occurred.");
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred.");
+      }
       return false;
     } finally {
       setSubmitting(false);
