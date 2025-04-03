@@ -6,9 +6,10 @@ import { FormDataType } from "@/types/form";
 interface UseCountryAndRegionProps {
   country: string;
   setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
+  editing?: boolean; // 👈 legges til
 }
 
-export function useCountryAndRegion({ country, setFormData }: UseCountryAndRegionProps) {
+export function useCountryAndRegion({ country, setFormData, editing = false }: UseCountryAndRegionProps) {
   const [countries, setCountries] = useState<SelectOption[]>([]);
   const [regions, setRegions] = useState<SelectOption[]>([]);
   const [countryCodes, setCountryCodes] = useState<Record<string, string>>({});
@@ -55,23 +56,26 @@ export function useCountryAndRegion({ country, setFormData }: UseCountryAndRegio
       if (ipData?.country_name && !hasSetCountry.current) {
         hasSetCountry.current = true;
         setFormData((prev) => ({ ...prev, country: ipData.country_name }));
-        await fetchAndSetRegions(ipData.country_name);
+        if (editing) {
+          await fetchAndSetRegions(ipData.country_name);
+        }
       }
     } catch (err) {
       console.error("Feil ved henting av brukerland:", err);
     }
   };
 
-  // useEffects
+  // Hent land ved mount
   useEffect(() => {
     fetchCountriesFromAPI();
   }, []);
 
+  // Hent regioner automatisk KUN hvis editing er aktivt
   useEffect(() => {
-    if (country && countryCodes[country]) {
+    if (editing && country && countryCodes[country]) {
       fetchAndSetRegions(country);
     }
-  }, [country, countryCodes, fetchAndSetRegions]);
+  }, [editing, country, countryCodes, fetchAndSetRegions]);
 
   useEffect(() => {
     if (Object.keys(countryCodes).length > 0) {

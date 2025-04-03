@@ -25,14 +25,21 @@ export function useUserSettings() {
     if (!token) return;
 
     const fetchSettings = async () => {
+      const url = `${API_BASE_URL}/api/user/me/settings`;
+      console.log("🔄 Henter brukerinnstillinger fra:", url);
+      console.log("🔐 Bruker token:", token?.slice(0, 20) + "...");
+
       try {
         const data = await fetchWithAuth<UserProfileSettingsDTO>(
-          `${API_BASE_URL}/api/user/me/settings`,
+          url,
           {},
           token
         );
+
+        console.log("✅ Data fra backend (user settings):", data);
         setSettings(data);
       } catch (err) {
+        console.error("❌ Klarte ikke hente brukerinnstillinger:", err);
         if (err instanceof Error) {
           setError(err.message);
         } else {

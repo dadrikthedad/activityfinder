@@ -36,6 +36,7 @@ export default function ProfileSettingsPage() {
   const { countries, regions, countryCodes } = useCountryAndRegion({
     country: formData.country,
     setFormData,
+    editing: true, // 👈 viktig!
   });
 
   const { updateField, error, success } = useUpdateUserField();
