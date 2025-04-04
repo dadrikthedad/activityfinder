@@ -4,6 +4,8 @@ import { useProfile } from "@/hooks/useProfile";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import FormButton from "@/components/FormButton";
 import Link from "next/link";
+import ProfileInfoCard from "@/components/ProfileInfoCard";
+import ProfileAvatar from "@/components/ProfileAvatar";
 
 // Hjelpefunksjon for å sjekke om en verdi er "tom"
 const isEmpty = (value: unknown): boolean => {
@@ -54,103 +56,34 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
         {/* Left – User Info & Stats */}
         <div className="md:col-span-2 space-y-4">
-          {/* Basic Info */}
           {!isEmpty(user) && (
-            <div className="bg-white dark:bg-zinc-800 shadow-md rounded-xl p-6 space-y-2 mt-6">
-              <h2 className="text-xl font-semibold mb-2">Basic Info</h2>
-
-              {!isEmpty(user?.fullName) && <p><strong>Name:</strong> {user?.fullName}</p>}
-              {!isEmpty(user?.email) && <p><strong>Email:</strong> {user?.email}</p>}
-              {!isEmpty(user?.dateOfBirth) && (
-               <p><strong>Date of Birth: </strong> 
-               {(() => {
-                   try {
-                       return user?.dateOfBirth
-                       ? new Date(user.dateOfBirth).toLocaleDateString("no-NO", {
-                           day: "2-digit",
-                           month: "long",
-                           year: "numeric",
-                           })
-                       : "—";
-                   } catch (err) {
-                       console.error("❌ Feil med dateOfBirth:", err, user?.dateOfBirth);
-                       return "Invalid date.";
-                   }
-                   })()}</p>
-              )}
-              {!isEmpty(user?.phone) && <p><strong>Phone:</strong> {user?.phone}</p>}
-              {!isEmpty(user?.country) && (
-                <p>
-                  <strong>Location:</strong> {user?.country}
-                  {user?.region && `, ${user.region}`}
-                </p>
-              )}
-              {!isEmpty(user?.postalCode) && <p><strong>Postal Code:</strong> {user?.postalCode}</p>}
-              {!isEmpty(user?.gender) && <p><strong>Gender:</strong> {user?.gender}</p>}
-              <div className="mt-8"></div>
-              {/* Activity stats*/}
-              <h2 className="text-xl font-semibold mb-2">Stats</h2>
-
-              {!isEmpty(profile?.totalLikesGiven) && (
-                <p><strong>Likes Given:</strong> {profile?.totalLikesGiven}</p>
-              )}
-              {!isEmpty(profile?.totalLikesRecieved) && (
-                <p><strong>Likes Received:</strong> {profile?.totalLikesRecieved}</p>
-              )}
-              {!isEmpty(profile?.totalCommentsMade) && (
-                <p><strong>Comments Made:</strong> {profile?.totalCommentsMade}</p>
-              )}
-              {!isEmpty(profile?.totalMessagesRecieved) && (
-                <p><strong>Messages Received:</strong> {profile?.totalMessagesRecieved}</p>
-              )}
-              {!isEmpty(profile?.updatedAt) && (
-                <p>
-                <strong>Last Updated:</strong>{" "}
-                {(() => {
-                    try {
-                        return profile?.updatedAt
-                        ? new Date(profile.updatedAt).toLocaleString("no-NO", {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                            })
-                        : "—";
-                    } catch (err) {
-                        console.error("❌ Feil med updatedAt:", err, profile?.updatedAt);
-                        return "Invalid date";
-                    }
-                    })()}
-            </p>
-              )}
-            </div>
+            <ProfileInfoCard user={user} profile={profile} showEmail={false} />
           )}
         </div>
 
         {/* Right – Profile Picture + Buttons */}
-        <div className="flex flex-col items-center md:justify-end mt-16 md:mt-32 space-y-6">
+        <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
             {/* Bilde */}
-            <div className="w-48 h-48 rounded-full overflow-hidden border-4 border-green-700 shadow-md">
-                <img
-                    src={imageUrl}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                />
-            </div>
+            <ProfileAvatar
+              imageUrl={imageUrl}
+              isEditable={false} // eller false avhengig av side // hvis du har det
+            />
 
             {/* Knapper under */}
             <div className="flex flex-col space-y-4 w-full items-center">
-                <Link href="/changeprofilepic" passHref>
+                <Link href="/editprofile" passHref>
                     <FormButton
-                    text="Change picture"
+                    text="Edit Profile"
                     type="button"
                     fullWidth={false}
                     // 👇 Ekstra styling her
-                    className="text-lg px-15 py-3"
+                    className="text-lg px-17 py-3"
                     />
                 </Link>
 
                 <Link href="/profilesettings" passHref>
                     <FormButton
-                    text="Edit profile"
+                    text="Settings"
                     type="button"
                     fullWidth={false}
                     className="text-lg px-20 py-3"

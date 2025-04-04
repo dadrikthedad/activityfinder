@@ -12,6 +12,7 @@ using AFBack.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using Azure.Storage.Blobs;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
@@ -40,10 +41,17 @@ var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"
                        builder.Configuration.GetConnectionString("DefaultConnection") ??
                        throw new Exception("Database connection string is missing.");
 
+// Connection string til bloben, for bilder
+var blobConnectionString = Environment.GetEnvironmentVariable("AZURE_BLOB_CONNECTION_STRING")
+                           ?? throw new Exception("AZURE_BLOB_CONNECTION_STRING is not set.");
+
 // Kobler oss opp til databasen med variabelen med connectionstring og miljøvariabelen til passord.
 //Denne linjen registerer databasekoblingen i ASP.NET Core Dependency Injection systemet. Legger til ApplicationDbContext som en tjeneste slik at API-et kan bruke databasen.
 // Og forteller med connectionString at denne databasen er en PostgreSQL. 10.03
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
+
+// Kobler oss til blob-databasen
+builder.Services.AddSingleton(new BlobServiceClient(blobConnectionString));
 
 //Her lagrer vi alle domenene som kan kobles på
 var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',', StringSplitOptions.TrimEntries) ?? new[] { "http://localhost:3000", "https://ambitious-ground-08ddbb803.6.azurestaticapps.net", "https://magee.no", "https://www.magee.no" };

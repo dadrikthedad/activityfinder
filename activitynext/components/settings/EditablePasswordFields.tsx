@@ -40,6 +40,7 @@ export default function EditablePasswordFields() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       setEditing(false);
+      setCurrentPassword("");
       setError(null);
       setCurrentPassword("");
       setNewPassword("");
@@ -78,66 +79,74 @@ export default function EditablePasswordFields() {
   };
 
   return (
-    <div className="grid grid-cols-3 gap-4 items-start py-4">
-      <div className="font-medium text-right pr-2 pt-2 text-white">Password:</div>
-
-      <div className="flex flex-col items-center gap-4 col-span-1">
-        {editing ? (
-          <>
-            <div className="text-white text-center font-medium">Current Password:</div>
-            <PasswordField
-              id="currentPassword"
-              label=""
-              value={currentPassword}
-              onChange={(e) => {
-                setCurrentPassword(e.target.value);
-                setError(null);
-              }}
-              error={error || undefined}
-              placeholder="Current password"
-            />
-
-            <div className="text-white text-center font-medium">New Password:</div>
-            <PasswordField
-              id="newPassword"
-              label=""
-              value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
-                setError(null);
-              }}
-              error={error || undefined}
-              placeholder="New password"
-            />
-
-            <div className="text-white text-center font-medium">Confirm Password:</div>
-            <PasswordField
-              id="confirmPassword"
-              label=""
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                setError(null);
-              }}
-              error={error || undefined}
-              placeholder="Repeat password"
-            />
-
-            {error && <p className="text-red-500 text-sm text-center mt-2">{error}</p>}
-          </>
-        ) : (
+    <div className="flex flex-col items-center py-4">
+      {!editing ? (
+        <div className="grid grid-cols-3 gap-4 items-center">
+          <div className="font-medium text-right pr-2 text-white">Password:</div>
           <span className="block w-[280px] text-center text-white">********</span>
-        )}
-      </div>
-
-      <EditableButtons
-        editing={editing}
-        saved={saved}
-        isSaving={isSaving}
-        onEdit={() => setEditing(true)}
-        onSave={handleSave}
-        onCancel={handleCancel}
-      />
+          <EditableButtons
+            editing={editing}
+            saved={saved}
+            isSaving={isSaving}
+            onEdit={() => setEditing(true)}
+            onSave={handleSave}
+            onCancel={handleCancel}
+          />
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-4">
+          <div className="text-white text-center font-medium">Current Password:</div>
+          <PasswordField
+            id="currentPassword"
+            label=""
+            value={currentPassword}
+            onChange={(e) => {
+              setCurrentPassword(e.target.value);
+              setError(null);
+            }}
+            error={error || undefined}
+            placeholder="Current password"
+          />
+  
+          <div className="text-white text-center font-medium">New Password:</div>
+          <PasswordField
+            id="newPassword"
+            label=""
+            value={newPassword}
+            onChange={(e) => {
+              setNewPassword(e.target.value);
+              setError(null);
+            }}
+            error={error || undefined}
+            placeholder="New password"
+          />
+  
+          <div className="text-white text-center font-medium">Confirm Password:</div>
+          <PasswordField
+            id="confirmPassword"
+            label=""
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              setError(null);
+            }}
+            error={error || undefined}
+            placeholder="Repeat password"
+          />
+  
+          {error && <p className="text-red-500 text-sm text-center mt-2">{error}</p>}
+  
+          {/* Buttons are now centered under all fields */}
+          <EditableButtons
+            editing={editing}
+            saved={saved}
+            isSaving={isSaving}
+            onEdit={() => setEditing(true)}
+            onSave={handleSave}
+            onCancel={handleCancel}
+          />
+        </div>
+      )}
     </div>
   );
 }

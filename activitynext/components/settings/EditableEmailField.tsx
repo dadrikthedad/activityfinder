@@ -7,10 +7,11 @@ import { updateEmail } from "@/services/security";
 import PasswordField from "@/components/PasswordField";
 
 interface EditableEmailFieldProps {
-  email: string;
-}
+    email: string;
+    onEmailUpdated?: (newEmail: string) => void;
+  }
 
-export default function EditableEmailField({ email }: EditableEmailFieldProps) {
+  export default function EditableEmailField({ email, onEmailUpdated }: EditableEmailFieldProps) {
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState(email);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -40,10 +41,14 @@ export default function EditableEmailField({ email }: EditableEmailFieldProps) {
     setIsSaving(true);
     try {
       await updateEmail(inputValue, currentPassword, token);
+      if (onEmailUpdated) {
+        onEmailUpdated(inputValue);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       setEditing(false);
       setError(null);
+      
     } catch (err: unknown) {
       if (err instanceof Error) {
         try {

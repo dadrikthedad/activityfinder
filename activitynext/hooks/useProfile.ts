@@ -1,7 +1,6 @@
 "use client";
 
-// Henter profil-informasjon (fra Profile.cs)
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user";
 import { useAuth } from "@/context/AuthContext";
@@ -16,29 +15,29 @@ export function useProfile() {
   console.log("API_BASE_URL →", API_BASE_URL);
   console.log("Token i useProfile:", token);
 
-  useEffect(() => {
-    if (!token) {
-      return; // ikke fetch hvis token mangler
-    }
-  
-    const fetchProfile = async () => {
-      try {
-        const data = await fetchWithAuth<Profile>(`${API_BASE_URL}/api/profile`, {}, token);
-        console.log("Fetched profile:", data); // 👈
-        setProfile(data);
-      }catch (err) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Ukjent feil oppsto.");
-        }
-      } finally {
-        setLoading(false);
+  const fetchProfile = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
+    try {
+      const data = await fetchWithAuth<Profile>(`${API_BASE_URL}/api/profile`, {}, token);
+      console.log("Fetched profile:", data);
+      setProfile(data);
+      setError(null);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Ukjent feil oppsto.");
       }
-    };
-  
-    fetchProfile();
+    } finally {
+      setLoading(false);
+    }
   }, [token]);
 
-  return { profile, loading, error };
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  return { profile, loading, error, refetch: fetchProfile };
 }

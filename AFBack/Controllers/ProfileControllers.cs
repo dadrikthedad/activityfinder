@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.DTOs;
 using AFBack.Data;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 
 
 [Route("api/profile")]
@@ -16,11 +18,13 @@ public class ProfileController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ProfileController> _logger;
+    private readonly BlobServiceClient _blobServiceClient;
 
-    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger)
+    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger, BlobServiceClient blobServiceClient)
     {
         _context = context;
         _logger = logger;
+        _blobServiceClient = blobServiceClient;
     }
 
     [HttpGet]
@@ -78,24 +82,49 @@ public class ProfileController : ControllerBase
     }
     
     // Endring av profilbilde
-    [HttpPatch("profile-image")]
-    public async Task<IActionResult> UpdateProfileImage([FromBody] string imageUrl)
+    [HttpPost("upload-profile-image")]
+    public async Task<IActionResult> UploadProfileImage(IFormFile file)
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized();
+
+        if (file == null || file.Length == 0)
+            return BadRequest("No file provided");
+
+        // OPTIONAL: Validate image type and size here
+
+        var containerName = "profile-pictures";
+        var containerClient = _blobServiceClient.GetBlobContainerClient("profile-pictures");
+        
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp", "image/gif" };
+        if (!allowedTypes.Contains(file.ContentType))
+            return BadRequest("Only image files (jpg, png, webp, gif) are allowed.");
+        
+        const long maxSizeInBytes = 10 * 1024 * 1024;
+        if (file.Length > maxSizeInBytes)
+            return BadRequest("File too large. Max size is 10MB.");
+
+        var fileName = $"user_{userId}_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var blobClient = containerClient.GetBlobClient(fileName);
+
+        await using (var stream = file.OpenReadStream())
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            await blobClient.UploadAsync(stream, new BlobHttpHeaders { ContentType = file.ContentType });
         }
-        
+
+        var imageUrl = blobClient.Uri.ToString();
+
+        // Save the image URL to the database
         var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
-        if (profile == null)
-            return NotFound(new { message = "Profile not found." });
-        
+        if (profile == null) return NotFound();
+
         profile.ProfileImageUrl = imageUrl;
         profile.UpdatedAt = DateTime.UtcNow;
-
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Profile image updated." });
+
+        return Ok(new { imageUrl });
     }
+
 
     
     // Endring av Bio.
