@@ -3,26 +3,21 @@ import ProfileInfoCard from "@/components/ProfileInfoCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
-import type { Metadata } from "next";
+import { use } from "react";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: "User Profile",
-  };
-}
 
-export default async function PublicProfilePage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const userId = Number(params.id);
-  const data = await getUserProfile(userId);
+
+type Params = Promise<{ id: string }>;
+
+export default function PublicProfilePage(props: { params: Params }) {
+  const { id } = use(props.params);
+  const userId = Number(id);
+  const data = use(getUserProfile(userId));
 
   const user = data.user;
   const profile = data;
   const isFriend = false;
-
+  // La til en kommentar her
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen">
       <h1 className="text-3xl font-bold mb-6 text-center">User Profile</h1>
