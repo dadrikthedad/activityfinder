@@ -4,15 +4,11 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 
-export async function generateStaticParams() {
-  return []; // du genererer ingen statiske sider nå
-}
-
-type PublicProfilePageProps = {
-  params: Record<"id", string>;
-};
-
-export default async function PublicProfilePage({ params }: PublicProfilePageProps) {
+export default async function PublicProfilePage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const userId = Number(params.id);
   const data = await getUserProfile(userId);
 
@@ -47,3 +43,4 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
     </div>
   );
 }
+
