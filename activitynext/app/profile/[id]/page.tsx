@@ -4,6 +4,10 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 
+export async function generateStaticParams() {
+  return []; // du genererer ingen statiske sider nå
+}
+
 type PublicProfilePageProps = {
   params: Record<"id", string>;
 };
