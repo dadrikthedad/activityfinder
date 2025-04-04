@@ -3,9 +3,13 @@ import ProfileInfoCard from "@/components/ProfileInfoCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
+type PageProps = {
+  params: {
+    id: string;
+  };
+};
 
-
-export default async function PublicProfilePage({ params }: { params: { id: string } }) {
+export default async function PublicProfilePage({ params }: PageProps) {
   const userId = Number(params.id);
   const data = await getUserProfile(userId);
 
