@@ -10,14 +10,13 @@ interface PublicProfilePageProps {
   };
 }
 
-
 export default async function PublicProfilePage({ params }: PublicProfilePageProps) {
   const userId = Number(params.id);
   const data = await getUserProfile(userId);
 
-  const user = data.user; // hvis backend sender med brukerinfo separat
+  const user = data.user;
   const profile = data;
-  const isFriend = false; // TODO: bytt med ekte sjekk når friend-system er klart
+  const isFriend = false;
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen">
