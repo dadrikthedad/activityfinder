@@ -42,17 +42,38 @@ export async function updateWebsites(websites: string[], token: string): Promise
   }, token);
 }
 
-export async function updateProfileImage(formData: FormData, token: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/api/profile/image`, {
-    method: "PATCH",
+// Laster opp profilbilde
+export async function uploadProfileImage(file: File, token: string): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${API_BASE_URL}/api/profile/upload-profile-image`, {
+    method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${token}`, // Kan være nok, du trenger ikke bruke fetchWithAuth hvis du bruker formData
     },
     body: formData,
   });
 
   if (!res.ok) {
-    const error = await res.json();
+    const error = await res.json().catch(() => ({}));
     throw new Error(error.message || "Failed to upload image");
   }
+
+  const data = await res.json();
+  return data.imageUrl; // returnerer URL-en til det opplastede bildet
+}
+
+// 🔍 Henter offentlig profil med ID (f.eks. til /profile/[id])
+export async function getUserProfile(userId: number) {
+  const res = await fetch(`${API_BASE_URL}/api/profile/${userId}`, {
+    next: { revalidate: 60 }, // eller bruk `cache: 'no-store'` for ingen caching
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to fetch public profile");
+  }
+
+  return res.json(); // returnerer PublicProfileDTO
 }

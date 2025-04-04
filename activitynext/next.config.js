@@ -1,11 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    images: {
-      domains: ["activityvercel.vercel.app"], // Tillater eksterne bilder fra din Vercel-app
-    },
-    reactStrictMode: true, // Anbefalt for å fange opp feil i utvikling
-  };
-  
-  module.exports = nextConfig;
-  
-  
+  reactStrictMode: true,
+
+  images: {
+    // Tillater både Vercel-URL og Azure Blob Storage
+    domains: ["activityvercel.vercel.app"],
+
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "activitystorage.blob.core.windows.net",
+        pathname: "/**",
+      },
+    ],
+  },
+};
+
+module.exports = nextConfig;

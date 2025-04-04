@@ -55,6 +55,38 @@ public class ProfileController : ControllerBase
 
         return Ok(dto);
     }
+    
+    // Henter en bruker sin profil
+    [AllowAnonymous]
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetPublicProfile(int id)
+    {
+        var profile = await _context.Profiles
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.UserId == id);
+
+        if (profile == null)
+            return NotFound(new { message = "Profile not found" });
+
+        var dto = new PublicProfileDTO
+        {
+            UserId = profile.UserId,
+            FullName = profile.User.FullName,
+            ProfileImageUrl = profile.ProfileImageUrl,
+            Bio = profile.Bio,
+            Websites = profile.Websites,
+            Country = profile.User.Country,
+            Region = profile.User.Region,
+            TotalLikesGiven = profile.TotalLikesGiven,
+            TotalLikesRecieved = profile.TotalLikesRecieved,
+            TotalCommentsMade = profile.TotalCommentsMade,
+            TotalMessagesRecieved = profile.TotalMessagesRecieved,
+            TotalMessagesSendt = profile.TotalMessagesSendt,
+            UpdatedAt = profile.UpdatedAt,
+        };
+
+        return Ok(dto);
+    }
 
     [HttpPut]
     public async Task<IActionResult> UpdateProfile([FromBody] ProfileDTO dto)
@@ -121,6 +153,8 @@ public class ProfileController : ControllerBase
         profile.ProfileImageUrl = imageUrl;
         profile.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("User {UserId} uploaded a profile picture: {FileName}", userId, fileName);
 
         return Ok(new { imageUrl });
     }

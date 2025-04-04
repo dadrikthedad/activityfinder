@@ -1,12 +1,14 @@
 // components/ProfileInfoCard.tsx
 "use client";
 import React from "react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { User } from "@/types/user";
 import { Profile } from "@/types/profile";
 import FormButton from "@/components/FormButton";
 import { useAuth } from "@/context/AuthContext";
 import { updateBio, updateWebsites } from "@/services/profile";
+import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import { PlusCircle } from "lucide-react";
 
 interface Props {
     user: User | null;
@@ -30,6 +32,7 @@ interface Props {
     const [editingWebsites, setEditingWebsites] = useState(false);
     const [websiteList, setWebsiteList] = useState<string[]>(profile?.websites || []);
     const [websitesSaved, setWebsitesSaved] = useState(false);
+    const lastInputRef = useRef<HTMLInputElement | null>(null);
         
   
     const isEmpty = (value: unknown): boolean => {
@@ -57,19 +60,17 @@ interface Props {
 
       const saveWebsites = async () => {
         if (!token) return;
+        const cleanedWebsites = websiteList.filter((url) => url.trim() !== "");
         try {
-          await updateWebsites(websiteList, token);
+          await updateWebsites(cleanedWebsites, token);
           setWebsitesSaved(true);
           setTimeout(() => setWebsitesSaved(false), 2000);
           setEditingWebsites(false);
-      
-          if (refetchProfile) {
-            await refetchProfile(); // 👈 henter ny data etter lagring
-          }
+          if (refetchProfile) await refetchProfile();
         } catch (err) {
           console.error("❌ Failed to update websites:", err);
         }
-      };
+      }
 
 
 
@@ -181,45 +182,77 @@ interface Props {
   {isEditable ? (
     editingWebsites ? (
       <>
-       {websiteList.map((url, idx) => (
-  <div key={idx} className="flex items-center gap-2 w-full">
-    <input
-      type="text"
-      className="flex-1 px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-600"
-      value={url}
-      onChange={(e) => {
-        const updated = [...websiteList];
-        updated[idx] = e.target.value;
-        setWebsiteList(updated);
-      }}
-      placeholder="https://example.com"
-    />
-    {/* ➕ Bare på siste linje */}
-    {idx === websiteList.length - 1 && (
+      {websiteList.length === 0 ? (
+        <ProfileNavButton
+         text="Add website"
+         variant="small"
+         onClick={() => setWebsiteList([""])}
+        />
+) : (
+  websiteList.map((url, idx) => (
+    <div key={idx} className="flex items-center gap-2 w-full">
+      <input
+        type="text"
+        ref={idx === websiteList.length - 1 ? lastInputRef : null}
+        className="flex-1 px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-600"
+        value={url}
+        onChange={(e) => {
+          const updated = [...websiteList];
+          updated[idx] = e.target.value;
+          setWebsiteList(updated);
+        }}
+        onBlur={(e) => {
+          const updated = [...websiteList];
+          updated[idx] = e.target.value;
+          setWebsiteList(updated);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            const updated = [...websiteList];
+            updated[idx] = e.currentTarget.value;
+            setWebsiteList([...updated, ""]);
+            setTimeout(() => {
+              lastInputRef.current?.focus();
+            }, 10); // 👈 forsinker litt for at feltet skal rendres først
+          }
+        }}
+        placeholder="https://example.com"
+      />
+      {idx === websiteList.length - 1 && (
+        <button
+          type="button"
+          onClick={() => {
+            setWebsiteList([...websiteList, ""]);
+            setTimeout(() => {
+              lastInputRef.current?.focus();
+            }, 10);
+          }}
+          className="text-green-400 hover:text-green-600 text-sm"
+          title="Add new website"
+        >
+          <PlusCircle size={20} className="text-green-400 hover:text-green-600" />
+        </button>
+      )}
+
+      
       <button
         type="button"
-        onClick={() => setWebsiteList([...websiteList, ""])}
-        className="text-green-400 hover:text-green-600 text-sm"
-        title="Add new website"
+        onClick={() => {
+          const updated = websiteList.filter((_, i) => i !== idx);
+          setWebsiteList(updated);
+        }}
+        tabIndex={-1}
+        className="text-red-400 hover:text-red-600 text-sm"
+        title="Remove this website"
       >
-        ➕
+        🗑️
       </button>
-    )}
-    <button
-      type="button"
-      onClick={() => {
-        const updated = websiteList.filter((_, i) => i !== idx);
-        setWebsiteList(updated);
-      }}
-      className="text-red-400 hover:text-red-600 text-sm"
-      title="Remove this website"
-    >
-      🗑️
-    </button>
+    </div>
+  ))
+)}
 
-    
-  </div>
-))}
+<div className="mt-4" />
         <div className="flex gap-4">
           <FormButton
             text={websitesSaved ? "Saved ✅" : "Save"}
