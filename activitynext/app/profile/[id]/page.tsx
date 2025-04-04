@@ -3,6 +3,13 @@ import ProfileInfoCard from "@/components/ProfileInfoCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
+import type { Metadata } from "next";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: "User Profile",
+  };
+}
 
 export default async function PublicProfilePage({
   params,
