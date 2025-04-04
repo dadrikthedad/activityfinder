@@ -4,13 +4,11 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 
-type Params = {
-  params: {
-    id: string;
-  };
+type PublicProfilePageProps = {
+  params: Record<"id", string>;
 };
 
-export default async function PublicProfilePage({ params }: Params) {
+export default async function PublicProfilePage({ params }: PublicProfilePageProps) {
   const userId = Number(params.id);
   const data = await getUserProfile(userId);
 
