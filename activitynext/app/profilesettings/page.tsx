@@ -10,10 +10,15 @@ import { useUpdateUserField } from "@/hooks/useUpdateUserField";
 import Link from "next/link";
 import { useUserSettings } from "@/hooks/useUserSettings";
 import { useEffect } from "react";
+import AdditionalSettings from "@/components/settings/AdditionalSettings";
+import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
+import type { UserSettingsDTO } from "@/types/UserSettingsDTO";
 
 
 
 export default function ProfileSettingsPage() {
+  const { updateSettings } = useUpdateUserSettings();
+  
 
   const {
     formData,
@@ -45,6 +50,7 @@ export default function ProfileSettingsPage() {
 
   const { updateField, error, success } = useUpdateUserField();
   const { settings, loading } = useUserSettings();
+  const settingsTyped = (settings as Partial<UserSettingsDTO>) ?? {};
 
   
   useEffect(() => {
@@ -224,7 +230,16 @@ export default function ProfileSettingsPage() {
     />
   </Link>
 </div>
+      <AdditionalSettings
+        initialValues={{
+          language: settingsTyped.language || "en",
+          recieveEmailNotifications: settingsTyped.recieveEmailNotifications ?? true,
+          recievePushNotifications: settingsTyped.recievePushNotifications ?? true,
+        }}
+        onSave={updateSettings}
+      />
     </div>
+    
     </div>
   );
 }

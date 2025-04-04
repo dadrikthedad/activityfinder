@@ -1,17 +1,17 @@
 import { getUserProfile } from "@/services/profile";
 import ProfileInfoCard from "@/components/ProfileInfoCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
+import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 
-interface Props {
-  params: { id: string };
-}
 
-export default async function PublicProfilePage({ params }: Props) {
+export default async function PublicProfilePage({ params }: { params: { id: string } }) {
   const userId = Number(params.id);
   const data = await getUserProfile(userId);
 
   const user = data.user; // hvis backend sender med brukerinfo separat
   const profile = data;
+  const isFriend = false; // TODO: bytt med ekte sjekk når friend-system er klart
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen">
@@ -26,10 +26,20 @@ export default async function PublicProfilePage({ params }: Props) {
             isEditable={false}
           />
         </div>
+            <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
+              <ProfileAvatar imageUrl={profile.profileImageUrl} isEditable={false} />
 
-        <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
-          <ProfileAvatar imageUrl={profile.profileImageUrl} isEditable={false} />
-        </div>
+              {!isFriend && (
+                <ProfileNavButton
+                  href="#"
+                  text="Add as Friend"
+                  variant="long"
+                />
+              )}
+              <ProfileNavButton href="#" text="Send Message" variant="long" />
+              <ProfileNavButton href="#" text="Follow User" variant="long" />
+              <ProfileActionMenu />
+            </div>
       </div>
     </div>
   );
