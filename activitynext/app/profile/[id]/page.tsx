@@ -4,7 +4,13 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 
-export default async function PublicProfilePage({ params }: { params: Record<string, string> }) {
+type Params = {
+  params: {
+    id: string;
+  };
+};
+
+export default async function PublicProfilePage({ params }: Params) {
   const userId = Number(params.id);
   const data = await getUserProfile(userId);
 
@@ -12,7 +18,7 @@ export default async function PublicProfilePage({ params }: { params: Record<str
   const profile = data;
   const isFriend = false;
 
-return (
+  return (
     <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen">
       <h1 className="text-3xl font-bold mb-6 text-center">User Profile</h1>
 
@@ -25,7 +31,6 @@ return (
             isEditable={false}
           />
         </div>
-
         <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
           <ProfileAvatar imageUrl={profile.profileImageUrl} isEditable={false} />
 
