@@ -1,3 +1,4 @@
+// henter fra ProfileDTO.cs i backend
 export interface Profile {
     userId: number;
     profileImageUrl: string;

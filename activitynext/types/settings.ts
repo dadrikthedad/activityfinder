@@ -1,3 +1,4 @@
+// Henter informasjon fra UserSettingsDTO
 export interface UserSettingsDTO {
     publicProfile?: boolean;
     showGender?: boolean;

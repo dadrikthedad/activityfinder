@@ -1,3 +1,4 @@
+// denne tenker jeg er kast snart
 export interface UserSettingsDTO {
   publicProfile: boolean;
   showGender: boolean;

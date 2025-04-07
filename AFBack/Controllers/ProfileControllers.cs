@@ -26,7 +26,8 @@ public class ProfileController : ControllerBase
         _logger = logger;
         _blobServiceClient = blobServiceClient;
     }
-
+    
+    // Brukes til å hente info til profilsiden til brukeren
     [HttpGet]
     public async Task<IActionResult> GetProfile()
     {
@@ -36,7 +37,7 @@ public class ProfileController : ControllerBase
         }
         
         var profile = await _context.Profiles.Include(p => p.User).FirstOrDefaultAsync(p => p.UserId == userId);
-
+        
         if (profile == null)
             return NotFound(new { message = "Profile not found." });
 
@@ -56,21 +57,40 @@ public class ProfileController : ControllerBase
         return Ok(dto);
     }
     
-    // Henter en bruker sin profil
+    // Henter info fra User.cs sin GetCurrentUser(), Profile.cs sin GetProfile() og UserSettings.cs sin GetSettings() til
+    // å hente all informasjonen når bruker går inn på sin egen side
+    
+    // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs
     [AllowAnonymous]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPublicProfile(int id)
     {
+        bool isOwner = false;
+        
+        if (User.Identity?.IsAuthenticated == true &&
+            int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUserId))
+        {
+            isOwner = currentUserId == id;
+        }
+        
         var profile = await _context.Profiles
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == id);
 
         if (profile == null)
             return NotFound(new { message = "Profile not found" });
-
+        
+        var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == id);
+        
+        if (settings == null)
+            return NotFound(new { message = "Settings not found" });
+        
         var dto = new PublicProfileDTO
         {
+            // Henter fra User.cs og profile.cs
             UserId = profile.UserId,
+            // Sjekker om det er bruker sin profil eller noen andres profil
+            IsOwner = isOwner,
             FullName = profile.User.FullName,
             ProfileImageUrl = profile.ProfileImageUrl,
             Bio = profile.Bio,
@@ -83,6 +103,13 @@ public class ProfileController : ControllerBase
             TotalMessagesRecieved = profile.TotalMessagesRecieved,
             TotalMessagesSendt = profile.TotalMessagesSendt,
             UpdatedAt = profile.UpdatedAt,
+            
+            //Innstillinger fra UserSettings.cs
+            PublicProfile = settings.PublicProfile,
+            ShowGender = settings.ShowGender,
+            ShowEmail = settings.ShowEmail,
+            ShowPhone = settings.ShowPhone,
+            ShowRegion = settings.ShowRegion,
         };
 
         return Ok(dto);
@@ -181,6 +208,7 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "Bio updated successfully." });
     }
     
+    // Endringer av websites
     [HttpPatch("websites")]
     public async Task<IActionResult> UpdateWebsites([FromBody] UpdateWebsitesDTO dto)
     {

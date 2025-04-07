@@ -1,4 +1,5 @@
 // hooks/types.ts
+// Formen som brukes til signup
 export type FormDataType = {
     firstName: string;
     middleName?: string;

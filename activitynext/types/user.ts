@@ -1,3 +1,4 @@
+// henter informasjon fra UserDTO
 export interface User {
     fullName: string;
     email: string;
