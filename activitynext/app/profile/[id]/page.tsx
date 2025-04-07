@@ -5,14 +5,14 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 import FormButton from "@/components/FormButton";
 import Link from "next/link";
+import { use } from "react";
 
-interface PageProps {
-  params: { id: string };
-}
+type Params = Promise<{ id: string }>;
 
-export default async function PublicProfilePage({ params }: PageProps) {
-  const userId = Number(params.id);
-  const profile = await getUserProfile(userId);
+export default function PublicProfilePage(props: { params: Params }) {
+  const { id } = use(props.params);
+  const userId = Number(id);
+  const profile = use(getUserProfile(userId)) 
   const isOwner = profile.isOwner;
   const imageUrl =
   profile.profileImageUrl?.trim() !== ""
