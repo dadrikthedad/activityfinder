@@ -5,6 +5,7 @@ import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user";
 
 export interface UserProfileSettingsDTO {
+  userId: number;
   firstName?: string;
   middleName: string;
   lastName?: string;

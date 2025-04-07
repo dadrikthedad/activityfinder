@@ -10,7 +10,7 @@ public class PublicProfileDTO
     // Siden vi bruker samme Get til både bruker og andre brukere så må vi sjekke om det er eieren
     public bool IsOwner { get; set; }
     // Navn fra User.cs
-    public string? FullName { get; set; }
+    public string FullName { get; set; }
     // Bilde fra Profile.cs
     public string? ProfileImageUrl { get; set; }
     // bio fra Profile.cs

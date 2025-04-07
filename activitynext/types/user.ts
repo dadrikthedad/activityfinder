@@ -1,5 +1,6 @@
 // henter informasjon fra UserDTO
 export interface User {
+    userId: number;
     fullName: string;
     email: string;
     phone?: string;

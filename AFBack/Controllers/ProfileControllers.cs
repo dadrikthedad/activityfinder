@@ -101,6 +101,7 @@ public class ProfileController : ControllerBase
             Region = profile.User.Region,
             PostalCode = profile.User.PostalCode,
             DateOfBirth = profile.User.DateOfBirth,
+            Gender = profile.User.Gender,
             ContactEmail = profile.ContactEmail,
             ContactPhone = profile.ContactPhone,
             // Stats

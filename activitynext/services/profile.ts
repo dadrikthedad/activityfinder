@@ -1,5 +1,5 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import type { PublicProfileDTO } from "@/types/PublicProfile";
+import type { PublicProfileDTO } from "@/types/PublicProfileDTO";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -66,7 +66,7 @@ export async function uploadProfileImage(file: File, token: string): Promise<str
 }
 
 // 🔍 Henter offentlig profil med ID (f.eks. til /profile/[id])
-export async function getUserProfile(userId: number, token?: string): Promise<PublicProfileDTO> {
+export async function getUserProfile(userId: number, token?: string, options?: RequestInit): Promise<PublicProfileDTO> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
@@ -77,7 +77,8 @@ export async function getUserProfile(userId: number, token?: string): Promise<Pu
 
   const res = await fetch(`${API_BASE_URL}/api/profile/${userId}`, {
     headers,
-    next: { revalidate: 60 },
+    ...options,
+    next: options?.cache ? undefined : { revalidate: 60 },
   });
 
   if (!res.ok) {

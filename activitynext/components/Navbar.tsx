@@ -5,13 +5,14 @@ import { useEffect, useState, useRef } from "react";
 import { Settings, Bell, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import ProfileLink from "@/components/profile/ProfileLink";
 
 export default function Navbar() {
   
   const [showDropDown, setShowDropdown] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { isLoggedIn, userId, logout } = useAuth();
+  const { isLoggedIn, logout } = useAuth();
 
   
 
@@ -84,13 +85,7 @@ export default function Navbar() {
             </li>
               
             <li>
-              {userId ? (
-                <Link href={`/profile/${userId}`} className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
-                  Profile
-                </Link>
-              ) : (
-                <span className="text-gray-400 px-4 py-2">Loading...</span>
-              )}
+              <ProfileLink />
             </li>
             <li className="relative">
               <button

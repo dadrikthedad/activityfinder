@@ -12,7 +12,9 @@ import { useUserSettings } from "@/hooks/useUserSettings";
 import { useEffect } from "react";
 import AdditionalSettings from "@/components/settings/AdditionalSettings";
 import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
-import type { UserSettingsDTO } from "@/types/UserSettingsDTO";
+import type { UserSettingsDTO } from "@/types/settings";
+import ProfileNavButton from "@/components/settings/ProfileNavButton";
+
 
 
 
@@ -51,6 +53,8 @@ export default function ProfileSettingsPage() {
   const { updateField, error, success } = useUpdateUserField();
   const { settings, loading } = useUserSettings();
   const settingsTyped = (settings as Partial<UserSettingsDTO>) ?? {};
+
+  
 
   
   useEffect(() => {
@@ -212,14 +216,14 @@ export default function ProfileSettingsPage() {
         />
       </div>
       <div className="flex flex-col sm:flex-row justify-center gap-4 mt-12">
-  <Link href="/profile" passHref>
-    <FormButton
-      text="Back to Profile"
-      type="button"
-      fullWidth={false}
-      className="text-lg px-6 py-3 min-w-[240px] h-[52px]"
-    />
-  </Link>
+
+      {settings && (
+        <ProfileNavButton
+          href={`/profile/${settings.userId}`}
+          text="Back to Profile"
+          variant="long"
+        />
+)}
 
   <Link href="/securitycred" passHref>
     <FormButton

@@ -350,6 +350,9 @@ public class UserController : ControllerBase
 
             var dto = new UserProfileSettingDTO
             {
+                // UserId brukes for å hente hvem bruker vi endrer innstillinger for slik at vi kan returnere tilbake
+                // til profilsiden med Back to Profile-knappen
+                UserId = userId,
                 FirstName = user.FirstName,
                 MiddleName = user.MiddleName,
                 LastName = user.LastName,
