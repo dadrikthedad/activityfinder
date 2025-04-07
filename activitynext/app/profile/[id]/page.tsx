@@ -6,18 +6,31 @@ import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 import FormButton from "@/components/FormButton";
 import Link from "next/link";
 import { use } from "react";
+import { cookies } from "next/headers";
+import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
+import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 
 type Params = Promise<{ id: string }>;
 
 export default function PublicProfilePage(props: { params: Params }) {
   const { id } = use(props.params);
   const userId = Number(id);
-  const profile = use(getUserProfile(userId)) 
-  const isOwner = profile.isOwner;
+  
+  
+  const cookieStore = use(cookies()); // 👈 bruker `use()` her i stedet for `await`
+  const token = cookieStore.get("token")?.value || null;
+  console.log("🟡 Token from cookie:", token);
+  const userIdFromToken = getUserIdFromToken(token);
+  const profile = use(getUserProfile(userId, token ?? undefined)) as Partial<PublicProfileDTO>;
+  const isOwner = userIdFromToken === userId;
+
   const imageUrl =
   profile.profileImageUrl?.trim() !== ""
     ? profile.profileImageUrl
     : "/default-avatar.png";
+
+
+ 
 
   const isFriend = false; // TODO: Replace with actual logic if needed og endre det samme med Follow
 
@@ -30,65 +43,56 @@ export default function PublicProfilePage(props: { params: Params }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
         {/* Info */}
         <div className="md:col-span-2 space-y-4">
-          <ProfileInfoCard
-            profile={profile}
-            user={{
-              fullName: profile.fullName,
-              email: "",
-              phone: "",
-              dateOfBirth: "",
-              country: profile.country ?? "",
-              region: profile.region ?? "",
-              postalCode: "",
-              gender: "Unspecified",
-            }}
-            showEmail={profile.showEmail}
-            isEditable={isOwner}
+        <ProfileInfoCard
+              profile={profile}
+              showEmail={profile.showEmail}
+              isEditable={false}
           />
         </div>
 
         {/* Sidebar */}
         <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
           <ProfileAvatar
-            imageUrl={imageUrl}
-            isEditable={isOwner}
+            imageUrl={imageUrl ?? "/default-avatar.png"}
+            isEditable={false}
             refetchProfile={undefined}
           />
 
           {isOwner ? (
-            <>
-              <Link href="/editprofile" passHref>
-                <FormButton
-                  text="Edit Profile"
-                  type="button"
-                  fullWidth={false}
-                  className="text-lg px-16 py-3"
-                />
-              </Link>
-              <Link href="/profilesettings" passHref>
-                <FormButton
-                  text="Settings"
-                  type="button"
-                  fullWidth={false}
-                  className="text-lg px-16 py-3"
-                />
-              </Link>
-            </>
-          ) : (
-            <>
-              {isFriend ? (
-                <>
-                  <ProfileNavButton href="#" text="Send Message" variant="long" />
-                  <ProfileNavButton href="#" text="Follow User" variant="long" />
-                </>
-              ) : (
-                <>
-                  <ProfileNavButton href="#" text="Add as Friend" variant="long" />
-                  <ProfileNavButton href="#" text="Send Message" variant="long" />
-                  <ProfileNavButton href="#" text="Follow User" variant="long" />
-                </>
-              )}
-              <ProfileActionMenu />
+      <>
+        <Link href="/editprofile" passHref>
+          <FormButton
+            text="Edit Profile"
+            type="button"
+            fullWidth={false}
+            className="text-lg px-17 py-3"
+          />
+        </Link>
+
+        <Link href="/profilesettings" passHref>
+          <FormButton
+            text="Settings"
+            type="button"
+            fullWidth={false}
+            className="text-lg px-20 py-3"
+          />
+        </Link>
+      </>
+    ) : (
+      <>
+        {isFriend ? (
+          <>
+            <ProfileNavButton href="#" text="Send Message" variant="long" />
+            <ProfileNavButton href="#" text="Follow User" variant="long" />
+          </>
+        ) : (
+          <>
+            <ProfileNavButton href="#" text="Add as Friend" variant="long" />
+            <ProfileNavButton href="#" text="Send Message" variant="long" />
+            <ProfileNavButton href="#" text="Follow User" variant="long" />
+          </>
+        )}
+        <ProfileActionMenu />
             </>
           )}
         </div>

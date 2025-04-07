@@ -11,7 +11,7 @@ export default function Navbar() {
   const [showDropDown, setShowDropdown] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { isLoggedIn, logout } = useAuth();
+  const { isLoggedIn, userId, logout } = useAuth();
 
   
 
@@ -84,9 +84,13 @@ export default function Navbar() {
             </li>
               
             <li>
-              <Link href="/profile" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
-                Profile
-              </Link>
+              {userId ? (
+                <Link href={`/profile/${userId}`} className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
+                  Profile
+                </Link>
+              ) : (
+                <span className="text-gray-400 px-4 py-2">Loading...</span>
+              )}
             </li>
             <li className="relative">
               <button
@@ -107,10 +111,10 @@ export default function Navbar() {
                     className="block w-full text-left px-4 py-2 hover:bg-gray-100"
                     onClick={() => {
                       setShowDropdown(false);
-                      router.push("/biosettings");
+                      router.push("/editprofile");
                     }}
                   >
-                    Update bio
+                    Edit Profile
                   </button>
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gray-100"

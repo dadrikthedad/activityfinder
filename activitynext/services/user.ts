@@ -1,9 +1,11 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { User } from "@/types/user";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
+const isServer = typeof window === "undefined";
+
+export const API_BASE_URL = isServer
+  ? process.env.API_URL_INTERNAL || "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net"
+  : process.env.NEXT_PUBLIC_API_URL || "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
 
 
 // Type for land

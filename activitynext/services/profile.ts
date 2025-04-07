@@ -1,4 +1,5 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
+import type { PublicProfileDTO } from "@/types/PublicProfile";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -65,15 +66,25 @@ export async function uploadProfileImage(file: File, token: string): Promise<str
 }
 
 // 🔍 Henter offentlig profil med ID (f.eks. til /profile/[id])
-export async function getUserProfile(userId: number) {
+export async function getUserProfile(userId: number, token?: string): Promise<PublicProfileDTO> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE_URL}/api/profile/${userId}`, {
-    next: { revalidate: 60 }, // eller bruk `cache: 'no-store'` for ingen caching
+    headers,
+    next: { revalidate: 60 },
   });
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
+    const error = await res.json();
     throw new Error(error.message || "Failed to fetch public profile");
   }
 
-  return res.json(); // returnerer PublicProfileDTO
+  const data: PublicProfileDTO = await res.json();
+  return data;
 }

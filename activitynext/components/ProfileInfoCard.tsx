@@ -2,8 +2,7 @@
 "use client";
 import React from "react";
 import { useState, useRef } from "react";
-import { User } from "@/types/user";
-import { Profile } from "@/types/profile";
+import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import FormButton from "@/components/FormButton";
 import { useAuth } from "@/context/AuthContext";
 import { updateBio, updateWebsites } from "@/services/profile";
@@ -11,17 +10,14 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { PlusCircle } from "lucide-react";
 
 interface Props {
-    user: User | null;
-    profile: Profile | null;
-    showEmail?: boolean;
-    isEditable?: boolean;
-    refetchProfile?: () => Promise<void>;
-  }
+  profile: Partial<PublicProfileDTO>;
+  showEmail?: boolean;
+  isEditable?: boolean;
+  refetchProfile?: () => Promise<void>;
+}
 
   export default function ProfileInfoCard({
-    user,
     profile,
-    showEmail = true,
     isEditable = false,
     refetchProfile,
   }: Props) {
@@ -72,33 +68,33 @@ interface Props {
         }
       }
 
+      console.log("👀 Gender:", profile.gender, "ShowGender setting:", profile.showGender);
 
 
   return (
     <div className="bg-white dark:bg-zinc-800 shadow-md rounded-xl p-6 space-y-2 mt-6">
       <h2 className="text-xl font-semibold mb-2">Profile</h2>
 
-      {!isEmpty(user?.fullName) && <p><strong>Name:</strong> {user?.fullName}</p>}
-      {showEmail && !isEmpty(user?.email) && <p><strong>Email:</strong> {user?.email}</p>}
-      {!isEmpty(user?.dateOfBirth) && (
+      {!isEmpty(profile.fullName) && <p><strong>Name:</strong> {profile.fullName}</p>}
+      {profile?.dateOfBirth && (
+            <p>
+              <strong>Birthday: </strong>
+              {new Date(profile.dateOfBirth).toLocaleDateString("no-NO", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
+          )}
+      {!isEmpty(profile?.contactPhone) && <p><strong>Phone:</strong> {profile?.contactPhone}</p>}
+      {!isEmpty(profile?.country) && (
         <p>
-          <strong>Birthday: </strong>
-          {new Date(user!.dateOfBirth).toLocaleDateString("no-NO", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}
+          <strong>Location:</strong> {profile?.country}
+          {profile?.region && `, ${profile?.region}`}
         </p>
       )}
-      {!isEmpty(user?.phone) && <p><strong>Phone:</strong> {user?.phone}</p>}
-      {!isEmpty(user?.country) && (
-        <p>
-          <strong>Location:</strong> {user?.country}
-          {user?.region && `, ${user.region}`}
-        </p>
-      )}
-      {!isEmpty(user?.postalCode) && <p><strong>Postal Code:</strong> {user?.postalCode}</p>}
-      {!isEmpty(user?.gender) && <p><strong>Gender:</strong> {user?.gender}</p>}
+      {!isEmpty(profile?.postalCode) && <p><strong>Postal Code:</strong> {profile?.postalCode}</p>}
+      {!isEmpty(profile?.gender) && <p><strong>Gender:</strong> {profile?.gender}</p>}
 
       <div className="mt-8" />
       <h2 className="text-xl font-semibold mb-2">Stats</h2>
@@ -114,15 +110,15 @@ interface Props {
       {!isEmpty(profile?.totalMessagesRecieved) && (
         <p><strong>Messages Received:</strong> {profile?.totalMessagesRecieved}</p>
       )}
-      {!isEmpty(profile?.updatedAt) && (
-        <p>
-          <strong>Last Updated:</strong>{" "}
-          {new Date(profile!.updatedAt!).toLocaleString("no-NO", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
-        </p>
-      )}
+      {profile.updatedAt && (
+          <p>
+            <strong>Last Updated:</strong>{" "}
+            {new Date(profile.updatedAt).toLocaleString("no-NO", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
+          </p>
+        )}
 
        {/* Bio-felt med inline redigering */}
        <div className="mt-6">

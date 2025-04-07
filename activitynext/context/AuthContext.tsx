@@ -7,10 +7,13 @@ import React, {
   useContext,
 } from "react";
 import { useRouter } from "next/navigation";
+import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
+import { setCookie } from "cookies-next";
 
 interface AuthContextType {
   isLoggedIn: boolean;
   token: string | null;
+  userId: number | null; //Lagrer bruker ID, brukes i navbar feks
   login: (token: string, redirectTo?: string) => void;
   logout: () => void;
 }
@@ -21,18 +24,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [token, setToken] = useState<string | null>(null); // ✅ Nå riktig plass
   const router = useRouter();
+  const [userId, setUserId] = useState<number | null>(null);
+
 
   useEffect(() => {
     const storedToken = localStorage.getItem("token");
     setToken(storedToken);
     setIsLoggedIn(!!storedToken);
+    const id = getUserIdFromToken(storedToken);
+    console.log("✅ User ID from token:", id); // 👈 Debug
+    setUserId(id); // Lagerer brukerId-en til feks NavBar
   }, []);
 
   // Login: lagrer token og redirecter
   const login = (token: string, redirectTo = "/") => {
     localStorage.setItem("token", token);
+    setCookie("token", token); 
     setToken(token);
     setIsLoggedIn(true);
+    setUserId(getUserIdFromToken(token)); 
     router.push(redirectTo);
   };
 
@@ -40,9 +50,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     localStorage.removeItem("token");
     setToken(null);
+    setUserId(null);    
     setIsLoggedIn(false);
     router.push("/login");
   };
+
 
   // Sync mellom tabs
   useEffect(() => {
@@ -50,6 +62,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const storedToken = localStorage.getItem("token");
       setToken(storedToken);
       setIsLoggedIn(!!storedToken);
+      setUserId(getUserIdFromToken(storedToken));
     };
 
     window.addEventListener("storage", syncAuth);
@@ -57,7 +70,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, token, login, logout }}>
+    <AuthContext.Provider value={{ isLoggedIn, token, userId, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

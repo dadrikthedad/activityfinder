@@ -1,4 +1,6 @@
-﻿namespace AFBack.DTOs;
+﻿using AFBack.Models;
+
+namespace AFBack.DTOs;
 
 public class PublicProfileDTO
 {
@@ -19,6 +21,15 @@ public class PublicProfileDTO
     public string? Country { get; set; }
     // region fra User.cs
     public string? Region { get; set; }
+    // postalcode fra user.cs
+    public string? PostalCode { get; set; }
+    // fødselsår fra user.cs
+    public DateTime DateOfBirth { get; set; }
+    // kjønn fra User.cs
+    public Gender? Gender { get; set; }
+    // kontaktinfo fra Profile
+    public string? ContactEmail { get; set; }
+    public string? ContactPhone { get; set; }
     // stats fra Profile.cs
     public int TotalLikesGiven { get; set; }
     public int TotalLikesRecieved { get; set; }

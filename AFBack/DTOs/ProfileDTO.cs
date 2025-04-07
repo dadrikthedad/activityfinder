@@ -13,6 +13,9 @@ public class ProfileDTO
     public List<string> Websites { get; set; } = new();
     public DateTime? UpdatedAt { get; set; }
     
+    public string? ContactEmail { get; set; }
+    public string? ContactPhone { get; set; }
+    
     public bool IsOnline { get; set; }
     
     public int TotalLikesGiven { get; set; }

@@ -23,7 +23,6 @@ public class Profile
     [MaxLength(500)]
     public string? WebsitesCsv { get; set; }
     
-
     public List<string> Websites => WebsitesCsv?.Split(',').ToList() ?? new List<string>();
     // Setter listen med Websistes tilbake til WebsitesCsv som lagres i databasen
     public void SetWebsites(List<string> websites)
@@ -31,6 +30,14 @@ public class Profile
         WebsitesCsv = string.Join(",", websites.Select(w => w.Trim()));
     }
     
+    [EmailAddress]
+    [MaxLength(100)]
+    // Epost til feks support/kontakt
+    public string? ContactEmail { get; set; }
+    
+    [MaxLength(30)]
+    // Epost til feks support/kontakt
+    public string? ContactPhone { get; set; }
     
     // Sist brukeren gjorde endringer
     public DateTime? UpdatedAt { get; set; }
