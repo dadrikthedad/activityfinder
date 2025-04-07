@@ -48,7 +48,6 @@ export default function ProfilePage() {
             {/* Venstre side */}
             <div className="md:col-span-2 space-y-4">
               <ProfileInfoCard
-                user={user}
                 profile={profile}
                 showEmail={false}
                 isEditable={true}
