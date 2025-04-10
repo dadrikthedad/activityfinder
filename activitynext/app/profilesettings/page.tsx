@@ -12,7 +12,7 @@ import { useUserSettings } from "@/hooks/useUserSettings";
 import { useEffect } from "react";
 import AdditionalSettings from "@/components/settings/AdditionalSettings";
 import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
-import type { UserSettingsDTO } from "@/types/settings";
+import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 
 
@@ -52,7 +52,7 @@ export default function ProfileSettingsPage() {
 
   const { updateField, error, success } = useUpdateUserField();
   const { settings, loading } = useUserSettings();
-  const settingsTyped = (settings as Partial<UserSettingsDTO>) ?? {};
+  const settingsTyped = (settings as Partial<PublicProfileDTO>) ?? {};
 
   
 
@@ -63,12 +63,12 @@ export default function ProfileSettingsPage() {
         firstName: settings.firstName || "",
         middleName: settings.middleName || "",
         lastName: settings.lastName || "",
-        phone: settings.phone || "",
+        email: settings.contactEmail || "",
+        phone: settings.contactPhone || "",
         country: settings.country || "",
         region: settings.region || "",
         postalCode: settings.postalCode || "",
         gender: settings.gender || "",
-        email: "",
         password: "",
         confirmPassword: "",
         dateOfBirth: "", // hvis den finnes

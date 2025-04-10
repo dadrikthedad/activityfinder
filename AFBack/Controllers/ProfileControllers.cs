@@ -93,6 +93,9 @@ public class ProfileController : ControllerBase
             UserId = profile.UserId,
             // Sjekker om det er bruker sin profil eller noen andres profil
             IsOwner = isOwner,
+            FirstName = profile.User.FirstName,
+            MiddleName = profile.User.MiddleName,
+            LastName = profile.User.LastName,
             FullName = profile.User.FullName,
             ProfileImageUrl = profile.ProfileImageUrl,
             Bio = profile.Bio,
@@ -118,6 +121,9 @@ public class ProfileController : ControllerBase
             ShowEmail = settings.ShowEmail,
             ShowPhone = settings.ShowPhone,
             ShowRegion = settings.ShowRegion,
+            Language = settings.Language,
+            RecieveEmailNotifications = settings.RecieveEmailNotifications,
+            RecievePushNotifications = settings.RecievePushNotifications,
         };
 
         return Ok(dto);

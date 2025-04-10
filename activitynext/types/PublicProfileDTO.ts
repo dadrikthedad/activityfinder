@@ -1,6 +1,9 @@
 export interface PublicProfileDTO {
     // User
     userId: number;
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
     fullName?: string;
     country?: string;
     region?: string;
@@ -29,6 +32,9 @@ export interface PublicProfileDTO {
     showEmail: boolean;
     showPhone: boolean;
     showRegion: boolean;
+    language: string;
+    recieveEmailNotifications: boolean;
+    recievePushNotifications: boolean;
   
     // Kontroll
     isOwner: boolean;

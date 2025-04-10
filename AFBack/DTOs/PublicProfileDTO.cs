@@ -10,6 +10,9 @@ public class PublicProfileDTO
     // Siden vi bruker samme Get til både bruker og andre brukere så må vi sjekke om det er eieren
     public bool IsOwner { get; set; }
     // Navn fra User.cs
+    public string FirstName { get; set; } = null!;
+    public string? MiddleName { get; set; }
+    public string LastName { get; set; } = null!;
     public string FullName { get; set; }
     // Bilde fra Profile.cs
     public string? ProfileImageUrl { get; set; }
@@ -46,4 +49,8 @@ public class PublicProfileDTO
     public bool ShowEmail { get; set; } = false;
     public bool ShowPhone { get; set; } = false;
     public bool ShowRegion { get; set; } = true;
+    
+    public string Language { get; set; } = "en";
+    public bool RecieveEmailNotifications { get; set; } = true;
+    public bool RecievePushNotifications { get; set; } = true;
 }

@@ -3,22 +3,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user";
+import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 
-export interface UserProfileSettingsDTO {
-  userId: number;
-  firstName?: string;
-  middleName: string;
-  lastName?: string;
-  phone?: string;
-  country: string;
-  region?: string;
-  postalCode?: string;
-  gender?: string;
-}
 
 export function useUserSettings() {
   const { token } = useAuth();
-  const [settings, setSettings] = useState<UserProfileSettingsDTO | null>(null);
+  const [settings, setSettings] = useState<PublicProfileDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,7 +25,7 @@ export function useUserSettings() {
       console.log("🔍 Tester fetch fra:", url);
 
       try {
-        const data = await fetchWithAuth<UserProfileSettingsDTO>(
+        const data = await fetchWithAuth<PublicProfileDTO>(
           url,
           {},
           token
