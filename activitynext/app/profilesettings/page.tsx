@@ -234,14 +234,22 @@ export default function ProfileSettingsPage() {
     />
   </Link>
 </div>
-      <AdditionalSettings
-        initialValues={{
-          language: settingsTyped.language || "en",
-          recieveEmailNotifications: settingsTyped.recieveEmailNotifications ?? true,
-          recievePushNotifications: settingsTyped.recievePushNotifications ?? true,
-        }}
-        onSave={updateSettings}
-      />
+        <AdditionalSettings
+          initialValues={{
+            language: settingsTyped.language || "en",
+            recieveEmailNotifications: settingsTyped.recieveEmailNotifications ?? true,
+            recievePushNotifications: settingsTyped.recievePushNotifications ?? true,
+            publicProfile: settingsTyped.publicProfile ?? true,
+            showGender: settingsTyped.showGender ?? true,
+            showEmail: settingsTyped.showEmail ?? false,
+            showPhone: settingsTyped.showPhone ?? false,
+            showRegion: settingsTyped.showRegion ?? true,
+            showPostalCode: settingsTyped.showPostalCode ?? false,
+            showStats: settingsTyped.showStats ?? true,
+            showWebsites: settingsTyped.showWebsites ?? true,
+          }}
+          onSave={updateSettings}
+        />
     </div>
     
     </div>

@@ -50,6 +50,11 @@ public class PublicProfileDTO
     public bool ShowPhone { get; set; } = false;
     public bool ShowRegion { get; set; } = true;
     
+    public bool ShowStats { get; set; } = true;
+    
+    public bool ShowWebsites { get; set; } = true;
+    public bool ShowPostalCode { get; set; } = false;
+    
     public string Language { get; set; } = "en";
     public bool RecieveEmailNotifications { get; set; } = true;
     public bool RecievePushNotifications { get; set; } = true;

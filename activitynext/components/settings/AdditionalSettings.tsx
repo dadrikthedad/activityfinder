@@ -2,20 +2,39 @@
 
 import React, { useState } from "react";
 import FormButton from "@/components/FormButton";
-import { UserSettingsDTO } from "@/types/settings"; // 👈 sørg for denne finnes
+import { PublicProfileDTO } from "@/types/PublicProfileDTO"; // 👈 sørg for denne finnes
+import CheckboxField from "./CheckboxField";
 
 interface Props {
   initialValues: Pick<
-    UserSettingsDTO,
-    "language" | "recieveEmailNotifications" | "recievePushNotifications"
+  PublicProfileDTO,
+    "language" | "recieveEmailNotifications" | "recievePushNotifications" | "publicProfile"
+    | "showGender"
+    | "showEmail"
+    | "showPhone"
+    | "showRegion"
+    | "showPostalCode"        // ✅ NY
+    | "showStats"             // ✅ NY
+    | "showWebsites"   
   >;
-  onSave: (updated: Partial<UserSettingsDTO>) => Promise<void>;
+  onSave: (updated: Partial<PublicProfileDTO>) => Promise<void>;
 }
 
 export default function AdditionalSettings({ initialValues, onSave }: Props) {
   const [language, setLanguage] = useState(initialValues.language);
-  const [receiveEmails, setReceiveEmails] = useState(initialValues.recieveEmailNotifications);
-  const [receivePush, setReceivePush] = useState(initialValues.recievePushNotifications);
+  const booleanOrFalse = (value?: boolean) => value ?? false;
+  const [receiveEmails, setReceiveEmails] = useState(booleanOrFalse(initialValues.recieveEmailNotifications));
+  const [receivePush, setReceivePush] = useState(booleanOrFalse(initialValues.recievePushNotifications));
+
+  const [publicProfile, setPublicProfile] = useState(booleanOrFalse(initialValues.publicProfile));
+  const [showGender, setShowGender] = useState(booleanOrFalse(initialValues.showGender));
+  const [showEmail, setShowEmail] = useState(booleanOrFalse(initialValues.showEmail));
+  const [showPhone, setShowPhone] = useState(booleanOrFalse(initialValues.showPhone));
+  const [showRegion, setShowRegion] = useState(booleanOrFalse(initialValues.showRegion));
+  const [showPostalCode, setShowPostalCode] = useState(booleanOrFalse(initialValues.showPostalCode));
+  const [showStats, setShowStats] = useState(booleanOrFalse(initialValues.showStats));
+  const [showWebsites, setShowWebsites] = useState(booleanOrFalse(initialValues.showWebsites));
+
 
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -26,6 +45,14 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
       language,
       recieveEmailNotifications: receiveEmails,
       recievePushNotifications: receivePush,
+      publicProfile,
+      showGender,
+      showEmail,
+      showPhone,
+      showRegion,
+      showPostalCode,     // ✅ NY
+      showStats,          // ✅ NY
+      showWebsites
     });
     setSaving(false);
     setSuccess(true);
@@ -50,24 +77,66 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
             <option value="de">German-NOTIMPLIMENTED YET</option>
           </select>
         </label>
+        
+        <CheckboxField
+          label="Receive occasional emails"
+          checked={receiveEmails}
+          onChange={setReceiveEmails}
+        />
 
-        <label className="text-left flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={receiveEmails}
-            onChange={(e) => setReceiveEmails(e.target.checked)}
-          />
-          Receive occasional emails
-        </label>
+        <CheckboxField
+          label="Allow push notifications"
+          checked={receivePush}
+          onChange={setReceivePush}
+        />
 
-        <label className="text-left flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={receivePush}
-            onChange={(e) => setReceivePush(e.target.checked)}
-          />
-          Allow push notifications
-        </label>
+        <CheckboxField
+          label="Make my profile public"
+          checked={publicProfile}
+          onChange={setPublicProfile}
+        />
+
+        <CheckboxField
+          label="Show gender on profile"
+          checked={showGender}
+          onChange={setShowGender}
+        />
+
+        <CheckboxField
+          label="Show email on profile"
+          checked={showEmail}
+          onChange={setShowEmail}
+        />
+
+        <CheckboxField
+          label="Show phone number on profile"
+          checked={showPhone}
+          onChange={setShowPhone}
+        />
+
+        <CheckboxField
+          label="Show region on profile"
+          checked={showRegion}
+          onChange={setShowRegion}
+        />
+
+        <CheckboxField
+          label="Show postal code on profile"
+          checked={showPostalCode}
+          onChange={setShowPostalCode}
+        />
+
+        <CheckboxField
+          label="Show stats on profile"
+          checked={showStats}
+          onChange={setShowStats}
+        />
+
+        <CheckboxField
+          label="Show websites on profile"
+          checked={showWebsites}
+          onChange={setShowWebsites}
+        />
 
         <FormButton
           text={saving ? "Saving..." : success ? "Saved ✅" : "Save Preferences"}

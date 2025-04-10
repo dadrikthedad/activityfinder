@@ -1,32 +1,26 @@
-// services/settings.ts
-import { UserSettingsDTO } from "@/types/settings";
+// Her henter vi de forskjellige endepunktene relatert til UserSettings
+import { UserSettingsDTO } from "@/types/UserSettingsDTO";
+import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
 
-export async function getUserSettings(token: string) {
-    const res = await fetch(`${API_BASE_URL}/api/usersettings`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  
-    if (!res.ok) throw new Error("Could not load settings");
-    return res.json();
+// Her oppdaterer vi userSettings ved å gjøre et API-kall, brukes i hooken useUpdateUserSettings.ts
+export async function updateUserSettings(
+  settings: Partial<UserSettingsDTO>,
+  token: string
+  ) {
+  const response = await fetch(`${API_BASE_URL}${API_ROUTES.userSettings}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(settings),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to update settings");
   }
-  
-  export async function updateUserSettings(settings: UserSettingsDTO, token: string) {
-    const res = await fetch(`${API_BASE_URL}/api/usersettings`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(settings),
-    });
-  
-    if (!res.ok) throw new Error("Could not save settings");
-    return res.json();
-  }
+
+  return response.json();
+}
   

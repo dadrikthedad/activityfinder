@@ -7,7 +7,7 @@ using AFBack.Data;
 using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
-
+// Kontroller KUN for innstillinger til bruker/profil
 [ApiController]
 [Route("api/usersettings")]
 public class UserSettingsController : ControllerBase
@@ -20,35 +20,8 @@ public class UserSettingsController : ControllerBase
         _context = context;
         _logger = logger;
     }
-
-    [Authorize]
-    [HttpGet]
-    public async Task<ActionResult<UserSettingsDTO>> GetSettings()
-    {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized();
-
-        var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == userId);
-        if (settings == null)
-            return NotFound(new { message = "Settings not found" });
-
-        var dto = new UserSettingsDTO
-        {
-            PublicProfile = settings.PublicProfile,
-            ShowGender = settings.ShowGender,
-            ShowEmail = settings.ShowEmail,
-            ShowPhone = settings.ShowPhone,
-            ShowRegion = settings.ShowRegion,
-            Language = settings.Language,
-            RecieveEmailNotifications = settings.RecieveEmailNotifications,
-            RecievePushNotifications = settings.RecievePushNotifications
-        };
-        
-        _logger.LogInformation("User {UserId} fetched settings.", userId);
-        
-        return Ok(dto);
-    }
-
+    
+    // Denne brukes for å oppdatere innstillinger til bruker/profil fra /profilesettings. Hentes fra Frontend: updateUserSettings() via hooken useUpdateUserSettings.ts
     [Authorize]
     [HttpPatch]
     public async Task<IActionResult> UpdateSettings([FromBody] UserSettingsDTO dto)
@@ -66,6 +39,10 @@ public class UserSettingsController : ControllerBase
         settings.ShowPhone = dto.ShowPhone;
         settings.ShowRegion = dto.ShowRegion;
         settings.Language = dto.Language;
+        settings.ShowPostalCode = dto.ShowPostalCode;
+        settings.ShowStats = dto.ShowStats;
+        settings.ShowWebsites = dto.ShowWebsites;
+        
         settings.RecieveEmailNotifications = dto.RecieveEmailNotifications;
         settings.RecievePushNotifications = dto.RecievePushNotifications;
 

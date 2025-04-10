@@ -1,9 +1,11 @@
+// Denne hooken endrer brukerinnstillingene fra /profilesettings, bruker updateUserSettings fra services/settings.ts til å gjøre et API-kall med endringer sendt fra siden.
+
 "use client";
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { updateUserSettings } from "@/services/settings";
-import { UserSettingsDTO } from "@/types/settings";
+import { UserSettingsDTO } from "@/types/UserSettingsDTO";
 
 export function useUpdateUserSettings() {
   const { token } = useAuth();

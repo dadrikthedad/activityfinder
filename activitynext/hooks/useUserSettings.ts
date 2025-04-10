@@ -1,3 +1,5 @@
+// Henter API-en GetPublicProfile() fra Backend. Bruker PublicProfileDTO både i frontend og backend
+
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
