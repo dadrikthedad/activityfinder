@@ -1,25 +1,25 @@
 "use client";
 
-import FormButton from "@/components/FormButton";
 import EditableCountryRegionGroup from "@/components/settings/EditableCountryRegionGroup";
 import EditableField from "@/components/settings/EditableField";
 import EditableSelectField from "@/components/settings/EditableSelectField";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useFormHandlers } from "@/hooks/useFormHandlers";
 import { useUpdateUserField } from "@/hooks/useUpdateUserField";
-import Link from "next/link";
 import { useUserSettings } from "@/hooks/useUserSettings";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import AdditionalSettings from "@/components/settings/AdditionalSettings";
 import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
-import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
+
 
 
 
 
 export default function ProfileSettingsPage() {
   const { updateSettings } = useUpdateUserSettings();
+  const [refreshIndex, setRefreshIndex] = useState(0);
+  
   
 
   const {
@@ -51,10 +51,14 @@ export default function ProfileSettingsPage() {
   });
 
   const { updateField, error, success } = useUpdateUserField();
-  const { settings, loading } = useUserSettings();
-  const settingsTyped = (settings as Partial<PublicProfileDTO>) ?? {};
+  const { settings, loading } = useUserSettings(refreshIndex);
 
-  
+  useEffect(() => {
+    if (settings) {
+      console.log("👤 Innlogget bruker-ID:", settings.userId);
+      console.log("🧠 Hele settings-objektet:", settings);
+    }
+  }, [settings]);
 
   
   useEffect(() => {
@@ -76,7 +80,7 @@ export default function ProfileSettingsPage() {
     }
   }, [settings, setFormData]);
 
-  if (loading) {
+  if (loading || !settings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center">
@@ -225,31 +229,36 @@ export default function ProfileSettingsPage() {
         />
 )}
 
-  <Link href="/securitycred" passHref>
-    <FormButton
-      text="Change Login Credentials"
-      type="button"
-      fullWidth={false}
-      className="text-base px-6 py-3 min-w-[240px] h-[52px]"
-    />
-  </Link>
-</div>
-        <AdditionalSettings
-          initialValues={{
-            language: settingsTyped.language || "en",
-            recieveEmailNotifications: settingsTyped.recieveEmailNotifications ?? true,
-            recievePushNotifications: settingsTyped.recievePushNotifications ?? true,
-            publicProfile: settingsTyped.publicProfile ?? true,
-            showGender: settingsTyped.showGender ?? true,
-            showEmail: settingsTyped.showEmail ?? false,
-            showPhone: settingsTyped.showPhone ?? false,
-            showRegion: settingsTyped.showRegion ?? true,
-            showPostalCode: settingsTyped.showPostalCode ?? false,
-            showStats: settingsTyped.showStats ?? true,
-            showWebsites: settingsTyped.showWebsites ?? true,
-          }}
-          onSave={updateSettings}
+        <ProfileNavButton
+          href="/securitycred"
+          text="Change Login Credentials"
+          variant="long"
         />
+</div>
+      {/* Additional settings */}
+    {settings ? (
+          <AdditionalSettings
+          initialValues={{
+            language: settings.language,
+            recieveEmailNotifications: settings.recieveEmailNotifications,
+            recievePushNotifications: settings.recievePushNotifications,
+            publicProfile: settings.publicProfile,
+            showGender: settings.showGender,
+            showEmail: settings.showEmail,
+            showPhone: settings.showPhone,
+            showRegion: settings.showRegion,
+            showPostalCode: settings.showPostalCode,
+            showStats: settings.showStats,
+            showWebsites: settings.showWebsites,
+          }}
+          onSave={async (updated) => {
+            await updateSettings(updated);
+            setRefreshIndex((prev) => prev + 1); // 👈 Dette refresher settings
+          }}
+        />
+      ) : (
+        <p>Loading settings...</p>
+      )}
     </div>
     
     </div>

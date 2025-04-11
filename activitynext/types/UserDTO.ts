@@ -1,4 +1,4 @@
-// henter informasjon fra UserDTO
+// henter informasjon fra UserDTO.cs i backend, brukes til å vise bruker informasjon i hooken useCurrentUser som henter informasjon til securitycred
 export interface User {
     userId: number;
     fullName: string;

@@ -49,14 +49,16 @@ export default function SecurityCredsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row justify-center gap-4 mt-12">
-          <Link href="/profile" passHref>
-            <FormButton
-              text="Back to Profile"
-              type="button"
-              fullWidth={false}
-              className="text-base font-medium px-10 py-3 min-w-[260px]"
-            />
-          </Link>
+        {user?.userId && (
+            <Link href={`/profile/${user.userId}`}>
+              <FormButton
+                text="Back to Profile"
+                type="button"
+                fullWidth={false}
+                className="text-base font-medium px-10 py-3 min-w-[260px]"
+              />
+            </Link>
+          )}
           <Link href="/profilesettings" passHref>
             <FormButton
               text="Go to Profile Settings"

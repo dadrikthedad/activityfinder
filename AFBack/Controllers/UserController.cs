@@ -319,6 +319,7 @@ public class UserController : ControllerBase
 
             var dto = new UserDTO
             {
+                UserId = user.Id,
                 FullName = user.FullName,
                 Email = user.Email,
                 DateOfBirth = user.DateOfBirth,

@@ -26,30 +26,39 @@ public class UserSettingsController : ControllerBase
     [HttpPatch]
     public async Task<IActionResult> UpdateSettings([FromBody] UserSettingsDTO dto)
     {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized();
+        try
+        {
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+                return Unauthorized();
 
-        var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == userId);
-        if (settings == null)
-            return NotFound(new { message = "Settings not found" });
+            var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == userId);
+            if (settings == null)
+                return NotFound(new { message = "Settings not found" });
 
-        settings.PublicProfile = dto.PublicProfile;
-        settings.ShowGender = dto.ShowGender;
-        settings.ShowEmail = dto.ShowEmail;
-        settings.ShowPhone = dto.ShowPhone;
-        settings.ShowRegion = dto.ShowRegion;
-        settings.Language = dto.Language;
-        settings.ShowPostalCode = dto.ShowPostalCode;
-        settings.ShowStats = dto.ShowStats;
-        settings.ShowWebsites = dto.ShowWebsites;
+            settings.PublicProfile = dto.PublicProfile;
+            settings.ShowGender = dto.ShowGender;
+            settings.ShowEmail = dto.ShowEmail;
+            settings.ShowPhone = dto.ShowPhone;
+            settings.ShowRegion = dto.ShowRegion;
+            settings.Language = dto.Language;
+            settings.ShowPostalCode = dto.ShowPostalCode;
+            settings.ShowStats = dto.ShowStats;
+            settings.ShowWebsites = dto.ShowWebsites;
         
-        settings.RecieveEmailNotifications = dto.RecieveEmailNotifications;
-        settings.RecievePushNotifications = dto.RecievePushNotifications;
+            settings.RecieveEmailNotifications = dto.RecieveEmailNotifications;
+            settings.RecievePushNotifications = dto.RecievePushNotifications;
 
-        await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
         
-        _logger.LogInformation("User {UserId} updated settings.", userId);
+            _logger.LogInformation("User {UserId} updated settings.", userId);
 
-        return Ok(new { message = "Settings updated successfully" });
+            return Ok(new { message = "Settings updated successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error while updating settings");
+            return StatusCode(500, new { message = "Internal server error", detail = ex.Message });
+        }
+        
     }
 }

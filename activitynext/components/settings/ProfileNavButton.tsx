@@ -7,13 +7,17 @@ interface ProfileNavButtonProps {
   href?: string;
   text: string;
   onClick?: () => void;
-  variant?: "default" | "small" | "large" | "long" | "normal" |"iconOnly";
+  disabled?: boolean;
+  className?: string;
+  variant?: "default" | "small" | "large" | "long" | "normal" | "iconOnly";
 }
 
 export default function ProfileNavButton({
   href,
   text,
   onClick,
+  disabled = false,
+  className = "",
   variant = "default",
 }: ProfileNavButtonProps) {
   let baseClasses = "";
@@ -45,8 +49,9 @@ export default function ProfileNavButton({
       text={text}
       type="button"
       fullWidth={false}
-      className={baseClasses}
       onClick={onClick}
+      disabled={disabled}
+      className={`${baseClasses} ${className}`}
     />
   );
 

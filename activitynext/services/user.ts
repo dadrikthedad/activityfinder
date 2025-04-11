@@ -1,5 +1,5 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { User } from "@/types/user";
+import { User } from "@/types/UserDTO";
 
 const isServer = typeof window === "undefined";
 
