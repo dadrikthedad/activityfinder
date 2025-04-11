@@ -13,5 +13,7 @@ export type FormDataType = {
     region?: string;
     postalCode?: string;
     gender: string;
+    contactPhone?: string;   // 👈 legg til
+  contactEmail?: string; 
   };
   
