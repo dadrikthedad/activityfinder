@@ -84,11 +84,23 @@ export const validateRegion = (value: string): string | null => {
     return null;
   };
 
+  export const validateContactEmail = (value: string): string | null => {
+    if (value.length > 254) return "Contact Email can't be more than 254 characters.";
+    return null;
+  };
+
+  export const validateContactPhone = (value: string): string | null => {
+    if (value.length > 50) return "Contact phone can't be more than 50 characters.";
+    return null;
+  };
+
+
   export type FieldName =
   | "firstName" | "middleName" | "lastName"
   | "email" | "phone"
   | "password" | "confirmPassword"
-  | "dateOfBirth" | "country" | "region" | "postalCode" | "gender";
+  | "dateOfBirth" | "country" | "region" | "postalCode" | "gender" | "contactPhone"       // 👈 Legg til disse to
+  | "contactEmail";
   
   export const validateSingleField = (
     name: FieldName,
@@ -107,7 +119,9 @@ export const validateRegion = (value: string): string | null => {
       case "country": return validateCountry(value);
       case "region": return validateRegion(value);
       case "postalCode": return validatePostalCode(value);
-      case "gender": return validateGender(value); 
+      case "gender": return validateGender(value);
+      case "contactPhone": return validateContactPhone(value); 
+      case "contactEmail": return validateContactEmail(value); 
       default: return null;
     }
   };

@@ -1,4 +1,4 @@
-// Henter informasjon fra UserSettingsDTO
+// Henter informasjon fra UserSettingsDTO Hvor brukes den?
 export interface UserSettingsDTO {
     publicProfile?: boolean;
     showGender?: boolean;

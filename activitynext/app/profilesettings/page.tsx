@@ -20,8 +20,6 @@ export default function ProfileSettingsPage() {
   const { updateSettings } = useUpdateUserSettings();
   const [refreshIndex, setRefreshIndex] = useState(0);
   
-  
-
   const {
     formData,
     setFormData,
@@ -105,7 +103,7 @@ export default function ProfileSettingsPage() {
         )}
 
     <div className="grid grid-cols-1 gap-y-6">
-      <EditableField
+      <EditableField // FirstName feltet
         name="firstName"
         label="First Name:"
         value={formData.firstName}
@@ -115,7 +113,7 @@ export default function ProfileSettingsPage() {
         }}
         />
 
-        <EditableField
+        <EditableField // Middle Name feltet
             name="middleName"
           label="Middle Name:"
           value={formData.middleName || ""}
@@ -125,7 +123,7 @@ export default function ProfileSettingsPage() {
           }}
         />
 
-        <EditableField
+        <EditableField // Last Name feltet
             name ="lastName"
           label="Last Name:"
           value={formData.lastName}
@@ -134,7 +132,7 @@ export default function ProfileSettingsPage() {
             setFormData((prev) => ({ ...prev, lastName: val }));
           }}
         />
-        <EditableField
+        <EditableField // User phone feltet
             name="phone"
             label="Phone:"
             value={formData.phone || ""}
@@ -146,7 +144,7 @@ export default function ProfileSettingsPage() {
         
         
         
-        <EditableCountryRegionGroup
+        <EditableCountryRegionGroup // Endre lang og region. Mye logikk slik at når vi endrer land, så endrer regionene seg deretter
           country={formData.country}
           region={formData.region || ""}
           countries={countries}
@@ -194,7 +192,7 @@ export default function ProfileSettingsPage() {
         />
 
 
-        <EditableField
+        <EditableField // PostalCode
             name="postalCode"
             label="Postal Code:"
             value={formData.postalCode || ""}
@@ -204,7 +202,7 @@ export default function ProfileSettingsPage() {
             }}
         />
 
-        <EditableSelectField
+        <EditableSelectField // Kjønn feltet
         name="gender"
         label="Gender:"
         value={formData.gender}
@@ -218,18 +216,44 @@ export default function ProfileSettingsPage() {
             setFormData((prev) => ({ ...prev, gender: val }));
         }}
         />
+
+      <EditableField // Kontakt phone fra Profile
+        name="contactPhone"
+        label="Contact Phone:"
+        value={formData.phone || ""}
+        onSave={async (val) => {
+          await updateField("updateContactPhone", val);
+          setFormData((prev) => ({ ...prev, phone: val }));
+        }}
+      />
+      <p className="text-xs text-gray-400 -mt-3 mb-2 text-center">
+          Will be visible on your profile if Show phone is checked below.
+        </p>
+
+      <EditableField // Kontakt epost fra Profile
+        name="contactEmail"
+        label="Contact Email:"
+        value={formData.email || ""}
+        onSave={async (val) => {
+          await updateField("updateContactEmail", val);
+          setFormData((prev) => ({ ...prev, email: val }));
+        }}
+      />
+      <p className="text-xs text-gray-400 -mt-3 mb-2 text-center">
+          Will be visible on your profile if Show Email is checked below. Try to avoid giving away your login info.
+        </p>
       </div>
       <div className="flex flex-col sm:flex-row justify-center gap-4 mt-12">
 
       {settings && (
-        <ProfileNavButton
+        <ProfileNavButton // Tilbake til profil knappen
           href={`/profile/${settings.userId}`}
           text="Back to Profile"
           variant="long"
         />
 )}
 
-        <ProfileNavButton
+        <ProfileNavButton // Endre passord/epost
           href="/securitycred"
           text="Change Login Credentials"
           variant="long"
@@ -250,10 +274,12 @@ export default function ProfileSettingsPage() {
             showPostalCode: settings.showPostalCode,
             showStats: settings.showStats,
             showWebsites: settings.showWebsites,
+            showAge: settings.showAge,
+            showBirthday: settings.showBirthday
           }}
           onSave={async (updated) => {
             await updateSettings(updated);
-            setRefreshIndex((prev) => prev + 1); // 👈 Dette refresher settings
+            setRefreshIndex((prev) => prev + 1); // Dette refresher settings ved lagring
           }}
         />
       ) : (

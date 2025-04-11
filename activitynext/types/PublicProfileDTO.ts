@@ -10,6 +10,7 @@ export interface PublicProfileDTO {
     region?: string;
     postalCode?: string;
     dateOfBirth: string; // DateTime i backend = string i frontend etter fetch
+    age?: number;
     gender?: "Male" | "Female" | "Unspecified";
   
     // Profile
@@ -36,6 +37,8 @@ export interface PublicProfileDTO {
     showPostalCode: boolean;
     showStats: boolean;
     showWebsites: boolean;
+    showAge: boolean;
+    showBirthday: boolean;
     language: string;
     recieveEmailNotifications: boolean;
     recievePushNotifications: boolean;

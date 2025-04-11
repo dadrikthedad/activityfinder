@@ -76,7 +76,7 @@ export default function ProfileAvatar({
           </div>
     
           {isEditable && (
-            <div className="w-full flex justify-center">
+            <div className="flex justify-center mt-4">
               <ProfileNavButton
                 text="Edit Profile Picture"
                 variant="long"

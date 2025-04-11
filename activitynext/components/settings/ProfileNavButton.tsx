@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import FormButton from "@/components/FormButton";
 
 interface ProfileNavButtonProps {
@@ -20,6 +20,8 @@ export default function ProfileNavButton({
   className = "",
   variant = "default",
 }: ProfileNavButtonProps) {
+  const router = useRouter();
+
   let baseClasses = "";
 
   switch (variant) {
@@ -44,16 +46,23 @@ export default function ProfileNavButton({
       break;
   }
 
-  const button = (
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (href) {
+      router.push(href);
+    }
+  };
+
+
+  return (
     <FormButton
       text={text}
       type="button"
       fullWidth={false}
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled}
       className={`${baseClasses} ${className}`}
     />
   );
-
-  return href ? <Link href={href}>{button}</Link> : button;
 }

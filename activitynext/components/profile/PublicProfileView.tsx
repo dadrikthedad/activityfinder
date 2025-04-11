@@ -1,3 +1,5 @@
+// Denne viser profilen til en bruker både på profile/[id] og editprofile. Henter info fra PublicProfileDTO for å vise info
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -10,24 +12,25 @@ import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 
 export default function PublicProfileView({
-  profile: initialProfile,
+  profile: initialProfile, // Vi gir profilnavn initialProfile slik at det ikke blir forvirring mot profile
   isEditable = false,
   isOwner = false,
 }: {
-  profile: PublicProfileDTO;
-  isEditable?: boolean;
-  isOwner?: boolean;
+  profile: PublicProfileDTO; // Hentet med API med PublicProfileDTO
+  isEditable?: boolean; // isEditable blir satt hvis vi er på editprofile
+  isOwner?: boolean; // vi sjekker om vi er brukeren og setter denne true hvis vi er det
 }) {
   const [profile, setProfile] = useState(initialProfile); // ✅ må kalles initialProfile her
   const [reloadCounter ] = useState(0);
-  const { token } = useAuth();
+  const { token } = useAuth(); // Henter token
 
+  // Her 
   const imageUrl =
     profile.profileImageUrl?.trim() !== ""
       ? profile.profileImageUrl
       : "/default-avatar.png";
 
-  const isFriend = false; // TODO
+  const isFriend = false; // TODO Sjekke om vi er venn for å gi egne options
 
   const refetchProfile = useCallback(async () => {
     if (!initialProfile?.userId || !token) return;
@@ -47,7 +50,7 @@ export default function PublicProfileView({
   }, [reloadCounter, isEditable, refetchProfile]);
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 min-h-screen">
+    <div className="max-w-5xl mx-auto px-6 py-10">
       <h1 className="text-3xl font-bold mb-6 text-center">
         {isOwner ? "Your Profile" : "User Profile"}
       </h1>

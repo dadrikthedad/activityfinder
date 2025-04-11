@@ -1,3 +1,4 @@
+// Login-siden
 "use client";
 import { useState } from "react";
 import { useAuth} from "@/context/AuthContext"
@@ -33,7 +34,8 @@ const handleLogin = async (e: React.FormEvent) => {
       country: locationData.country || "", // ISO2
       country_name: locationData.country_name || "",
     };
-
+    
+    // Her gir vi API fra backend og som vi har lagret som loginPaylod
     const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login", {
       method: "POST",
       headers: {
@@ -43,12 +45,12 @@ const handleLogin = async (e: React.FormEvent) => {
     });
 
     const data = await response.json();
-
+    // Hvis feil så gir vi error
     if (!response.ok) {
       const errorMessage = data?.message || "Login failed.";
       throw new Error(errorMessage);
     }
-
+    // Lagrer token i localstorage
     if (data.token) {
       try {
         login(data.token); // f.eks. lagre til localStorage eller context
@@ -78,7 +80,7 @@ const handleLogin = async (e: React.FormEvent) => {
   
         {/* Enkel login-form */}
         <form className="mt-6 max-w-sm space-y-4" onSubmit={handleLogin}>
-        <FormField
+        <FormField //Epost feltet
           id="email"
           label="Email"
           type="email"
@@ -88,7 +90,7 @@ const handleLogin = async (e: React.FormEvent) => {
           disabled={isSubmitting}
         />
 
-        <FormField
+        <FormField //Passord feletet
           id="password"
           label="Password"
           type="password"
@@ -98,7 +100,7 @@ const handleLogin = async (e: React.FormEvent) => {
           disabled={isSubmitting}
         />
   
-        <FormButton
+        <FormButton // Submit feltet
           text="Logg inn"
           submittingText="Logging in..."
           isSubmitting={isSubmitting}
@@ -107,7 +109,7 @@ const handleLogin = async (e: React.FormEvent) => {
           <p className="text-red-500 text-sm mt-2 text-center">{errorMessage}</p>
         )}
         </form>
-  
+        {/* Link til signup-siden hvis vi ikke har en bruker */}
         <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-4">
           No account?{" "}
           <a href="/signup" className="text-[#1C6B1C] hover:text-[#0F3D0F] hover:underline">

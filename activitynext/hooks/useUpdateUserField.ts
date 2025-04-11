@@ -1,3 +1,5 @@
+// Her oppdatere felt fra profilesettings til backend. Vi sender API til backend med endringene samt sjekker om det er noen feil eller om vi har submittet eller ikke.
+
 import { useState } from "react";
 import { updateUser } from "../services/updateUser";
 import { useAuth } from "../context/AuthContext";

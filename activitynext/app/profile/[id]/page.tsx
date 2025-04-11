@@ -1,11 +1,12 @@
-import { getUserProfile } from "@/services/profile";
+// Dette er profil-siden, her viser vi både vår egen profil og andres profil utifra userId
 
+import { getUserProfile } from "@/services/profile";
 import { use } from "react";
 import { cookies } from "next/headers";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import PublicProfileView from "@/components/profile/PublicProfileView";
-
+// Dette må vi bruke siden det er next 15
 type Params = Promise<{ id: string }>;
 
 export default function PublicProfilePage(props: { params: Params }) {
@@ -24,7 +25,7 @@ export default function PublicProfilePage(props: { params: Params }) {
 
 
   return (
-    <PublicProfileView
+    <PublicProfileView //Her har vi selve profilen, og vi gir parametere om vi eier eller om vi er på editprofile-siden. 
       profile={profile}
       isEditable={false}
       isOwner={isOwner}

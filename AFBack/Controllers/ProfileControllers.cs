@@ -64,21 +64,25 @@ public class ProfileController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPublicProfile(int id)
     {
+        // Brukes for å sjekke om det er vår profil eller noen andres
         bool isOwner = false;
         
+        // Sjekker om vi er brukeren med token
         if (User.Identity?.IsAuthenticated == true &&
             int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUserId))
-        {
+        { // Hvis vi er brukeren så blir owner true.
             isOwner = currentUserId == id;
         }
         
+        // Henter profilen til brukeren
         var profile = await _context.Profiles
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == id);
-
+        
         if (profile == null)
             return NotFound(new { message = "Profile not found" });
         
+        // Henter innstillinger til brukeren
         var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == id);
         
         if (settings == null)

@@ -76,22 +76,17 @@ interface Props {
       <h2 className="text-xl font-semibold mb-2">Profile</h2>
 
       {!isEmpty(profile.fullName) && <p><strong>Name:</strong> {profile.fullName}</p>}
-      {profile?.dateOfBirth && (
-            <p>
-              <strong>Birthday: </strong>
-              {new Date(profile.dateOfBirth).toLocaleDateString("no-NO", {
-                day: "2-digit",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
-          )}
-          {profile?.showEmail && !isEmpty(profile.contactEmail) && (
-            <p><strong>Email:</strong> {profile.contactEmail}</p>
-          )}
-      {profile?.showPhone && !isEmpty(profile.contactPhone) && (
-          <p><strong>Phone:</strong> {profile.contactPhone}</p>
+      
+
+      {profile?.showAge && typeof profile.age === "number" && (
+        <p>
+          <strong>Age:</strong> {profile.age}
+        </p>
+      )}
+      {profile?.showGender && !isEmpty(profile.gender) && (
+          <p><strong>Gender:</strong> {profile.gender}</p>
         )}
+    
       {!isEmpty(profile?.country) && (
         <p>
           <strong>From:</strong> {profile.country}
@@ -101,9 +96,24 @@ interface Props {
       {profile?.showPostalCode && !isEmpty(profile.postalCode) && (
           <p><strong>Postal Code:</strong> {profile.postalCode}</p>
         )}
-      {profile?.showGender && !isEmpty(profile.gender) && (
-          <p><strong>Gender:</strong> {profile.gender}</p>
-        )}
+      
+        {profile?.showBirthday && profile?.dateOfBirth && (
+        <p>
+          <strong>Birthday:</strong>{" "}
+          {new Date(profile.dateOfBirth).toLocaleDateString("no-NO", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          })}
+        </p>
+      )}
+
+        {profile?.showEmail && !isEmpty(profile.contactEmail) && (
+                  <p><strong>Email:</strong> {profile.contactEmail}</p>
+                )}
+              {profile?.showPhone && !isEmpty(profile.contactPhone) && (
+                  <p><strong>Phone:</strong> {profile.contactPhone}</p>
+                )}
 
       <div className="mt-8" />
           {profile?.showStats && (
@@ -120,6 +130,9 @@ interface Props {
               )}
               {!isEmpty(profile.totalMessagesRecieved) && (
                 <p><strong>Messages Received:</strong> {profile.totalMessagesRecieved}</p>
+              )}
+              {!isEmpty(profile.totalMessagesSendt) && (
+                <p><strong>Messages Sendt:</strong> {profile.totalMessagesSendt}</p>
               )}
             </>
           )}

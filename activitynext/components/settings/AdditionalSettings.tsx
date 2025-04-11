@@ -12,17 +12,19 @@ import { useRouter } from "next/navigation";
 
 // 
 interface Props {
-  initialValues: Pick<
+  initialValues: Partial<Pick<
   PublicProfileDTO,
     "language" | "recieveEmailNotifications" | "recievePushNotifications" | "publicProfile"
     | "showGender"
     | "showEmail"
     | "showPhone"
     | "showRegion"
-    | "showPostalCode"        // ✅ NY
-    | "showStats"             // ✅ NY
+    | "showPostalCode"        
+    | "showStats"             
     | "showWebsites"   
-  >;
+    | "showAge"
+    | "showBirthday" 
+  >>;
   onSave: (updated: Partial<PublicProfileDTO>) => Promise<void>;
 }
 
@@ -41,6 +43,11 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
   const [showPostalCode, setShowPostalCode] = useState(booleanOrFalse(initialValues.showPostalCode));
   const [showStats, setShowStats] = useState(booleanOrFalse(initialValues.showStats));
   const [showWebsites, setShowWebsites] = useState(booleanOrFalse(initialValues.showWebsites));
+  const [showAge, setShowAge] = useState(booleanOrFalse(initialValues.showAge));
+  const [showBirthday, setShowBirthday] = useState(booleanOrFalse(initialValues.showBirthday));
+
+  //Sjekker om vi er i editprofile eller i settings utifra om language er med eller ikke.
+  const isEditProfile = !("language" in initialValues);
 
 
   const [saving, setSaving] = useState(false);
@@ -52,20 +59,23 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave({
-        language,
-        recieveEmailNotifications: receiveEmails,
-        recievePushNotifications: receivePush,
-        publicProfile,
-        showGender,
-        showEmail,
-        showPhone,
-        showRegion,
-        showPostalCode,
-        showStats,
-        showWebsites
-      });
-      router.refresh(); // Bare kjør hvis alt gikk fint
+      const updated: Partial<PublicProfileDTO> = {};
+      if ("language" in initialValues) updated.language = language;
+      if ("recieveEmailNotifications" in initialValues) updated.recieveEmailNotifications = receiveEmails;
+      if ("recievePushNotifications" in initialValues) updated.recievePushNotifications = receivePush;
+      if ("publicProfile" in initialValues) updated.publicProfile = publicProfile;
+      if ("showGender" in initialValues) updated.showGender = showGender;
+      if ("showEmail" in initialValues) updated.showEmail = showEmail;
+      if ("showPhone" in initialValues) updated.showPhone = showPhone;
+      if ("showRegion" in initialValues) updated.showRegion = showRegion;
+      if ("showPostalCode" in initialValues) updated.showPostalCode = showPostalCode;
+      if ("showStats" in initialValues) updated.showStats = showStats;
+      if ("showWebsites" in initialValues) updated.showWebsites = showWebsites;
+      if ("showAge" in initialValues) updated.showAge = showAge;
+      if ("showBirthday" in initialValues) updated.showBirthday = showBirthday;
+
+      await onSave(updated);
+      router.refresh();
       setSuccess(true);
     } catch (err) {
       console.error("❌ Kunne ikke lagre innstillinger:", err);
@@ -89,6 +99,8 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
       setShowPostalCode(booleanOrFalse(initialValues.showPostalCode));
       setShowStats(booleanOrFalse(initialValues.showStats));
       setShowWebsites(booleanOrFalse(initialValues.showWebsites));
+      setShowAge(booleanOrFalse(initialValues.showAge));
+      setShowBirthday(booleanOrFalse(initialValues.showBirthday))
   
       setHasInitialized(true); // ✅ gjør at syncen bare skjer én gang
     }
@@ -98,12 +110,15 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
   
 
   return (
-    <div className="mt-8 border-t pt-6">
-      <h2 className="text-xl font-semibold mb-4">Additional Preferences</h2>
+    <div className="mt-8 border-t pt-6 min-h-[40vh]">
+      <h2 className="text-xl text-[#1C6B1C] font-semibold mb-4 text-center">
+      {isEditProfile ? "Profile Settings" : "Additional Settings"}
+    </h2>
 
       <div className="flex flex-col gap-4">
-       <div className="grid grid-cols-[1fr_3fr_1fr] items-center gap-4">
-          <span className="font-medium text-left">Language:</span>
+        {"language" in initialValues && (
+          <div className="grid grid-cols-[1fr_3fr_1fr] items-center gap-4">
+            <span className="font-medium text-left">Language:</span>
             <div className="flex justify-center">
               <select
                 value={language}
@@ -116,75 +131,57 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
                 <option value="de">German - NOT IMPLEMENTED YET</option>
               </select>
             </div>
-          <div /> {/* Tom kolonne for å balansere */}
-       </div>
-        <CheckboxField
-          label="Receive occasional emails"
-          checked={receiveEmails}
-          onChange={setReceiveEmails}
-        />
+            <div />
+          </div>
+        )}
 
-        <CheckboxField
-          label="Allow push notifications"
-          checked={receivePush}
-          onChange={setReceivePush}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+          {"recieveEmailNotifications" in initialValues && (
+            <CheckboxField label="Receive occasional emails" checked={receiveEmails} onChange={setReceiveEmails} />
+          )}
+          {"recievePushNotifications" in initialValues && (
+            <CheckboxField label="Allow push notifications" checked={receivePush} onChange={setReceivePush} />
+          )}
+          {"publicProfile" in initialValues && (
+            <CheckboxField label="Make my profile public" checked={publicProfile} onChange={setPublicProfile} />
+          )}
+          {"showGender" in initialValues && (
+            <CheckboxField label="Show gender on profile" checked={showGender} onChange={setShowGender} />
+          )}
+          {"showEmail" in initialValues && (
+            <CheckboxField label="Show email on profile" checked={showEmail} onChange={setShowEmail} />
+          )}
+          {"showPhone" in initialValues && (
+            <CheckboxField label="Show phone number on profile" checked={showPhone} onChange={setShowPhone} />
+          )}
+          {"showRegion" in initialValues && (
+            <CheckboxField label="Show region on profile" checked={showRegion} onChange={setShowRegion} />
+          )}
+          {"showPostalCode" in initialValues && (
+            <CheckboxField label="Show postal code on profile" checked={showPostalCode} onChange={setShowPostalCode} />
+          )}
+          {"showStats" in initialValues && (
+            <CheckboxField label="Show stats on profile" checked={showStats} onChange={setShowStats} />
+          )}
+          {"showWebsites" in initialValues && (
+            <CheckboxField label="Show websites on profile" checked={showWebsites} onChange={setShowWebsites} />
+          )}
+          {"showAge" in initialValues && (
+            <CheckboxField label="Show age on profile" checked={showAge} onChange={setShowAge} />
+          )}
+          {"showBirthday" in initialValues && (
+            <CheckboxField label="Show birthday on profile" checked={showBirthday} onChange={setShowBirthday} />
+          )}
+        </div>
 
-        <CheckboxField
-          label="Make my profile public"
-          checked={publicProfile}
-          onChange={setPublicProfile}
-        />
-
-        <CheckboxField
-          label="Show gender on profile"
-          checked={showGender}
-          onChange={setShowGender}
-        />
-
-        <CheckboxField
-          label="Show email on profile"
-          checked={showEmail}
-          onChange={setShowEmail}
-        />
-
-        <CheckboxField
-          label="Show phone number on profile"
-          checked={showPhone}
-          onChange={setShowPhone}
-        />
-
-        <CheckboxField
-          label="Show region on profile"
-          checked={showRegion}
-          onChange={setShowRegion}
-        />
-
-        <CheckboxField
-          label="Show postal code on profile"
-          checked={showPostalCode}
-          onChange={setShowPostalCode}
-        />
-
-        <CheckboxField
-          label="Show stats on profile"
-          checked={showStats}
-          onChange={setShowStats}
-        />
-
-        <CheckboxField
-          label="Show websites on profile"
-          checked={showWebsites}
-          onChange={setShowWebsites}
-        />
-       <div className="flex flex-col gap-4 items-center text-center">
-      <ProfileNavButton
-        text={saving ? "Saving..." : success ? "Saved ✅" : "Save Preferences"}
-        onClick={handleSave}
-        disabled={saving}
-        className="mt-4"
-      />
-      </div>
+        <div className="flex flex-col gap-4 items-center text-center">
+          <ProfileNavButton
+            text={saving ? "Saving..." : success ? "Saved ✅" : "Save Preferences"}
+            onClick={handleSave}
+            disabled={saving}
+            className="mt-4"
+          />
+        </div>
       </div>
     </div>
   );
