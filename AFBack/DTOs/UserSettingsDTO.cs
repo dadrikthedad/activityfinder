@@ -1,9 +1,14 @@
 ﻿namespace AFBack.DTOs;
 
+// Brukes denne lurer jeg på
 public class UserSettingsDTO
 {
     public string Language { get; set; } = "en";
     public bool PublicProfile { get; set; }
+    
+    public bool ShowAge { get; set; }
+    
+    public bool ShowBirthday { get; set; }
     public bool ShowGender { get; set; }
     public bool ShowEmail { get; set; }
     public bool ShowPhone { get; set; }
@@ -13,4 +18,5 @@ public class UserSettingsDTO
     public bool ShowWebsites { get; set; }
     public bool RecieveEmailNotifications { get; set; }
     public bool RecievePushNotifications { get; set; }
+    
 }

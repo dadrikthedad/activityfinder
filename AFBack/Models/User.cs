@@ -24,6 +24,26 @@ public class User
     public string FullName => $"{FirstName} {MiddleName?.Trim()} {LastName}".Replace("  ", " ").Trim();
     public DateTime DateOfBirth { get; set; }
     
+    // Henter alderen, trenger ikke da å lagre alderen når vi har fødseldag
+    [NotMapped]
+    public int? Age
+    {
+        get
+        {
+            if (DateOfBirth == null)
+                return null;
+
+            var today = DateTime.Today;
+            var age = today.Year - DateOfBirth.Year;
+
+            // Justerer ned om brukeren ikke har hatt bursdag enda i år
+            if (DateOfBirth.Date > today.AddYears(-age))
+                age--;
+
+            return age;
+        }
+    }
+    
     [Required]
     [EmailAddress]
     [MaxLength(100)]

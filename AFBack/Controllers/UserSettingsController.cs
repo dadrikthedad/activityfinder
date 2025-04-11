@@ -44,6 +44,8 @@ public class UserSettingsController : ControllerBase
             settings.ShowPostalCode = dto.ShowPostalCode;
             settings.ShowStats = dto.ShowStats;
             settings.ShowWebsites = dto.ShowWebsites;
+            settings.ShowAge = dto.ShowAge;
+            settings.ShowBirthday = dto.ShowBirthday;
         
             settings.RecieveEmailNotifications = dto.RecieveEmailNotifications;
             settings.RecievePushNotifications = dto.RecievePushNotifications;

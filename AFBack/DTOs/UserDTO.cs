@@ -2,7 +2,8 @@
 
 namespace AFBack.DTOs;
 
-//Hente informasjon fra brukeren til profil
+// Henter informasjonen fra UserDTO for å vise epost på securitycred siden. Kan brukes senere til å vise info lett og greit, kanskje senere på andre sider
+// GUL Advarsel - Alt annet enn UserId, Email og Passord brukes ikke her eller i USerDTO
 public class UserDTO
 {
     public int UserId { get; set; }

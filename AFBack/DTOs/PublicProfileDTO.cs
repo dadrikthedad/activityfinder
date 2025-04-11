@@ -28,6 +28,7 @@ public class PublicProfileDTO
     public string? PostalCode { get; set; }
     // fødselsår fra user.cs
     public DateTime DateOfBirth { get; set; }
+    public int? Age { get; set; }
     // kjønn fra User.cs
     public Gender? Gender { get; set; }
     // kontaktinfo fra Profile
@@ -45,6 +46,9 @@ public class PublicProfileDTO
     public DateTime? UpdatedAt { get; set; }
     // Innstillinger til profile-layout fra UserSettings.cs
     public bool PublicProfile { get; set; } = true;
+    public bool ShowAge { get; set; }
+    
+    public bool ShowBirthday { get; set; }
     public bool ShowGender { get; set; } = true;
     public bool ShowEmail { get; set; } = false;
     public bool ShowPhone { get; set; } = false;

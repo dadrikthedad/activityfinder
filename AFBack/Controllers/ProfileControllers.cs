@@ -27,7 +27,7 @@ public class ProfileController : ControllerBase
         _blobServiceClient = blobServiceClient;
     }
     
-    // Brukes til å hente info til profilsiden til brukeren
+    // Brukes til å hente info til profilsiden til brukeren. Usikker hvor den er brukt, må sjekke
     [HttpGet]
     public async Task<IActionResult> GetProfile()
     {
@@ -59,10 +59,7 @@ public class ProfileController : ControllerBase
         return Ok(dto);
     }
     
-    // Henter info fra User.cs sin GetCurrentUser(), Profile.cs sin GetProfile() og UserSettings.cs sin GetSettings() til
-    // å hente all informasjonen når bruker går inn på sin egen side
-    
-    // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs
+    // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs. Denne brukes både på profile/[id], editprofile og settings
     [AllowAnonymous]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPublicProfile(int id)
@@ -104,6 +101,7 @@ public class ProfileController : ControllerBase
             Region = profile.User.Region,
             PostalCode = profile.User.PostalCode,
             DateOfBirth = profile.User.DateOfBirth,
+            Age = profile.User.Age,
             Gender = profile.User.Gender,
             ContactEmail = profile.ContactEmail,
             ContactPhone = profile.ContactPhone,
@@ -124,6 +122,8 @@ public class ProfileController : ControllerBase
             ShowPostalCode = settings.ShowPostalCode,
             ShowStats = settings.ShowStats,
             ShowWebsites = settings.ShowWebsites,
+            ShowAge = settings.ShowAge,
+            ShowBirthday = settings.ShowBirthday,
             Language = settings.Language,
             RecieveEmailNotifications = settings.RecieveEmailNotifications,
             RecievePushNotifications = settings.RecievePushNotifications,
@@ -253,5 +253,45 @@ public class ProfileController : ControllerBase
 
         return Ok(new { message = "Websites updated successfully." });
     }
+    
+    // Endring av Bio.
+    [HttpPatch("contact-email")]
+    public async Task<IActionResult> UpdateContactEmail([FromBody] UpdateContactEmailDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized(new { message = "Invalid user ID in token." });
+
+        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (profile == null)
+            return NotFound(new { message = "Profile not found." });
+
+        profile.ContactEmail = string.IsNullOrWhiteSpace(dto.ContactEmail) ? null : dto.ContactEmail.Trim();
+        profile.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Contact email updated." });
+    }
+    
+    [HttpPatch("contact-phone")]
+    public async Task<IActionResult> UpdateContactPhone([FromBody] UpdateContactPhoneDTO dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized(new { message = "Invalid user ID in token." });
+
+        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (profile == null)
+            return NotFound(new { message = "Profile not found." });
+
+        profile.ContactPhone = string.IsNullOrWhiteSpace(dto.ContactPhone) ? null : dto.ContactPhone.Trim();
+        profile.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Contact phone updated." });
+    }
 }

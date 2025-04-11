@@ -86,43 +86,48 @@ interface Props {
               })}
             </p>
           )}
-      {!isEmpty(profile?.contactPhone) && <p><strong>Phone:</strong> {profile?.contactPhone}</p>}
+          {profile?.showEmail && !isEmpty(profile.contactEmail) && (
+            <p><strong>Email:</strong> {profile.contactEmail}</p>
+          )}
+      {profile?.showPhone && !isEmpty(profile.contactPhone) && (
+          <p><strong>Phone:</strong> {profile.contactPhone}</p>
+        )}
       {!isEmpty(profile?.country) && (
         <p>
-          <strong>Location:</strong> {profile?.country}
-          {profile?.region && `, ${profile?.region}`}
+          <strong>From:</strong> {profile.country}
+          {profile.showRegion && !isEmpty(profile.region) && `, ${profile.region}`}
         </p>
-      )}
-      {!isEmpty(profile?.postalCode) && <p><strong>Postal Code:</strong> {profile?.postalCode}</p>}
-      {!isEmpty(profile?.gender) && <p><strong>Gender:</strong> {profile?.gender}</p>}
-
-      <div className="mt-8" />
-      <h2 className="text-xl font-semibold mb-2">Stats</h2>
-      {!isEmpty(profile?.totalLikesGiven) && (
-        <p><strong>Likes Given:</strong> {profile?.totalLikesGiven}</p>
-      )}
-      {!isEmpty(profile?.totalLikesRecieved) && (
-        <p><strong>Likes Received:</strong> {profile?.totalLikesRecieved}</p>
-      )}
-      {!isEmpty(profile?.totalCommentsMade) && (
-        <p><strong>Comments Made:</strong> {profile?.totalCommentsMade}</p>
-      )}
-      {!isEmpty(profile?.totalMessagesRecieved) && (
-        <p><strong>Messages Received:</strong> {profile?.totalMessagesRecieved}</p>
-      )}
-      {profile.updatedAt && (
-          <p>
-            <strong>Last Updated:</strong>{" "}
-            {new Date(profile.updatedAt).toLocaleString("no-NO", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          </p>
+)}
+      {profile?.showPostalCode && !isEmpty(profile.postalCode) && (
+          <p><strong>Postal Code:</strong> {profile.postalCode}</p>
+        )}
+      {profile?.showGender && !isEmpty(profile.gender) && (
+          <p><strong>Gender:</strong> {profile.gender}</p>
         )}
 
+      <div className="mt-8" />
+          {profile?.showStats && (
+            <>
+              <h2 className="text-xl font-semibold mb-2">Stats</h2>
+              {!isEmpty(profile.totalLikesGiven) && (
+                <p><strong>Likes Given:</strong> {profile.totalLikesGiven}</p>
+              )}
+              {!isEmpty(profile.totalLikesRecieved) && (
+                <p><strong>Likes Received:</strong> {profile.totalLikesRecieved}</p>
+              )}
+              {!isEmpty(profile.totalCommentsMade) && (
+                <p><strong>Comments Made:</strong> {profile.totalCommentsMade}</p>
+              )}
+              {!isEmpty(profile.totalMessagesRecieved) && (
+                <p><strong>Messages Received:</strong> {profile.totalMessagesRecieved}</p>
+              )}
+            </>
+          )}
+
        {/* Bio-felt med inline redigering */}
+       {(isEditable || (profile.bio && profile.bio.trim() !== "")) && (
        <div className="mt-6">
-        <h2 className="text-xl font-semibold mb-2">Bio</h2>
+        <h2 className="text-xl font-semibold mb-2">About Me</h2>
         {isEditable ? (
           editingBio ? (
             <>
@@ -161,7 +166,7 @@ interface Props {
               <p className="whitespace-pre-wrap">{profile?.bio || ""}</p>
               <div className="flex justify-center mt-2">
                 <FormButton
-                    text="Edit Bio"
+                    text="Edit About Me"
                     type="button"
                     onClick={() => setEditingBio(true)}
                     className="text-sm"
@@ -173,8 +178,10 @@ interface Props {
           <p className="whitespace-pre-wrap">{profile?.bio || ""}</p>
         )}
       </div>
-      <div className="mt-6">
-  <h2 className="text-xl font-semibold mb-2">Websites</h2>
+      )}
+      {profile?.showWebsites && (
+  <div className="mt-6">
+    <h2 className="text-xl font-semibold mb-2">Websites</h2>
   {isEditable ? (
     editingWebsites ? (
       <>
@@ -303,9 +310,10 @@ interface Props {
                 </li>
                 ))}
             </ul>
-            )
+      )
         )}
-        </div>
+      </div>
+    )}
     </div>
   );
 }

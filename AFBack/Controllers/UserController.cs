@@ -301,7 +301,8 @@ public class UserController : ControllerBase
         }
     }
     
-    // Henter informasjonen fra databasen til å vise på profil-siden
+    // Henter informasjonen fra UserDTO for å vise epost på securitycred siden. Kan brukes senere til å vise info lett og greit, kanskje senere på andre sider
+    // GUL Advarsel - Alt annet enn UserId, Email og Passord brukes ikke her eller i USerDTO
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> GetCurrentUser()

@@ -11,6 +11,8 @@ public class UserSettings
     public User User { get; set; } = null;
 
     public bool PublicProfile { get; set; } = true;
+    public bool ShowAge { get; set; } = true;
+    public bool ShowBirthday { get; set; } = false;
     public bool ShowGender { get; set; } = true;
     public bool ShowEmail { get; set; } = false;
     public bool ShowPhone { get; set; } = false;
