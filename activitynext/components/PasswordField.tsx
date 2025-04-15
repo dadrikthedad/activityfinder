@@ -1,17 +1,17 @@
-// components/PasswordField.tsx
+// Her har vi passord-feltet som brukes både i login, signup og securitycred
 import React, { useState } from "react";
 import { Eye, EyeOff, Info } from "lucide-react";
 
 interface PasswordFieldProps {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
-  error?: string;
-  touched?: boolean;
-  placeholder?: string;
-  tooltip?: string;
+  id: string; //unikt navn på feltet
+  label: string; // tekst over/ved siden av feltet
+  value: string; // verdi i feltet
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; // hvis bruker skriver i feltet så oppdatere det seg med denne funksjonen
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; // Denne funksjonen kjøres hvis vi trykker vekk fra feltet, vi bruker den til å validere et felt når vi er ferdig i det
+  error?: string; // viser feil under teksten
+  touched?: boolean; // sjekker om vi har vært innom feltet
+  placeholder?: string; // placeholder i feltet
+  tooltip?: string; // tooltippen igjen
 }
 
 const PasswordField: React.FC<PasswordFieldProps> = ({
@@ -25,8 +25,8 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
   placeholder,
   tooltip,
 }) => {
-  const [showPassword, setShowPassword] = useState(false);
-  const showError = touched && error;
+  const [showPassword, setShowPassword] = useState(false); // Gjør passord synlig/ikke synlig
+  const showError = touched && error; // Viser kun error hvis vi har vært i feltet og får en valideringsfeil
 
   return (
     <>

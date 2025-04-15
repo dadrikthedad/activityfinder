@@ -1,28 +1,29 @@
+// Her håndterer vi land og regionvalg til signup og editprofile, setter land ut ifra IP
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SelectOption } from "@/types/select";
 import { fetchCountries, fetchRegions } from "@/services/user";
 import { FormDataType } from "@/types/form";
 
 interface UseCountryAndRegionProps {
-  country: string;
-  setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
-  editing?: boolean;
+  country: string; // Her lagere vi landet
+  setFormData: React.Dispatch<React.SetStateAction<FormDataType>>; 
+  editing?: boolean; // Brukes for å hente regioner automatisk
 }
 
 export function useCountryAndRegion({
   setFormData,
   editing = false,
 }: UseCountryAndRegionProps) {
-  const [countries, setCountries] = useState<SelectOption[]>([]);
-  const [regions, setRegions] = useState<SelectOption[]>([]);
-  const [countryCodes, setCountryCodes] = useState<Record<string, string>>({});
-  const [codesReady, setCodesReady] = useState(false);
-  const hasSetCountry = useRef(false);
+  const [countries, setCountries] = useState<SelectOption[]>([]); // Liste med land til dropdownbosen
+  const [regions, setRegions] = useState<SelectOption[]>([]);// Regioner for valgt land
+  const [countryCodes, setCountryCodes] = useState<Record<string, string>>({}); // Vi må sende countrycode til API
+  const [codesReady, setCodesReady] = useState(false); // Når vi er ferdig lastet
+  const hasSetCountry = useRef(false); // Sjekk for å forhindre flere IP-hentinger
 
-  const fetchCountriesFromAPI = async () => {
+  const fetchCountriesFromAPI = async () => { // Henter land fra API
     const data = await fetchCountries();
 
-    const countryOptions: SelectOption[] = data
+    const countryOptions: SelectOption[] = data // Bygger dropdown og gjør om countryname til codes
       .map((country) => ({ label: country.name, value: country.name }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
@@ -34,10 +35,10 @@ export function useCountryAndRegion({
     });
 
     setCountryCodes(codeMap);
-    setCodesReady(true); // ✅ Markér at koder er klare
+    setCodesReady(true); // Markér at koder er klare
   };
 
-  const fetchRegionsForCountry = useCallback(
+  const fetchRegionsForCountry = useCallback( // Henter regioner fra backend med countrycode
     async (countryName: string) => {
       const code = countryCodes[countryName];
       if (!code) {
@@ -61,7 +62,7 @@ export function useCountryAndRegion({
     [countryCodes]
   );
 
-  const fetchInitialLocation = async () => {
+  const fetchInitialLocation = async () => { // Her henter vi geolokasjon fra IP, brukes i frontend og ikke backend for en rask hent. Burde kanskje flyttes senere?
     try {
       const ipRes = await fetch("https://ipapi.co/json/");
       const ipData = await ipRes.json();
@@ -77,11 +78,11 @@ export function useCountryAndRegion({
     }
   };
 
-  useEffect(() => {
+  useEffect(() => { // Henter countries fra IP kun engang
     fetchCountriesFromAPI();
   }, []);
 
-  useEffect(() => {
+  useEffect(() => { // Bruker denne når countryCodes er klar
     if (Object.keys(countryCodes).length > 0) {
       fetchInitialLocation();
     }

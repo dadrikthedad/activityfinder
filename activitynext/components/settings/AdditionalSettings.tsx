@@ -30,13 +30,13 @@ interface Props {
 
 
 export default function AdditionalSettings({ initialValues, onSave }: Props) {
-  const [language, setLanguage] = useState(initialValues.language);
-  const booleanOrFalse = (value?: boolean) => value ?? false;
-  const [receiveEmails, setReceiveEmails] = useState(booleanOrFalse(initialValues.recieveEmailNotifications));
-  const [receivePush, setReceivePush] = useState(booleanOrFalse(initialValues.recievePushNotifications));
+  const [language, setLanguage] = useState(initialValues.language); //Språkvalg, kommer om lenge
+  const booleanOrFalse = (value?: boolean) => value ?? false; // Brukes for å sjekke om en variabel har verdi eller ikke
+  const [receiveEmails, setReceiveEmails] = useState(booleanOrFalse(initialValues.recieveEmailNotifications)); // epost ved oppdateringer
+  const [receivePush, setReceivePush] = useState(booleanOrFalse(initialValues.recievePushNotifications)); // notification
 
-  const [publicProfile, setPublicProfile] = useState(booleanOrFalse(initialValues.publicProfile));
-  const [showGender, setShowGender] = useState(booleanOrFalse(initialValues.showGender));
+  const [publicProfile, setPublicProfile] = useState(booleanOrFalse(initialValues.publicProfile)); //Gjøre profilen synlig
+  const [showGender, setShowGender] = useState(booleanOrFalse(initialValues.showGender));// Felter for å vise eller skjule i profile
   const [showEmail, setShowEmail] = useState(booleanOrFalse(initialValues.showEmail));
   const [showPhone, setShowPhone] = useState(booleanOrFalse(initialValues.showPhone));
   const [showRegion, setShowRegion] = useState(booleanOrFalse(initialValues.showRegion));
@@ -49,14 +49,14 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
   //Sjekker om vi er i editprofile eller i settings utifra om language er med eller ikke.
   const isEditProfile = !("language" in initialValues);
 
-
+  // brukes for å vise om en knapp lagrer eller har lagret
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
-  const router = useRouter();
-  const [hasInitialized, setHasInitialized] = useState(false);
+  const router = useRouter(); // Brukes for å refreshe siden etter en oppdatering
+  const [hasInitialized, setHasInitialized] = useState(false); // Brukes en useEffect kun en gang
 
 
-  const handleSave = async () => {
+  const handleSave = async () => { // Samler alle verdiene som finnes og kan endres og sender til backend i UserSettingsDTO.ts tror jeg
     setSaving(true);
     try {
       const updated: Partial<PublicProfileDTO> = {};
@@ -85,7 +85,7 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
     }
   };
 
-  useEffect(() => {
+  useEffect(() => { // Setter verdien fra backend når vi henter siden
     if (!hasInitialized && initialValues) {
   
       setLanguage(initialValues.language);
@@ -175,7 +175,7 @@ export default function AdditionalSettings({ initialValues, onSave }: Props) {
         </div>
 
         <div className="flex flex-col gap-4 items-center text-center">
-          <ProfileNavButton
+          <ProfileNavButton // Knappen som lagrer alt
             text={saving ? "Saving..." : success ? "Saved ✅" : "Save Preferences"}
             onClick={handleSave}
             disabled={saving}

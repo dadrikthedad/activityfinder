@@ -1,4 +1,4 @@
-// components/ProfileInfoCard.tsx
+// Profilen til en bruker som viser både brukerens profil, en annens bruker sin profil og profilen via editprofile. Henter all info fra PublicProfileDTO
 "use client";
 import React from "react";
 import { useState, useRef } from "react";
@@ -10,10 +10,10 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { PlusCircle } from "lucide-react";
 
 interface Props {
-  profile: Partial<PublicProfileDTO>;
-  showEmail?: boolean;
-  isEditable?: boolean;
-  refetchProfile?: () => Promise<void>;
+  profile: Partial<PublicProfileDTO>; //Henter info fra PublicProfileDTO
+  showEmail?: boolean; // For å vise epost
+  isEditable?: boolean; // For å skille mellom om vi er på editprofile eller en annens profil for å endre profilen
+  refetchProfile?: () => Promise<void>; // Henter profilen igjen ved en endring
 }
 
   export default function ProfileInfoCard({
@@ -21,23 +21,23 @@ interface Props {
     isEditable = false,
     refetchProfile,
   }: Props) {
-    const [editingBio, setEditingBio] = useState(false);
-    const [bioText, setBioText] = useState(profile?.bio ?? "");
-    const [bioSaved, setBioSaved] = useState(false);
+    const [editingBio, setEditingBio] = useState(false); // Bool for å se om vi er er i redigeringsmodus på bio
+    const [bioText, setBioText] = useState(profile?.bio ?? ""); // Innholdet i bioen
+    const [bioSaved, setBioSaved] = useState(false); // Vises om en endringer har vært vellykket
     const { token } = useAuth();
-    const [editingWebsites, setEditingWebsites] = useState(false);
-    const [websiteList, setWebsiteList] = useState<string[]>(profile?.websites || []);
-    const [websitesSaved, setWebsitesSaved] = useState(false);
+    const [editingWebsites, setEditingWebsites] = useState(false); // Bool for å se om vi er er i redigeringsmodus på websites
+    const [websiteList, setWebsiteList] = useState<string[]>(profile?.websites || []); // Innholdet til websites i en liste
+    const [websitesSaved, setWebsitesSaved] = useState(false); // Vises om en endringer har vært vellykket
     const lastInputRef = useRef<HTMLInputElement | null>(null);
         
   
-    const isEmpty = (value: unknown): boolean => {
+    const isEmpty = (value: unknown): boolean => { // Sjekker om verdien er tom eller null. Da skjuler vi bioen eller websites listen.
         if (value === null || value === undefined) return true;
         if (typeof value === "string" && value.trim() === "") return true;
         if (Array.isArray(value) && value.length === 0) return true;
         return false;
       };
-  
+      // Her lagrer vi Bio til API etter den er validert.
       const saveBio = async () => {
         if (!token) return;
         try {
@@ -47,13 +47,13 @@ interface Props {
           setEditingBio(false);
     
           if (refetchProfile) {
-            await refetchProfile(); // 👈 Henter oppdatert profil etter lagring
+            await refetchProfile(); // Henter oppdatert profil etter lagring
           }
         } catch (err) {
           console.error("❌ Failed to update bio:", err);
         }
       }
-
+      // Her lagrer vi websites til API etter den er validert.
       const saveWebsites = async () => {
         if (!token) return;
         const cleanedWebsites = websiteList.filter((url) => url.trim() !== "");
@@ -73,8 +73,8 @@ interface Props {
 
   return (
     <div className="bg-white dark:bg-zinc-800 shadow-md rounded-xl p-6 space-y-2 mt-6">
-      <h2 className="text-xl font-semibold mb-2">Profile</h2>
-
+      <h2 className="text-xl font-semibold mb-2 ">Profile</h2>
+      {/* Profilinfo - navn, dato etc */}
       {!isEmpty(profile.fullName) && <p><strong>Name:</strong> {profile.fullName}</p>}
       
 
@@ -114,7 +114,7 @@ interface Props {
               {profile?.showPhone && !isEmpty(profile.contactPhone) && (
                   <p><strong>Phone:</strong> {profile.contactPhone}</p>
                 )}
-
+      {/* Stats */}
       <div className="mt-8" />
           {profile?.showStats && (
             <>
@@ -230,7 +230,7 @@ interface Props {
             setWebsiteList([...updated, ""]);
             setTimeout(() => {
               lastInputRef.current?.focus();
-            }, 10); // 👈 forsinker litt for at feltet skal rendres først
+            }, 10); // forsinker litt for at feltet skal rendres først
           }
         }}
         placeholder="https://example.com"
@@ -267,7 +267,7 @@ interface Props {
     </div>
   ))
 )}
-
+{/* Knappene Save og Cancel*/}
 <div className="mt-4" />
         <div className="flex gap-4">
           <FormButton

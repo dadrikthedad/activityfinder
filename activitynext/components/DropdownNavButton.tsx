@@ -1,3 +1,4 @@
+// Dropdown til ved besøk av en bruker, gir en meny med feks block, ignore osv. Brukes i profile/[id]
 "use client";
 
 import { useState, useRef, useEffect } from "react";
@@ -14,7 +15,7 @@ interface DropdownNavButtonProps {
 }
 
 export default function DropdownNavButton({ text, actions, isFriend = false }: DropdownNavButtonProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(false); // Sjekker om den er åpen
   const ref = useRef<HTMLDivElement>(null);
 
   // Lukk hvis vi klikker utenfor

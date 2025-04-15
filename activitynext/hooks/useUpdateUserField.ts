@@ -4,18 +4,18 @@ import { useState } from "react";
 import { updateUser } from "../services/updateUser";
 import { useAuth } from "../context/AuthContext";
 
-// 👇 Importer typen direkte fra updateUser-filen
+// Importer typen direkte fra updateUser-filen
 import type { UpdateFieldArgs } from "../services/updateUser";
 
 export function useUpdateUserField() {
-  const { token } = useAuth();
-  const [isSubmitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const { token } = useAuth(); // Sjekker om vi er har riktig token
+  const [isSubmitting, setSubmitting] = useState(false); // Sjekker om vi submitter
+  const [error, setError] = useState(""); // Error ved feil
   const [success, setSuccess] = useState(false);
 
-  type UpdateFieldKey = keyof UpdateFieldArgs;
+  type UpdateFieldKey = keyof UpdateFieldArgs; // Denne iterer over hvert felt og gjør om typen til nøkkelen, og da se det slik ut type UpdateFieldKey = "username" | "email" | "profileImage";
 
-  const updateField = async <K extends UpdateFieldKey>(
+  const updateField = async <K extends UpdateFieldKey>( // denne tar imot feltet som skal oppdateres. og den sjekker feks hvis field er email, så må value være en string
     field: K,
     value: UpdateFieldArgs[K]
   ): Promise<boolean> => {
@@ -29,7 +29,7 @@ export function useUpdateUserField() {
     setSuccess(false);
 
     try {
-      await updateUser[field](value, token);
+      await updateUser[field](value, token); // Her bruker vi useUpdateUserField.ts sin funksjon for å oppdatere en brukersetting
       setSuccess(true);
       return true;
     } catch (err) {

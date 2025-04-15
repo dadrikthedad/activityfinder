@@ -27,38 +27,6 @@ public class ProfileController : ControllerBase
         _blobServiceClient = blobServiceClient;
     }
     
-    // Brukes til å hente info til profilsiden til brukeren. Usikker hvor den er brukt, må sjekke
-    [HttpGet]
-    public async Task<IActionResult> GetProfile()
-    {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-        {
-            return Unauthorized(new { message = "Invalid user ID in token." });
-        }
-        
-        var profile = await _context.Profiles.Include(p => p.User).FirstOrDefaultAsync(p => p.UserId == userId);
-        
-        if (profile == null)
-            return NotFound(new { message = "Profile not found." });
-
-        var dto = new ProfileDTO
-        {
-            UserId = profile.UserId,
-            ProfileImageUrl = profile.ProfileImageUrl,
-            Bio = profile.Bio,
-            Websites = profile.Websites,
-            ContactEmail = profile.ContactEmail,
-            ContactPhone = profile.ContactPhone,
-            UpdatedAt = profile.UpdatedAt,
-            TotalLikesGiven = profile.TotalLikesGiven,
-            TotalLikesRecieved = profile.TotalLikesRecieved,
-            TotalCommentsMade = profile.TotalCommentsMade,
-            TotalMessagesRecieved = profile.TotalMessagesRecieved,
-        };
-
-        return Ok(dto);
-    }
-    
     // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs. Denne brukes både på profile/[id], editprofile og settings
     [AllowAnonymous]
     [HttpGet("{id}")]

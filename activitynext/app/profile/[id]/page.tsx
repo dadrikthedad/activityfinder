@@ -10,17 +10,19 @@ import PublicProfileView from "@/components/profile/PublicProfileView";
 type Params = Promise<{ id: string }>;
 
 export default function PublicProfilePage(props: { params: Params }) {
-  const { id } = use(props.params);
+  const { id } = use(props.params); // Hent `userId` fra URL
   const userId = Number(id);
   
   
-  const cookieStore = use(cookies()); // 👈 bruker `use()` her i stedet for `await`
+  const cookieStore = use(cookies()); // Hent token fra cookies (server-side i Next.js 15)
   const token = cookieStore.get("token")?.value || null;
   console.log("🟡 Token from cookie:", token);
-  const userIdFromToken = getUserIdFromToken(token);
-  const rawProfile = use(getUserProfile(userId, token ?? undefined, { cache: "no-store" }));
+  
+  const userIdFromToken = getUserIdFromToken(token); //  Dekod token for å hente ID til den innloggede brukeren
+  
+  const rawProfile = use(getUserProfile(userId, token ?? undefined, { cache: "no-store" })); // Hent profilen til brukeren vi besøker (kan være vår egen eller andres)
   const profile = rawProfile as PublicProfileDTO;
-  const isOwner = userIdFromToken === userId;
+  const isOwner = userIdFromToken === userId; // Sjekk om dette er vår egen profil
 
 
 

@@ -21,10 +21,10 @@ export default function PublicProfileView({
   isOwner?: boolean; // vi sjekker om vi er brukeren og setter denne true hvis vi er det
 }) {
   const [profile, setProfile] = useState(initialProfile); // ✅ må kalles initialProfile her
-  const [reloadCounter ] = useState(0);
+  const [reloadCounter ] = useState(0); // Brukes til å trigge refetch av siden ved subtmitting til backend
   const { token } = useAuth(); // Henter token
 
-  // Her 
+  // Her bruker vi et default bilde hvis bruker ikke har ett
   const imageUrl =
     profile.profileImageUrl?.trim() !== ""
       ? profile.profileImageUrl
@@ -32,7 +32,7 @@ export default function PublicProfileView({
 
   const isFriend = false; // TODO Sjekke om vi er venn for å gi egne options
 
-  const refetchProfile = useCallback(async () => {
+  const refetchProfile = useCallback(async () => { // Henter en ny oppdatert versjon av profilen med API etter en ednring
     if (!initialProfile?.userId || !token) return;
     try {
       const updated = await getUserProfile(initialProfile.userId, token);
@@ -42,7 +42,7 @@ export default function PublicProfileView({
     }
   }, [initialProfile?.userId, token]);
 
-  // Optional: trigge re-fetch automatisk
+  // Trigge re-fetch automatisk ved endringer
   useEffect(() => {
     if (isEditable) {
       refetchProfile();
@@ -51,13 +51,13 @@ export default function PublicProfileView({
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
-      <h1 className="text-3xl font-bold mb-6 text-center">
+      <h1 className="text-3xl font-bold mb-6 text-center text-[#145214]">
         {isOwner ? "Your Profile" : "User Profile"}
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
         <div className="md:col-span-2 space-y-4">
-          <ProfileInfoCard
+          <ProfileInfoCard // Her viser vi feltene på venstre side, alt fra PublicProfileDTO. Kan endres slik som på editprofile
             profile={profile}
             showEmail={profile.showEmail}
             isEditable={isEditable}
@@ -66,7 +66,7 @@ export default function PublicProfileView({
         </div>
 
         <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
-          <ProfileAvatar
+          <ProfileAvatar // Her viser vi profilbilde, kan endres hvis isEditable er true
             imageUrl={imageUrl ?? "/default-avatar.png"}
             isEditable={isEditable}
             refetchProfile={refetchProfile}
@@ -75,25 +75,25 @@ export default function PublicProfileView({
           {isOwner ? (
             isEditable ? (
               <>
-                <ProfileNavButton
+                <ProfileNavButton // Knapper under bilde. Disse knappene kommer hvis vi er på egen editprofil, tilbake til profil
                   href={`/profile/${profile.userId}`}
                   text="Back to Profile"
                   variant="long"
                 />
-                <ProfileNavButton
+                <ProfileNavButton // Til innstillinger
                   href="/profilesettings"
                   text="Settings"
                   variant="long"
                 />
               </>
             ) : (
-              <>
-                <ProfileNavButton
+              <> 
+                <ProfileNavButton // Hvis vi ikke er på editprofile, kun når vi ser på egen profil. Til editprofile
                   href="/editprofile"
                   text="Edit Profile"
                   variant="long"
                 />
-                <ProfileNavButton
+                <ProfileNavButton // Til innstillinger
                   href="/profilesettings"
                   text="Settings"
                   variant="long"
@@ -104,12 +104,17 @@ export default function PublicProfileView({
             <>
               {isFriend ? (
                 <>
-                  <ProfileNavButton
+                  <ProfileNavButton // Hvis vi er venner med bruker, MÅ ENDRES SENERE. SENDE MELDING
                     href="#"
                     text="Send Message"
                     variant="long"
                   />
-                  <ProfileNavButton
+                  <ProfileNavButton // Sende melding, spiller ingen rolle om man er venn eller ikke MÅ ENDRES SENRE SENDE MELDING
+                    href="#"
+                    text="Send Message"
+                    variant="long"
+                  />
+                  <ProfileNavButton // Følge en bruker MÅ ENDRES SENERE. VED FØLGING
                     href="#"
                     text="Follow User"
                     variant="long"
@@ -117,24 +122,24 @@ export default function PublicProfileView({
                 </>
               ) : (
                 <>
-                  <ProfileNavButton
+                  <ProfileNavButton // Hvis vi ikke er venner så kan vi legge til venn her
                     href="#"
                     text="Add as Friend"
                     variant="long"
                   />
-                  <ProfileNavButton
+                  <ProfileNavButton // Sende melding
                     href="#"
                     text="Send Message"
                     variant="long"
                   />
-                  <ProfileNavButton
+                  <ProfileNavButton // Følge bruker, MÅ ENDRES SENERE. VED FØLGING
                     href="#"
                     text="Follow User"
                     variant="long"
                   />
                 </>
-              )}
-              <ProfileActionMenu />
+              )} {/* Dropdownmeny med ekstra valg */}
+              <ProfileActionMenu /> 
             </>
           )}
         </div>

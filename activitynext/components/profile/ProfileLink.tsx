@@ -1,11 +1,11 @@
+// En component som automatisk sender bruker til egen nettside utifra userId. Brukes i Navbaren
 "use client";
-
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ProfileLink({
   className = "",
-  children = "Profile",
+  children = "Profile", // Her velger vi hva som blir vist der denne brukes
 }: {
   className?: string;
   children?: React.ReactNode;

@@ -1,4 +1,4 @@
-// components/settings/EditableButtons.tsx
+// Editable knapper, brukes til alle komponentene med Editable i components/settings. Er knappene Save og Cancel i profilesettings og kanskje i Edit About Me og Edit Websites
 "use client";
 import React from "react";
 
@@ -25,14 +25,14 @@ export default function EditableButtons({
     <div className="flex gap-2 items-center justify-start">
       {editing ? (
         <>
-          <button
+          <button // Lagre knappen
             onClick={onSave}
             className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white font-semibold px-5 py-2 rounded text-sm w-[80px]"
             disabled={isSaving || disableSave}
           >
             {isSaving ? "Saving..." : "Save"}
           </button>
-          <button
+          <button // Avbryt knappen
             onClick={onCancel}
             className="bg-gray-500 hover:bg-gray-600 text-white font-semibold px-5 py-2 rounded text-sm"
             disabled={isSaving}
@@ -42,7 +42,7 @@ export default function EditableButtons({
         </>
       ) : (
         <>
-          <button
+          <button //Edit knappen
             onClick={onEdit}
             className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white font-semibold px-5 py-2 rounded text-sm w-[160px]"
           >

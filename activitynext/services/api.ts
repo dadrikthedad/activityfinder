@@ -1,7 +1,7 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
 
 /**
- * Henter data fra API
+ * Denne skal destrueres senere!
  */
 export async function fetchData() {
     try {

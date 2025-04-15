@@ -1,5 +1,5 @@
+// Innstilling siden, vi kan endre flere felt i user.cs samt flere innstillinger. Tar oss videre til change credentials og tilbake til profil
 "use client";
-
 import EditableCountryRegionGroup from "@/components/settings/EditableCountryRegionGroup";
 import EditableField from "@/components/settings/EditableField";
 import EditableSelectField from "@/components/settings/EditableSelectField";
@@ -12,15 +12,11 @@ import AdditionalSettings from "@/components/settings/AdditionalSettings";
 import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 
-
-
-
-
 export default function ProfileSettingsPage() {
-  const { updateSettings } = useUpdateUserSettings();
-  const [refreshIndex, setRefreshIndex] = useState(0);
+  const { updateSettings } = useUpdateUserSettings(); // Henter funksjonen for å lagre/redigere brukerens innstillinger til backend.
+  const [refreshIndex, setRefreshIndex] = useState(0); // Tvinger en re-fetch av brukerinnstillinger ved å oppdatere verdien (brukes som dependency i useUserSettings).
   
-  const {
+  const { // Initialiserer og håndterer all formdata-lagring og -oppdatering for feltene i profilen (navn, e-post, osv.).
     formData,
     setFormData,
   } = useFormHandlers({
@@ -38,7 +34,7 @@ export default function ProfileSettingsPage() {
     gender: "",
   });
 
-  const {
+  const { //  Henter tilgjengelige land og regioner basert på valgt land. Brukes til land/region-dropdowns.
     countries,
     regions,
     countryCodes,
@@ -48,10 +44,10 @@ export default function ProfileSettingsPage() {
     setFormData,
   });
 
-  const { updateField, error, success } = useUpdateUserField();
-  const { settings, loading } = useUserSettings(refreshIndex);
+  const { updateField, error, success } = useUpdateUserField(); // Gir deg en funksjon for å oppdatere ett enkelt felt hos brukeren + status for feilmelding og suksess.
+  const { settings, loading } = useUserSettings(refreshIndex); // Henter brukerens gjeldende innstillinger fra backend, og viser loading mens de lastes.
 
-  useEffect(() => {
+  useEffect(() => { // Brukes for debugging. Logger ut informasjon om brukeren til konsollen når settings er lastet (for debugging).
     if (settings) {
       console.log("👤 Innlogget bruker-ID:", settings.userId);
       console.log("🧠 Hele settings-objektet:", settings);
@@ -59,7 +55,7 @@ export default function ProfileSettingsPage() {
   }, [settings]);
 
   
-  useEffect(() => {
+  useEffect(() => { // Oppdaterer formData basert på det som kommer fra settings, så skjemaet er forhåndsutfylt.
     if (settings) {
       setFormData({
         firstName: settings.firstName || "",
@@ -73,7 +69,7 @@ export default function ProfileSettingsPage() {
         gender: settings.gender || "",
         password: "",
         confirmPassword: "",
-        dateOfBirth: "", // hvis den finnes
+        dateOfBirth: "", 
       });
     }
   }, [settings, setFormData]);

@@ -1,3 +1,4 @@
+// Endre passord i securitycred, bruker editableButtons her og.
 "use client";
 import { useState } from "react";
 import PasswordField from "@/components/PasswordField";
@@ -7,40 +8,40 @@ import { updatePassword } from "@/services/security";
 import { useAuth } from "@/context/AuthContext";
 
 export default function EditablePasswordFields() {
-  const [editing, setEditing] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false); // Styrer om vi er i redigeringsmodus eller ikke (brukes for å vise input-felt)
+  const [currentPassword, setCurrentPassword] = useState(""); // Current passord
+  const [newPassword, setNewPassword] = useState(""); // Nytt passord
+  const [confirmPassword, setConfirmPassword] = useState(""); // Bekrefte at passord stemmer
+  const [isSaving, setIsSaving] = useState(false); // Viser om komponenten holder på å lagre – brukes til å disable knapper, vise spinner osv.
+  const [saved, setSaved] = useState(false); // Viser "✓ Saved" etter en vellykket lagring – resettes etter 2 sekunder
+  const [error, setError] = useState<string | null>(null); // Eventuell feilmelding som vises under inputfeltene, hvis validering feiler eller backend gir feil
 
   const { token } = useAuth();
-
+  // Validerer inputfeltene og kaller updatePassword hvis alt er OK. Viser evt. feil fra backend.
   const handleSave = async () => {
     if (!token) {
       setError("Not authenticated");
       return;
     }
 
-    const passwordError = validateSingleField("password", newPassword);
+    const passwordError = validateSingleField("password", newPassword); // Validerer passord
     if (passwordError) {
       setError(passwordError);
       return;
     }
 
-    if (newPassword !== confirmPassword) {
+    if (newPassword !== confirmPassword) { // Hvis passord ikke matcher
       setError("Passwords do not match.");
       return;
     }
 
     setIsSaving(true);
     try {
-      await updatePassword(currentPassword, newPassword, confirmPassword, token);
+      await updatePassword(currentPassword, newPassword, confirmPassword, token); //Oppdaterer passord til backend her
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       setEditing(false);
-      setCurrentPassword("");
+      setCurrentPassword(""); // Resetter feltene etter vi har lagret passordet
       setError(null);
       setCurrentPassword("");
       setNewPassword("");
@@ -70,7 +71,7 @@ export default function EditablePasswordFields() {
       }
     };
 
-  const handleCancel = () => {
+  const handleCancel = () => { // Hvis vi avbryter
     setEditing(false);
     setError(null);
     setCurrentPassword("");

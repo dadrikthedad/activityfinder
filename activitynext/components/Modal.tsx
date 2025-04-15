@@ -1,4 +1,4 @@
-// components/Modal.tsx
+// En popup-modal, brukes i SuccessModal.tsx
 "use client";
 import React from "react";
 

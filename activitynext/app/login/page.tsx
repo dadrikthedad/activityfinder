@@ -6,14 +6,14 @@ import FormField from "@/components/FormField";
 import FormButton from "@/components/FormButton";
 
 export default function LoginPage() {
-
+// Tilstand for email, passord, feilmelding og submit-status
 const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
 const [errorMessage, setErrorMessage] = useState("");
-const {login} = useAuth();
+const {login} = useAuth(); // Henter login-funksjon fra AuthContext
 const [isSubmitting, setIsSubmitting] = useState(false);
 
-const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent) => { // Håndterer innsending av login-skjema
   e.preventDefault();
   setErrorMessage("");
 
@@ -21,7 +21,7 @@ const handleLogin = async (e: React.FormEvent) => {
   setIsSubmitting(true);
 
   try {
-    // 👉 Hent IP og lokasjon først
+    // Hent IP og lokasjon (valgfritt men nyttig for sikkerhet/logg)
     const locationRes = await fetch("https://ipapi.co/json/");
     const locationData = await locationRes.json();
 

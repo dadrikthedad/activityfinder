@@ -1,3 +1,4 @@
+// Passord og bekreft-passord til signup, bruker PasswordField.tsx
 import PasswordField from "@/components/PasswordField";
 import { FieldName } from "@/utils/validators";
 import { FormDataType } from "@/types/form";

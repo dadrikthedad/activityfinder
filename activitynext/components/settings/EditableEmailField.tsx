@@ -1,3 +1,4 @@
+// For endring av epost i securitycred. Bruker EditableButton.tsx som mal
 "use client";
 import { useState } from "react";
 import { FieldName, validateSingleField } from "@/utils/validators";
@@ -12,15 +13,15 @@ interface EditableEmailFieldProps {
   }
 
   export default function EditableEmailField({ email, onEmailUpdated }: EditableEmailFieldProps) {
-  const [editing, setEditing] = useState(false);
-  const [inputValue, setInputValue] = useState(email);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false); // Sjekker om vi er edit-modus
+  const [inputValue, setInputValue] = useState(email); // input felt
+  const [currentPassword, setCurrentPassword] = useState(""); //sjekker at passord stemmer for å sette ny email
+  const [isSaving, setIsSaving] = useState(false); // Viser om vi akkurat nå lagrer endringen (viser "Saving...")
+  const [saved, setSaved] = useState(false); // Midlertidig flagg for å vise "✓ Saved" etter lagring
+  const [error, setError] = useState<string | null>(null); // 	Feilmelding som vises hvis validering eller lagring feiler
 
   const { token } = useAuth();
-
+    // Funksjon som: 1. Validerer ny e-post og passord 2. Sender API-kall for å oppdatere 3. Viser "✓ Saved", resetter tilstand, eller viser feil
   const handleSave = async () => {
     const validationError = validateSingleField("email" as FieldName, inputValue);
     if (validationError) {
@@ -28,9 +29,9 @@ interface EditableEmailFieldProps {
       return;
     }
 
-    if (!currentPassword || currentPassword.length < 4) {
+    if (!currentPassword || currentPassword.length < 4) { // Sjekker at passord stemmer
       setError("Current password is required.");
-      return;
+      return; 
     }
 
     if (!token) {
@@ -38,7 +39,7 @@ interface EditableEmailFieldProps {
       return;
     }
 
-    setIsSaving(true);
+    setIsSaving(true); 
     try {
       await updateEmail(inputValue, currentPassword, token);
       if (onEmailUpdated) {
@@ -52,7 +53,7 @@ interface EditableEmailFieldProps {
     } catch (err: unknown) {
       if (err instanceof Error) {
         try {
-          const parsed = JSON.parse(err.message);
+          const parsed = JSON.parse(err.message); // Patcher til backend med oppdatert epost
           if (
             typeof parsed === "object" &&
             parsed !== null &&
@@ -73,7 +74,7 @@ interface EditableEmailFieldProps {
       setIsSaving(false);
     }
   };
-
+  // Tilbakestiller verdier og lukker redigeringsmodus (setter editing til false)
   const handleCancel = () => {
     setInputValue(email);
     setCurrentPassword("");

@@ -1,3 +1,4 @@
+// Select field til dropdown på gender i profilesettings
 "use client";
 import { useState } from "react";
 import { FieldName, validateSingleField } from "@/utils/validators";
@@ -18,13 +19,13 @@ export default function EditableSelectField({
   options,
   onSave,
 }: EditableSelectFieldProps) {
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(false); // Styrer om vi er i redigeringsmodus eller ikke (brukes for å vise input-felt)
   const [selectedValue, setSelectedValue] = useState(value);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);  // Viser om komponenten holder på å lagre – brukes til å disable knapper, vise spinner osv.
+  const [saved, setSaved] = useState(false); // Viser "✓ Saved" etter en vellykket lagring – resettes etter 2 sekunder
+  const [error, setError] = useState<string | null>(null); // Eventuell feilmelding som vises under inputfeltene, hvis validering feiler eller backend gir feil
 
-  const handleSave = async () => {
+  const handleSave = async () => { // Håndterer alt som skjer når man trykker på Save-knappen
     const validationError = validateSingleField(name, selectedValue);
     if (validationError) {
       setError(validationError);
@@ -43,7 +44,7 @@ export default function EditableSelectField({
       setIsSaving(false);
     }
   };
-
+  // Håndtere hvis vi avbryter
   const handleCancel = () => {
     setSelectedValue(value);
     setEditing(false);

@@ -1,5 +1,5 @@
+// Endre land og region i profilesettings, bruker EditableButtons til å trykke på for å endre
 "use client";
-
 import { useState, useEffect } from "react";
 import { validateSingleField } from "@/utils/validators";
 import EditableButtons from "./EditableButtons";
@@ -26,22 +26,23 @@ export default function EditableCountryRegionGroup({
   onSave,
   onEditStart,
 }: EditableCountryRegionGroupProps) {
-  const [editing, setEditing] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState(country);
-  const [selectedRegion, setSelectedRegion] = useState(region);
-  const [saved, setSaved] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false); // Bestemmer om vi har trykket på Edit, altså om vi er i redigeringsmodus
+  const [selectedCountry, setSelectedCountry] = useState(country); // Lagrer valgt land slik at regioenr kan oppdateres
+  const [selectedRegion, setSelectedRegion] = useState(region); // Setter region
+  const [saved, setSaved] = useState(false); // Vises saved etter vi har trykket på lagre
+  const [isSaving, setIsSaving] = useState(false); // Deaktivrer input mens vi lagrer
+  const [error, setError] = useState<string | null>(null); // Viser valideringsfeil hvis feil/tom input
 
+  // Tilbakestiller til valgt land ved cancel
   const handleCancel = () => {
     setSelectedCountry(country);
     setSelectedRegion(region);
     setEditing(false);
     setError(null);
   };
-
+  // Lagrer land og region
   const handleSave = async () => {
-    const countryError = validateSingleField("country", selectedCountry);
+    const countryError = validateSingleField("country", selectedCountry); // Validerer valg av land
     const isRegionValid = regions.some((opt) => opt.value === selectedRegion);
 
     const regionError =
@@ -49,13 +50,13 @@ export default function EditableCountryRegionGroup({
       selectedRegion === "-- Choose --" ||
       !isRegionValid
         ? "Please select a valid region."
-        : validateSingleField("region", selectedRegion);
-
+        : validateSingleField("region", selectedRegion); // Validerer valg av region
+    // error hvis ingenting er valgt
     if (countryError || regionError) {
       setError(countryError || regionError);
       return;
     }
-
+    // Lagrer valg ved trykk på Save
     setIsSaving(true);
     try {
       await onSave(selectedCountry, selectedRegion);
@@ -68,16 +69,16 @@ export default function EditableCountryRegionGroup({
       setIsSaving(false);
     }
   };
-
+  // Endrer til edit-modus ved klikk på Edit
   const handleEditClick = async () => {
     await onEditStart(selectedCountry); // henter regionene første gang
     setEditing(true);
   };
-
+  // Denne sjekker om region har null
   useEffect(() => {
     if (!editing || !selectedCountry) return;
   
-    // Ikke hent på nytt hvis vi allerede har riktige regioner
+    // Ikke hent på nytt hvis vi allerede har riktige regioner. error her men ødelegger bare funksjonen vær gang jeg rører den
     const alreadyLoaded = regions.length > 0 && regions[0].label !== "-- Choose --";
     if (!alreadyLoaded) {
       onEditStart(selectedCountry);

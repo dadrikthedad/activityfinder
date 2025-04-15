@@ -9,15 +9,15 @@ import { useAuth } from "@/context/AuthContext";
 import { User } from "@/types/UserDTO";
 
 export function useCurrentUser() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null); // Her lagres brukerdata fra backend
+  const [loading, setLoading] = useState(true); // Setter loading mens vi henter data
   const [error, setError] = useState<string | null>(null);
   const { token } = useAuth();
 
   useEffect(() => {
     if (!token) return;
 
-    const fetchUser = async () => {
+    const fetchUser = async () => { // Her er API-kallet til backend for å hente innlogget profil
       try {
         const data = await fetchWithAuth<User>(`${API_BASE_URL}/api/user/me`, {}, token);
 

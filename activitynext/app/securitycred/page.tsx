@@ -14,6 +14,7 @@ export default function SecurityCredsPage() {
   const { user, loading, error } = useCurrentUser();
     const [email, setEmail] = useState<string | null>(null);
 
+  // Sjekker om eposten stemmer
   useEffect(() => {
     if (user?.email) {
       setEmail(user.email);

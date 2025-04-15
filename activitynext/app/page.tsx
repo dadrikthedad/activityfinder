@@ -1,5 +1,5 @@
 import Image from "next/image";
-
+// Homesiden tror jeg
 export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12 text-center">

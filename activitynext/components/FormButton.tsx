@@ -1,15 +1,15 @@
-// components/FormButton.tsx
+// Ferdig oppsatt knapp med flere muligheter for klikking, disabling etc. Brueks feks til ProfileNavButton som er en generall knapp
 import React from "react";
-
+// Grensesnittet vi må følge
 interface FormButtonProps {
-  text: string;
-  isSubmitting?: boolean;
-  submittingText?: string;
-  type?: "button" | "submit";
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  disabled?: boolean;
-  fullWidth?: boolean;
-  className?: string;
+  text: string; //Tekst som vises når vi ikk er i loading
+  isSubmitting?: boolean; // Sjekker om knappen er i loading tilstand
+  submittingText?: string; // Teksten som kommer hvis vi er i loading
+  type?: "button" | "submit"; //Knapp for å submitte og hvis det er en vanlig knapp
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void; //Klikkfunksjon hvis vi bruker knappen som en vanlig trykkeknapp
+  disabled?: boolean; // Deaktiverer knappen hvis det trenges (feks etter submitting)
+  fullWidth?: boolean; // Bruker for å sette knappen i stor størrelse eller ikke
+  className?: string; // Kan endre knappen med forskjellige stylinger hvis det rengs
 }
 
 const FormButton: React.FC<FormButtonProps> = ({

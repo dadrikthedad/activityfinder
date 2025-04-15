@@ -1,3 +1,4 @@
+// Navbaren, sier seg selv. To forskjellige moduser, innlogget eller ikke
 "use client"; // Gjør Navbar til en klientkomponent
 
 import Link from "next/link";
@@ -9,19 +10,19 @@ import ProfileLink from "@/components/profile/ProfileLink";
 
 export default function Navbar() {
   
-  const [showDropDown, setShowDropdown] = useState(false);
-  const router = useRouter();
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const { isLoggedIn, logout } = useAuth();
+  const [showDropDown, setShowDropdown] = useState(false); // Her brukes vi dropdown
+  const router = useRouter(); // sende oss videre til de forskjellige linkene
+  const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
+  const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
 
   
 
-  const handleLogout = () => {
+  const handleLogout = () => { // Ved logout så lukke vi dropboxen og kjører logout funksjonen fra AuthContext
     setShowDropdown(false);
     logout();
   };
 
-  useEffect(() => {
+  useEffect(() => { // Denne brukes til å lukke dropdown boxen hvis vi trykker på utsiden
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
@@ -64,11 +65,11 @@ export default function Navbar() {
         </ul>
       </div>
   
-      {/* Høyre del: Login/Profile/Settings */}
+      {/* Høyre del: Login/Profile og dropdown meny*/}
       <ul className="flex gap-6 items-center relative">
         {isLoggedIn ? (
           <>
-             {/* Messages */}
+             {/* Messages her kommer meldinger*/}
             <li>
               <Link href="/inbox" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
                 <Mail size={18} />
@@ -76,7 +77,7 @@ export default function Navbar() {
               </Link>
             </li>
 
-            {/* Notifications */}
+            {/* Notifications Her kommer notifications*/}
             <li>
               <Link href="/notifications" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
                 <Bell size={18} />
@@ -102,7 +103,7 @@ export default function Navbar() {
                   className="absolute right-0 top-12 bg-white text-black rounded-md shadow-md p-2 z-10 w-32"
                 >
 
-                <button
+                <button // Dropdown
                     className="block w-full text-left px-4 py-2 hover:bg-gray-100"
                     onClick={() => {
                       setShowDropdown(false);

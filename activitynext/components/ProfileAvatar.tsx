@@ -1,3 +1,4 @@
+// Her har vi bilde, samt en poppup og endring av bilde hvis vi besøker editprofile. Trykk på bilde åpner en pop-up som er større. Endres senre til å ha med like og kommentarer.
 "use client";
 
 import { useState } from "react";
@@ -9,10 +10,10 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useUploadProfileImage } from "@/hooks/useUploadProfileImage";
 
 interface Props {
-  imageUrl: string;
-  size?: number;
-  isEditable?: boolean;
-  refetchProfile?: () => Promise<void>;
+  imageUrl: string; // Url til profilbilde
+  size?: number; // størrelsen på bilde, valgrfitt. Kan brukes til små avatar bilder eller store profilbilder
+  isEditable?: boolean; // sjekk for å se om vi er på editprofile
+  refetchProfile?: () => Promise<void>; // henter oppdatert profilbilde hvis vi har byttet det
 }
 
 export default function ProfileAvatar({
@@ -20,36 +21,36 @@ export default function ProfileAvatar({
   isEditable = false,
   refetchProfile,
 }: Props) {
-    const [isOpen, setIsOpen] = useState(false);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [selectedFileName, setSelectedFileName] = useState<string>("");
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [isOpen, setIsOpen] = useState(false); // Sjekker  om modalen er åpen eller ikke
+    const [selectedFile, setSelectedFile] = useState<File | null>(null); // Her lagres filen som er valgt til opplastning slik at vi kan previewe og sende til backend
+    const [selectedFileName, setSelectedFileName] = useState<string>(""); // Navnet på den valgte filen
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Her er forhåndsvisning av det nye bilde før oppdatering
 
-    const {
+    const { // Kommer fra useUploadProfileImage og håndter opplastning av bilde
         upload,
         uploading,
         error,
         reset: resetUpload,
       } = useUploadProfileImage();
     
-      const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files) return;
-        const file = e.target.files[0];
+      const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Ved bytte av bilde. Setter navnet på filen/url og previewer
+        if (!e.target.files) return; // avbryt hvis ingen fil
+        const file = e.target.files[0]; // navnet på filen
         setSelectedFile(file);
         setSelectedFileName(file.name);
         setPreviewUrl(URL.createObjectURL(file));
       };
     
-      const handleUpload = async () => {
+      const handleUpload = async () => { //Håndterer API-kallet til backend. Laster opp bilde med upload(). 
         if (!selectedFile) return;
         const uploadedUrl = await upload(selectedFile);
         if (uploadedUrl) {
-          await refetchProfile?.();
+          await refetchProfile?.(); // Refetcher siden ved bytte av bilde
           handleClose();
         }
       };
     
-      const handleClose = () => {
+      const handleClose = () => { // Lukker modalen, fjerner preview og fil hvis det har vært lastet opp men ikke godkjent
         setIsOpen(false);
         setSelectedFile(null);
         setSelectedFileName("");
@@ -84,7 +85,7 @@ export default function ProfileAvatar({
               />
             </div>
           )}
-    
+          {/* Dette er modalen (Dialog from Headless UI) som viser forstørret bilde og gir mulig til åbytte */}
           <Dialog open={isOpen} onClose={handleClose} className="fixed z-50 inset-0">
             <div className="fixed inset-0 bg-black/80" aria-hidden="true" />
             <div className="fixed inset-0 flex items-center justify-center p-4">
@@ -96,7 +97,7 @@ export default function ProfileAvatar({
                   height={1000}
                   className="rounded-xl mx-auto object-contain max-w-full max-h-[80vh]"
                 />
-    
+                {/* Hvis vi ser på profilen via editprofile så kan vi endre på bilde */}
                 {isEditable && (
                   <div className="mt-6">
                     <input
@@ -120,7 +121,7 @@ export default function ProfileAvatar({
                     )}
                   </div>
                 )}
-    
+                {/* Knapper ved bytting av bilde */}
                 <div className="mt-6 flex justify-center gap-4">
                   {selectedFile ? (
                     <>

@@ -1,3 +1,4 @@
+// Feltene som man endrer feks navnfeltene, phone, postalcode osv. i profilesettings. Bruker EditableButton.tsx som mal
 "use client";
 import { useState } from "react";
 import { FieldName, validateSingleField } from "@/utils/validators";
@@ -11,14 +12,14 @@ interface EditableFieldProps {
 }
 
 export default function EditableField({ name, label, value, onSave }: EditableFieldProps) {
-  const [editing, setEditing] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false); // redigerinsmodus
+  const [inputValue, setInputValue] = useState(value); // Verdien brukeren skriver inn i input-feltet (starter med value)
+  const [isSaving, setIsSaving] = useState(false); // Viser om feltet er i ferd med å lagres (viser f.eks. "Saving...")
+  const [saved, setSaved] = useState(false);  // Midlertidig flagg som viser "✓ Saved" etter vellykket lagring
+  const [error, setError] = useState<string | null>(null); // 	Feilmelding hvis validering mislykkes (f.eks. tomt felt)
 
   const handleSave = async () => {
-    const validationError = validateSingleField(name, inputValue);
+    const validationError = validateSingleField(name, inputValue); //validerer først
     if (validationError) {
       setError(validationError);
       return;
@@ -36,7 +37,7 @@ export default function EditableField({ name, label, value, onSave }: EditableFi
       setIsSaving(false);
     }
   };
-
+  // Hvis man abryter
   const handleCancel = () => {
     setInputValue(value);
     setEditing(false);

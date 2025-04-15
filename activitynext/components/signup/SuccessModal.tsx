@@ -1,3 +1,4 @@
+// Modal som popper ved vellykket signup
 export default function SuccessModal({ onClose }: { onClose: () => void }) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

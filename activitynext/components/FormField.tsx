@@ -1,22 +1,24 @@
+// Input-felt som brukes til input, både i editprofile og signup. Har flere valgmuliheter om det er input eller dropdown-felt, samt en tooltip som brukes i signup
 import { Info } from "lucide-react";
 import React from "react";
 
+// Grensenisttet som et slikt felt må følge
 interface FormFieldProps {
-  id: string;
-  label: string;
-  tooltip?: string;
-  type?: string;
-  value: string;
+  id: string; // Navnet
+  label: string; // teksten som vises over feltet/til siden
+  tooltip?: string; // info som vises når du holder musen over info-ikoet
+  type?: string; // "text", "email" "password" osv
+  value: string; // nåværende verdi som er i feltet
   onChange: (
     e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLSelectElement>
-  ) => void;
-  onBlur?: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  error?: string;
-  touched?: boolean;
-  placeholder?: string;
-  as?: "input" | "select";
-  options?: { label: string; value: string }[];
-  disabled?: boolean;
+  ) => void; // Ved endring så kjøres denne funksjonen, som oppdatere feltet
+  onBlur?: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => void; //Hvis vi trykker på utsiden av feltet, så oppdateres feltet hvis vi ønsker
+  error?: string; // Gir error ved feil validering
+  touched?: boolean; // Hvis vi har rørt feltet en gang
+  placeholder?: string; // Placeholder tekst
+  as?: "input" | "select"; // Her får vi valg mellom om det er input eller en dropdown
+  options?: { label: string; value: string }[]; // alternativer for dropdown
+  disabled?: boolean; // Hvis vi har submittet og ønsker ikke at bruker skal kunne endre det imens, så disabler vi den
 }
 
 const FormField: React.FC<FormFieldProps> = ({
@@ -58,7 +60,7 @@ const FormField: React.FC<FormFieldProps> = ({
                 ${showError ? "border-red-500" : "border-gray-500"}`}
         />
   ) : (
-    <input
+    <input // Hvis det er et vanlig inpu-felt så er det input og vi har da valgene under
       id={id}
       type={type}
       name={id}
@@ -72,7 +74,7 @@ const FormField: React.FC<FormFieldProps> = ({
     />
   )
         ) : (
-          <select
+          <select //Hvis det r en dropdown så har vi disse valgene
             id={id}
             name={id}
             value={value}
@@ -92,7 +94,7 @@ const FormField: React.FC<FormFieldProps> = ({
         {showError && <p className="text-red-500 text-sm mt-1">{error}</p>}
       </div>
 
-      {/* Tooltip */}
+      {/* Tooltip brukes for å holde musa over hvis man lurer på hva som skal fylles inn og hvorfor. Brukes foreløpig kun til signup*/}
       {tooltip ? (
         <div className="ml-4 relative flex justify-start group">
         <Info className="text-gray-400 cursor-pointer" size={18} />

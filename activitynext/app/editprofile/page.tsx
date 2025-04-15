@@ -11,7 +11,7 @@ import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 export default function EditProfilePage() {
   const { updateSettings } = useUpdateUserSettings();
 
-  const [profile, setProfile] = useState<PublicProfileDTO | null>(null);
+  const [profile, setProfile] = useState<PublicProfileDTO | null>(null); // Lagrer profile og loading status
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async () => {
@@ -37,12 +37,11 @@ export default function EditProfilePage() {
   useEffect(() => {
     fetchProfile().finally(() => setLoading(false));
   }, []);
-
+  // Hvis loader mens vi henter profil
   if (loading || !profile) {
     return <div className="text-center mt-10">Loading profile...</div>;
   }
-
-
+  
   return (
     <div className="flex flex-col gap-20 max-w-4xl mx-auto px-4 py-10 min-h-[85vh]">
       <div className="flex-grow">

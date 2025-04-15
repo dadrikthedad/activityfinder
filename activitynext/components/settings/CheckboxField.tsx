@@ -1,5 +1,5 @@
 import React from "react";
-
+// En checkbox field som brukes i AdditionalSettings.tsx
 interface CheckboxFieldProps {
   label: string;
   checked: boolean;

@@ -8,22 +8,24 @@ import { useState, useEffect } from "react";
 // Henter router slik at vi kan navigere til andre sider
 import { useRouter } from "next/navigation";
 // Popup vinduet vårt som sier at vi har hat suksess med innlogging
-import SuccessModal from "@/components/SuccessModal";
+import SuccessModal from "@/components/signup/SuccessModal";
+
+// Komponenter og hooks
 import { useFormHandlers } from "@/hooks/useFormHandlers";
-import FormButton from "@/components/FormButton";
 import {
   checkEmailAvailability,
 } from "@/utils/api/email";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useRegisterUser } from "@/hooks/useRegisterUser";
+
+// Import felt
 import NameFields from "@/components/signup/NameFields";
 import ContactFields from "@/components/signup/ContactFields";
 import PasswordFields from "@/components/signup/PasswordFields";
 import LocationFields from "@/components/signup/LocationFields";
 import DemoFields from "@/components/signup/DemoFields";
+import FormButton from "@/components/FormButton";
 import { handleSubmit } from "@/utils/form/submitHandler";
-
-
 
 export default function Signup() {
   const {
@@ -52,7 +54,7 @@ export default function Signup() {
     postalCode: "",
     gender: "",
   });
-
+  // Henter land, regioner og landkoder
   // countries er veriden som kan endres, setCountries brukes for å oppdatere verdien når den blir kalt
     const [isRegistered, setIsRegistered] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -67,7 +69,7 @@ export default function Signup() {
       setFormData,
       editing: true,
     });
-    
+    // Hook for å registrere bruker
     const { registerUser, isSubmitting } = useRegisterUser({
       formData,
       countryCodes,
@@ -86,7 +88,7 @@ export default function Signup() {
   
 
 
-  // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
+  // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit. Sjekker om epost er i bruk
   const handleAttemptSubmit = (e: React.FormEvent) => {
     handleSubmit({
       e,
@@ -110,11 +112,11 @@ export default function Signup() {
     });
   };
   
-
-useEffect(() => {
-  console.log("Akkurat nå, errors:", errors);
-}, [errors]);
-
+// Errors slik at vi kan stoppe innsending til backend hvis det er en feil
+    useEffect(() => {
+      console.log("Akkurat nå, errors:", errors);
+    }, [errors]);
+  // Redirect til login etter registrering
   useEffect(() => {
     if (isRegistered) {
       setTimeout(() => {
@@ -133,7 +135,7 @@ useEffect(() => {
       <form onSubmit={handleAttemptSubmit} className="mt-6 grid grid-cols-3 gap-x-6 gap-y-4 items-center w-full max-w-4xl">
   
 
-        <NameFields
+        <NameFields // Feltene til firstname, middlename og latname
           formData={formData}
           handleChange={handleChange}
           handleBlur={handleBlur}
@@ -141,7 +143,7 @@ useEffect(() => {
           touchedFields={touchedFields}
         />
 
-        <ContactFields
+        <ContactFields // feltene til epost og telefon
           formData={formData}
           handleChange={handleChange}
           handleBlur={handleBlur}
@@ -149,7 +151,7 @@ useEffect(() => {
           touchedFields={touchedFields}
         />
 
-        <PasswordFields
+        <PasswordFields // passord felt
           formData={formData}
           handleChange={handleChange}
           handleBlur={handleBlur}
@@ -157,7 +159,7 @@ useEffect(() => {
           touchedFields={touchedFields}
         />
 
-        <LocationFields
+        <LocationFields // country og reigon feltene
           formData={formData}
           handleChange={handleChange}
           handleBlur={handleBlur}
@@ -177,7 +179,7 @@ useEffect(() => {
           }}
         />
 
-        <DemoFields
+        <DemoFields //birthday og postal
           formData={formData}
           handleChange={handleChange}
           handleBlur={handleBlur}
@@ -194,7 +196,7 @@ useEffect(() => {
           </div>
         )}
         
-        <FormButton
+        <FormButton // Submit-knappen
           text="Sign up"
           submittingText="Submitting..."
           isSubmitting={isSubmitting}
