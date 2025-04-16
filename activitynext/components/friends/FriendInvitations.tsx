@@ -3,6 +3,7 @@ import { useFriendInvitations } from "@/hooks/useFriendInvitations";
 import { useState } from "react";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { respondToInvitation } from "@/services/friendInvitations/respondToInvitation";
+import MiniAvatar from "@/components/common/MiniAvatar";
 
 export default function FriendInvitations() {
   const { invitations, loading } = useFriendInvitations();
@@ -30,7 +31,7 @@ export default function FriendInvitations() {
             key={invite.id}
             className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-4 rounded"
           >
-            <span>{invite.senderFullName} wants to be your friend!</span>
+            <span>{invite.sender.fullName} wants to be your friend! <MiniAvatar imageUrl={invite.sender.profileImageUrl ?? "/images/default-avatar.png"} /> </span>
             <div className="flex gap-2">
               <ProfileNavButton
                 text="Godta"

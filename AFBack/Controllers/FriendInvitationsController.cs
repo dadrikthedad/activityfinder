@@ -75,14 +75,21 @@ public class FriendInvitationsController : ControllerBase
         
         var invitations = await _context.FriendInvitations
             .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
+            .Include(i => i.Sender)
+            .ThenInclude(u => u.Profile)
+            .AsNoTracking()
             .Select(i => new FriendInvitationDTO
             {
                 Id = i.Id,
-                SenderId = i.SenderId,
                 ReceiverId = i.ReceiverId,
-                SenderFullName = i.Sender.FullName,
                 Status = i.Status.ToString(),
-                SentAt = i.SentAt
+                SentAt = i.SentAt,
+                Sender = new SenderDTO
+                {
+                    Id = i.Sender.Id,
+                    FullName = i.Sender.FullName,
+                    ProfileImageUrl = i.Sender.Profile != null ? i.Sender.Profile.ProfileImageUrl : null
+                }
             })
             .ToListAsync();
 
