@@ -1,3 +1,4 @@
+// Sjekker om eposten er tilgjengelig eller allerede lagret i databasen. Går til CheckEmailAvailability() i backend
 import { API_BASE_URL } from "@/services/user"; // eller fra user.ts om du deler der
 
 export async function checkEmailAvailability(email: string): Promise<boolean> {

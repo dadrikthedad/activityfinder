@@ -1,5 +1,5 @@
 ﻿namespace AFBack.DTOs;
-
+// brukes til å sjekke om bruker har sendt forespørsel og status på forespørsel mellom to brukere
 public class FriendInvitationDTO
 {
     public int Id { get; set; }

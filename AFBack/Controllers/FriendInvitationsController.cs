@@ -1,6 +1,8 @@
-﻿using AFBack.Data;
+﻿using System.Security.Claims;
+using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +10,7 @@ namespace AFBack.Controllers;
 // Kontroller for venneforespørsel mellom to brukere
 [ApiController]
 [Route("api/friendinvitations")]
+[Authorize]
 public class FriendInvitationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -19,31 +22,37 @@ public class FriendInvitationsController : ControllerBase
 
     // POST: Send venneforespørsel
     [HttpPost]
-    public async Task<IActionResult> SendInvitation([FromBody] FriendInvitationDTO dto)
-    {   // Hindre å legge til seg selv
-        if (dto.SenderId == dto.ReceiverId)
+    public async Task<IActionResult> SendInvitation([FromBody] SendFriendRequestDTO dto)
+    {   
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user ID in token." });
+        }
+        
+        // Hindre å legge til seg selv
+        if (userId == dto.ReceiverId)
             return BadRequest("You can't send a friend request to yourself.");
     
         // Hindre ny forespørsel hvis det finnes en aktiv i noen retning
         var existingPending = await _context.FriendInvitations
             .AnyAsync(x =>
-                ((x.SenderId == dto.SenderId && x.ReceiverId == dto.ReceiverId) ||
-                 (x.SenderId == dto.ReceiverId && x.ReceiverId == dto.SenderId)) &&
+                ((x.SenderId == userId && x.ReceiverId == dto.ReceiverId) ||
+                 (x.SenderId == dto.ReceiverId && x.ReceiverId == userId)) &&
                 x.Status == InvitationStatus.Pending);
+
 
         if (existingPending)
         {
             return BadRequest("A friend request is already pending between these users.");
         }
-        // Sjekker om brukerene eksisterer
-        var senderExists = await _context.Users.AnyAsync(u => u.Id == dto.SenderId);
+        // Sjekker om mottaker eksisterer
         var receiverExists = await _context.Users.AnyAsync(u => u.Id == dto.ReceiverId);
-        if (!senderExists || !receiverExists)
-            return NotFound("One or both users not found.");
+        if (!receiverExists)
+            return NotFound("Receiver not found.");
 
         var invitation = new FriendInvitation
         {
-            SenderId = dto.SenderId,
+            SenderId = userId,
             ReceiverId = dto.ReceiverId,
             Status = InvitationStatus.Pending,
             SentAt = DateTime.UtcNow
@@ -56,9 +65,14 @@ public class FriendInvitationsController : ControllerBase
     }
 
     // GET: Hent mottatte forespørsler
-    [HttpGet("received/{userId}")]
-    public async Task<ActionResult<List<FriendInvitationDTO>>> GetReceivedInvitations(int userId)
+    [HttpGet("received")]
+    public async Task<ActionResult<List<FriendInvitationDTO>>> GetReceivedInvitations()
     {
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user ID in token." });
+        }
+        
         var invitations = await _context.FriendInvitations
             .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
             .Select(i => new FriendInvitationDTO
@@ -78,17 +92,26 @@ public class FriendInvitationsController : ControllerBase
     [HttpPatch("{id}/accept")]
     public async Task<IActionResult> AcceptInvitation(int id)
     {
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user ID in token." });
+        }
+        
         var invitation = await _context.FriendInvitations.FindAsync(id);
         if (invitation == null || invitation.Status != InvitationStatus.Pending)
             return NotFound("Invitation not found or already handled.");
+        
+        // Kun mottaker av en forespørsel kan godta
+        if (invitation.ReceiverId != userId)
+            return Forbid("You are not authorized to accept this invitation.");
 
         invitation.Status = InvitationStatus.Accepted;
 
         // Opprett faktisk vennskap
         var newFriend = new Friends
         {
-            User = await _context.Users.FindAsync(invitation.SenderId)!,
-            FriendUser = await _context.Users.FindAsync(invitation.ReceiverId)!,
+            UserId = invitation.SenderId,
+            FriendId = invitation.ReceiverId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -102,9 +125,17 @@ public class FriendInvitationsController : ControllerBase
     [HttpPatch("{id}/decline")]
     public async Task<IActionResult> DeclineInvitation(int id)
     {
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user ID in token." });
+        }
+        
         var invitation = await _context.FriendInvitations.FindAsync(id);
         if (invitation == null || invitation.Status != InvitationStatus.Pending)
             return NotFound("Invitation not found or already handled.");
+        
+        if (invitation.ReceiverId != userId)
+            return Forbid("You are not authorized to decline this invitation.");
 
         invitation.Status = InvitationStatus.Declined;
         await _context.SaveChangesAsync();
@@ -113,13 +144,18 @@ public class FriendInvitationsController : ControllerBase
     }
     
     // GET: Hent status mellom to brukere
-    [HttpGet("between/{userAId}/{userBId}")]
-    public async Task<IActionResult> GetStatusBetweenUsers(int userAId, int userBId)
+    [HttpGet("between/{otherUserId}")]
+    public async Task<IActionResult> GetStatusBetweenUsers(int otherUserId)
     {
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid user ID in token." });
+        }
+        
         var invitation = await _context.FriendInvitations
             .Where(x =>
-                (x.SenderId == userAId && x.ReceiverId == userBId) ||
-                (x.SenderId == userBId && x.ReceiverId == userAId))
+                (x.SenderId == userId && x.ReceiverId == otherUserId) ||
+                (x.SenderId == otherUserId && x.ReceiverId == userId))
             .OrderByDescending(x => x.SentAt)
             .FirstOrDefaultAsync();
 

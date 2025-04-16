@@ -1,3 +1,4 @@
+// API kall til backend for å hente fetchCountries(), fetchRegions(), regiserUserApi() som brukes i Signup og getCurrentUser() som brukes i Securitycred
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { User } from "@/types/UserDTO";
 
@@ -40,7 +41,7 @@ interface RegisterResponse {
   message: string;
   userId?: string;
 } 
-
+// Henter land fra GetAllCountries() i backend som bruker countryservice.GetAllCountries()
 export async function fetchCountries(): Promise<Country[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/user/countries`);
@@ -51,7 +52,7 @@ export async function fetchCountries(): Promise<Country[]> {
     return [];
   }
 }
-
+// Henter regioner utifra landet vi har valgt, bruker GetRegionsByCountry() i backend
 export async function fetchRegions(code: string): Promise<string[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/user/regions/${encodeURIComponent(code)}`);
@@ -63,6 +64,7 @@ export async function fetchRegions(code: string): Promise<string[]> {
   }
 }
 
+// Registerer bruker i backend med RegisterUser(), brukt i Signup
 export async function registerUserAPI(payload: RegisterUserPayload): Promise<RegisterResponse> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/user/register`, {
@@ -81,7 +83,7 @@ export async function registerUserAPI(payload: RegisterUserPayload): Promise<Reg
     throw error;
   }
 }
-
+// Henter brukeren vi er på, brukes i securitycred for endringer av passord og epost. Henter GetCurrentUser() fra backend
 export async function getCurrentUser(token: string): Promise<User> {
   try {
     const user = await fetchWithAuth<User>(`${API_BASE_URL}/api/user/me`, {}, token);

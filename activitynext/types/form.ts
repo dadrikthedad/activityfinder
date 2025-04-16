@@ -1,4 +1,3 @@
-// hooks/types.ts
 // Formen som brukes til signup
 export type FormDataType = {
     firstName: string;
@@ -13,7 +12,7 @@ export type FormDataType = {
     region?: string;
     postalCode?: string;
     gender: string;
-    contactPhone?: string;   // 👈 legg til
+    contactPhone?: string;  
   contactEmail?: string; 
   };
   
