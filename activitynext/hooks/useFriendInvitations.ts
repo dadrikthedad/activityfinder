@@ -20,6 +20,8 @@ export function useFriendInvitations() {
           {},
           token
         );
+
+        console.log("📨 Fetched invitations:", data);
         if (data) setInvitations(data);
       } catch (err) {
         console.error("❌ Failed to load invitations:", err);
