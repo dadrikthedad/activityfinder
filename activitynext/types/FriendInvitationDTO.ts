@@ -4,6 +4,7 @@ export interface FriendInvitationDTO
     id: number;
   senderId: number;
   receiverId: number;
+  senderFullName: string;
   status: "pending" | "accepted" | "declined"; // kan gjøres mer type-safe
   sentAt: string;
 }

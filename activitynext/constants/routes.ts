@@ -6,6 +6,20 @@ export const API_ROUTES = {
     login: "/api/auth/login",
     register: "/api/auth/register",
     publicProfile: (userId: number) => `/api/profile/${userId}`,
+
+    // Venne-relatert
+    friends: "/api/friends",
+    friendsOfUser: (userId: number) => `/api/friends/of/${userId}`,
+    isFriendWith: (otherUserId: number) => `/api/friends/is-friend-with/${otherUserId}`,
+  
+    // Venneforespørsler
+    friendInvitations: {
+      received: "/api/friendinvitations/received",
+      send: "/api/friendinvitations",
+      accept: (invitationId: number) => `/api/friendinvitations/${invitationId}/accept`,
+      decline: (invitationId: number) => `/api/friendinvitations/${invitationId}/decline`,
+      statusBetween: (otherUserId: number) => `/api/friendinvitations/between/${otherUserId}`,
+    },
   };
 
 

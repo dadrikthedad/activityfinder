@@ -80,6 +80,7 @@ public class FriendInvitationsController : ControllerBase
                 Id = i.Id,
                 SenderId = i.SenderId,
                 ReceiverId = i.ReceiverId,
+                SenderFullName = i.Sender.FullName,
                 Status = i.Status.ToString(),
                 SentAt = i.SentAt
             })

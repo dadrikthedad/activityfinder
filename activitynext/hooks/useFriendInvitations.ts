@@ -2,16 +2,23 @@
 import { useEffect, useState } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
+import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
+import { useAuth } from "@/context/AuthContext";
 
 export function useFriendInvitations() {
+  const { token } = useAuth();
   const [invitations, setInvitations] = useState<FriendInvitationDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!token) return;
+
     const load = async () => {
       try {
         const data = await fetchWithAuth<FriendInvitationDTO[]>(
-          "/api/friendinvitations/received"
+          `${API_BASE_URL}${API_ROUTES.friendInvitations.received}`,
+          {},
+          token
         );
         if (data) setInvitations(data);
       } catch (err) {
@@ -22,7 +29,7 @@ export function useFriendInvitations() {
     };
 
     load();
-  }, []);
+  }, [token]);
 
   return { invitations, loading };
 }
