@@ -1,11 +1,10 @@
+// API-kall til backend for hver enkelt patch til de forskjellige feltene i User.cs. Brukes i profilesettings, endrer navn, phone, location, gender fra User.cs, og kontaktEpost og kontaktTelefon fra profile.cs
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-
-// Her oppdatere vi user med API-kall til backend
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
-
+// Denne funksjonen tar seg av selve patch-kallet, serialisere body til json, bruker fetchWithAuth og logger eventuelle feil. Slipper å gjenbruke koden flere ganger.
   async function safePatch(path: string, body: object, token: string): Promise<void> {
     try {
       await fetchWithAuth(`${API_BASE_URL}${path}`, {

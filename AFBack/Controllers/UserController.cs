@@ -367,6 +367,7 @@ public class UserController : ControllerBase
     
     
     // Små patcher som brukes til å endre feltene fra brukeren
+    // Patch for profilesettings sin endring av fornavn
     [HttpPatch("first-name")]
     [Authorize]
     public async Task<IActionResult> UpdateFirstName([FromBody] UpdateFirstNameDTO dto)
@@ -382,7 +383,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "First name updated." });
     }
-
+    // Patch for profilesettings sin endring av mellomnavn
     [HttpPatch("middle-name")]
     [Authorize]
     public async Task<IActionResult> UpdateMiddleName([FromBody] UpdateMiddleNameDTO dto)
@@ -398,7 +399,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Middle name updated." });
     }
-
+    // Patch for profilesettings sin endring av etternavn
     [HttpPatch("last-name")]
     [Authorize]
     public async Task<IActionResult> UpdateLastName([FromBody] UpdateLastNameDTO dto)
@@ -414,7 +415,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Last name updated." });
     }
-
+    // Patch for profilesettings sin endring av telefon
     [HttpPatch("phone")]
     [Authorize]
     public async Task<IActionResult> UpdatePhone([FromBody] UpdatePhoneDTO dto)
@@ -430,7 +431,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Phone updated." });
     }
-
+    // Patch for profilesettings sin endring av land og region
     [HttpPatch("location")]
     [Authorize]
     public async Task<IActionResult> UpdateLocation([FromBody] UpdateLocationDTO dto)
@@ -455,7 +456,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Location updated." });
     }
-
+    // Patch for profilesettings sin endring av postkode
     [HttpPatch("postalcode")]
     [Authorize]
     public async Task<IActionResult> UpdatePostalCode([FromBody] UpdatePostalCodeDTO dto)
@@ -471,7 +472,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Postal code updated." });
     }
-
+    // Patch for profilesettings sin endring av kjønn
     [HttpPatch("gender")]
     [Authorize]
     public async Task<IActionResult> UpdateGender([FromBody] UpdateGenderDTO dto)
@@ -497,7 +498,7 @@ public class UserController : ControllerBase
         return await _context.Users.FindAsync(userId);
     }
     
-    // Sikkerhet
+    // Patch for securitycred sin endring av epost
     [HttpPatch("email")]
     [Authorize]
     public async Task<IActionResult> UpdateEmail([FromBody] UpdateEmailDTO dto)
@@ -523,7 +524,7 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Email updated.", newEmail = user.Email });
     }
-    
+    // Patch for securitycred sin endring av passord
     [HttpPatch("password")]
     [Authorize]
     public async Task<IActionResult> UpdatePassword([FromBody] UpdatePasswordDTO dto)

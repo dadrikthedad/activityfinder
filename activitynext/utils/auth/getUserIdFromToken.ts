@@ -1,3 +1,4 @@
+// Her hetner vi userID fra token, brukes i editprofile og profile/[id] til å bekrefte om vi er eieren eller ikke
 import { jwtDecode } from "jwt-decode";
 
 type JwtPayload = {
@@ -13,7 +14,7 @@ type JwtPayload = {
       const decoded = jwtDecode<JwtPayload>(token);
       console.log("✅ Decoded JWT:", decoded);
   
-      const userId =
+      const userId = // Her dekoder vi fra flere mulig feltnavn, det gjør at vi er kompatible med flere JWT-standarder
         decoded["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"] ||
         decoded.nameid ||
         decoded.sub;

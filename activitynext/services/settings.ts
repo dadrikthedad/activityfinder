@@ -3,7 +3,7 @@ import { UserSettingsDTO } from "@/types/UserSettingsDTO";
 import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
 
 
-// Her oppdaterer vi userSettings ved å gjøre et API-kall, brukes i hooken useUpdateUserSettings.ts
+// Her oppdaterer vi userSettings-checkboks feltene ved å gjøre et API-kall, brukes i hooken useUpdateUserSettings.ts og henter UpdateSettings() fra UserSettingsController.cs
 export async function updateUserSettings(
   settings: Partial<UserSettingsDTO>,
   token: string

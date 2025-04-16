@@ -1,3 +1,4 @@
+// Profil API kall til backend. updateBio(patch), updateWebsites(patch), updateProfileImage(post) og hent profiler med getUserProfile() som henter PublicProfileDTO
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import type { PublicProfileDTO } from "@/types/PublicProfileDTO";
 
@@ -6,16 +7,16 @@ export const API_BASE_URL =
   "https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net";
 
 
-  // 📝 Oppdater bio (PATCH)
+  // 📝 Oppdater bio (PATCH) - går til UpdateBio() i backend
   export async function updateBio(newBio: string, token: string): Promise<void> {
-    const body = JSON.stringify(newBio); // Fortsatt string som forventet av backend
-    await fetchWithAuth(`${API_BASE_URL}/api/profile/bio`, {
+    const body = JSON.stringify(newBio); // string som forventet av backend
+    await fetchWithAuth(`${API_BASE_URL}/api/profile/bio`, { // fetch with auth
       method: "PATCH",
       body,
     }, token);
   }
   
-// 🌐 Oppdater websites (PATCH)
+// 🌐 Oppdater websites (PATCH) går til UpdateWebsites() i backend
 interface UpdateWebsitesDTO {
   websites: string[];
 }
@@ -23,13 +24,13 @@ interface UpdateWebsitesDTO {
 export async function updateWebsites(websites: string[], token: string): Promise<void> {
   const body: UpdateWebsitesDTO = { websites };
 
-  await fetchWithAuth(`${API_BASE_URL}/api/profile/websites`, {
+  await fetchWithAuth(`${API_BASE_URL}/api/profile/websites`, { 
     method: "PATCH",
     body: JSON.stringify(body),
   }, token);
 }
 
-// Laster opp profilbilde
+// Laster opp profilbilde til UploadProfileImage() i backend
 export async function uploadProfileImage(file: File, token: string): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -51,7 +52,7 @@ export async function uploadProfileImage(file: File, token: string): Promise<str
   return data.imageUrl; // returnerer URL-en til det opplastede bildet
 }
 
-// 🔍 Henter offentlig profil med ID (f.eks. til /profile/[id])
+// 🔍 Henter offentlig profil med ID (f.eks. til /profile/[id]) Henter PublicProfileDTO.cs fra GetPublicProfile() i backend
 export async function getUserProfile(userId: number, token?: string, options?: RequestInit): Promise<PublicProfileDTO> {
   const headers: HeadersInit = {
     "Content-Type": "application/json",

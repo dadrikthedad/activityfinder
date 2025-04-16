@@ -1,4 +1,4 @@
-// services/security.ts
+// API-kall til backend med updateEmail() som oppdatere brukerens epost og updatePassword som oppdaterer passord
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user"; // samme base-url
 
@@ -8,7 +8,7 @@ interface UpdatePasswordDTO {
   newPassword: string;
   confirmNewPassword: string;
 }
-
+// updateEmail() går til updateEmail() patch i bakckend
 export async function updateEmail(newEmail: string, currentPassword: string, token: string): Promise<void> {
     const body = { newEmail, currentPassword };
   
@@ -23,7 +23,7 @@ export async function updateEmail(newEmail: string, currentPassword: string, tok
   
     if (!result) throw new Error("Failed to update email.");
   }
-
+// updatePassword() går til updatePassword() patch i backend
 export async function updatePassword(
   currentPassword: string,
   newPassword: string,

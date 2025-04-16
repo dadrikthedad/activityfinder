@@ -1,4 +1,4 @@
-// Henter informasjon fra UserSettingsDTO Hvor brukes den?
+// Henter informasjon fra UserSettingsDTO, brukes i hook/useUpdateUserSettings.ts
 export interface UserSettingsDTO {
     publicProfile?: boolean;
     showGender?: boolean;

@@ -1,9 +1,10 @@
+// Dette er en generisk funksjon som henter token, gjør API-kallet, og håndterer feil hvis det oppstår. Brukes til alt hvor vi trenger auth
 export async function fetchWithAuth<T>(
   url: string,
   options: RequestInit = {},
   token?: string
 ): Promise<T | null> {
-  const authToken = token || localStorage.getItem("token");
+  const authToken = token || localStorage.getItem("token"); // henter token
 
   console.log("🟡 fetchWithAuth - URL:", url);
   console.log("🟢 Token (first 20 chars):", authToken?.slice(0, 20));
@@ -12,7 +13,7 @@ export async function fetchWithAuth<T>(
     throw new Error("No auth token found.");
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(url, { // Her gjør vi fetch-kallet
     ...options,
     headers: {
       ...options.headers,

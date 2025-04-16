@@ -27,10 +27,12 @@ export default function PublicProfilePage(props: { params: Params }) {
 
 
   return (
+    <div className="flex flex-col gap-20 max-w-4xl mx-auto px-4 py-10 min-h-[85vh]">
     <PublicProfileView //Her har vi selve profilen, og vi gir parametere om vi eier eller om vi er på editprofile-siden. 
       profile={profile}
       isEditable={false}
       isOwner={isOwner}
     />
+    </div>
   );
 }

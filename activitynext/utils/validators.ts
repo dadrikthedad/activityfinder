@@ -1,3 +1,4 @@
+// Validering av alle felter i User.cs og kontaktinfo fra profile.cs. Brukes i signup, securitycrec og profilesettings
 export const validateFirstName = (value: string): string | null => {
     if (!value.trim()) return "First name is required.";
     if (value.length > 50) return "First name can't be more than 50 characters.";
