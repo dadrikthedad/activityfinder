@@ -3,9 +3,10 @@
 public class FriendDTO
 {
     public int CurrentUserId { get; set; } // Henter den innloggede brukeren
-    public int FriendId { get; set; } // Iden til den andre brukeren
     public DateTime CreatedAt { get; set; } // Når vennskapet ble laget
 
     public int UserToFriendUserScore { get; set; } 
     public int FriendUserToUserScore { get; set; }
+    
+    public UserSummaryDTO Friend { get; set; } = null!;
 }

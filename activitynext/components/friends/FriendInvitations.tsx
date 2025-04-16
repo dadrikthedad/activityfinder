@@ -31,7 +31,7 @@ export default function FriendInvitations() {
             key={invite.id}
             className="flex justify-between items-center bg-gray-100 dark:bg-gray-800 p-4 rounded"
           >
-            <span>{invite.sender.fullName} wants to be your friend! <MiniAvatar imageUrl={invite.sender.profileImageUrl ?? "/images/default-avatar.png"} /> </span>
+            <span>{invite.sender.fullName} wants to be your friend! <MiniAvatar imageUrl={invite.sender.profileImageUrl ?? "/public/default-avatar.png"} size={120}/> </span>
             <div className="flex gap-2">
               <ProfileNavButton
                 text="Godta"

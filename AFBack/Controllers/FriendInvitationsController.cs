@@ -84,7 +84,7 @@ public class FriendInvitationsController : ControllerBase
                 ReceiverId = i.ReceiverId,
                 Status = i.Status.ToString(),
                 SentAt = i.SentAt,
-                Sender = new SenderDTO
+                UserSummary = new UserSummaryDTO
                 {
                     Id = i.Sender.Id,
                     FullName = i.Sender.FullName,

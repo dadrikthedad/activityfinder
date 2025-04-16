@@ -30,14 +30,32 @@ public class FriendsController : ControllerBase
         
 
         var friends = await _context.Friends
+            .Include(f => f.User)
+            .ThenInclude(u => u.Profile)
+            .Include(f => f.FriendUser)
+            .ThenInclude(u => u.Profile)
+            .AsNoTracking()
             .Where(f => f.UserId == userId || f.FriendId == userId)
             .Select(f => new FriendDTO
             {
                 CurrentUserId = userId,
-                FriendId = f.UserId == userId ? f.FriendId : f.UserId,
                 CreatedAt = f.CreatedAt,
                 UserToFriendUserScore = f.UserId == userId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
-                FriendUserToUserScore = f.UserId == userId ? f.FriendUserToUserScore : f.UserToFriendUserScore
+                FriendUserToUserScore = f.UserId == userId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
+
+                Friend = f.UserId == userId
+                    ? new UserSummaryDTO
+                    {
+                        Id = f.FriendUser.Id,
+                        FullName = f.FriendUser.FullName,
+                        ProfileImageUrl = f.FriendUser.Profile != null ? f.FriendUser.Profile.ProfileImageUrl : null
+                    }
+                    : new UserSummaryDTO
+                    {
+                        Id = f.User.Id,
+                        FullName = f.User.FullName,
+                        ProfileImageUrl = f.User.Profile != null ? f.User.Profile.ProfileImageUrl : null
+                    }
             })
             .ToListAsync();
         
@@ -53,14 +71,31 @@ public class FriendsController : ControllerBase
             return Unauthorized(new { message = "Invalid user ID in token." });
         
         var friends = await _context.Friends
+            .Include(f => f.User)
+            .ThenInclude(u => u.Profile)
+            .Include(f => f.FriendUser)
+            .ThenInclude(u => u.Profile)
+            .AsNoTracking()
             .Where(f => f.UserId == otherUserId || f.FriendId == otherUserId)
             .Select(f => new FriendDTO
             {
                 CurrentUserId = userId,
-                FriendId = f.UserId == otherUserId ? f.FriendId : f.UserId,
                 CreatedAt = f.CreatedAt,
                 UserToFriendUserScore = f.UserId == otherUserId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
-                FriendUserToUserScore = f.UserId == otherUserId ? f.FriendUserToUserScore : f.UserToFriendUserScore
+                FriendUserToUserScore = f.UserId == otherUserId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
+                Friend = f.UserId == otherUserId
+                    ? new UserSummaryDTO
+                    {
+                        Id = f.FriendUser.Id,
+                        FullName = f.FriendUser.FullName,
+                        ProfileImageUrl = f.FriendUser.Profile != null ? f.FriendUser.Profile.ProfileImageUrl : null
+                    }
+                    : new UserSummaryDTO
+                    {
+                        Id = f.User.Id,
+                        FullName = f.User.FullName,
+                        ProfileImageUrl = f.User.Profile != null ? f.User.Profile.ProfileImageUrl : null
+                    }
             })
             .ToListAsync();
 
