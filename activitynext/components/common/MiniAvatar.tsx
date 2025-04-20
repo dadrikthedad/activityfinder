@@ -1,3 +1,4 @@
+// Lille avataren foreløpig brukes Friends-siden, skal også brukes i kommentarer, innlegg osv. senere. Brukes i UserActionPopover.tsx
 import Image from "next/image";
 
 interface MiniAvatarProps {
@@ -14,7 +15,7 @@ export default function MiniAvatar({
   withBorder = true,
 }: MiniAvatarProps) {
   const borderClasses = withBorder
-    ? "border-4 border-green-700 shadow-md"
+    ? "border-2 border-[#1C6B1C] shadow-md" 
     : "border border-gray-300 shadow-sm";
 
   return (

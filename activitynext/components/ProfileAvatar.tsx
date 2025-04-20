@@ -63,7 +63,7 @@ export default function ProfileAvatar({
           <div
             onClick={() => setIsOpen(true)}
             className={cn(
-              "cursor-pointer rounded-full border-4 border-green-700 shadow-md overflow-hidden",
+              "cursor-pointer rounded-full border-4 border-[#1C6B1C] shadow-md overflow-hidden",
               "w-48 h-48"
             )}
           >
@@ -89,7 +89,7 @@ export default function ProfileAvatar({
           <Dialog open={isOpen} onClose={handleClose} className="fixed z-50 inset-0">
             <div className="fixed inset-0 bg-black/80" aria-hidden="true" />
             <div className="fixed inset-0 flex items-center justify-center p-4">
-              <Dialog.Panel className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto">
+              <Dialog.Panel className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto ">
                 <Image
                   src={previewUrl || imageUrl}
                   alt="Enlarged profile"

@@ -72,7 +72,7 @@ interface Props {
 
 
   return (
-    <div className="bg-white dark:bg-zinc-800 shadow-md rounded-xl p-6 space-y-2 mt-6">
+    <div className="bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 space-y-2 mt-6 border-2 border-[#1C6B1C]">
       <h2 className="text-xl font-semibold mb-2 ">Profile</h2>
       {/* Profilinfo - navn, dato etc */}
       {!isEmpty(profile.fullName) && <p><strong>Name:</strong> {profile.fullName}</p>}

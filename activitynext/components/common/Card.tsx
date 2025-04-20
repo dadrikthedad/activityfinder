@@ -1,4 +1,4 @@
-// components/common/Card.tsx
+// Dette "kortet" er det grå feltet rundt et element mot den sorte bakgrunnen, brukes i friends
 import { ReactNode } from "react";
 
 interface CardProps {

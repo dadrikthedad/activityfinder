@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import PublicProfileView from "@/components/profile/PublicProfileView";
+
 // Dette må vi bruke siden det er next 15
 type Params = Promise<{ id: string }>;
 
@@ -27,7 +28,7 @@ export default function PublicProfilePage(props: { params: Params }) {
 
 
   return (
-    <div className="flex flex-col gap-20 max-w-4xl mx-auto px-4 py-10 min-h-[85vh]">
+    <div className="flex flex-col gap-20 max-w-4xl mx-auto px-4 py-10 min-h-screen">
     <PublicProfileView //Her har vi selve profilen, og vi gir parametere om vi eier eller om vi er på editprofile-siden. 
       profile={profile}
       isEditable={false}

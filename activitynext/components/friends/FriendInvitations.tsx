@@ -1,3 +1,5 @@
+// Dette er venneinvitasjonsdelen på friends siden. Håndterer iterasjonen over listen med venneforespørsler. TODO: Må begrense den senere til kun 10 forespørsler per side, kanskje.
+// Henter venneforespørsler fra backened og det er her vi kan godta og avslå den
 "use client";
 import { useFriendInvitations } from "@/hooks/useFriendInvitations";
 import { useState } from "react";
@@ -5,20 +7,23 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { respondToInvitation } from "@/services/friendInvitations/respondToInvitation";
 import UserActionPopover from "@/components/common/UserActionPopover";
 import Card from "@/components/common/Card";
+import { useAuth } from "@/context/AuthContext";
 
 export default function FriendInvitations() {
   const { invitations, loading } = useFriendInvitations();
   const [handlingRequest, setHandlingRequest] = useState<number | null>(null);
+  const { token } = useAuth();
 
-  const handleResponse = async (id: number, action: "accept" | "decline") => {
-    try {
-      setHandlingRequest(id);
-      await respondToInvitation(id, action);
-      location.reload(); // ev. SWR senere
-    } finally {
-      setHandlingRequest(null);
-    }
-  };
+const handleResponse = async (id: number, action: "accept" | "decline") => {
+  if (!token) return;
+  setHandlingRequest(id);
+  try {
+    await respondToInvitation(id, action, token);
+    location.reload(); // senere: bruk SWR
+  } finally {
+    setHandlingRequest(null);
+  }
+};
 
   if (loading) return <p>Loading requests...</p>;
   if (invitations.length === 0) return null;

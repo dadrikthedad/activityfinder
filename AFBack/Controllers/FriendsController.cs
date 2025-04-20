@@ -21,7 +21,7 @@ public class FriendsController : ControllerBase
     }
     
 
-    // GET: Hent alle venner for innlogget bruker
+    // GET: Hent alle venner for innlogget bruker, brukes i Friends og skal senere brukes i profilsiden
     [HttpGet]
     public async Task<ActionResult<List<FriendDTO>>> GetFriends()
     {
@@ -138,6 +138,6 @@ public class FriendsController : ControllerBase
         _context.Friends.Remove(friendship);
         await _context.SaveChangesAsync();
 
-        return Ok("Friend removed");
+        return Ok(new { message = "Friend removed" });
     }
 }

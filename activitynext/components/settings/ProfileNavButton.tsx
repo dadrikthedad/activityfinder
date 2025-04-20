@@ -10,7 +10,7 @@ interface ProfileNavButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
-  variant?: "default" | "small" | "large" | "long" | "normal" | "iconOnly";
+  variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly";
 }
 
 export default function ProfileNavButton({
@@ -40,6 +40,9 @@ export default function ProfileNavButton({
       break;
     case "long":
         baseClasses = "w-[280px] h-14 text-lg px-4 py-2 text-center whitespace-nowrap overflow-hidden text-ellipsis";
+        break;
+      case "usual": // Denne brukes i friends-siden
+        baseClasses = "w-[180px] h-14 text-lg px-4 py-2 text-center overflow-hidden whitespace-nowrap text-ellipsis";
         break;
     case "default":
     default:

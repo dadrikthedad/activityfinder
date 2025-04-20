@@ -97,14 +97,14 @@ export default function Navbar() {
                 <Settings size={20} />
               </button>
   
-              {showDropDown && (
+              {showDropDown && ( // bg-white dark:bg-[#1e2122] p-6 
                 <div
                   ref={dropdownRef}
-                  className="absolute right-0 top-12 bg-white text-black rounded-md shadow-md p-2 z-10 w-32"
-                >
+                  className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-white rounded-lg shadow-md p-2 z-10 w-32  border-2 border-[#1C6B1C]"
+                > 
 
                 <button // Dropdown
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-700 "
                     onClick={() => {
                       setShowDropdown(false);
                       router.push("/editprofile");
@@ -113,7 +113,7 @@ export default function Navbar() {
                     Edit Profile
                   </button>
                   <button
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-700"
                     onClick={() => {
                       setShowDropdown(false);
                       router.push("/profilesettings");
@@ -124,7 +124,7 @@ export default function Navbar() {
                   
                   
                   <button
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-700"
                     onClick={handleLogout}
                   >
                     Logout

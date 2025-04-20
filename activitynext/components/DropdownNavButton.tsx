@@ -1,7 +1,9 @@
 // Dropdown til ved besøk av en bruker, gir en meny med feks block, ignore osv. Brukes i profile/[id]
+// DropdownNavButton.tsx
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ProfileNavButton from "@/components/settings/ProfileNavButton";
 
 interface Action {
   label: string;
@@ -11,14 +13,14 @@ interface Action {
 interface DropdownNavButtonProps {
   text: string;
   actions: Action[];
-  isFriend?: boolean
+  isFriend?: boolean;
+  variant?: "default" | "small" | "large" | "long" | "normal" | "iconOnly" | "usual";
 }
 
-export default function DropdownNavButton({ text, actions, isFriend = false }: DropdownNavButtonProps) {
-  const [open, setOpen] = useState(false); // Sjekker om den er åpen
+export default function DropdownNavButton({ text, actions, isFriend = false, variant = "long", }: DropdownNavButtonProps) {
+  const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Lukk hvis vi klikker utenfor
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
@@ -29,7 +31,6 @@ export default function DropdownNavButton({ text, actions, isFriend = false }: D
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // TODO: Fjerner venn
   const combinedActions: Action[] = [
     ...actions,
     ...(isFriend
@@ -38,20 +39,20 @@ export default function DropdownNavButton({ text, actions, isFriend = false }: D
   ];
 
   return (
-    <div ref={ref} className="relative w-full flex flex-col items-center">
-      <button
+    <div ref={ref} className="relative w-auto flex flex-col items-center">
+      <ProfileNavButton
+        text={text}
         onClick={() => setOpen((prev) => !prev)}
-        className="bg-[#166016] hover:bg-green-800 text-white px-6 py-3 rounded-m w-[280px] font-semibold text-lg text-center"
-      >
-        {text}
-      </button>
+        variant={variant}
+        className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+      />
 
       {open && (
-        <div className="absolute top-full mt-2 w-[280px] bg-white text-black rounded-md shadow-lg z-30">
+        <div className="absolute top-full mt-2 w-full bg-white dark:bg-[#1e2122] text-white rounded-md shadow-lg z-30 border-2 border-[#1C6B1C]">
           {combinedActions.map((action, idx) => (
             <button
               key={idx}
-              className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm"
+              className="block w-full justify-center text-center px-4 py-2 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"
               onClick={() => {
                 action.onClick();
                 setOpen(false);

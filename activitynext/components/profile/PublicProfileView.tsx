@@ -10,6 +10,8 @@ import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 import { PublicProfileDTO } from "@/types/PublicProfileDTO";
+import SimpleFriendList from "@/components/friends/SimpleFriendList";
+
 
 export default function PublicProfileView({
   profile: initialProfile, // Vi gir profilnavn initialProfile slik at det ikke blir forvirring mot profile
@@ -143,7 +145,14 @@ export default function PublicProfileView({
             </>
           )}
         </div>
+        
       </div>
+      {isOwner && !isEditable && (
+          <div className="w-full">
+            <h3 className="text-lg text-center font-semibold text-[#145214]">Your Friends</h3>
+            <SimpleFriendList />
+          </div>
+        )}
     </div>
   );
 }
