@@ -1,3 +1,4 @@
+// Her er vennelisten samt alle venneforespørslene
 import FriendList from "@/components/friends/FriendList";
 import FriendInvitations from "@/components/friends/FriendInvitations";
 

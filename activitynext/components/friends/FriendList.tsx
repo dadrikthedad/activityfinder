@@ -5,45 +5,49 @@ import UserActionPopover from "@/components/common/UserActionPopover";
 import Card from "@/components/common/Card";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import DropdownProfileNavButton from "@/components/DropdownNavButton";
-import { useRemoveFriend } from "@/hooks/useRemoveFriend";
 import { useEffect, useState } from "react";
-import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 
 export default function FriendList() {
   const { friends, loading } = useFriends();
-  const [friendList, setFriendList] = useState(friends);
-  const { handleRemoveFriend } = useRemoveFriend();
-  const { confirm, ConfirmDialog } = useConfirmDialog();
-
-  useEffect(() => { //Her iterere vi over hver venn og legger det til en venneliste. Og da når vi sletter en venn så fjernes den i UI-en samt backend
-    setFriendList(friends);
-  }, [friends]);
-
-  const handleDelete = async (friendId: number, friendName: string) => {
-    const confirmed = await confirm({
-      title: "Confirm Remove Friend",
-      message: (
-        <>
-          Are you sure you want to remove <span className="font-semibold italic text-base md:text-lg">{friendName}</span> as a friend?
-        </>
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredFriends, setFilteredFriends] = useState(friends);
+  const { confirmAndRemove } = useConfirmRemoveFriend();
+//Her iterere vi over hver venn og legger det til en venneliste. Og da når vi sletter en venn så fjernes den i UI-en samt backend
+  useEffect(() => {
+    setFilteredFriends(
+      friends.filter((friend) =>
+        friend.friend.fullName.toLowerCase().includes(searchTerm.toLowerCase())
       )
-    });
-    if (confirmed) {
-      await handleRemoveFriend(friendId);
-    }
-  };
+    );
+  }, [searchTerm, friends]);
 
   if (loading) return <p>Loading friends...</p>;
   if (friends.length === 0) return <p>You have no friends yet</p>;
 
   return (
     <>
+    <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search friends..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full p-3 border-2 border-[#1C6B1C] rounded-lg bg-white dark:bg-[#1e2122] text-black dark:text-white text-center"
+        />
+      </div>
+
     <ul className="space-y-6">
-      {friendList.map((friend) => (
+      {filteredFriends.map((friend) => (
         <li key={friend.friend.id}>
           <Card className="flex justify-between items-center gap-6 w-full p-6 border-2 border-[#1C6B1C]">
             <div className="flex items-center gap-4 w-full">
-              <UserActionPopover user={friend.friend} />
+            <UserActionPopover
+              user={friend.friend}
+              onRemoveSuccess={() =>
+                setFilteredFriends((prev) => prev.filter((f) => f.friend.id !== friend.friend.id))
+              }
+            />
               <div>
                 <p className="text-lg font-semibold">{friend.friend.fullName}</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -72,7 +76,10 @@ export default function FriendList() {
                 actions={[
                   {
                     label: "Remove Friend",
-                    onClick: () => handleDelete(friend.friend.id, friend.friend.fullName),
+                    onClick: () =>
+                      confirmAndRemove(friend.friend.id, friend.friend.fullName, () => {
+                        setFilteredFriends((prev) => prev.filter((f) => f.friend.id !== friend.friend.id));
+                      }),
                   },
                   { label: "Block", onClick: () => alert("Block clicked") },
                   { label: "Ignore", onClick: () => alert("Ignore clicked") },
@@ -84,7 +91,6 @@ export default function FriendList() {
         </li>
       ))}
     </ul>
-    <ConfirmDialog />
     </>
   );
 }

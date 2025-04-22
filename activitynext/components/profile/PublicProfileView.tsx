@@ -13,6 +13,7 @@ import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import SimpleFriendList from "@/components/friends/SimpleFriendList";
 
 
+
 export default function PublicProfileView({
   profile: initialProfile, // Vi gir profilnavn initialProfile slik at det ikke blir forvirring mot profile
   isEditable = false,
@@ -25,6 +26,7 @@ export default function PublicProfileView({
   const [profile, setProfile] = useState(initialProfile); // ✅ må kalles initialProfile her
   const [reloadCounter ] = useState(0); // Brukes til å trigge refetch av siden ved subtmitting til backend
   const { token } = useAuth(); // Henter token
+
 
   // Her bruker vi et default bilde hvis bruker ikke har ett
   const imageUrl =
@@ -149,10 +151,11 @@ export default function PublicProfileView({
       </div>
       {isOwner && !isEditable && (
           <div className="w-full">
-            <h3 className="text-lg text-center font-semibold text-[#145214]">Your Friends</h3>
+            <h2 className="text-xl text-center font-semibold text-[#145214]">Your Friends</h2>
             <SimpleFriendList />
           </div>
         )}
     </div>
+    
   );
 }

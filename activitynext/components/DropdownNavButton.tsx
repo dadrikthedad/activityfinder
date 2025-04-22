@@ -15,9 +15,10 @@ interface DropdownNavButtonProps {
   actions: Action[];
   isFriend?: boolean;
   variant?: "default" | "small" | "large" | "long" | "normal" | "iconOnly" | "usual";
+  className?: string;
 }
 
-export default function DropdownNavButton({ text, actions, isFriend = false, variant = "long", }: DropdownNavButtonProps) {
+export default function DropdownNavButton({ text, actions, isFriend = false, variant = "long", className = "" ,}: DropdownNavButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -39,12 +40,12 @@ export default function DropdownNavButton({ text, actions, isFriend = false, var
   ];
 
   return (
-    <div ref={ref} className="relative w-auto flex flex-col items-center">
+    <div ref={ref} className={`relative w-auto flex flex-col items-center ${className}`}>
       <ProfileNavButton
         text={text}
         onClick={() => setOpen((prev) => !prev)}
         variant={variant}
-        className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+        className={className || "bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"}
       />
 
       {open && (

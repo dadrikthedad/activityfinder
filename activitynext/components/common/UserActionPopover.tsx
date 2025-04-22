@@ -8,15 +8,45 @@ import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
 import EnlargeableImage from "@/components/common/EnlargeableImage";
 import { Fragment, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import DropdownNavButton from "../DropdownNavButton";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useRemoveFriend } from "@/hooks/useRemoveFriend";
+
+
 
 interface Props {
   user: UserSummaryDTO;
   avatarSize?: number;
+  onRemoveSuccess?: () => void; // Brukes for å bekrefte at en bruker har blitt slettet
 }
 
-export default function UserActionPopover({ user, avatarSize = 120 }: Props) {
+export default function UserActionPopover({ user, avatarSize = 120, onRemoveSuccess }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
+  const { confirm } = useConfirmDialog();
+  const { handleRemoveFriend } = useRemoveFriend();
+
+  const handleRemove = async () => {
+    const confirmed = await confirm({
+      title: "Confirm Remove Friend",
+      message: (
+        <span>
+          Are you sure you want to remove{" "}
+          <span className="font-semibold italic text-base md:text-lg">
+            {user.fullName}
+          </span>{" "}
+          as a friend?
+        </span>
+      ),
+    });
+  
+    if (confirmed) {
+      await handleRemoveFriend(user.id, () => {
+        console.log("✅ Friend removed"); // Eventuelt: oppdatere UI, refetch eller toast
+        onRemoveSuccess?.();
+      });
+    }
+  };
 
   useEffect(() => {
     const updatePosition = () => {
@@ -24,17 +54,17 @@ export default function UserActionPopover({ user, avatarSize = 120 }: Props) {
         const rect = buttonRef.current.getBoundingClientRect();
         setPanelStyles({
           position: "absolute",
-          top: rect.bottom + window.scrollY + 10, // 10px below the button
+          top: rect.bottom + window.scrollY + 10,
           left: rect.left + window.scrollX,
           zIndex: 1000,
         });
       }
     };
-
+  
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition);
-
+  
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition);
@@ -61,45 +91,60 @@ export default function UserActionPopover({ user, avatarSize = 120 }: Props) {
           leaveTo="opacity-0 translate-y-1"
         >
           <Popover.Panel style={panelStyles} className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]">
-            <div className="flex justify-between items-start gap-4">
-              {/* Left side: Larger avatar and name */}
-              <div className="flex flex-col items-center">
-                <EnlargeableImage
-                  src={user.profileImageUrl ?? "/default-avatar.png"}
-                  size={150}
-                />
-                <p className="mt-2 font-semibold text-center">{user.fullName}</p>
-              </div>
+          {({ close }) => (
+    <div className="relative">
+      {/* Lukkeknapp */}
+      <ProfileNavButton
+            onClick={() => close()}
+            text="X"
+            variant="smallx"
+            className="absolute -top-7 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
+            aria-label="Close"
+          />
 
-              {/* Right side: Actions */}
-              <ul className="text-sm space-y-2 text-right self-center">
-                <ProfileNavButton
-                  href={`/profile/${user.id}`}
-                  text="Visit Profile"
-                  variant="small"
-                  className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                />
-                <ProfileNavButton
-                  text="Send Message"
-                  onClick={() => alert("Coming soon!")}
-                  variant="small"
-                  className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                />
-                <ProfileNavButton
-                  text="Ignore"
-                  onClick={() => alert("Coming soon!")}
-                  variant="small"
-                  className="bg-gray-500 hover:bg-gray-600 text-white"
-                />
-                <ProfileNavButton
-                  text="Block User"
-                  onClick={() => alert("Coming soon!")}
-                  variant="small"
-                  className="bg-gray-500 hover:bg-gray-600 text-white"
-                />
-              </ul>
+    <div className="flex gap-12 mt-4 items-start">
+          {/* VENSTRE SIDE: Avatar */}
+          <div className="flex-shrink-0">
+            <EnlargeableImage
+              src={user.profileImageUrl ?? "/default-avatar.png"}
+              size={120}
+            />
+            <div className="w-full mt-2 text-center break-words max-w-[120px]">
+              <p className="text-lg font-semibold">{user.fullName}</p>
             </div>
-          </Popover.Panel>
+          </div>
+
+          {/* HØYRE SIDE: Info og knapper */}
+          <div className="flex flex-col justify-center flex-1 items-start space-y-2">
+            
+            <ProfileNavButton
+              href={`/profile/${user.id}`}
+              text="Visit Profile"
+              variant="small"
+              className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+            />
+            <ProfileNavButton
+              text="Send Message"
+              onClick={() => alert("Coming soon!")}
+              variant="small"
+              className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+            />
+            <DropdownNavButton
+              text="More Options"
+              variant="small"
+              className="self-start bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+              actions={[
+                { label: "Remove Friend", onClick: handleRemove },
+                { label: "Block", onClick: () => alert("Block clicked") },
+                { label: "Ignore", onClick: () => alert("Ignore clicked") },
+                { label: "Report", onClick: () => alert("Report clicked") },
+              ]}
+            />
+          </div>
+        </div>
+    </div>
+  )}
+</Popover.Panel>
         </Transition>,
         document.body
       )}

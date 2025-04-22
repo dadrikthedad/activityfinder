@@ -1,4 +1,4 @@
-// hooks/useRemoveFriend.ts brukes til å slette venner. Sender API til backend med delete til /friends. Brukes i /friends og på profilsiden til en bruker
+// brukes til å slette venner. Sender API til backend med delete til /friends. Brukes i /friends og på profilsiden til en bruker
 import { useAuth } from "@/context/AuthContext";
 import { removeFriend } from "@/services/friends/removeFriend";
 import { useState } from "react";

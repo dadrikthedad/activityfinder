@@ -10,7 +10,7 @@ interface ProfileNavButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
-  variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly";
+  variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly" | "smallx";
 }
 
 export default function ProfileNavButton({
@@ -34,6 +34,9 @@ export default function ProfileNavButton({
       break;
     case "iconOnly":
       baseClasses = "w-[48px] h-[48px] p-2 text-base"; 
+      break;
+    case "smallx":
+      baseClasses = "w-[30px] h-[30px] p-2 text-base"; 
       break;
     case "normal":
       baseClasses ="w-48 h-12 text-lg px-4 py-2 text-center whitespace-nowrap overflow-hidden text-ellipsis";
