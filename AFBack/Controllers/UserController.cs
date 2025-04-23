@@ -547,4 +547,32 @@ public class UserController : ControllerBase
 
         return Ok(new { message = "Password updated successfully." });
     }
+    
+    // Søke etter en bruker, brukes i søkebaren til navbar. Senere eventuelt lage en egen SearchController.cs feks
+    [HttpGet("search")]
+    public async Task<ActionResult<List<UserSummaryDTO>>> SearchUsers([FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return BadRequest("Query cannot be empty.");
+        }
+
+        var lowerQuery = query.ToLower();
+
+        var results = await _context.Users
+            .Where(u =>
+                (u.FirstName + " " +
+                 (u.MiddleName != null ? u.MiddleName + " " : "") +
+                 u.LastName).ToLower().Contains(lowerQuery))
+            .Select(u => new UserSummaryDTO
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
+            })
+            .Take(20) // Begrens antall resultater
+            .ToListAsync();
+
+        return Ok(results);
+    }
 }

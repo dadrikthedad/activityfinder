@@ -1,8 +1,9 @@
+// Denne vennelisten er synlig på en brukers profil hvis man er venn med brukeren enn så lenge. Brukes i profile/[id]. 
 "use client";
 
 import { useState, useEffect } from "react";
 import { useFriendsOfUser } from "@/hooks/useFriendsOfUser";
-import UserActionPopover from "@/components/common/UserActionPopover";
+import FriendListItem from "@/components/friends/FriendListItem";
 
 export default function PublicSimpleFriendList({ userId }: { userId: number }) {
   const { friends, loading } = useFriendsOfUser(userId);
@@ -30,14 +31,11 @@ export default function PublicSimpleFriendList({ userId }: { userId: number }) {
         className="w-full p-3 py-3 border-2 border-[#1C6B1C] rounded-lg bg-white dark:bg-[#1e2122] text-black dark:text-white text-center"
       />
 
-      <ul className="space-y-4">
-        {filteredFriends.map((friend) => (
-          <li key={friend.friend.id} className="flex items-center gap-4">
-            <UserActionPopover user={friend.friend} avatarSize={60} />
-            <span className="text-md font-medium">{friend.friend.fullName}</span>
-          </li>
-        ))}
-      </ul>
+<ul className="space-y-4">
+  {filteredFriends.map((friend) => (
+    <FriendListItem key={friend.friend.id} friend={friend} />
+  ))}
+</ul>
     </div>
   );
 }

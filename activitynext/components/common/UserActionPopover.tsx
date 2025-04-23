@@ -10,8 +10,8 @@ import { Fragment, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DropdownNavButton from "../DropdownNavButton";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
-
-
+import { useFriendWith } from "@/hooks/useFriendWith";
+import { useAuth } from "@/context/AuthContext";
 
 
 interface Props {
@@ -24,6 +24,9 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
   const { confirmAndRemove } = useConfirmRemoveFriend();
+  const { isFriend, loading: isFriendLoading } = useFriendWith(user.id);
+  const { userId: currentUserId } = useAuth();
+  const isOwner = user.id === currentUserId;
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
@@ -104,24 +107,30 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
               variant="small"
               className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
             />
+            {!isOwner && (
+               <>
             <ProfileNavButton
               text="Send Message"
               onClick={() => alert("Coming soon!")}
               variant="small"
               className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
             />
-            <DropdownNavButton
-              text="More Options"
-              variant="small"
-              className="self-start bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-              actions={[
-                { label: "Remove Friend", onClick: handleRemove },
-                { label: "Block", onClick: () => alert("Block clicked") },
-                { label: "Ignore", onClick: () => alert("Ignore clicked") },
-                { label: "Report", onClick: () => alert("Report clicked") },
-              ]}
-            />
-          </div>
+            {!isFriendLoading && (
+              <DropdownNavButton
+                text="More Options"
+                variant="small"
+                className="self-start bg-gray-500 hover:bg-gray-600 text-white rounded-md"
+                actions={[
+                  ...(isFriend ? [{ label: "Remove Friend", onClick: handleRemove }] : []),
+                  { label: "Block", onClick: () => alert("Block clicked") },
+                  { label: "Ignore", onClick: () => alert("Ignore clicked") },
+                  { label: "Report", onClick: () => alert("Report clicked") },
+                ]}
+                />
+              )}
+            </>
+          )}
+        </div>
         </div>
     </div>
   )}

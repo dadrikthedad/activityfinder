@@ -1,4 +1,4 @@
-// Navbaren, sier seg selv. To forskjellige moduser, innlogget eller ikke
+// Navbaren, sier seg selv. To forskjellige moduser, innlogget eller ikke. Søkefeltet er i midten
 "use client"; // Gjør Navbar til en klientkomponent
 
 import Link from "next/link";
@@ -7,6 +7,7 @@ import { Settings, Bell, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ProfileLink from "@/components/profile/ProfileLink";
+import NavbarSearch from "@/components/NavbarSearch";
 
 export default function Navbar() {
   
@@ -64,6 +65,11 @@ export default function Navbar() {
           </li>
         </ul>
       </div>
+
+      {/* MIDTEN: Søkefelt */}
+        <div className="flex-1 mx-8 hidden md:block">
+          <NavbarSearch />
+        </div>
   
       {/* Høyre del: Login/Profile og dropdown meny*/}
       <ul className="flex gap-6 items-center relative">
