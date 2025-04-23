@@ -9,8 +9,8 @@ import EnlargeableImage from "@/components/common/EnlargeableImage";
 import { Fragment, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import DropdownNavButton from "../DropdownNavButton";
-import { useConfirmDialog } from "@/hooks/useConfirmDialog";
-import { useRemoveFriend } from "@/hooks/useRemoveFriend";
+import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
+
 
 
 
@@ -23,29 +23,10 @@ interface Props {
 export default function UserActionPopover({ user, avatarSize = 120, onRemoveSuccess }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
-  const { confirm } = useConfirmDialog();
-  const { handleRemoveFriend } = useRemoveFriend();
+  const { confirmAndRemove } = useConfirmRemoveFriend();
 
   const handleRemove = async () => {
-    const confirmed = await confirm({
-      title: "Confirm Remove Friend",
-      message: (
-        <span>
-          Are you sure you want to remove{" "}
-          <span className="font-semibold italic text-base md:text-lg">
-            {user.fullName}
-          </span>{" "}
-          as a friend?
-        </span>
-      ),
-    });
-  
-    if (confirmed) {
-      await handleRemoveFriend(user.id, () => {
-        console.log("✅ Friend removed"); // Eventuelt: oppdatere UI, refetch eller toast
-        onRemoveSuccess?.();
-      });
-    }
+    await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
   };
 
   useEffect(() => {

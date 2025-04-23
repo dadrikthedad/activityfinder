@@ -11,6 +11,11 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
 import { PublicProfileDTO } from "@/types/PublicProfileDTO";
 import SimpleFriendList from "@/components/friends/SimpleFriendList";
+import { useFriendWith } from "@/hooks/useFriendWith";
+import Spinner from "../common/Spinner";
+import { useSendFriendInvitation } from "@/hooks/useSendFriendInvitation";
+import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
+
 
 
 
@@ -26,7 +31,13 @@ export default function PublicProfileView({
   const [profile, setProfile] = useState(initialProfile); // ✅ må kalles initialProfile her
   const [reloadCounter ] = useState(0); // Brukes til å trigge refetch av siden ved subtmitting til backend
   const { token } = useAuth(); // Henter token
+  const { isFriend, loading: friendshipLoading, refetchFriendship } = useFriendWith(profile.userId); // Her kjører vi en sjekk til backend om vi er venn med brukeren for å gi en egen visning av brukeren
+  const { sendInvitation, sending, error } = useSendFriendInvitation(); // Brukes til å sende en venneinvitasjon
+  const { confirmAndRemove } = useConfirmRemoveFriend(); // Brukes til å slette en venn hvis vi allerede er venner
+  const [friendRequestSent, setFriendRequestSent] = useState(false); // Holder styr på om vi har lagt til en bruker som en venn slik at vi ikke kan spamme brukeren med forespørsler
 
+  
+  
 
   // Her bruker vi et default bilde hvis bruker ikke har ett
   const imageUrl =
@@ -34,7 +45,9 @@ export default function PublicProfileView({
       ? profile.profileImageUrl
       : "/default-avatar.png";
 
-  const isFriend = false; // TODO Sjekke om vi er venn for å gi egne options
+      
+
+  
 
   const refetchProfile = useCallback(async () => { // Henter en ny oppdatert versjon av profilen med API etter en ednring
     if (!initialProfile?.userId || !token) return;
@@ -46,12 +59,27 @@ export default function PublicProfileView({
     }
   }, [initialProfile?.userId, token]);
 
+  const handleRemove = async () => {
+    await confirmAndRemove(profile.userId, profile.fullName ?? "this user", async () => {
+      await refetchProfile();
+      await refetchFriendship();
+    });
+  };
+
+  const handleSendInvitation = async () => {
+    if (friendRequestSent) return; // Hindrer dobbelklikking
+  
+    await sendInvitation(profile.userId);
+    setFriendRequestSent(true); // Lås knappen og endre tekst
+  };
+
   // Trigge re-fetch automatisk ved endringer
   useEffect(() => {
     if (isEditable) {
       refetchProfile();
     }
   }, [reloadCounter, isEditable, refetchProfile]);
+
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
@@ -70,11 +98,17 @@ export default function PublicProfileView({
         </div>
 
         <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
-          <ProfileAvatar // Her viser vi profilbilde, kan endres hvis isEditable er true
-            imageUrl={imageUrl ?? "/default-avatar.png"}
-            isEditable={isEditable}
-            refetchProfile={refetchProfile}
-          />
+        {friendshipLoading ? (
+            <div className="flex justify-end items-center h-[250px] w-full">
+              <Spinner text="Loading profile" />
+            </div>
+          ) : (
+            <>
+              <ProfileAvatar // Her viser vi profilbilde, kan endres hvis isEditable er true
+                imageUrl={imageUrl ?? "/default-avatar.png"}
+                isEditable={isEditable}
+                refetchProfile={refetchProfile}
+              />
 
           {isOwner ? (
             isEditable ? (
@@ -106,31 +140,38 @@ export default function PublicProfileView({
             )
           ) : (
             <>
-              {isFriend ? (
-                <>
-                  <ProfileNavButton // Hvis vi er venner med bruker, MÅ ENDRES SENERE. SENDE MELDING
-                    href="#"
-                    text="Send Message"
-                    variant="long"
-                  />
-                  <ProfileNavButton // Sende melding, spiller ingen rolle om man er venn eller ikke MÅ ENDRES SENRE SENDE MELDING
-                    href="#"
-                    text="Send Message"
-                    variant="long"
-                  />
-                  <ProfileNavButton // Følge en bruker MÅ ENDRES SENERE. VED FØLGING
-                    href="#"
-                    text="Follow User"
-                    variant="long"
-                  />
-                </>
+             {isFriend ? (
+                  <>
+                    <ProfileNavButton // Sende melding, spiller ingen rolle om man er venn eller ikke MÅ ENDRES SENRE SENDE MELDING
+                      href="#"
+                      text="Send Message"
+                      variant="long"
+                    />
+                    <ProfileNavButton // Følge en bruker MÅ ENDRES SENERE. VED FØLGING
+                      href="#"
+                      text="Follow User"
+                      variant="long"
+                    />
+                  </>
               ) : (
                 <>
-                  <ProfileNavButton // Hvis vi ikke er venner så kan vi legge til venn her
-                    href="#"
-                    text="Add as Friend"
-                    variant="long"
-                  />
+                   <ProfileNavButton
+                        onClick={handleSendInvitation}
+                        text={
+                          friendRequestSent ||
+                          error === "A friend request is already pending between these users."
+                            ? "Friend Request Sent"
+                            : sending
+                            ? "Sending..."
+                            : "Add as Friend"
+                        }
+                        disabled={
+                          sending ||
+                          friendRequestSent ||
+                          error === "A friend request is already pending between these users."
+                        }
+                        variant="long"
+                      />
                   <ProfileNavButton // Sende melding
                     href="#"
                     text="Send Message"
@@ -143,7 +184,12 @@ export default function PublicProfileView({
                   />
                 </>
               )} {/* Dropdownmeny med ekstra valg */}
-              <ProfileActionMenu /> 
+              <ProfileActionMenu
+                isFriend={isFriend ?? false}
+                onRemoveFriend={handleRemove}
+              />
+              </>
+              )}
             </>
           )}
         </div>

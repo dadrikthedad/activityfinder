@@ -2,15 +2,25 @@
 "use client";
 import DropdownProfileNavButton from "@/components/DropdownNavButton";
 
-export default function ProfileActionMenu() {
+interface Props {
+  isFriend: boolean;
+  onRemoveFriend?: () => void;
+}
+
+export default function ProfileActionMenu({ isFriend, onRemoveFriend }: Props) {
+  const actions = [
+    ...(isFriend && onRemoveFriend
+      ? [{ label: "Remove Friend", onClick: onRemoveFriend }]
+      : []),
+    { label: "Block User", onClick: () => console.log("🚫 Block clicked") },
+    { label: "Ignore", onClick: () => console.log("🙈 Ignore clicked") },
+    { label: "Report", onClick: () => console.log("🚨 Report clicked") },
+  ];
+
   return (
     <DropdownProfileNavButton
       text="More Options"
-      actions={[
-        { label: "Block User", onClick: () => console.log("🚫 Block clicked") },
-        { label: "Ignore", onClick: () => console.log("🙈 Ignore clicked") },
-        { label: "Report", onClick: () => console.log("🚨 Report clicked") },
-      ]}
+      actions={actions}
     />
   );
 }

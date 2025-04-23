@@ -21,7 +21,7 @@ export default function SimpleFriendList() {
   );
 
   if (loading) return <p>Loading friends...</p>;
-  if (friends.length === 0) return <p>No friends found</p>;
+  if (friends.length === 0) return <p className="text-center" >No friends found</p>;
 
   return (
     <div className="relative bg-white dark:bg-[#1e2122] rounded-lg shadow-md p-4 max-h-[400px] overflow-y-auto border-2 border-[#1C6B1C] space-y-4">

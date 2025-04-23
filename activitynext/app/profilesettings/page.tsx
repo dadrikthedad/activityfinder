@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import AdditionalSettings from "@/components/settings/AdditionalSettings";
 import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import Spinner from "@/components/common/Spinner";
 
 export default function ProfileSettingsPage() {
   const { updateSettings } = useUpdateUserSettings(); // Henter funksjonen for å lagre/redigere brukerens innstillinger til backend.
@@ -77,11 +78,8 @@ export default function ProfileSettingsPage() {
   if (loading || !settings) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-green-600"></div>
-          <p className="mt-4 text-gray-500">Loading profile settings...</p>
-        </div>
-      </div>
+      <Spinner text="Loading profile settings..." />
+    </div>
     );
   }
   
