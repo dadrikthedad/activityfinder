@@ -15,6 +15,7 @@ import { useFriendWith } from "@/hooks/useFriendWith";
 import Spinner from "../common/Spinner";
 import { useSendFriendInvitation } from "@/hooks/useSendFriendInvitation";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
+import PublicSimpleFriendList from "@/components/friends/PublicSimpleFriendList";
 
 
 
@@ -200,7 +201,15 @@ export default function PublicProfileView({
             <h2 className="text-xl text-center font-semibold text-[#145214]">Your Friends</h2>
             <SimpleFriendList />
           </div>
-        )}
+          )}
+          {!isOwner && !isEditable && (
+          <div className="w-full mt-10">
+              <h2 className="text-xl text-center font-semibold text-[#145214]">
+                Their Friends
+              </h2>
+              <PublicSimpleFriendList userId={profile.userId} />
+            </div>
+          )}
     </div>
     
   );

@@ -64,43 +64,56 @@ public class FriendsController : ControllerBase
     
     // Henter venner til annen bruker
     [HttpGet("of/{userId}")]
-    public async Task<ActionResult<List<FriendDTO>>> GetFriendsOfUser(int otherUserId)
+    public async Task<ActionResult<List<FriendDTO>>> GetFriendsOfUser(int userId)
     {
-        
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+        // Henter token til brukeren
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUserId))
             return Unauthorized(new { message = "Invalid user ID in token." });
-        
+
+        // Hent ID-er til den innloggede brukerens venner
+        var currentUserFriendIds = await _context.Friends
+            .Where(f => f.UserId == currentUserId || f.FriendId == currentUserId)
+            .Select(f => f.UserId == currentUserId ? f.FriendId : f.UserId)
+            .ToListAsync();
+
+        // Hent vennelisten til bruker med id `userId`
         var friends = await _context.Friends
-            .Include(f => f.User)
-            .ThenInclude(u => u.Profile)
-            .Include(f => f.FriendUser)
-            .ThenInclude(u => u.Profile)
+            .Include(f => f.User).ThenInclude(u => u.Profile)
+            .Include(f => f.FriendUser).ThenInclude(u => u.Profile)
             .AsNoTracking()
-            .Where(f => f.UserId == otherUserId || f.FriendId == otherUserId)
+            .Where(f => (f.UserId == userId || f.FriendId == userId) &&
+                        !(f.UserId == userId && f.FriendId == userId)) // Utelukker oss selv
             .Select(f => new FriendDTO
             {
-                CurrentUserId = userId,
+                CurrentUserId = currentUserId,
                 CreatedAt = f.CreatedAt,
-                UserToFriendUserScore = f.UserId == otherUserId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
-                FriendUserToUserScore = f.UserId == otherUserId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
-                Friend = f.UserId == otherUserId
+                UserToFriendUserScore = f.UserId == userId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
+                FriendUserToUserScore = f.UserId == userId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
+                Friend = f.UserId == userId
                     ? new UserSummaryDTO
                     {
                         Id = f.FriendUser.Id,
                         FullName = f.FriendUser.FullName,
-                        ProfileImageUrl = f.FriendUser.Profile != null ? f.FriendUser.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = f.FriendUser.Profile?.ProfileImageUrl
                     }
                     : new UserSummaryDTO
                     {
                         Id = f.User.Id,
                         FullName = f.User.FullName,
-                        ProfileImageUrl = f.User.Profile != null ? f.User.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = f.User.Profile?.ProfileImageUrl
                     }
             })
             .ToListAsync();
 
-        return Ok(friends);
+        // Sorter slik at felles venner vises først
+        var sorted = friends
+            .OrderByDescending(f => currentUserFriendIds.Contains(f.Friend.Id))
+            .ThenBy(f => f.Friend.FullName)
+            .ToList();
+
+        return Ok(sorted);
     }
+    
     // Sjekk om vi er venn med en annen bruker
     [HttpGet("is-friend-with/{otherUserId}")]
     public async Task<IActionResult> IsFriendWith(int otherUserId)
