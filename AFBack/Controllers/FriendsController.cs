@@ -94,13 +94,13 @@ public class FriendsController : ControllerBase
                     {
                         Id = f.FriendUser.Id,
                         FullName = f.FriendUser.FullName,
-                        ProfileImageUrl = f.FriendUser.Profile?.ProfileImageUrl
+                        ProfileImageUrl = f.FriendUser.Profile != null ? f.FriendUser.Profile.ProfileImageUrl : null
                     }
                     : new UserSummaryDTO
                     {
                         Id = f.User.Id,
                         FullName = f.User.FullName,
-                        ProfileImageUrl = f.User.Profile?.ProfileImageUrl
+                        ProfileImageUrl = f.User.Profile != null ? f.User.Profile.ProfileImageUrl : null
                     }
             })
             .ToListAsync();
