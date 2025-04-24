@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
+import NotificationHubClient from "@/components/NotificationHubClient"; // Brukes en gang slik at den kjører globalt
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning={true}>
         <ModalProvider>
           <AuthProvider>
+          <NotificationHubClient /> 
             <Navbar />
             <main className="flex-grow">{children}</main>
           </AuthProvider> 

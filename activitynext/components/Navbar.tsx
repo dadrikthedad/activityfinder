@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ProfileLink from "@/components/profile/ProfileLink";
 import NavbarSearch from "@/components/NavbarSearch";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
 export default function Navbar() {
   
@@ -15,6 +16,7 @@ export default function Navbar() {
   const router = useRouter(); // sende oss videre til de forskjellige linkene
   const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
+  const unreadCount = useUnreadNotifications(); // Her teller vi antall uleste notifications
 
   
 
@@ -84,11 +86,16 @@ export default function Navbar() {
             </li>
 
             {/* Notifications Her kommer notifications*/}
-            <li>
-              <Link href="/notifications" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
-                <Bell size={18} />
-                <span>Notifications</span>
-              </Link>
+            <li className="relative">
+            <Link href="/notifications" className="relative hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
+              <Bell size={18} />
+              <span>Notifications</span>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </Link>
             </li>
               
             <li>

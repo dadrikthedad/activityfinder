@@ -3,9 +3,26 @@
 import { useUserSearch } from "@/hooks/useUserSearch";
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useRef } from "react";
 
 export default function NavbarSearch() {
   const { query, setQuery, results, loading } = useUserSearch();
+  const dropdownRef = useRef<HTMLUListElement>(null);
+
+   // Lukk dropdown når man klikker utenfor
+   useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setQuery(""); // Tøm søket -> lukk dropdown
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setQuery]);
 
   return (
     <div className="relative w-full max-w-md mx-auto">
@@ -13,12 +30,15 @@ export default function NavbarSearch() {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search profiles..."
-        className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1C6B1C] dark:bg-[#1e2122] dark:text-white"
+        placeholder="Search..."
+        className="w-full px-4 py-2 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1C6B1C] dark:bg-[#1e2122] dark:text-white text-center"
       />
 
       {query && (
-        <ul className="absolute z-50 w-full mt-2 bg-white dark:bg-[#1e2122] border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+        <ul
+          ref={dropdownRef}
+          className="absolute left-1/2 -translate-x-1/2 z-50 w-[800px] mt-2 bg-white dark:bg-[#1e2122] border-4 border-[#1C6B1C] rounded-md shadow-lg max-h-[400px] overflow-auto text-lg"
+        >
           {loading && <li className="p-2 text-center">Loading...</li>}
 
           {!loading && results.length === 0 && (
@@ -38,10 +58,10 @@ export default function NavbarSearch() {
                   <Image
                     src={user.profileImageUrl ?? "/default-avatar.png"}
                     alt={user.fullName}
-                    width={32}
-                    height={32}
-                    className="w-8 h-8 rounded-full object-cover"
-                    />
+                    width={80}
+                    height={80}
+                    className="w-17 h-17 rounded-full object-cover"
+                  />
                   <span>{user.fullName}</span>
                 </Link>
               </li>

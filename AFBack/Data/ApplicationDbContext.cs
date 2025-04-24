@@ -14,6 +14,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
     public DbSet<Friends> Friends { get; set; } // Venner til bruker
     public DbSet<FriendInvitation> FriendInvitations { get; set; } // Venne invitasjoner til bruker
+    
+    public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,5 +53,19 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(i => i.ReceiverId)
             .OnDelete(DeleteBehavior.Restrict);
+        
+        // Til notifikasjoner: Hvis en bruker slettes så slettes også notifkasjonene
+        modelBuilder.Entity<Notification>()
+            .HasOne(n => n.RecipientUser)
+            .WithMany()
+            .HasForeignKey(n => n.RecipientUserId)
+            .OnDelete(DeleteBehavior.Cascade); 
+        
+        // Til notifikasjoner: Hvis en bruker eksistere så slettes de ikke
+        modelBuilder.Entity<Notification>()
+            .HasOne(n => n.RelatedUser)
+            .WithMany()
+            .HasForeignKey(n => n.RelatedUserId)
+            .OnDelete(DeleteBehavior.Restrict); 
     }
 }

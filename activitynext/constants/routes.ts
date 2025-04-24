@@ -20,6 +20,8 @@ export const API_ROUTES = {
       decline: (invitationId: number) => `/api/friendinvitations/${invitationId}/decline`,
       statusBetween: (otherUserId: number) => `/api/friendinvitations/between/${otherUserId}`,
     },
+    // SignalR
+    notificationHub: "/hubs/notifications",
   };
 
 

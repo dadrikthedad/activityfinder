@@ -1,7 +1,9 @@
 ﻿using System.Security.Claims;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Models;
+using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +16,12 @@ namespace AFBack.Controllers;
 public class FriendInvitationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public FriendInvitationsController(ApplicationDbContext context)
+    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     // POST: Send venneforespørsel
@@ -25,9 +29,7 @@ public class FriendInvitationsController : ControllerBase
     public async Task<IActionResult> SendInvitation([FromBody] SendFriendRequestDTO dto)
     {   
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-        {
             return Unauthorized(new { message = "Invalid user ID in token." });
-        }
         
         // Hindre å legge til seg selv
         if (userId == dto.ReceiverId)
@@ -59,6 +61,14 @@ public class FriendInvitationsController : ControllerBase
         };
 
         _context.FriendInvitations.Add(invitation);
+        
+        // 🔔 Legg til notifikasjonen
+        await _notificationService.CreateNotificationAsync(
+            recipientUserId: dto.ReceiverId,
+            relatedUserId: userId,
+            type: NotificationTypes.FriendRequest
+        );
+        
         await _context.SaveChangesAsync();
 
         return Ok("Friend request sent.");

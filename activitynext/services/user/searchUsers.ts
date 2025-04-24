@@ -3,7 +3,7 @@ import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
 import { API_BASE_URL } from "@/constants/routes";
 
 export async function searchUsers(query: string): Promise<UserSummaryDTO[]> {
-  const url = `${API_BASE_URL}/api/users/search?query=${encodeURIComponent(query)}`;
+  const url = `${API_BASE_URL}/api/user/search?query=${encodeURIComponent(query)}`;
 
   try {
     const data = await fetch(url); // eller fetchWithAuth hvis det trengs

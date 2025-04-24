@@ -12,6 +12,7 @@ using AFBack.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using AFBack.Hubs;
 using Azure.Storage.Blobs;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
@@ -116,8 +117,11 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
-
+// Services jeg har opprettet. Til Authentisering og Notifications
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+// For signalR
+builder.Services.AddSignalR();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -206,6 +210,9 @@ app.MapControllers();
 app.UseStaticFiles();
 // Hvis noen prøver å gå inn på en side som ikke eksisterer så blir de sendt tilbake til home eller index.
 app.MapFallbackToFile("index.html");
+
+// Her er endepunktet for huben til SignalR
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 
 // Configure the HTTP request pipeline.
