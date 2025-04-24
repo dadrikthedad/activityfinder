@@ -76,7 +76,7 @@ public class FriendInvitationsController : ControllerBase
             type: NotificationTypes.FriendRequest
         );
         
-        await _hubContext.Clients.User(dto.ReceiverId.ToString())
+        await _hubContext.Clients.User(dto.ReceiverId.ToString())// Kan det være at RevceiverId.ToString() gjør det om til en string?
             .SendAsync("ReceiveNotification", new {
                 Id = 1,
                 Type = "FriendRequest",
