@@ -2,10 +2,12 @@
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Hubs;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Controllers;
@@ -17,11 +19,14 @@ public class FriendInvitationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
+    private readonly IHubContext<NotificationHub> _hubContext;
+    
 
-    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService)
+    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<NotificationHub> hubContext)
     {
         _context = context;
         _notificationService = notificationService;
+        _hubContext = hubContext;
     }
 
     // POST: Send venneforespørsel
@@ -30,6 +35,7 @@ public class FriendInvitationsController : ControllerBase
     {   
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             return Unauthorized(new { message = "Invalid user ID in token." });
+        
         
         // Hindre å legge til seg selv
         if (userId == dto.ReceiverId)
@@ -61,6 +67,7 @@ public class FriendInvitationsController : ControllerBase
         };
 
         _context.FriendInvitations.Add(invitation);
+        await _context.SaveChangesAsync();
         
         // 🔔 Legg til notifikasjonen
         await _notificationService.CreateNotificationAsync(
@@ -69,8 +76,14 @@ public class FriendInvitationsController : ControllerBase
             type: NotificationTypes.FriendRequest
         );
         
-        await _context.SaveChangesAsync();
-
+        await _hubContext.Clients.All.SendAsync("ReceiveNotification", new
+        {
+            Id = 1,
+            Type = "Test",
+            Message = "🧪 Dette er en testmelding fra API!",
+            CreatedAt = DateTime.UtcNow
+        });
+        
         return Ok(new { message = "Friend request sent." });
     }
 

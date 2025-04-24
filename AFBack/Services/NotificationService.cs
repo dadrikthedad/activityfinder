@@ -28,8 +28,11 @@ public class NotificationService : INotificationService
             CreatedAt = DateTime.UtcNow,
             IsRead = false
         };
-
+        Log.Information("🔔 Notification created for user {RecipientUserId} of type {Type}", recipientUserId, type);
+        
+        
         _context.Notifications.Add(notification);
+        Log.Information("📡 Sender notification via SignalR til {UserId}", recipientUserId);
         await _context.SaveChangesAsync();
 
         // Send sanntidsvarsel til den spesifikke brukeren
