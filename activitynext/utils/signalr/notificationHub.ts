@@ -4,12 +4,15 @@ import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
 
 let connection: signalR.HubConnection | null = null;
 
-export function createNotificationConnection(token: string): signalR.HubConnection {
+export function createNotificationConnection(): signalR.HubConnection {
   if (connection) return connection;
 
   connection = new signalR.HubConnectionBuilder()
     .withUrl(`${API_BASE_URL}${API_ROUTES.notificationHub}`, {
-      accessTokenFactory: () => token,
+        accessTokenFactory: () => {
+            const token = localStorage.getItem("token"); // 🔑 Henter direkte fra storage
+            return token ?? "";
+          },
     })
     .withAutomaticReconnect()
     .build();

@@ -9,43 +9,19 @@ namespace AFBack.Hubs;
 [Authorize]
 public class NotificationHub : Hub
 {
-    private static readonly Dictionary<string, string> _userConnections = new();
-
-    public override Task OnConnectedAsync()
+    public override async Task OnConnectedAsync()
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        Console.WriteLine($"✅ SignalR connected for user {userId}");
 
-        if (userId != null)
-        {
-            lock (_userConnections)
-            {
-                _userConnections[userId] = Context.ConnectionId;
-            }
-        }
-
-        return base.OnConnectedAsync();
+        await base.OnConnectedAsync();
     }
 
-    public override Task OnDisconnectedAsync(Exception? exception)
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        Console.WriteLine($"🔌 SignalR disconnected for user {userId}");
 
-        if (userId != null)
-        {
-            lock (_userConnections)
-            {
-                _userConnections.Remove(userId);
-            }
-        }
-
-        return base.OnDisconnectedAsync(exception);
-    }
-
-    public static string? GetConnectionIdForUser(string userId)
-    {
-        lock (_userConnections)
-        {
-            return _userConnections.TryGetValue(userId, out var connectionId) ? connectionId : null;
-        }
+        await base.OnDisconnectedAsync(exception);
     }
 }

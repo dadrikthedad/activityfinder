@@ -128,11 +128,13 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
         ClockSkew = TimeSpan.Zero
     };
 });
+
+// For signalR
+builder.Services.AddSignalR();
 // Services jeg har opprettet. Til Authentisering og Notifications
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
-// For signalR
-builder.Services.AddSignalR();
+
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

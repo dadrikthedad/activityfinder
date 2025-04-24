@@ -1,7 +1,6 @@
 // Her henter vi og bruker SignalR huben til å oppdatere i sanntid ved at NotificationHubClient bruker den globalt. Den henter notifcaitons når det kommer noen nye
 import { useEffect } from "react";
 import { createNotificationConnection, getConnection  } from "@/utils/signalr/notificationHub";
-import { useAuth } from "@/context/AuthContext";
 import { NotificationDTO } from "@/types/NotificationEventDTO"; 
 
 interface Options {
@@ -9,20 +8,12 @@ interface Options {
   }
 
   export function useNotificationHub(options?: Options) {
-    const { token } = useAuth();
     const onReceive = options?.onReceive;
   
     useEffect(() => {
-      if (!token) return;
+      const connection = getConnection() ?? createNotificationConnection();
   
-      let connection = getConnection();
-  
-      if (!connection) {
-        connection = createNotificationConnection(token);
-      }
-  
-      // Fjern gammel lytter hvis finnes (hindrer multiple callbacks)
-      connection.off("ReceiveNotification");
+      connection.off("ReceiveNotification"); // Fjern tidligere event listener
   
       connection.on("ReceiveNotification", (notification: NotificationDTO) => {
         console.log("📥 New notification:", notification);
@@ -48,5 +39,5 @@ interface Options {
   
       // 🚫 Ikke stopp forbindelsen – den kan brukes av andre
       return () => {};
-    }, [token, onReceive]);
+    }, [onReceive]);
   }

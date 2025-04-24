@@ -75,6 +75,7 @@ public class FriendInvitationsController : ControllerBase
             relatedUserId: userId,
             type: NotificationTypes.FriendRequest
         );
+
         
         return Ok(new { message = "Friend request sent." });
     }
