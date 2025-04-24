@@ -78,7 +78,7 @@ public class FriendInvitationsController : ControllerBase
         
         await _hubContext.Clients.All.SendAsync("ReceiveNotification", new
         {
-            Id = 1,
+            Id = dto.ReceiverId,
             Type = "Test",
             Message = "🧪 Dette er en testmelding fra API!",
             CreatedAt = DateTime.UtcNow
