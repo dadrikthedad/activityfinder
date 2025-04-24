@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNotificationHub } from "@/hooks/useNotificationHub";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { API_BASE_URL } from "@/constants/routes";
 
 export function useUnreadNotifications() {
     const { token } = useAuth();
@@ -15,9 +16,9 @@ export function useUnreadNotifications() {
     useEffect(() => {
       const fetchInitial = async () => {
         if (!token) return;
-        const res = await fetch("/api/notifications", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(`${API_BASE_URL}/api/notifications`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
         const data: NotificationDTO[] = await res.json();
         const unread = data.filter((n: NotificationDTO) => !n.isRead).length;
         setUnreadCount(unread);

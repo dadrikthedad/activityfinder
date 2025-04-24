@@ -24,12 +24,18 @@ interface Options {
   
       connection.onclose(() => {
         console.warn("🔌 SignalR connection closed, attempting to reconnect...");
-        setTimeout(() => connection.start().catch(console.error), 2000);
+        setTimeout(() => {
+          if (connection.state === "Disconnected") {
+            connection.start().catch(console.error);
+          }
+        }, 2000);
       });
   
-      connection.start().catch((err) =>
-        console.error("❌ SignalR-tilkobling feilet:", err)
-      );
+      if (connection.state === "Disconnected") {
+        connection.start().catch((err) =>
+          console.error("❌ SignalR-tilkobling feilet:", err)
+        );
+      }
   
       return () => {
         connection.stop();
