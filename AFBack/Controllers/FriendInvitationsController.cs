@@ -76,11 +76,12 @@ public class FriendInvitationsController : ControllerBase
             type: NotificationTypes.FriendRequest
         );
         
-        await _hubContext.Clients.All.SendAsync("ReceiveNotification", new
-        {
-            Id = dto.ReceiverId,
-            Type = NotificationTypes.FriendRequest,
-        });
+        await _hubContext.Clients.User(dto.ReceiverId.ToString())
+            .SendAsync("ReceiveNotification", new {
+                Id = 1,
+                Type = "FriendRequest",
+                Message = "Test direkte fra controller"
+            });
         
         return Ok(new { message = "Friend request sent." });
     }
