@@ -9,13 +9,12 @@ export function createNotificationConnection(): signalR.HubConnection {
 
   connection = new signalR.HubConnectionBuilder()
     .withUrl(`${API_BASE_URL}${API_ROUTES.notificationHub}`, {
-        accessTokenFactory: () => {
-            const token = localStorage.getItem("token"); // 🔑 Henter direkte fra storage
-            return token ?? "";
-          },
-    })
-    .withAutomaticReconnect()
-    .build();
+        accessTokenFactory: () => localStorage.getItem("token") ?? "",
+    transport: signalR.HttpTransportType.WebSockets // 👈 Tving WebSockets
+  })
+  .configureLogging(signalR.LogLevel.Information)
+  .withAutomaticReconnect()
+  .build();
 
   return connection;
 }
