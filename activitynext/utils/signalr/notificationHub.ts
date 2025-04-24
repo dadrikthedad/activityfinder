@@ -9,10 +9,14 @@ export function createNotificationConnection(token: string): signalR.HubConnecti
 
   connection = new signalR.HubConnectionBuilder()
     .withUrl(`${API_BASE_URL}${API_ROUTES.notificationHub}`, {
-        accessTokenFactory: () => token,
+      accessTokenFactory: () => token,
     })
     .withAutomaticReconnect()
     .build();
 
+  return connection;
+}
+
+export function getConnection(): signalR.HubConnection | null {
   return connection;
 }

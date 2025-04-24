@@ -1,6 +1,6 @@
 // Her henter vi og bruker SignalR huben til å oppdatere i sanntid ved at NotificationHubClient bruker den globalt. Den henter notifcaitons når det kommer noen nye
 import { useEffect } from "react";
-import { createNotificationConnection } from "@/utils/signalr/notificationHub";
+import { createNotificationConnection, getConnection  } from "@/utils/signalr/notificationHub";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationDTO } from "@/types/NotificationEventDTO"; 
 
@@ -15,30 +15,38 @@ interface Options {
     useEffect(() => {
       if (!token) return;
   
-      const connection = createNotificationConnection(token);
+      let connection = getConnection();
+  
+      if (!connection) {
+        connection = createNotificationConnection(token);
+      }
+  
+      // Fjern gammel lytter hvis finnes (hindrer multiple callbacks)
+      connection.off("ReceiveNotification");
   
       connection.on("ReceiveNotification", (notification: NotificationDTO) => {
-        console.log("New notification:", notification);
+        console.log("📥 New notification:", notification);
         onReceive?.(notification);
       });
   
-      connection.onclose(() => {
-        console.warn("🔌 SignalR connection closed, attempting to reconnect...");
-        setTimeout(() => {
-          if (connection.state === "Disconnected") {
-            connection.start().catch(console.error);
+      const tryStart = async () => {
+        if (connection.state === "Disconnected") {
+          try {
+            await connection.start();
+          } catch (err) {
+            console.error("❌ SignalR-tilkobling feilet:", err);
           }
-        }, 2000);
+        }
+      };
+  
+      tryStart();
+  
+      connection.onclose(() => {
+        console.warn("🔌 SignalR-tilkobling brutt. Prøver igjen om 2 sek...");
+        setTimeout(() => tryStart(), 2000);
       });
   
-      if (connection.state === "Disconnected") {
-        connection.start().catch((err) =>
-          console.error("❌ SignalR-tilkobling feilet:", err)
-        );
-      }
-  
-      return () => {
-        connection.stop();
-      };
+      // 🚫 Ikke stopp forbindelsen – den kan brukes av andre
+      return () => {};
     }, [token, onReceive]);
   }

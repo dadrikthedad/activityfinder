@@ -71,7 +71,7 @@ public class FriendInvitationsController : ControllerBase
         
         await _context.SaveChangesAsync();
 
-        return Ok("Friend request sent.");
+        return Ok(new { message = "Friend request sent." });
     }
 
     // GET: Hent mottatte forespørsler
