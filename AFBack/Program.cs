@@ -14,14 +14,25 @@ using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using AFBack.Hubs;
 using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.SignalR;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
 
 // Et serilog objekt som logger og skriver til konsollen og en fil på PCen. Kan logges til JSON og diverse, berdre ytelse osv.
-builder.Host.UseSerilog((context, services, configuration) => configuration.ReadFrom
-    .Configuration(context.Configuration).WriteTo.Console().WriteTo
-    .File("logs/myapp.log", rollingInterval: RollingInterval.Day));
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .WriteTo.Console()
+        .WriteTo.File("logs/myapp.log", rollingInterval: RollingInterval.Day)
+        .WriteTo.Logger(lc => lc
+            .Filter.ByIncludingOnly(logEvent =>
+                logEvent.Properties.ContainsKey("SourceContext") &&
+                logEvent.Properties["SourceContext"].ToString().Contains("NotificationHub"))
+            .WriteTo.File("logs/notifications.log", rollingInterval: RollingInterval.Day)
+        );
+});
 
 // Fjerner Microsoft standard logging.
 builder.Logging.ClearProviders();
@@ -186,6 +197,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddSingleton<CountryService>();
+builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
 // Kjører applikasjonen med alle tjenester, middleware og avhengigheter. Alle servicesene og alt vi har lagt til blir låst
 // og klart til bruk. 

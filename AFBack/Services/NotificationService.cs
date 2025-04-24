@@ -1,4 +1,6 @@
-﻿namespace AFBack.Services;
+﻿using Serilog;
+
+namespace AFBack.Services;
 using AFBack.Data;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
