@@ -197,7 +197,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 builder.Services.AddSingleton<CountryService>();
-// builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
 // Kjører applikasjonen med alle tjenester, middleware og avhengigheter. Alle servicesene og alt vi har lagt til blir låst
 // og klart til bruk. 
