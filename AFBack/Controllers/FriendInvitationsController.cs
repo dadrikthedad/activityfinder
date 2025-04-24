@@ -76,18 +76,6 @@ public class FriendInvitationsController : ControllerBase
             type: NotificationTypes.FriendRequest
         );
         
-        var connectionId = NotificationHub.GetConnectionIdForUser(dto.ReceiverId.ToString());
-
-        if (!string.IsNullOrEmpty(connectionId))
-        {
-            await _hubContext.Clients.Client(connectionId)
-                .SendAsync("ReceiveNotification", new {
-                    Id = 1,
-                    Type = "FriendRequest",
-                    Message = "Test direkte fra controller"
-                });
-        }
-        
         return Ok(new { message = "Friend request sent." });
     }
 
