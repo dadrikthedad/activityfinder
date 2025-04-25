@@ -96,11 +96,12 @@ export default function NotificationDropdown({ onClose }: Props) {
                     </li>
                 </>
                 )}
+                {/* Divider between Friend Requests and Notifications */}
+      <div className="my-4 border-t border-[#1C6B1C]" />
             </ul>
       )}
 
-      {/* Divider between Friend Requests and Notifications */}
-      <div className="my-4 border-t border-[#1C6B1C]" />
+      
 
       {/* Other Notifications */}
 {loading ? (
@@ -108,18 +109,27 @@ export default function NotificationDropdown({ onClose }: Props) {
 ) : (
   <>
     <ul className="space-y-2">
-      {notifications
-        .filter((n) => n.type !== "FriendRequest")
-        .map((n: NotificationDTO) => (
-          <li key={n.id}>
-            <div
-              onClick={() => onClose()}
-              className="block p-2 rounded hover:bg-[#e7f3e7] dark:hover:bg-[#2c2f30] cursor-pointer"
-            >
-              {n.relatedUser?.fullName ?? "Someone"} sent a notification.
-            </div>
-          </li>
-        ))}
+    {notifications
+    .filter((n) => n.type !== "FriendRequest")
+    .map((n: NotificationDTO) => (
+        <li key={n.id}>
+        <div
+            onClick={() => onClose()}
+            className="block p-2 rounded hover:bg-[#e7f3e7] dark:hover:bg-[#2c2f30] cursor-pointer"
+        >
+            {n.relatedUser ? (
+            <Link href={`/profile/${n.relatedUser.id}`} onClick={onClose} className="underline hover:text-[#1C6B1C]">
+                {n.relatedUser.fullName}
+            </Link>
+            ) : (
+            "Someone"
+            )}
+            {n.type === "FriendRequestAccepted"
+            ? " accepted your friend request."
+            : " sent you a notification."}
+        </div>
+        </li>
+    ))}
     </ul>
 
     {/* 🔽 View All Notifications button (always visible) */}

@@ -3,13 +3,13 @@
 
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
-import { Settings, Bell, Mail } from "lucide-react";
+import { Settings, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ProfileLink from "@/components/profile/ProfileLink";
 import NavbarSearch from "@/components/NavbarSearch";
-import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
+import NavbarNotifications from "@/components/notifications/NavbarNotifications";
 
 
 export default function Navbar() {
@@ -18,7 +18,6 @@ export default function Navbar() {
   const router = useRouter(); // sende oss videre til de forskjellige linkene
   const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
-  const unreadCount = useUnreadNotifications(); // Her teller vi antall uleste notifications
   const [showNotifications, setShowNotifications] = useState(false); // Her viser vi notifications og skjuler de ved at vi har trykket på den
 
   useEffect(() => {
@@ -92,25 +91,7 @@ export default function Navbar() {
 
             {/* Notifications */}
             <div className="relative"> {/* Ikke bruk <li> hvis det ikke skal være en navigasjonslenke */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowNotifications((prev) => !prev);
-                }}
-                className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2"
-              >
-                <Bell size={18} />
-                <span className="relative">
-                  Notifications
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
-                </span>
-              </button>
+            <NavbarNotifications />
 
               {showNotifications && (
                   <NotificationDropdown onClose={() => setShowNotifications(false)} />

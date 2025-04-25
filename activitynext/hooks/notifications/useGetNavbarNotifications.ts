@@ -38,5 +38,5 @@ export function useGetNavbarNotifications() {
     fetchNotifications();
   }, [token]);
 
-  return { notifications, loading, error };
+  return { notifications, loading, error, setNotifications };
 }

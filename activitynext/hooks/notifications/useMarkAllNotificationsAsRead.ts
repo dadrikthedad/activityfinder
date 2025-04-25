@@ -26,6 +26,7 @@ export function useMarkAllNotificationsAsRead() {
       setLoading(false);
     }
   }, [token]);
+  
 
   return { markAllAsRead, loading, updatedCount, error };
 }
