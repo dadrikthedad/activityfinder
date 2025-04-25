@@ -17,7 +17,9 @@ export function useMarkAllNotificationsAsRead() {
 
     try {
       const result = await markAllNotificationsAsRead(token);
-      setUpdatedCount(result.updatedCount);
+      if (result) {
+        setUpdatedCount(result.updatedCount);
+      }
     } catch (err) {
       setError(err as Error);
     } finally {

@@ -7,11 +7,19 @@ export async function getNavbarNotifications(token: string): Promise<Notificatio
   const url = `${API_BASE_URL}${API_ROUTES.notifications.navbar}`;
 
   try {
-    const response = await fetchWithAuth(url, { method: "GET" }, token) as Response;
-    const data = await response.json() as NotificationDTO[];
+    const data = await fetchWithAuth<NotificationDTO[]>(url, {
+      method: "GET",
+    }, token);
+
+    if (!data) {
+      console.warn("⚠️ Ingen notifications data mottatt fra server.");
+      return [];
+    }
+
+    console.log("🔔 Notifications hentet:", data);
     return data;
   } catch (err) {
-    console.error("❌ Failed to load navbar notifications:", err);
+    console.error("❌ Feil ved henting av notifications:", err);
     throw err;
   }
 }

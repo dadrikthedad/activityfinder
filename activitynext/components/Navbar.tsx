@@ -11,6 +11,7 @@ import NavbarSearch from "@/components/NavbarSearch";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 
+
 export default function Navbar() {
   
   const [showDropDown, setShowDropdown] = useState(false); // Her brukes vi dropdown
@@ -20,7 +21,9 @@ export default function Navbar() {
   const unreadCount = useUnreadNotifications(); // Her teller vi antall uleste notifications
   const [showNotifications, setShowNotifications] = useState(false); // Her viser vi notifications og skjuler de ved at vi har trykket på den
 
-  
+  useEffect(() => {
+    console.log("🌐 Current URL is:", window.location.href);
+  }, []);
 
   const handleLogout = () => { // Ved logout så lukke vi dropboxen og kjører logout funksjonen fra AuthContext
     setShowDropdown(false);
@@ -88,27 +91,32 @@ export default function Navbar() {
             </li>
 
             {/* Notifications */}
-              <li className="relative">
+            <div className="relative"> {/* Ikke bruk <li> hvis det ikke skal være en navigasjonslenke */}
               <button
-                  onClick={() => setShowNotifications((prev) => !prev)}
-                  className="relative hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2"
-                >
-                  <Bell size={18} />
-                  <span className="relative">
-                    Notifications
-                    {unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </span>
-                </button>
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowNotifications((prev) => !prev);
+                }}
+                className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2"
+              >
+                <Bell size={18} />
+                <span className="relative">
+                  Notifications
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                      {unreadCount}
+                    </span>
+                  )}
+                </span>
+              </button>
 
-                {showNotifications && (
+              {showNotifications && (
                   <NotificationDropdown onClose={() => setShowNotifications(false)} />
                 )}
-              </li>
-              
+            </div>
+                          
             <li>
               <ProfileLink />
             </li>

@@ -7,9 +7,11 @@ export async function getPageNotifications(token: string): Promise<NotificationD
   const url = `${API_BASE_URL}${API_ROUTES.notifications.page}`;
 
   try {
-    const response = await fetchWithAuth(url, { method: "GET" }, token) as Response;
-    const data = await response.json() as NotificationDTO[];
-    return data;
+    const data = await fetchWithAuth<NotificationDTO[]>(url, {
+        method: "GET",
+      }, token);
+      
+      return data ?? [];
   } catch (err) {
     console.error("❌ Failed to load page notifications:", err);
     throw err;

@@ -73,6 +73,8 @@ public class NotificationController : BaseController
         if (userId == null) return Forbid();
 
         var notifications = await _context.Notifications
+            .Include(n => n.RelatedUser)
+            .ThenInclude(u => u.Profile)
             .Where(n => n.RecipientUserId == userId)
             .OrderByDescending(n => n.CreatedAt)
             .Take(15)
@@ -89,6 +91,8 @@ public class NotificationController : BaseController
         if (userId == null) return Forbid();
 
         var notifications = await _context.Notifications
+            .Include(n => n.RelatedUser)
+            .ThenInclude(u => u.Profile)
             .Where(n => n.RecipientUserId == userId)
             .OrderByDescending(n => n.CreatedAt)
             .Take(100)

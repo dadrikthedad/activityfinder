@@ -8,6 +8,7 @@ export async function fetchWithAuth<T>(
 
   console.log("🟡 fetchWithAuth - URL:", url);
   console.log("🟢 Token (first 20 chars):", authToken?.slice(0, 20));
+  
 
   if (!authToken) {
     throw new Error("No auth token found.");
@@ -44,6 +45,8 @@ export async function fetchWithAuth<T>(
     console.warn("⚠️ Empty response body");
     return null;
   }
+  console.log("📦 Status code:", res.status);
+console.log("📄 Raw text:", text);
 
   try {
     const json = JSON.parse(text) as T;

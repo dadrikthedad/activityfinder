@@ -15,11 +15,21 @@ export function useGetNavbarNotifications() {
 
     const fetchNotifications = async () => {
       setLoading(true);
+      setError(null); // reset feil hver gang vi prøver
+
       try {
         const result = await getNavbarNotifications(token);
-        setNotifications(result);
+
+        if (!result) {
+          console.warn("⚠️ Ingen notifications returnert fra server");
+          setNotifications([]);
+        } else {
+          setNotifications(result);
+        }
       } catch (err) {
+        console.error("❌ Feil i useGetNavbarNotifications:", err);
         setError(err as Error);
+        setNotifications([]);
       } finally {
         setLoading(false);
       }

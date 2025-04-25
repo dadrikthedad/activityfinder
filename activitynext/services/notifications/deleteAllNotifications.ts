@@ -8,18 +8,18 @@ type DeleteAllResponse = {
 };
 
 export async function deleteAllNotifications(token: string): Promise<DeleteAllResponse> {
-  const url = `${API_BASE_URL}${API_ROUTES.notifications.deleteAll}`;
-
-  try {
-    const response = await fetchWithAuth(url, {
-      method: "DELETE",
-    }, token) as Response;
-
-    const data = await response.json() as DeleteAllResponse;
-    console.log("🗑️ Notifications deleted:", data);
-    return data;
-  } catch (err) {
-    console.error("❌ Failed to delete notifications:", err);
-    throw err;
+    const url = `${API_BASE_URL}${API_ROUTES.notifications.deleteAll}`;
+  
+    try {
+      const data = await fetchWithAuth<DeleteAllResponse>(url, {
+        method: "DELETE",
+      }, token);
+  
+      if (!data) throw new Error("No data returned from server");
+  
+      return data;
+    } catch (err) {
+      console.error("❌ Failed to delete notifications:", err);
+      throw err;
+    }
   }
-}
