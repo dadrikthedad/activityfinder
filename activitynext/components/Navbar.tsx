@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import ProfileLink from "@/components/profile/ProfileLink";
 import NavbarSearch from "@/components/NavbarSearch";
 import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
+import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 
 export default function Navbar() {
   
@@ -17,6 +18,7 @@ export default function Navbar() {
   const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
   const unreadCount = useUnreadNotifications(); // Her teller vi antall uleste notifications
+  const [showNotifications, setShowNotifications] = useState(false); // Her viser vi notifications og skjuler de ved at vi har trykket på den
 
   
 
@@ -85,18 +87,27 @@ export default function Navbar() {
               </Link>
             </li>
 
-            {/* Notifications Her kommer notifications*/}
-            <li className="relative">
-            <Link href="/notifications" className="relative hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
-              <Bell size={18} />
-              <span>Notifications</span>
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </Link>
-            </li>
+            {/* Notifications */}
+              <li className="relative">
+              <button
+                  onClick={() => setShowNotifications((prev) => !prev)}
+                  className="relative hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2"
+                >
+                  <Bell size={18} />
+                  <span className="relative">
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+                        {unreadCount}
+                      </span>
+                    )}
+                  </span>
+                </button>
+
+                {showNotifications && (
+                  <NotificationDropdown onClose={() => setShowNotifications(false)} />
+                )}
+              </li>
               
             <li>
               <ProfileLink />

@@ -22,6 +22,13 @@ export const API_ROUTES = {
     },
     // SignalR
     notificationHub: "/hubs/notifications",
+    // Notifications
+    notifications: {
+      markAllAsRead: "/api/notifications/mark-all-as-read",
+      deleteAll: "/api/notifications/delete-all",
+      page: "/api/notifications/page",
+      navbar: "/api/notifications/navbar",
+    },
   };
 
 
