@@ -4,4 +4,5 @@ public static class NotificationTypes
 {
     public const string FriendRequest = "FriendRequest";
     public const string Message = "Message";
+    public const string FriendRequestAccepted = "FriendRequestAccepted";
 }

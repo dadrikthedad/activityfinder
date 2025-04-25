@@ -69,8 +69,8 @@ public class NotificationController : BaseController
     [HttpGet("navbar")]
     public async Task<ActionResult<List<NotificationDTO>>> GetNavbarNotifications()
     {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized();
+        var userId = GetUserId();
+        if (userId == null) return Forbid();
 
         var notifications = await _context.Notifications
             .Include(n => n.RelatedUser)
@@ -80,40 +80,15 @@ public class NotificationController : BaseController
             .Take(15)
             .ToListAsync();
 
-        var result = notifications.Select(n =>
-        {
-            UserSummaryDTO? relatedUser = null;
-
-            if (n.RelatedUser != null)
-            {
-                relatedUser = new UserSummaryDTO
-                {
-                    Id = n.RelatedUser.Id,
-                    FullName = n.RelatedUser.FullName,
-                    ProfileImageUrl = n.RelatedUser.Profile?.ProfileImageUrl
-                };
-            }
-
-            return new NotificationDTO
-            {
-                Id = n.Id,
-                Type = n.Type,
-                Message = n.Message,
-                IsRead = n.IsRead,
-                CreatedAt = n.CreatedAt,
-                RelatedUser = relatedUser
-            };
-        }).ToList();
-
-        return Ok(result);
+        return Ok(MapToDtOs(notifications));
     }
     
     // Her her vi de 100 notifications som skal vises i hvis vi går via navbaren inn på notifications
     [HttpGet("page")]
     public async Task<ActionResult<List<NotificationDTO>>> GetPageNotifications()
     {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized();
+        var userId = GetUserId();
+        if (userId == null) return Forbid();
 
         var notifications = await _context.Notifications
             .Include(n => n.RelatedUser)
@@ -123,34 +98,29 @@ public class NotificationController : BaseController
             .Take(100)
             .ToListAsync();
 
-        var result = notifications.Select(n =>
-        {
-            UserSummaryDTO? relatedUser = null;
-
-            if (n.RelatedUser != null)
-            {
-                relatedUser = new UserSummaryDTO
-                {
-                    Id = n.RelatedUser.Id,
-                    FullName = n.RelatedUser.FullName,
-                    ProfileImageUrl = n.RelatedUser.Profile?.ProfileImageUrl
-                };
-            }
-
-            return new NotificationDTO
-            {
-                Id = n.Id,
-                Type = n.Type,
-                Message = n.Message,
-                IsRead = n.IsRead,
-                CreatedAt = n.CreatedAt,
-                RelatedUser = relatedUser
-            };
-        }).ToList();
-
-        return Ok(result);
+        return Ok(MapToDtOs(notifications));
     }
     
+    // Setter alle notifications som lest slik at bruker ikke trenger å se varslene i høyre hjørnet
+    [HttpPost("mark-all-as-read")]
+    [Authorize]
+    public async Task<IActionResult> MarkAllAsRead()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var updatedCount = await _context.Notifications
+            .Where(n => n.RecipientUserId == userId && !n.IsRead)
+            .ExecuteUpdateAsync(setters =>
+                setters.SetProperty(n => n.IsRead, true));
+
+        return Ok(new
+        {
+            message = "All notifications marked as read.",
+            updatedCount
+        });
+    }
     // Her kan vi slette notifications hvis en bruker ønsker det
     [HttpDelete("delete-all")]
     [Authorize]

@@ -141,6 +141,12 @@ public class FriendInvitationsController : ControllerBase
 
         _context.Friends.Add(newFriend);
         await _context.SaveChangesAsync();
+        
+        await _notificationService.CreateNotificationAsync(
+            recipientUserId: invitation.SenderId,
+            relatedUserId: invitation.ReceiverId,
+            type: NotificationTypes.FriendRequestAccepted
+        );
 
         return Ok("Friend request accepted.");
     }
