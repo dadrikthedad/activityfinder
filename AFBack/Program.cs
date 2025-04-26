@@ -135,7 +135,7 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
             var path = context.HttpContext.Request.Path;
 
             // 🔥 Dette må matche pathen du brukte i MapHub()
-            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications")|| path.StartsWithSegments("/chathub"))
             {
                 context.Token = accessToken;
             }
