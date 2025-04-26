@@ -241,8 +241,10 @@ app.UseStaticFiles();
 // Hvis noen prøver å gå inn på en side som ikke eksisterer så blir de sendt tilbake til home eller index.
 app.MapFallbackToFile("index.html");
 
-// Her er endepunktet for huben til SignalR
+// Her er endepunktet for huben for notifications til SignalR
 app.MapHub<NotificationHub>("/hubs/notifications");
+// her er endepunktet for meldinger til SignalR
+app.MapHub<ChatHub>("/chathub");
 
 
 // Configure the HTTP request pipeline.

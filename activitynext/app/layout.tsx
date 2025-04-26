@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
 import NotificationHubClient from "@/components/NotificationHubClient"; // Brukes en gang slik at den kjører globalt
+import ChatHubClient from "@/components/ChatHubClient";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,7 @@ export default function RootLayout({
         <ModalProvider>
           <AuthProvider>
           <NotificationHubClient /> 
+          <ChatHubClient />
             <Navbar />
             <main className="flex-grow">{children}</main>
           </AuthProvider> 

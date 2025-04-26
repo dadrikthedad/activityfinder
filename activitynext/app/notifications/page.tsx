@@ -62,7 +62,7 @@ export default function NotificationsPage() {
         {notifications.map((notification: NotificationDTO) => (
           <li
           key={notification.id}
-          className="p-4 border rounded-lg shadow-sm dark:bg-[#1e2122] bg-white flex justify-between items-center gap-4"
+          className="p-4 border border-[#1C6B1C] rounded-lg shadow-sm dark:bg-[#1e2122] bg-white flex justify-between items-center gap-4"
         >
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {notification.relatedUser ? (
@@ -71,9 +71,14 @@ export default function NotificationsPage() {
               <div className="w-[60px] h-[60px] bg-gray-300 rounded-full flex-shrink-0" />
             )}
             <div className="truncate">
-              <p className="text-lg font-semibold truncate">
-                {notification.relatedUser?.fullName ?? "Someone"} sent a {notification.type}
-              </p>
+            <p className="text-lg font-semibold truncate">
+            {notification.relatedUser?.fullName ?? "Someone"}{" "}
+            {notification.type === "FriendRequest"
+              ? "wants to be your friend."
+              : notification.type === "FriendRequestAccepted"
+              ? "accepted your friend request."
+              : `sent a ${notification.type}`}
+          </p>
               <p className="text-sm text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p>
             </div>
           </div>

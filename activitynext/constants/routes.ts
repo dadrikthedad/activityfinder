@@ -22,6 +22,7 @@ export const API_ROUTES = {
     },
     // SignalR
     notificationHub: "/hubs/notifications",
+    chatHub: "/chathub",
     // Notifications
     notifications: {
       markAllAsRead: "/api/notifications/mark-all-as-read",
