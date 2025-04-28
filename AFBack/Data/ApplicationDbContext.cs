@@ -14,8 +14,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
     public DbSet<Friends> Friends { get; set; } // Venner til bruker
     public DbSet<FriendInvitation> FriendInvitations { get; set; } // Venne invitasjoner til bruker
-    
     public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
+    public DbSet<Message> Messages { get; set; } // Meldinger mellom brukere
+    public DbSet<MessageAttachment> MessageAttachments { get; set; } // Vedlegg til meldinger
+    public DbSet<GroupMessage> Groups { get; set; } // Ekelte gruppechatter
+    public DbSet<GroupMessageMember> GroupMembers { get; set; } // Medlemmene til en gruppechat
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,5 +70,40 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(n => n.RelatedUserId)
             .OnDelete(DeleteBehavior.Restrict); 
+        
+        // Til meldinger mellom bruker og annen bruker eller gruppe
+        modelBuilder.Entity<Message>(entity =>
+        {
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.Text).HasMaxLength(2000);
+            entity.HasMany(m => m.Attachments)
+                .WithOne(a => a.Message)
+                .HasForeignKey(a => a.MessageId)
+                .OnDelete(DeleteBehavior.Cascade); // Hvis melding slettes, slettes vedleggene også
+        });
+        
+        modelBuilder.Entity<MessageAttachment>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.FileUrl).IsRequired();
+            entity.Property(a => a.FileType).IsRequired();
+            entity.Property(a => a.FileName).HasMaxLength(255);
+        });
+        
+        // Her oppretter vi databasen til gruppene til en gruppemelding
+        modelBuilder.Entity<GroupMessage>(entity =>
+        {
+            entity.HasKey(g => g.Id);
+            entity.Property(g => g.Name).IsRequired().HasMaxLength(100);
+        });
+        // Her oppretter vi databasen til gruppemeldinger   
+        modelBuilder.Entity<GroupMessageMember>(entity =>
+        {
+            entity.HasKey(gm => gm.Id);
+            entity.HasOne(gm => gm.GroupMessage)
+                .WithMany(g => g.Members)
+                .HasForeignKey(gm => gm.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

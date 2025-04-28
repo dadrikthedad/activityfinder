@@ -147,10 +147,11 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
 
 // For signalR
 builder.Services.AddSignalR();
-// Services jeg har opprettet. Til Authentisering og Notifications
+// Services jeg har opprettet. Til Authentisering og Notifications og Meldinger
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
-
+builder.Services.AddScoped<IMessageService, MessageService>();
+builder.Services.AddScoped<IGroupService, GroupService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

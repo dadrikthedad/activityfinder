@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Serilog;
@@ -10,6 +11,13 @@ namespace AFBack.Hubs;
 public class ChatHub : Hub
 {
     private static readonly ILogger _logger = Log.ForContext<ChatHub>();
+    private readonly IGroupService _groupService;
+    
+    public ChatHub(IGroupService groupService)
+    {
+        _groupService = groupService;
+    }
+
 
     // Eventuelt lagre hvem som er tilkoblet, hvis du trenger private meldinger
     private static readonly Dictionary<string, string> ConnectedUsers = new();
@@ -17,21 +25,37 @@ public class ChatHub : Hub
     public override async Task OnConnectedAsync()
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
         if (userId != null)
         {
-            ConnectedUsers[Context.ConnectionId] = userId;
-            _logger.Information($"✅ ChatHub connected for user {userId}");
+            _logger.Information($"✅ SignalR: Bruker {userId} koblet til ChatHub.");
+
+            // Hent grupper brukeren er medlem av
+            var groups = await _groupService.GetUserGroupsAsync(userId);
+
+            foreach (var group in groups)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, group.Name);
+                _logger.Information($"👥 SignalR: Bruker {userId} lagt til i gruppe '{group.Name}'.");
+            }
         }
+        else
+        {
+            _logger.Warning("❗ SignalR: Klarte ikke hente bruker-ID på tilkobling.");
+        }
+
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        if (ConnectedUsers.TryGetValue(Context.ConnectionId, out var userId))
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (userId != null)
         {
-            ConnectedUsers.Remove(Context.ConnectionId);
-            _logger.Information($"🔌 ChatHub disconnected for user {userId}");
+            _logger.Information($"🔌 SignalR: Bruker {userId} frakoblet ChatHub.");
         }
+
         await base.OnDisconnectedAsync(exception);
     }
 
@@ -63,11 +87,15 @@ public class ChatHub : Hub
     public async Task JoinGroup(string groupName)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        _logger.Information($"👥 Bruker {Context.UserIdentifier} lagt til gruppe {groupName} live.");
     }
 
     // Forlat en gruppe
     public async Task LeaveGroup(string groupName)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
+        _logger.Information($"🚪 Bruker {Context.UserIdentifier} fjernet fra gruppe {groupName} live.");
     }
+    
+    
 }
