@@ -38,7 +38,7 @@ public class MessagesController : ControllerBase
     }
     
     // Her henter vi alle meldinger til å vise i innbox
-    [HttpGet]
+    [HttpGet("my")]
     public async Task<IActionResult> GetMyMessages()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
