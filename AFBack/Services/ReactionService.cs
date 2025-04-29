@@ -15,21 +15,22 @@ public class ReactionService : IReactionService
 
     public async Task AddReactionAsync(int messageId, string userId, string emoji)
     {
-        var existingReaction = await _context.Reactions
-            .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == userId && r.Emoji == emoji);
+        var messageExists = await _context.Messages.AnyAsync(m => m.Id == messageId);
 
-        if (existingReaction == null)
+        if (!messageExists)
         {
-            var reaction = new Reaction
-            {
-                MessageId = messageId,
-                UserId = userId,
-                Emoji = emoji
-            };
-
-            _context.Reactions.Add(reaction);
-            await _context.SaveChangesAsync();
+            throw new Exception($"Melding med ID {messageId} eksisterer ikke.");
         }
+
+        var reaction = new Reaction
+        {
+            MessageId = messageId,
+            UserId = userId,
+            Emoji = emoji
+        };
+
+        _context.Reactions.Add(reaction);
+        await _context.SaveChangesAsync();
     }
 
     public async Task RemoveReactionAsync(int messageId, string userId, string emoji)

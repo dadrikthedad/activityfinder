@@ -20,21 +20,41 @@ public class MessagesController : ControllerBase
         _fileService = fileService;
     }
 
-    [HttpPost] // Her sender vi meldinger, tar imot SendMessageRequestDTO og sender til bruker
+    [HttpPost]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageRequestDTO request)
     {
-        
-        // if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-        //     return Unauthorized();
-        
-        var senderId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (senderId == null)
+        var senderIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(senderIdStr))
         {
-            return Unauthorized();
+            return Unauthorized(new { message = "Ingen bruker-ID funnet i token." });
         }
 
-        var response = await _messageService.SendMessageAsync(senderId, request);
-        return Ok(response);
+        // Her kan vi legge på en strengere parsing hvis vi forventer int
+        if (!int.TryParse(senderIdStr, out var senderId))
+        {
+            return Unauthorized(new { message = "Ugyldig bruker-ID format. Forventer tallverdi." });
+        }
+
+        if (request == null)
+        {
+            return BadRequest(new { message = "Request-body er tom." });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Text) && (request.Attachments == null || request.Attachments.Count == 0))
+        {
+            return BadRequest(new { message = "Meldingen må inneholde tekst eller minst ett vedlegg." });
+        }
+
+        try
+        {
+            var response = await _messageService.SendMessageAsync(senderIdStr, request);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            // Hvis du vil være enda snillere mot frontend:
+            return StatusCode(500, new { message = "Det oppstod en feil ved sending av melding.", details = ex.Message });
+        }
     }
     
     // Her henter vi alle meldinger til å vise i innbox
