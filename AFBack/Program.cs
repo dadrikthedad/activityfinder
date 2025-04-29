@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -185,6 +186,10 @@ builder.Services.AddSwaggerGen(c =>
             new string[] { }
         }
     });
+    
+    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
 });
 
 
@@ -250,8 +255,16 @@ app.MapHub<ChatHub>("/chathub");
 
 
 // Configure the HTTP request pipeline.
-app.UseSwagger();
-app.UseSwaggerUI();
+try
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+catch (Exception ex)
+{
+    Console.WriteLine("Swagger setup failed: " + ex.Message);
+    Console.WriteLine(ex.StackTrace);
+}
 
 var summaries = new[]
 {

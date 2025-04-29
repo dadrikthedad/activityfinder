@@ -66,8 +66,11 @@ public class MessagesController : ControllerBase
     
     // 
     [HttpPost("upload-attachment")]
-    public async Task<IActionResult> UploadAttachment([FromForm] IFormFile file)
+    public async Task<IActionResult> UploadAttachment([FromForm] UploadAttachmentRequest request)
     {
+        
+        var file = request.File;
+
         if (file == null || file.Length == 0)
             return BadRequest("Filen kan ikke være tom.");
 
