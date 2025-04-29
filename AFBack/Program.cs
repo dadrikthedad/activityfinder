@@ -152,6 +152,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<IGroupService, GroupService>();
+builder.Services.AddScoped<IReactionService, ReactionService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
