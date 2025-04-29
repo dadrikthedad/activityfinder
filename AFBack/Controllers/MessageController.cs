@@ -51,6 +51,19 @@ public class MessagesController : ControllerBase
         return Ok(messages);
     }
     
+    [HttpGet] // prøver denne for å hente noen meldinger omgangen
+    public async Task<IActionResult> GetMessages([FromQuery] int skip = 0, [FromQuery] int take = 20)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+        {
+            return Unauthorized();
+        }
+        
+        var messages = await _messageService.GetMessagesAsync(skip, take);
+        return Ok(messages);
+    }
+    
     // 
     [HttpPost("upload-attachment")]
     public async Task<IActionResult> UploadAttachment([FromForm] IFormFile file)

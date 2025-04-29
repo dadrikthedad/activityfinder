@@ -133,4 +133,30 @@ public class MessageService : IMessageService
             }).ToList();
         }
         
+        public async Task<List<MessageResponseDTO>> GetMessagesAsync(int skip, int take)
+        {
+            var messages = await _context.Messages
+                .OrderBy(m => m.SentAt)
+                .Skip(skip)
+                .Take(take)
+                .Select(m => new MessageResponseDTO
+                {
+                    Id = m.Id,
+                    SenderId = m.SenderId,
+                    ReceiverId = m.ReceiverId,
+                    GroupName = m.GroupName,
+                    Text = m.Text,
+                    SentAt = m.SentAt,
+                    Attachments = m.Attachments.Select(a => new AttachmentDto
+                    {
+                        FileUrl = a.FileUrl,
+                        FileType = a.FileType,
+                        FileName = a.FileName
+                    }).ToList()
+                })
+                .ToListAsync();
+
+            return messages;
+        }
+        
     }

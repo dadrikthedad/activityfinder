@@ -19,7 +19,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<MessageAttachment> MessageAttachments { get; set; } // Vedlegg til meldinger
     public DbSet<GroupMessage> Groups { get; set; } // Ekelte gruppechatter
     public DbSet<GroupMessageMember> GroupMembers { get; set; } // Medlemmene til en gruppechat
-
+    
+    public DbSet<Reaction> Reactions { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

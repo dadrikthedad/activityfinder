@@ -97,5 +97,20 @@ public class ChatHub : Hub
         _logger.Information($"🚪 Bruker {Context.UserIdentifier} fjernet fra gruppe {groupName} live.");
     }
     
+    public async Task ReactToMessage(int messageId, string emoji)
+    {
+        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        // 🔥 Send til ALLE klienter: en reaction skjedde
+        await Clients.All.SendAsync("ReceiveReaction", new
+        {
+            MessageId = messageId,
+            Emoji = emoji,
+            UserId = userId
+        });
+    }
+
+    
     
 }
