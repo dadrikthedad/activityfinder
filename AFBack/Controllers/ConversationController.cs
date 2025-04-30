@@ -65,11 +65,11 @@ public class ConversationsController : BaseController
     [HttpGet("conversation/{conversationId}")]
     public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
-        var senderId = GetUserId();
-        if (senderId == null)
+        var userId = GetUserId();
+        if (userId == null)
             return Unauthorized(new { message = "Ugyldig eller manglende bruker-ID i token." });
 
-        var messages = await _messageService.GetMessagesForConversationAsync(conversationId, skip, take);
+        var messages = await _messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
         return Ok(messages);
     }
     

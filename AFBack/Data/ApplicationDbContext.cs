@@ -91,6 +91,12 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(a => a.MessageId)
                 .OnDelete(DeleteBehavior.Cascade); // Hvis melding slettes, slettes vedleggene også
         });
+        // Hvis en bruker slettes så slettes ikke alle meldinger
+        modelBuilder.Entity<Message>()
+            .HasOne(m => m.Sender)
+            .WithMany()
+            .HasForeignKey(m => m.SenderId)
+            .OnDelete(DeleteBehavior.Restrict);
         
         // Meldinger får med reaksjoner
         modelBuilder.Entity<Message>()

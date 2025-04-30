@@ -6,8 +6,9 @@ namespace AFBack.Services;
 public interface IMessageService
 {
     Task<MessageResponseDTO> SendMessageAsync(int senderId, SendMessageRequestDTO requestDto);
-    
-    Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int skip = 0, int take = 20);
+
+    Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId, int skip = 0,
+        int take = 20);
 
     Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId);
     

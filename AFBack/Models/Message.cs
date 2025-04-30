@@ -6,6 +6,9 @@ public class Message
     public int Id { get; set; } // Primærnøkkel
     // Avsender ID
     public int SenderId { get; set; } // Bruker som sender
+    
+    public User Sender { get; set; } = null!; 
+    
     // Selve meldingsteksten (kan være tom hvis kun fil f.eks.)
     public string? Text { get; set; } 
     // Liste over vedlegg, liste slik at en bruker kan sende flere vedlegg i en fil

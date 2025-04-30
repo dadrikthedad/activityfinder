@@ -72,23 +72,49 @@ public class MessageService : IMessageService
         }
 
         // Her henter vi meldinger etter ConversationId
-        public async Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int skip = 0, int take = 20)
+        public async Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId, int skip = 0, int take = 20)
         {
-            var messages = await _context.Messages
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+            if (conversation == null)
+                throw new Exception("Samtalen finnes ikke.");
+
+            if (conversation.Participants.All(p => p.UserId != userId))
+                throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
+
+            var query = _context.Messages
                 .Where(m => m.ConversationId == conversationId)
+                .Include(m => m.Attachments)
+                .Include(m => m.Sender).ThenInclude(u => u.Profile)
                 .OrderByDescending(m => m.SentAt)
+                .AsQueryable();
+
+            // ✅ Hvis det er en privat samtale, vis kun godkjente meldinger
+            if (!conversation.IsGroup)
+            {
+                query = query.Where(m => m.IsApproved);
+            }
+
+            var messages = await query
                 .Skip(skip)
                 .Take(take)
-                .Include(m => m.Attachments)
                 .ToListAsync();
 
             return messages.Select(m => new MessageResponseDTO
             {
                 Id = m.Id,
                 SenderId = m.SenderId,
-                Text = m.Text,
-                SentAt = m.SentAt,
                 ConversationId = m.ConversationId,
+                SentAt = m.SentAt,
+                Text = m.Text,
+                Sender = new UserSummaryDTO
+                {
+                    Id = m.Sender.Id,
+                    FullName = m.Sender.FullName,
+                    ProfileImageUrl = m.Sender.Profile?.ProfileImageUrl
+                },
                 Attachments = m.Attachments.Select(a => new AttachmentDto
                 {
                     FileUrl = a.FileUrl,
