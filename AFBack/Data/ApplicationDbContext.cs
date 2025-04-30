@@ -17,10 +17,19 @@ public class ApplicationDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
     public DbSet<Message> Messages { get; set; } // Meldinger mellom brukere
     public DbSet<MessageAttachment> MessageAttachments { get; set; } // Vedlegg til meldinger
-    public DbSet<GroupMessage> Groups { get; set; } // Ekelte gruppechatter
-    public DbSet<GroupMessageMember> GroupMembers { get; set; } // Medlemmene til en gruppechat
     
-    public DbSet<Reaction> Reactions { get; set; }
+    public DbSet<ConversationParticipant> ConversationParticipants { get; set; } // Her her vi samtaler som kobler meldinger mot brukere/grupper
+    public DbSet<Conversation> Conversations { get; set; } // Samtaler mellom brukere
+    public DbSet<ConversationReadState> ConversationReadStates { get; set; } // Leste samtaler
+    
+    public DbSet<MessageRequest> MessageRequests { get; set; } // Lagre meldings requester
+    
+    public DbSet<MessageBlock> MessageBlocks { get; set; } // Blokkere meldinger/avise meldingsforespørsel
+    
+    public DbSet<GroupInviteRequest> GroupInviteRequests { get; set; } // Her har vi gruppeinvitasjoner
+    public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
+    
+    public DbSet<GroupBlock> GroupBlocks { get; set; }  // Blokkerte grupper
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -83,6 +92,19 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade); // Hvis melding slettes, slettes vedleggene også
         });
         
+        // Meldinger får med reaksjoner
+        modelBuilder.Entity<Message>()
+            .HasMany(m => m.Reactions)
+            .WithOne(r => r.Message)
+            .HasForeignKey(r => r.MessageId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Meldinger får med reply-to
+        modelBuilder.Entity<Message>()
+            .HasOne(m => m.ParentMessage)
+            .WithMany()
+            .HasForeignKey(m => m.ParentMessageId)
+            .OnDelete(DeleteBehavior.Restrict);
+        
         modelBuilder.Entity<MessageAttachment>(entity =>
         {
             entity.HasKey(a => a.Id);
@@ -91,20 +113,140 @@ public class ApplicationDbContext : DbContext
             entity.Property(a => a.FileName).HasMaxLength(255);
         });
         
-        // Her oppretter vi databasen til gruppene til en gruppemelding
-        modelBuilder.Entity<GroupMessage>(entity =>
+        // Samtaler
+        modelBuilder.Entity<Message>()
+            .HasOne(m => m.Conversation)
+            .WithMany(c => c.Messages)
+            .HasForeignKey(m => m.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // Reaksjoner
+        modelBuilder.Entity<Reaction>()
+            .HasKey(r => new { r.MessageId, r.UserId }); // Kombinasjon kan være naturlig PK
+
+        modelBuilder.Entity<Reaction>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(r => r.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Reaction>()
+            .HasOne(r => r.Message)
+            .WithMany(m => m.Reactions)
+            .HasForeignKey(r => r.MessageId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // Samtaler
+        modelBuilder.Entity<Conversation>(entity =>
         {
-            entity.HasKey(g => g.Id);
-            entity.Property(g => g.Name).IsRequired().HasMaxLength(100);
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.GroupName).HasMaxLength(100);
         });
-        // Her oppretter vi databasen til gruppemeldinger   
-        modelBuilder.Entity<GroupMessageMember>(entity =>
-        {
-            entity.HasKey(gm => gm.Id);
-            entity.HasOne(gm => gm.GroupMessage)
-                .WithMany(g => g.Members)
-                .HasForeignKey(gm => gm.GroupId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+
+        modelBuilder.Entity<ConversationParticipant>()
+            .HasOne(cp => cp.Conversation)
+            .WithMany(c => c.Participants)
+            .HasForeignKey(cp => cp.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ConversationParticipant>()
+            .HasOne(cp => cp.User)
+            .WithMany() // eller .WithMany(u => u.Conversations) hvis du har det i User.cs
+            .HasForeignKey(cp => cp.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // Kun en MessageRequest pr bruker
+        modelBuilder.Entity<MessageRequest>()
+            .HasIndex(r => new { r.SenderId, r.ReceiverId })
+            .IsUnique();
+        
+        // Blokkerte brukere (Funker kun for meldinger i øyeblikket)
+        modelBuilder.Entity<MessageBlock>()
+            .HasOne(mb => mb.BlockedUser)
+            .WithMany()
+            .HasForeignKey(mb => mb.BlockedUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        
+        // For å sjekke om en bruker har lest samtalene sine
+        modelBuilder.Entity<ConversationReadState>()
+            .HasKey(crs => crs.Id);
+
+        modelBuilder.Entity<ConversationReadState>()
+            .HasOne(crs => crs.User)
+            .WithMany()
+            .HasForeignKey(crs => crs.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ConversationReadState>()
+            .HasOne(crs => crs.Conversation)
+            .WithMany()
+            .HasForeignKey(crs => crs.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<ConversationReadState>()
+            .HasIndex(crs => new { crs.UserId, crs.ConversationId })
+            .IsUnique();
+        
+        // Blokkerte grupper
+        modelBuilder.Entity<GroupBlock>()
+            .HasKey(gb => gb.Id);
+
+        modelBuilder.Entity<GroupBlock>()
+            .HasOne(gb => gb.User)
+            .WithMany()
+            .HasForeignKey(gb => gb.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<GroupBlock>()
+            .HasOne(gb => gb.Conversation)
+            .WithMany()
+            .HasForeignKey(gb => gb.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<GroupBlock>()
+            .HasIndex(gb => new { gb.UserId, gb.ConversationId })
+            .IsUnique();
+        
+        // Gruppeinvitasjoner
+        modelBuilder.Entity<GroupInviteRequest>()
+            .HasKey(g => g.Id);
+
+        modelBuilder.Entity<GroupInviteRequest>()
+            .HasOne(g => g.Inviter)
+            .WithMany()
+            .HasForeignKey(g => g.InviterId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<GroupInviteRequest>()
+            .HasOne(g => g.InvitedUser)
+            .WithMany()
+            .HasForeignKey(g => g.InvitedUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<GroupInviteRequest>()
+            .HasOne(g => g.Conversation)
+            .WithMany()
+            .HasForeignKey(g => g.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<GroupInviteRequest>()
+            .HasIndex(g => new { g.ConversationId, g.InvitedUserId })
+            .IsUnique();
+        
+        // Meldingsforespørsler (MessageRequest)
+        modelBuilder.Entity<MessageRequest>()
+            .HasKey(mr => mr.Id);
+
+        modelBuilder.Entity<MessageRequest>()
+            .HasOne(mr => mr.Sender)
+            .WithMany()
+            .HasForeignKey(mr => mr.SenderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Valgfritt: legg til en unik indeks for å unngå duplikate forespørsler mellom samme brukere
+        modelBuilder.Entity<MessageRequest>()
+            .HasIndex(mr => new { mr.SenderId, mr.ReceiverId })
+            .IsUnique();
+        
     }
 }

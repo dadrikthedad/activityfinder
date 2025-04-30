@@ -11,11 +11,11 @@ namespace AFBack.Hubs;
 public class ChatHub : Hub
 {
     private static readonly ILogger _logger = Log.ForContext<ChatHub>();
-    private readonly IGroupService _groupService;
-    
-    public ChatHub(IGroupService groupService)
+    private readonly ConversationService _conversationService;
+
+    public ChatHub(ConversationService conversationService)
     {
-        _groupService = groupService;
+        _conversationService = conversationService;
     }
 
 
@@ -24,24 +24,32 @@ public class ChatHub : Hub
 
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (userId != null)
+        var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
         {
-            _logger.Information($"✅ SignalR: Bruker {userId} koblet til ChatHub.");
+            _logger.Warning("❗ SignalR: Mangler eller ugyldig bruker-ID ved tilkobling.");
+            await base.OnConnectedAsync();
+            return;
+        }
 
-            // Hent grupper brukeren er medlem av
-            var groups = await _groupService.GetUserGroupsAsync(userId);
+        try
+        {
+            // Hent alle gruppe-samtaler brukeren er med i
+            var conversations = await _conversationService.GetUserConversationsAsync(userId, isGroup: true);
 
-            foreach (var group in groups)
+            foreach (var conversation in conversations)
             {
-                await Groups.AddToGroupAsync(Context.ConnectionId, group.Name);
-                _logger.Information($"👥 SignalR: Bruker {userId} lagt til i gruppe '{group.Name}'.");
+                if (!string.IsNullOrEmpty(conversation.GroupName))
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, conversation.GroupName);
+                    _logger.Information($"👥 SignalR: Bruker {userId} lagt til i gruppe '{conversation.GroupName}'.");
+                }
             }
         }
-        else
+        catch (Exception ex)
         {
-            _logger.Warning("❗ SignalR: Klarte ikke hente bruker-ID på tilkobling.");
+            _logger.Error(ex, $"🚨 Feil ved henting av samtaler for bruker {userId}.");
         }
 
         await base.OnConnectedAsync();
@@ -59,13 +67,13 @@ public class ChatHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    // Sender en kryptert melding til ALLE
+    // Sender en kryptert melding til ALLE. Brukes ikke
     public async Task SendMessageToAll(string encryptedMessage)
     {
         await Clients.All.SendAsync("ReceiveMessage", encryptedMessage);
     }
 
-    // Sender en kryptert melding til en SPESIFIKK bruker
+    // Sender en kryptert melding til en SPESIFIKK bruker. Brukes den=
     public async Task SendMessageToUser(string targetUserId, string encryptedMessage)
     {
         var connectionId = ConnectedUsers
@@ -78,31 +86,31 @@ public class ChatHub : Hub
     }
 
     // Sender en kryptert melding til en GRUPPE (chat-gruppe f.eks.)
+    // 🔥 Brukes for å videresende melding til gruppe
     public async Task SendMessageToGroup(string groupName, string encryptedMessage)
     {
         await Clients.Group(groupName).SendAsync("ReceiveMessage", encryptedMessage);
     }
 
-    // Bli med i en gruppe (for gruppesamtaler)
+    // 🔥 Legg til bruker i gruppe (brukes fra controller)
     public async Task JoinGroup(string groupName)
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
         _logger.Information($"👥 Bruker {Context.UserIdentifier} lagt til gruppe {groupName} live.");
     }
 
-    // Forlat en gruppe
     public async Task LeaveGroup(string groupName)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
         _logger.Information($"🚪 Bruker {Context.UserIdentifier} fjernet fra gruppe {groupName} live.");
     }
-    
+
+    // 🔥 Reaksjoner på meldinger
     public async Task ReactToMessage(int messageId, string emoji)
     {
         var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId)) return;
 
-        // 🔥 Send til ALLE klienter: en reaction skjedde
         await Clients.All.SendAsync("ReceiveReaction", new
         {
             MessageId = messageId,

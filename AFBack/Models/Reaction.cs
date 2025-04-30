@@ -12,10 +12,13 @@ public class Reaction
 
     public int MessageId { get; set; }
     
-    public string UserId { get; set; } = string.Empty;
+    public int UserId { get; set; }
 
     public string Emoji { get; set; } = string.Empty;
 
     [ForeignKey("MessageId")]
     public Message Message { get; set; } = null!;
+    
+    [ForeignKey("UserId")]
+    public User User { get; set; } = null!;
 }

@@ -1,4 +1,6 @@
 ﻿using System.Security.Claims;
+using AFBack.DTOs;
+using AFBack.Helpers;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,30 +16,35 @@ public class ReactionController : ControllerBase
     {
         _reactionService = reactionService;
     }
-
+    
+    // legger til en reaksjon på en melding
     [HttpPost]
     public async Task<IActionResult> AddReaction([FromBody] ReactionRequest request)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!int.TryParse(userIdStr, out var userId))
+            return Unauthorized("Bruker-ID mangler eller har feil format i token.");
 
-        await _reactionService.AddReactionAsync(request.MessageId, userId, request.Emoji);
-        return Ok();
+        try
+        {
+            await _reactionService.AddReactionAsync(request.MessageId, userId, request.Emoji);
+            return Ok(new { message = "Reaksjon lagt til." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Noe gikk galt ved lagring av reaksjon.", details = ex.Message });
+        }
     }
-
-    [HttpDelete]
-    public async Task<IActionResult> RemoveReaction([FromQuery] int messageId, [FromQuery] string emoji)
+    // Henter alle tilgjengelig emojier
+    [HttpGet("available-reactions")]
+    public IActionResult GetAvailableReactions()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        await _reactionService.RemoveReactionAsync(messageId, userId, emoji);
-        return Ok();
+        return Ok(AllowedReactions.Emojis);
     }
+    
 }
 
-public class ReactionRequest
-{
-    public int MessageId { get; set; }
-    public string Emoji { get; set; } = string.Empty;
-}

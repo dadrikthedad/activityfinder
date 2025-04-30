@@ -13,6 +13,7 @@ using AFBack.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using AFBack.Filters;
 using AFBack.Hubs;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.SignalR;
@@ -93,11 +94,16 @@ if (!string.IsNullOrEmpty(appInsightsKey))
 
 // Denne koden gjør at API-et kan håndtere HTTP-orespørsler som GET, POST, PUT og DELETE. Nødvendig for at ASP.NET CORE skal håndtere API.
 // Lagt til kontrllere 10.03
-builder.Services.AddControllers().AddJsonOptions(options =>
-{
-    options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-});
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.Add<ValidateModelAttribute>(); // ✅ Global validering
+    })
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
 
 // Henter vi Key fra miljøvariabelen og issuer og audience fra json.
 var jwtKey = Environment.GetEnvironmentVariable($"JWT_SECRET_KEY");
@@ -148,13 +154,16 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
 
 // For signalR
 builder.Services.AddSignalR();
+
+
 // Services jeg har opprettet. Til Authentisering og Notifications og Meldinger
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IMessageService, MessageService>();
-builder.Services.AddScoped<IGroupService, GroupService>();
+builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<IReactionService, ReactionService>();
 builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

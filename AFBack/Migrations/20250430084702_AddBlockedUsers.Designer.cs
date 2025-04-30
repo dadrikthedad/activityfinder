@@ -3,6 +3,7 @@ using System;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250430084702_AddBlockedUsers")]
+    partial class AddBlockedUsers
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -117,8 +120,7 @@ namespace AFBack.Migrations
 
                     b.HasIndex("ConversationId");
 
-                    b.HasIndex("UserId", "ConversationId")
-                        .IsUnique();
+                    b.HasIndex("UserId");
 
                     b.ToTable("ConversationReadStates");
                 });
@@ -176,68 +178,6 @@ namespace AFBack.Migrations
                     b.ToTable("Friends");
                 });
 
-            modelBuilder.Entity("AFBack.Models.GroupBlock", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("BlockedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId");
-
-                    b.HasIndex("UserId", "ConversationId")
-                        .IsUnique();
-
-                    b.ToTable("GroupBlocks");
-                });
-
-            modelBuilder.Entity("AFBack.Models.GroupInviteRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("InvitedUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("InviterId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsAccepted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvitedUserId");
-
-                    b.HasIndex("InviterId");
-
-                    b.HasIndex("ConversationId", "InvitedUserId")
-                        .IsUnique();
-
-                    b.ToTable("GroupInviteRequests");
-                });
-
             modelBuilder.Entity("AFBack.Models.Message", b =>
                 {
                     b.Property<int>("Id")
@@ -252,12 +192,6 @@ namespace AFBack.Migrations
                     b.Property<bool>("IsApproved")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int?>("ParentMessageId")
-                        .HasColumnType("integer");
-
                     b.Property<int>("SenderId")
                         .HasColumnType("integer");
 
@@ -271,8 +205,6 @@ namespace AFBack.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId");
-
-                    b.HasIndex("ParentMessageId");
 
                     b.ToTable("Messages");
                 });
@@ -445,22 +377,26 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.Reaction", b =>
                 {
-                    b.Property<int>("MessageId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Emoji")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("Id")
+                    b.Property<int>("MessageId")
                         .HasColumnType("integer");
 
-                    b.HasKey("MessageId", "UserId");
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
-                    b.HasIndex("UserId");
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
 
                     b.ToTable("Reactions");
                 });
@@ -727,52 +663,6 @@ namespace AFBack.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AFBack.Models.GroupBlock", b =>
-                {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
-                        .WithMany()
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AFBack.Models.GroupInviteRequest", b =>
-                {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
-                        .WithMany()
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.User", "InvitedUser")
-                        .WithMany()
-                        .HasForeignKey("InvitedUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.User", "Inviter")
-                        .WithMany()
-                        .HasForeignKey("InviterId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("InvitedUser");
-
-                    b.Navigation("Inviter");
-                });
-
             modelBuilder.Entity("AFBack.Models.Message", b =>
                 {
                     b.HasOne("AFBack.Models.Conversation", "Conversation")
@@ -781,14 +671,7 @@ namespace AFBack.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.Message", "ParentMessage")
-                        .WithMany()
-                        .HasForeignKey("ParentMessageId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Conversation");
-
-                    b.Navigation("ParentMessage");
                 });
 
             modelBuilder.Entity("AFBack.Models.MessageAttachment", b =>
@@ -807,7 +690,7 @@ namespace AFBack.Migrations
                     b.HasOne("AFBack.Models.User", "BlockedUser")
                         .WithMany()
                         .HasForeignKey("BlockedUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("BlockedUser");
@@ -818,7 +701,7 @@ namespace AFBack.Migrations
                     b.HasOne("AFBack.Models.User", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Sender");
@@ -856,20 +739,12 @@ namespace AFBack.Migrations
             modelBuilder.Entity("AFBack.Models.Reaction", b =>
                 {
                     b.HasOne("AFBack.Models.Message", "Message")
-                        .WithMany("Reactions")
+                        .WithMany()
                         .HasForeignKey("MessageId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("Message");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AFBack.Models.UserActivity", b =>
@@ -916,8 +791,6 @@ namespace AFBack.Migrations
             modelBuilder.Entity("AFBack.Models.Message", b =>
                 {
                     b.Navigation("Attachments");
-
-                    b.Navigation("Reactions");
                 });
 
             modelBuilder.Entity("AFBack.Models.Profile", b =>

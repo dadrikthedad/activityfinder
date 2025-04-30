@@ -2,6 +2,6 @@
 
 public interface IReactionService
 {
-    Task AddReactionAsync(int messageId, string userId, string emoji);
-    Task RemoveReactionAsync(int messageId, string userId, string emoji);
+    Task AddReactionAsync(int messageId, int userId, string emoji);
+  
 }
