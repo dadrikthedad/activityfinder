@@ -19,7 +19,7 @@ using CountryData.Standard;
 [Route("api/user")]
 // Gjør klassen til en API-kontroller, automatisk sjekk at det er riktig input, automatisk konvertering JSON-requests til objekter.
 [ApiController]
-public class UserController : ControllerBase
+public class UserController : BaseController
 {
     
    
@@ -333,6 +333,29 @@ public class UserController : ControllerBase
 
             return Ok(dto);
         }
+    }
+    // Henter kun id, FullName og ProfileImageUrl
+    [Authorize]
+    [HttpGet("summary")]
+    public async Task<IActionResult> GetCurrentUserSummary()
+    {
+        var userId = GetUserId(); // eller hent fra ClaimTypes.NameIdentifier
+        if (userId == null)
+            return Unauthorized();
+
+        var user = await _context.Users
+            .Include(u => u.Profile)
+            .FirstOrDefaultAsync(u => u.Id == userId.Value);
+
+        if (user == null)
+            return NotFound();
+
+        return Ok(new UserSummaryDTO
+        {
+            Id = user.Id,
+            FullName = user.FullName,
+            ProfileImageUrl = user.Profile?.ProfileImageUrl
+        });
     }
     
     // Henter informasjonen fra databasen til å vise på profil-siden

@@ -24,7 +24,7 @@ public class ConversationsController : BaseController
         _hubContext = hubContext;
         _messageService = messageService;
     }
-    // Endepunkt for å hente alle samtalene til en bruker
+    // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat
     [HttpGet("my-conversations")]
     public async Task<IActionResult> GetMyConversations([FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
@@ -61,7 +61,7 @@ public class ConversationsController : BaseController
         });
     }
     
-    // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen
+    // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
     [HttpGet("conversation/{conversationId}")]
     public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
