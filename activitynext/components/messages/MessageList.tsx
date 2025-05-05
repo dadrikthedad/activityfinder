@@ -62,7 +62,26 @@ useEffect(() => {
                   {msg.text || <i>(Tom melding)</i>}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {new Date(msg.sentAt).toLocaleTimeString()}
+                  {(() => {
+                    const sentDate = new Date(msg.sentAt);
+                    const today = new Date();
+
+                    const isToday =
+                      sentDate.getDate() === today.getDate() &&
+                      sentDate.getMonth() === today.getMonth() &&
+                      sentDate.getFullYear() === today.getFullYear();
+
+                    return isToday
+                      ? sentDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : `${sentDate.toLocaleDateString("no-NO", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}, ${sentDate.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}`;
+                  })()}
                 </p>
               </div>
             </div>

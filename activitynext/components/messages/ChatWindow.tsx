@@ -6,6 +6,7 @@ import MessageInput from "@/components/messages/MessageInput";
 import ConversationList from "@/components/messages/ConversationList";
 import { useChatContext } from "@/context/ChatContext";
 import { useChatState } from "@/hooks/conversations/useChatState";
+import ProfileNavButton from "../settings/ProfileNavButton";
 
 
 
@@ -85,21 +86,31 @@ interface ChatWindowProps extends ReturnType<typeof useChatState> {
   style={{ width: selectedConversationId ? "100%" : "400px" }} // 💡
 >
           {/* VENSTRE: Samtaler */}
-          <div
-            className={`
-                relative z-10 w-[400px] flex-shrink-0 p-4 dark:border-gray-700 bg-white dark:bg-[#1e2122]
-                transition-transform duration-300 ease-in-out 
-                ${selectedConversationId ? "-translate-x" : "translate-x-0"}
-            `}
-            >
-            <ConversationList
-              conversations={conversations}
-              currentUserId={user?.id}
-              selectedConversationId={selectedConversationId}
-              onSelect={setSelectedConversationId}
-              useMiniAvatarOnly
-            />
-          </div>
+<div
+  className={`
+    relative z-10 w-[400px] flex-shrink-0 p-4 dark:border-gray-700 bg-white dark:bg-[#1e2122]
+    transition-transform duration-300 ease-in-out 
+    ${selectedConversationId ? "-translate-x" : "translate-x-0"}
+  `}
+>
+  <ConversationList
+    conversations={conversations}
+    currentUserId={user?.id}
+    selectedConversationId={selectedConversationId}
+    onSelect={setSelectedConversationId}
+    useMiniAvatarOnly
+  />
+  
+  {/* Knapp justert til høyre */}
+  <div className="mt-4 flex justify-center">
+    <ProfileNavButton
+      href="/chat"
+      text="See All Messages"
+      variant="small"
+    />
+  </div>
+</div>
+          
     
           {/* HØYRE: Meldinger */}
           {selectedConversationId && (
