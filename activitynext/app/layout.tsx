@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+import ChatAndNavbarWrapper from "@/components/navbar/NavbarWrapper";
 import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
 import NotificationHubClient from "@/components/NotificationHubClient"; // Brukes en gang slik at den kjører globalt
-import ChatHubClient from "@/components/ChatHubClient";
-import { ChatProvider } from "@/context/ChatContext"; // Lik oppdatering i Chat og i DropdownChat
+import { ChatProvider } from "@/context/ChatContext";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +17,8 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+console.log("🔄 Navbar re-rendered");
 
 export const metadata: Metadata = {
   title: "Magee.no",
@@ -42,10 +44,9 @@ export default function RootLayout({
         <ModalProvider>
           <AuthProvider>
           <NotificationHubClient /> 
-          <ChatHubClient />
           <ChatProvider>
-            <Navbar />
-            <main className="flex-grow">{children}</main>
+            <ChatAndNavbarWrapper />
+              <main>{children}</main>
             </ChatProvider>
           </AuthProvider> 
         </ModalProvider>

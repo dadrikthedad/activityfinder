@@ -38,21 +38,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
 
   // Login: lagrer token og redirecter
   const login = (token: string, redirectTo = "/") => {
-    localStorage.setItem("token", token); // Lagrer token i localstorage
-    setCookie("token", token);  // Setter coockie så vi kan hente token igjen i serverside-sider ([id] feks)
+    if (typeof window !== "undefined") {
+      const newUserId = getUserIdFromToken(token);
+      const previousToken = localStorage.getItem("token");
+      const previousUserId = getUserIdFromToken(previousToken);
+  
+      // 🔐 Fjern gammel samtale-ID hvis bruker har endret seg
+      if (newUserId !== previousUserId) {
+        localStorage.removeItem("dropdown_convo");
+      }
+  
+      localStorage.setItem("token", token);
+      setCookie("token", token);
+    }
+  
     setToken(token);
-    setIsLoggedIn(true); // Oppdatere state
-    setUserId(getUserIdFromToken(token)); 
-    router.push(redirectTo); //redirecter til ønsket side
+    setIsLoggedIn(true);
+    setUserId(getUserIdFromToken(token));
+  
+    router.push(redirectTo);
   };
 
   // Logout: fjerner token og resetter bruker
   const logout = () => {
-    localStorage.removeItem("token");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("dropdown_convo");
+    }
+  
     setToken(null);
-    setUserId(null);    
+    setUserId(null);
     setIsLoggedIn(false);
-    router.push("/login");
+  
+    setTimeout(() => {
+      router.push("/login");
+    }, 50);
   };
 
 

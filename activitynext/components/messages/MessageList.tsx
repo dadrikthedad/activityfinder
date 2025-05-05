@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { MessageDTO } from "@/types/MessageDTO";
 import UserActionPopover from "../common/UserActionPopover";
 import MiniAvatar from "../common/MiniAvatar";
+import { useChatContext } from "@/context/ChatContext";
 
 interface Props {
     messages: MessageDTO[];
@@ -13,7 +14,8 @@ interface Props {
   }
   
   
-export default function MessageList({ messages, currentUserId, userAvatar, isCompact }: Props) {
+export default function MessageList({ currentUserId, userAvatar, isCompact }: Omit<Props, "messages">) {
+  const { messages } = useChatContext();
     const containerRef = useRef<HTMLDivElement | null>(null);
 
 useEffect(() => {
@@ -21,6 +23,15 @@ useEffect(() => {
   if (el) {
     el.scrollTop = el.scrollHeight;
   }
+}, [messages]);
+
+useEffect(() => {
+  console.log("🔄 MessageList rerender med meldinger:", messages.map(m => ({
+    id: m.id,
+    text: m.text,
+    senderId: m.senderId,
+    hasSender: !!m.sender
+  })));
 }, [messages]);
 
 

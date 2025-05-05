@@ -2,23 +2,22 @@
 "use client";
 
 import { Popover, Transition } from "@headlessui/react";
-import { Fragment, useState, ReactNode } from "react";
+import { Fragment, useState, ReactNode, useEffect } from "react";
 import ChatWindow from "@/components/messages/ChatWindow";
-import { useChatDropdownState } from "@/hooks/conversations/useChatDropdownState";
-import { useChatState } from "@/hooks/conversations/useChatState";
+import { useChatContext } from "@/context/ChatContext";
 
 interface ChatDropdownProps {
   children: ReactNode;
 }
 
 export default function ChatDropdown({ children }: ChatDropdownProps) {
-  const dropdownState = useChatDropdownState();
   const [mode, setMode] = useState<"list" | "chat">("list");
 
-  const chat = useChatState({
-    ...dropdownState,
-    autoSelectFirstConversation: false,
-  });
+  const chat = useChatContext();
+
+  useEffect(() => {
+    console.log("💬 ChatDropdown mounted at", new Date().toISOString());
+  }, []);
 
   return (
     <Popover className="relative">

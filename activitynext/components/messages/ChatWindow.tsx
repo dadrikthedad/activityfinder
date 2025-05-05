@@ -15,21 +15,21 @@ interface ChatWindowProps extends ReturnType<typeof useChatState> {
     onModeChange?: (mode: "chat" | "list") => void;
   }
 
-  export default function ChatWindow({ showSidebar = true, onModeChange }: ChatWindowProps) {
-    const {
-      conversations,
-      user,
-      userLoading,
-      selectedConversationId,
-      setSelectedConversationId,
-      messages,
-      messagesError,
-      newMessage,
-      setNewMessage,
-      handleSend,
-      sendingMessage,
-      inputRef,
-    } = useChatContext();
+  export default function ChatWindow({ showSidebar = true, onModeChange }: Partial<ChatWindowProps>) {
+  const {
+    conversations,
+    user,
+    userLoading,
+    selectedConversationId,
+    setSelectedConversationId,
+    messagesError,
+    newMessage,
+    setNewMessage,
+    handleSend,
+    sendingMessage,
+    inputRef,
+  } = useChatContext();
+
 
     useEffect(() => {
         if (onModeChange) {
@@ -58,7 +58,6 @@ interface ChatWindowProps extends ReturnType<typeof useChatState> {
                 )}
     
                 <MessageList
-                  messages={messages}
                   currentUserId={user?.id}
                   userAvatar={user?.profileImageUrl}
                 />
@@ -86,30 +85,31 @@ interface ChatWindowProps extends ReturnType<typeof useChatState> {
   style={{ width: selectedConversationId ? "100%" : "400px" }} // 💡
 >
           {/* VENSTRE: Samtaler */}
-<div
-  className={`
-    relative z-10 w-[400px] flex-shrink-0 p-4 dark:border-gray-700 bg-white dark:bg-[#1e2122]
-    transition-transform duration-300 ease-in-out 
-    ${selectedConversationId ? "-translate-x" : "translate-x-0"}
-  `}
->
-  <ConversationList
-    conversations={conversations}
-    currentUserId={user?.id}
-    selectedConversationId={selectedConversationId}
-    onSelect={setSelectedConversationId}
-    useMiniAvatarOnly
-  />
-  
-  {/* Knapp justert til høyre */}
-  <div className="mt-4 flex justify-center">
-    <ProfileNavButton
-      href="/chat"
-      text="See All Messages"
-      variant="small"
-    />
-  </div>
-</div>
+          <div
+            className={`
+              relative z-10 w-[400px] flex-shrink-0 p-4 dark:border-gray-700 bg-white dark:bg-[#1e2122]
+              transition-transform duration-300 ease-in-out 
+              ${selectedConversationId ? "-translate-x" : "translate-x-0"}
+              max-h-[80vh] overflow-y-auto
+            `}
+          >
+            <ConversationList
+              conversations={conversations}
+              currentUserId={user?.id}
+              selectedConversationId={selectedConversationId}
+              onSelect={setSelectedConversationId}
+              useMiniAvatarOnly
+            />
+            
+            {/* Knapp justert til høyre */}
+            <div className="mt-6 flex justify-center">
+              <ProfileNavButton
+                href="/chat"
+                text="See All Messages"
+                variant="small"
+              />
+            </div>
+          </div>
           
     
           {/* HØYRE: Meldinger */}
@@ -127,7 +127,6 @@ interface ChatWindowProps extends ReturnType<typeof useChatState> {
               {messagesError && <p className="text-red-500">Error: {messagesError}</p>}
           
               <MessageList
-                messages={messages}
                 currentUserId={user?.id}
                 userAvatar={user?.profileImageUrl}
                 isCompact={!showSidebar}
