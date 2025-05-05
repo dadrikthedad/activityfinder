@@ -4,6 +4,7 @@ import UserActionPopover from "../common/UserActionPopover";
 import MiniAvatar from "../common/MiniAvatar";
 import ReusableDropdownButton from "../common/Dropdown";
 import { useRouter } from "next/navigation";
+import ProfileNavButton from "../settings/ProfileNavButton";
 
 interface Props {
     conversations: ConversationDTO[];
@@ -94,6 +95,11 @@ export default function ConversationList({
           )}
           
         </div>
+        <ProfileNavButton // Til innstillinger
+                          href="/profilesettings"
+                          text="Settings"
+                          variant="long"
+                        />
       </div>
     );
   }
