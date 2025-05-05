@@ -10,6 +10,7 @@ import ProfileLink from "@/components/profile/ProfileLink";
 import NavbarSearch from "@/components/NavbarSearch";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 import NavbarNotifications from "@/components/notifications/NavbarNotifications";
+import ChatDropdown from "@/components/navbar/ChatDropdown";
 
 
 export default function Navbar() {
@@ -82,12 +83,14 @@ export default function Navbar() {
         {isLoggedIn ? (
           <>
              {/* Messages her kommer meldinger*/}
-            <li>
-              <Link href="/inbox" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2">
-                <Mail size={18} />
-                <span>Messages</span>
-              </Link>
-            </li>
+             <li>
+                <ChatDropdown>
+                  <div className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2 cursor-pointer">
+                    <Mail size={18} />
+                    <span>Messages</span>
+                  </div>
+                </ChatDropdown>
+              </li>
 
             {/* Notifications */}
             <div className="relative"> {/* Ikke bruk <li> hvis det ikke skal være en navigasjonslenke */}

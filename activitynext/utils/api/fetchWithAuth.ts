@@ -24,6 +24,7 @@ export async function fetchWithAuth<T>(
   });
 
   const text = await res.text(); // les alltid som tekst først
+  console.log("📄 Raw text:", JSON.stringify(text));
 
   if (!res.ok) {
     console.error(`🔴 API error (${res.status}) from ${url}:`, text);

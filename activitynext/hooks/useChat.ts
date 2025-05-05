@@ -1,99 +1,47 @@
-// Her kobler vi oss opp på chatHuben vi har laget til chatHub. Her er og chatte-funksjonene, eventuelt flyttes for seg selv senere
 "use client";
 
-import { useEffect, useState } from "react";
-import { createChatConnection, getChatConnection } from "@/utils/signalr/chatHub";
+import { useEffect } from "react";
+import { createChatConnection } from "@/utils/signalr/chatHub";
 import * as signalR from "@microsoft/signalr";
+import { MessageDTO } from "@/types/MessageDTO";
 
-export function useChat() {
-  const [messages, setMessages] = useState<string[]>([]);
-  const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
-
+export function useChat(
+  onReceiveMessage?: (message: MessageDTO) => void,
+  onReceiveReaction?: (reaction: { messageId: number; emoji: string; userId: string }) => void
+) {
   useEffect(() => {
-    let conn = getChatConnection();
+    const conn = createChatConnection();
 
-    if (!conn) {
-      conn = createChatConnection();
-    }
-
-    setConnection(conn);
-
-    if (conn && conn.state === signalR.HubConnectionState.Disconnected) {
-      conn
-        .start()
-        .then(() => {
+    const startConnection = async () => {
+      if (conn.state === signalR.HubConnectionState.Disconnected) {
+        try {
+          await conn.start();
           console.log("✅ Connected to ChatHub");
 
-          conn.on("ReceiveMessage", (message: string) => {
+          // Registrer event listeners
+          conn.off("ReceiveMessage");
+          conn.off("ReceiveReaction");
+
+          conn.on("ReceiveMessage", (message: MessageDTO) => {
             console.log("📩 Received:", message);
-            setMessages((prev) => [...prev, message]);
+            onReceiveMessage?.(message);
           });
-        })
-        .catch((error) => console.error("SignalR Connection Error:", error));
-    }
 
-    return () => {
-      conn?.off("ReceiveMessage");
-      conn?.stop();
+          conn.on("ReceiveReaction", (reaction) => {
+            console.log("🎉 Reaction:", reaction);
+            onReceiveReaction?.(reaction);
+          });
+        } catch (err) {
+          console.error("❌ SignalR Connection Error:", err);
+        }
+      }
     };
-  }, []);
 
-  const sendMessageToAll = async (message: string) => {
-    if (connection) {
-      try {
-        await connection.invoke("SendMessageToAll", message);
-      } catch (error) {
-        console.error("Sending message failed:", error);
-      }
-    }
-  };
+    startConnection();
 
-  const sendMessageToUser = async (targetUserId: string, message: string) => {
-    if (connection) {
-      try {
-        await connection.invoke("SendMessageToUser", targetUserId, message);
-      } catch (error) {
-        console.error("Sending private message failed:", error);
-      }
-    }
-  };
-
-  const sendMessageToGroup = async (groupName: string, message: string) => {
-    if (connection) {
-      try {
-        await connection.invoke("SendMessageToGroup", groupName, message);
-      } catch (error) {
-        console.error("Sending group message failed:", error);
-      }
-    }
-  };
-
-  const joinGroup = async (groupName: string) => {
-    if (connection) {
-      try {
-        await connection.invoke("JoinGroup", groupName);
-      } catch (error) {
-        console.error("Joining group failed:", error);
-      }
-    }
-  };
-
-  const leaveGroup = async (groupName: string) => {
-    if (connection) {
-      try {
-        await connection.invoke("LeaveGroup", groupName);
-      } catch (error) {
-        console.error("Leaving group failed:", error);
-      }
-    }
-  };
-
-  return {
-    messages,
-    sendMessageToAll,
-    sendMessageToUser,
-    sendMessageToGroup,
-    joinGroup,
-    leaveGroup,
-  };
+    // ❌ Ikke stopp global delt forbindelse
+    return () => {
+      // Do nothing on unmount
+    };
+  }, [onReceiveMessage, onReceiveReaction]);
 }

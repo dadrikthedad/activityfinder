@@ -6,6 +6,7 @@ import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
 import NotificationHubClient from "@/components/NotificationHubClient"; // Brukes en gang slik at den kjører globalt
 import ChatHubClient from "@/components/ChatHubClient";
+import { ChatProvider } from "@/context/ChatContext"; // Lik oppdatering i Chat og i DropdownChat
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,8 +43,10 @@ export default function RootLayout({
           <AuthProvider>
           <NotificationHubClient /> 
           <ChatHubClient />
+          <ChatProvider>
             <Navbar />
             <main className="flex-grow">{children}</main>
+            </ChatProvider>
           </AuthProvider> 
         </ModalProvider>
       </body>

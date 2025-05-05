@@ -17,7 +17,7 @@ export async function getNavbarNotifications(token: string): Promise<Notificatio
     }
 
     console.log("🔔 Notifications hentet:", data);
-    return data;
+    return data ?? [];
   } catch (err) {
     console.error("❌ Feil ved henting av notifications:", err);
     throw err;
