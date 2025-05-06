@@ -5,15 +5,14 @@ import MessageList from "@/components/messages/MessageList";
 import MessageInput from "@/components/messages/MessageInput";
 import ConversationList from "@/components/messages/ConversationList";
 import { useChatContext } from "@/context/ChatContext";
-import { useChatState } from "@/hooks/conversations/useChatState";
 import ProfileNavButton from "../settings/ProfileNavButton";
 
 
 
-interface ChatWindowProps extends ReturnType<typeof useChatState> {
-    showSidebar?: boolean;
-    onModeChange?: (mode: "chat" | "list") => void;
-  }
+interface ChatWindowProps {
+  showSidebar?: boolean;
+  onModeChange?: (mode: "chat" | "list") => void;
+}
 
   export default function ChatWindow({ showSidebar = true, onModeChange }: Partial<ChatWindowProps>) {
   const {

@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import ChatAndNavbarWrapper from "@/components/navbar/NavbarWrapper";
 import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
 import NotificationHubClient from "@/components/NotificationHubClient"; // Brukes en gang slik at den kjører globalt
 import { ChatProvider } from "@/context/ChatContext";
+import Navbar from "@/components/Navbar";
+
 
 
 const geistSans = Geist({
@@ -45,7 +46,7 @@ export default function RootLayout({
           <AuthProvider>
           <NotificationHubClient /> 
           <ChatProvider>
-            <ChatAndNavbarWrapper />
+            <Navbar /> {/* 👈 LEGG TIL DENNE */}
               <main>{children}</main>
             </ChatProvider>
           </AuthProvider> 
