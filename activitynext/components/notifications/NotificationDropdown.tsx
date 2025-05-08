@@ -3,29 +3,30 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useGetNavbarNotifications } from "@/hooks/notifications/useGetNavbarNotifications";
-import { useFriendInvitations } from "@/hooks/useFriendInvitations";
-import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllNotificationsAsRead";
 import { respondToInvitation } from "@/services/friendInvitations/respondToInvitation";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
 
 interface Props {
   onClose: () => void;
+  notifications: NotificationDTO[];
+  loading: boolean;
+  invitations: FriendInvitationDTO[]; // Hvis du har en type for invitations – ellers `any[]` midlertidig
 }
 
-export default function NotificationDropdown({ onClose }: Props) {
+export default function NotificationDropdown({
+  onClose,
+  notifications,
+  loading,
+  invitations
+}: Props) {
   const { token } = useAuth();
-  const { notifications, loading } = useGetNavbarNotifications();
-  const { invitations } = useFriendInvitations();
-  const { markAllAsRead } = useMarkAllNotificationsAsRead();
   const [handlingRequest, setHandlingRequest] = useState<number | null>(null);
 
-  useEffect(() => {
-    markAllAsRead();
-  }, [markAllAsRead]);
+
 
   const handleResponse = async (id: number, action: "accept" | "decline") => {
     if (!token) return;

@@ -24,16 +24,12 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
   const { confirmAndRemove } = useConfirmRemoveFriend();
-  const { isFriend, loading: isFriendLoading, checkFriendship } = useFriendWith();
+  const { isFriend, loading: isFriendLoading } = useFriendWith(user.id);
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
-  };
-
-  const handleOpen = () => {
-    checkFriendship(user.id); // Henter vennestatus først når bruker åpner
   };
 
   useEffect(() => {
@@ -61,7 +57,7 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
 
   return (
     <Popover className="relative inline-block text-left">
-       <Popover.Button ref={buttonRef} onClick={handleOpen}>
+       <Popover.Button ref={buttonRef}>
         <MiniAvatar
           imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
           size={avatarSize}

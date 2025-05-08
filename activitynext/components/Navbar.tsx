@@ -10,16 +10,49 @@ import ProfileLink from "@/components/profile/ProfileLink";
 import NavbarSearch from "@/components/NavbarSearch";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 import NavbarNotifications from "@/components/notifications/NavbarNotifications";
-import ChatDropdown from "@/components/navbar/ChatDropdown";
+import { useFriendInvitations } from "@/hooks/useFriendInvitations";
+import { useGetNavbarNotifications } from "@/hooks/notifications/useGetNavbarNotifications";
+import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllNotificationsAsRead";
+import { useNotificationHub } from "@/hooks/signalr/useNotificationHub";
+import { NotificationDTO } from "@/types/NotificationEventDTO";
+import MessageDropdown from "@/components/messages/MessageDropdown";
+import { useClickOutside } from "@/hooks/mouse/useClickOutside";
+import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
+
 
 
 export default function Navbar() {
   
   const [showDropDown, setShowDropdown] = useState(false); // Her brukes vi dropdown
   const router = useRouter(); // sende oss videre til de forskjellige linkene
-  const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
   const [showNotifications, setShowNotifications] = useState(false); // Her viser vi notifications og skjuler de ved at vi har trykket på den
+  const { notifications, setNotifications, loading } = useGetNavbarNotifications();
+  const { invitations } = useFriendInvitations();
+  const { markAllAsRead } = useMarkAllNotificationsAsRead();
+  const [showMessages, setShowMessages] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
+  const messageDropdownRef = useRef<HTMLDivElement>(null);
+  const { user: currentUser } = useCurrentUserSummary();
+
+  useNotificationHub({
+    onReceive: (newNotification: NotificationDTO) => {
+      setNotifications((prev) => [newNotification, ...(prev ?? [])]);
+    }
+  });
+
+  const handleToggleNotifications = async () => {
+    if (!showNotifications) {
+      await markAllAsRead();
+      setNotifications((prev) => (prev ?? []).map((n) => ({ ...n, isRead: true })));
+    }
+    setShowNotifications((prev) => !prev);
+  };
+
+  const handleToggleMessages = () => {
+    setShowMessages((prev) => !prev);
+  };
+  
 
   useEffect(() => {
     console.log("🌐 Current URL is:", window.location.href);
@@ -30,23 +63,10 @@ export default function Navbar() {
     logout();
   };
 
-  useEffect(() => { // Denne brukes til å lukke dropdown boxen hvis vi trykker på utsiden
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
-    };
 
-    if (showDropDown) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [showDropDown]);
+    // Denne brukes til å lukke dropdown boxen hvis vi trykker på utsiden
+  useClickOutside(dropdownRef, () => setShowDropdown(false), showDropDown);
+  useClickOutside(messageDropdownRef, () => setShowMessages(false), showMessages);
 
 
   return (
@@ -83,22 +103,36 @@ export default function Navbar() {
         {isLoggedIn ? (
           <>
              {/* Messages her kommer meldinger*/}
-             <li>
-                <ChatDropdown>
-                  <div className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2 cursor-pointer">
-                    <Mail size={18} />
-                    <span>Messages</span>
-                  </div>
-                </ChatDropdown>
+             <li className="relative">
+                <div
+                  className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2 cursor-pointer"
+                  onClick={handleToggleMessages}
+                >
+                  <Mail size={18} />
+                  <span>Messages</span>
+                </div>
+                {showMessages && (
+                <div ref={messageDropdownRef}>
+                  <MessageDropdown currentUser={currentUser} />
+                </div>
+              )}
               </li>
 
             {/* Notifications */}
             <div className="relative"> {/* Ikke bruk <li> hvis det ikke skal være en navigasjonslenke */}
-            <NavbarNotifications />
+            <NavbarNotifications
+              onClick={handleToggleNotifications}
+              unreadCount={notifications.filter((n) => !n.isRead).length}
+            />
 
-              {showNotifications && (
-                  <NotificationDropdown onClose={() => setShowNotifications(false)} />
-                )}
+            {showNotifications && (
+              <NotificationDropdown
+                onClose={() => setShowNotifications(false)}
+                notifications={notifications}
+                loading={loading}
+                invitations={invitations}
+              />
+            )}
             </div>
                           
             <li>

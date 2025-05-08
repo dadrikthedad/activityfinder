@@ -1,6 +1,6 @@
 // Hooken for å se lese notifications, brukes over notificaiton ikonet i navbaren for å se om vi har noen varlser
 import { useEffect, useState } from "react";
-import { useNotificationHub } from "@/hooks/useNotificationHub";
+import { useNotificationHub } from "@/hooks/signalr/useNotificationHub";
 import { useAuth } from "@/context/AuthContext";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import { API_BASE_URL } from "@/constants/routes";

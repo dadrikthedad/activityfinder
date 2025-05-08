@@ -9,7 +9,7 @@ export async function getNavbarNotifications(token: string): Promise<Notificatio
   try {
     const data = await fetchWithAuth<NotificationDTO[]>(url, {
       method: "GET",
-    }, token);
+    }, token, "basic");
 
     if (!data) {
       console.warn("⚠️ Ingen notifications data mottatt fra server.");

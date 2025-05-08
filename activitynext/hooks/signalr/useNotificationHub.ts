@@ -24,6 +24,7 @@ interface Options {
         if (connection.state === "Disconnected") {
           try {
             await connection.start();
+            console.log("✅ Connected to NotificationHub");
           } catch (err) {
             console.error("❌ SignalR-tilkobling feilet:", err);
           }

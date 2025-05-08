@@ -1,80 +1,69 @@
-// Input-feltet til ChatPage og ChatDropdown. Er text-area for å utvide seg
+// Inputfeltet i MessageDropdown som sender en melding over SignalR
 "use client";
-
-import React, { useRef, RefObject, useEffect } from "react";
-import SimpleTextButton from "../common/SimpleTextButton";
-import { ArrowLeft } from "lucide-react";
+import { useState, useRef } from "react";
+import { useSendMessage } from "@/hooks/messages/useSendMessage";
+import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
+import TextareaAutosize from "react-textarea-autosize";
 
 interface MessageInputProps {
-  value: string;
-  onChange: (value: string) => void;
-  onSend: () => void;
-  loading?: boolean;
-  disabled?: boolean;
-  inputRef?: RefObject<HTMLTextAreaElement>; // Endret til textarea-ref
-  isMobile?: boolean; 
-  onBack?: () => void;
+  conversationId?: number;
+  receiverId?: number;
+  onMessageSent?: (message: MessageDTO) => void;
 }
 
-const MessageInput: React.FC<MessageInputProps> = ({
-  value,
-  onChange,
-  onSend,
-  loading = false,
-  disabled = false,
-  inputRef,
-  isMobile,
-  onBack
-}) => {
-  const internalRef = useRef<HTMLTextAreaElement>(null);
-  const refToUse = inputRef ?? internalRef;
+export default function MessageInput({
+  conversationId,
+  receiverId,
+  onMessageSent,
+}: MessageInputProps) {
+  const [text, setText] = useState("");
+  const { send, loading } = useSendMessage(onMessageSent);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Håndterer automatisk høyde
-  useEffect(() => {
-    const el = refToUse.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = `${el.scrollHeight}px`;
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const payload: SendMessageRequestDTO = {
+      text: trimmed,
+      conversationId,
+      receiverId,
+    };
+
+    const result = await send(payload);
+    if (result) {
+      setText("");
+      inputRef.current?.focus();
     }
-  }, [value, refToUse]);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onSend();
+      handleSend();
     }
   };
 
   return (
     <div className="flex gap-2 items-end mt-4">
-        {isMobile && onBack && (
-      <SimpleTextButton
-        text=""
-        onClick={onBack}
-        className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-      >
-        <ArrowLeft className="w-4 h-4" />
-      </SimpleTextButton>
-    )}
-      <textarea
-        ref={refToUse}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Skriv en melding..."
-        rows={1}
+      <TextareaAutosize
+        ref={inputRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
-        disabled={disabled}
-        className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[300px]"
-      />
+        placeholder="Skriv en melding..."
+        minRows={1}
+        maxRows={6} // begrens hvor stor den kan bli
+        className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px]"
+        disabled={loading}
+        />
       <button
-        onClick={onSend}
-        disabled={loading || !value.trim() || disabled}
+        onClick={handleSend}
+        disabled={loading || !text.trim()}
         className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
       >
         Send
       </button>
     </div>
   );
-};
-
-export default MessageInput;
+}

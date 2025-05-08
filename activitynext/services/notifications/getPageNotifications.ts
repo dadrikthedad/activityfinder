@@ -9,7 +9,7 @@ export async function getPageNotifications(token: string): Promise<NotificationD
   try {
     const data = await fetchWithAuth<NotificationDTO[]>(url, {
         method: "GET",
-      }, token);
+      }, token, "basic");
       
       return data ?? [];
   } catch (err) {

@@ -1,149 +1,84 @@
-// samtaleliste som henter alle brukerne og viser de enten med miniavatar i dropdown eller useractionpopover.tsx i chatpage
+// Samtaler som vises i MessageDropdownen i navbaren
+"use client";
+
+import { usePaginatedConversations } from "@/hooks/messages/getMyConversations";
 import { ConversationDTO } from "@/types/ConversationDTO";
-import UserActionPopover from "../common/UserActionPopover";
-import MiniAvatar from "../common/MiniAvatar";
-import ReusableDropdownButton from "../common/Dropdown";
-import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { useChatStore } from "@/store/useChatStore";
+import { useEffect, useState } from "react";
 
 interface Props {
-    conversations: ConversationDTO[];
-    selectedConversationId: number | null;
-    onSelect: (id: number) => void;
-    currentUserId: number | undefined;
-    useMiniAvatarOnly?: boolean;
-  }
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  currentUser: UserSummaryDTO | null;
+}
 
-export default function ConversationList({
-    conversations,
-    selectedConversationId,
-    onSelect,
-    currentUserId,
-    useMiniAvatarOnly,
-  }: Props) {
-    const router = useRouter();
-    return (
-        <div
-  className="w-[360px] max-h-[70vh] flex-shrink-0 overflow-y-auto"
-  style={{
-    overflowX: "hidden",
-    scrollbarWidth: "none", // Firefox
-    msOverflowStyle: "none", // IE 10+
-  }}
->
-  <div style={{ direction: "ltr" }}>
-        {conversations.map((conv) => {
-  const isGroup = conv.isGroup;
-  const otherUser = !isGroup
-    ? conv.participants.find((p) => p.id !== currentUserId)
-    : null;
-   
-
-  // Desktop: knapp til venstre
-  if (!useMiniAvatarOnly) {
-    return (
-      <div key={conv.id} className="flex items-center gap-2 relative">
-        <div className="relative">
-        {/* ⚙ Knapp til venstre */}
-        
-        <ReusableDropdownButton
-        text="⚙"
-        variant="iconOnly"
-        actions={
-            otherUser
-              ? [
-                  {
-                    label: "Visit Profile",
-                    onClick: () => router.push(`/profile/${otherUser.id}`),
-                  },
-                ]
-              : []
-          }
-        />
-        </div>
-
-        {/* Samtalekort */}
-        <div
-          onClick={() => onSelect(conv.id)}
-          className={`flex-1 p-4 border border-[#1C6B1C] rounded-lg shadow-sm cursor-pointer flex items-center gap-4 ${
-            conv.id === selectedConversationId
-              ? "bg-[#145214] text-white"
-              : "bg-white dark:bg-[#1e2122]"
-          }`}
-        >
-          {!isGroup && otherUser ? (
-            <>
-              <UserActionPopover user={otherUser} avatarSize={40} />
-              <div>
-                <p className="font-semibold">{otherUser.fullName}</p>
-                <p className="text-sm text-gray-500">
-                  {conv.lastMessageSentAt
-                    ? new Date(conv.lastMessageSentAt).toLocaleString()
-                    : "Ingen meldinger"}
-                </p>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="font-semibold">GroupChat: {conv.groupName || "Uten navn"}</p>
-              <p className="text-sm text-gray-500">
-                {conv.lastMessageSentAt
-                  ? new Date(conv.lastMessageSentAt).toLocaleString()
-                  : "Ingen meldinger"}
-              </p>
-            </div>
-          )}
-          
-        </div>
-      </div>
-    );
-  }
-
-  // Mobile: knapp til høyre, utenfor kortet
-return (
-    <div key={conv.id} className="flex items-center gap-2 justify-end">
-      {/* Samtalekort */}
-      <div
-        onClick={() => onSelect(conv.id)}
-        className={`flex-1 p-4 border border-[#1C6B1C] rounded-lg shadow-sm cursor-pointer flex items-center gap-4 ${
-          conv.id === selectedConversationId
-            ? "bg-[#145214] text-white"
-            : "bg-white dark:bg-[#1e2122]"
-        }`}
-      >
-        <MiniAvatar
-          imageUrl={otherUser?.profileImageUrl ?? "/default-avatar.png"}
-          size={40}
-        />
-        <div>
-          <p className="font-semibold">{otherUser?.fullName}</p>
-          <p className="text-sm text-gray-500">
-            {conv.lastMessageSentAt
-              ? new Date(conv.lastMessageSentAt).toLocaleString()
-              : "Ingen meldinger"}
-          </p>
-        </div>
-      </div>
+export default function ConversationList({ selectedId, onSelect, currentUser }: Props) {
+    const { conversations: cached, setConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
+    const { conversations, loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
+    const [showConversations, setShowConversations] = useState<ConversationDTO[]>([]);
+    // Henter navnet
+    const getDisplayName = (conv: ConversationDTO): string => {
+        if (conv.isGroup) return conv.groupName || "Group Chat";
+        const other = conv.participants.find(p => p.id !== currentUser?.id);
+        return other?.fullName || "Unknown user";
+    };
   
-      {/* ⚙ Knapp til høyre for kortet */}
-      
-        <ReusableDropdownButton
-        text="⚙"
-        variant="iconOnly"
-        actions={
-            otherUser
-              ? [
-                  {
-                    label: "Visit Profile",
-                    onClick: () => router.push(`/profile/${otherUser.id}`),
-                  },
-                ]
-              : []
-          }
-        />
-    </div>
-  );
-})}
-      </div>
+    const getProfileImage = (conv: ConversationDTO): string => {
+        if (conv.isGroup) return "/default-group.png"; // Bruk bildet ditt her
+        const other = conv.participants.find(p => p.id !== currentUser?.id);
+        return other?.profileImageUrl || "/default-avatar.png";
+    };
+
+    // Hent samtaler kun én gang hvis ikke lagret
+    useEffect(() => {
+        if (cached.length > 0) {
+        setShowConversations(cached);
+        } else if (conversations.length > 0) {
+        setConversations(conversations);
+        setShowConversations(conversations);
+        }
+    }, [cached, conversations, setConversations]);
+  
+    return (
+      <div className="w-60 border-r border-gray-300 dark:border-gray-600 overflow-y-auto max-h-[480px]">
+        <h4 className="text-lg font-semibold p-4 text-center">Conversations</h4>
+  
+        <ul className="space-y-2 px-2">
+        {showConversations.map((conv: ConversationDTO) => (
+            <li
+              key={conv.id}
+              onClick={() => onSelect(conv.id)}
+              className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition ${
+                selectedId === conv.id
+                  ? "bg-[#e0f2e0] dark:bg-[#2c2f30]"
+                  : "hover:bg-gray-100 dark:hover:bg-gray-700"
+              }`}
+            >
+              <Image
+                src={getProfileImage(conv)}
+                alt={getDisplayName(conv)}
+                width={40}
+                height={40}
+                className="rounded-full object-cover w-10 h-10"
+              />
+              <span className="text-sm font-medium truncate">{getDisplayName(conv)}</span>
+            </li>
+          ))}
+        </ul>
+  
+        {hasMore && (
+          <div className="text-center my-3">
+            <button
+              onClick={loadMore}
+              disabled={loading}
+              className="text-sm px-3 py-1 bg-[#1C6B1C] hover:bg-[#145214] text-white rounded"
+            >
+              {loading ? "Loading..." : "Load more"}
+            </button>
+          </div>
+        )}
       </div>
     );
   }

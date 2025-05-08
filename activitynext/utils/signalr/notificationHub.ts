@@ -12,7 +12,7 @@ export function createNotificationConnection(): signalR.HubConnection {
         accessTokenFactory: () => localStorage.getItem("token") ?? "",
     transport: signalR.HttpTransportType.WebSockets // 👈 Tving WebSockets
   })
-  .configureLogging(signalR.LogLevel.Information)
+  .configureLogging(signalR.LogLevel.None)
   .withAutomaticReconnect()
   .build();
 

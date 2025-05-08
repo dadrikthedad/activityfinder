@@ -16,6 +16,7 @@ import Spinner from "../common/Spinner";
 import { useSendFriendInvitation } from "@/hooks/useSendFriendInvitation";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import PublicSimpleFriendList from "@/components/friends/PublicSimpleFriendList";
+import { mutate } from "swr";
 
 
 
@@ -32,7 +33,7 @@ export default function PublicProfileView({
   const [profile, setProfile] = useState(initialProfile); // ✅ må kalles initialProfile her
   const [reloadCounter ] = useState(0); // Brukes til å trigge refetch av siden ved subtmitting til backend
   const { token } = useAuth(); // Henter token
-  const { isFriend, loading: friendshipLoading, checkFriendship } = useFriendWith(); // Her kjører vi en sjekk til backend om vi er venn med brukeren for å gi en egen visning av brukeren
+  const { isFriend, loading: friendshipLoading } = useFriendWith(profile.userId); // Her kjører vi en sjekk til backend om vi er venn med brukeren for å gi en egen visning av brukeren
   const { sendInvitation, sending, error } = useSendFriendInvitation(); // Brukes til å sende en venneinvitasjon
   const { confirmAndRemove } = useConfirmRemoveFriend(); // Brukes til å slette en venn hvis vi allerede er venner
   const [friendRequestSent, setFriendRequestSent] = useState(false); // Holder styr på om vi har lagt til en bruker som en venn slik at vi ikke kan spamme brukeren med forespørsler
@@ -63,15 +64,9 @@ export default function PublicProfileView({
   const handleRemove = async () => {
     await confirmAndRemove(profile.userId, profile.fullName ?? "this user", async () => {
       await refetchProfile();
-      await checkFriendship(profile.userId); // 🔁 Ny kontroll på vennestatus etter fjerning
+      mutate([`/friends/is-friend-with`, profile.userId]); // 🔁 Ny kontroll på vennestatus etter fjerning
     });
   };
-
-  useEffect(() => {
-    if (!isOwner) {
-      checkFriendship(profile.userId);
-    }
-  }, [isOwner, profile.userId, checkFriendship]);
 
   const handleSendInvitation = async () => {
     if (friendRequestSent) return; // Hindrer dobbelklikking

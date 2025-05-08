@@ -1,31 +1,22 @@
 // Her har vi en gjenburkbar hook som kan brukes for å sjekke om vi er venn med brukeren vi besøker
 // hooks/useFriendWith.ts
-import { useState, useCallback  } from "react";
+import useSWR from "swr";
 import { useAuth } from "@/context/AuthContext";
 import { isFriendWith } from "@/services/friends/isFriendWith";
 
-export function useFriendWith() {
+export function useFriendWith(userId?: number) {
   const { token } = useAuth();
-  const [isFriend, setIsFriend] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  const checkFriendship = useCallback(
-    async (otherUserId: number) => {
-      if (!token) return;
-      setLoading(true);
-      try {
-        const result = await isFriendWith(otherUserId, token);
-        setIsFriend(result);
-      } catch (error) {
-        console.error("❌ Failed to fetch friendship status:", error);
-        setIsFriend(false);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [token]
+  const shouldFetch = !!token && typeof userId === "number";
+
+  const { data, error, isValidating } = useSWR(
+    shouldFetch ? [`/friends/is-friend-with`, userId] : null,
+    () => isFriendWith(userId!, token!)
   );
 
-  return { isFriend, loading, checkFriendship };
+  return {
+    isFriend: data ?? null,
+    loading: isValidating,
+    error,
+  };
 }
-  
