@@ -65,7 +65,7 @@ public class MessageService : IMessageService
             _context.Messages.Add(message);
             await _context.SaveChangesAsync();
 
-            var response = MapToResponseDto(message);
+            var response = await MapToResponseDto(message);
             await BroadcastMessageIfApproved(conversation, senderId, response);
 
             return response;
@@ -519,12 +519,23 @@ public class MessageService : IMessageService
             }
         }
         
-        private MessageResponseDTO MapToResponseDto(Message message)
+        private async Task<MessageResponseDTO> MapToResponseDto(Message message)
         {
+            var sender = await _context.Users
+                .Where(u => u.Id == message.SenderId)
+                .Select(u => new UserSummaryDTO
+                {
+                    Id = u.Id,
+                    FullName = u.FullName,
+                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
+                })
+                .FirstOrDefaultAsync();
+            
             return new MessageResponseDTO
             {
                 Id = message.Id,
                 SenderId = message.SenderId,
+                Sender = sender!,
                 Text = message.Text,
                 SentAt = message.SentAt,
                 ConversationId = message.ConversationId,
