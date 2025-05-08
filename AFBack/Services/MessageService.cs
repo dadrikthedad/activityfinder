@@ -505,11 +505,8 @@ public class MessageService : IMessageService
             {
                 foreach (var participant in conversation.Participants)
                 {
-                    if (participant.UserId != senderId)
-                    {
                         await _hubContext.Clients.User(participant.UserId.ToString())
                             .SendAsync("ReceiveMessage", response);
-                    }
                 }
             }
             else if (!string.IsNullOrEmpty(conversation.GroupName))
