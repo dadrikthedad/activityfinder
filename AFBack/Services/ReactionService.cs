@@ -107,16 +107,21 @@ public class ReactionService : IReactionService
     
     private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, string? groupName, ReactionDTO dto)
     {
+        var tasks = new List<Task>();
+        
         if (!string.IsNullOrEmpty(groupName))
         {
-            await _hubContext.Clients.Group(groupName).SendAsync("ReceiveReaction", dto);
+            tasks.Add(_hubContext.Clients.Group(groupName).SendAsync("ReceiveReaction", dto));
         }
-        else if (userIds != null)
+
+        if (userIds != null)
         {
             foreach (var userId in userIds)
             {
-                await _hubContext.Clients.User(userId).SendAsync("ReceiveReaction", dto);
+                tasks.Add(_hubContext.Clients.User(userId).SendAsync("ReceiveReaction", dto));
             }
         }
+        
+        await Task.WhenAll(tasks);
     }
 }
