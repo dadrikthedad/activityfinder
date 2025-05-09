@@ -1,3 +1,4 @@
+// hooken til å sende reaction til backend
 import { useState } from "react";
 import { addReaction, removeReaction, ReactionRequest } from "@/services/messages/reactionService";
 

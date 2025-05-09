@@ -1,3 +1,4 @@
+// Denne håndterer popupen og stilen og brukes for å putte en reaksjon på en melding. Brukes i MEssageList.tsx
 "use client";
 import { useState, useRef } from "react";
 import { useReactions } from "@/hooks/reactions/useReactions";

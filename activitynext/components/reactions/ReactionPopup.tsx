@@ -1,3 +1,4 @@
+// Her har vi popuen til emojiene samt emojilisten om hvem emojier som er lov
 "use client";
 import React from "react";
 import styles from "./styles.module.css";
