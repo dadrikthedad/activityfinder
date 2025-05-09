@@ -9,6 +9,8 @@ import { MessageDTO } from "@/types/MessageDTO"; // Hvordan en melding ser ut
 import MiniAvatar from "../common/MiniAvatar";
 import UserActionPopover from "../common/UserActionPopover";
 import { formatSentDate } from "@/utils/date/chatDate";
+import { ReactionHandler } from "../reactions/ReactionHandler";
+
 
 interface MessageListProps {
     conversationId: number;
@@ -204,8 +206,9 @@ export default function MessageList({ conversationId, currentUser }: MessageList
   
         return (
             <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+              <ReactionHandler targetId={msg.id}>
             <div
-                className={`p-2 max-w-[250] break-words whitespace-pre-wrap overflow-hidden ${
+                className={`p-2 max-w-[250] break-words whitespace-pre-wrap overflow-visible ${
                     isMine ? "text-right ml-auto" : "text-left"
                 }`}
                 >
@@ -244,6 +247,7 @@ export default function MessageList({ conversationId, currentUser }: MessageList
                 <div className="text-xs text-gray-400 mb-1">📎 {msg.attachments.length} attachment(s)</div>
               )}
             </div>
+            </ReactionHandler>
           </div>
         );
       })}

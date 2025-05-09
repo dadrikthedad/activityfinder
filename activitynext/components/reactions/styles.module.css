@@ -1,0 +1,22 @@
+.popup {
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 6px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+}
+
+.emojiButton {
+  font-size: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s ease-in-out;
+}
+
+.emojiButton:hover {
+  transform: scale(1.3);
+}
