@@ -3,13 +3,17 @@
 import { useState, useRef } from "react";
 import { useReactions } from "@/hooks/reactions/useReactions";
 import { ReactionPopup } from "./ReactionPopup";
+import { ReactionDTO } from "@/types/MessageDTO";
+
 
 interface ReactionHandlerProps {
   targetId: number;
+  userId: number;
+  existingReactions: ReactionDTO[];
   children: React.ReactNode;
 }
 
-export const ReactionHandler: React.FC<ReactionHandlerProps> = ({ targetId, children }) => {
+export const ReactionHandler: React.FC<ReactionHandlerProps> = ({ targetId, userId, existingReactions, children, }) => {
   const { addReaction } = useReactions();
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -25,21 +29,22 @@ export const ReactionHandler: React.FC<ReactionHandlerProps> = ({ targetId, chil
   const handleMouseLeave = () => {
     hideTimeout.current = setTimeout(() => setVisible(false), 200);
   };
-
-  const handleSelect = (emoji: string) => {
-    addReaction({ messageId: targetId, emoji });
-    setVisible(false);
-  };
-
+  
   return (
     <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="relative inline-block">
-      {children}
+       {children}
 
+      {/* Meldingsinnhold */}
       {visible && (
         <ReactionPopup
-          onSelect={handleSelect}
+          onSelect={(emoji) => {
+            addReaction({ messageId: targetId, emoji }); // toggle
+            setVisible(false);
+          }}
           onClose={() => setVisible(false)}
           position={position}
+          userId={userId}
+          existingReactions={existingReactions}
         />
       )}
     </div>

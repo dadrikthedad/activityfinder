@@ -12,6 +12,7 @@ export interface ReactionDTO {
   emoji: string;
   userId: number;
   isRemoved: boolean;
+  userFullName?: string;
 }
 
 export interface MessageDTO {

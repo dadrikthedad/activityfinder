@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import { MessageDTO } from "@/types/MessageDTO";
+import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
 import { ConversationDTO } from "@/types/ConversationDTO";
+
 
 type ChatStore = {
   conversations: ConversationDTO[];
@@ -17,6 +18,7 @@ type ChatStore = {
   setScrollPosition: (conversationId: number, position: number) => void;
   cacheTimestamps: Record<number, number>;
   resetStore: () => void;
+  updateMessageReactions: (reaction: ReactionDTO) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -31,7 +33,44 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setConversations: (conversations) => set(() => ({ conversations })),
 
-  
+  updateMessageReactions: (reaction: ReactionDTO) =>
+  set((state) => {
+    const updateMessages = (messages: MessageDTO[]) =>
+      messages.map((m) => {
+        if (m.id !== reaction.messageId) return m;
+
+        const existing = m.reactions ?? [];
+        const filtered = existing.filter((r) => r.userId !== reaction.userId);
+
+        if (!reaction.isRemoved) {
+          filtered.push(reaction);
+        }
+
+        return { ...m, reactions: filtered };
+      });
+
+    // Finn samtalen til meldingen – vi trenger conversationId
+    const liveMessages = { ...state.liveMessages };
+    const cachedMessages = { ...state.cachedMessages };
+
+    for (const [convId, msgs] of Object.entries(state.liveMessages)) {
+      if (msgs.some((m) => m.id === reaction.messageId)) {
+        liveMessages[+convId] = updateMessages(msgs);
+      }
+    }
+
+    for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
+      if (msgs.some((m) => m.id === reaction.messageId)) {
+        cachedMessages[+convId] = updateMessages(msgs);
+      }
+    }
+
+    return {
+      liveMessages,
+      cachedMessages,
+    };
+  }),
+
   setCachedMessages: (conversationId, messages) =>
       set((state) => ({
           cachedMessages: {

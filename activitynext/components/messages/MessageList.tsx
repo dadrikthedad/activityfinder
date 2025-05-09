@@ -10,6 +10,8 @@ import MiniAvatar from "../common/MiniAvatar";
 import UserActionPopover from "../common/UserActionPopover";
 import { formatSentDate } from "@/utils/date/chatDate";
 import { ReactionHandler } from "../reactions/ReactionHandler";
+import { groupReactionsDetailed } from "@/utils/messages/emoji";
+import { addReaction } from "@/services/messages/reactionService";
 
 
 interface MessageListProps {
@@ -206,7 +208,7 @@ export default function MessageList({ conversationId, currentUser }: MessageList
   
         return (
             <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-              <ReactionHandler targetId={msg.id}>
+              <ReactionHandler targetId={msg.id} userId={currentUser?.id ?? -1}  existingReactions={msg.reactions}>
             <div
                 className={`p-2 max-w-[250] break-words whitespace-pre-wrap overflow-visible ${
                     isMine ? "text-right ml-auto" : "text-left"
@@ -240,6 +242,30 @@ export default function MessageList({ conversationId, currentUser }: MessageList
               )}
               {msg.text?.trim() && (
                 <div className="text-sm mb-2 whitespace-pre-line">{msg.text}</div>
+              )}
+
+              {msg.reactions?.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1 text-sm">
+                  {Object.entries(groupReactionsDetailed(msg.reactions)).map(([emoji, { count, userIds, userNames }]) => {
+                    const userHasReacted = userIds.includes(currentUser?.id ?? -1);
+
+                    return (
+                      <div
+                        key={emoji}
+                        title={`Reagert av: ${userNames.join(", ")}`} // 👈 Tooltip med navneliste
+                        className="bg-gray-700 text-white px-2 py-1 rounded-full flex items-center gap-1 text-xs cursor-pointer hover:bg-gray-600 transition"
+                        onClick={() => {
+                          if (userHasReacted) {
+                            addReaction({ messageId: msg.id, emoji }); // toggle-fjerning
+                          }
+                        }}
+                      >
+                        <span>{emoji}</span>
+                        <span>x{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
           
               {/* Vedlegg og tidspunkt */}

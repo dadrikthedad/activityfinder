@@ -3,10 +3,11 @@ import { useEffect } from "react";
 import { createChatConnection } from "@/utils/signalr/chatHub";
 import * as signalR from "@microsoft/signalr";
 import { MessageDTO } from "@/types/MessageDTO";
+import { ReactionDTO } from "@/types/MessageDTO";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
-  onReceiveReaction?: (reaction: { messageId: number; emoji: string; userId: string }) => void
+  onReceiveReaction?: (reaction: ReactionDTO) => void
 ) {
   useEffect(() => {
     const conn = createChatConnection();
@@ -33,8 +34,11 @@ export function useChatHub(
           });
 
           conn.on("ReceiveReaction", (reaction) => {
-            console.log("🎉 Reaction:", reaction);
-            onReceiveReaction?.(reaction);
+            if ('messageId' in reaction && 'emoji' in reaction && 'userId' in reaction && 'isRemoved' in reaction) {
+              onReceiveReaction?.(reaction as ReactionDTO);
+            } else {
+              console.warn("❌ Ugyldig Reaction-data mottatt:", reaction);
+            }
           });
         } catch (err) {
           console.error("❌ SignalR Connection Error:", err);
