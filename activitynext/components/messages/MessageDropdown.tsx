@@ -6,13 +6,25 @@ import { useState } from "react";
 import ConversationList from "./ConversationList";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
+import { useChatStore } from "@/store/useChatStore";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
   }
 
   export default function MessageDropdown({ currentUser }: MessageDropdownProps) {
-    const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null); // Midlertidig hardkodet
+    const {
+      currentConversationId,
+      setCurrentConversationId,
+    } = useChatStore();
+    
+  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(currentConversationId);
+
+  // Oppdater state lokalt + globalt
+    const handleSelect = (id: number) => {
+      setSelectedConversationId(id);
+      setCurrentConversationId(id);
+    };
 
   return (
     <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[90vw] w-[800px] border-2 border-[#1C6B1C] overflow-hidden">
@@ -22,7 +34,7 @@ interface MessageDropdownProps {
         {/* Samtalevalg til venstre */}
         <ConversationList
           selectedId={selectedConversationId}
-          onSelect={(id) => setSelectedConversationId(id)}
+          onSelect={handleSelect}
           currentUser={currentUser}
         />
 

@@ -18,6 +18,7 @@ import { NotificationDTO } from "@/types/NotificationEventDTO";
 import MessageDropdown from "@/components/messages/MessageDropdown";
 import { useClickOutside } from "@/hooks/mouse/useClickOutside";
 import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
+import { useChatStore } from "@/store/useChatStore";
 
 
 
@@ -33,7 +34,11 @@ export default function Navbar() {
   const [showMessages, setShowMessages] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
   const messageDropdownRef = useRef<HTMLDivElement>(null);
-  const { user: currentUser } = useCurrentUserSummary();
+  const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary
+  const notificationDropdownRef = useRef<HTMLDivElement>(null);
+  const resetChatStore = useChatStore((state) => state.resetStore);
+  
+
 
   useNotificationHub({
     onReceive: (newNotification: NotificationDTO) => {
@@ -60,6 +65,8 @@ export default function Navbar() {
 
   const handleLogout = () => { // Ved logout så lukke vi dropboxen og kjører logout funksjonen fra AuthContext
     setShowDropdown(false);
+    resetChatStore();
+    console.log("[ChatStore] Resetting all state (logout)");
     logout();
   };
 
@@ -67,6 +74,7 @@ export default function Navbar() {
     // Denne brukes til å lukke dropdown boxen hvis vi trykker på utsiden
   useClickOutside(dropdownRef, () => setShowDropdown(false), showDropDown);
   useClickOutside(messageDropdownRef, () => setShowMessages(false), showMessages);
+  useClickOutside(notificationDropdownRef, () => setShowNotifications(false), showNotifications);
 
 
   return (
@@ -126,12 +134,14 @@ export default function Navbar() {
             />
 
             {showNotifications && (
-              <NotificationDropdown
-                onClose={() => setShowNotifications(false)}
-                notifications={notifications}
-                loading={loading}
-                invitations={invitations}
-              />
+               <div ref={notificationDropdownRef}>
+                <NotificationDropdown
+                  onClose={() => setShowNotifications(false)}
+                  notifications={notifications}
+                  loading={loading}
+                  invitations={invitations}
+                />
+              </div>
             )}
             </div>
                           

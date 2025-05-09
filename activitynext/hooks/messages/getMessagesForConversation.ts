@@ -2,44 +2,53 @@
 import { useState, useEffect } from "react";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { MessageDTO } from "@/types/MessageDTO";
+import { useChatStore } from "@/store/useChatStore";
 
 export function usePaginatedMessages(conversationId: number) {
   const take = 20;
+
+  const { cachedMessages, setCachedMessages } = useChatStore();
 
   const [messages, setMessages] = useState<MessageDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
-  // 🔄 Reset når conversationId endres
+  // Når vi bytter samtale, prøv å bruk cache
   useEffect(() => {
-    setMessages([]);
+    const cached = cachedMessages[conversationId];
+    if (cached?.length) {
+      setMessages(cached);
+    } else {
+      setMessages([]);
+    }
     setHasMore(true);
     setLoading(false);
-  }, [conversationId]);
+  }, [conversationId, cachedMessages]);
 
   const loadMore = async () => {
     if (loading || !hasMore) return;
 
-    setLoading(true);
-    try {
-      const skipCount = messages.length;
-      const newMessages = await getMessagesForConversation(conversationId, skipCount, take) ?? [];
+      setLoading(true);
+  try {
+    const skipCount = messages.length;
+    const newMessages = await getMessagesForConversation(conversationId, skipCount, take) ?? [];
 
-      if (newMessages.length > 0) {
-        const existingIds = new Set(messages.map((m) => m.id));
-        const uniqueNew = newMessages.filter((m) => !existingIds.has(m.id));
-        setMessages((prev) => [...prev, ...uniqueNew]);
+    const existingIds = new Set(messages.map((m) => m.id));
+    const uniqueNew = newMessages.filter((m) => !existingIds.has(m.id));
 
-        if (newMessages.length < take) {
-          setHasMore(false);
-        }
-      } else {
-        setHasMore(false);
-      }
-    } finally {
-      setLoading(false);
+    if (uniqueNew.length > 0) {
+      const updated = [...messages, ...uniqueNew];
+      setMessages(updated);
+      setCachedMessages(conversationId, updated);
     }
-  };
+
+    if (newMessages.length < take) {
+      setHasMore(false);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return { messages, loadMore, loading, hasMore };
 }

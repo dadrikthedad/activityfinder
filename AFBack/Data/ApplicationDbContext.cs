@@ -85,7 +85,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Message>(entity =>
         {
             entity.HasKey(m => m.Id);
-            entity.Property(m => m.Text).HasMaxLength(2000);
+            entity.Property(m => m.Text).HasMaxLength(5000);
             entity.HasMany(m => m.Attachments)
                 .WithOne(a => a.Message)
                 .HasForeignKey(a => a.MessageId)

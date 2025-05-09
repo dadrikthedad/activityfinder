@@ -14,18 +14,20 @@ interface MessageListProps {
     conversationId: number;
     currentUser: UserSummaryDTO | null;
   }
-// conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser ER IKKE I BRUK ENDA TODO
+// conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
 export default function MessageList({ conversationId, currentUser }: MessageListProps) { 
-    const { liveMessages, clearLiveMessages } = useChatStore();
-
+    const { liveMessages, clearLiveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const {
       messages,
       loadMore,
       loading,
       hasMore,
     } = usePaginatedMessages(conversationId);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
-    
 
+    const scrollPosition = useRef<number>(0); // Lagre midltertid
+    const { scrollPositions } = useChatStore(); // hentet ved ny mount
+    const { setScrollPosition } = useChatStore();
+    
     const live = useMemo(() => {
       return liveMessages[conversationId] || [];
     }, [liveMessages, conversationId]);
@@ -72,41 +74,40 @@ export default function MessageList({ conversationId, currentUser }: MessageList
     }, [messages, live]);
     // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
 
-        useEffect(() => {
-      if (initializingConversation || live.length === 0) return;
+      useEffect(() => {
+        if (initializingConversation || live.length === 0) return;
 
-      const latest = live.at(-1);
-      if (!latest || latest.id === lastLiveMessageId.current) return;
+        const latest = live.at(-1);
+        if (!latest || latest.id === lastLiveMessageId.current) return;
 
-      lastLiveMessageId.current = latest.id;
+        lastLiveMessageId.current = latest.id;
 
-      // Vis kun knapp hvis vi IKKE er i visuell bunn (dvs. DOM-toppen)
-      if (lastFetchedId.current && latest.id > lastFetchedId.current) {
+        // Fjern kravet om lastFetchedId for å håndtere første melding
         if (!isBottomVisible.current) {
           setShowNewMessageButton(true);
         }
-      }
-    }, [liveMessages, initializingConversation, live]);
+      }, [liveMessages, initializingConversation, live]);
     
-  // Scroll til bunn (visuelt) når vi bytter samtale
-   
-    useEffect(() => {
+  // Scroll til bunn (visuelt) når vi bytter samtale og Gjenopprett scrollposisjon (flex-col-reverse)
+        useEffect(() => {
       const container = scrollRef.current;
       if (!container) return;
 
       setInitializingConversation(true);
 
       requestAnimationFrame(() => {
-        container.scrollTop = 0;
+        const saved = scrollPositions[conversationId] ?? 0;
+        container.scrollTop = saved;
+
         lastFetchedId.current = combinedMessages.at(0)?.id ?? null;
         setShowNewMessageButton(false);
 
-        // delay for å sikre at observer får ny posisjon
         setTimeout(() => {
           setInitializingConversation(false);
         }, 50);
       });
     }, [conversationId]);
+    
   
 
     // Dette sikrer at scrollingen fungerer perfekt med pagineringen. Har kontroll på hvor scrollbaren er og lar oss ikke laste inn for mye om gangen
@@ -152,9 +153,35 @@ export default function MessageList({ conversationId, currentUser }: MessageList
         return () => observer.disconnect();
     }, []);
 
+    // Lagre scrollposisjon når komponenten unmountes (dropdown lukkes)
+        
+      useEffect(() => {
+        const container = scrollRef.current;
+        if (!container) return;
+
+        const handleScroll = () => {
+          const pos = container.scrollTop; // i flex-col-reverse, scrollTop øker når du går NED
+          setScrollPosition(conversationId, pos);
+           // console.log(`[Scroll] Lagret scrollposisjon (flex-reverse): ${pos}`); Hvis vi trenger å logge hva scrollposisjonen er
+        };
+
+        container.addEventListener("scroll", handleScroll);
+        return () => container.removeEventListener("scroll", handleScroll);
+      }, [conversationId, setScrollPosition]);
+
+       
+
+      // For å se hvor scrollen er og lagre den til å hente fram ved åpning av chat
+      const handleScroll = () => {
+        if (scrollRef.current) {
+          scrollPosition.current = scrollRef.current.scrollTop;
+          // console.log(`[Scroll] Oppdatert scrollposisjon: ${scrollRef.current.scrollTop}`);Hvis vi trenger å vite hva scrollposisjonen er
+        }
+      };
+
   return (
     <div
-  ref={scrollRef}
+  ref={scrollRef} onScroll={handleScroll}
   className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4"
 >
 
