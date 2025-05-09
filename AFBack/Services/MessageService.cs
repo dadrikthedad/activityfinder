@@ -87,6 +87,7 @@ public class MessageService : IMessageService
             var query = _context.Messages
                 .Where(m => m.ConversationId == conversationId)
                 .Include(m => m.Attachments)
+                .Include(m => m.Reactions)
                 .Include(m => m.Sender).ThenInclude(u => u.Profile)
                 .OrderByDescending(m => m.SentAt)
                 .AsQueryable();
@@ -120,6 +121,13 @@ public class MessageService : IMessageService
                     FileUrl = a.FileUrl,
                     FileType = a.FileType,
                     FileName = a.FileName
+                }).ToList(),
+                Reactions = m.Reactions.Select(r => new ReactionDTO
+                {
+                    MessageId = r.MessageId,
+                    Emoji = r.Emoji,
+                    UserId = r.UserId,
+                    IsRemoved = false
                 }).ToList()
             }).ToList();
         }
