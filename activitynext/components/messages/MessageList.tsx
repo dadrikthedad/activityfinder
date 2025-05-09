@@ -2,7 +2,7 @@
 "use client";
 
 import { usePaginatedMessages } from "@/hooks/messages/getMessagesForConversation";
-import { useEffect, useRef, useMemo, useState, useLayoutEffect } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore"; // Bruker useChatStore til å lagre og hente meldinger
 import { MessageDTO } from "@/types/MessageDTO"; // Hvordan en melding ser ut
@@ -18,8 +18,6 @@ interface MessageListProps {
 export default function MessageList({ conversationId, currentUser }: MessageListProps) { 
     const {
         messagesByConversation,
-        setScrollPosition,
-        getScrollPosition,
         setMessagesForConversation,
       } = useChatStore();
 
@@ -42,26 +40,64 @@ export default function MessageList({ conversationId, currentUser }: MessageList
     const lastLiveMessageId = useRef<number | null>(null);
     // Sporer samtaler når vi bytter samtaler
     const activeConversationRef = useRef<number>(conversationId);
+    // venter på samtalebytte
+    const [initializingConversation, setInitializingConversation] = useState(false);
 
     useEffect(() => {
         activeConversationRef.current = conversationId;
       }, [conversationId, messages.length]);
 
     // Ved første last
-    const [initialLoad, setInitialLoad] = useState(true);
     const [showNewMessageButton, setShowNewMessageButton] = useState(false);
 
     const combinedMessages = useMemo(() => { 
-        const all = [...messages, ...liveMessages];
-        const seen = new Set();
-        return all
-        .filter((msg) => {
-            if (seen.has(msg.id)) return false;
-            seen.add(msg.id);
-            return true;
-        })
-        .sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
-    }, [messages, liveMessages]);
+  const all = [...messages, ...liveMessages];
+  const seen = new Set();
+  return all
+    .filter((msg) => {
+      if (seen.has(msg.id)) return false;
+      seen.add(msg.id);
+      return true;
+    })
+    .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()); // Merk: nyeste først!
+}, [messages, liveMessages]);
+
+    // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
+
+        useEffect(() => {
+      if (initializingConversation || liveMessages.length === 0) return;
+
+      const latest = liveMessages.at(-1);
+      if (!latest || latest.id === lastLiveMessageId.current) return;
+
+      lastLiveMessageId.current = latest.id;
+
+      // Vis kun knapp hvis vi IKKE er i visuell bunn (dvs. DOM-toppen)
+      if (!isBottomVisible.current) {
+        setShowNewMessageButton(true);
+      }
+    }, [liveMessages, initializingConversation]);
+
+
+  // Scroll til bunn (visuelt) når vi bytter samtale
+    useEffect(() => {
+      const container = scrollRef.current;
+      if (!container) return;
+
+      setInitializingConversation(true);
+
+      requestAnimationFrame(() => {
+        container.scrollTop = 0;
+        setShowNewMessageButton(false);
+
+        // delay for å sikre at observer får ny posisjon
+        setTimeout(() => {
+          setInitializingConversation(false);
+        }, 50);
+      });
+    }, [conversationId]);
+
+
 
       // Lagre inn i cache etter første henting
       useEffect(() => {
@@ -96,65 +132,34 @@ export default function MessageList({ conversationId, currentUser }: MessageList
         };
       }, [messages, shouldFetch, conversationId, setMessagesForConversation, messagesByConversation]);
   
-    // Scroll til bunn etter første lasting
-    useLayoutEffect(() => {
-        if (initialLoad && combinedMessages.length > 0) {
-        bottomRef.current?.scrollIntoView({ behavior: "auto" });
-        setInitialLoad(false);
-        }
-    }, [combinedMessages, initialLoad]);
 
-    // Lagrer scrollposisjonen vår ved samtalebytte
-    useEffect(() => {
-        return () => {
-          const container = scrollRef.current;
-          if (container) {
-            setScrollPosition(conversationId, container.scrollTop);
-          }
-        };
-      }, [conversationId, setScrollPosition]);
-
-      // Henter hvor vi var i samtalen ved samtalebytte
-      useLayoutEffect(() => {
-        const saved = getScrollPosition(conversationId);
-        if (scrollRef.current && saved != null) {
-          scrollRef.current.scrollTop = saved;
-          setInitialLoad(false); // Unngå autoscroll til bunn
-        }
-      }, [conversationId, getScrollPosition]);
-
-  // Dette sikrer at scrollingen fungerer perfekt med pagineringen. Har kontroll på hvor scrollbaren er og lar oss ikke laste inn for mye om gangen
-    // Paginering ved scroll nær toppen
-    useEffect(() => {
+    // Dette sikrer at scrollingen fungerer perfekt med pagineringen. Har kontroll på hvor scrollbaren er og lar oss ikke laste inn for mye om gangen
+    // Paginering ved scroll nær "visuell topp" med flex-col-reverse
+      useEffect(() => {
         const container = scrollRef.current;
-        if (!container || !hasMore || loading) return;
-      
-        const handleScroll = () => {
-          if (container.scrollTop <= 100 && !isFetching.current) {
-            isFetching.current = true;
-            const prevHeight = container.scrollHeight;
-      
-            loadMore().finally(() => {
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  const newHeight = container.scrollHeight;
-                  const delta = newHeight - prevHeight;
-      
-                  // Juster scroll selv om delta er 0 for å unngå at observer trigger igjen
-                  container.scrollTop += delta > 0 ? delta : 1;
-      
-                  setTimeout(() => {
-                    isFetching.current = false;
-                  }, 150); // debounce-tid
-                });
+        const topEl = topRef.current;
+        if (!container || !topEl || !hasMore || loading) return;
+
+        const observer = new IntersectionObserver(
+          ([entry]) => {
+            if (entry.isIntersecting && !isFetching.current) {
+              console.log("[Paginate] Top is visible — fetching older messages.");
+              isFetching.current = true;
+              loadMore().finally(() => {
+                isFetching.current = false;
               });
-            });
+            }
+          },
+          {
+            root: container,
+            threshold: 1.0,
           }
-        };
-      
-        container.addEventListener("scroll", handleScroll);
-        return () => container.removeEventListener("scroll", handleScroll);
+        );
+
+        observer.observe(topEl);
+        return () => observer.disconnect();
       }, [loadMore, hasMore, loading]);
+
 
     // Gjør at knappen som viser ny melding hvis man har scrollet opp forsvinner
     // Observer bunn for ny melding-knapp
@@ -172,27 +177,26 @@ export default function MessageList({ conversationId, currentUser }: MessageList
         return () => observer.disconnect();
     }, []);
 
-    // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
-    // Vis knapp for ny melding hvis ikke nederst
-    useEffect(() => {
-        if (liveMessages.length === 0) return;
-    
-        const latest = liveMessages.at(-1);
-        if (!latest || latest.id === lastLiveMessageId.current) return;
-    
-        lastLiveMessageId.current = latest.id;
-    
-        if (!isBottomVisible.current) {
-          setShowNewMessageButton(true);
-        }
-      }, [liveMessages]);
-
   return (
     <div
   ref={scrollRef}
-  className="flex-1 overflow-y-auto pr-2 rounded-lg p-4"
+  className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4"
 >
-      <div ref={topRef} className="h-1"/>
+
+  {showNewMessageButton && (
+        <div className="sticky bottom-4 flex justify-center">
+          <button
+            onClick={() => {
+              scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+              setShowNewMessageButton(false);
+            }}
+            className="bg-[#1C6B1C] text-white px-4 py-2 rounded shadow hover:bg-[#145214] transition"
+          >
+            Se ny melding
+          </button>
+        </div>
+      )}
+      <div ref={bottomRef} />
       {combinedMessages.map((msg: MessageDTO) => {
         const isMine = currentUser?.id === msg.sender?.id;
   
@@ -239,21 +243,9 @@ export default function MessageList({ conversationId, currentUser }: MessageList
           </div>
         );
       })}
-      <div ref={bottomRef} />
+        <div ref={topRef} className="h-1" />
   
-      {showNewMessageButton && (
-        <div className="sticky bottom-4 flex justify-center">
-          <button
-            onClick={() => {
-              scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-              setShowNewMessageButton(false);
-            }}
-            className="bg-[#1C6B1C] text-white px-4 py-2 rounded shadow hover:bg-[#145214] transition"
-          >
-            Se ny melding
-          </button>
-        </div>
-      )}
+      
     </div>
   );
 }

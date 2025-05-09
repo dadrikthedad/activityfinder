@@ -44,15 +44,19 @@ type ChatStore = {
         };
       }),
   
-    setScrollPosition: (conversationId, position) =>
+    setScrollPosition: (conversationId, position) => {
+      console.log(`[Store] setScrollPosition for conversation ${conversationId}: ${position}`);
       set((state) => ({
         conversationScrollPositions: {
           ...state.conversationScrollPositions,
           [conversationId]: position,
         },
-      })),
+      }));
+    },
   
     getScrollPosition: (conversationId) => {
-      return get().conversationScrollPositions[conversationId];
+      const position = get().conversationScrollPositions[conversationId];
+      console.log(`[Store] getScrollPosition for conversation ${conversationId}: ${position}`);
+      return position;
     },
   }));
