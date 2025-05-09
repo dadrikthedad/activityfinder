@@ -16,19 +16,26 @@ interface MessageListProps {
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser ER IKKE I BRUK ENDA TODO
 export default function MessageList({ conversationId, currentUser }: MessageListProps) { 
-    const {
-        messagesByConversation,
-        setMessagesForConversation,
-      } = useChatStore();
+    const { liveMessages, clearLiveMessages } = useChatStore();
 
-    const cached = messagesByConversation[conversationId] || [];
-    const shouldFetch = cached.length === 0;
-    const { messages, loadMore, loading, hasMore } = usePaginatedMessages(conversationId);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
+    const {
+      messages,
+      loadMore,
+      loading,
+      hasMore,
+    } = usePaginatedMessages(conversationId);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
     
 
-    const liveMessages = useMemo(() => {
-        return messagesByConversation[conversationId] || [];
-      }, [messagesByConversation, conversationId]);
+    const live = useMemo(() => {
+      return liveMessages[conversationId] || [];
+    }, [liveMessages, conversationId]);
+
+    // Tøm live-meldinger for forrige samtale
+    useEffect(() => {
+      clearLiveMessages(conversationId);
+      lastLiveMessageId.current = null;
+      lastFetchedId.current = null;
+    }, [conversationId, clearLiveMessages ]);
 
     
     // Disse under er for kontroll på hvor vi er i scrollingen
@@ -42,6 +49,8 @@ export default function MessageList({ conversationId, currentUser }: MessageList
     const activeConversationRef = useRef<number>(conversationId);
     // venter på samtalebytte
     const [initializingConversation, setInitializingConversation] = useState(false);
+      // Id for å skille mellom sist hentete meldinger
+    const lastFetchedId = useRef<number | null>(null);
 
     useEffect(() => {
         activeConversationRef.current = conversationId;
@@ -50,36 +59,37 @@ export default function MessageList({ conversationId, currentUser }: MessageList
     // Ved første last
     const [showNewMessageButton, setShowNewMessageButton] = useState(false);
 
-    const combinedMessages = useMemo(() => { 
-  const all = [...messages, ...liveMessages];
-  const seen = new Set();
-  return all
-    .filter((msg) => {
-      if (seen.has(msg.id)) return false;
-      seen.add(msg.id);
-      return true;
-    })
-    .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()); // Merk: nyeste først!
-}, [messages, liveMessages]);
-
+    const combinedMessages = useMemo(() => {
+      const all = [...messages, ...live];
+      const seen = new Set();
+      return all
+        .filter((msg) => {
+          if (seen.has(msg.id)) return false;
+          seen.add(msg.id);
+          return true;
+        })
+        .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+    }, [messages, live]);
     // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
 
         useEffect(() => {
-      if (initializingConversation || liveMessages.length === 0) return;
+      if (initializingConversation || live.length === 0) return;
 
-      const latest = liveMessages.at(-1);
+      const latest = live.at(-1);
       if (!latest || latest.id === lastLiveMessageId.current) return;
 
       lastLiveMessageId.current = latest.id;
 
       // Vis kun knapp hvis vi IKKE er i visuell bunn (dvs. DOM-toppen)
-      if (!isBottomVisible.current) {
-        setShowNewMessageButton(true);
+      if (lastFetchedId.current && latest.id > lastFetchedId.current) {
+        if (!isBottomVisible.current) {
+          setShowNewMessageButton(true);
+        }
       }
-    }, [liveMessages, initializingConversation]);
-
-
+    }, [liveMessages, initializingConversation, live]);
+    
   // Scroll til bunn (visuelt) når vi bytter samtale
+   
     useEffect(() => {
       const container = scrollRef.current;
       if (!container) return;
@@ -88,6 +98,7 @@ export default function MessageList({ conversationId, currentUser }: MessageList
 
       requestAnimationFrame(() => {
         container.scrollTop = 0;
+        lastFetchedId.current = combinedMessages.at(0)?.id ?? null;
         setShowNewMessageButton(false);
 
         // delay for å sikre at observer får ny posisjon
@@ -96,41 +107,6 @@ export default function MessageList({ conversationId, currentUser }: MessageList
         }, 50);
       });
     }, [conversationId]);
-
-
-
-      // Lagre inn i cache etter første henting
-      useEffect(() => {
-        const alreadyCached = messagesByConversation[conversationId]?.length > 0;
-        let cancelled = false;
-      
-        const timeout = setTimeout(() => {
-          if (
-            !cancelled &&
-            messages.length > 0 &&
-            shouldFetch &&
-            !alreadyCached &&
-            activeConversationRef.current === conversationId
-          ) {
-            console.log(`[Cache] Lagrer ${messages.length} meldinger for samtale ${conversationId}`);
-            setMessagesForConversation(conversationId, messages);
-          } else {
-            console.log(`[Cache] Hopper over lagring for samtale ${conversationId}`, {
-              messagesLength: messages.length,
-              shouldFetch,
-              alreadyCached,
-              isCurrent: activeConversationRef.current === conversationId,
-              cancelled,
-            });
-          }
-        }, 100);
-      
-        return () => {
-          cancelled = true;
-          clearTimeout(timeout);
-          console.log(`[Cache] Avbrøt lagring for samtale ${conversationId} ved samtalebytte`);
-        };
-      }, [messages, shouldFetch, conversationId, setMessagesForConversation, messagesByConversation]);
   
 
     // Dette sikrer at scrollingen fungerer perfekt med pagineringen. Har kontroll på hvor scrollbaren er og lar oss ikke laste inn for mye om gangen
@@ -162,7 +138,6 @@ export default function MessageList({ conversationId, currentUser }: MessageList
 
 
     // Gjør at knappen som viser ny melding hvis man har scrollet opp forsvinner
-    // Observer bunn for ny melding-knapp
     useEffect(() => {
         const container = scrollRef.current;
         const observer = new IntersectionObserver(
@@ -233,7 +208,9 @@ export default function MessageList({ conversationId, currentUser }: MessageList
               {msg.parentMessageText && (
                 <div className="text-xs italic text-gray-500 mb-2">↳ {msg.parentMessageText}</div>
               )}
-              <div className="text-sm mb-2 whitespace-pre-line">{msg.text}</div>
+              {msg.text?.trim() && (
+                <div className="text-sm mb-2 whitespace-pre-line">{msg.text}</div>
+              )}
           
               {/* Vedlegg og tidspunkt */}
               {msg.attachments?.length > 0 && (
@@ -243,7 +220,7 @@ export default function MessageList({ conversationId, currentUser }: MessageList
           </div>
         );
       })}
-        <div ref={topRef} className="h-1" />
+        <div ref={topRef} />
   
       
     </div>

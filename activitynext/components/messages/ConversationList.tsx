@@ -6,7 +6,7 @@ import { ConversationDTO } from "@/types/ConversationDTO";
 import Image from "next/image";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 interface Props {
   selectedId: number | null;
@@ -15,9 +15,8 @@ interface Props {
 }
 
 export default function ConversationList({ selectedId, onSelect, currentUser }: Props) {
-    const { conversations: cached, setConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
-    const { conversations, loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
-    const [showConversations, setShowConversations] = useState<ConversationDTO[]>([]);
+    const { conversations: storeConversations, setConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
+    const { conversations: paginatedConversations, loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     // Henter navnet
     const getDisplayName = (conv: ConversationDTO): string => {
         if (conv.isGroup) return conv.groupName || "Group Chat";
@@ -33,20 +32,17 @@ export default function ConversationList({ selectedId, onSelect, currentUser }: 
 
     // Hent samtaler kun én gang hvis ikke lagret
     useEffect(() => {
-        if (cached.length > 0) {
-        setShowConversations(cached);
-        } else if (conversations.length > 0) {
-        setConversations(conversations);
-        setShowConversations(conversations);
-        }
-    }, [cached, conversations, setConversations]);
+      if (storeConversations.length === 0 && paginatedConversations.length > 0) {
+        setConversations(paginatedConversations);
+      }
+    }, [storeConversations, paginatedConversations, setConversations]);
   
     return (
       <div className="w-60 border-r border-gray-300 dark:border-gray-600 overflow-y-auto max-h-[480px]">
         <h4 className="text-lg font-semibold p-4 text-center">Conversations</h4>
   
         <ul className="space-y-2 px-2">
-        {showConversations.map((conv: ConversationDTO) => (
+        {storeConversations.map((conv: ConversationDTO) => (
             <li
               key={conv.id}
               onClick={() => onSelect(conv.id)}
