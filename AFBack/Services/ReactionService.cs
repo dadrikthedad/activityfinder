@@ -72,6 +72,8 @@ public class ReactionService : IReactionService
         }
 
         await _context.SaveChangesAsync();
+        
+        var user = await _context.Users.FindAsync(userId);
 
         // ✅ Send sanntidsoppdatering via SignalR
         var dto = new ReactionDTO
@@ -79,6 +81,7 @@ public class ReactionService : IReactionService
             MessageId = messageId,
             UserId = userId,
             Emoji = removedEmoji ?? emoji,
+            UserFullName = user?.FullName,
             IsRemoved = isRemoved
         };
 
@@ -96,6 +99,7 @@ public class ReactionService : IReactionService
                 MessageId = messageId,
                 UserId = userId,
                 Emoji = emoji,
+                UserFullName = user?.FullName,
                 IsRemoved = false
             };
 
