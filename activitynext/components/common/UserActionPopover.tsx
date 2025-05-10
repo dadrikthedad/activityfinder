@@ -17,7 +17,7 @@ interface Props {
   user: UserSummaryDTO;
   avatarSize?: number;
   onRemoveSuccess?: () => void;
-  popoverRef: React.RefObject<HTMLDivElement | null>
+  popoverRef?: React.RefObject<HTMLDivElement | null>
   onCloseDropdown?: () => void;
 }
 

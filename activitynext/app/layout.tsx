@@ -5,6 +5,7 @@ import { ModalProvider } from '@/context/ModalContext';
 import NotificationHubClient from "@/components/signalr/NotificationHubClient"; // Her kobler jeg opp mot NotificationHub. Brukes en gang slik at den kjører globalt
 import ChatHubClient from "@/components/signalr/ChatHubClient";  // Her kobler jeg opp mot ChatHub. Brukes en gang slik at den kjøres globalt
 import Navbar from "@/components/Navbar";
+import CacheCleanup from "@/components/common/CacheCleanup";
 
 
 console.log("🔄 Navbar re-rendered");
@@ -31,12 +32,14 @@ export default function RootLayout({
           dark:text-white 
           min-h-screen`} suppressHydrationWarning={true}>
         <ModalProvider>
+          <CacheCleanup>
           <AuthProvider>
           <NotificationHubClient /> 
           <ChatHubClient />
             <Navbar /> {/* 👈 LEGG TIL DENNE */}
               <main>{children}</main>
-          </AuthProvider> 
+          </AuthProvider>
+          </CacheCleanup>
         </ModalProvider>
       </body>
     </html>

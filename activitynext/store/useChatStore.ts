@@ -19,6 +19,7 @@ type ChatStore = {
   cacheTimestamps: Record<number, number>;
   resetStore: () => void;
   updateMessageReactions: (reaction: ReactionDTO) => void;
+  cleanupOldCache: () => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -106,21 +107,36 @@ export const useChatStore = create<ChatStore>((set) => ({
 
       return { conversations: updatedConversations };
     }),
-
+    
+    // Rydder opp cache etter en satt tid, brukes i CacheCleanup
     cleanupOldCache: () =>
       set((state) => {
+        console.log("🧹 Running cleanupOldCache at", new Date().toLocaleTimeString());
+
         const now = Date.now();
         const TTL = 1000 * 60 * 10; // 10 minutter
 
         const newCachedMessages: typeof state.cachedMessages = {};
         const newScrollPositions: typeof state.scrollPositions = {};
         const newCacheTimestamps: typeof state.cacheTimestamps = {};
+        const currentId = state.currentConversationId;
 
         for (const id in state.cacheTimestamps) {
-          if (now - state.cacheTimestamps[+id] < TTL) {
-            newCachedMessages[+id] = state.cachedMessages[+id];
-            newScrollPositions[+id] = state.scrollPositions[+id];
-            newCacheTimestamps[+id] = state.cacheTimestamps[+id];
+          const convId = +id;
+
+          // Ikke slett cache for aktiv samtale
+          if (convId === currentId) {
+            newCachedMessages[convId] = state.cachedMessages[convId];
+            newScrollPositions[convId] = state.scrollPositions[convId];
+            newCacheTimestamps[convId] = state.cacheTimestamps[convId];
+            continue;
+          }
+
+          // Behold hvis fortsatt gyldig
+          if (now - state.cacheTimestamps[convId] < TTL) {
+            newCachedMessages[convId] = state.cachedMessages[convId];
+            newScrollPositions[convId] = state.scrollPositions[convId];
+            newCacheTimestamps[convId] = state.cacheTimestamps[convId];
           }
         }
 

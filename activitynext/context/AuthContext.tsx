@@ -9,6 +9,8 @@ import React, {
 import { useRouter } from "next/navigation";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { setCookie } from "cookies-next";
+import { clearAllDrafts } from "@/utils/draft/draft";
+import { useChatStore } from "@/store/useChatStore";
 
 interface AuthContextType {
   isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
@@ -64,7 +66,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
     if (typeof window !== "undefined") {
       localStorage.removeItem("token");
       localStorage.removeItem("dropdown_convo");
+      clearAllDrafts();
     }
+
+    useChatStore.getState().resetStore();
   
     setToken(null);
     setUserId(null);

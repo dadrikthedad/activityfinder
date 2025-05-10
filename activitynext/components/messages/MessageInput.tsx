@@ -1,9 +1,10 @@
 // Inputfeltet i MessageDropdown som sender en melding over SignalR
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSendMessage } from "@/hooks/messages/useSendMessage";
 import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
 import TextareaAutosize from "react-textarea-autosize";
+import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 
 interface MessageInputProps {
   conversationId?: number;
@@ -34,9 +35,12 @@ export default function MessageInput({
     if (result) {
       setText("");
       inputRef.current?.focus();
+      if (conversationId) {
+        clearDraftFor(conversationId);
+      }
     }
   };
-
+  
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -44,12 +48,25 @@ export default function MessageInput({
     }
   };
 
+  useEffect(() => { // Henter en draft hver gang vi bytter samtale
+  if (!conversationId) return;
+
+  const existingDraft = getDraftFor(conversationId);
+    setText(existingDraft);
+  }, [conversationId]);
+
   return (
     <div className="flex gap-2 items-end mt-4">
       <TextareaAutosize
         ref={inputRef}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          const newText = e.target.value;
+          setText(newText);
+          if (conversationId) {
+            saveDraftFor(conversationId, newText);
+          }
+        }}
         onKeyDown={handleKeyDown}
         placeholder="Skriv en melding..."
         minRows={1}
