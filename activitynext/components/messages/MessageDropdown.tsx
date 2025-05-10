@@ -10,9 +10,11 @@ import { useChatStore } from "@/store/useChatStore";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
+    popoverRef: React.RefObject<HTMLDivElement | null>
+    onCloseDropdown: () => void;
   }
 
-  export default function MessageDropdown({ currentUser }: MessageDropdownProps) {
+  export default function MessageDropdown({ currentUser, popoverRef, onCloseDropdown }: MessageDropdownProps) {
     const {
       currentConversationId,
       setCurrentConversationId,
@@ -46,6 +48,8 @@ interface MessageDropdownProps {
                     <MessageList
                     conversationId={selectedConversationId}
                     currentUser={currentUser}
+                    popoverRef={popoverRef}
+                    onCloseDropdown={onCloseDropdown}
                     />
                 <div className="shrink-0">
                     <MessageInput

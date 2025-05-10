@@ -7,7 +7,7 @@ import FormButton from "@/components/FormButton";
 interface ProfileNavButtonProps {
   href?: string;
   text: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   className?: string;
   variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly" | "smallx";
@@ -53,13 +53,13 @@ export default function ProfileNavButton({
       break;
   }
   // Håndter klikk
-  const handleClick = () => {
-    if (onClick) {
-      onClick();
-    } else if (href) {
-      router.push(href);
-    }
-  };
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+  if (onClick) {
+    onClick(e); // sender eventet videre
+  } else if (href) {
+    router.push(href);
+  }
+};
 
 
   return (

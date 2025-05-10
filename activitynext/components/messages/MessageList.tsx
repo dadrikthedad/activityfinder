@@ -17,9 +17,11 @@ import { addReaction } from "@/services/messages/reactionService";
 interface MessageListProps {
     conversationId: number;
     currentUser: UserSummaryDTO | null;
+    popoverRef: React.RefObject<HTMLDivElement | null>
+    onCloseDropdown: () => void;
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
-export default function MessageList({ conversationId, currentUser }: MessageListProps) { 
+export default function MessageList({ conversationId, currentUser, popoverRef, onCloseDropdown }: MessageListProps) { 
     const { liveMessages, clearLiveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const {
       messages,
@@ -217,7 +219,7 @@ export default function MessageList({ conversationId, currentUser }: MessageList
               {/* Topptekst: Avsender */}
               <div className={`flex items-center gap-2 mb-2 ${isMine ? "justify-end" : ""}`}>
                 {!isMine && msg.sender ? (
-                    <UserActionPopover user={msg.sender} avatarSize={30} />
+                    <UserActionPopover user={msg.sender} avatarSize={30} popoverRef={popoverRef} onCloseDropdown={onCloseDropdown} />
                 ) : !isMine ? (
                     <MiniAvatar imageUrl="/default-avatar.png" size={30} />
                 ) : null}
