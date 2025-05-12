@@ -1,4 +1,5 @@
-// Listen med meldinger som vises i MessageDropdownen. Vi har med paginerering, og kontroll på scrollbaren, samt en knapp som kjører oss til bunn ved ny melding hvis ønskelig
+// Listen med meldinger som vises i MessageDropdownen, viser både samtaler mde og uten godkjente meldingsforespørsler. 
+// Vi har med paginerering, og kontroll på scrollbaren, samt en knapp som kjører oss til bunn ved ny melding hvis ønskelig
 "use client";
 
 import { usePaginatedMessages } from "@/hooks/messages/getMessagesForConversation";
@@ -66,7 +67,7 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
 
     // Ved første last
     const [showNewMessageButton, setShowNewMessageButton] = useState(false);
-
+    
     const combinedMessages = useMemo(() => {
       const all = [...messages, ...live];
       const seen = new Set();

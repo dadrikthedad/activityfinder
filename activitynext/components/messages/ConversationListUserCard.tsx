@@ -1,3 +1,4 @@
+// Viser kortene til en bruker i Conv og Pending listene
 import Image from "next/image";
 
 interface Props {

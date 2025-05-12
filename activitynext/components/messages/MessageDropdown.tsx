@@ -7,7 +7,7 @@ import ConversationList from "./ConversationList";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
 import { useChatStore } from "@/store/useChatStore";
-import { PendingRequestsList } from "./PendingMessageList";
+import PendingRequestsList from "./PendingMessageList";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
