@@ -256,6 +256,10 @@ public class ApplicationDbContext : DbContext
         
         // Koble MessageRequesten med en sepsifikk samtale
         modelBuilder.Entity<MessageRequest>()
+            .Property(mr => mr.ConversationId)
+            .IsRequired(); // 👈 Gjør feltet NOT NULL
+
+        modelBuilder.Entity<MessageRequest>()
             .HasOne(mr => mr.Conversation)
             .WithMany()
             .HasForeignKey(mr => mr.ConversationId)
