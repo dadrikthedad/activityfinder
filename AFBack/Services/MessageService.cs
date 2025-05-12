@@ -127,7 +127,8 @@ public class MessageService : IMessageService
                     var previewMessages = await _context.Messages
                         .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
                         .OrderBy(m => m.SentAt)
-                        .Take(5)
+                        .Skip(skip)
+                        .Take(Math.Min(5 - skip, take)) 
                         .Include(m => m.Attachments)
                         .Include(m => m.Reactions)
                         .Include(m => m.Sender).ThenInclude(u => u.Profile)
