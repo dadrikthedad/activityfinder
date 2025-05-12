@@ -41,10 +41,13 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
 
     // Tøm live-meldinger for forrige samtale
     useEffect(() => {
-      clearLiveMessages(conversationId);
-      lastLiveMessageId.current = null;
-      lastFetchedId.current = null;
-    }, [conversationId, clearLiveMessages ]);
+      // Delay clearing until after initial mount and render
+      const timeout = setTimeout(() => {
+        clearLiveMessages(conversationId);
+      }, 500); // 500ms er nok til å sikre kombinasjonen
+
+      return () => clearTimeout(timeout);
+    }, [conversationId, clearLiveMessages]);
 
     
     // Disse under er for kontroll på hvor vi er i scrollingen

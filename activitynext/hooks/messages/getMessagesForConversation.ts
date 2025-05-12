@@ -8,7 +8,11 @@ import { useChatStore } from "@/store/useChatStore";
 export function usePaginatedMessages(conversationId: number) {
   const take = 20;
 
-  const { cachedMessages, setCachedMessages } = useChatStore();
+  const {
+    cachedMessages,
+    liveMessages,
+    setCachedMessages,
+  } = useChatStore();
 
   const [messages, setMessages] = useState<MessageDTO[]>([]);
   const [loading, setLoading] = useState(false);
@@ -18,16 +22,20 @@ export function usePaginatedMessages(conversationId: number) {
   const lastSkipRef = useRef<number>(-1);
 
   useEffect(() => {
-    const cached = cachedMessages[conversationId];
-    if (cached?.length) {
-      setMessages(cached);
-    } else {
-      setMessages([]);
-    }
+    const cached = cachedMessages[conversationId] ?? [];
+    const live = liveMessages[conversationId] ?? [];
+
+    // Kombiner live og cached meldinger unikt
+    const combined = [
+      ...cached,
+      ...live.filter(m => !cached.some(c => c.id === m.id))
+    ];
+
+    setMessages(combined);
     setHasMore(true);
     setLoading(false);
-    lastSkipRef.current = -1; // reset last skip when conversation changes
-  }, [conversationId, cachedMessages]);
+    lastSkipRef.current = -1; // reset last skip
+  }, [conversationId, cachedMessages, liveMessages]);
 
   const loadMore = async () => {
     if (loading || !hasMore || isFetching.current) return;
