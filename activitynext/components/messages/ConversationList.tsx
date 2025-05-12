@@ -3,7 +3,7 @@
 
 import { usePaginatedConversations } from "@/hooks/messages/getMyConversations";
 import { ConversationDTO } from "@/types/ConversationDTO";
-import Image from "next/image";
+import { ConversationListItem } from "./ConversationListUserCard";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useEffect } from "react";
@@ -43,24 +43,14 @@ export default function ConversationList({ selectedId, onSelect, currentUser }: 
   
         <ul className="space-y-2 px-2">
         {storeConversations.map((conv: ConversationDTO) => (
-            <li
+            <ConversationListItem
               key={conv.id}
-              onClick={() => onSelect(conv.id)}
-              className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition ${
-                selectedId === conv.id
-                  ? "bg-[#e0f2e0] dark:bg-[#2c2f30]"
-                  : "hover:bg-gray-100 dark:hover:bg-gray-700"
-              }`}
-            >
-              <Image
-                src={getProfileImage(conv)}
-                alt={getDisplayName(conv)}
-                width={40}
-                height={40}
-                className="rounded-full object-cover w-10 h-10"
-              />
-              <span className="text-sm font-medium truncate">{getDisplayName(conv)}</span>
-            </li>
+              id={conv.id}
+              name={getDisplayName(conv)}
+              imageUrl={getProfileImage(conv)}
+              selected={selectedId === conv.id}
+              onClick={(id) => onSelect(id as number)}
+            />
           ))}
         </ul>
   

@@ -19,8 +19,7 @@ public interface IMessageService
     Task<bool> UnblockUserAsync(int blockerId, int blockedUserId);
     Task<List<BlockedUserDTO>> GetBlockedUsersAsync(int userId);
     Task<bool> BlockUserAsync(int blockerId, int blockedUserId);
-
-    Task<AllPendingRequestsDTO> GetAllPendingRequestsAsync(int userId);
+    
     Task AcceptGroupInviteAsync(int userId, int conversationId);
     Task DeclineGroupInviteAsync(int userId, int conversationId);
     Task<List<BlockedGroupDTO>> GetBlockedGroupsAsync(int userId);

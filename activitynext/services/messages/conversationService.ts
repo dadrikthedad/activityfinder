@@ -30,6 +30,9 @@ export async function getMessagesForConversation(
   return await fetchWithAuth<MessageDTO[]>(url);
 }
 
+// her henter vi pending-samtaler
+
+
 
   
 

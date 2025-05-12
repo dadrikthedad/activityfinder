@@ -7,6 +7,7 @@ import ConversationList from "./ConversationList";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
 import { useChatStore } from "@/store/useChatStore";
+import { PendingRequestsList } from "./PendingMessageList";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
@@ -26,6 +27,7 @@ interface MessageDropdownProps {
     const handleSelect = (id: number) => {
       setSelectedConversationId(id);
       setCurrentConversationId(id);
+      console.log("📩 handleSelect kalles med ID:", id);
     };
 
   return (
@@ -33,12 +35,18 @@ interface MessageDropdownProps {
       <h4 className="text-lg font-semibold mb-4 text-center">Messages</h4>
 
       <div className="flex gap-4">
-        {/* Samtalevalg til venstre */}
-        <ConversationList
-          selectedId={selectedConversationId}
-          onSelect={handleSelect}
-          currentUser={currentUser}
-        />
+        {/* Meldingsforespørsler + samtaler til venstre */}
+          <div className="w-[250px] overflow-y-auto max-h-[500px]">
+            <h4 className="text-sm font-medium mb-2">Forespørsler</h4>
+            <PendingRequestsList limit={3} onSelectConversation={handleSelect} showMoreLink={true} />
+
+            <hr className="my-2" />
+            <ConversationList
+              selectedId={selectedConversationId}
+              onSelect={handleSelect}
+              currentUser={currentUser}
+            />
+          </div>
 
 
         {/* Meldingsvisning til høyre */}

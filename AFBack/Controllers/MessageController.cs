@@ -87,16 +87,6 @@ public class MessagesController : BaseController
             return StatusCode(500, new { message = "Feil ved henting av forespørsler.", details = ex.Message });
         }
     }
-    [HttpGet("all-pending")]
-    public async Task<IActionResult> GetAllPendingRequests()
-    {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdClaim, out var userId))
-            return Unauthorized("Bruker-ID mangler eller er ugyldig.");
-
-        var allRequests = await _messageService.GetAllPendingRequestsAsync(userId);
-        return Ok(allRequests);
-    }
     
     // Her henter vi meldinger etter vi har godtatt meldingsforespørsel
     [HttpPost("approve-request")]

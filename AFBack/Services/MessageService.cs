@@ -219,61 +219,21 @@ public class MessageService : IMessageService
         {
             var requests = await _context.MessageRequests
                 .Where(r => r.ReceiverId == receiverId && !r.IsAccepted)
-                .Include(r => r.Sender)
-                .ThenInclude(u => u.Profile)
+                .Include(r => r.Sender).ThenInclude(u => u.Profile)
+                .Include(r => r.Conversation)
                 .ToListAsync();
 
             return requests.Select(r => new MessageRequestDTO
             {
                 SenderId = r.SenderId,
                 SenderName = r.Sender.FullName,
-                ProfileImageUrl = r.Sender.Profile != null ? r.Sender.Profile.ProfileImageUrl : null,
-                RequestedAt = r.RequestedAt
-            }).ToList();
-        }
-        // Henter alle gruppemeldingsforespørsler til en bruker
-        public async Task<List<GroupInviteRequestDTO>> GetPendingGroupInvitesAsync(int userId)
-        {
-            var invites = await _context.GroupInviteRequests
-                .Where(r => r.InvitedUserId == userId && !r.IsAccepted)
-                .Include(r => r.Inviter)
-                .Include(r => r.Conversation)
-                .ToListAsync();
-
-            return invites.Select(r => new GroupInviteRequestDTO
-            {
+                ProfileImageUrl = r.Sender.Profile?.ProfileImageUrl,
+                RequestedAt = r.RequestedAt,
                 ConversationId = r.ConversationId,
-                GroupName = r.Conversation.GroupName,
-                InviterId = r.InviterId,
-                InviterName = r.Inviter.FullName,
-                RequestedAt = r.RequestedAt
+                GroupName = r.Conversation?.GroupName,
+                IsGroup = r.Conversation?.IsGroup ?? false,
+                LimitReached = r.LimitReached
             }).ToList();
-
-        }
-        // Henter alle meldingingsforespørsler til en bruker
-        public async Task<AllPendingRequestsDTO> GetAllPendingRequestsAsync(int userId)
-        {
-            var messageRequests = await GetPendingMessageRequestsAsync(userId);
-            var groupRequests = await _context.GroupInviteRequests
-                .Where(r => r.InvitedUserId == userId && !r.IsAccepted)
-                .Include(r => r.Inviter).ThenInclude(u => u.Profile)
-                .Include(r => r.Conversation)
-                .Select(r => new GroupInviteRequestDTO
-                {
-                    ConversationId = r.ConversationId,
-                    GroupName = r.Conversation.GroupName ?? "Ukjent gruppe",
-                    InviterId = r.InviterId,
-                    InviterName = r.Inviter.FullName,
-                    InviterProfileImageUrl = r.Inviter.Profile != null ? r.Inviter.Profile.ProfileImageUrl : null,
-                    RequestedAt = r.RequestedAt
-                })
-                .ToListAsync();
-
-            return new AllPendingRequestsDTO
-            {
-                MessageRequests = messageRequests,
-                GroupInvites = groupRequests
-            };
         }
 
 
