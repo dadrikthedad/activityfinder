@@ -20,34 +20,32 @@ public class MessageService : IMessageService
         }
         // Her sender vi en melding med SendMessageAsync, sender også med vedlegg
         public async Task<MessageResponseDTO> SendMessageAsync(int senderId, SendMessageRequestDTO request)
-        {
-            Conversation conversation;  // Holder samtaleobjektet som meldingen skal knyttes til
-            bool isApproved = true; // Antar at meldingen er godkjent med mindre vi finner ut noe annet
+        {       
+            Conversation conversation;
+            bool isApproved = true;
 
-            if (request.ConversationId <= 0) // Hvis det ikke er en eksisterende samtale (privat melding)
+            if (request.ConversationId <= 0)
             {
                 if (!int.TryParse(request.ReceiverId, out var receiverId))
-                    throw new Exception("Ugyldig mottaker-ID."); // Feil hvis mottaker-ID ikke kan tolkes som int
+                    throw new Exception("Ugyldig mottaker-ID.");
 
-                await CheckUserValidity(senderId, receiverId); // Sjekk at både avsender og mottaker finnes og er gyldige
+                await CheckUserValidity(senderId, receiverId);
 
-                if (await IsUserBlocked(senderId, receiverId)) // Sjekk om sender er blokkert
+                if (await IsUserBlocked(senderId, receiverId))
                     throw new Exception("Du har ikke tilgang til å sende melding til denne brukeren.");
 
-                conversation = await GetOrCreateConversation(senderId, receiverId); // Finn eller opprett en privat samtale mellom de to brukerne
+                conversation = await GetOrCreateConversation(senderId, receiverId);
 
                 if (await ShouldRequireApproval(senderId, receiverId))
                 {
                     await AddMessageRequestIfNotExists(senderId, receiverId);
                     isApproved = false;
 
-                    // Sjekk hvor mange meldinger sender allerede har sendt i denne samtalen
                     var messageCount = await _context.Messages
                         .CountAsync(m => m.ConversationId == conversation.Id && m.SenderId == senderId);
 
                     if (messageCount >= 5)
                     {
-                        // Marker forespørselen med LimitReached = true
                         var messageRequest = await _context.MessageRequests
                             .FirstOrDefaultAsync(r => r.SenderId == senderId && r.ReceiverId == receiverId);
 
@@ -65,34 +63,27 @@ public class MessageService : IMessageService
                         };
                     }
                 }
-
-                if (!isApproved) // Hvis meldingen ikke er godkjent
-                {
-                    return new MessageResponseDTO
-                    {
-                        Text = "Meldingen er sendt som forespørsel og vil bli synlig etter godkjenning.",
-                        ConversationId = conversation.Id, // Gir ID til samtalen (slik at frontend vet hvilken samtale det gjelder)
-                        SenderId = senderId // Hvem som har sendt meldingen
-                    };
-                }
             }
-            else // Hvis samtale-ID finnes (gjelder f.eks. gruppechat eller eksisterende samtale)
+            else
             {
                 conversation = await _context.Conversations
-                                   .Include(c => c.Participants)
-                                   .FirstOrDefaultAsync(c => c.Id == request.ConversationId)
-                               ?? throw new Exception("Samtalen finnes ikke."); // Feil hvis samtalen ikke eksisterer
+                    .Include(c => c.Participants)
+                    .FirstOrDefaultAsync(c => c.Id == request.ConversationId)
+                    ?? throw new Exception("Samtalen finnes ikke.");
             }
 
-            // 🔽 Felles for begge grener: Vi lager og lagrer meldingen i databasen
-            var message = CreateMessage(senderId, conversation.Id, request, isApproved);  // Lager nytt meldingsobjekt
-            _context.Messages.Add(message); // Legger meldingen til databasen
-            await _context.SaveChangesAsync(); // Lagre endringer (både melding og eventuelt ny samtale)
+            var message = CreateMessage(senderId, conversation.Id, request, isApproved);
+            _context.Messages.Add(message);
+            await _context.SaveChangesAsync();
 
-            var response = await MapToResponseDto(message); // Mapper meldingen til DTO for frontend
-            await BroadcastMessageIfApproved(conversation, senderId, response); // Sender meldingen via SignalR hvis den er godkjent
+            var response = await MapToResponseDto(message);
 
-            return response; // Returnerer svar-DTO til klienten
+            if (isApproved)
+            {
+                await BroadcastMessageIfApproved(conversation, senderId, response);
+            }
+
+            return response;
         }
 
         // Her henter vi meldinger etter ConversationId
@@ -108,28 +99,31 @@ public class MessageService : IMessageService
             if (conversation.Participants.All(p => p.UserId != userId))
                 throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
 
-            var query = _context.Messages
-                .Where(m => m.ConversationId == conversationId)
-                .Include(m => m.Attachments)
-                .Include(m => m.Reactions)
-                .Include(m => m.Sender).ThenInclude(u => u.Profile)
-                .OrderByDescending(m => m.SentAt)
-                .AsQueryable();
-
-            // ✅ Hvis det er en privat samtale, vis kun godkjente meldinger
-            if (!conversation.IsGroup)
+            // 👥 GRUPPELOGIKK
+            if (conversation.IsGroup)
             {
+                var isGroupApproved = await _context.MessageRequests.AnyAsync(r =>
+                    r.ReceiverId == userId &&
+                    r.ConversationId == conversationId &&
+                    r.IsAccepted);
+
+                if (!isGroupApproved)
+                    return new List<MessageResponseDTO>(); // Ikke vis noe før godkjenning
+            }
+            else
+            {
+                // 👤 PRIVATLOGIKK
                 var otherUserId = conversation.Participants.First(p => p.UserId != userId).UserId;
 
                 var isApproved = await _context.Friends.AnyAsync(f =>
-                                     (f.UserId == userId && f.FriendId == otherUserId) ||
-                                     (f.UserId == otherUserId && f.FriendId == userId)) ||
-                                 await _context.MessageRequests.AnyAsync(r =>
-                                     r.SenderId == otherUserId && r.ReceiverId == userId && r.IsAccepted);
+                                        (f.UserId == userId && f.FriendId == otherUserId) ||
+                                        (f.FriendId == userId && f.UserId == otherUserId)) ||
+                                  await _context.MessageRequests.AnyAsync(r =>
+                                        r.SenderId == otherUserId && r.ReceiverId == userId && r.IsAccepted);
 
                 if (!isApproved)
                 {
-                    // Vis kun de 5 første meldingene fra andre brukeren (begrenset forhåndsvisning)
+                    // 👁️ Vis maks 5 meldinger fra den andre brukeren (uansett IsApproved-status)
                     var previewMessages = await _context.Messages
                         .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
                         .OrderBy(m => m.SentAt)
@@ -168,22 +162,18 @@ public class MessageService : IMessageService
                     }).ToList();
                 }
             }
-            else
-            {
-                // For grupper: bruker må ha godkjent gruppeinvitasjonen
-                var hasApproved = await _context.MessageRequests.AnyAsync(r =>
-                    r.ReceiverId == userId &&
-                    r.ConversationId == conversation.Id &&
-                    r.IsAccepted);
 
-                if (!hasApproved)
-                    return new List<MessageResponseDTO>(); // Ikke vis meldinger i gruppe før godkjenning
-            }
-
-            var messages = await query
+            // ✅ Vanlig samtale eller godkjent
+            var query = _context.Messages
+                .Where(m => m.ConversationId == conversationId)
+                .Include(m => m.Attachments)
+                .Include(m => m.Reactions)
+                .Include(m => m.Sender).ThenInclude(u => u.Profile)
+                .OrderByDescending(m => m.SentAt)
                 .Skip(skip)
-                .Take(take)
-                .ToListAsync();
+                .Take(take);
+
+            var messages = await query.ToListAsync();
 
             return messages.Select(m => new MessageResponseDTO
             {
@@ -557,8 +547,7 @@ public class MessageService : IMessageService
                 ConversationId = conversationId,
                 Text = request.Text,
                 SentAt = DateTime.UtcNow,
-                IsApproved = isApproved,
-                ParentMessageId = request.ParentMessageId, // 👈 Her
+                ParentMessageId = request.ParentMessageId > 0 ? request.ParentMessageId : null,
                 Attachments = request.Attachments?.Select(a => new MessageAttachment
                 {
                     FileUrl = a.FileUrl,
