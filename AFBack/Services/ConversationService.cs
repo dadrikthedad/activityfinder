@@ -16,38 +16,42 @@ public class ConversationService
         // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<Conversation>> GetUserConversationsSortedAsync(int userId)
         {
+            var friendIds = await _context.Friends
+                .Where(f => f.UserId == userId || f.FriendId == userId)
+                .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
+                .ToListAsync();
+
+            var approvedPrivateUserIds = await _context.MessageRequests
+                .Where(r => (r.ReceiverId == userId || r.SenderId == userId) && r.IsAccepted)
+                .Select(r => r.ReceiverId == userId ? r.SenderId : r.ReceiverId)
+                .Distinct()
+                .ToListAsync();
+
+            var approvedGroupConversationIds = await _context.MessageRequests
+                .Where(r => r.ReceiverId == userId && r.IsAccepted)
+                .Select(r => r.ConversationId)
+                .ToListAsync();
+
             return await _context.Conversations
                 .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
                 .Include(c => c.Messages)
                 .Where(c =>
-                    c.Participants.Any(p => p.UserId == userId) && // Brukeren er deltaker
+                    c.Participants.Any(p => p.UserId == userId) &&
                     (
-                        !c.IsGroup && (
-                            _context.Friends.Any(f =>
-                                (f.UserId == userId && c.Participants.Any(p => p.UserId == f.FriendId)) ||
-                                (f.FriendId == userId && c.Participants.Any(p => p.UserId == f.UserId))
-                            ) ||
-                            _context.MessageRequests.Any(r =>
-                                r.ReceiverId == userId &&
-                                c.Participants.Any(p => p.UserId == r.SenderId) &&
-                                r.IsAccepted
-                            )
-                        )
-                        ||
-                        (c.IsGroup &&
-                         _context.MessageRequests.Any(r =>
-                             r.ReceiverId == userId &&
-                             r.ConversationId == c.Id &&
-                             r.IsAccepted
+                        (!c.IsGroup &&
+                         c.Participants.Any(p =>
+                             p.UserId != userId &&
+                             (friendIds.Contains(p.UserId) || approvedPrivateUserIds.Contains(p.UserId))
                          )
                         )
+                        ||
+                        (c.IsGroup && approvedGroupConversationIds.Contains(c.Id))
                     )
                 )
                 .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.SentAt) ?? DateTime.MinValue)
                 .ToListAsync();
-            
         }
 
         // Opprette en gurppe
