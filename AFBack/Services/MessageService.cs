@@ -231,42 +231,26 @@ public class MessageService : IMessageService
         // Her henter vi og ser meldinger etter vi har godtkjent en meldingsforespørsel
         public async Task ApproveMessageRequestAsync(int receiverId, int senderId)
         {
-            // 1. Finn og oppdater meldingsforespørsel
             var request = await _context.MessageRequests
-                .FirstOrDefaultAsync(r => r.SenderId == senderId && r.ReceiverId == receiverId);
+                .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && r.SenderId == senderId);
 
             if (request == null)
-                throw new Exception("Ingen meldingsforespørsel funnet.");
+                throw new Exception("Forespørselen finnes ikke.");
+
+            if (request.IsAccepted)
+                throw new Exception("Forespørselen er allerede godkjent.");
 
             request.IsAccepted = true;
-
-            // 2. Finn alle meldinger som ikke var godkjent, og godkjenn dem
-            var conversation = await _context.Conversations
-                .Include(c => c.Participants)
-                .Include(c => c.Messages).ThenInclude(message => message.Attachments)
-                .FirstOrDefaultAsync(c =>
-                    !c.IsGroup &&
-                    c.Participants.Any(p => p.UserId == senderId) &&
-                    c.Participants.Any(p => p.UserId == receiverId));
-
-            if (conversation != null)
-            {
-                var user = await _context.Users.FindAsync(receiverId);
-                if (user != null)
-                {
-                    var systemMessage = $"{user.FullName} accepted the message request.";
-        
-                    await SendMessageAsync(receiverId, new SendMessageRequestDTO
-                    {
-                        ConversationId = conversation.Id,
-                        Text = systemMessage,
-                        Attachments = null
-                    });
-                }
-            }
-
             await _context.SaveChangesAsync();
+            
+            await _hubContext.Clients.User(senderId.ToString())
+                .SendAsync("MessageRequestApproved", new {
+                    ReceiverId = receiverId,
+                    ConversationId = request.ConversationId
+                });
         }
+        
+        
         // Avslår meldinger fra en bruker og sletter forespørsel samt blokkerer sender fra å sende flere meldinger
         public async Task DeclineMessageRequestAsync(int receiverId, int senderId)
         {

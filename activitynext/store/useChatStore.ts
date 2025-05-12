@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
 import { ConversationDTO } from "@/types/ConversationDTO";
+import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
+
 
 
 type ChatStore = {
@@ -20,6 +22,10 @@ type ChatStore = {
   resetStore: () => void;
   updateMessageReactions: (reaction: ReactionDTO) => void;
   cleanupOldCache: () => void;
+  pendingMessageRequests: MessageRequestDTO[];
+  setPendingMessageRequests: (requests: MessageRequestDTO[]) => void;
+  removePendingRequest: (conversationId: number) => void;
+  addConversation: (conversation: ConversationDTO) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -29,6 +35,17 @@ export const useChatStore = create<ChatStore>((set) => ({
   cachedMessages: {},
   scrollPositions: {},
   cacheTimestamps: {},
+  pendingMessageRequests: [],
+  setPendingMessageRequests: (requests) => set(() => ({
+  pendingMessageRequests: requests
+  })),
+  removePendingRequest: (conversationId) =>
+    set((state) => ({
+      pendingMessageRequests: state.pendingMessageRequests.filter(
+        (r) => r.conversationId !== conversationId
+      )
+    })),
+
 
   setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
 
@@ -92,21 +109,39 @@ export const useChatStore = create<ChatStore>((set) => ({
       },
     })),
 
+    // legger til samtale i samtaleliste ved godkjent meldingsforespørsel
+    addConversation: (conversation) =>
+      set((state) => {
+        const exists = state.conversations.some((c) => c.id === conversation.id);
+        if (exists) return state;
+
+        const updated = [...state.conversations, conversation];
+
+        // Sorter etter sist sendt melding
+        updated.sort(
+          (a, b) =>
+            new Date(b.lastMessageSentAt ?? 0).getTime() -
+            new Date(a.lastMessageSentAt ?? 0).getTime()
+        );
+
+        return { conversations: updated };
+      }),
+
       updateConversationTimestamp: (conversationId: number, timestamp: string) =>
-    set((state) => {
-      const updatedConversations = state.conversations.map((conv) =>
-        conv.id === conversationId ? { ...conv, lastMessageSentAt: timestamp } : conv
-      );
+        set((state) => {
+          const updatedConversations = state.conversations.map((conv) =>
+            conv.id === conversationId ? { ...conv, lastMessageSentAt: timestamp } : conv
+          );
 
-      updatedConversations.sort(
-        (a, b) =>
-          new Date(b.lastMessageSentAt ?? 0).getTime() -
-          new Date(a.lastMessageSentAt ?? 0).getTime()
-      );
-      
+          updatedConversations.sort(
+            (a, b) =>
+              new Date(b.lastMessageSentAt ?? 0).getTime() -
+              new Date(a.lastMessageSentAt ?? 0).getTime()
+          );
+          
 
-      return { conversations: updatedConversations };
-    }),
+          return { conversations: updatedConversations };
+        }),
     
     // Rydder opp cache etter en satt tid, brukes i CacheCleanup
     cleanupOldCache: () =>
@@ -175,5 +210,6 @@ export const useChatStore = create<ChatStore>((set) => ({
       cachedMessages: {},
       scrollPositions: {},
       cacheTimestamps: {},
+      pendingMessageRequests: [],
     })),
 }));

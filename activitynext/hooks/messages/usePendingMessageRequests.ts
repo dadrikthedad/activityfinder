@@ -1,17 +1,25 @@
 // Henter meldingsforespørsler
 import { useEffect, useState } from 'react';
-import { getPendingMessageRequests } from '@/services/messages/messageService'; // Juster path om nødvendig
-import { MessageRequestDTO } from '@/types/MessageReqeustDTO'; // Importér riktig type
+import { getPendingMessageRequests } from '@/services/messages/messageService';
+import { useChatStore } from '@/store/useChatStore';
+
 
 export function usePendingMessageRequests() {
-  const [requests, setRequests] = useState<MessageRequestDTO[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const requests = useChatStore((state) => state.pendingMessageRequests);
+  const setRequests = useChatStore((state) => state.setPendingMessageRequests);
+
   useEffect(() => {
+    if (requests.length > 0) {
+      setLoading(false);
+      return;
+    }
+
     async function fetchRequests() {
       try {
-        const data = await getPendingMessageRequests();
+        const data = await getPendingMessageRequests() ?? [];
         setRequests(data);
       } catch (err) {
         console.error('Feil ved henting av forespørsler:', err);
@@ -22,9 +30,8 @@ export function usePendingMessageRequests() {
     }
 
     fetchRequests();
-  }, []);
+  }, [requests.length, setRequests]);
 
   return { requests, loading, error };
 }
-
 

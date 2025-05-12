@@ -15,3 +15,9 @@ export async function getPendingMessageRequests(): Promise<MessageRequestDTO[] |
   const url = `${API_BASE_URL}/api/messages/pending`;
   return await getRequest<MessageRequestDTO[]>(url);
 }
+
+// Godkjenner meldingsforespørsler
+export async function approveMessageRequest(senderId: number): Promise<void> {
+  const url = `${API_BASE_URL}/api/messages/approve-request`;
+  await postRequest<void, number>(url, senderId);
+}

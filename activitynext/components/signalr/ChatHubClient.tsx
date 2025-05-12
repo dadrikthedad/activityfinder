@@ -21,6 +21,12 @@ export default function ChatHubClient() {
     (reaction) => {
         console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
         updateMessageReactions(reaction as ReactionDTO); // 👈 NY
+      },
+    ({ ReceiverId, ConversationId }) => {
+        console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId);
+
+        // 👉 Her kan du oppdatere UI, f.eks. auto-velg samtalen eller fjern fra forespørsler
+        // removePendingRequest?.(ConversationId); // Hvis du har denne i Zustand
       }
     );
   

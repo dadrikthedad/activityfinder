@@ -7,7 +7,8 @@ import { ReactionDTO } from "@/types/MessageDTO";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
-  onReceiveReaction?: (reaction: ReactionDTO) => void
+  onReceiveReaction?: (reaction: ReactionDTO) => void,
+  onRequestApproved?: (data: { ReceiverId: number; ConversationId: number }) => void,
 ) {
   useEffect(() => {
     const conn = createChatConnection();
@@ -27,6 +28,7 @@ export function useChatHub(
 
           conn.off("ReceiveMessage");
           conn.off("ReceiveReaction");
+          conn.off("MessageRequestApproved");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             console.log("📩 Received:", message);
@@ -40,6 +42,12 @@ export function useChatHub(
               console.warn("❌ Ugyldig Reaction-data mottatt:", reaction);
             }
           });
+
+          conn.on("MessageRequestApproved", (data) => {
+            console.log("✅ Meldingsforespørsel godkjent:", data);
+            onRequestApproved?.(data);
+          });
+          
         } catch (err) {
           console.error("❌ SignalR Connection Error:", err);
           setTimeout(startConnection, 2000);
@@ -53,5 +61,5 @@ export function useChatHub(
       console.log("🛑 Stopping SignalR connection...");
       conn.stop();
     };
-  }, [onReceiveMessage, onReceiveReaction]);
+  }, [onReceiveMessage, onReceiveReaction, onRequestApproved]);
 }
