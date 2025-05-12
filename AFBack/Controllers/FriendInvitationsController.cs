@@ -140,14 +140,57 @@ public class FriendInvitationsController : ControllerBase
         };
 
         _context.Friends.Add(newFriend);
-        await _context.SaveChangesAsync();
         
         await _notificationService.CreateNotificationAsync(
             recipientUserId: invitation.SenderId,
             relatedUserId: invitation.ReceiverId,
             type: NotificationTypes.FriendRequestAccepted
         );
+        
+        // Sjekk om det allerede finnes en meldingsforespørsel
+        var messageRequest = await _context.MessageRequests.FirstOrDefaultAsync(r =>
+            r.SenderId == invitation.SenderId && r.ReceiverId == invitation.ReceiverId);
 
+        // Hvis ikke, opprett én
+        if (messageRequest == null)
+        {
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c =>
+                    !c.IsGroup &&
+                    c.Participants.Any(p => p.UserId == invitation.SenderId) &&
+                    c.Participants.Any(p => p.UserId == invitation.ReceiverId));
+
+            if (conversation == null)
+            {
+                // Opprett samtalen hvis den ikke eksisterer
+                conversation = new Conversation
+                {
+                    IsGroup = false,
+                    Participants = new List<ConversationParticipant>
+                    {
+                        new() { UserId = invitation.SenderId },
+                        new() { UserId = invitation.ReceiverId }
+                    }
+                };
+                _context.Conversations.Add(conversation);
+                await _context.SaveChangesAsync(); // Trengs for å få ConversationId
+            }
+
+            _context.MessageRequests.Add(new MessageRequest
+            {
+                SenderId = invitation.SenderId,
+                ReceiverId = invitation.ReceiverId,
+                ConversationId = conversation.Id,
+                IsAccepted = true
+            });
+        }
+        else
+        {
+            messageRequest.IsAccepted = true;
+        }
+        
+        await _context.SaveChangesAsync();
         return Ok("Friend request accepted.");
     }
 

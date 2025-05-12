@@ -116,11 +116,13 @@ public class MessageService : IMessageService
                 var otherUserId = conversation.Participants.First(p => p.UserId != userId).UserId;
 
                 var isApproved = await _context.Friends.AnyAsync(f =>
-                                        (f.UserId == userId && f.FriendId == otherUserId) ||
-                                        (f.FriendId == userId && f.UserId == otherUserId)) ||
-                                  await _context.MessageRequests.AnyAsync(r =>
-                                        r.SenderId == otherUserId && r.ReceiverId == userId && r.IsAccepted);
-
+                                     (f.UserId == userId && f.FriendId == otherUserId) ||
+                                     (f.FriendId == userId && f.UserId == otherUserId)) ||
+                                 await _context.MessageRequests.AnyAsync(r =>
+                                     ((r.SenderId == otherUserId && r.ReceiverId == userId) ||
+                                      (r.SenderId == userId && r.ReceiverId == otherUserId)) &&
+                                     r.IsAccepted);
+                
                 if (!isApproved)
                 {
                     // 👁️ Vis maks 5 meldinger fra den andre brukeren (uansett IsApproved-status)
