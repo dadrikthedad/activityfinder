@@ -13,7 +13,7 @@ public class ConversationService
         {
             _context = context;
         }
-        // Hente alle samtalene til en bruker
+        // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<Conversation>> GetUserConversationsSortedAsync(int userId)
         {
             return await _context.Conversations
@@ -21,9 +21,33 @@ public class ConversationService
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
                 .Include(c => c.Messages)
-                .Where(c => c.Participants.Any(p => p.UserId == userId))
+                .Where(c =>
+                    c.Participants.Any(p => p.UserId == userId) && // Brukeren er deltaker
+                    (
+                        !c.IsGroup && (
+                            _context.Friends.Any(f =>
+                                (f.UserId == userId && c.Participants.Any(p => p.UserId == f.FriendId)) ||
+                                (f.FriendId == userId && c.Participants.Any(p => p.UserId == f.UserId))
+                            ) ||
+                            _context.MessageRequests.Any(r =>
+                                r.ReceiverId == userId &&
+                                c.Participants.Any(p => p.UserId == r.SenderId) &&
+                                r.IsAccepted
+                            )
+                        )
+                        ||
+                        (c.IsGroup &&
+                         _context.MessageRequests.Any(r =>
+                             r.ReceiverId == userId &&
+                             r.ConversationId == c.Id &&
+                             r.IsAccepted
+                         )
+                        )
+                    )
+                )
                 .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.SentAt) ?? DateTime.MinValue)
                 .ToListAsync();
+            
         }
 
         // Opprette en gurppe

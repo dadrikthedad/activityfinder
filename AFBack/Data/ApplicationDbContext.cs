@@ -254,5 +254,12 @@ public class ApplicationDbContext : DbContext
             .HasIndex(mr => new { mr.SenderId, mr.ReceiverId })
             .IsUnique();
         
+        // Koble MessageRequesten med en sepsifikk samtale
+        modelBuilder.Entity<MessageRequest>()
+            .HasOne(mr => mr.Conversation)
+            .WithMany()
+            .HasForeignKey(mr => mr.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
     }
 }
