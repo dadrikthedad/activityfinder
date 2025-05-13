@@ -1,6 +1,8 @@
-﻿using AFBack.DTOs;
+﻿using AFBack.Data;
+using AFBack.DTOs;
 using AFBack.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Controllers;
 using Microsoft.AspNetCore.Authorization;
@@ -17,12 +19,14 @@ public class ConversationsController : BaseController
     private readonly ConversationService _conversationService;
     private readonly IHubContext<ChatHub> _hubContext;
     private readonly IMessageService _messageService;
+    private readonly ApplicationDbContext _context;
 
-    public ConversationsController(ConversationService conversationService, IHubContext<ChatHub> hubContext, IMessageService messageService)
+    public ConversationsController(ConversationService conversationService, IHubContext<ChatHub> hubContext, IMessageService messageService, ApplicationDbContext context)
     {
         _conversationService = conversationService;
         _hubContext = hubContext;
         _messageService = messageService;
+        _context = context;
     }
     // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat
     [HttpGet("my-conversations")]
@@ -75,6 +79,65 @@ public class ConversationsController : BaseController
 
         var messages = await _messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
         return Ok(messages);
+    }
+    
+    // Hente kun en samtale
+    [HttpGet("{conversationId}")]
+    public async Task<IActionResult> GetConversationById(int conversationId)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
+        var conversation = await _context.Conversations
+            .Include(c => c.Participants)
+            .ThenInclude(p => p.User)
+            .ThenInclude(u => u.Profile)
+            .Include(c => c.Messages)
+            .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+        if (conversation == null)
+            return NotFound("Samtalen finnes ikke.");
+
+        if (!conversation.Participants.Any(p => p.UserId == userId))
+            return Forbid("Du har ikke tilgang til denne samtalen.");
+
+        var lastMessage = conversation.Messages
+            .OrderByDescending(m => m.SentAt)
+            .FirstOrDefault();
+        
+        var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
+
+        var isFriend = await _context.Friends.AnyAsync(f =>
+            (f.UserId == userId && f.FriendId == otherUserId) ||
+            (f.UserId == otherUserId && f.FriendId == userId));
+
+        var isApproved = isFriend || await _context.MessageRequests.AnyAsync(r =>
+            ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
+             (r.SenderId == otherUserId && r.ReceiverId == userId)) &&
+            r.IsAccepted);
+
+        var isPending = !isApproved &&
+                        await _context.MessageRequests.AnyAsync(r =>
+                            r.SenderId == userId && r.ReceiverId == otherUserId);
+
+        var dto = new ConversationDTO
+        {
+            Id = conversation.Id,
+            GroupName = conversation.GroupName,
+            IsGroup = conversation.IsGroup,
+            LastMessageSentAt = lastMessage?.SentAt,
+            Participants = conversation.Participants.Select(p => new UserSummaryDTO
+            {
+                Id = p.User.Id,
+                FullName = p.User.FullName,
+                ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+            }).ToList(),
+            IsApproved = isApproved, // Tilpass etter behov
+            IsPendingApproval = isPending // Tilpass etter behov
+        };
+
+        return Ok(dto);
     }
     
     // Opprette en gruppe
