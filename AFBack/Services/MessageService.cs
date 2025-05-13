@@ -507,18 +507,23 @@ public class MessageService : IMessageService
         
         public async Task AddMessageRequestIfNotExists(int senderId, int receiverId)
         {
+            var conversation = await GetOrCreateConversation(senderId, receiverId);
+
+            if (conversation == null)
+                throw new Exception("Kunne ikke finne eller opprette en samtale.");
+
+            // Finn eksisterende request i begge retninger
             var existing = await _context.MessageRequests
-                .FirstOrDefaultAsync(r => r.SenderId == senderId && r.ReceiverId == receiverId);
+                .FirstOrDefaultAsync(r =>
+                    r.ConversationId == conversation.Id &&
+                    (
+                        (r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                        (r.SenderId == receiverId && r.ReceiverId == senderId)
+                    )
+                );
 
             if (existing == null)
             {
-                var conversation = await GetOrCreateConversation(senderId, receiverId);
-
-                if (conversation == null)
-                {
-                    throw new Exception("Kunne ikke finne eller opprette en samtale.");
-                }
-
                 _context.MessageRequests.Add(new MessageRequest
                 {
                     SenderId = senderId,
@@ -530,8 +535,7 @@ public class MessageService : IMessageService
             }
             else if (existing.ConversationId == null)
             {
-                // Ekstra sikkerhet: fyll inn manglende conversationId hvis det skulle mangle
-                var conversation = await GetOrCreateConversation(senderId, receiverId);
+                // Ekstra sikkerhet – fyll inn hvis mangler
                 existing.ConversationId = conversation.Id;
                 await _context.SaveChangesAsync();
             }
