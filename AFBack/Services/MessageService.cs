@@ -47,7 +47,9 @@ public class MessageService : IMessageService
                     if (messageCount >= 5)
                     {
                         var messageRequest = await _context.MessageRequests
-                            .FirstOrDefaultAsync(r => r.SenderId == senderId && r.ReceiverId == receiverId);
+                            .FirstOrDefaultAsync(r =>
+                                (r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                                (r.SenderId == receiverId && r.ReceiverId == senderId));
 
                         if (messageRequest != null)
                         {
@@ -57,7 +59,7 @@ public class MessageService : IMessageService
 
                         return new MessageResponseDTO
                         {
-                            Text = "Du har nådd maksgrensen på 5 meldinger før forespørselen godkjennes.",
+                            Text = "Du har nådd maksgrensen på 5 meldinger før forespørselen besgodkjennes.",
                             ConversationId = conversation.Id,
                             SenderId = senderId
                         };
@@ -489,9 +491,18 @@ public class MessageService : IMessageService
         
         public async Task<bool> ShouldRequireApproval(int senderId, int receiverId)
         {
-            return !await _context.Friends.AnyAsync(f =>
+            var isFriend = await _context.Friends.AnyAsync(f =>
                 (f.UserId == senderId && f.FriendId == receiverId) ||
                 (f.UserId == receiverId && f.FriendId == senderId));
+
+            var isMessageApproved = await _context.MessageRequests.AnyAsync(r =>
+                r.IsAccepted &&
+                (
+                    (r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                    (r.SenderId == receiverId && r.ReceiverId == senderId)
+                ));
+
+            return !(isFriend || isMessageApproved);
         }
         
         public async Task AddMessageRequestIfNotExists(int senderId, int receiverId)
