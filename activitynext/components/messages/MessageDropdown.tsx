@@ -8,6 +8,9 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
 import { useChatStore } from "@/store/useChatStore";
 import PendingRequestsList from "./PendingMessageList";
+import { useModal } from "@/context/ModalContext";
+import NewMessageModal from "./NewMessageModal";
+import ProfileNavButton from "../settings/ProfileNavButton";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
@@ -30,6 +33,9 @@ interface MessageDropdownProps {
       console.log("📩 handleSelect kalles med ID:", id);
     };
 
+    const { showModal } = useModal(); // Viser ny meldingsmodalen
+    
+
   return (
     <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[90vw] w-[800px] border-2 border-[#1C6B1C] overflow-hidden">
       <h4 className="text-lg font-semibold mb-4 text-center">Messages</h4>
@@ -45,6 +51,14 @@ interface MessageDropdownProps {
               selectedId={selectedConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}
+            />
+          </div>
+
+          <div className="mt-4 flex justify-center">
+            <ProfileNavButton
+              text="Ny melding"
+              variant="small"
+              onClick={() => showModal(<NewMessageModal/>)}
             />
           </div>
 

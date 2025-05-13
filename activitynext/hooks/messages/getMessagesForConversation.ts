@@ -65,7 +65,7 @@ export function usePaginatedMessages(conversationId: number) {
         setMessages(updated);
         setCachedMessages(conversationId, updated);
       }
-
+      
       if (newMessages.length === 0 || newMessages.length < take) {
         setHasMore(false);
       }
@@ -74,6 +74,6 @@ export function usePaginatedMessages(conversationId: number) {
       isFetching.current = false;
     }
   };
-
+  
   return { messages, loadMore, loading, hasMore };
 }

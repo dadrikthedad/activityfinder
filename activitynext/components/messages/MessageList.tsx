@@ -172,7 +172,7 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
         const handleScroll = () => {
           const pos = container.scrollTop; // i flex-col-reverse, scrollTop øker når du går NED
           setScrollPosition(conversationId, pos);
-           // console.log(`[Scroll] Lagret scrollposisjon (flex-reverse): ${pos}`); Hvis vi trenger å logge hva scrollposisjonen er
+          console.log(`[Scroll] Lagret scrollposisjon (flex-reverse): ${pos}`); //Hvis vi trenger å logge hva scrollposisjonen er
         };
 
         container.addEventListener("scroll", handleScroll);
@@ -185,7 +185,7 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
       const handleScroll = () => {
         if (scrollRef.current) {
           scrollPosition.current = scrollRef.current.scrollTop;
-          // console.log(`[Scroll] Oppdatert scrollposisjon: ${scrollRef.current.scrollTop}`);Hvis vi trenger å vite hva scrollposisjonen er
+          console.log(`[Scroll] Oppdatert scrollposisjon: ${scrollRef.current.scrollTop}`); // Hvis vi trenger å vite hva scrollposisjonen er
         }
       };
 

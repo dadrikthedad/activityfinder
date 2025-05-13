@@ -5,6 +5,7 @@ import { useSendMessage } from "@/hooks/messages/useSendMessage";
 import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
 import TextareaAutosize from "react-textarea-autosize";
 import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
+import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
 
 interface MessageInputProps {
   conversationId?: number;
@@ -20,6 +21,7 @@ export default function MessageInput({
   const [text, setText] = useState("");
   const { send, loading } = useSendMessage(onMessageSent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { syncConversation } = useConversationSyncOnMessage();
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -28,13 +30,19 @@ export default function MessageInput({
     const payload: SendMessageRequestDTO = {
       text: trimmed,
       conversationId,
-      receiverId,
+      receiverId: receiverId?.toString()
     };
 
     const result = await send(payload);
     if (result) {
       setText("");
       inputRef.current?.focus();
+
+       if (!conversationId) {
+        // 👇 Oppdater samtalelisten hvis det var en ny samtale
+        await syncConversation(result);
+      }
+
       if (conversationId) {
         clearDraftFor(conversationId);
       }

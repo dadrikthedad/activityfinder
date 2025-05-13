@@ -37,6 +37,6 @@ export interface SendMessageRequestDTO {
     fileName: string;
   }[];
   conversationId?: number;
-  receiverId?: number;
+  receiverId?: string;
   parentMessageId?: number | null;
 }

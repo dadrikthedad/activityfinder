@@ -3,6 +3,7 @@ import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/constants/routes";
 import { MessageDTO } from "@/types/MessageDTO"; // ← viktig!
 import { PagedConversationsResponseDTO } from "@/types/ConversationDTO";
+import { ConversationDTO } from "@/types/ConversationDTO";
 // Henter alle samtalene til en bruker
 export async function getMyConversations(
     skip: number = 0,
@@ -30,7 +31,18 @@ export async function getMessagesForConversation(
   return await fetchWithAuth<MessageDTO[]>(url);
 }
 
-// her henter vi pending-samtaler
+// Henter kun en enkelt samtale, brukes når vi oppretter en ny samtale ved å sende fra frontend
+export async function getConversationById(
+  conversationId: number
+): Promise<ConversationDTO | null> {
+  const url = `${API_BASE_URL}/api/conversations/${conversationId}`;
+
+  console.log("🔵 Henter samtale:", url);
+
+  return await fetchWithAuth<ConversationDTO>(url);
+}
+
+
 
 
 
