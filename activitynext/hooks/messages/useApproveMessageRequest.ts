@@ -28,6 +28,8 @@ export function useApproveMessageRequest() {
         id: conversationId,
         isGroup: false,
         lastMessageSentAt: new Date().toISOString(),
+        isApproved: true,
+        isPendingApproval: false,
         participants: request ? [
           {
             id: senderId,
