@@ -131,7 +131,7 @@ public class MessageService : IMessageService
                     // Egne meldinger (vis alle)
                     var ownMessages = await _context.Messages
                         .Where(m => m.ConversationId == conversationId && m.SenderId == userId)
-                        .OrderBy(m => m.SentAt)
+                        .OrderByDescending(m => m.SentAt)
                         .Skip(skip) // optional
                         .Take(take) // optional
                         .Include(m => m.Attachments)
@@ -142,7 +142,7 @@ public class MessageService : IMessageService
                     // Meldingene fra motparten (maks 5)
                     var otherMessages = await _context.Messages
                         .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
-                        .OrderBy(m => m.SentAt)
+                        .OrderByDescending(m => m.SentAt)
                         .Take(5)
                         .Include(m => m.Attachments)
                         .Include(m => m.Reactions)
