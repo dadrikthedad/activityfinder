@@ -32,25 +32,29 @@ public class ConversationsController : BaseController
         if (userId == null)
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
 
-        var conversations = await _conversationService.GetUserConversationsSortedAsync(userId.Value);
+        var conversationResults = await _conversationService.GetUserConversationsSortedAsync(userId.Value);
 
-        var totalCount = conversations.Count;
+        var totalCount = conversationResults.Count;
 
-        var paged = conversations
+        var paged = conversationResults
             .Skip(skip)
             .Take(take)
             .Select(c => new ConversationDTO
             {
-                Id = c.Id,
-                GroupName = c.GroupName,
-                IsGroup = c.IsGroup,
-                LastMessageSentAt = c.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault()?.SentAt,
-                Participants = c.Participants.Select(p => new UserSummaryDTO
+                Id = c.Conversation.Id,
+                GroupName = c.Conversation.GroupName,
+                IsGroup = c.Conversation.IsGroup,
+                LastMessageSentAt = c.Conversation.Messages
+                    .OrderByDescending(m => m.SentAt)
+                    .FirstOrDefault()?.SentAt,
+                Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
                     ProfileImageUrl = p.User.Profile?.ProfileImageUrl
-                }).ToList()
+                }).ToList(),
+                IsApproved = c.IsApproved, // 👈 Her setter du feltet
+                IsPendingApproval = c.IsPendingApproval 
             })
             .ToList();
 

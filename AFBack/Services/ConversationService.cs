@@ -14,16 +14,24 @@ public class ConversationService
             _context = context;
         }
         // Hente alle samtalene til en bruker som er godkjente
-        public async Task<List<Conversation>> GetUserConversationsSortedAsync(int userId)
+        public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(int userId)
         {
             var friendIds = await _context.Friends
                 .Where(f => f.UserId == userId || f.FriendId == userId)
                 .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
                 .ToListAsync();
 
-            var approvedPrivateUserIds = await _context.MessageRequests
-                .Where(r => (r.ReceiverId == userId || r.SenderId == userId) && r.IsAccepted)
-                .Select(r => r.ReceiverId == userId ? r.SenderId : r.ReceiverId)
+            // Samtaler der du har sendt melding – godkjent eller ikke
+            var sentRequestUserIds = await _context.MessageRequests
+                .Where(r => r.SenderId == userId)
+                .Select(r => r.ReceiverId)
+                .Distinct()
+                .ToListAsync();
+
+            // Sjekk hvilke av dem som er godkjent
+            var approvedSentUserIds = await _context.MessageRequests
+                .Where(r => r.SenderId == userId && r.IsAccepted)
+                .Select(r => r.ReceiverId)
                 .Distinct()
                 .ToListAsync();
 
@@ -32,10 +40,10 @@ public class ConversationService
                 .Select(r => r.ConversationId)
                 .ToListAsync();
 
-            return await _context.Conversations
+            var conversations = await _context.Conversations
                 .Include(c => c.Participants)
-                .ThenInclude(p => p.User)
-                .ThenInclude(u => u.Profile)
+                    .ThenInclude(p => p.User)
+                        .ThenInclude(u => u.Profile)
                 .Include(c => c.Messages)
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId) &&
@@ -43,7 +51,7 @@ public class ConversationService
                         (!c.IsGroup &&
                          c.Participants.Any(p =>
                              p.UserId != userId &&
-                             (friendIds.Contains(p.UserId) || approvedPrivateUserIds.Contains(p.UserId))
+                             (friendIds.Contains(p.UserId) || sentRequestUserIds.Contains(p.UserId))
                          )
                         )
                         ||
@@ -52,6 +60,28 @@ public class ConversationService
                 )
                 .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.SentAt) ?? DateTime.MinValue)
                 .ToListAsync();
+
+            return conversations.Select(c =>
+            {
+                var otherUserId = c.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
+
+                bool isApproved = c.IsGroup
+                    ? approvedGroupConversationIds.Contains(c.Id)
+                    : (otherUserId.HasValue &&
+                       (friendIds.Contains(otherUserId.Value) || approvedSentUserIds.Contains(otherUserId.Value)));
+
+                bool isPendingApproval = !isApproved &&
+                                         otherUserId.HasValue &&
+                                         sentRequestUserIds.Contains(otherUserId.Value);
+
+                return new ConversationWithApprovalDTO
+                {
+                    Conversation = c,
+                    IsApproved = isApproved,
+                    IsPendingApproval = isPendingApproval
+                };
+                
+            }).ToList();
         }
 
         // Opprette en gurppe

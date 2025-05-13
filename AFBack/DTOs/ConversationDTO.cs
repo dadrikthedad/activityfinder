@@ -8,5 +8,9 @@ public class ConversationDTO
     
     public List<UserSummaryDTO> Participants { get; set; } = new();
     public DateTime? LastMessageSentAt { get; set; }
+    
+    public bool IsApproved { get; set; }
+    
+    public bool IsPendingApproval { get; set; } 
 
 }
