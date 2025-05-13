@@ -23,48 +23,22 @@ public class MessageService : IMessageService
         {       
             Conversation conversation;
             bool isApproved = true;
+            int? receiverId = null;
 
+            // 🎯 Hent eller opprett samtale
             if (request.ConversationId <= 0)
             {
-                if (!int.TryParse(request.ReceiverId, out var receiverId))
+                if (!int.TryParse(request.ReceiverId, out var parsedReceiverId))
                     throw new Exception("Ugyldig mottaker-ID.");
 
-                await CheckUserValidity(senderId, receiverId);
+                receiverId = parsedReceiverId;
 
-                if (await IsUserBlocked(senderId, receiverId))
+                await CheckUserValidity(senderId, receiverId.Value);
+
+                if (await IsUserBlocked(senderId, receiverId.Value))
                     throw new Exception("Du har ikke tilgang til å sende melding til denne brukeren.");
 
-                conversation = await GetOrCreateConversation(senderId, receiverId);
-
-                if (await ShouldRequireApproval(senderId, receiverId))
-                {
-                    await AddMessageRequestIfNotExists(senderId, receiverId);
-                    isApproved = false;
-
-                    var messageCount = await _context.Messages
-                        .CountAsync(m => m.ConversationId == conversation.Id && m.SenderId == senderId);
-
-                    if (messageCount >= 5)
-                    {
-                        var messageRequest = await _context.MessageRequests
-                            .FirstOrDefaultAsync(r =>
-                                (r.SenderId == senderId && r.ReceiverId == receiverId) ||
-                                (r.SenderId == receiverId && r.ReceiverId == senderId));
-
-                        if (messageRequest != null)
-                        {
-                            messageRequest.LimitReached = true;
-                            await _context.SaveChangesAsync();
-                        }
-
-                        return new MessageResponseDTO
-                        {
-                            Text = "Du har nådd maksgrensen på 5 meldinger før forespørselen besgodkjennes.",
-                            ConversationId = conversation.Id,
-                            SenderId = senderId
-                        };
-                    }
-                }
+                conversation = await GetOrCreateConversation(senderId, receiverId.Value);
             }
             else
             {
@@ -72,8 +46,43 @@ public class MessageService : IMessageService
                     .Include(c => c.Participants)
                     .FirstOrDefaultAsync(c => c.Id == request.ConversationId)
                     ?? throw new Exception("Samtalen finnes ikke.");
+
+                receiverId = conversation.Participants
+                    .FirstOrDefault(p => p.UserId != senderId)?.UserId;
             }
 
+            // 🔒 Sjekk om meldingen krever godkjenning (for både nye og eksisterende samtaler)
+            if (receiverId != null && await ShouldRequireApproval(senderId, receiverId.Value))
+            {
+                await AddMessageRequestIfNotExists(senderId, receiverId.Value);
+                isApproved = false;
+
+                var messageCount = await _context.Messages
+                    .CountAsync(m => m.ConversationId == conversation.Id && m.SenderId == senderId);
+
+                if (messageCount >= 5)
+                {
+                    var messageRequest = await _context.MessageRequests
+                        .FirstOrDefaultAsync(r =>
+                            (r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                            (r.SenderId == receiverId && r.ReceiverId == senderId));
+
+                    if (messageRequest != null)
+                    {
+                        messageRequest.LimitReached = true;
+                        await _context.SaveChangesAsync();
+                    }
+
+                    return new MessageResponseDTO
+                    {
+                        Text = "Du har nådd maksgrensen på 5 meldinger før forespørselen besgodkjennes.",
+                        ConversationId = conversation.Id,
+                        SenderId = senderId
+                    };
+                }
+            }
+
+            // ✉️ Lagre meldingen
             var message = CreateMessage(senderId, conversation.Id, request, isApproved);
             _context.Messages.Add(message);
             await _context.SaveChangesAsync();
