@@ -128,15 +128,32 @@ public class MessageService : IMessageService
                 if (!isApproved)
                 {
                     // 👁️ Vis maks 5 meldinger fra den andre brukeren (uansett IsApproved-status)
-                    var previewMessages = await _context.Messages
-                        .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
+                    // Egne meldinger (vis alle)
+                    var ownMessages = await _context.Messages
+                        .Where(m => m.ConversationId == conversationId && m.SenderId == userId)
                         .OrderBy(m => m.SentAt)
-                        .Skip(skip)
-                        .Take(Math.Min(5 - skip, take)) 
+                        .Skip(skip) // optional
+                        .Take(take) // optional
                         .Include(m => m.Attachments)
                         .Include(m => m.Reactions)
                         .Include(m => m.Sender).ThenInclude(u => u.Profile)
                         .ToListAsync();
+
+                    // Meldingene fra motparten (maks 5)
+                    var otherMessages = await _context.Messages
+                        .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
+                        .OrderBy(m => m.SentAt)
+                        .Take(5)
+                        .Include(m => m.Attachments)
+                        .Include(m => m.Reactions)
+                        .Include(m => m.Sender).ThenInclude(u => u.Profile)
+                        .ToListAsync();
+
+                    // Kombiner og sorter alle
+                    var previewMessages = ownMessages
+                        .Concat(otherMessages)
+                        .OrderBy(m => m.SentAt)
+                        .ToList();
 
                     return previewMessages.Select(m => new MessageResponseDTO
                     {
