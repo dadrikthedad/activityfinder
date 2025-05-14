@@ -26,17 +26,11 @@ export default function ChatHubClient() {
       },
     ({ ReceiverId, ConversationId }) => {
         console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId); 
-        
-
-        // 👉 Her kan du oppdatere UI, f.eks. auto-velg samtalen eller fjern fra forespørsler
-        // removePendingRequest?.(ConversationId); // Hvis du har denne i Zustand
       },
     ({ SenderId, ReceiverId, ConversationId }) => {
-        console.log("📨 Forespørsel opprettet via SignalR:", { SenderId, ReceiverId, ConversationId });
-
-        // 👉 Her kan du f.eks. hente samtalen og legge den til i Zustand
-        syncConversation({ conversationId: ConversationId });
-      },
+      console.log("📨 Forespørsel opprettet via SignalR:", { SenderId, ReceiverId, ConversationId });
+      syncConversation({ conversationId: ConversationId });
+    }
     );
   
     return null; // Kun sideeffekt

@@ -4,6 +4,7 @@ import { createChatConnection } from "@/utils/signalr/chatHub";
 import * as signalR from "@microsoft/signalr";
 import { MessageDTO } from "@/types/MessageDTO";
 import { ReactionDTO } from "@/types/MessageDTO";
+import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
@@ -62,9 +63,8 @@ export function useChatHub(
             approvedRef.current?.(data);
           });
 
-          conn.on("MessageRequestCreated", (data) => {
-            console.log("📨 Forespørsel opprettet via SignalR:", data);
-            createdRef.current?.(data);
+          conn.on("MessageRequestCreated", (data: MessageRequestCreatedDto) => {
+            onRequestCreated?.(data);
           });
 
         } catch (err) {

@@ -560,7 +560,7 @@ public class MessageService : IMessageService
                 await _context.SaveChangesAsync();
                 
                 // 🛰 Send SignalR-event til mottaker
-                await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new {
+                await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto {
                     SenderId = senderId,
                     ReceiverId = receiverId,
                     ConversationId = conversation.Id
