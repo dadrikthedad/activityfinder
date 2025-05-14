@@ -64,7 +64,8 @@ export function useChatHub(
           });
 
           conn.on("MessageRequestCreated", (data: MessageRequestCreatedDto) => {
-            onRequestCreated?.(data);
+            console.log("📨 Ny meldingsforespørsel mottatt:", data);
+            createdRef.current?.(data);
           });
 
         } catch (err) {
