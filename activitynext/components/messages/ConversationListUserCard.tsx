@@ -21,7 +21,7 @@ export const ConversationListItem = ({
   isClickable = true,
 }: Props) => {
   return (
-    <li
+     <div
       onClick={() => onClick && onClick(id)}
       className={`flex items-center gap-3 p-2 rounded-md transition ${
         isClickable ? "cursor-pointer" : "cursor-default"
@@ -44,6 +44,6 @@ export const ConversationListItem = ({
         <span className="text-sm font-medium truncate block">{name}</span>
         {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
       </div>
-    </li>
+    </div>
   );
 };

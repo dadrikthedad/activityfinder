@@ -5,18 +5,21 @@ import * as signalR from "@microsoft/signalr";
 import { MessageDTO } from "@/types/MessageDTO";
 import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
+import { getPendingMessageRequests } from "@/services/messages/messageService";
+import { useChatStore } from "@/store/useChatStore";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
   onReceiveReaction?: (reaction: ReactionDTO) => void,
   onRequestApproved?: (data: { ReceiverId: number; ConversationId: number }) => void,
-  onRequestCreated?: (data: { SenderId: number; ReceiverId: number; ConversationId: number }) => void,
+  onRequestCreated?: (data: MessageRequestCreatedDto) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef(onReceiveReaction);
   const approvedRef = useRef(onRequestApproved);
   const createdRef = useRef(onRequestCreated);
    // Oppdater refs hvis funksjonene endres
+  const setPendingMessageRequests = useChatStore.getState().setPendingMessageRequests;
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
   useEffect(() => { approvedRef.current = onRequestApproved }, [onRequestApproved]);
@@ -63,8 +66,17 @@ export function useChatHub(
             approvedRef.current?.(data);
           });
 
-          conn.on("MessageRequestCreated", (data: MessageRequestCreatedDto) => {
+          conn.on("MessageRequestCreated", async (data: MessageRequestCreatedDto) => {
             console.log("📨 Ny meldingsforespørsel mottatt:", data);
+
+            try {
+              const updated = await getPendingMessageRequests();
+              setPendingMessageRequests(updated ?? []);
+            } catch (err) {
+              console.error("❌ Feil ved oppdatering av meldingsforespørsler:", err);
+            }
+
+            // Hvis du fortsatt vil trigge ekstern callback (f.eks. for toast):
             createdRef.current?.(data);
           });
 

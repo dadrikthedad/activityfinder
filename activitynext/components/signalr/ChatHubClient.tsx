@@ -4,7 +4,6 @@
 import { useChatHub } from "@/hooks/signalr/useChatHub";
 import { useChatStore } from "@/store/useChatStore";
 import { ReactionDTO } from "@/types/MessageDTO";
-import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 
 export default function ChatHubClient() {
@@ -13,7 +12,7 @@ export default function ChatHubClient() {
       (state) => state.updateConversationTimestamp
     );
     const updateMessageReactions = useChatStore((state) => state.updateMessageReactions); // Oppdaterer meldingsreaksjoner
-    const { syncConversation } = useConversationSyncOnMessage();
+
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
     useChatHub((message) => {
@@ -28,14 +27,13 @@ export default function ChatHubClient() {
     ({ ReceiverId, ConversationId }) => {
         console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId); 
       },
-    ({ SenderId, ReceiverId, ConversationId }: MessageRequestCreatedDto) => {
-      if (!ConversationId) {
-        console.error("🚨 Mangler ConversationId i signalr-data:", { SenderId, ReceiverId, ConversationId });
+    ({ senderId, receiverId, conversationId }: MessageRequestCreatedDto) => {
+      if (!conversationId) {
+        console.error("🚨 Mangler conversationId i signalr-data:", { senderId, receiverId, conversationId });
         return;
       }
 
-      console.log("📨 Forespørsel opprettet via SignalR:", { SenderId, ReceiverId, ConversationId });
-      syncConversation({ conversationId: ConversationId });
+      console.log("📨 Forespørsel opprettet via SignalR:", { senderId, receiverId, conversationId });
     }
     );
   
