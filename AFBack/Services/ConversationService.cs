@@ -27,23 +27,35 @@ public class ConversationService
                 .Select(r => r.ReceiverId)
                 .Distinct()
                 .ToListAsync();
+            
+            // Alle brukere du har hatt meldingsforespørsler med – begge retninger
+            var messageRequestPairs = await _context.MessageRequests
+                .Where(r => r.SenderId == userId || r.ReceiverId == userId)
+                .Select(r => new { r.SenderId, r.ReceiverId, r.IsAccepted, r.ConversationId })
+                .ToListAsync();
 
             // Sjekk hvilke av dem som er godkjent
-            var approvedSentUserIds = await _context.MessageRequests
-                .Where(r => r.SenderId == userId && r.IsAccepted)
-                .Select(r => r.ReceiverId)
+            var allRequestUserIds = messageRequestPairs
+                .Select(r => r.SenderId == userId ? r.ReceiverId : r.SenderId)
                 .Distinct()
-                .ToListAsync();
+                .ToList();
 
-            var approvedGroupConversationIds = await _context.MessageRequests
+            var approvedUserIds = messageRequestPairs
+                .Where(r => r.IsAccepted)
+                .Select(r => r.SenderId == userId ? r.ReceiverId : r.SenderId)
+                .Distinct()
+                .ToList();
+            
+            var approvedGroupConversationIds = messageRequestPairs
                 .Where(r => r.ReceiverId == userId && r.IsAccepted)
                 .Select(r => r.ConversationId)
-                .ToListAsync();
+                .ToList();
+
 
             var conversations = await _context.Conversations
                 .Include(c => c.Participants)
-                    .ThenInclude(p => p.User)
-                        .ThenInclude(u => u.Profile)
+                .ThenInclude(p => p.User)
+                .ThenInclude(u => u.Profile)
                 .Include(c => c.Messages)
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId) &&
@@ -51,7 +63,7 @@ public class ConversationService
                         (!c.IsGroup &&
                          c.Participants.Any(p =>
                              p.UserId != userId &&
-                             (friendIds.Contains(p.UserId) || sentRequestUserIds.Contains(p.UserId))
+                             (friendIds.Contains(p.UserId) || allRequestUserIds.Contains(p.UserId))
                          )
                         )
                         ||
@@ -68,11 +80,11 @@ public class ConversationService
                 bool isApproved = c.IsGroup
                     ? approvedGroupConversationIds.Contains(c.Id)
                     : (otherUserId.HasValue &&
-                       (friendIds.Contains(otherUserId.Value) || approvedSentUserIds.Contains(otherUserId.Value)));
+                       (friendIds.Contains(otherUserId.Value) || approvedUserIds.Contains(otherUserId.Value)));
 
                 bool isPendingApproval = !isApproved &&
                                          otherUserId.HasValue &&
-                                         sentRequestUserIds.Contains(otherUserId.Value);
+                                         allRequestUserIds.Contains(otherUserId.Value);
 
                 return new ConversationWithApprovalDTO
                 {
@@ -80,7 +92,7 @@ public class ConversationService
                     IsApproved = isApproved,
                     IsPendingApproval = isPendingApproval
                 };
-                
+
             }).ToList();
         }
 
