@@ -1,3 +1,4 @@
+// New message modal som brukes for å sende en melding til en bruker
 "use client";
 
 import { useUserSearch } from "@/hooks/useUserSearch";
@@ -74,7 +75,6 @@ export default function NewMessageModal() {
           </p>
 
           <MessageInput
-            conversationId={0}
             receiverId={selectedUser.id}
             onMessageSent={(message) => {
               console.log("Melding sendt!", message);

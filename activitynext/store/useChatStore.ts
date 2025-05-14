@@ -49,7 +49,14 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
 
-  setConversations: (conversations) => set(() => ({ conversations })),
+  setConversations: (conversations) =>
+  set(() => ({
+    conversations: [...conversations].sort(
+      (a, b) =>
+        new Date(b.lastMessageSentAt ?? 0).getTime() -
+        new Date(a.lastMessageSentAt ?? 0).getTime()
+    ),
+  })),
 
   updateMessageReactions: (reaction: ReactionDTO) =>
   set((state) => {
@@ -184,15 +191,23 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   addMessage: (message) =>
     set((state) => {
+      console.log("🔔 addMessage called with:", message);
       const current = state.liveMessages[message.conversationId] ?? [];
       const alreadyExists = current.some((m) => m.id === message.id);
-      if (alreadyExists) return state;
+      if (alreadyExists) {
+        console.log("⚠️ Message already exists, skipping:", message.id);
+        return state;
+      }
+
+      const updated = {
+        ...state.liveMessages,
+        [message.conversationId]: [...current, message],
+      };
+
+      console.log("✅ Message added to liveMessages:", updated[message.conversationId]);
 
       return {
-        liveMessages: {
-          ...state.liveMessages,
-          [message.conversationId]: [...current, message],
-        },
+        liveMessages: updated,
       };
     }),
 

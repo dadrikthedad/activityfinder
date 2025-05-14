@@ -4,6 +4,7 @@
 import { useChatHub } from "@/hooks/signalr/useChatHub";
 import { useChatStore } from "@/store/useChatStore";
 import { ReactionDTO } from "@/types/MessageDTO";
+import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -11,6 +12,7 @@ export default function ChatHubClient() {
       (state) => state.updateConversationTimestamp
     );
     const updateMessageReactions = useChatStore((state) => state.updateMessageReactions); // Oppdaterer meldingsreaksjoner
+    const { syncConversation } = useConversationSyncOnMessage();
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
     useChatHub((message) => {
@@ -23,11 +25,18 @@ export default function ChatHubClient() {
         updateMessageReactions(reaction as ReactionDTO); // 👈 NY
       },
     ({ ReceiverId, ConversationId }) => {
-        console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId);
+        console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId); 
+        
 
         // 👉 Her kan du oppdatere UI, f.eks. auto-velg samtalen eller fjern fra forespørsler
         // removePendingRequest?.(ConversationId); // Hvis du har denne i Zustand
-      }
+      },
+    ({ SenderId, ReceiverId, ConversationId }) => {
+        console.log("📨 Forespørsel opprettet via SignalR:", { SenderId, ReceiverId, ConversationId });
+
+        // 👉 Her kan du f.eks. hente samtalen og legge den til i Zustand
+        syncConversation({ conversationId: ConversationId });
+      },
     );
   
     return null; // Kun sideeffekt

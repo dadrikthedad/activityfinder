@@ -16,20 +16,24 @@ import { addReaction } from "@/services/messages/reactionService";
 
 
 interface MessageListProps {
-    conversationId: number;
     currentUser: UserSummaryDTO | null;
     popoverRef: React.RefObject<HTMLDivElement | null>
     onCloseDropdown: () => void;
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
-export default function MessageList({ conversationId, currentUser, popoverRef, onCloseDropdown }: MessageListProps) { 
-    const { liveMessages, clearLiveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
+export default function MessageList({ currentUser, popoverRef, onCloseDropdown }: MessageListProps) { 
+    const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
+    const rawConversationId = useChatStore((state) => state.currentConversationId);
+    const conversationId = rawConversationId ?? -1;
+
     const {
       messages,
       loadMore,
       loading,
       hasMore,
     } = usePaginatedMessages(conversationId);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
+
+    console.log("📥 Rendering messages for", conversationId, messages.length);
 
     const scrollPosition = useRef<number>(0); // Lagre midltertid
     const { scrollPositions } = useChatStore(); // hentet ved ny mount
@@ -40,15 +44,7 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
     }, [liveMessages, conversationId]);
 
     // Tøm live-meldinger for forrige samtale
-    useEffect(() => {
-      // Delay clearing until after initial mount and render
-      const timeout = setTimeout(() => {
-        clearLiveMessages(conversationId);
-      }, 500); // 500ms er nok til å sikre kombinasjonen
-
-      return () => clearTimeout(timeout);
-    }, [conversationId, clearLiveMessages]);
-
+  
     
     // Disse under er for kontroll på hvor vi er i scrollingen
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -74,6 +70,7 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
     const combinedMessages = useMemo(() => {
       const all = [...messages, ...live];
       const seen = new Set();
+      console.log("📦 All messages to render", all);
       return all
         .filter((msg) => {
           if (seen.has(msg.id)) return false;
@@ -188,6 +185,15 @@ export default function MessageList({ conversationId, currentUser, popoverRef, o
           console.log(`[Scroll] Oppdatert scrollposisjon: ${scrollRef.current.scrollTop}`); // Hvis vi trenger å vite hva scrollposisjonen er
         }
       };
+
+      console.log("🧪 Rendering MessageList", {
+        conversationId,
+        messagesInView: liveMessages[conversationId],
+      });
+
+      if (rawConversationId === null) {
+        return <div className="text-center text-gray-500">Ingen samtale valgt</div>;
+      }
 
   return (
     <div

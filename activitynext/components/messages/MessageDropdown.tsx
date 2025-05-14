@@ -2,7 +2,6 @@
 "use client";
 
 import MessageList from "./MessageList";
-import { useState } from "react";
 import ConversationList from "./ConversationList";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
@@ -11,6 +10,7 @@ import PendingRequestsList from "./PendingMessageList";
 import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "./NewMessageModal";
 import ProfileNavButton from "../settings/ProfileNavButton";
+import { useEffect } from "react";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
@@ -19,19 +19,42 @@ interface MessageDropdownProps {
   }
 
   export default function MessageDropdown({ currentUser, popoverRef, onCloseDropdown }: MessageDropdownProps) {
-    const {
-      currentConversationId,
-      setCurrentConversationId,
-    } = useChatStore();
-    
-  const [selectedConversationId, setSelectedConversationId] = useState<number | null>(currentConversationId);
+  const { currentConversationId, setCurrentConversationId } = useChatStore();
 
   // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {
-      setSelectedConversationId(id);
       setCurrentConversationId(id);
       console.log("📩 handleSelect kalles med ID:", id);
     };
+
+    // Rydd bare når man bytter til en annen samtale
+    useEffect(() => {
+      return () => {
+        if (currentConversationId !== null) {
+          const state = useChatStore.getState();
+          const live = state.liveMessages[currentConversationId] ?? [];
+          const cached = state.cachedMessages[currentConversationId] ?? [];
+
+          const combined = [
+            ...cached,
+            ...live.filter(m => !cached.some(c => c.id === m.id))
+          ];
+
+          console.log("💾 Cacher meldinger før unmount", {
+            conversationId: currentConversationId,
+            cachedCount: cached.length,
+            liveCount: live.length,
+            newTotal: combined.length
+          });
+
+          // 👉 Lagre dem før vi tømmer
+          state.setCachedMessages(currentConversationId, combined);
+          state.clearLiveMessages(currentConversationId);
+        }
+      };
+    }, [currentConversationId]);
+
+    console.log("🧭 Bytter samtale til", currentConversationId);
 
     const { showModal } = useModal(); // Viser ny meldingsmodalen
     
@@ -48,7 +71,7 @@ interface MessageDropdownProps {
 
             <hr className="my-2" />
             <ConversationList
-              selectedId={selectedConversationId}
+              selectedId={currentConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}
             />
@@ -65,17 +88,15 @@ interface MessageDropdownProps {
 
         {/* Meldingsvisning til høyre */}
         <div className="flex-1 flex flex-col h-[500px] min-h-[300px]"> {/* Sett gjerne høyde her */}
-            {selectedConversationId ? (
+            {currentConversationId ? (
                 <>
                     <MessageList
-                    conversationId={selectedConversationId}
                     currentUser={currentUser}
                     popoverRef={popoverRef}
                     onCloseDropdown={onCloseDropdown}
                     />
                 <div className="shrink-0">
                     <MessageInput
-                    conversationId={selectedConversationId}
                     receiverId={undefined}
                     onMessageSent={(message) => {
                         console.log("Ny melding sendt:", message);

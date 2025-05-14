@@ -8,6 +8,7 @@ import { useChatStore } from "@/store/useChatStore";
 export function usePaginatedMessages(conversationId: number) {
   const take = 20;
 
+  // ✅ Kall hooks uansett
   const {
     cachedMessages,
     liveMessages,
@@ -21,24 +22,31 @@ export function usePaginatedMessages(conversationId: number) {
   const isFetching = useRef(false);
   const lastSkipRef = useRef<number>(-1);
 
+  // ✅ Så sjekker vi "ugyldig samtale" og returnerer dummydata
+  const isInvalidConversation = conversationId === -1;
+
   useEffect(() => {
+    if (isInvalidConversation) return;
+
     const cached = cachedMessages[conversationId] ?? [];
     const live = liveMessages[conversationId] ?? [];
 
-    // Kombiner live og cached meldinger unikt
     const combined = [
       ...cached,
       ...live.filter(m => !cached.some(c => c.id === m.id))
     ];
 
+    console.log("🧪 Setting combined messages", { cached, live, combined });
+
     setMessages(combined);
     setHasMore(true);
     setLoading(false);
-    lastSkipRef.current = -1; // reset last skip
-  }, [conversationId, cachedMessages, liveMessages]);
+    lastSkipRef.current = -1;
+    
+  }, [conversationId, cachedMessages, liveMessages, isInvalidConversation]);
 
   const loadMore = async () => {
-    if (loading || !hasMore || isFetching.current) return;
+    if (isInvalidConversation || loading || !hasMore || isFetching.current) return;
 
     const skipCount = messages.length;
     if (skipCount === lastSkipRef.current) return;
@@ -65,7 +73,7 @@ export function usePaginatedMessages(conversationId: number) {
         setMessages(updated);
         setCachedMessages(conversationId, updated);
       }
-      
+
       if (newMessages.length === 0 || newMessages.length < take) {
         setHasMore(false);
       }
@@ -74,6 +82,11 @@ export function usePaginatedMessages(conversationId: number) {
       isFetching.current = false;
     }
   };
-  
-  return { messages, loadMore, loading, hasMore };
+
+  return {
+    messages: isInvalidConversation ? [] : messages,
+    loadMore,
+    loading: isInvalidConversation ? false : loading,
+    hasMore: isInvalidConversation ? false : hasMore,
+  };
 }

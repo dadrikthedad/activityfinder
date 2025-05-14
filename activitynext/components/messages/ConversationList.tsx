@@ -33,7 +33,13 @@ export default function ConversationList({ selectedId, onSelect, currentUser }: 
     // Hent samtaler kun én gang hvis ikke lagret
     useEffect(() => {
       if (storeConversations.length === 0 && paginatedConversations.length > 0) {
-        setConversations(paginatedConversations);
+        const merged = [
+          ...paginatedConversations,
+          ...storeConversations.filter(
+            s => !paginatedConversations.some(p => p.id === s.id)
+          ),
+        ];
+        setConversations(merged);
       }
     }, [storeConversations, paginatedConversations, setConversations]);
   

@@ -6,15 +6,14 @@ import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
 import TextareaAutosize from "react-textarea-autosize";
 import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
+import { useChatStore } from "@/store/useChatStore";
 
 interface MessageInputProps {
-  conversationId?: number;
   receiverId?: number;
   onMessageSent?: (message: MessageDTO) => void;
 }
 
 export default function MessageInput({
-  conversationId,
   receiverId,
   onMessageSent,
 }: MessageInputProps) {
@@ -22,6 +21,7 @@ export default function MessageInput({
   const { send, loading } = useSendMessage(onMessageSent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { syncConversation } = useConversationSyncOnMessage();
+  const conversationId = useChatStore((state) => state.currentConversationId);
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -29,7 +29,7 @@ export default function MessageInput({
 
     const payload: SendMessageRequestDTO = {
       text: trimmed,
-      conversationId,
+      conversationId: conversationId ?? undefined, 
       receiverId: receiverId?.toString()
     };
 
@@ -38,9 +38,11 @@ export default function MessageInput({
       setText("");
       inputRef.current?.focus();
 
-       if (!conversationId) {
-        // 👇 Oppdater samtalelisten hvis det var en ny samtale
-        await syncConversation(result);
+      if (!conversationId) {
+        const synced = await syncConversation(result);
+        if (synced?.id) {
+          useChatStore.getState().setCurrentConversationId(synced.id);
+        }
       }
 
       if (conversationId) {
