@@ -28,7 +28,7 @@ const PendingRequestsList = ({
     }
   }, [requests]);
 
-  if (loading) return <p className="px-4 py-2 text-sm">Laster forespørsler...</p>;
+  if (loading) return <p className="px-4 py-2 text-sm"></p>;
   if (error) return <p className="px-4 py-2 text-sm text-red-500">{error}</p>;
   if (!requests || requests.length === 0)
     return <p className="px-4 py-2 text-sm text-gray-500">Ingen forespørsler.</p>;

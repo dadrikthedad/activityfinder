@@ -11,6 +11,7 @@ import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "./NewMessageModal";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useEffect } from "react";
+import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
@@ -20,6 +21,7 @@ interface MessageDropdownProps {
 
   export default function MessageDropdown({ currentUser, popoverRef, onCloseDropdown }: MessageDropdownProps) {
   const { currentConversationId, setCurrentConversationId } = useChatStore();
+  const { requests: pending, loading: pendingLoading } = usePendingMessageRequests();
 
   // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {
@@ -60,29 +62,33 @@ interface MessageDropdownProps {
     
 
   return (
-    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[90vw] w-[800px] border-2 border-[#1C6B1C] overflow-hidden">
-      <h4 className="text-lg font-semibold mb-4 text-center">Messages</h4>
+    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[100vw] w-[1000px] border-2 border-[#1C6B1C] overflow-hidden">
 
-      <div className="flex gap-4">
+      <div className="flex gap">
         {/* Meldingsforespørsler + samtaler til venstre */}
-          <div className="w-[250px] overflow-y-auto max-h-[500px]">
-            <h4 className="text-sm font-medium mb-2">Forespørsler</h4>
-            <PendingRequestsList limit={3} onSelectConversation={handleSelect} showMoreLink={true} />
+          <div className="w-[250px]">
+            {(pendingLoading || pending.length > 0) && (
+              <>
+                <PendingRequestsList limit={2} onSelectConversation={handleSelect} showMoreLink={true} />
+                <hr className="my-2 w-3/4 mx-auto border-y border-gray-300 dark:border-[#1C6B1C]" />
+              </>
+            )}
 
-            <hr className="my-2" />
-            <ConversationList
-              selectedId={currentConversationId}
-              onSelect={handleSelect}
-              currentUser={currentUser}
-            />
-          </div>
+            <div className="w-[250px] mt-2">
+              <ConversationList
+                selectedId={currentConversationId}
+                onSelect={handleSelect}
+                currentUser={currentUser}
+              />
+            </div>
 
-          <div className="mt-4 flex justify-center">
-            <ProfileNavButton
-              text="Ny melding"
-              variant="small"
-              onClick={() => showModal(<NewMessageModal/>)}
-            />
+            <div className="p-4 flex justify-center">
+              <ProfileNavButton
+                text="✚"
+                variant="iconOnly"
+                onClick={() => showModal(<NewMessageModal />)}
+              />
+            </div>
           </div>
 
 

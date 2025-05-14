@@ -198,7 +198,7 @@ export default function MessageList({ currentUser, popoverRef, onCloseDropdown }
   return (
     <div
   ref={scrollRef} onScroll={handleScroll}
-  className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4"
+  className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar"
 >
 
   {showNewMessageButton && (

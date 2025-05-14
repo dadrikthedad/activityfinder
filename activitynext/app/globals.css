@@ -22,3 +22,23 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* 🎨 Egendefinert scrollbar-stil */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #1C6B1C;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Firefox-støtte */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #1C6B1C transparent;
+}
