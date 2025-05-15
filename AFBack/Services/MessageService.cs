@@ -235,7 +235,8 @@ public class MessageService : IMessageService
                 ConversationId = r.ConversationId,
                 GroupName = r.Conversation?.GroupName,
                 IsGroup = r.Conversation?.IsGroup ?? false,
-                LimitReached = r.LimitReached
+                LimitReached = r.LimitReached,
+                IsPendingApproval = r.Conversation?.IsApproved == false
             }).ToList();
         }
 

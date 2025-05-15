@@ -11,4 +11,6 @@ public class MessageRequestDTO
     public string? GroupName { get; set; }
     public bool IsGroup { get; set; }
     public bool LimitReached { get; set; }
+    
+    public bool IsPendingApproval { get; set; }
 }
