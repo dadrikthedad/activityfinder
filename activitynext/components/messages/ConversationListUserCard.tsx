@@ -9,6 +9,7 @@ interface Props {
   onClick?: (id: string | number) => void;
   subtitle?: string;
   isClickable?: boolean;
+  isPendingApproval?: boolean;
 }
 
 export const ConversationListItem = ({
@@ -19,11 +20,18 @@ export const ConversationListItem = ({
   onClick,
   subtitle,
   isClickable = true,
+  isPendingApproval = false,
 }: Props) => {
+      const borderClass =
+      selected
+        ? "border-2 border-[#166016]" // Prioriterer selected hvis begge er true
+        : isPendingApproval
+        ? "border-2 border-yellow-300"
+        : "border border-transparent";
   return (
      <div
       onClick={() => onClick && onClick(id)}
-      className={`flex items-center gap-3 p-2 rounded-md transition ${
+      className={`flex items-center gap-3 p-2 rounded-md transition ${borderClass} ${
         isClickable ? "cursor-pointer" : "cursor-default"
       } ${
         selected
@@ -44,6 +52,6 @@ export const ConversationListItem = ({
         <span className="text-sm font-medium truncate block">{name}</span>
         {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
       </div>
-    </div>
+      </div>
   );
 };

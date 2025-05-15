@@ -28,7 +28,6 @@ export function useApproveMessageRequest() {
         id: conversationId,
         isGroup: false,
         lastMessageSentAt: new Date().toISOString(),
-        isPendingApproval: false,
         participants: request ? [
           {
             id: senderId,
@@ -36,6 +35,7 @@ export function useApproveMessageRequest() {
             profileImageUrl: request.profileImageUrl ?? null,
           }
         ] : [],
+          isPendingApproval: false
       };
 
       addConversation(newConversation);
