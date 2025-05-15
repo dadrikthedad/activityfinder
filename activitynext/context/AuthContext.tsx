@@ -65,7 +65,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
   const logout = () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("token");
-      localStorage.removeItem("dropdown_convo");
+      localStorage.removeItem("messageDropdownSize");
+      localStorage.removeItem("messageDropdownPosition");
+      localStorage.clear(); // Fjerrn senere ved valg av språk og div
       clearAllDrafts();
     }
 

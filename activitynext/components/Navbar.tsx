@@ -38,6 +38,21 @@ export default function Navbar() {
   const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary  popoverRef: React.RefObject<>;
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const resetChatStore = useChatStore((state) => state.resetStore);
+  const [messagePos, setMessagePos] = useState<{ x: number; y: number } | null>(null); // For å se hvor messageDropdownen var lagret
+  const handleToggleMessages = (e: React.MouseEvent) => {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+
+      const x = Math.min(
+        window.innerWidth - DROPDOWN_WIDTH - 16, // unngå overflow
+        rect.right - DROPDOWN_WIDTH + 32 // 32 for pusterom
+      );
+      const y = rect.bottom + 8; // litt ned fra knappen
+
+      setMessagePos({ x, y });
+      setShowMessages((prev) => !prev);
+    };
+  const DROPDOWN_WIDTH = 1200;
+
   
 
 
@@ -54,11 +69,6 @@ export default function Navbar() {
     }
     setShowNotifications((prev) => !prev);
   };
-
-  const handleToggleMessages = () => {
-    setShowMessages((prev) => !prev);
-  };
-  
 
   useEffect(() => {
     console.log("🌐 Current URL is:", window.location.href);
@@ -128,7 +138,7 @@ export default function Navbar() {
                 </div>
                 {showMessages && (
                 <div ref={messageDropdownRef}>
-                  <MessageDropdown currentUser={currentUser} popoverRef={userPopoverRef} onCloseDropdown={() => setShowMessages(false)} />
+                  <MessageDropdown currentUser={currentUser} popoverRef={userPopoverRef} onCloseDropdown={() => setShowMessages(false)} initialPosition={messagePos ?? undefined} />
                 </div>
               )}
               </li>

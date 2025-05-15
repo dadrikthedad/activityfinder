@@ -93,12 +93,9 @@ public class MessageService : IMessageService
             await _context.SaveChangesAsync();
 
             var response = await MapToResponseDto(message);
-
-            if (isApproved)
-            {
-                await BroadcastMessageIfApproved(conversation, senderId, response);
-            }
-
+            
+            await BroadcastMessageIfApproved(conversation, senderId, response);
+            
             return response;
         }
 
