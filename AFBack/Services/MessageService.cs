@@ -115,45 +115,40 @@ public class MessageService : IMessageService
             if (conversation.Participants.All(p => p.UserId != userId))
                 throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
 
-            // 👥 GRUPPELOGIKK
-            if (conversation.IsGroup)
+            // 👥 GRUPPE: sjekk MessageRequest for brukeren
+            if (conversation.IsGroup && !conversation.IsApproved)
             {
-                var isGroupApproved = await _context.MessageRequests.AnyAsync(r =>
+                var hasApproved = await _context.MessageRequests.AnyAsync(r =>
                     r.ReceiverId == userId &&
                     r.ConversationId == conversationId &&
                     r.IsAccepted);
 
-                if (!isGroupApproved)
-                    return new List<MessageResponseDTO>(); // Ikke vis noe før godkjenning
+                if (!hasApproved)
+                    return new List<MessageResponseDTO>(); // Ikke vis meldinger
             }
-            else
+
+            // 👤 PRIVAT: Begrens til maks 5 hvis ikke godkjent
+            if (!conversation.IsGroup && !conversation.IsApproved)
             {
-                // 👤 PRIVATLOGIKK
+                var creatorId = conversation.CreatorId;
                 var otherUserId = conversation.Participants.First(p => p.UserId != userId).UserId;
 
-                var isApproved = await _context.Friends.AnyAsync(f =>
-                                     (f.UserId == userId && f.FriendId == otherUserId) ||
-                                     (f.FriendId == userId && f.UserId == otherUserId)) ||
-                                 await _context.MessageRequests.AnyAsync(r =>
-                                     ((r.SenderId == otherUserId && r.ReceiverId == userId) ||
-                                      (r.SenderId == userId && r.ReceiverId == otherUserId)) &&
-                                     r.IsAccepted);
-                
-                if (!isApproved)
+                bool isCreator = userId == creatorId;
+
+                if (!isCreator)
                 {
-                    // 👁️ Vis maks 5 meldinger fra den andre brukeren (uansett IsApproved-status)
-                    // Egne meldinger (vis alle)
+                    // Bruker er ikke creator, og samtalen er ikke godkjent → begrenset visning
                     var ownMessages = await _context.Messages
                         .Where(m => m.ConversationId == conversationId && m.SenderId == userId)
                         .OrderByDescending(m => m.SentAt)
-                        .Skip(skip) // optional
-                        .Take(take) // optional
+                        .Skip(skip)
+                        .Take(take)
                         .Include(m => m.Attachments)
                         .Include(m => m.Reactions)
                         .Include(m => m.Sender).ThenInclude(u => u.Profile)
+                        .Include(m => m.ParentMessage)
                         .ToListAsync();
 
-                    // Meldingene fra motparten (maks 5)
                     var otherMessages = await _context.Messages
                         .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
                         .OrderByDescending(m => m.SentAt)
@@ -161,83 +156,65 @@ public class MessageService : IMessageService
                         .Include(m => m.Attachments)
                         .Include(m => m.Reactions)
                         .Include(m => m.Sender).ThenInclude(u => u.Profile)
+                        .Include(m => m.ParentMessage)
                         .ToListAsync();
 
-                    // Kombiner og sorter alle
                     var previewMessages = ownMessages
                         .Concat(otherMessages)
                         .OrderBy(m => m.SentAt)
                         .ToList();
 
-                    return previewMessages.Select(m => new MessageResponseDTO
-                    {
-                        Id = m.Id,
-                        SenderId = m.SenderId,
-                        ConversationId = m.ConversationId,
-                        SentAt = m.SentAt,
-                        Text = m.Text,
-                        Sender = new UserSummaryDTO
-                        {
-                            Id = m.Sender.Id,
-                            FullName = m.Sender.FullName,
-                            ProfileImageUrl = m.Sender.Profile?.ProfileImageUrl
-                        },
-                        Attachments = m.Attachments.Select(a => new AttachmentDto
-                        {
-                            FileUrl = a.FileUrl,
-                            FileType = a.FileType,
-                            FileName = a.FileName
-                        }).ToList(),
-                        Reactions = m.Reactions.Select(r => new ReactionDTO
-                        {
-                            MessageId = r.MessageId,
-                            Emoji = r.Emoji,
-                            UserId = r.UserId,
-                            IsRemoved = false
-                        }).ToList()
-                    }).ToList();
+                    return previewMessages.Select(MapToResponseForMessagesToConv).ToList();
                 }
             }
 
-            // ✅ Vanlig samtale eller godkjent
-            var query = _context.Messages
+            // ✅ Full tilgang – hent meldinger normalt
+            var messages = await _context.Messages
                 .Where(m => m.ConversationId == conversationId)
                 .Include(m => m.Attachments)
                 .Include(m => m.Reactions)
                 .Include(m => m.Sender).ThenInclude(u => u.Profile)
+                .Include(m => m.ParentMessage)
                 .OrderByDescending(m => m.SentAt)
                 .Skip(skip)
-                .Take(take);
+                .Take(take)
+                .ToListAsync();
 
-            var messages = await query.ToListAsync();
-
-            return messages.Select(m => new MessageResponseDTO
+            return messages.Select(MapToResponseForMessagesToConv).ToList();
+        }
+        
+        private MessageResponseDTO MapToResponseForMessagesToConv(Message message)
+        {
+            return new MessageResponseDTO
             {
-                Id = m.Id,
-                SenderId = m.SenderId,
-                ConversationId = m.ConversationId,
-                SentAt = m.SentAt,
-                Text = m.Text,
+                Id = message.Id,
+                SenderId = message.SenderId,
                 Sender = new UserSummaryDTO
                 {
-                    Id = m.Sender.Id,
-                    FullName = m.Sender.FullName,
-                    ProfileImageUrl = m.Sender.Profile?.ProfileImageUrl
+                    Id = message.Sender.Id,
+                    FullName = message.Sender.FullName,
+                    ProfileImageUrl = message.Sender.Profile?.ProfileImageUrl
                 },
-                Attachments = m.Attachments.Select(a => new AttachmentDto
-                {
-                    FileUrl = a.FileUrl,
-                    FileType = a.FileType,
-                    FileName = a.FileName
-                }).ToList(),
-                Reactions = m.Reactions.Select(r => new ReactionDTO
+                Text = message.Text,
+                SentAt = message.SentAt,
+                ConversationId = message.ConversationId,
+                Attachments = message.Attachments
+                    .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
+                    .Select(a => new AttachmentDto
+                    {
+                        FileUrl = a.FileUrl,
+                        FileType = a.FileType,
+                        FileName = a.FileName
+                    }).ToList(),
+                Reactions = message.Reactions.Select(r => new ReactionDTO
                 {
                     MessageId = r.MessageId,
                     Emoji = r.Emoji,
-                    UserId = r.UserId,
-                    IsRemoved = false
-                }).ToList()
-            }).ToList();
+                    UserId = r.UserId
+                }).ToList(),
+                ParentMessageId = message.ParentMessageId,
+                ParentMessageText = message.ParentMessage?.Text
+            };
         }
         
         // Hente alle meldingsforespørsler til en bruker
