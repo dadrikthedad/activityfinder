@@ -38,7 +38,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser }: 
     }, [storeConversations, paginatedConversations, setConversations]);
   
     return (
-      <div className="w-60 border-r border-gray-300 dark:border-gray-600 overflow-y-auto overflow-x-hidden max-h-[480px] custom-scrollbar">
+      <div className="w-60 overflow-y-auto overflow-x-hidden max-h-[480px] custom-scrollbar">
   
         <ul className="space-y-2 px-2">
         {storeConversations.map((conv: ConversationDTO) => (

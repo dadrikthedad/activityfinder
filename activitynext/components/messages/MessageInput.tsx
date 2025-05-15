@@ -23,9 +23,22 @@ export default function MessageInput({
   const { syncConversation } = useConversationSyncOnMessage();
   const conversationId = useChatStore((state) => state.currentConversationId);
 
+  const currentConversation = useChatStore((state) =>
+    state.conversations.find((c) => c.id === conversationId)
+  );
+
+  const messageCount = useChatStore((state) => {
+    if (conversationId === null) return 0;
+    return (state.cachedMessages[conversationId] ?? []).length;
+  });
+
+  const isBlocked =
+  currentConversation?.isPendingApproval && messageCount >= 5;
+  
   const handleSend = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    
 
     const payload: SendMessageRequestDTO = {
       text: trimmed,
@@ -67,6 +80,7 @@ export default function MessageInput({
 
   return (
     <div className="flex gap-2 items-end mt-4">
+
       <TextareaAutosize
         ref={inputRef}
         value={text}
@@ -82,11 +96,11 @@ export default function MessageInput({
         minRows={1}
         maxRows={6} // begrens hvor stor den kan bli
         className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px]"
-        disabled={loading}
+         disabled={loading || isBlocked}
         />
       <button
         onClick={handleSend}
-        disabled={loading || !text.trim()}
+        disabled={loading || !text.trim() || isBlocked}
         className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
       >
         Send

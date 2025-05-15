@@ -25,6 +25,7 @@ export default function MessageList({ currentUser, popoverRef, onCloseDropdown }
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
     const conversationId = rawConversationId ?? -1;
+    
 
     const {
       messages,
@@ -198,7 +199,7 @@ export default function MessageList({ currentUser, popoverRef, onCloseDropdown }
   return (
     <div
   ref={scrollRef} onScroll={handleScroll}
-  className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar"
+  className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar h-full"
 >
 
   {showNewMessageButton && (

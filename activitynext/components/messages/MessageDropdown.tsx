@@ -22,6 +22,9 @@ interface MessageDropdownProps {
   export default function MessageDropdown({ currentUser, popoverRef, onCloseDropdown }: MessageDropdownProps) {
   const { currentConversationId, setCurrentConversationId } = useChatStore();
   const { requests: pending, loading: pendingLoading } = usePendingMessageRequests();
+  const currentConversation = useChatStore((state) =>
+    state.conversations.find((c) => c.id === currentConversationId)
+  );
 
   // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {
@@ -62,11 +65,11 @@ interface MessageDropdownProps {
     
 
   return (
-    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[100vw] w-[1000px] border-2 border-[#1C6B1C] overflow-hidden">
-
-      <div className="flex gap">
-        {/* Meldingsforespørsler + samtaler til venstre */}
-          <div className="w-[250px]">
+    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[100vw] w-[1200px] border-2 border-[#1C6B1C] h-[600px]">
+      <div className="flex h-full">
+        {/* Venstre kolonne */}
+        <div className="w-[250px] flex flex-col overflow-hidden">
+          <div className="custom-scrollbar flex-1">
             {(pendingLoading || pending.length > 0) && (
               <>
                 <PendingRequestsList limit={2} onSelectConversation={handleSelect} showMoreLink={true} />
@@ -74,48 +77,55 @@ interface MessageDropdownProps {
               </>
             )}
 
-            <div className="w-[250px] mt-2">
-              <ConversationList
-                selectedId={currentConversationId}
-                onSelect={handleSelect}
-                currentUser={currentUser}
-              />
-            </div>
-
-            <div className="p-4 flex justify-center">
-              <ProfileNavButton
-                text="✚"
-                variant="iconOnly"
-                onClick={() => showModal(<NewMessageModal />)}
-              />
-            </div>
+            <ConversationList
+              selectedId={currentConversationId}
+              onSelect={handleSelect}
+              currentUser={currentUser}
+            />
           </div>
 
+          <div className="p-4 shrink-0">
+            <ProfileNavButton
+              text="✚"
+              variant="iconOnly"
+              onClick={() => showModal(<NewMessageModal />)}
+            />
+          </div>
+        </div>
 
-        {/* Meldingsvisning til høyre */}
-        <div className="flex-1 flex flex-col h-[500px] min-h-[300px]"> {/* Sett gjerne høyde her */}
-            {currentConversationId ? (
-                <>
-                    <MessageList
-                    currentUser={currentUser}
-                    popoverRef={popoverRef}
-                    onCloseDropdown={onCloseDropdown}
-                    />
-                <div className="shrink-0">
-                    <MessageInput
-                    receiverId={undefined}
-                    onMessageSent={(message) => {
-                        console.log("Ny melding sendt:", message);
-                    }}
-                    />
-                </div>
-                </>
-            ) : (
-                <div className="text-center text-gray-500 flex-1 flex items-center justify-center">
-                Select a conversation to view messages
-                </div>
-            )}
+        {/* Høyre kolonne */}
+        <div className="flex-1 flex flex-col px-4 h-full">
+          {currentConversation?.isPendingApproval && (
+            <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
+              Message request sent. You can send a maximum of 5 messages the receiver will be able to see.
             </div>
+          )}
+
+          {currentConversationId ? (
+            <>
+              <div className="flex-1 min-h-0 overflow-auto">
+                <MessageList
+                  currentUser={currentUser}
+                  popoverRef={popoverRef}
+                  onCloseDropdown={onCloseDropdown}
+                />
+              </div>
+
+              <div className="shrink-0 mt-2">
+                <MessageInput
+                  receiverId={undefined}
+                  onMessageSent={(message) => {
+                    console.log("Ny melding sendt:", message);
+                  }}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="text-center text-gray-500 flex-1 flex items-center justify-center">
+              Select a conversation to view messages
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
