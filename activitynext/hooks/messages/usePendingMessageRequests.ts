@@ -10,6 +10,7 @@ export function usePendingMessageRequests() {
 
   const requests = useChatStore((state) => state.pendingMessageRequests);
   const setRequests = useChatStore((state) => state.setPendingMessageRequests);
+  
 
   useEffect(() => {
     // Vi henter alltid, fordi SignalR kan ha tømt Zustand hvis f.eks. tab reloades

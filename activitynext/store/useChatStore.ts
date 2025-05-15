@@ -26,6 +26,8 @@ type ChatStore = {
   setPendingMessageRequests: (requests: MessageRequestDTO[]) => void;
   removePendingRequest: (conversationId: number) => void;
   addConversation: (conversation: ConversationDTO) => void;
+  setPendingLockedConversationId: (id: number | null) => void;
+  pendingLockedConversationId: number | null;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -36,6 +38,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   scrollPositions: {},
   cacheTimestamps: {},
   pendingMessageRequests: [],
+  pendingLockedConversationId: null,
+  setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
   setPendingMessageRequests: (requests) => set(() => ({
   pendingMessageRequests: requests
   })),
@@ -48,6 +52,7 @@ export const useChatStore = create<ChatStore>((set) => ({
 
 
   setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
+  
 
   setConversations: (conversations) =>
   set(() => ({
@@ -57,6 +62,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         new Date(a.lastMessageSentAt ?? 0).getTime()
     ),
   })),
+  
 
   updateMessageReactions: (reaction: ReactionDTO) =>
   set((state) => {

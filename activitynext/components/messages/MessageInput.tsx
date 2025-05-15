@@ -22,6 +22,7 @@ export default function MessageInput({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { syncConversation } = useConversationSyncOnMessage();
   const conversationId = useChatStore((state) => state.currentConversationId);
+  const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
 
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === conversationId)
@@ -33,7 +34,8 @@ export default function MessageInput({
   });
 
   const isBlocked =
-  currentConversation?.isPendingApproval && messageCount >= 5;
+  (currentConversation?.isPendingApproval && messageCount >= 5) ||
+  (conversationId !== null && conversationId === pendingLockedConversationId);
   
   const handleSend = async () => {
     const trimmed = text.trim();

@@ -7,6 +7,7 @@ import React, { useEffect } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import ProfileNavButton from "../settings/ProfileNavButton";
+import { useChatStore } from "@/store/useChatStore"; 
 
 interface PendingRequestsListProps {
   limit?: number;
@@ -21,6 +22,7 @@ const PendingRequestsList = ({
 }: PendingRequestsListProps) => {
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
+  const { setPendingLockedConversationId } = useChatStore();
 
   useEffect(() => {
     if (requests && requests.length > 0) {
@@ -54,6 +56,7 @@ const PendingRequestsList = ({
                 console.log("✅ Klikket på samtale:", r.conversationId);
                 if (r.conversationId && onSelectConversation) {
                   onSelectConversation(Number(r.conversationId));
+                  setPendingLockedConversationId(r.conversationId);
                 }
               }}
             />

@@ -13,6 +13,7 @@ import ProfileNavButton from "../settings/ProfileNavButton";
 import { useEffect } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 
+
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
     popoverRef: React.RefObject<HTMLDivElement | null>
@@ -25,11 +26,17 @@ interface MessageDropdownProps {
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === currentConversationId)
   );
+  const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
 
   // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {
+      const pendingRequest = pending.find((r) => r.conversationId === id);
+      if (pendingRequest) {
+        useChatStore.getState().setPendingLockedConversationId(id);
+      } else {
+        useChatStore.getState().setPendingLockedConversationId(null);
+      }
       setCurrentConversationId(id);
-      console.log("📩 handleSelect kalles med ID:", id);
     };
 
     // Rydd bare når man bytter til en annen samtale
@@ -65,7 +72,7 @@ interface MessageDropdownProps {
     
 
   return (
-    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[100vw] w-[1200px] border-2 border-[#1C6B1C] h-[600px]">
+    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 max-w-[100vw] w-[1200px] border-2 border-[#1C6B1C] h-[600px] overflow-hidden resize">
       <div className="flex h-full">
         {/* Venstre kolonne */}
         <div className="w-[250px] flex flex-col overflow-hidden">
@@ -95,9 +102,15 @@ interface MessageDropdownProps {
 
         {/* Høyre kolonne */}
         <div className="flex-1 flex flex-col px-4 h-full">
-          {currentConversation?.isPendingApproval && (
+          {currentConversation?.isPendingApproval && currentConversationId !== pendingLockedConversationId && (
             <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
               Message request sent. You can send a maximum of 5 messages the receiver will be able to see.
+            </div>
+          )}
+
+          {currentConversationId === pendingLockedConversationId && (
+            <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
+                Approve the conversation to start sending messages.
             </div>
           )}
 

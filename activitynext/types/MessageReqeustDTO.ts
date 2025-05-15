@@ -9,4 +9,5 @@ export interface MessageRequestDTO {
   isGroup: boolean;
 
   limitReached: boolean;
+  isPendingApproval: boolean;
 }
