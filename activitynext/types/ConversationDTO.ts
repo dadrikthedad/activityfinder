@@ -7,7 +7,6 @@ import { UserSummaryDTO } from "./UserSummaryDTO";
     isGroup: boolean;
     lastMessageSentAt?: string;
     participants: UserSummaryDTO[];
-    isApproved: boolean;
     isPendingApproval: boolean;
   }
   

@@ -16,83 +16,27 @@ public class ConversationService
         // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(int userId)
         {
-            var friendIds = await _context.Friends
-                .Where(f => f.UserId == userId || f.FriendId == userId)
-                .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
-                .ToListAsync();
-
-            // Samtaler der du har sendt melding – godkjent eller ikke
-            var sentRequestUserIds = await _context.MessageRequests
-                .Where(r => r.SenderId == userId)
-                .Select(r => r.ReceiverId)
-                .Distinct()
-                .ToListAsync();
-            
-            // Alle brukere du har hatt meldingsforespørsler med – begge retninger
-            var messageRequestPairs = await _context.MessageRequests
-                .Where(r => r.SenderId == userId || r.ReceiverId == userId)
-                .Select(r => new { r.SenderId, r.ReceiverId, r.IsAccepted, r.ConversationId })
-                .ToListAsync();
-
-            // Sjekk hvilke av dem som er godkjent
-            var allRequestUserIds = messageRequestPairs
-                .Select(r => r.SenderId == userId ? r.ReceiverId : r.SenderId)
-                .Distinct()
-                .ToList();
-
-            var approvedUserIds = messageRequestPairs
-                .Where(r => r.IsAccepted)
-                .Select(r => r.SenderId == userId ? r.ReceiverId : r.SenderId)
-                .Distinct()
-                .ToList();
-            
-            var approvedGroupConversationIds = messageRequestPairs
+            var approvedGroupIds = await _context.MessageRequests
                 .Where(r => r.ReceiverId == userId && r.IsAccepted)
                 .Select(r => r.ConversationId)
-                .ToList();
-
+                .ToListAsync();
 
             var conversations = await _context.Conversations
+                .Where(c =>
+                    c.Participants.Any(p => p.UserId == userId) &&
+                    (c.IsApproved || c.CreatorId == userId) &&
+                    (!c.IsGroup || approvedGroupIds.Contains(c.Id))
+                )
+                .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
                 .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
-                .Include(c => c.Messages)
-                .Where(c =>
-                    c.Participants.Any(p => p.UserId == userId) &&
-                    (
-                        (!c.IsGroup &&
-                         c.Participants.Any(p =>
-                             p.UserId != userId &&
-                             (friendIds.Contains(p.UserId) || allRequestUserIds.Contains(p.UserId))
-                         )
-                        )
-                        ||
-                        (c.IsGroup && approvedGroupConversationIds.Contains(c.Id))
-                    )
-                )
-                .OrderByDescending(c => c.Messages.Max(m => (DateTime?)m.SentAt) ?? DateTime.MinValue)
                 .ToListAsync();
 
-            return conversations.Select(c =>
+            return conversations.Select(c => new ConversationWithApprovalDTO
             {
-                var otherUserId = c.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
-
-                bool isApproved = c.IsGroup
-                    ? approvedGroupConversationIds.Contains(c.Id)
-                    : (otherUserId.HasValue &&
-                       (friendIds.Contains(otherUserId.Value) || approvedUserIds.Contains(otherUserId.Value)));
-
-                bool isPendingApproval = !isApproved &&
-                                         otherUserId.HasValue &&
-                                         allRequestUserIds.Contains(otherUserId.Value);
-
-                return new ConversationWithApprovalDTO
-                {
-                    Conversation = c,
-                    IsApproved = isApproved,
-                    IsPendingApproval = isPendingApproval
-                };
-
+                Conversation = c,
+                IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId
             }).ToList();
         }
 

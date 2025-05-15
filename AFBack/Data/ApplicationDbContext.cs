@@ -146,7 +146,14 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Conversation>(entity =>
         {
             entity.HasKey(c => c.Id);
-            entity.Property(c => c.GroupName).HasMaxLength(100);
+            entity.Property(c => c.GroupName)
+                .HasMaxLength(100);
+            entity.Property(c => c.CreatorId)
+                .IsRequired();
+            entity.Property(c => c.IsApproved)
+                .HasDefaultValue(false);
+            entity.Property(c => c.LastMessageSentAt)
+                .IsRequired(false);
         });
 
         modelBuilder.Entity<ConversationParticipant>()

@@ -52,9 +52,9 @@ public class MessageService : IMessageService
             }
 
             // 🔒 Sjekk om meldingen krever godkjenning (for både nye og eksisterende samtaler)
-            if (receiverId != null && await ShouldRequireApproval(senderId, receiverId.Value))
+            if (receiverId != null && await ShouldRequireApproval(senderId, receiverId.Value, conversation.Id))
             {
-                await AddMessageRequestIfNotExists(senderId, receiverId.Value);
+                await AddMessageRequestIfNotExists(senderId, receiverId.Value, conversation.Id);
                 isApproved = false;
 
                 var messageCount = await _context.Messages
@@ -83,8 +83,13 @@ public class MessageService : IMessageService
             }
 
             // ✉️ Lagre meldingen
+            // ✉️ Lagre meldingen
             var message = CreateMessage(senderId, conversation.Id, request, isApproved);
             _context.Messages.Add(message);
+
+            // 🔄 Oppdater LastMessageSentAt
+            conversation.LastMessageSentAt = message.SentAt;
+
             await _context.SaveChangesAsync();
 
             var response = await MapToResponseDto(message);
@@ -271,6 +276,18 @@ public class MessageService : IMessageService
                 throw new Exception("Forespørselen er allerede godkjent.");
 
             request.IsAccepted = true;
+            
+            // 👇 Oppdater samtalen hvis det er én-til-én
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == request.ConversationId);
+
+            if (conversation != null && !conversation.IsGroup)
+            {
+                // Hvis begge brukere nå har godkjent (f.eks. begge har sendt), eller du bare vil godkjenne fra én side:
+                conversation.IsApproved = true;
+            }
+            
             await _context.SaveChangesAsync();
             
             await _hubContext.Clients.User(senderId.ToString())
@@ -501,6 +518,7 @@ public class MessageService : IMessageService
                 conversation = new Conversation
                 {
                     IsGroup = false,
+                    CreatorId = senderId,
                     Participants = new List<ConversationParticipant>
                     {
                         new ConversationParticipant { UserId = senderId },
@@ -515,8 +533,30 @@ public class MessageService : IMessageService
             return conversation;
         }
         
-        public async Task<bool> ShouldRequireApproval(int senderId, int receiverId)
+        public async Task<bool> ShouldRequireApproval(int senderId, int receiverId, int? conversationId = null)
         {
+            // Hvis det er en samtale og det er en gruppe
+            if (conversationId.HasValue)
+            {
+                var conversation = await _context.Conversations
+                    .FirstOrDefaultAsync(c => c.Id == conversationId.Value);
+
+                if (conversation != null && conversation.IsGroup)
+                {
+                    // I grupper: kreves godkjenning per bruker via MessageRequest
+                    var hasUserApproved = await _context.MessageRequests.AnyAsync(r =>
+                        r.ConversationId == conversation.Id &&
+                        r.ReceiverId == senderId && // Viktig: denne brukeren må ha godkjent selv
+                        r.IsAccepted);
+
+                    return !hasUserApproved; // Hvis du ikke har godkjent, krever vi godkjenning
+                }
+
+                if (conversation != null && conversation.IsApproved)
+                    return false;
+            }
+
+            // Én-til-én-sjekk som før
             var isFriend = await _context.Friends.AnyAsync(f =>
                 (f.UserId == senderId && f.FriendId == receiverId) ||
                 (f.UserId == receiverId && f.FriendId == senderId));
@@ -531,48 +571,82 @@ public class MessageService : IMessageService
             return !(isFriend || isMessageApproved);
         }
         
-        public async Task AddMessageRequestIfNotExists(int senderId, int receiverId)
+        public async Task AddMessageRequestIfNotExists(int senderId, int receiverId, int conversationId)
         {
-            var conversation = await GetOrCreateConversation(senderId, receiverId);
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
 
             if (conversation == null)
-                throw new Exception("Kunne ikke finne eller opprette en samtale.");
+                throw new Exception("Samtalen finnes ikke.");
 
-            // Finn eksisterende request i begge retninger
-            var existing = await _context.MessageRequests
-                .FirstOrDefaultAsync(r =>
+            // For gruppesamtaler: vi lager en meldingsforespørsel per deltaker
+            if (conversation.IsGroup)
+            {
+                // Ikke send forespørsel til deg selv
+                if (receiverId == senderId)
+                    return;
+
+                var existing = await _context.MessageRequests.FirstOrDefaultAsync(r =>
                     r.ConversationId == conversation.Id &&
-                    (
-                        (r.SenderId == senderId && r.ReceiverId == receiverId) ||
-                        (r.SenderId == receiverId && r.ReceiverId == senderId)
-                    )
-                );
+                    r.ReceiverId == receiverId &&
+                    r.SenderId == senderId);
 
-            if (existing == null)
-            {
-                _context.MessageRequests.Add(new MessageRequest
+                if (existing == null)
                 {
-                    SenderId = senderId,
-                    ReceiverId = receiverId,
-                    ConversationId = conversation.Id
-                });
+                    _context.MessageRequests.Add(new MessageRequest
+                    {
+                        SenderId = senderId,
+                        ReceiverId = receiverId,
+                        ConversationId = conversation.Id
+                    });
 
-                await _context.SaveChangesAsync();
-                
-                // 🛰 Send SignalR-event til mottaker
-                await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto {
-                    SenderId = senderId,
-                    ReceiverId = receiverId,
-                    ConversationId = conversation.Id
-                });
+                    await _context.SaveChangesAsync();
+
+                    await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                    {
+                        SenderId = senderId,
+                        ReceiverId = receiverId,
+                        ConversationId = conversation.Id
+                    });
+                }
+
+                return;
             }
-            else if (existing.ConversationId == null)
+
+            // For én-til-én samtaler (bruker eksisterende GetOrCreate hvis ønskelig)
+            if (!conversation.IsGroup)
             {
-                // Ekstra sikkerhet – fyll inn hvis mangler
-                existing.ConversationId = conversation.Id;
-                await _context.SaveChangesAsync();
+                var existing = await _context.MessageRequests
+                    .FirstOrDefaultAsync(r =>
+                        r.ConversationId == conversation.Id &&
+                        (
+                            (r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                            (r.SenderId == receiverId && r.ReceiverId == senderId)
+                        )
+                    );
+
+                if (existing == null)
+                {
+                    _context.MessageRequests.Add(new MessageRequest
+                    {
+                        SenderId = senderId,
+                        ReceiverId = receiverId,
+                        ConversationId = conversation.Id
+                    });
+
+                    await _context.SaveChangesAsync();
+
+                    await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                    {
+                        SenderId = senderId,
+                        ReceiverId = receiverId,
+                        ConversationId = conversation.Id
+                    });
+                }
             }
         }
+
         
         public Message CreateMessage(int senderId, int conversationId, SendMessageRequestDTO request, bool isApproved)
         {

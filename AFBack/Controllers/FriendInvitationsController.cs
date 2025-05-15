@@ -167,6 +167,8 @@ public class FriendInvitationsController : ControllerBase
                 conversation = new Conversation
                 {
                     IsGroup = false,
+                    CreatorId = invitation.SenderId,
+                    IsApproved = true, 
                     Participants = new List<ConversationParticipant>
                     {
                         new() { UserId = invitation.SenderId },
