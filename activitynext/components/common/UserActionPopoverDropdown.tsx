@@ -51,7 +51,7 @@ export default function UserActionPopover({
   // 📌 2. Gi ytre komponenter tilgang til popoverRef for klikk-logikk
     useEffect(() => {
       if (isOpen && panelRef.current) {
-        setUserPopoverRef?.(panelRef);
+        setUserPopoverRef?.(panelRef as React.RefObject<HTMLDivElement>);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps -- panelRef er stabil
     }, [isOpen]);
