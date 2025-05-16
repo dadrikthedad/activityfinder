@@ -1,5 +1,6 @@
 // Viser kortene til en bruker i Conv og Pending listene
-import UserActionPopover from "../common/UserActionPopover";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import MiniAvatar from "../common/MiniAvatar";
 
 interface Props {
   id: number | string;
@@ -10,10 +11,7 @@ interface Props {
   subtitle?: string;
   isClickable?: boolean;
   isPendingApproval?: boolean;
-  dropdownRef?: React.RefObject<HTMLDivElement | null>;
-  setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
-  openUserPopoverId: number | null;
-  toggleUserPopover: (userId: number) => void; 
+  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void; // 👈 Ny prop
 }
 
 export const ConversationListItem = ({
@@ -25,19 +23,32 @@ export const ConversationListItem = ({
   subtitle,
   isClickable = true,
   isPendingApproval = false,
-  dropdownRef,
-  setUserPopoverRef,
-  openUserPopoverId,
-  toggleUserPopover,
+  onShowUserPopover,
 }: Props) => {
-      const borderClass =
-      selected
-        ? "border-2 border-[#166016]" // Prioriterer selected hvis begge er true
-        : isPendingApproval
-        ? "border-2 border-yellow-300"
-        : "border border-transparent";
+  const user: UserSummaryDTO = {
+    id: typeof id === "string" ? parseInt(id) : id,
+    fullName: name,
+    profileImageUrl: imageUrl,
+  };
+  // For å regne hvor UserActionPopover skal åpnes
+  const handleAvatarClick = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const pos = {
+      x: rect.left + window.scrollX,
+      y: rect.bottom + window.scrollY,
+    };
+    onShowUserPopover(user, pos);
+  };
+
+  const borderClass = selected
+    ? "border-2 border-[#166016]"
+    : isPendingApproval
+    ? "border-2 border-yellow-300"
+    : "border border-transparent";
+
   return (
-     <div
+    <div
       onClick={() => onClick && onClick(id)}
       className={`flex items-center gap-3 p-2 rounded-md transition ${borderClass} ${
         isClickable ? "cursor-pointer" : "cursor-default"
@@ -49,22 +60,13 @@ export const ConversationListItem = ({
           : "bg-gray-50 dark:bg-[#2b2f2f]"
       }`}
     >
-      <UserActionPopover
-        user={{
-          id: typeof id === "string" ? parseInt(id) : id,
-          fullName: name,
-          profileImageUrl: imageUrl,
-        }}
-        avatarSize={40}
-        dropdownRef={dropdownRef}
-        setUserPopoverRef={setUserPopoverRef}
-        openUserPopoverId={openUserPopoverId}
-        toggleUserPopover={toggleUserPopover}
-        />
+      <button onClick={handleAvatarClick} className="flex-shrink-0">
+        <MiniAvatar imageUrl={imageUrl} size={40} alt={name} />
+      </button>
       <div className="flex-1">
         <span className="text-sm font-medium truncate block">{name}</span>
         {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
       </div>
-      </div>
+    </div>
   );
 };

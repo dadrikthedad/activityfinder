@@ -2,7 +2,7 @@
 "use client";
 
 import { useGetPageNotifications } from "@/hooks/notifications/useGetPageNotifications";
-import UserActionPopover from "@/components/common/UserActionPopover";
+import UserActionPopover from "@/components/common/UserActionPopoverDropdown";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useDeleteAllNotifications } from "@/hooks/notifications/useDeleteAllNotifications";

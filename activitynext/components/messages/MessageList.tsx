@@ -8,7 +8,6 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore"; // Bruker useChatStore til å lagre og hente meldinger
 import { MessageDTO } from "@/types/MessageDTO"; // Hvordan en melding ser ut
 import MiniAvatar from "../common/MiniAvatar";
-import UserActionPopover from "../common/UserActionPopover";
 import { formatSentDate } from "@/utils/date/chatDate";
 import { ReactionHandler } from "../reactions/ReactionHandler";
 import { groupReactionsDetailed } from "@/utils/messages/emoji";
@@ -17,20 +16,13 @@ import { addReaction } from "@/services/messages/reactionService";
 
 interface MessageListProps {
     currentUser: UserSummaryDTO | null;
-    dropdownRef?: React.RefObject<HTMLDivElement | null>;
-    onCloseDropdown: () => void;
-    setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
-    openUserPopoverId: number | null;
-    toggleUserPopover: (userId: number) => void;
+    onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
 export default function MessageList({ 
-  currentUser, 
-  dropdownRef, 
-  onCloseDropdown, 
-  setUserPopoverRef,
-  openUserPopoverId,
-  toggleUserPopover, 
+  currentUser,  
+  onShowUserPopover,
 }: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
@@ -125,6 +117,7 @@ export default function MessageList({
         }, 50);
       });
     }, [conversationId]);
+    
     
   
 
@@ -240,15 +233,23 @@ export default function MessageList({
               {/* Topptekst: Avsender */}
               <div className={`flex items-center gap-2 mb-2 ${isMine ? "justify-end" : ""}`}>
                 {!isMine && msg.sender ? (
-                    <UserActionPopover
-                      user={msg.sender}
-                      avatarSize={30}
-                      dropdownRef={dropdownRef}
-                      onCloseDropdown={onCloseDropdown}
-                      setUserPopoverRef={setUserPopoverRef}
-                      openUserPopoverId={openUserPopoverId}
-                      toggleUserPopover={toggleUserPopover}
+                     <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const pos = {
+                        x: rect.left + window.scrollX,
+                        y: rect.bottom + window.scrollY,
+                      };
+                      onShowUserPopover(msg.sender!, pos);
+                    }}
+                    className="flex-shrink-0"
+                  >
+                    <MiniAvatar
+                      imageUrl={msg.sender.profileImageUrl ?? "/default-avatar.png"}
+                      size={30}
                     />
+                  </button>
                 ) : !isMine ? (
                     <MiniAvatar imageUrl="/default-avatar.png" size={30} />
                 ) : null}

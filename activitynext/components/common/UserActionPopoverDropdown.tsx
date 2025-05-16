@@ -8,83 +8,127 @@ import EnlargeableImage from "@/components/common/EnlargeableImage";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import DropdownNavButton from "../DropdownNavButton";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
-import { useFriendWith } from "@/hooks/useFriendWith";
 import { useAuth } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { startTransition } from "react";
 
 interface Props {
   user: UserSummaryDTO;
   avatarSize?: number;
   onRemoveSuccess?: () => void;
-  popoverRef?: React.RefObject<HTMLDivElement | null>
+  dropdownRef?: React.RefObject<HTMLDivElement | null>;
   onCloseDropdown?: () => void;
+  setPopoverRefs?: (refs: (HTMLElement | null)[]) => void;
+  setUserPopoverRef?: (ref: React.RefObject<HTMLDivElement>) => void;
+  openUserPopoverId: number | null;
+  toggleUserPopover: (userId: number) => void;
+  position: { x: number; y: number };
 }
 
-export default function UserActionPopover({ user, avatarSize = 120, onRemoveSuccess, popoverRef, onCloseDropdown }: Props) {
+export default function UserActionPopover({
+  user,
+  avatarSize = 120,
+  onRemoveSuccess,
+  dropdownRef,
+  onCloseDropdown,
+  setPopoverRefs,
+  setUserPopoverRef,
+  openUserPopoverId,
+  toggleUserPopover,
+  position,
+}: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = openUserPopoverId === user.id;
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
   const { confirmAndRemove } = useConfirmRemoveFriend();
-  const { isFriend, loading: isFriendLoading } = useFriendWith(user.id);
+  const [isFriend, setIsFriend] = useState<boolean | null>(null);
+  const [isFriendLoading, setIsFriendLoading] = useState(false);
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
-  const router = useRouter(); // Linke til profilsiden
-
   
-    const handleVisitProfile = () => {
-      router.push(`/profile/${user.id}`);
-      onCloseDropdown?.(); // ← Nå skjer dette ETTER push
-    };
 
+  // 📌 2. Gi ytre komponenter tilgang til popoverRef for klikk-logikk
+    useEffect(() => {
+      if (isOpen && panelRef.current) {
+        setUserPopoverRef?.(panelRef);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- panelRef er stabil
+    }, [isOpen]);
+
+    // 📌 3. Gi tilgang til refs for andre klikksjekker hvis nødvendig
+     useEffect(() => {
+      if (isOpen && setPopoverRefs) {
+        setPopoverRefs([buttonRef.current, panelRef.current]);
+      }
+    }, [isOpen, setPopoverRefs]);
+    // sletting av venner
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
-    setIsOpen(false);
+    toggleUserPopover(user.id);
   };
 
-  const updatePosition = () => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
+ 
+    // 📌 1. Beregn posisjon basert på props
+    useEffect(() => {
+    if (isOpen && position) {
       setPanelStyles({
         position: "absolute",
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX,
+        top: position.y,
+        left: position.x,
         zIndex: 1000,
       });
     }
-  };
+  }, [isOpen, position]);
 
+   
+  // 📌 5. Last vennestatus (bare første gang)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isFriend !== null) return;
 
-    updatePosition();
-
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        panelRef.current &&
-        !panelRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
+    const fetchFriendStatus = async () => {
+      setIsFriendLoading(true);
+      try {
+        const res = await fetch(`/api/friends/is-friend/${user.id}`);
+        const json = await res.json();
+        setIsFriend(json.isFriend);
+      } catch (err) {
+        console.warn("Kunne ikke hente vennestatus", err);
+        setIsFriend(null);
+      } finally {
+        setIsFriendLoading(false);
       }
     };
 
-    window.addEventListener("scroll", updatePosition);
-    window.addEventListener("resize", updatePosition);
-    document.addEventListener("mousedown", handleOutsideClick);
+    fetchFriendStatus();
+  }, [isOpen, user.id]);
 
-    return () => {
-      window.removeEventListener("scroll", updatePosition);
-      window.removeEventListener("resize", updatePosition);
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [isOpen]);
 
-    return (
+  // 📌 4. Lukk popover hvis du klikker utenfor dropdown og panel
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleOutsideClick = (e: MouseEvent) => {
+        const target = e.target as Node;
+
+        const insideDropdown = dropdownRef?.current?.contains(target);
+        const insidePanel = panelRef.current?.contains(target);
+
+        if (!insideDropdown && !insidePanel) {
+          toggleUserPopover(user.id);
+        }
+      };
+
+      document.addEventListener("mousedown", handleOutsideClick);
+
+      return () => {
+        document.removeEventListener("mousedown", handleOutsideClick);
+      };
+    }, [isOpen, dropdownRef, toggleUserPopover, user.id]);
+
+  return (
     <>
-      <button ref={buttonRef} onClick={() => setIsOpen((prev) => !prev)}>
+      <button ref={buttonRef} onClick={() => toggleUserPopover(user.id)}>
         <MiniAvatar
           imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
           size={avatarSize}
@@ -94,22 +138,28 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
       {isOpen &&
         createPortal(
           <div
-            ref={popoverRef}
+            ref={panelRef}
             style={panelStyles}
             className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]"
           >
             <div className="relative">
-              {/* 👇 Lukke-knapp */}
-              <ProfileNavButton
-                onClick={(e) => {
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
-                  setIsOpen(false);
                 }}
-                text="X"
-                variant="smallx"
-                className="absolute -top-8 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
-                aria-label="Close"
-              />
+              >
+                <ProfileNavButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleUserPopover(user.id);
+                  }}
+                  text="X"
+                  variant="smallx"
+                  className="absolute -top-8 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
+                  aria-label="Close"
+                />
+              </div>
 
               <div className="flex gap-12 mt-4 items-start">
                 <div className="flex-shrink-0">
@@ -128,8 +178,11 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
                     text="Visit Profile"
                     variant="small"
                     className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    onClick={handleVisitProfile}
-                    
+                    onClick={() => {
+                      startTransition(() => {
+                        onCloseDropdown?.();
+                      });
+                    }}
                   />
                   {!isOwner && (
                     <>

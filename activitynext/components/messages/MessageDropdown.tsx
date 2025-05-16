@@ -12,6 +12,7 @@ import NewMessageModal from "./NewMessageModal";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useEffect, useRef, useState } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
+import UserActionPopover from "../common/UserActionPopoverDropdown";
 
 
 
@@ -22,7 +23,7 @@ interface MessageDropdownProps {
     onCloseDropdown: () => void;
     initialPosition?: { x: number; y: number };
     setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
-   openUserPopoverId: number | null;
+    openUserPopoverId: number | null;
     toggleUserPopover: (id: number | null) => void;
   }
 
@@ -49,6 +50,17 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   const DROPDOWN_SIZE_KEY = "messageDropdownSize";
   const dropdownRef = useRef<HTMLDivElement>(null);
   const DEFAULT_SIZE = { width: 1200, height: 600 };
+
+  const [popoverUser, setPopoverUser] = useState<UserSummaryDTO | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState<{ x: number, y: number } | null>(null);
+  const userPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Brukes for å hente userActionPopover til MessageDropdown
+  const showUserPopover = (user: UserSummaryDTO, pos: { x: number; y: number }) => {
+    setPopoverUser(user);
+    setPopoverPosition(pos);
+    toggleUserPopover(user.id);
+  };
 
   // For å dra den rundt
   const [isDragging, setIsDragging] = useState(false);
@@ -197,7 +209,15 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     
 
   return (
-    <div   ref={dropdownRef}
+    <div   ref={dropdownRef}  onMouseDown={(e) => {
+          const target = e.target as Node;
+          const insideUserPopover = userPopoverRef?.current?.contains(target);
+          const insideDropdown = dropdownRef?.current?.contains(target);
+
+          if (openUserPopoverId !== null && insideDropdown && !insideUserPopover) {
+            toggleUserPopover(null);
+          }
+        }}
       className="fixed right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md z-10 max-w-[100vw] border-2 border-[#1C6B1C] overflow-hidden resize"
         style={{
           minWidth: 600, // valgfritt: sett min-grenser
@@ -242,10 +262,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                 limit={2} 
                 onSelectConversation={handleSelect} 
                 showMoreLink={true} 
-                dropdownRef={dropdownRef }
-                setUserPopoverRef={setUserPopoverRef}
-                openUserPopoverId={openUserPopoverId}
-                toggleUserPopover={toggleUserPopover}
+                onShowUserPopover={showUserPopover}
               />
               <hr className="my-2 w-3/4 mx-auto border-y border-gray-300 dark:border-[#1C6B1C]" />
             </div>
@@ -257,10 +274,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               selectedId={currentConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}
-              dropdownRef={dropdownRef }
-              setUserPopoverRef={setUserPopoverRef}
-              openUserPopoverId={openUserPopoverId}
-              toggleUserPopover={toggleUserPopover}
+              onShowUserPopover={showUserPopover}
             />
           </div>
 
@@ -294,11 +308,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               <div className="flex-1 min-h-0 overflow-auto">
                 <MessageList
                   currentUser={currentUser}
-                  dropdownRef={dropdownRef}
-                  onCloseDropdown={onCloseDropdown}
-                  setUserPopoverRef={setUserPopoverRef}
-                  openUserPopoverId={openUserPopoverId}
-                  toggleUserPopover={toggleUserPopover}
+                  onShowUserPopover={showUserPopover}
                 />
               </div>
 
@@ -317,7 +327,21 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
             </div>
           )}
         </div>
+        
       </div>
+      {popoverUser && popoverPosition && openUserPopoverId === popoverUser.id && (
+          <UserActionPopover
+            user={popoverUser}
+            dropdownRef={dropdownRef}
+            onCloseDropdown={onCloseDropdown}
+            setUserPopoverRef={setUserPopoverRef}
+            openUserPopoverId={openUserPopoverId}
+            toggleUserPopover={toggleUserPopover}
+            avatarSize={120}
+            position={popoverPosition} 
+            
+          />
+        )}
     </div>
   );
 }

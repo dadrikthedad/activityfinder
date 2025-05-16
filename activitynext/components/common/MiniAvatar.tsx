@@ -15,7 +15,7 @@ export default function MiniAvatar({
   withBorder = true,
 }: MiniAvatarProps) {
   const borderClasses = withBorder
-    ? "border-2 border-[#1C6B1C] shadow-md" 
+    ? "border-1 border-[#1C6B1C] shadow-md" 
     : "border border-gray-300 shadow-sm";
 
   return (

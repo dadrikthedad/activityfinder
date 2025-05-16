@@ -2,7 +2,7 @@
 "use client"; // Gjør Navbar til en klientkomponent
 
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import {  useState, useRef } from "react";
 import { Settings, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -33,7 +33,6 @@ export default function Navbar() {
   const { invitations } = useFriendInvitations();
   const { markAllAsRead } = useMarkAllNotificationsAsRead();
   const [showMessages, setShowMessages] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
  
   const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary  popoverRef: React.RefObject<>;
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
@@ -70,14 +69,9 @@ export default function Navbar() {
     setShowNotifications((prev) => !prev);
   };
 
-  useEffect(() => {
-    console.log("🌐 Current URL is:", window.location.href);
-  }, []);
-
   const handleLogout = () => { // Ved logout så lukke vi dropboxen og kjører logout funksjonen fra AuthContext
     setShowDropdown(false);
     resetChatStore();
-    console.log("[ChatStore] Resetting all state (logout)");
     logout();
   };
 
@@ -91,13 +85,14 @@ export default function Navbar() {
 
   // Lukker hele meldingsdropdownen
    useClickOutsideGroups({
-      includeRefs: userPopoverRef ? [userPopoverRef] : [], // Ikke .current
-      excludeRefs: [messageDropdownRef],
-      onOutsideClick: () => {
-        window.dispatchEvent(new CustomEvent("close-user-popovers"));
-      },
-      isActive: showMessages,
-    });
+    includeRefs: userPopoverRef ? [userPopoverRef, messageDropdownRef] : [messageDropdownRef],
+    excludeRefs: [],
+    onOutsideClick: () => {
+      setShowMessages(false); // 👈 Lukk hele dropdownen
+      toggleUserPopover(null); // 👈 Lukk aktiv popover hvis åpen
+    },
+    isActive: showMessages,
+  });
 
 
 
@@ -191,7 +186,6 @@ export default function Navbar() {
   
               {showDropDown && ( // bg-white dark:bg-[#1e2122] p-6 
                 <div
-                  ref={dropdownRef}
                   className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-white rounded-lg shadow-md p-2 z-10 w-32  border-2 border-[#1C6B1C]"
                 > 
 

@@ -14,19 +14,15 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   currentUser: UserSummaryDTO | null;
-  dropdownRef?: React.RefObject<HTMLDivElement | null>;
-  setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
-  openUserPopoverId: number | null;
-  toggleUserPopover: (userId: number) => void; // 👈 Legg til
+  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void; // 👈 Ny prop
 }
 
-export default function ConversationList({ selectedId, onSelect, currentUser, dropdownRef, setUserPopoverRef,
-  openUserPopoverId,
-  toggleUserPopover, }: Props) {
+export default function ConversationList({ selectedId, onSelect, currentUser, onShowUserPopover }: Props) {
     const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
     const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+    // Håndtere scrolling og paginering
     const handleScroll = () => {
       const container = scrollContainerRef.current;
       if (!container || loading || !hasMore) return;
@@ -84,10 +80,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, dr
                 selected={selectedId === conv.id}
                 isPendingApproval={conv.isPendingApproval}
                 onClick={(id) => onSelect(id as number)}
-                dropdownRef={dropdownRef}
-                setUserPopoverRef={setUserPopoverRef}
-                openUserPopoverId={openUserPopoverId}
-                toggleUserPopover={toggleUserPopover}
+                onShowUserPopover={onShowUserPopover} 
               />
             ))}
           </ul>
