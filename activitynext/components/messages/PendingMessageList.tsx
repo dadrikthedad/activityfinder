@@ -9,16 +9,25 @@ import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequ
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useChatStore } from "@/store/useChatStore"; 
 
+
 interface PendingRequestsListProps {
   limit?: number;
   showMoreLink?: boolean;
   onSelectConversation?: (conversationId: number) => void;
+  dropdownRef?: React.RefObject<HTMLDivElement | null>;
+  setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
+  openUserPopoverId: number | null;
+  toggleUserPopover: (userId: number) => void; // 👈 Legg til
 }
 
 const PendingRequestsList = ({
   limit,
   showMoreLink = false,
   onSelectConversation,
+  dropdownRef,
+  setUserPopoverRef,
+  openUserPopoverId,
+  toggleUserPopover,
 }: PendingRequestsListProps) => {
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
@@ -59,6 +68,10 @@ const PendingRequestsList = ({
                   setPendingLockedConversationId(r.conversationId);
                 }
               }}
+              dropdownRef={dropdownRef}
+              setUserPopoverRef={setUserPopoverRef}
+              openUserPopoverId={openUserPopoverId}
+              toggleUserPopover={toggleUserPopover}
             />
             <div className="mt-1 flex gap-2 pl-12">
                 <ProfileNavButton

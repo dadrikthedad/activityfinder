@@ -1,21 +1,33 @@
 // Gjenbrukbar hook som brukes til ved klik på utsiden av en dropdow, brukes til notifications og messagedropdown
 import { useEffect } from "react";
 
-export function useClickOutside(
-  refs: Array<React.RefObject<HTMLElement | null>> | React.RefObject<HTMLElement | null>,
-  callback: () => void,
-  isActive: boolean
-) {
+type RefGroup = React.RefObject<HTMLElement | null>[];
+
+export function useClickOutsideGroups({
+  includeRefs,
+  excludeRefs = [],
+  onOutsideClick,
+  isActive
+}: {
+  includeRefs: RefGroup;
+  excludeRefs?: RefGroup;
+  onOutsideClick: () => void;
+  isActive: boolean;
+}) {
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      const refArray = Array.isArray(refs) ? refs : [refs];
+      const target = event.target as Node;
 
-      const clickedInside = refArray.some(
-        (ref) => ref.current && ref.current.contains(event.target as Node)
+      const clickedInsideInclude = includeRefs.some(
+        (ref) => ref.current?.contains(target)
+      );
+      const clickedInsideExclude = excludeRefs.some(
+        (ref) => ref.current?.contains(target)
       );
 
-      if (!clickedInside) {
-        callback();
+      // Hvis du klikker utenfor hovedinnholdet og ikke på et ekskludert element
+      if (!clickedInsideInclude && !clickedInsideExclude) {
+        onOutsideClick();
       }
     };
 
@@ -26,5 +38,5 @@ export function useClickOutside(
     return () => {
       document.removeEventListener("mousedown", handleClick);
     };
-  }, [refs, callback, isActive]);
+  }, [includeRefs, excludeRefs, onOutsideClick, isActive]);
 }

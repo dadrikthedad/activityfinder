@@ -22,6 +22,7 @@ export default function ProfileNavButton({
   variant = "default",
 }: ProfileNavButtonProps) {
   const router = useRouter();
+  
 
   let baseClasses = "";
   // Finnes i forskjellige varianter
@@ -53,13 +54,15 @@ export default function ProfileNavButton({
       break;
   }
   // Håndter klikk
-  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-  if (onClick) {
-    onClick(e); // sender eventet videre
-  } else if (href) {
-    router.push(href);
-  }
-};
+      const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (href) {
+        router.push(href);
+      }
+
+      if (onClick) {
+        onClick(e); // <-- fortsatt tillat ekstra logikk som lukk dropdown
+      }
+    };
 
 
   return (

@@ -1,5 +1,5 @@
 // Viser kortene til en bruker i Conv og Pending listene
-import Image from "next/image";
+import UserActionPopover from "../common/UserActionPopover";
 
 interface Props {
   id: number | string;
@@ -10,6 +10,10 @@ interface Props {
   subtitle?: string;
   isClickable?: boolean;
   isPendingApproval?: boolean;
+  dropdownRef?: React.RefObject<HTMLDivElement | null>;
+  setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
+  openUserPopoverId: number | null;
+  toggleUserPopover: (userId: number) => void; 
 }
 
 export const ConversationListItem = ({
@@ -21,6 +25,10 @@ export const ConversationListItem = ({
   subtitle,
   isClickable = true,
   isPendingApproval = false,
+  dropdownRef,
+  setUserPopoverRef,
+  openUserPopoverId,
+  toggleUserPopover,
 }: Props) => {
       const borderClass =
       selected
@@ -41,13 +49,18 @@ export const ConversationListItem = ({
           : "bg-gray-50 dark:bg-[#2b2f2f]"
       }`}
     >
-      <Image
-        src={imageUrl}
-        alt={name}
-        width={40}
-        height={40}
-        className="rounded-full object-cover w-10 h-10"
-      />
+      <UserActionPopover
+        user={{
+          id: typeof id === "string" ? parseInt(id) : id,
+          fullName: name,
+          profileImageUrl: imageUrl,
+        }}
+        avatarSize={40}
+        dropdownRef={dropdownRef}
+        setUserPopoverRef={setUserPopoverRef}
+        openUserPopoverId={openUserPopoverId}
+        toggleUserPopover={toggleUserPopover}
+        />
       <div className="flex-1">
         <span className="text-sm font-medium truncate block">{name}</span>
         {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}

@@ -15,11 +15,15 @@ import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageReq
 
 
 
+
+
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
-    popoverRef: React.RefObject<HTMLDivElement | null>
     onCloseDropdown: () => void;
     initialPosition?: { x: number; y: number };
+    setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
+   openUserPopoverId: number | null;
+    toggleUserPopover: (id: number | null) => void;
   }
 
 function debounce<A extends unknown[], R>(
@@ -33,7 +37,7 @@ function debounce<A extends unknown[], R>(
   };
 }
 
-export default function MessageDropdown({ currentUser, popoverRef, onCloseDropdown, initialPosition }: MessageDropdownProps) {
+export default function MessageDropdown({ currentUser, onCloseDropdown, initialPosition, setUserPopoverRef, openUserPopoverId, toggleUserPopover }: MessageDropdownProps) {
   const { currentConversationId, setCurrentConversationId } = useChatStore();
   const { requests: pending, loading: pendingLoading } = usePendingMessageRequests();
   const currentConversation = useChatStore((state) =>
@@ -52,20 +56,26 @@ export default function MessageDropdown({ currentUser, popoverRef, onCloseDropdo
   const offsetRef = useRef({ x: 0, y: 0 });
   const DROPDOWN_POSITION_KEY = "messageDropdownPosition";
 
-  // På første render: sett størrelse fra localStorage
-useEffect(() => {
-  const el = dropdownRef.current;
-  if (!el) return;
+  useEffect(() => {
+    const handler = () => toggleUserPopover(null);
+    window.addEventListener("close-user-popovers", handler);
+    return () => window.removeEventListener("close-user-popovers", handler);
+  }, []);
 
-  try {
-    const saved = localStorage.getItem(DROPDOWN_SIZE_KEY);
-    const size = saved ? JSON.parse(saved) : DEFAULT_SIZE;
-    el.style.width = `${size.width}px`;
-    el.style.height = `${size.height}px`;
-  } catch (e) {
-    console.warn("Kunne ikke laste lagret størrelse:", e);
-  }
-}, []);
+  // På første render: sett størrelse fra localStorage
+  useEffect(() => {
+    const el = dropdownRef.current;
+    if (!el) return;
+
+    try {
+      const saved = localStorage.getItem(DROPDOWN_SIZE_KEY);
+      const size = saved ? JSON.parse(saved) : DEFAULT_SIZE;
+      el.style.width = `${size.width}px`;
+      el.style.height = `${size.height}px`;
+    } catch (e) {
+      console.warn("Kunne ikke laste lagret størrelse:", e);
+    }
+  }, []);
 
   // Lytt til manuell resize og lagre den med debounce
   useEffect(() => {
@@ -192,6 +202,8 @@ useEffect(() => {
         style={{
           minWidth: 600, // valgfritt: sett min-grenser
           minHeight: 400,
+          maxWidth: 2000, // valgfritt: sett min-grenser
+          maxHeight: 1000,
           left: positionRef.current.x,
           top: positionRef.current.y,
         }}
@@ -222,11 +234,19 @@ useEffect(() => {
         </div>
       <div className="p-4 flex h-full">
         {/* Venstre kolonne */}
-        <div className="w-[250px] flex flex-col relative overflow-hidden">
+        <div className="w-[275px] flex flex-col relative overflow-hidden">
           {/* Øverst: Pending + separator */}
           {(pendingLoading || pending.length > 0) && (
             <div className="shrink-0">
-              <PendingRequestsList limit={2} onSelectConversation={handleSelect} showMoreLink={true} />
+              <PendingRequestsList 
+                limit={2} 
+                onSelectConversation={handleSelect} 
+                showMoreLink={true} 
+                dropdownRef={dropdownRef }
+                setUserPopoverRef={setUserPopoverRef}
+                openUserPopoverId={openUserPopoverId}
+                toggleUserPopover={toggleUserPopover}
+              />
               <hr className="my-2 w-3/4 mx-auto border-y border-gray-300 dark:border-[#1C6B1C]" />
             </div>
           )}
@@ -237,6 +257,10 @@ useEffect(() => {
               selectedId={currentConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}
+              dropdownRef={dropdownRef }
+              setUserPopoverRef={setUserPopoverRef}
+              openUserPopoverId={openUserPopoverId}
+              toggleUserPopover={toggleUserPopover}
             />
           </div>
 
@@ -252,26 +276,29 @@ useEffect(() => {
 
 
         {/* Høyre kolonne */}
-        <div className="flex-1 flex flex-col px-4 h-full">
-          {currentConversation?.isPendingApproval && currentConversationId !== pendingLockedConversationId && (
-            <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
-              Message request sent. You can send a maximum of 5 messages the receiver will be able to see.
-            </div>
-          )}
-
-          {currentConversationId === pendingLockedConversationId && (
-            <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
-                Approve the conversation to start sending messages.
-            </div>
-          )}
-
+        <div className="flex-1 flex flex-col h-full">
           {currentConversationId ? (
-            <>
+            <div className="flex-1 flex flex-col h-full">
+              {currentConversation?.isPendingApproval && currentConversationId !== pendingLockedConversationId && (
+                <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
+                  Message request sent. You can send a maximum of 5 messages the receiver will be able to see.
+                </div>
+              )}
+
+              {currentConversationId === pendingLockedConversationId && (
+                <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
+                  Approve the conversation to start sending messages.
+                </div>
+              )}
+
               <div className="flex-1 min-h-0 overflow-auto">
                 <MessageList
                   currentUser={currentUser}
-                  popoverRef={popoverRef}
+                  dropdownRef={dropdownRef}
                   onCloseDropdown={onCloseDropdown}
+                  setUserPopoverRef={setUserPopoverRef}
+                  openUserPopoverId={openUserPopoverId}
+                  toggleUserPopover={toggleUserPopover}
                 />
               </div>
 
@@ -283,10 +310,10 @@ useEffect(() => {
                   }}
                 />
               </div>
-            </>
+            </div>
           ) : (
-            <div className="text-center text-gray-500 flex-1 flex items-center justify-center">
-              Select a conversation to view messages
+            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm text-center px-4">
+              Select a conversation to view messages.
             </div>
           )}
         </div>

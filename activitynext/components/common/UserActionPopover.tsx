@@ -8,40 +8,58 @@ import EnlargeableImage from "@/components/common/EnlargeableImage";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import DropdownNavButton from "../DropdownNavButton";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
-import { useFriendWith } from "@/hooks/useFriendWith";
 import { useAuth } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
+import { startTransition } from "react";
 
 interface Props {
   user: UserSummaryDTO;
   avatarSize?: number;
   onRemoveSuccess?: () => void;
-  popoverRef?: React.RefObject<HTMLDivElement | null>
+  dropdownRef?: React.RefObject<HTMLDivElement | null>;
   onCloseDropdown?: () => void;
+  setPopoverRefs?: (refs: (HTMLElement | null)[]) => void;
+  setUserPopoverRef?: (ref: React.RefObject<HTMLDivElement>) => void;
+  openUserPopoverId: number | null;
+  toggleUserPopover: (userId: number) => void;
 }
 
-export default function UserActionPopover({ user, avatarSize = 120, onRemoveSuccess, popoverRef, onCloseDropdown }: Props) {
+export default function UserActionPopover({
+  user,
+  avatarSize = 120,
+  onRemoveSuccess,
+  dropdownRef,
+  onCloseDropdown,
+  setPopoverRefs,
+  setUserPopoverRef,
+  openUserPopoverId,
+  toggleUserPopover,
+}: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = openUserPopoverId === user.id;
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
   const { confirmAndRemove } = useConfirmRemoveFriend();
-  const { isFriend, loading: isFriendLoading } = useFriendWith(user.id);
+  const [isFriend, setIsFriend] = useState<boolean | null>(null);
+  const [isFriendLoading, setIsFriendLoading] = useState(false);
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
-  const router = useRouter(); // Linke til profilsiden
-
   
-    const handleVisitProfile = () => {
-      router.push(`/profile/${user.id}`);
-      onCloseDropdown?.(); // ← Nå skjer dette ETTER push
-    };
+
+  // Registrer panelRef i en samlet ref-liste
+    useEffect(() => {
+      if (isOpen && panelRef.current) {
+        setUserPopoverRef?.(panelRef);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- panelRef er stabil
+    }, [isOpen]);
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
-    setIsOpen(false);
+    toggleUserPopover(user.id);
   };
+
+ 
 
   const updatePosition = () => {
     if (buttonRef.current) {
@@ -55,19 +73,46 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
     }
   };
 
+    useEffect(() => {
+      if (isOpen && setPopoverRefs) {
+        setPopoverRefs([buttonRef.current, panelRef.current]);
+      }
+    }, [isOpen, setPopoverRefs]);
+
+  useEffect(() => {
+    if (!isOpen || isFriend !== null) return;
+
+    const fetchFriendStatus = async () => {
+      setIsFriendLoading(true);
+      try {
+        const res = await fetch(`/api/friends/is-friend/${user.id}`);
+        const json = await res.json();
+        setIsFriend(json.isFriend);
+      } catch (err) {
+        console.warn("Kunne ikke hente vennestatus", err);
+        setIsFriend(null);
+      } finally {
+        setIsFriendLoading(false);
+      }
+    };
+
+    fetchFriendStatus();
+  }, [isOpen, user.id]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     updatePosition();
 
     const handleOutsideClick = (e: MouseEvent) => {
-      if (
-        panelRef.current &&
-        !panelRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false);
+      const target = e.target as Node;
+
+      const insideDropdown = dropdownRef?.current?.contains(target);
+      const insidePanel = panelRef.current?.contains(target);
+      const insideButton = buttonRef.current?.contains(target);
+
+      if (insideDropdown && !insidePanel && !insideButton) {
+        toggleUserPopover(user.id);
       }
     };
 
@@ -82,9 +127,9 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
     };
   }, [isOpen]);
 
-    return (
+  return (
     <>
-      <button ref={buttonRef} onClick={() => setIsOpen((prev) => !prev)}>
+      <button ref={buttonRef} onClick={() => toggleUserPopover(user.id)}>
         <MiniAvatar
           imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
           size={avatarSize}
@@ -94,22 +139,28 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
       {isOpen &&
         createPortal(
           <div
-            ref={popoverRef}
+            ref={panelRef}
             style={panelStyles}
             className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]"
           >
             <div className="relative">
-              {/* 👇 Lukke-knapp */}
-              <ProfileNavButton
-                onClick={(e) => {
+              <div
+                onMouseDown={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
-                  setIsOpen(false);
                 }}
-                text="X"
-                variant="smallx"
-                className="absolute -top-8 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
-                aria-label="Close"
-              />
+              >
+                <ProfileNavButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleUserPopover(user.id);
+                  }}
+                  text="X"
+                  variant="smallx"
+                  className="absolute -top-8 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
+                  aria-label="Close"
+                />
+              </div>
 
               <div className="flex gap-12 mt-4 items-start">
                 <div className="flex-shrink-0">
@@ -128,8 +179,11 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
                     text="Visit Profile"
                     variant="small"
                     className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    onClick={handleVisitProfile}
-                    
+                    onClick={() => {
+                      startTransition(() => {
+                        onCloseDropdown?.();
+                      });
+                    }}
                   />
                   {!isOwner && (
                     <>

@@ -16,9 +16,10 @@ import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllN
 import { useNotificationHub } from "@/hooks/signalr/useNotificationHub";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import MessageDropdown from "@/components/messages/MessageDropdown";
-import { useClickOutside } from "@/hooks/mouse/useClickOutside";
+import { useClickOutsideGroups } from "@/hooks/mouse/useClickOutside";
 import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
 import { useChatStore } from "@/store/useChatStore";
+import { SetGenericElementRef } from "@/types/ui/PopoverRefs";
 
 
 
@@ -33,8 +34,7 @@ export default function Navbar() {
   const { markAllAsRead } = useMarkAllNotificationsAsRead();
   const [showMessages, setShowMessages] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null); // referanse i minnet til dopdown-elementet
-  const messageDropdownRef = useRef<HTMLDivElement>(null);
-  const userPopoverRef = useRef<HTMLDivElement | null>(null);// For å sikre at UserPopoverAction ikke lukker hele Message dropdownen
+ 
   const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary  popoverRef: React.RefObject<>;
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const resetChatStore = useChatStore((state) => state.resetStore);
@@ -52,9 +52,9 @@ export default function Navbar() {
       setShowMessages((prev) => !prev);
     };
   const DROPDOWN_WIDTH = 1200;
-
-  
-
+  const [openUserPopoverId, setOpenUserPopoverId] = useState<number | null>(null);
+  const messageDropdownRef = useRef<HTMLDivElement>(null);// For å sende ref til Popover for å ikke lukke ved trykk i UserActionPopover
+  const [userPopoverRef, setUserPopoverRef] = useState<React.RefObject<HTMLDivElement> | null>(null);
 
   useNotificationHub({
     onReceive: (newNotification: NotificationDTO) => {
@@ -81,17 +81,25 @@ export default function Navbar() {
     logout();
   };
 
-  
-  useClickOutside(
-    [messageDropdownRef, userPopoverRef], 
-    () => setShowMessages(false), 
-    showMessages
-  );
+  const addUserPopoverRef: SetGenericElementRef<HTMLDivElement> = (newRef) => {
+    setUserPopoverRef(newRef);
+  };
+
+  const toggleUserPopover = (id: number | null) => {
+      setOpenUserPopoverId((prev) => (prev === id ? null : id));
+    };
+
+  // Lukker hele meldingsdropdownen
+   useClickOutsideGroups({
+      includeRefs: userPopoverRef ? [userPopoverRef] : [], // Ikke .current
+      excludeRefs: [messageDropdownRef],
+      onOutsideClick: () => {
+        window.dispatchEvent(new CustomEvent("close-user-popovers"));
+      },
+      isActive: showMessages,
+    });
 
 
-    // Denne brukes til å lukke dropdown boxen hvis vi trykker på utsiden
-  useClickOutside(dropdownRef, () => setShowDropdown(false), showDropDown);
-  useClickOutside(notificationDropdownRef, () => setShowNotifications(false), showNotifications);
 
 
   return (
@@ -138,7 +146,14 @@ export default function Navbar() {
                 </div>
                 {showMessages && (
                 <div ref={messageDropdownRef}>
-                  <MessageDropdown currentUser={currentUser} popoverRef={userPopoverRef} onCloseDropdown={() => setShowMessages(false)} initialPosition={messagePos ?? undefined} />
+                  <MessageDropdown 
+                    currentUser={currentUser} 
+                    onCloseDropdown={() => setShowMessages(false)} 
+                    initialPosition={messagePos ?? undefined}
+                    setUserPopoverRef={addUserPopoverRef}
+                    openUserPopoverId={openUserPopoverId}
+                    toggleUserPopover={toggleUserPopover}
+                  />
                 </div>
               )}
               </li>
@@ -231,4 +246,4 @@ export default function Navbar() {
 
           
           
-    
+ 

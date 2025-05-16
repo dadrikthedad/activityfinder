@@ -17,11 +17,21 @@ import { addReaction } from "@/services/messages/reactionService";
 
 interface MessageListProps {
     currentUser: UserSummaryDTO | null;
-    popoverRef: React.RefObject<HTMLDivElement | null>
+    dropdownRef?: React.RefObject<HTMLDivElement | null>;
     onCloseDropdown: () => void;
+    setUserPopoverRef: (ref: React.RefObject<HTMLDivElement>) => void;
+    openUserPopoverId: number | null;
+    toggleUserPopover: (userId: number) => void;
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
-export default function MessageList({ currentUser, popoverRef, onCloseDropdown }: MessageListProps) { 
+export default function MessageList({ 
+  currentUser, 
+  dropdownRef, 
+  onCloseDropdown, 
+  setUserPopoverRef,
+  openUserPopoverId,
+  toggleUserPopover, 
+}: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
     const conversationId = rawConversationId ?? -1;
@@ -230,7 +240,15 @@ export default function MessageList({ currentUser, popoverRef, onCloseDropdown }
               {/* Topptekst: Avsender */}
               <div className={`flex items-center gap-2 mb-2 ${isMine ? "justify-end" : ""}`}>
                 {!isMine && msg.sender ? (
-                    <UserActionPopover user={msg.sender} avatarSize={30} popoverRef={popoverRef} onCloseDropdown={onCloseDropdown} />
+                    <UserActionPopover
+                      user={msg.sender}
+                      avatarSize={30}
+                      dropdownRef={dropdownRef}
+                      onCloseDropdown={onCloseDropdown}
+                      setUserPopoverRef={setUserPopoverRef}
+                      openUserPopoverId={openUserPopoverId}
+                      toggleUserPopover={toggleUserPopover}
+                    />
                 ) : !isMine ? (
                     <MiniAvatar imageUrl="/default-avatar.png" size={30} />
                 ) : null}
