@@ -6,7 +6,7 @@ import { ConversationDTO } from "@/types/ConversationDTO";
 import { ConversationListItem } from "./ConversationListUserCard";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
-import { useEffect } from "react";
+
 
 interface Props {
   selectedId: number | null;
@@ -15,8 +15,8 @@ interface Props {
 }
 
 export default function ConversationList({ selectedId, onSelect, currentUser }: Props) {
-    const { conversations: storeConversations, setConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
-    const { conversations: paginatedConversations, loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
+    const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
+    const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     // Henter navnet
     const getDisplayName = (conv: ConversationDTO): string => {
         if (conv.isGroup) return conv.groupName || "Group Chat";
@@ -30,12 +30,6 @@ export default function ConversationList({ selectedId, onSelect, currentUser }: 
         return other?.profileImageUrl || "/default-avatar.png";
     };
 
-    // Hent samtaler kun én gang hvis ikke lagret
-    useEffect(() => {
-      if (storeConversations.length === 0 && paginatedConversations.length > 0) {
-        setConversations(paginatedConversations);
-      }
-    }, [storeConversations, paginatedConversations, setConversations]);
   
     return (
       <div className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar">
