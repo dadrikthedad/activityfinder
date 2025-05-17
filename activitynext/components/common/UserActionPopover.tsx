@@ -4,9 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import MiniAvatar from "./MiniAvatar";
 import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
-import EnlargeableImage from "@/components/common/EnlargeableImage";
-import ProfileNavButton from "../settings/ProfileNavButton";
-import DropdownNavButton from "../DropdownNavButton";
+import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import { useFriendWith } from "@/hooks/useFriendWith";
 import { useAuth } from "@/context/AuthContext";
@@ -18,10 +16,9 @@ interface Props {
   avatarSize?: number;
   onRemoveSuccess?: () => void;
   popoverRef?: React.RefObject<HTMLDivElement | null>
-  onCloseDropdown?: () => void;
 }
 
-export default function UserActionPopover({ user, avatarSize = 120, onRemoveSuccess, popoverRef, onCloseDropdown }: Props) {
+export default function UserActionPopover({ user, avatarSize = 120, onRemoveSuccess, popoverRef }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -31,12 +28,6 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
   const router = useRouter(); // Linke til profilsiden
-
-  
-    const handleVisitProfile = () => {
-      router.push(`/profile/${user.id}`);
-      onCloseDropdown?.(); // ← Nå skjer dette ETTER push
-    };
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
@@ -82,81 +73,28 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
     };
   }, [isOpen]);
 
-    return (
+     return (
     <>
       <button ref={buttonRef} onClick={() => setIsOpen((prev) => !prev)}>
-        <MiniAvatar
-          imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
-          size={avatarSize}
-        />
+        <MiniAvatar imageUrl={user.profileImageUrl ?? "/default-avatar.png"} size={avatarSize} />
       </button>
 
       {isOpen &&
         createPortal(
-          <div
-            ref={popoverRef}
-            style={panelStyles}
-            className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]"
-          >
-            <div className="relative">
-              {/* 👇 Lukke-knapp */}
-              <ProfileNavButton
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsOpen(false);
-                }}
-                text="X"
-                variant="smallx"
-                className="absolute -top-8 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
-                aria-label="Close"
-              />
-
-              <div className="flex gap-12 mt-4 items-start">
-                <div className="flex-shrink-0">
-                  <EnlargeableImage
-                    src={user.profileImageUrl ?? "/default-avatar.png"}
-                    size={120}
-                  />
-                  <div className="w-full mt-2 text-center break-words max-w-[120px]">
-                    <p className="text-lg font-semibold">{user.fullName}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col justify-center flex-1 items-start space-y-2">
-                  <ProfileNavButton
-                    href={`/profile/${user.id}`}
-                    text="Visit Profile"
-                    variant="small"
-                    className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    onClick={handleVisitProfile}
-                    
-                  />
-                  {!isOwner && (
-                    <>
-                      <ProfileNavButton
-                        text="Send Message"
-                        onClick={() => alert("Coming soon!")}
-                        variant="small"
-                        className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                      />
-                      {!isFriendLoading && (
-                        <DropdownNavButton
-                          text="More Options"
-                          variant="small"
-                          className="self-start bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                          actions={[
-                            ...(isFriend ? [{ label: "Remove Friend", onClick: handleRemove }] : []),
-                            { label: "Block", onClick: () => alert("Block clicked") },
-                            { label: "Ignore", onClick: () => alert("Ignore clicked") },
-                            { label: "Report", onClick: () => alert("Report clicked") },
-                          ]}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div ref={popoverRef ?? panelRef} style={panelStyles}>
+            <UserActionPopoverContent
+              user={user}
+              isOwner={isOwner}
+              isFriend={!!isFriend}
+              isFriendLoading={isFriendLoading}
+              onVisitProfile={() => {
+                router.push(`/profile/${user.id}`);
+                setIsOpen(false);
+              }}
+              onSendMessage={() => alert("Coming soon!")}
+              onRemoveFriend={handleRemove}
+              onClose={() => setIsOpen(false)}
+            />
           </div>,
           document.body
         )}

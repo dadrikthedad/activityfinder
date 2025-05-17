@@ -124,15 +124,25 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     useEffect(() => {
       const handleMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
-        const newX = e.clientX - offsetRef.current.x;
-        const newY = e.clientY - offsetRef.current.y;
-        positionRef.current = { x: newX, y: newY };
-
         const el = dropdownRef.current;
-        if (el) {
-          el.style.left = `${newX}px`;
-          el.style.top = `${newY}px`;
-        }
+        if (!el) return;
+
+        const dropdownWidth = el.offsetWidth;
+        const dropdownHeight = el.offsetHeight;
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+
+        let newX = e.clientX - offsetRef.current.x;
+        let newY = e.clientY - offsetRef.current.y;
+
+        // Begrens så dropdownen ikke kan flyttes utenfor skjermen
+        newX = Math.max(0, Math.min(newX, windowWidth - dropdownWidth));
+        const minY = 48; // eks. navbarens høyde
+        newY = Math.max(minY, Math.min(newY, windowHeight - dropdownHeight));
+
+        positionRef.current = { x: newX, y: newY };
+        el.style.left = `${newX}px`;
+        el.style.top = `${newY}px`;
       };
 
       const handleMouseUp = () => {

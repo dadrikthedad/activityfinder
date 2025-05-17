@@ -4,13 +4,12 @@
 import { useEffect, useRef, useState } from "react";
 import MiniAvatar from "./MiniAvatar";
 import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
-import EnlargeableImage from "@/components/common/EnlargeableImage";
-import ProfileNavButton from "../settings/ProfileNavButton";
-import DropdownNavButton from "../DropdownNavButton";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import { useAuth } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
-import { startTransition } from "react";
+import UserActionPopoverContent from "./UserActionPopoverContent";
+import { useRouter } from "next/navigation";
+
 
 interface Props {
   user: UserSummaryDTO;
@@ -46,6 +45,7 @@ export default function UserActionPopover({
   const [isFriendLoading, setIsFriendLoading] = useState(false);
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
+  const router = useRouter();
   
 
   // 📌 2. Gi ytre komponenter tilgang til popoverRef for klikk-logikk
@@ -137,79 +137,20 @@ export default function UserActionPopover({
 
       {isOpen &&
         createPortal(
-          <div
-            ref={panelRef}
-            style={panelStyles}
-            className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]"
-          >
-            <div className="relative">
-              <div
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-              >
-                <ProfileNavButton
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleUserPopover(user.id);
-                  }}
-                  text="X"
-                  variant="smallx"
-                  className="absolute -top-8 -right-4 text-gray-500 hover:text-gray-700 text-lg font-bold flex items-center justify-center"
-                  aria-label="Close"
-                />
-              </div>
-
-              <div className="flex gap-12 mt-4 items-start">
-                <div className="flex-shrink-0">
-                  <EnlargeableImage
-                    src={user.profileImageUrl ?? "/default-avatar.png"}
-                    size={120}
-                  />
-                  <div className="w-full mt-2 text-center break-words max-w-[120px]">
-                    <p className="text-lg font-semibold">{user.fullName}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col justify-center flex-1 items-start space-y-2">
-                  <ProfileNavButton
-                    href={`/profile/${user.id}`}
-                    text="Visit Profile"
-                    variant="small"
-                    className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    onClick={() => {
-                      startTransition(() => {
-                        onCloseDropdown?.();
-                      });
-                    }}
-                  />
-                  {!isOwner && (
-                    <>
-                      <ProfileNavButton
-                        text="Send Message"
-                        onClick={() => alert("Coming soon!")}
-                        variant="small"
-                        className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                      />
-                      {!isFriendLoading && (
-                        <DropdownNavButton
-                          text="More Options"
-                          variant="small"
-                          className="self-start bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                          actions={[
-                            ...(isFriend ? [{ label: "Remove Friend", onClick: handleRemove }] : []),
-                            { label: "Block", onClick: () => alert("Block clicked") },
-                            { label: "Ignore", onClick: () => alert("Ignore clicked") },
-                            { label: "Report", onClick: () => alert("Report clicked") },
-                          ]}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div ref={panelRef} style={panelStyles}>
+            <UserActionPopoverContent
+              user={user}
+              isOwner={isOwner}
+              isFriend={!!isFriend}
+              isFriendLoading={isFriendLoading}
+              onVisitProfile={() => {
+                router.push(`/profile/${user.id}`);
+                onCloseDropdown?.();
+              }}
+              onSendMessage={() => alert("Coming soon!")}
+              onRemoveFriend={handleRemove}
+              onClose={() => toggleUserPopover(user.id)}
+            />
           </div>,
           document.body
         )}
