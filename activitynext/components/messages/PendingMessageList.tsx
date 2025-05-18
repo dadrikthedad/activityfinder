@@ -47,13 +47,11 @@ const PendingRequestsList = ({
         {visibleRequests.map((r) => (
           <li key={`${r.senderId}-${r.conversationId ?? "privat"}`}>
             <ConversationListItem
-              id={r.conversationId ?? `request-${r.senderId}`}
-              name={r.isGroup ? r.groupName ?? "Gruppe" : r.senderName}
-              imageUrl={
-                r.isGroup
-                  ? "/default-group.png"
-                  : r.profileImageUrl || "/default-avatar.png"
-              }
+              user={{
+                id: r.senderId,
+                fullName: r.senderName,
+                profileImageUrl: r.profileImageUrl || "/default-avatar.png",
+              }}
               isClickable={true}
               subtitle={r.limitReached ? "Grense nådd" : undefined}
               onClick={() => {

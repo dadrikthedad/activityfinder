@@ -3,9 +3,7 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MiniAvatar from "../common/MiniAvatar";
 
 interface Props {
-  id: number | string;
-  name: string;
-  imageUrl: string;
+  user: UserSummaryDTO
   selected?: boolean;
   onClick?: (id: string | number) => void;
   subtitle?: string;
@@ -15,9 +13,7 @@ interface Props {
 }
 
 export const ConversationListItem = ({
-  id,
-  name,
-  imageUrl,
+  user,
   selected = false,
   onClick,
   subtitle,
@@ -25,11 +21,7 @@ export const ConversationListItem = ({
   isPendingApproval = false,
   onShowUserPopover,
 }: Props) => {
-  const user: UserSummaryDTO = {
-    id: typeof id === "string" ? parseInt(id) : id,
-    fullName: name,
-    profileImageUrl: imageUrl,
-  };
+  
   // For å regne hvor UserActionPopover skal åpnes
   const handleAvatarClick = (event: React.MouseEvent) => {
     event.stopPropagation();
@@ -49,7 +41,7 @@ export const ConversationListItem = ({
 
   return (
     <div
-      onClick={() => onClick && onClick(id)}
+      onClick={() => onClick && onClick(user.id)}
       className={`flex items-center gap-3 p-2 rounded-md transition ${borderClass} ${
         isClickable ? "cursor-pointer" : "cursor-default"
       } ${
@@ -61,10 +53,10 @@ export const ConversationListItem = ({
       }`}
     >
       <button onClick={handleAvatarClick} className="flex-shrink-0">
-        <MiniAvatar imageUrl={imageUrl} size={40} alt={name} />
+          <MiniAvatar imageUrl={user.profileImageUrl ?? "/default-avatar.png"} size={40} alt={user.fullName} />
       </button>
       <div className="flex-1">
-        <span className="text-sm font-medium truncate block">{name}</span>
+        <span className="text-sm font-medium truncate block">{user.fullName}</span>
         {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
       </div>
     </div>

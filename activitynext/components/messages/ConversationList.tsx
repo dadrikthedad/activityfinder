@@ -21,6 +21,9 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
     const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
     const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const getOtherUser = (conv: ConversationDTO): UserSummaryDTO | undefined => {
+      return conv.participants.find(p => p.id !== currentUser?.id);
+    };
 
     // Håndtere scrolling og paginering
     const handleScroll = () => {
@@ -46,19 +49,6 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       }
     }, [storeConversations, loadMore, loading, hasMore]);
 
-    // Henter navnet
-    const getDisplayName = (conv: ConversationDTO): string => {
-        if (conv.isGroup) return conv.groupName || "Group Chat";
-        const other = conv.participants.find(p => p.id !== currentUser?.id);
-        return other?.fullName || "Unknown user";
-    };
-  
-    const getProfileImage = (conv: ConversationDTO): string => {
-        if (conv.isGroup) return "/default-group.png"; // Bruk bildet ditt her
-        const other = conv.participants.find(p => p.id !== currentUser?.id);
-        return other?.profileImageUrl || "/default-avatar.png";
-    };
-
   
     return (
       <div 
@@ -71,18 +61,40 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       ) : (
         <>
           <ul className="space-y-2 px-2">
-            {storeConversations.map((conv: ConversationDTO) => (
-              <ConversationListItem
-                key={conv.id}
-                id={conv.id}
-                name={getDisplayName(conv)}
-                imageUrl={getProfileImage(conv)}
-                selected={selectedId === conv.id}
-                isPendingApproval={conv.isPendingApproval}
-                onClick={(id) => onSelect(id as number)}
-                onShowUserPopover={onShowUserPopover} 
-              />
-            ))}
+            {storeConversations.map((conv) => {
+              const isGroup = conv.isGroup;
+              const otherUser = getOtherUser(conv);
+
+              if (isGroup) {
+                return (
+                  <ConversationListItem
+                    key={conv.id}
+                    user={{
+                      id: conv.id, // unik identifikator, selv om det ikke er en faktisk bruker
+                      fullName: conv.groupName || "Group Chat",
+                      profileImageUrl: "/default-group.png", // eller conv.groupImageUrl
+                    }}
+                    selected={selectedId === conv.id}
+                    isPendingApproval={conv.isPendingApproval}
+                    onClick={() => onSelect(conv.id)}
+                    onShowUserPopover={() => {}} // tom fordi det ikke gir mening
+                  />
+                );
+              }
+
+              if (!otherUser) return null;
+
+              return (
+                <ConversationListItem
+                  key={conv.id}
+                  user={otherUser}
+                  selected={selectedId === conv.id}
+                  isPendingApproval={conv.isPendingApproval}
+                  onClick={() => onSelect(conv.id)}
+                  onShowUserPopover={onShowUserPopover}
+                />
+              );
+            })}
           </ul>
 
           {loading && (

@@ -80,6 +80,13 @@ export default function MessageInput({
     setText(existingDraft);
   }, [conversationId]);
 
+  // Sikrer at vi blir i tekstfeltet etter sendt melding
+  useEffect(() => {
+    if (text === "") {
+      inputRef.current?.focus();
+    }
+  }, [text]);
+
   return (
     <div className="flex gap-2 items-end mt-4">
 
