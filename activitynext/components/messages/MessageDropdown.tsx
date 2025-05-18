@@ -49,7 +49,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   // Til dropdownen
   const DROPDOWN_SIZE_KEY = "messageDropdownSize";
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const DEFAULT_SIZE = { width: 1200, height: 600 };
+
 
   const [popoverUser, setPopoverUser] = useState<UserSummaryDTO | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<{ x: number, y: number } | null>(null);
@@ -68,11 +68,12 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   const offsetRef = useRef({ x: 0, y: 0 });
   const DROPDOWN_POSITION_KEY = "messageDropdownPosition";
 
+  // 
   useEffect(() => {
     const handler = () => toggleUserPopover(null);
     window.addEventListener("close-user-popovers", handler);
     return () => window.removeEventListener("close-user-popovers", handler);
-  }, []);
+  }, [toggleUserPopover]);
 
   // På første render: sett størrelse fra localStorage
   useEffect(() => {
@@ -81,6 +82,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
     try {
       const saved = localStorage.getItem(DROPDOWN_SIZE_KEY);
+      const DEFAULT_SIZE = { width: 1200, height: 600 };
       const size = saved ? JSON.parse(saved) : DEFAULT_SIZE;
       el.style.width = `${size.width}px`;
       el.style.height = `${size.height}px`;
@@ -173,7 +175,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       } catch (e) {
         console.warn("Kunne ikke laste lagret posisjon:", e);
       }
-    }, []);
+    }, [initialPosition]);
 
     // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {

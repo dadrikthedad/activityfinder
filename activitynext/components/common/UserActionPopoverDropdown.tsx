@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
 import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useRouter } from "next/navigation";
+import { useFriendWith } from "@/hooks/useFriendWith";
 
 
 interface Props {
@@ -41,11 +42,17 @@ export default function UserActionPopover({
   const isOpen = openUserPopoverId === user.id;
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
   const { confirmAndRemove } = useConfirmRemoveFriend();
-  const [isFriend, setIsFriend] = useState<boolean | null>(null);
-  const [isFriendLoading, setIsFriendLoading] = useState(false);
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
   const router = useRouter();
+  const [enabled, setEnabled] = useState(false);
+  const { isFriend, loading: isFriendLoading } = useFriendWith(enabled ? user.id : undefined);
+  
+  useEffect(() => {
+    if (isOpen && !enabled) {
+      setEnabled(true);
+    }
+  }, [isOpen, enabled]);
   
 
   // 📌 2. Gi ytre komponenter tilgang til popoverRef for klikk-logikk
@@ -53,8 +60,7 @@ export default function UserActionPopover({
       if (isOpen && panelRef.current) {
         setUserPopoverRef?.(panelRef as React.RefObject<HTMLDivElement>);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- panelRef er stabil
-    }, [isOpen]);
+    }, [isOpen, setUserPopoverRef]);
 
     // 📌 3. Gi tilgang til refs for andre klikksjekker hvis nødvendig
      useEffect(() => {
@@ -82,26 +88,6 @@ export default function UserActionPopover({
   }, [isOpen, position]);
 
    
-  // 📌 5. Last vennestatus (bare første gang)
-  useEffect(() => {
-    if (!isOpen || isFriend !== null) return;
-
-    const fetchFriendStatus = async () => {
-      setIsFriendLoading(true);
-      try {
-        const res = await fetch(`/api/friends/is-friend/${user.id}`);
-        const json = await res.json();
-        setIsFriend(json.isFriend);
-      } catch (err) {
-        console.warn("Kunne ikke hente vennestatus", err);
-        setIsFriend(null);
-      } finally {
-        setIsFriendLoading(false);
-      }
-    };
-
-    fetchFriendStatus();
-  }, [isOpen, user.id]);
 
 
   // 📌 4. Lukk popover hvis du klikker utenfor dropdown og panel
