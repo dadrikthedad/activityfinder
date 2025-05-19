@@ -11,7 +11,11 @@ export function useFriendWith(userId?: number) {
 
   const { data, error, isValidating } = useSWR(
     shouldFetch ? [`/friends/is-friend-with`, userId] : null,
-    () => isFriendWith(userId!, token!)
+    () => isFriendWith(userId!, token!),
+    {
+      // Unngå revalidate ved window.focus kun for denne fetchen:
+      revalidateOnFocus: false,
+    }
   );
 
   return {
