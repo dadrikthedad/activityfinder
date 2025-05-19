@@ -14,10 +14,12 @@ import { groupReactionsDetailed } from "@/utils/messages/emoji";
 import { addReaction } from "@/services/messages/reactionService";
 
 
+
 interface MessageListProps {
     currentUser: UserSummaryDTO | null;
     onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
     conversationVisible: boolean;
+    onScrollPositionChange?: (atBottom: boolean) => void; // Sier ifra når vi ikke er i bunn
 
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
@@ -25,6 +27,7 @@ export default function MessageList({
   currentUser,  
   onShowUserPopover,
   conversationVisible,
+  onScrollPositionChange,
 }: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
@@ -64,6 +67,8 @@ export default function MessageList({
     const [initializingConversation, setInitializingConversation] = useState(false);
       // Id for å skille mellom sist hentete meldinger
     const lastFetchedId = useRef<number | null>(null);
+
+    
 
     useEffect(() => {
         activeConversationRef.current = conversationId;
@@ -163,9 +168,15 @@ export default function MessageList({
         const container = scrollRef.current;
         const observer = new IntersectionObserver(
           ([entry]) => {
-            isBottomVisible.current = entry.isIntersecting;
+              const isAtBottom = entry.isIntersecting;
+              isBottomVisible.current = isAtBottom;
 
-            if (entry.isIntersecting) {
+              // Informer parent
+            if (onScrollPositionChange) {
+              onScrollPositionChange(isAtBottom);
+            }
+
+            if (isAtBottom) {
               // 👉 forsink skjuling for å unngå "blink"
               setTimeout(() => {
                 setShowNewMessageButton(false);
@@ -177,7 +188,7 @@ export default function MessageList({
 
         if (bottomRef.current) observer.observe(bottomRef.current);
         return () => observer.disconnect();
-      }, []);
+      }, [onScrollPositionChange]);
 
     // Lagre scrollposisjon når komponenten unmountes (dropdown lukkes)
         
@@ -216,10 +227,9 @@ export default function MessageList({
 
   return (
     <div
-  ref={scrollRef} onScroll={handleScroll}
+  ref={scrollRef} onScroll={handleScroll} data-message-scroll-container 
   className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar h-full"
 >
-
   {showNewMessageButton && (
         <div className="sticky bottom-4 flex justify-center">
           <button

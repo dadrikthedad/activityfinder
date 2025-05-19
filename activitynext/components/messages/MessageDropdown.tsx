@@ -70,6 +70,9 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   const offsetRef = useRef({ x: 0, y: 0 });
   const DROPDOWN_POSITION_KEY = "messageDropdownPosition";
 
+  // For å sjekke om vi er i bunn av en samtale
+  const [atBottom, setAtBottom] = useState(true);
+
   // 
   useEffect(() => {
     const handler = () => toggleUserPopover(null);
@@ -334,6 +337,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                   currentUser={currentUser}
                   onShowUserPopover={showUserPopover}
                   conversationVisible={conversationVisible}
+                  onScrollPositionChange={setAtBottom}
                 />
               </div>
 
@@ -343,6 +347,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                   onMessageSent={(message) => {
                     console.log("Ny melding sendt:", message);
                   }}
+                  atBottom={atBottom} // ✅ send videre
                 />
               </div>
             </div>

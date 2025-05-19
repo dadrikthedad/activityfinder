@@ -6,11 +6,11 @@ import FormButton from "@/components/FormButton";
 
 interface ProfileNavButtonProps {
   href?: string;
-  text: string;
+  text: React.ReactNode;
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   className?: string;
-  variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly" | "smallx";
+  variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly" | "smallx" | "tiny";
 }
 
 export default function ProfileNavButton({
@@ -47,6 +47,9 @@ export default function ProfileNavButton({
         break;
       case "usual": // Denne brukes i friends-siden
         baseClasses = "w-[180px] h-14 text-lg px-4 py-2 text-center overflow-hidden whitespace-nowrap text-ellipsis";
+        break;
+      case "tiny":
+        baseClasses = "w-[28px] h-[28px] p-1 flex items-center justify-center text-sm";
         break;
     case "default":
     default:

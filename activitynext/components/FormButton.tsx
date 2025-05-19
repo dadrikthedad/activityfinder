@@ -2,7 +2,7 @@
 import React from "react";
 // Grensesnittet vi må følge
 interface FormButtonProps {
-  text: string; //Tekst som vises når vi ikk er i loading
+  text: React.ReactNode; //Tekst som vises når vi ikk er i loading
   isSubmitting?: boolean; // Sjekker om knappen er i loading tilstand
   submittingText?: string; // Teksten som kommer hvis vi er i loading
   type?: "button" | "submit"; //Knapp for å submitte og hvis det er en vanlig knapp
