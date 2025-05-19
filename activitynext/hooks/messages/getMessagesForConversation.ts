@@ -5,7 +5,7 @@ import { getMessagesForConversation } from "@/services/messages/conversationServ
 import { MessageDTO } from "@/types/MessageDTO";
 import { useChatStore } from "@/store/useChatStore";
 
-export function usePaginatedMessages(conversationId: number) {
+export function usePaginatedMessages(conversationId: number, isVisible: boolean) {
   const take = 20;
 
   // ✅ Kall hooks uansett
@@ -26,7 +26,7 @@ export function usePaginatedMessages(conversationId: number) {
   const isInvalidConversation = conversationId === -1;
 
   useEffect(() => {
-    if (isInvalidConversation) return;
+      if (isInvalidConversation || !isVisible) return;
 
     const cached = cachedMessages[conversationId] ?? [];
     const live = liveMessages[conversationId] ?? [];
@@ -43,12 +43,21 @@ export function usePaginatedMessages(conversationId: number) {
     setLoading(false);
     lastSkipRef.current = -1;
     
-  }, [conversationId, cachedMessages, liveMessages, isInvalidConversation]);
+  }, [conversationId, cachedMessages, liveMessages, isInvalidConversation, isVisible]);
 
   const loadMore = async () => {
     if (isInvalidConversation || loading || !hasMore || isFetching.current) return;
 
     const skipCount = messages.length;
+
+      // 👉 Hvis skipCount = 0 og vi allerede har cachedMessages, ikke fetch på nytt
+      if (skipCount === 0 && cachedMessages[conversationId]?.length > 0) {
+        console.log("🔁 Skipper initial fetch – meldinger finnes allerede i cache.");
+        setHasMore(false); // Eller sett `hasMore` til true hvis det kan finnes eldre
+        return;
+      }
+
+
     if (skipCount === lastSkipRef.current) return;
 
     isFetching.current = true;

@@ -54,6 +54,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   const [popoverUser, setPopoverUser] = useState<UserSummaryDTO | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<{ x: number, y: number } | null>(null);
   const userPopoverRef = useRef<HTMLDivElement | null>(null);
+  // Skjule MessageList.tsx uten valgt samtale og at vi kan toggle en samtale av igjen
+  const [conversationVisible, setConversationVisible] = useState(true);
 
   // Brukes for å hente userActionPopover til MessageDropdown
   const showUserPopover = (user: UserSummaryDTO, pos: { x: number; y: number }) => {
@@ -179,13 +181,22 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
     // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {
+      const isSame = id === currentConversationId;
+
+        if (isSame) {
+          setConversationVisible((prev) => !prev);
+          return;
+        }
+
       const pendingRequest = pending.find((r) => r.conversationId === id);
       if (pendingRequest) {
         useChatStore.getState().setPendingLockedConversationId(id);
       } else {
         useChatStore.getState().setPendingLockedConversationId(null);
       }
+
       setCurrentConversationId(id);
+      setConversationVisible(true); 
     };
 
     // Rydd bare når man bytter til en annen samtale
@@ -303,7 +314,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
         {/* Høyre kolonne */}
         <div className="flex-1 flex flex-col h-full">
-          {currentConversationId ? (
+          {conversationVisible && currentConversationId ? (
             <div className="flex-1 flex flex-col h-full">
               {currentConversation?.isPendingApproval && currentConversationId !== pendingLockedConversationId && (
                 <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
@@ -319,8 +330,10 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
               <div className="flex-1 min-h-0 overflow-auto">
                 <MessageList
+                  key={`${currentConversationId}-${conversationVisible}`}
                   currentUser={currentUser}
                   onShowUserPopover={showUserPopover}
+                  conversationVisible={conversationVisible}
                 />
               </div>
 

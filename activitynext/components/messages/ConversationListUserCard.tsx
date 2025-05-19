@@ -55,9 +55,15 @@ export const ConversationListItem = ({
       <button onClick={handleAvatarClick} className="flex-shrink-0">
           <MiniAvatar imageUrl={user.profileImageUrl ?? "/default-avatar.png"} size={40} alt={user.fullName} />
       </button>
-      <div className="flex-1">
-        <span className="text-sm font-medium truncate block">{user.fullName}</span>
-        {subtitle && <span className="text-xs text-gray-500">{subtitle}</span>}
+      <div className="flex-1 overflow-hidden">
+        <span className="text-sm font-medium block truncate whitespace-nowrap overflow-hidden">
+          {user.fullName}
+        </span>
+        {subtitle && (
+          <span className="text-xs text-gray-500 block truncate whitespace-nowrap overflow-hidden">
+            {subtitle}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -17,12 +17,14 @@ import { addReaction } from "@/services/messages/reactionService";
 interface MessageListProps {
     currentUser: UserSummaryDTO | null;
     onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+    conversationVisible: boolean;
 
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
 export default function MessageList({ 
   currentUser,  
   onShowUserPopover,
+  conversationVisible,
 }: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
@@ -34,7 +36,7 @@ export default function MessageList({
       loadMore,
       loading,
       hasMore,
-    } = usePaginatedMessages(conversationId);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
+    } = usePaginatedMessages(conversationId, conversationVisible);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
 
     console.log("📥 Rendering messages for", conversationId, messages.length);
 
@@ -99,9 +101,14 @@ export default function MessageList({
       }, [liveMessages, initializingConversation, live]);
     
   // Scroll til bunn (visuelt) når vi bytter samtale og Gjenopprett scrollposisjon (flex-col-reverse)
-        useEffect(() => {
+    useEffect(() => {
       const container = scrollRef.current;
       if (!container) return;
+
+      if (!conversationVisible || combinedMessages.length === 0) return;
+
+      // 🔒 Hvis meldinger nylig er lagt til via SignalR, ikke gjør noe – da har vi allerede riktig scroll
+      if (live.length > 0) return;
 
       setInitializingConversation(true);
 
@@ -110,13 +117,15 @@ export default function MessageList({
         container.scrollTop = saved;
 
         lastFetchedId.current = combinedMessages.at(0)?.id ?? null;
-        setShowNewMessageButton(false);
+
+        // 🛑 Ikke nullstill ny melding-knappen her – det gjøres i andre effekter
+        // setShowNewMessageButton(false);
 
         setTimeout(() => {
           setInitializingConversation(false);
         }, 50);
       });
-    }, [conversationId]);
+    }, [conversationId, conversationVisible, combinedMessages.length]);
     
     
   
@@ -153,16 +162,22 @@ export default function MessageList({
     useEffect(() => {
         const container = scrollRef.current;
         const observer = new IntersectionObserver(
-        ([entry]) => {
+          ([entry]) => {
             isBottomVisible.current = entry.isIntersecting;
-            if (entry.isIntersecting) setShowNewMessageButton(false);
-        },
-        { root: container, threshold: 1.0 }
+
+            if (entry.isIntersecting) {
+              // 👉 forsink skjuling for å unngå "blink"
+              setTimeout(() => {
+                setShowNewMessageButton(false);
+              }, 200); // du kan justere f.eks. til 300ms
+            }
+          },
+          { root: container, threshold: 1.0 }
         );
 
         if (bottomRef.current) observer.observe(bottomRef.current);
         return () => observer.disconnect();
-    }, []);
+      }, []);
 
     // Lagre scrollposisjon når komponenten unmountes (dropdown lukkes)
         
