@@ -13,8 +13,6 @@ interface ReactionPopupProps {
   existingReactions: ReactionDTO[];
 }
 
-
-
 console.log("👀 ReactionPopup vises!");
 
 const emojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥"];
@@ -43,7 +41,7 @@ export const ReactionPopup: React.FC<ReactionPopupProps> = ({
               className={`${styles.emojiButton} ${userHasReacted ? styles.active : ""}`}
               onClick={(e) => {
                 e.stopPropagation();
-                onSelect(emoji); // toggle håndteres i backend
+                onSelect(emoji);
               }}
               data-tooltip-id={userHasReacted ? `tooltip-${emoji}` : undefined}
               data-tooltip-content={userHasReacted ? "Remove reaction" : undefined}
@@ -54,15 +52,6 @@ export const ReactionPopup: React.FC<ReactionPopupProps> = ({
             {userHasReacted && (
               <Tooltip
                 id={`tooltip-${emoji}`}
-                style={{
-                  border: "2px solid #1C6B1C",
-                  backgroundColor: "#222",
-                  color: "white",
-                  fontSize: "12px",
-                  padding: "4px 8px",
-                  borderRadius: "6px",
-                  zIndex: 99999,
-                }}
                 delayShow={250}
                 place="top"
               />

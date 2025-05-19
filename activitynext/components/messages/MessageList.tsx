@@ -227,20 +227,20 @@ export default function MessageList({
 
   return (
     <div
-  ref={scrollRef} onScroll={handleScroll} data-message-scroll-container 
-  className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar h-full"
->
-  {showNewMessageButton && (
-        <div className="sticky bottom-4 flex justify-center">
-          <button
-            onClick={() => {
-              scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-              setShowNewMessageButton(false);
-            }}
-            className="bg-[#1C6B1C] text-white px-4 py-2 rounded shadow hover:bg-[#145214] transition"
-          >
-            Se ny melding
-          </button>
+      ref={scrollRef} onScroll={handleScroll} data-message-scroll-container 
+      className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar h-full"
+      >
+      {showNewMessageButton && (
+        <div className="sticky bottom-4 flex justify-start pointer-events-auto">
+          <div className="bg-[#1C6B1C]/30 text-white/30 px-6 py-2 rounded shadow text-sm backdrop-blur-sm flex items-center gap-2">
+            <span>New messages. Press the downward-arrow button</span>
+            <button
+              onClick={() => setShowNewMessageButton(false)}
+              className="text-white/30 text-xs hover:text-gray-300 px-2"
+            >
+              X
+            </button>
+          </div>
         </div>
       )}
       <div ref={bottomRef} />

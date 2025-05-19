@@ -42,3 +42,14 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #1C6B1C transparent;
 }
+
+/* global.css */
+[data-tooltip-content="Remove reaction"] {
+  border: 2px solid #1C6B1C !important;
+  background-color: #222 !important;
+  color: white !important;
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  z-index: 99999 !important;
+}
