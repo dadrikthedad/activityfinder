@@ -3,12 +3,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { respondToInvitation } from "@/services/friendInvitations/respondToInvitation";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
+import { useDropdown } from "@/context/DropdownContext";
+import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
 
 interface Props {
   onClose: () => void;
@@ -25,6 +27,23 @@ export default function NotificationDropdown({
 }: Props) {
   const { token } = useAuth();
   const [handlingRequest, setHandlingRequest] = useState<number | null>(null);
+  const dropdownContext = useDropdown();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // lukke ved klikk på utsiden
+  useClickOutsideGroups({
+    includeRefs: [containerRef],
+    onOutsideClick: () => onClose(),
+    isActive: true,
+  });
+
+  useEffect(() => {
+    const id = "notification-dropdown";
+    const close = () => onClose();
+
+    dropdownContext.register({ id, close });
+    return () => dropdownContext.unregister(id);
+  }, [onClose, dropdownContext]);
 
 
 
@@ -40,7 +59,7 @@ export default function NotificationDropdown({
   };
 
   return (
-    <div className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C]">
+    <div ref={containerRef} className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C]">
       <h4 className="text-lg font-semibold mb-2 text-center">Notifications</h4>
 
       {/* Friend Requests */}

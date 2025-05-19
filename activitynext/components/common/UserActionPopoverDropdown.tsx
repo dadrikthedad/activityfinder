@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useRouter } from "next/navigation";
 import { useFriendWith } from "@/hooks/useFriendWith";
+import { useDropdown } from "@/context/DropdownContext";
 
 
 interface Props {
@@ -47,6 +48,21 @@ export default function UserActionPopover({
   const router = useRouter();
   const [enabled, setEnabled] = useState(false);
   const { isFriend, loading: isFriendLoading } = useFriendWith(enabled ? user.id : undefined);
+  const dropdownContext = useDropdown();
+
+  // Lukke med escp
+   
+    useEffect(() => {
+      if (!isOpen) return;
+
+      const id = `user-action-popover-${user.id}`;
+      const close = () => toggleUserPopover(user.id);
+      dropdownContext.register({ id, close });
+
+      return () => {
+        dropdownContext.unregister(id);
+      };
+    }, [isOpen, toggleUserPopover, user.id]);
   
   useEffect(() => {
     if (isOpen && !enabled) {

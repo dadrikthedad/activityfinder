@@ -4,6 +4,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import { useDropdown } from "@/context/DropdownContext";
 
 interface Action {
   label: string;
@@ -21,6 +22,18 @@ interface DropdownNavButtonProps {
 export default function DropdownNavButton({ text, actions, isFriend = false, variant = "long", className = "" ,}: DropdownNavButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const dropdownContext = useDropdown();
+
+  useEffect(() => {
+    if (!open) return;
+
+    const id = "dropdown-nav-button"; // unik id om flere kan være åpne
+    const close = () => setOpen(false);
+    dropdownContext.register({ id, close });
+
+    return () => dropdownContext.unregister(id);
+  }, [open, dropdownContext]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

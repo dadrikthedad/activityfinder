@@ -13,6 +13,8 @@ import ProfileNavButton from "../settings/ProfileNavButton";
 import { useEffect, useRef, useState } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import UserActionPopover from "../common/UserActionPopoverDropdown";
+import { useDropdown } from "@/context/DropdownContext";
+
 
 
 
@@ -50,6 +52,9 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   const DROPDOWN_SIZE_KEY = "messageDropdownSize";
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Lukke dropdown med Esc
+  const dropdownContext = useDropdown();
+
 
   const [popoverUser, setPopoverUser] = useState<UserSummaryDTO | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<{ x: number, y: number } | null>(null);
@@ -72,6 +77,19 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
   // For å sjekke om vi er i bunn av en samtale
   const [atBottom, setAtBottom] = useState(true);
+
+  // Lukker dropdown ved klikk på Esc
+  const handleClose = () => {
+    onCloseDropdown(); // eller annen logikk for å lukke dropdown
+  };
+
+  // Sjekekr at vi koblet på DropdownContext
+  useEffect(() => {
+    if (!dropdownContext) return;
+
+    dropdownContext.register({ id: "messageDropdown", close: handleClose });
+    return () => dropdownContext.unregister("messageDropdown");
+  }, []);
 
   // 
   useEffect(() => {
@@ -257,7 +275,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
         <div  className="bg-[#1C6B1C] text-white px-4 py-2 flex justify-between items-center cursor-move select-none w-full"           
               onMouseDown={onMouseDown}>
           <div> Messages </div>
-          <div className="flex gap-2">
+          <div className="flex gap-6">
             <button
               className="text-white hover:text-gray-200"
               onClick={() => {
@@ -265,14 +283,14 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                 localStorage.removeItem("messageDropdownPosition");
                 window.location.reload(); // eller trigger ny render
               }}
-              title="Tilbakestill størrelse og posisjon"
+              title="Reset position and size"
             >
               ⟳
             </button>
             <button
               className="text-white hover:text-gray-200"
               onClick={onCloseDropdown}
-              title="Lukk"
+              title="Close"
             >
               ✕
             </button>

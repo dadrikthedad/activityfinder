@@ -2,7 +2,7 @@
 "use client"; // Gjør Navbar til en klientkomponent
 
 import Link from "next/link";
-import {  useState, useRef } from "react";
+import {  useState, useRef, useEffect } from "react";
 import { Settings, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -16,10 +16,11 @@ import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllN
 import { useNotificationHub } from "@/hooks/signalr/useNotificationHub";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import MessageDropdown from "@/components/messages/MessageDropdown";
-import { useClickOutsideGroups } from "@/hooks/mouse/useClickOutside";
+import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
 import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
 import { useChatStore } from "@/store/useChatStore";
 import { SetGenericElementRef } from "@/types/ui/PopoverRefs";
+import { useDropdown } from "@/context/DropdownContext";
 
 
 
@@ -39,21 +40,44 @@ export default function Navbar() {
   const resetChatStore = useChatStore((state) => state.resetStore);
   const [messagePos, setMessagePos] = useState<{ x: number; y: number } | null>(null); // For å se hvor messageDropdownen var lagret
   const handleToggleMessages = (e: React.MouseEvent) => {
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    if (recentlyClosedMessage) return;
 
-      const x = Math.min(
-        window.innerWidth - DROPDOWN_WIDTH - 16, // unngå overflow
-        rect.right - DROPDOWN_WIDTH + 32 // 32 for pusterom
-      );
-      const y = rect.bottom + 8; // litt ned fra knappen
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = Math.min(window.innerWidth - DROPDOWN_WIDTH - 16, rect.right - DROPDOWN_WIDTH + 32);
+    const y = rect.bottom + 8;
 
-      setMessagePos({ x, y });
-      setShowMessages((prev) => !prev);
-    };
+    setMessagePos({ x, y });
+    setShowMessages((prev) => !prev);
+  };
+  
   const DROPDOWN_WIDTH = 1200;
   const [openUserPopoverId, setOpenUserPopoverId] = useState<number | null>(null);
   const messageDropdownRef = useRef<HTMLDivElement>(null);// For å sende ref til Popover for å ikke lukke ved trykk i UserActionPopover
   const [userPopoverRef, setUserPopoverRef] = useState<React.RefObject<HTMLDivElement> | null>(null);
+  const dropdownContext = useDropdown();
+  const [recentlyClosed, setRecentlyClosed] = useState(false);
+
+  const [recentlyClosedMessage, setRecentlyClosedMessage] = useState(false);
+
+  
+
+  useEffect(() => {
+    if (!showMessages) {
+      setRecentlyClosedMessage(true);
+      const timer = setTimeout(() => setRecentlyClosedMessage(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showMessages]);
+
+  useEffect(() => {
+    if (!showDropDown) return;
+
+    const id = "navbar-profile-menu";
+    const close = () => setShowDropdown(false);
+
+    dropdownContext.register({ id, close });
+    return () => dropdownContext.unregister(id);
+  }, [showDropDown, dropdownContext]);
 
   useNotificationHub({
     onReceive: (newNotification: NotificationDTO) => {
@@ -62,12 +86,24 @@ export default function Navbar() {
   });
 
   const handleToggleNotifications = async () => {
+    if (recentlyClosed) {
+      return;
+    }
+
     if (!showNotifications) {
       await markAllAsRead();
       setNotifications((prev) => (prev ?? []).map((n) => ({ ...n, isRead: true })));
     }
     setShowNotifications((prev) => !prev);
   };
+
+  useEffect(() => {
+    if (!showNotifications) {
+      setRecentlyClosed(true);
+      const timer = setTimeout(() => setRecentlyClosed(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showNotifications]);
 
   const handleLogout = () => { // Ved logout så lukke vi dropboxen og kjører logout funksjonen fra AuthContext
     setShowDropdown(false);

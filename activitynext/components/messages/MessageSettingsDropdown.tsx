@@ -1,18 +1,35 @@
+// Knappen i toolbaren med innstillinger til en chat
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Settings } from "lucide-react";
 import ProfileNavButton from "../settings/ProfileNavButton";
-import { useClickOutsideGroups } from "@/hooks/mouse/useClickOutside";
+import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
+import { useDropdown } from "@/context/DropdownContext"; //
 
 export default function MessageSettingsDropdown() {
     const [open, setOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+      const dropdownContext = useDropdown();
 
     useClickOutsideGroups({
         includeRefs: [containerRef],
         onOutsideClick: () => setOpen(false),
         isActive: open
     });
+
+    // Registrer i context når åpen
+    useEffect(() => {
+        const id = "message-settings";
+        const close = () => setOpen(false);
+
+        if (open) {
+            dropdownContext.register({ id, close });
+        }
+
+        return () => {
+            dropdownContext.unregister(id);
+        };
+    }, [open, dropdownContext]);
 
     return (
         <div className="relative" ref={containerRef}>

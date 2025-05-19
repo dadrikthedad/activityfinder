@@ -4,10 +4,16 @@ import { useUserSearch } from "@/hooks/useUserSearch";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
+import { useKeyboardNavigation } from "@/hooks/mouseAndKeyboard/useKeyboardNagivation";
 
 export default function NavbarSearch() {
   const { query, setQuery, results, loading } = useUserSearch();
   const dropdownRef = useRef<HTMLUListElement>(null);
+  const { activeIndex, setActiveIndex } = useKeyboardNavigation(
+    results,
+    (user) => (window.location.href = `/profile/${user.id}`),
+    !!query
+  );
 
    // Lukk dropdown når man klikker utenfor
    useEffect(() => {
@@ -22,6 +28,18 @@ export default function NavbarSearch() {
 
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [setQuery]);
+
+  // lukker ved esc
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setQuery(""); // Tømmer søket => lukker dropdown
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [setQuery]);
 
   return (
@@ -46,10 +64,13 @@ export default function NavbarSearch() {
           )}
 
           {!loading &&
-            results.map((user) => (
-              <li
+            results.map((user, index) => (
+               <li
                 key={user.id}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-[#2a2e31]"
+                className={`p-2 hover:bg-gray-100 dark:hover:bg-[#2a2e31] ${
+                  index === activeIndex ? "bg-gray-200 dark:bg-[#333]" : ""
+                }`}
+                onMouseEnter={() => setActiveIndex(index)}
               >
                 <Link
                   href={`/profile/${user.id}`}

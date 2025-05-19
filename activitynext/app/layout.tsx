@@ -6,6 +6,7 @@ import NotificationHubClient from "@/components/signalr/NotificationHubClient"; 
 import ChatHubClient from "@/components/signalr/ChatHubClient";  // Her kobler jeg opp mot ChatHub. Brukes en gang slik at den kjøres globalt
 import Navbar from "@/components/Navbar";
 import CacheCleanup from "@/components/common/CacheCleanup";
+import { DropdownProvider } from "@/context/DropdownContext";
 
 
 console.log("🔄 Navbar re-rendered");
@@ -26,21 +27,25 @@ export default function RootLayout({
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </head>
-      <body className={` antialiased  bg-white 
+      <body 
+        className={` antialiased  bg-white 
           dark:bg-black 
           text-black 
           dark:text-white 
-          min-h-screen`} suppressHydrationWarning={true}>
-        <ModalProvider>
-          <CacheCleanup>
-          <AuthProvider>
-          <NotificationHubClient /> 
-          <ChatHubClient />
-            <Navbar /> {/* 👈 LEGG TIL DENNE */}
-              <main>{children}</main>
-          </AuthProvider>
-          </CacheCleanup>
-        </ModalProvider>
+          min-h-screen`} 
+        suppressHydrationWarning={true}>
+          <DropdownProvider>
+            <ModalProvider>
+              <CacheCleanup>
+              <AuthProvider>
+              <NotificationHubClient /> 
+              <ChatHubClient />
+                <Navbar /> {/* 👈 LEGG TIL DENNE */}
+                  <main>{children}</main>
+              </AuthProvider>
+              </CacheCleanup>
+            </ModalProvider>
+          </DropdownProvider>
       </body>
     </html>
   );

@@ -10,6 +10,7 @@ import { useFriendWith } from "@/hooks/useFriendWith";
 import { useAuth } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useDropdown } from "@/context/DropdownContext";
 
 interface Props {
   user: UserSummaryDTO;
@@ -28,6 +29,21 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
   const router = useRouter(); // Linke til profilsiden
+  const dropdownContext = useDropdown();
+
+  // Lukke UserActionPopvoer.tsx ved esc
+    useEffect(() => {
+      const id = `user-popover-${user.id}`;
+      const close = () => setIsOpen(false);
+
+      if (isOpen) {
+        dropdownContext.register({ id, close });
+      }
+
+      return () => {
+        dropdownContext.unregister(id);
+      };
+    }, [isOpen]);
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);

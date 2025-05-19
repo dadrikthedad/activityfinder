@@ -1,9 +1,10 @@
 // Her zoomer vi inn på bilde ved trykk. Brukes foreløpig kun i UserActionPopover.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
 import Image from "next/image";
+import { useDropdown } from "@/context/DropdownContext"; 
 
 interface EnlargeableImageProps {
   src: string;
@@ -19,6 +20,19 @@ export default function EnlargeableImage({
   className = "",
 }: EnlargeableImageProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownContext = useDropdown();
+
+   // Registrer i dropdownContext når åpen
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const id = `enlarge-image-${src}`;
+    const close = () => setIsOpen(false);
+
+    dropdownContext.register({ id, close });
+
+    return () => dropdownContext.unregister(id);
+  }, [isOpen, dropdownContext, src]);
 
   return (
     <>
