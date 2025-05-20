@@ -126,9 +126,15 @@ export const useChatStore = create<ChatStore>((set) => ({
     addConversation: (conversation) =>
       set((state) => {
         const exists = state.conversations.some((c) => c.id === conversation.id);
-        if (exists) return state;
+         let updated;
 
-        const updated = [...state.conversations, conversation];
+        if (exists) {
+          updated = state.conversations.map((c) =>
+            c.id === conversation.id ? { ...c, ...conversation } : c
+          );
+        } else {
+          updated = [...state.conversations, conversation];
+        }
 
         // Sorter etter sist sendt melding
         updated.sort(

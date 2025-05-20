@@ -41,6 +41,7 @@ export function useApproveMessageRequest() {
       addConversation(newConversation);
       setCachedMessages(conversationId, messages ?? []);
       removeRequest(conversationId);
+      useChatStore.getState().setPendingLockedConversationId(null);
 
       console.log("✅ Meldingsforespørsel godkjent og samtale oppdatert:", {
         senderId,

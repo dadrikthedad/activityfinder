@@ -44,6 +44,31 @@ public class MessagesController : BaseController
         }
     }
     
+    [HttpGet("search")]
+    public async Task<IActionResult> SearchMessagesInConversation([FromQuery] int conversationId, [FromQuery] string query, [FromQuery] int skip = 0, [FromQuery] int take = 50)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized(new { message = "Brukeren er ikke logget inn." });
+
+        if (string.IsNullOrWhiteSpace(query))
+            return BadRequest(new { message = "Søketeksten kan ikke være tom." });
+
+        try
+        {
+            var results = await _messageService.SearchMessagesInConversationAsync(conversationId, userId.Value, query, skip, take);
+            return Ok(results);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Feil under søk i meldinger.", details = ex.Message });
+        }
+    }
+    
     
     
     // Endepunkt for å laste opp filer til en melding

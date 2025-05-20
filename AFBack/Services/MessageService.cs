@@ -265,11 +265,15 @@ public class MessageService : IMessageService
             
             await _context.SaveChangesAsync();
             
+            var approver = await _context.Users
+                               .FirstOrDefaultAsync(u => u.Id == receiverId)
+                           ?? throw new Exception("Godkjenneren ble ikke funnet.");
+            
             // ✅ Send automatisk melding via eksisterende sendelogikk
             var systemMessage = new SendMessageRequestDTO
             {
                 ConversationId = request.ConversationId ?? throw new Exception("ConversationId mangler på meldingforespørselen."),
-                Text = "Samtalen er godkjent. Du kan nå sende meldinger.",
+                Text = $"{approver.FullName} har godkjent samtalen. Du kan nå sende meldinger.",
                 ReceiverId = senderId.ToString()
             };
 
@@ -280,6 +284,48 @@ public class MessageService : IMessageService
                     ReceiverId = receiverId,
                     ConversationId = request.ConversationId
                 });
+        }
+        
+        // Søke etter meldinger til en samtale
+        public async Task<List<MessageResponseDTO>> SearchMessagesInConversationAsync(int conversationId, int userId, string query, int skip = 0, int take = 50)
+        {
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+            if (conversation == null)
+                throw new Exception("Samtalen finnes ikke.");
+
+            if (conversation.Participants.All(p => p.UserId != userId))
+                throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
+
+            // Valgfritt: begrens søk i private samtaler hvis ikke godkjent
+            if (!conversation.IsGroup && !conversation.IsApproved)
+            {
+                // Samme begrensningslogikk som du har i get-metoden
+                throw new Exception("Du må godkjenne samtalen før du kan søke i meldinger.");
+            }
+
+            var messages = await _context.Messages
+                .Where(m => m.ConversationId == conversationId &&
+                            !m.IsDeleted &&
+                            (
+                                (m.Text != null && EF.Functions.ILike(m.Text, $"%{query}%")) ||
+                                m.Attachments.Any(a =>
+                                    (a.FileName != null && EF.Functions.ILike(a.FileName, $"%{query}%")) ||
+                                    EF.Functions.ILike(a.FileType, $"%{query}%")
+                                )
+                            ))
+                .Include(m => m.Attachments)
+                .Include(m => m.Reactions)
+                .Include(m => m.Sender).ThenInclude(u => u.Profile)
+                .Include(m => m.ParentMessage)
+                .OrderByDescending(m => m.SentAt)
+                .Take(take)
+                .Skip(skip)
+                .ToListAsync();
+
+            return messages.Select(MapToResponseForMessagesToConv).ToList();
         }
         
         

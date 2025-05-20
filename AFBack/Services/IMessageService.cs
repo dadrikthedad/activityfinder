@@ -26,4 +26,7 @@ public interface IMessageService
     Task UnblockGroupAsync(int userId, int conversationId);
     Task SoftDeleteMessageAsync(int messageId, int userId);
 
+    Task<List<MessageResponseDTO>> SearchMessagesInConversationAsync(int conversationId, int userId, string query,
+        int skip = 0, int take = 50);
+
 }
