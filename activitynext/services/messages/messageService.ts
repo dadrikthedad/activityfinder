@@ -21,3 +21,14 @@ export async function approveMessageRequest(senderId: number): Promise<void> {
   const url = `${API_BASE_URL}/api/messages/approve-request`;
   await postRequest<void, number>(url, senderId);
 }
+
+// Søker etter meldinger i en gitt samtale
+export async function searchMessagesInConversation(
+  conversationId: number,
+  query: string,
+  skip: number = 0,
+  take: number = 50
+): Promise<MessageDTO[] | null> {
+  const url = `${API_BASE_URL}/api/messages/search?conversationId=${conversationId}&query=${encodeURIComponent(query)}&skip=${skip}&take=${take}`;
+  return await getRequest<MessageDTO[]>(url);
+}

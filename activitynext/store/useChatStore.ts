@@ -19,6 +19,8 @@ type ChatStore = {
   scrollPositions: Record<number, number>;
   setScrollPosition: (conversationId: number, position: number) => void;
   cacheTimestamps: Record<number, number>;
+  searchMode: boolean;
+  setSearchMode: (value: boolean) => void;
   resetStore: () => void;
   updateMessageReactions: (reaction: ReactionDTO) => void;
   cleanupOldCache: () => void;
@@ -37,6 +39,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   cachedMessages: {},
   scrollPositions: {},
   cacheTimestamps: {},
+  searchMode: false,
+  setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
   pendingMessageRequests: [],
   pendingLockedConversationId: null,
   setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),

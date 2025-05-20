@@ -6,12 +6,14 @@ import { usePaginatedMessages } from "@/hooks/messages/getMessagesForConversatio
 import { useEffect, useRef, useMemo, useState } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore"; // Bruker useChatStore til å lagre og hente meldinger
-import { MessageDTO } from "@/types/MessageDTO"; // Hvordan en melding ser ut
 import MiniAvatar from "../common/MiniAvatar";
 import { formatSentDate } from "@/utils/date/chatDate";
 import { ReactionHandler } from "../reactions/ReactionHandler";
 import { groupReactionsDetailed } from "@/utils/messages/emoji";
 import { addReaction } from "@/services/messages/reactionService";
+import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
+import { debounce } from "lodash";
+import Spinner from "../common/Spinner";
 
 
 
@@ -76,8 +78,14 @@ export default function MessageList({
 
     // Ved første last
     const [showNewMessageButton, setShowNewMessageButton] = useState(false);
+
+    // For søkefeltet
+      const [query, setQuery] = useState("");
+      const { messages: searchResults, loading: searchLoading, search, resetSearch } = useSearchMessages();
+      const isSearching = useChatStore((s) => s.searchMode);
     
-    const combinedMessages = useMemo(() => {
+    const displayedMessages = useMemo(() => {
+      if (isSearching) return searchResults;
       const all = [...messages, ...live];
       const seen = new Set();
       console.log("📦 All messages to render", all);
@@ -88,7 +96,7 @@ export default function MessageList({
           return true;
         })
         .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
-    }, [messages, live]);
+    }, [messages, live, isSearching, searchResults]);
     // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
 
       useEffect(() => {
@@ -110,7 +118,7 @@ export default function MessageList({
       const container = scrollRef.current;
       if (!container) return;
 
-      if (!conversationVisible || combinedMessages.length === 0) return;
+      if (!conversationVisible || displayedMessages.length === 0 || isSearching) return;
 
       // 🔒 Hvis meldinger nylig er lagt til via SignalR, ikke gjør noe – da har vi allerede riktig scroll
       if (live.length > 0) return;
@@ -121,7 +129,7 @@ export default function MessageList({
         const saved = scrollPositions[conversationId] ?? 0;
         container.scrollTop = saved;
 
-        lastFetchedId.current = combinedMessages.at(0)?.id ?? null;
+        lastFetchedId.current = displayedMessages.at(0)?.id ?? null;
 
         // 🛑 Ikke nullstill ny melding-knappen her – det gjøres i andre effekter
         // setShowNewMessageButton(false);
@@ -130,7 +138,7 @@ export default function MessageList({
           setInitializingConversation(false);
         }, 50);
       });
-    }, [conversationId, conversationVisible, combinedMessages.length]);
+    }, [conversationId, conversationVisible, displayedMessages.length]);
     
     
   
@@ -140,7 +148,7 @@ export default function MessageList({
       useEffect(() => {
         const container = scrollRef.current;
         const topEl = topRef.current;
-        if (!container || !topEl || !hasMore || loading) return;
+        if (!container || !topEl || !hasMore || loading || isSearching) return;
 
         const observer = new IntersectionObserver(
           ([entry]) => {
@@ -202,9 +210,11 @@ export default function MessageList({
           console.log(`[Scroll] Lagret scrollposisjon (flex-reverse): ${pos}`); //Hvis vi trenger å logge hva scrollposisjonen er
         };
 
-        container.addEventListener("scroll", handleScroll);
+        if (!isSearching) {
+          container.addEventListener("scroll", handleScroll);
+        }
         return () => container.removeEventListener("scroll", handleScroll);
-      }, [conversationId, setScrollPosition]);
+      }, [conversationId, setScrollPosition, isSearching ]);
 
        
 
@@ -220,12 +230,62 @@ export default function MessageList({
         conversationId,
         messagesInView: liveMessages[conversationId],
       });
+      
+      
+
+      const debouncedSearch = useMemo(() => {
+        return debounce((convId: number, q: string) => {
+          resetSearch();
+          search(convId, q);
+        }, 300);
+      }, [resetSearch, search]);
+
+      // Søk når query oppdateres
+      useEffect(() => {
+        if (query.length < 1) {
+          resetSearch();
+          return;
+        }
+
+        debouncedSearch(conversationId, query);
+      }, [query, conversationId]);
 
       if (rawConversationId === null) {
-        return <div className="text-center text-gray-500">Ingen samtale valgt</div>;
+        return <div className="text-center text-gray-500">No conversation chosen</div>;
       }
 
   return (
+          <div className="flex flex-col h-full">
+            {isSearching && (
+              <div className="flex items-center gap-2 p-2">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="flex-1 px-3 py-2 border rounded text-sm"
+                />
+                <button
+                  onClick={() => {
+                    resetSearch();
+                    setQuery("");
+                    useChatStore.getState().setSearchMode(false);
+                  }}
+                  className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
+                >
+                  Close
+                </button>
+              </div>
+            )}
+            {isSearching && query.length >= 1 && (
+              <div className="px-2 pb-1 text-xs text-gray-500">
+                {searchResults.length} message{searchResults.length === 1 ? "" : "s"} found
+              </div>
+            )}{isSearching && searchLoading && (
+              <div className="flex justify-center p-4">
+                <Spinner size={24} borderSize={3} text="Searching..." />
+              </div>
+            )}
     <div
       ref={scrollRef} onScroll={handleScroll} data-message-scroll-container 
       className="flex flex-col-reverse overflow-y-auto pr-2 rounded-lg p-4 custom-scrollbar h-full"
@@ -244,7 +304,7 @@ export default function MessageList({
         </div>
       )}
       <div ref={bottomRef} />
-      {combinedMessages.map((msg: MessageDTO) => {
+    {!searchLoading && displayedMessages.map((msg) => {
         const isMine = currentUser?.id === msg.sender?.id;
   
         return (
@@ -335,6 +395,7 @@ export default function MessageList({
         );
       })}
         <div ref={topRef} />
+          </div>
   
       
     </div>
