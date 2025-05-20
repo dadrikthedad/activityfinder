@@ -32,13 +32,23 @@ export default function MessageInput({
     state.conversations.find((c) => c.id === conversationId)
   );
 
-  const messageCount = useChatStore((state) => {
+
+  const effectiveMessageCount = useChatStore((state) => {
     if (conversationId === null) return 0;
-    return (state.cachedMessages[conversationId] ?? []).length;
+
+    const cached = state.cachedMessages[conversationId] ?? [];
+    const live = state.liveMessages[conversationId] ?? [];
+
+    // Fjern duplikater basert på melding-ID
+    const uniqueLive = live.filter(
+      (liveMsg) => !cached.some((c) => c.id === liveMsg.id)
+    );
+
+    return cached.length + uniqueLive.length;
   });
 
   const isBlocked =
-  (currentConversation?.isPendingApproval && messageCount >= 5) ||
+  (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
   (conversationId !== null && conversationId === pendingLockedConversationId);
   
   const handleSend = async () => {
@@ -125,7 +135,11 @@ export default function MessageInput({
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Write a message..."
+            placeholder={
+              isBlocked
+                ? "You can't write any more messages until the request is accepted"
+                : "Write a message..."
+            }
           minRows={1}
           maxRows={6} // begrens hvor stor den kan bli
           className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px] focus:outline-none"
