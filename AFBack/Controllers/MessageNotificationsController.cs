@@ -72,6 +72,21 @@ public class MessageNotificationsController : ControllerBase
         return Ok(dtoList);
     }
     
+    // Henter alle samtaler hvor vi har uleste notifikasjoner
+    [HttpGet("unread-conversations")]
+    public async Task<IActionResult> GetUnreadConversationIds()
+    {
+        var userId = GetUserId();
+
+        var unreadConvIds = await _context.MessageNotifications
+            .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId != null)
+            .Select(n => n.ConversationId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        return Ok(unreadConvIds);
+    }
+    
     // Henter antall uleste notifications
     [HttpGet("unread-count")]
     public async Task<IActionResult> GetUnreadNotificationCount()

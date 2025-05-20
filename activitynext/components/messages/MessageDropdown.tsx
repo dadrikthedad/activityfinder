@@ -81,6 +81,13 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
   // For å sjekke om vi er i bunn av en samtale
   const [atBottom, setAtBottom] = useState(true);
 
+  // Bytte til en samtale fra NotificationsPanel
+
+  const openConversationFromNotification = (id: number) => {
+    setCurrentConversationId(id);
+    setConversationVisible(true);
+  };
+
   // Ha kontroll på søke av samtaler
   const {
     query: searchQuery,
@@ -410,7 +417,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               </div>
             </div>
           ) : (
-              <NotificationsPanel />
+              <NotificationsPanel onOpenConversation={openConversationFromNotification} />
           )}
         </div>
         

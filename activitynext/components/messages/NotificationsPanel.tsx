@@ -1,9 +1,12 @@
 import { useMessageNotifications } from "@/hooks/messages/useMessageNotifications";
 import { useMessageMarkNotificationAsRead } from "@/hooks/messages/useMarkMessageNotificationAsRead";
-import { useChatStore } from "@/store/useChatStore";
 import { useMarkAllMessageNotificationsAsRead } from "@/hooks/messages/useMarkAllMessageNotificationsAsRead";
 
-export default function NotificationsPanel() {
+interface NotificationsPanelProps {
+  onOpenConversation: (conversationId: number) => void;
+}
+
+export default function NotificationsPanel({ onOpenConversation }: NotificationsPanelProps) {
   const {
     notifications,
     loading: notifLoading,
@@ -12,12 +15,29 @@ export default function NotificationsPanel() {
     hasMore
     } = useMessageNotifications();
   const { markAsRead } = useMessageMarkNotificationAsRead();
-  const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
   const { markAllAsRead, loading: markAllLoading, error: markAllError } = useMarkAllMessageNotificationsAsRead();
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start text-sm text-center px-4 pt-10 gap-4 custom-scrollbar">
       <p className="text-gray-400">Recent notifications</p>
+      {notifications.length > 0 && (
+    <div className="w-full text-center">
+        <button
+        disabled={markAllLoading}
+        onClick={() =>
+            markAllAsRead(() => {
+            // Oppdater lokal state direkte (uten reload)
+            notifications.forEach((n) => {
+                n.isRead = true;
+            });
+            })
+        }
+        className="text-xs text-blue-600 hover:underline disabled:opacity-50 mb-2"
+        >
+        {markAllLoading ? "Marking..." : "Mark all as read"}
+        </button>
+    </div>
+    )}
 
       {notifLoading ? (
         <p className="text-gray-500 text-xs">Loading notifications...</p>
@@ -35,12 +55,19 @@ export default function NotificationsPanel() {
                     ? "bg-gray-100 dark:bg-[#2e2e2e] text-gray-400"
                     : "bg-white dark:bg-[#1e1e1e] font-semibold border border-[#1C6B1C] "}`}
                 onClick={() => {
+                if (!n.isRead) {
                     markAsRead(n.id, () => {
                     if (n.conversationId) {
-                        setCurrentConversationId(n.conversationId);
+                        onOpenConversation(n.conversationId);
                     }
                     });
+                } else {
+                    if (n.conversationId) {
+                    onOpenConversation(n.conversationId);
+                    }
+                }
                 }}
+
                 >
             {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
               <strong>{n.senderName}</strong>{" "}
@@ -57,22 +84,14 @@ export default function NotificationsPanel() {
         </ul>
       )}
       {hasMore && (
-        <button>Load more</button>
-            )}
-
-            {notifications.length > 0 && (
-            <button
-                disabled={markAllLoading}
-                onClick={() =>
-                markAllAsRead(() => {
-                    window.location.reload();
-                })
-                }
-                className="text-xs text-blue-600 hover:underline disabled:opacity-50 mt-2"
-            >
-                {markAllLoading ? "Marking..." : "Mark all as read"}
-            </button>
-            )}
+        <button
+            onClick={loadMore}
+            disabled={notifLoading}
+            className="text-xs text-blue-600 hover:underline disabled:opacity-50 mt-2"
+        >
+            {notifLoading ? "Loading..." : "Load more"}
+        </button>
+        )}
     </div>
   );
 }

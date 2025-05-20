@@ -28,3 +28,10 @@ export async function markAllMessageNotificationsAsRead(): Promise<void> {
   const url = `${API_BASE_URL}/api/MessageNotifications/mark-all-as-read`;
   await fetchWithAuth<void>(url, { method: "POST" });
 }
+
+// 🔔 Henter ID-er til samtaler med uleste notifications
+export async function getUnreadConversationIds(): Promise<number[]> {
+  const url = `${API_BASE_URL}/unread-conversations`;
+  const ids = await fetchWithAuth<number[]>(url);
+  return ids ?? [];
+}

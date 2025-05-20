@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
 import { ConversationDTO } from "@/types/ConversationDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
+import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 
 
 
@@ -33,6 +34,9 @@ type ChatStore = {
   searchResults: MessageDTO[];
   setSearchResults: (messages: MessageDTO[]) => void;
   updateSearchResultReactions: (reaction: ReactionDTO) => void;
+  messageNotifications: MessageNotificationDTO[];
+  setMessageNotifications: (notifications: MessageNotificationDTO[]) => void;
+  addMessageNotification: (notification: MessageNotificationDTO) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -46,7 +50,19 @@ export const useChatStore = create<ChatStore>((set) => ({
   searchMode: false,
   setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
    setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
+  messageNotifications: [],
+  setMessageNotifications: (notifications) =>
+    set(() => ({ messageNotifications: notifications })),
 
+  addMessageNotification: (notification) =>
+    set((state) => {
+      const exists = state.messageNotifications.some(n => n.id === notification.id);
+      if (exists) return state;
+
+      return {
+        messageNotifications: [notification, ...state.messageNotifications].slice(0, 20),
+      };
+    }),
   pendingMessageRequests: [],
   pendingLockedConversationId: null,
   setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
@@ -270,5 +286,6 @@ export const useChatStore = create<ChatStore>((set) => ({
       scrollPositions: {},
       cacheTimestamps: {},
       pendingMessageRequests: [],
+      messageNotifications: [],
     })),
 }));

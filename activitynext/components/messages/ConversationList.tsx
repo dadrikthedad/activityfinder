@@ -7,6 +7,7 @@ import { ConversationListItem } from "./ConversationListUserCard";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useRef, useEffect } from "react";
+import { useUnreadConversationIds } from "@/hooks/messages/useUnreadConversationIds";
 
 
 
@@ -26,6 +27,8 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       return conv.participants.find(p => p.id !== currentUser?.id);
     };
     const displayedConversations = conversations ?? storeConversations; // Vise samtaler eller søkesamtaler
+
+    const { ids: unreadIds } = useUnreadConversationIds();
 
     // Håndtere scrolling og paginering
     const handleScroll = () => {
@@ -96,6 +99,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
                   user={otherUser}
                   selected={selectedId === conv.id}
                   isPendingApproval={conv.isPendingApproval}
+                  hasUnread={unreadIds.includes(conv.id)}
                   onClick={() => onSelect(conv.id)}
                   onShowUserPopover={onShowUserPopover}
                 />

@@ -10,6 +10,7 @@ interface Props {
   isClickable?: boolean;
   isPendingApproval?: boolean;
   onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void; // 👈 Ny prop
+  hasUnread?: boolean;
 }
 
 export const ConversationListItem = ({
@@ -20,6 +21,7 @@ export const ConversationListItem = ({
   isClickable = true,
   isPendingApproval = false,
   onShowUserPopover,
+  hasUnread,
 }: Props) => {
   
   // For å regne hvor UserActionPopover skal åpnes
@@ -56,9 +58,12 @@ export const ConversationListItem = ({
           <MiniAvatar imageUrl={user.profileImageUrl ?? "/default-avatar.png"} size={40} alt={user.fullName} />
       </button>
       <div className="flex-1 overflow-hidden">
-        <span className="text-sm font-medium block truncate whitespace-nowrap overflow-hidden">
-          {user.fullName}
-        </span>
+        <span className="text-sm font-medium block truncate whitespace-nowrap overflow-hidden flex items-center gap-1">
+        {user.fullName}
+        {hasUnread && (
+          <span className="inline-block w-2 h-2 bg-green-600 rounded-full" title="Unread message" />
+        )}
+      </span>
         {subtitle && (
           <span className="text-xs text-gray-500 block truncate whitespace-nowrap overflow-hidden">
             {subtitle}
