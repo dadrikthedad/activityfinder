@@ -137,6 +137,48 @@ public class ConversationsController : BaseController
         return Ok(dto);
     }
     
+    // Søke i samtaler
+    [HttpGet("search-conversations")]
+    public async Task<IActionResult> SearchConversations([FromQuery] string query)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
+        if (string.IsNullOrWhiteSpace(query))
+            return BadRequest("Søketekst må oppgis.");
+
+        var searchQuery = query.Trim().ToLower();
+
+        // Hent samtaler
+        var conversationResults = await _conversationService.GetUserConversationsSortedAsync(userId.Value);
+
+        // Filtrer basert på søk
+        var filtered = conversationResults
+            .Where(c =>
+                (!string.IsNullOrEmpty(c.Conversation.GroupName) &&
+                 c.Conversation.GroupName.ToLower().Contains(searchQuery)) ||
+                c.Conversation.Participants.Any(p =>
+                    p.User.FullName.ToLower().Contains(searchQuery)))
+            .Select(c => new ConversationDTO
+            {
+                Id = c.Conversation.Id,
+                GroupName = c.Conversation.GroupName,
+                IsGroup = c.Conversation.IsGroup,
+                LastMessageSentAt = c.Conversation.LastMessageSentAt,
+                Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
+                {
+                    Id = p.User.Id,
+                    FullName = p.User.FullName,
+                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                }).ToList(),
+                IsPendingApproval = c.IsPendingApproval 
+            })
+            .ToList();
+
+        return Ok(filtered);
+    }
+    
     // Opprette en gruppe
     [HttpPost("group")]
     public async Task<IActionResult> CreateGroup([FromBody] string groupName)
