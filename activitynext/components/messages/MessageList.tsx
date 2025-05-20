@@ -251,7 +251,7 @@ export default function MessageList({
             <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
               <ReactionHandler targetId={msg.id} userId={currentUser?.id ?? -1}  existingReactions={msg.reactions}>
             <div
-                className={`p-2 max-w-[250] break-words whitespace-pre-wrap overflow-visible ${
+                className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${
                     isMine ? "text-right ml-auto" : "text-left"
                 }`}
                 >

@@ -1,6 +1,7 @@
-import ProfileNavButton from "../settings/ProfileNavButton";
+
 import { ImageIcon, Paperclip, Smile, ArrowDown } from "lucide-react";
 import MessageSettingsDropdown from "./MessageSettingsDropdown";
+import TooltipButton from "../common/TooltipButton";
 
 interface MessageToolbarProps {
   atBottom: boolean;
@@ -19,24 +20,41 @@ export default function MessageToolbar({
 }: MessageToolbarProps) {
   return (
     <div className="flex items-center justify-between mb-1">
-      {/* Scroll-knapp til venstre */}
+      {/* Scroll-knapp og menyknapp til venstre */}
       <div className="flex items-center gap-5">
-        <MessageSettingsDropdown />
+        <div className="relative group">
+          <MessageSettingsDropdown />
+           <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-[#2c2f30] text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap pointer-events-none border border-[#1C6B1C] z-50 shadow-lg">
+            Settings
+          </div>
+        </div>
+        
         {!atBottom && (
-          <ProfileNavButton
-            text={<ArrowDown size={18} />}
-            variant="tiny"
-            onClick={onScrollToBottom}
-            className="hover:bg-[#0F3D0F]"
+          <TooltipButton 
+            icon={<ArrowDown size={18} />} 
+            tooltip="Scroll til bunnen" 
+            onClick={onScrollToBottom} 
           />
         )}
       </div>
 
       {/* Emoji/fil/bilde-knapper til høyre */}
       <div className="flex items-center gap-2">
-        <ProfileNavButton text={<ImageIcon size={18} />} variant="tiny" onClick={onPickImage} />
-        <ProfileNavButton text={<Paperclip size={18} />} variant="tiny" onClick={onPickFile} />
-        <ProfileNavButton text={<Smile size={18} />} variant="tiny" onClick={onPickEmoji} />
+        <TooltipButton 
+          icon={<ImageIcon size={18} />} 
+          tooltip="Add picture" 
+          onClick={onPickImage} 
+        />
+        <TooltipButton 
+          icon={<Paperclip size={18} />} 
+          tooltip="Add file" 
+          onClick={onPickFile} 
+        />
+        <TooltipButton 
+          icon={<Smile size={18} />}
+          tooltip="Emoji" 
+          onClick={onPickEmoji} 
+        />
       </div>
     </div>
   );

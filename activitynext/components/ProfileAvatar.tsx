@@ -1,13 +1,15 @@
 // Her har vi bilde, samt en poppup og endring av bilde hvis vi besøker editprofile. Trykk på bilde åpner en pop-up som er større. Endres senre til å ha med like og kommentarer.
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { Dialog } from "@headlessui/react";
 import { cn } from "../lib/utils";
 import FormButton from "@/components/FormButton";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useUploadProfileImage } from "@/hooks/useUploadProfileImage";
+import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
+import Spinner from "./common/Spinner";
 
 interface Props {
   imageUrl: string; // Url til profilbilde
@@ -25,6 +27,8 @@ export default function ProfileAvatar({
     const [selectedFile, setSelectedFile] = useState<File | null>(null); // Her lagres filen som er valgt til opplastning slik at vi kan previewe og sende til backend
     const [selectedFileName, setSelectedFileName] = useState<string>(""); // Navnet på den valgte filen
     const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Her er forhåndsvisning av det nye bilde før oppdatering
+    const { refresh: refreshCurrentUser } = useCurrentUserSummary();
+    const [imgLoading, setImgLoading] = useState(false);
 
     const { // Kommer fra useUploadProfileImage og håndter opplastning av bilde
         upload,
@@ -40,12 +44,22 @@ export default function ProfileAvatar({
         setSelectedFileName(file.name);
         setPreviewUrl(URL.createObjectURL(file));
       };
+
+      useEffect(() => {
+        // Vi only loader “eksternt” bilde, ikke previewUrl
+        setImgLoading(true);
+      }, [imageUrl]);
+
+      const handleImageLoaded = () => {
+        setImgLoading(false);
+      };
     
       const handleUpload = async () => { //Håndterer API-kallet til backend. Laster opp bilde med upload(). 
         if (!selectedFile) return;
         const uploadedUrl = await upload(selectedFile);
         if (uploadedUrl) {
-          await refetchProfile?.(); // Refetcher siden ved bytte av bilde
+          await refetchProfile?.();
+          refreshCurrentUser();  // Refetcher siden ved bytte av bilde
           handleClose();
         }
       };
@@ -63,16 +77,25 @@ export default function ProfileAvatar({
           <div
             onClick={() => setIsOpen(true)}
             className={cn(
-              "cursor-pointer rounded-full border-4 border-[#1C6B1C] shadow-md overflow-hidden",
+              "relative cursor-pointer rounded-full border-4 border-[#1C6B1C] shadow-md overflow-hidden",
               "w-48 h-48"
             )}
           >
+            {/* Spinner-overlay mens loading */}
+            {imgLoading && (
+             <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-full">
+              {/* Spinner uten tekst */}
+              <Spinner />
+            </div>
+            )}
             <Image
               src={imageUrl}
               alt="Profile"
               width={192}
               height={192}
               className="object-cover w-full h-full rounded-full"
+              onLoadingComplete={handleImageLoaded}
+              unoptimized={Boolean(previewUrl)}  
             />
           </div>
     

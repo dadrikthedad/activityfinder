@@ -1,81 +1,109 @@
 // Hovedknappen som finnes rundt omkring, arver fra FormButton og finnes i forskjellige varianter. Brukes i profilesettings, profile/[id], editprofile osv
 "use client";
 
+import React from "react";
 import { useRouter } from "next/navigation";
 import FormButton from "@/components/FormButton";
+import clsx from "clsx";
 
-interface ProfileNavButtonProps {
+// Her arver vi alle vanlige knapp-props og legger til våre egne
+export interface ProfileNavButtonProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
   href?: string;
   text: React.ReactNode;
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  disabled?: boolean;
-  className?: string;
-  variant?: "default" | "small" | "large" | "long" | "normal" | "usual" |"iconOnly" | "smallx" | "tiny";
+  variant?:
+    | "default"
+    | "small"
+    | "large"
+    | "long"
+    | "normal"
+    | "usual"
+    | "iconOnly"
+    | "smallx"
+    | "tiny";
 }
 
-export default function ProfileNavButton({
-  href,
-  text,
-  onClick,
-  disabled = false,
-  className = "",
-  variant = "default",
-}: ProfileNavButtonProps) {
-  const router = useRouter();
-  
+const ProfileNavButton = React.forwardRef<
+  HTMLButtonElement,
+  ProfileNavButtonProps
+>(
+  (
+    {
+      href,
+      text,
+      onClick,
+      disabled = false,
+      className = "",
+      variant = "default",
+      // fanger opp ALT annet du måtte sende, inkl. aria-* etc
+      ...rest
+    },
+    ref
+  ) => {
+    const router = useRouter();
 
-  let baseClasses = "";
-  // Finnes i forskjellige varianter
-  switch (variant) {
-    case "small":
-      baseClasses = "w-[140px] text-sm px-4 py-2";
-      break;
-    case "large":
-      baseClasses = "w-[240px] text-xl px-8 py-4";
-      break;
-    case "iconOnly":
-      baseClasses = "w-[48px] h-[48px] p-2 text-base"; 
-      break;
-    case "smallx":
-      baseClasses = "w-[30px] h-[30px] p-2 text-base"; 
-      break;
-    case "normal":
-      baseClasses ="w-48 h-12 text-lg px-4 py-2 text-center whitespace-nowrap overflow-hidden text-ellipsis";
-      break;
-    case "long":
-        baseClasses = "w-[280px] h-14 text-lg px-4 py-2 text-center whitespace-nowrap overflow-hidden text-ellipsis";
+    // Sett opp base‐klasser som før
+    let baseClasses = "";
+    switch (variant) {
+      case "small":
+        baseClasses = "w-[140px] text-sm px-4 py-2";
         break;
-      case "usual": // Denne brukes i friends-siden
-        baseClasses = "w-[180px] h-14 text-lg px-4 py-2 text-center overflow-hidden whitespace-nowrap text-ellipsis";
+      case "large":
+        baseClasses = "w-[240px] text-xl px-8 py-4";
+        break;
+      case "iconOnly":
+        baseClasses = "w-[48px] h-[48px] p-2 text-base";
+        break;
+      case "smallx":
+        baseClasses = "w-[30px] h-[30px] p-2 text-base";
+        break;
+      case "normal":
+        baseClasses =
+          "w-48 h-12 text-lg px-4 py-2 text-center whitespace-nowrap overflow-hidden text-ellipsis";
+        break;
+      case "long":
+        baseClasses =
+          "w-[280px] h-14 text-lg px-4 py-2 text-center whitespace-nowrap overflow-hidden text-ellipsis";
+        break;
+      case "usual":
+        baseClasses =
+          "w-[180px] h-14 text-lg px-4 py-2 text-center overflow-hidden whitespace-nowrap text-ellipsis";
         break;
       case "tiny":
         baseClasses = "w-[28px] h-[28px] p-1 flex items-center justify-center text-sm";
         break;
-    case "default":
-    default:
-      baseClasses = "w-[200px] text-lg px-6 py-3";
-      break;
-  }
-  // Håndter klikk
-      const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      default:
+        baseClasses = "w-[200px] text-lg px-6 py-3";
+    }
+
+    // Slå sammen klasser
+    const classes = clsx(baseClasses, className);
+
+    // Samle klikk‐håndtering
+    const handleClick: React.MouseEventHandler<HTMLButtonElement> = (e) => {
       if (href) {
         router.push(href);
       }
-
       if (onClick) {
-        onClick(e); // <-- fortsatt tillat ekstra logikk som lukk dropdown
+        onClick(e);
       }
     };
 
+    return (
+      <FormButton
+        // Viktig: forward ref og spre resten av props
+        ref={ref}
+        type="button"
+        fullWidth={false}
+        text={text}
+        onClick={handleClick}
+        disabled={disabled}
+        className={classes}
+        {...rest}
+      />
+    );
+  }
+);
 
-  return (
-    <FormButton
-      text={text}
-      type="button"
-      fullWidth={false}
-      onClick={handleClick}
-      disabled={disabled}
-      className={`${baseClasses} ${className}`}
-    />
-  );
-}
+ProfileNavButton.displayName = "ProfileNavButton";
+export default ProfileNavButton;

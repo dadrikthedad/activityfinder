@@ -1,26 +1,29 @@
-"use client"
-import { useEffect, useState } from "react";
-import { getCurrentUserSummary } from "@/services/user/getCurrentUserSummary";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+'use client'
+
+import useSWR from 'swr'
+import { getCurrentUserSummary } from '@/services/user/getCurrentUserSummary'
+import { UserSummaryDTO } from '@/types/UserSummaryDTO'
 
 export function useCurrentUserSummary() {
-  const [user, setUser] = useState<UserSummaryDTO | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: refresh,
+  } = useSWR<UserSummaryDTO | null>(
+    // 1) Bruk en array som nøkkel, ikke bare string
+    ['/user/summary'],
+    // 2) Pakk fetcheren inn i en arrow-funksjon så den matcher signaturen
+    () => getCurrentUserSummary(),
+    {
+      revalidateOnFocus: true, // eller false om du vil
+    }
+  )
 
-  useEffect(() => {
-    console.log("🔍 useCurrentUserSummary: henter bruker...");
-    getCurrentUserSummary()
-      .then((data) => {
-        console.log("✅ Bruker hentet:", data);
-        setUser(data);
-      })
-      .catch((err) => {
-        console.error("❌ Feil ved henting av bruker:", err);
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  return { user, loading, error };
+  return {
+    user: data ?? null,
+    loading: isLoading,
+    error,
+    refresh,
+  }
 }

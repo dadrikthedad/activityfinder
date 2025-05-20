@@ -125,7 +125,7 @@ export default function MessageInput({
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Skriv en melding..."
+          placeholder="Write a message..."
           minRows={1}
           maxRows={6} // begrens hvor stor den kan bli
           className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px] focus:outline-none"

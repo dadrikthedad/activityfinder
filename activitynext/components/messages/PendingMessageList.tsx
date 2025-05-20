@@ -2,7 +2,6 @@
 "use client"
 
 import { ConversationListItem } from "./ConversationListUserCard";
-import Link from "next/link";
 import React, { useEffect } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
@@ -37,7 +36,7 @@ const PendingRequestsList = ({
   if (loading) return <p className="px-4 py-2 text-sm"></p>;
   if (error) return <p className="px-4 py-2 text-sm text-red-500">{error}</p>;
   if (!requests || requests.length === 0)
-    return <p className="px-4 py-2 text-sm text-gray-500">Ingen forespørsler.</p>;
+    return <p className="px-4 py-2 text-sm text-gray-500">No requests.</p>;
 
   const visibleRequests = limit ? requests.slice(0, limit) : requests;
 
@@ -92,10 +91,13 @@ const PendingRequestsList = ({
       </ul>
 
       {showMoreLink && requests.length > (limit ?? 0) && (
-        <div className="mt-2 text-sm text-right pr-2">
-          <Link href="/chat/requests" className="text-blue-500 hover:underline">
-            Vis alle forespørsler →
-          </Link>
+        <div className="mt-2 text-sm flex justify-end pr-2">
+          <ProfileNavButton
+            href="/chat"       // Eller "/chat" om du vil til selve chat-siden
+            text="See more"
+            variant="small"             // Velg variant som passer – f.eks. "small", "normal", "tiny" osv.
+            className="text-blue-500 hover:underline p-0 mr-15" // p-0 fjerner padding om du ønsker link-utseende
+          />
         </div>
       )}
     </div>

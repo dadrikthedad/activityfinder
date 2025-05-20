@@ -3,7 +3,7 @@
 import React from "react";
 import { ReactionDTO } from "@/types/MessageDTO";
 import styles from "./styles.module.css";
-import { Tooltip } from "react-tooltip";
+import TooltipWrapper from "../common/TooltipWrapper";
 
 interface ReactionPopupProps {
   onSelect: (emoji: string) => void;
@@ -34,29 +34,26 @@ export const ReactionPopup: React.FC<ReactionPopupProps> = ({
         const userHasReacted = existingReactions.some(
           (r) => r.emoji === emoji && r.userId === userId
         );
-
+        
+        const tooltipText = userHasReacted ? "Remove reaction" : "Add reaction";
+        
         return (
-          <React.Fragment key={emoji}>
+          <TooltipWrapper 
+            key={emoji} 
+            tooltip={tooltipText}
+            // Her kan du legge til ekstra klasser hvis nødvendig
+            className="inline-block" 
+          >
             <button
               className={`${styles.emojiButton} ${userHasReacted ? styles.active : ""}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onSelect(emoji);
               }}
-              data-tooltip-id={userHasReacted ? `tooltip-${emoji}` : undefined}
-              data-tooltip-content={userHasReacted ? "Remove reaction" : undefined}
             >
               {emoji}
             </button>
-
-            {userHasReacted && (
-              <Tooltip
-                id={`tooltip-${emoji}`}
-                delayShow={250}
-                place="top"
-              />
-            )}
-          </React.Fragment>
+          </TooltipWrapper>
         );
       })}
     </div>
