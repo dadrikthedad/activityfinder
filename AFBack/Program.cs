@@ -164,6 +164,7 @@ builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<IReactionService, ReactionService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
+builder.Services.AddScoped<MessageNotificationService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

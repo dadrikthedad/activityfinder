@@ -28,7 +28,7 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<GroupInviteRequest> GroupInviteRequests { get; set; } // Her har vi gruppeinvitasjoner
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
-    
+    public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
     public DbSet<GroupBlock> GroupBlocks { get; set; }  // Blokkerte grupper
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -271,6 +271,32 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(mr => mr.ConversationId)
             .OnDelete(DeleteBehavior.Cascade);
+        
+        // MessageNotificaitons
+        
+        modelBuilder.Entity<MessageNotification>()
+            .HasOne(n => n.User)
+            .WithMany() // eller .WithMany(u => u.Notifications) hvis du har det
+            .HasForeignKey(n => n.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MessageNotification>()
+            .HasOne(n => n.FromUser)
+            .WithMany()
+            .HasForeignKey(n => n.FromUserId)
+            .OnDelete(DeleteBehavior.NoAction); // Unngå slettekjede
+
+        modelBuilder.Entity<MessageNotification>()
+            .HasOne(n => n.Message)
+            .WithMany()
+            .HasForeignKey(n => n.MessageId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<MessageNotification>()
+            .HasOne(n => n.Conversation)
+            .WithMany()
+            .HasForeignKey(n => n.ConversationId)
+            .OnDelete(DeleteBehavior.SetNull);
         
     }
 }

@@ -12,11 +12,14 @@ public class MessageService : IMessageService
     {
         private readonly ApplicationDbContext _context;
         private readonly IHubContext<ChatHub> _hubContext;
+        private readonly MessageNotificationService _messageNotificationService;
 
-        public MessageService(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
+        public MessageService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService)
         {
             _context = context;
             _hubContext = hubContext;
+            _messageNotificationService = messageNotificationService;
+            
         }
         // Her sender vi en melding med SendMessageAsync, sender også med vedlegg
         public async Task<MessageResponseDTO> SendMessageAsync(int senderId, SendMessageRequestDTO request)
@@ -83,7 +86,6 @@ public class MessageService : IMessageService
             }
 
             // ✉️ Lagre meldingen
-            // ✉️ Lagre meldingen
             var message = CreateMessage(senderId, conversation.Id, request, isApproved);
             _context.Messages.Add(message);
 
@@ -95,6 +97,19 @@ public class MessageService : IMessageService
             var response = await MapToResponseDto(message);
             
             await BroadcastMessageIfApproved(conversation, senderId, response);
+            
+            foreach (var participant in conversation.Participants)
+            {
+                if (participant.UserId != senderId)
+                {
+                    await _messageNotificationService.CreateMessageNotificationAsync(
+                        recipientUserId: participant.UserId,
+                        senderUserId: senderId,
+                        conversationId: conversation.Id,
+                        messageId: message.Id
+                    );
+                }
+            }
             
             return response;
         }
@@ -273,11 +288,18 @@ public class MessageService : IMessageService
             var systemMessage = new SendMessageRequestDTO
             {
                 ConversationId = request.ConversationId ?? throw new Exception("ConversationId mangler på meldingforespørselen."),
-                Text = $"{approver.FullName} har godkjent samtalen. Du kan nå sende meldinger.",
+                Text = $"{approver.FullName} has accepted the conversation.",
                 ReceiverId = senderId.ToString()
             };
 
             await SendMessageAsync(receiverId, systemMessage); // godkjenneren som avsender
+            
+            // 🆕 Lag notifikasjon til avsenderen om at forespørselen ble godkjent
+            await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
+                receiverId, // godkjenner
+                senderId,   // den som sendte meldingsforespørselen
+                request.ConversationId!.Value
+            );
             
             await _hubContext.Clients.User(senderId.ToString())
                 .SendAsync("MessageRequestApproved", new {
@@ -602,7 +624,7 @@ public class MessageService : IMessageService
             return !(isFriend || isMessageApproved);
         }
         
-        public async Task AddMessageRequestIfNotExists(int senderId, int receiverId, int conversationId)
+       public async Task AddMessageRequestIfNotExists(int senderId, int receiverId, int conversationId)
         {
             var conversation = await _context.Conversations
                 .Include(c => c.Participants)
@@ -611,10 +633,9 @@ public class MessageService : IMessageService
             if (conversation == null)
                 throw new Exception("Samtalen finnes ikke.");
 
-            // For gruppesamtaler: vi lager en meldingsforespørsel per deltaker
+            // TODO: For gruppesamtaler må vi senere sende en forespørsel til hver deltaker (utenom avsender)
             if (conversation.IsGroup)
             {
-                // Ikke send forespørsel til deg selv
                 if (receiverId == senderId)
                     return;
 
@@ -632,6 +653,9 @@ public class MessageService : IMessageService
                         ConversationId = conversation.Id
                     });
 
+                    await _messageNotificationService.CreateMessageRequestNotificationAsync(
+                        senderId, receiverId, conversation.Id);
+
                     await _context.SaveChangesAsync();
 
                     await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
@@ -645,36 +669,36 @@ public class MessageService : IMessageService
                 return;
             }
 
-            // For én-til-én samtaler (bruker eksisterende GetOrCreate hvis ønskelig)
-            if (!conversation.IsGroup)
+            // Én-til-én samtale
+            var existingRequest = await _context.MessageRequests
+                .FirstOrDefaultAsync(r =>
+                    r.ConversationId == conversation.Id &&
+                    (
+                        (r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                        (r.SenderId == receiverId && r.ReceiverId == senderId)
+                    )
+                );
+
+            if (existingRequest == null)
             {
-                var existing = await _context.MessageRequests
-                    .FirstOrDefaultAsync(r =>
-                        r.ConversationId == conversation.Id &&
-                        (
-                            (r.SenderId == senderId && r.ReceiverId == receiverId) ||
-                            (r.SenderId == receiverId && r.ReceiverId == senderId)
-                        )
-                    );
-
-                if (existing == null)
+                _context.MessageRequests.Add(new MessageRequest
                 {
-                    _context.MessageRequests.Add(new MessageRequest
-                    {
-                        SenderId = senderId,
-                        ReceiverId = receiverId,
-                        ConversationId = conversation.Id
-                    });
+                    SenderId = senderId,
+                    ReceiverId = receiverId,
+                    ConversationId = conversation.Id
+                });
 
-                    await _context.SaveChangesAsync();
+                await _messageNotificationService.CreateMessageRequestNotificationAsync(
+                    senderId, receiverId, conversation.Id);
 
-                    await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
-                    {
-                        SenderId = senderId,
-                        ReceiverId = receiverId,
-                        ConversationId = conversation.Id
-                    });
-                }
+                await _context.SaveChangesAsync();
+
+                await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                {
+                    SenderId = senderId,
+                    ReceiverId = receiverId,
+                    ConversationId = conversation.Id
+                });
             }
         }
 

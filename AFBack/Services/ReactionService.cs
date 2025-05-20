@@ -12,11 +12,13 @@ public class ReactionService : IReactionService
 {
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<ChatHub> _hubContext;
+    private readonly MessageNotificationService _messageNotificationService;
 
-    public ReactionService(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
+    public ReactionService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService)
     {
         _context = context;
         _hubContext = hubContext;
+        _messageNotificationService = messageNotificationService;
     }
 
     public async Task AddReactionAsync(int messageId, int userId, string emoji)
@@ -88,6 +90,24 @@ public class ReactionService : IReactionService
         var recipients = message.Conversation.IsGroup && !string.IsNullOrEmpty(message.Conversation.GroupName)
             ? null
             : message.Conversation.Participants.Select(p => p.UserId.ToString()).ToList();
+        
+        // ✅ Lag notification hvis det er ny eller endret reaksjon
+        if (!isRemoved)
+        {
+            var receiverUserId = message.SenderId;
+
+            // Ikke send notification til deg selv
+            if (receiverUserId != userId)
+            {
+                await _messageNotificationService.CreateMessageReactionNotificationAsync(
+                    reactingUserId: userId,
+                    receiverUserId: receiverUserId,
+                    messageId: message.Id,
+                    conversationId: message.ConversationId,
+                    emoji: emoji
+                );
+            }
+        }
 
         await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, dto);
 
