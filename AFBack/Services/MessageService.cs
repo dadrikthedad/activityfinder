@@ -265,6 +265,16 @@ public class MessageService : IMessageService
             
             await _context.SaveChangesAsync();
             
+            // ✅ Send automatisk melding via eksisterende sendelogikk
+            var systemMessage = new SendMessageRequestDTO
+            {
+                ConversationId = request.ConversationId ?? throw new Exception("ConversationId mangler på meldingforespørselen."),
+                Text = "Samtalen er godkjent. Du kan nå sende meldinger.",
+                ReceiverId = senderId.ToString()
+            };
+
+            await SendMessageAsync(receiverId, systemMessage); // godkjenneren som avsender
+            
             await _hubContext.Clients.User(senderId.ToString())
                 .SendAsync("MessageRequestApproved", new {
                     ReceiverId = receiverId,
