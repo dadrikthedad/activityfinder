@@ -59,6 +59,7 @@ export default function MessageSettingsDropdown() {
                     if (searchMode) {
                     resetSearch();
                     setSearchMode(false);
+                    useChatStore.getState().setSearchResults([]);
                     } else {
                     setSearchMode(true);
                     }

@@ -30,6 +30,9 @@ type ChatStore = {
   addConversation: (conversation: ConversationDTO) => void;
   setPendingLockedConversationId: (id: number | null) => void;
   pendingLockedConversationId: number | null;
+  searchResults: MessageDTO[];
+  setSearchResults: (messages: MessageDTO[]) => void;
+  updateSearchResultReactions: (reaction: ReactionDTO) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -39,8 +42,11 @@ export const useChatStore = create<ChatStore>((set) => ({
   cachedMessages: {},
   scrollPositions: {},
   cacheTimestamps: {},
+  searchResults: [],
   searchMode: false,
   setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
+   setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
+
   pendingMessageRequests: [],
   pendingLockedConversationId: null,
   setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
@@ -67,6 +73,24 @@ export const useChatStore = create<ChatStore>((set) => ({
     ),
   })),
   
+  updateSearchResultReactions: (reaction: ReactionDTO) =>
+    set((state) => {
+      const updatedMessages = state.searchResults.map((m) => {
+        if (m.id !== reaction.messageId) return m;
+
+        const existing = m.reactions ?? [];
+        const filtered = existing.filter((r) => r.userId !== reaction.userId);
+
+        if (!reaction.isRemoved) {
+          filtered.push(reaction);
+        }
+
+        return { ...m, reactions: filtered };
+      });
+
+      return { searchResults: updatedMessages };
+    }),
+  
 
   updateMessageReactions: (reaction: ReactionDTO) =>
   set((state) => {
@@ -83,6 +107,10 @@ export const useChatStore = create<ChatStore>((set) => ({
 
         return { ...m, reactions: filtered };
       });
+
+      
+
+      
 
     // Finn samtalen til meldingen – vi trenger conversationId
     const liveMessages = { ...state.liveMessages };

@@ -81,7 +81,8 @@ export default function MessageList({
 
     // For søkefeltet
       const [query, setQuery] = useState("");
-      const { messages: searchResults, loading: searchLoading, search, resetSearch } = useSearchMessages();
+      const { search, resetSearch, loading: searchLoading } = useSearchMessages();
+      const searchResults = useChatStore((s) => s.searchResults);
       const isSearching = useChatStore((s) => s.searchMode);
     
     const displayedMessages = useMemo(() => {
@@ -358,7 +359,7 @@ export default function MessageList({
                 <div className="text-xs italic text-gray-500 mb-2">↳ {msg.parentMessageText}</div>
               )}
               {msg.text?.trim() && (
-                <div className="text-sm mb-2 whitespace-pre-line">{msg.text}</div>
+                <div className="text-sm mb-2 break-words break-all whitespace-pre-line">{msg.text}</div>
               )}
 
               {msg.reactions?.length > 0 && (

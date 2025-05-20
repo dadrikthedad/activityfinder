@@ -12,6 +12,8 @@ export default function ChatHubClient() {
       (state) => state.updateConversationTimestamp
     );
     const updateMessageReactions = useChatStore((state) => state.updateMessageReactions); // Oppdaterer meldingsreaksjoner
+    const updateSearchResultReactions = useChatStore((state) => state.updateSearchResultReactions); // Oppdater reaksjoner i søkefelt
+    const searchMode = useChatStore((state) => state.searchMode);
 
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
@@ -22,7 +24,11 @@ export default function ChatHubClient() {
     },
     (reaction) => {
         console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
-        updateMessageReactions(reaction as ReactionDTO); // 👈 NY
+        updateMessageReactions(reaction as ReactionDTO); // Oppdater cache uansett
+
+        if (searchMode) {
+          updateSearchResultReactions(reaction as ReactionDTO); // I tillegg oppdater søkeresultatene hvis aktivt søk
+        }
       },
     ({ ReceiverId, ConversationId }) => {
         console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId); 
