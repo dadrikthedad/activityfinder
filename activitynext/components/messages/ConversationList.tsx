@@ -14,19 +14,23 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   currentUser: UserSummaryDTO | null;
-  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void; // 👈 Ny prop
+  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  conversations?: ConversationDTO[];
 }
 
-export default function ConversationList({ selectedId, onSelect, currentUser, onShowUserPopover }: Props) {
+export default function ConversationList({ selectedId, onSelect, currentUser, onShowUserPopover, conversations }: Props) {
     const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
     const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const getOtherUser = (conv: ConversationDTO): UserSummaryDTO | undefined => {
       return conv.participants.find(p => p.id !== currentUser?.id);
     };
+    const displayedConversations = conversations ?? storeConversations; // Vise samtaler eller søkesamtaler
 
     // Håndtere scrolling og paginering
     const handleScroll = () => {
+      if (conversations) return; // deaktivert under søk
+
       const container = scrollContainerRef.current;
       if (!container || loading || !hasMore) return;
 
@@ -38,6 +42,8 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
 
     // Trenger å sjekke at denne funker
     useEffect(() => {
+      if (conversations) return; // deaktiver om vi søker
+
       const container = scrollContainerRef.current;
       if (
         container &&
@@ -47,7 +53,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       ) {
         loadMore();
       }
-    }, [storeConversations, loadMore, loading, hasMore]);
+    }, [storeConversations, loadMore, loading, hasMore, conversations]);
 
   
     return (
@@ -61,7 +67,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       ) : (
         <>
           <ul className="space-y-2 px-2">
-            {storeConversations.map((conv) => {
+            {displayedConversations.map((conv) => {
               const isGroup = conv.isGroup;
               const otherUser = getOtherUser(conv);
 

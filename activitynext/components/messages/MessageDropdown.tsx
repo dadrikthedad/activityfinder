@@ -14,6 +14,8 @@ import { useEffect, useRef, useState } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import UserActionPopover from "../common/UserActionPopoverDropdown";
 import { useDropdown } from "@/context/DropdownContext";
+import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
+import Spinner from "../common/Spinner";
 
 
 
@@ -77,6 +79,23 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
   // For å sjekke om vi er i bunn av en samtale
   const [atBottom, setAtBottom] = useState(true);
+
+  // Ha kontroll på søke av samtaler
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    results: searchResults,
+    loading: searchLoading,
+  } = useConversationSearch();
+  const storeConversations = useChatStore(state => state.conversations);
+
+  const conversationsToShow = searchQuery.trim()
+  ? searchResults
+  : storeConversations;
+
+  console.log("🔍 Søketekst:", searchQuery);
+  console.log("📥 Søkeresultater:", searchResults);
+
 
   // Lukker dropdown ved klikk på Esc
   const handleClose = () => {
@@ -296,7 +315,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
             </button>
           </div>
         </div>
-      <div className="p-4 flex h-full">
+      <div className="p-4 flex h-full overflow-hidden">
         {/* Venstre kolonne */}
         <div className="w-[275px] flex flex-col relative overflow-hidden">
           {/* Øverst: Pending + separator */}
@@ -313,8 +332,18 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
           )}
 
           {/* Midten: ConversationList som eneste som vokser */}
-          <div className="flex-1 overflow-y-auto pr-2">
+          <div className="flex-1 min-h-0">
+            {searchQuery.trim() && (
+              <div className="px-2 py-1">
+                {searchLoading ? (
+                  <Spinner size={24} borderSize={3} text="Laster søkeresultater..." />
+                ) : searchResults.length === 0 ? (
+                  <p className="text-sm text-gray-500 mt-2 text-center">No conversations found.</p>
+                ) : null}
+              </div>
+            )}
             <ConversationList
+              conversations={conversationsToShow}
               selectedId={currentConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}
@@ -322,8 +351,18 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
             />
           </div>
 
+           <div className="shrink-0 px-2 mt-3">
+              <input
+                type="text"
+                className="w-full max-w-[250px] px-3 py-1 border border-[#1C6B1C] rounded text-sm focus:outline-none" 
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
           {/* Bunn: Fast knapp */}
-          <div className="shrink-0 p-4 mb-5">
+          <div className="shrink-0 p-4 mb-4">
             <ProfileNavButton
               text="✚"
               variant="iconOnly"

@@ -42,6 +42,16 @@ export async function getConversationById(
   return await fetchWithAuth<ConversationDTO>(url);
 }
 
+// Søker etter samtaler basert på navn eller gruppenavn
+export async function searchConversations(query: string): Promise<ConversationDTO[] | null> {
+  const encodedQuery = encodeURIComponent(query.trim());
+  const url = `${API_BASE_URL}/api/conversations/search-conversations?query=${encodedQuery}`;
+
+  console.log("🔵 Søker samtaler med:", url);
+
+  return await fetchWithAuth<ConversationDTO[]>(url);
+}
+
 
 
 
