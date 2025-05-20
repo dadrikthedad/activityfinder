@@ -22,21 +22,36 @@ public class MessageNotificationsController : ControllerBase
     
     // Henter alle Notifications
     [HttpGet]
-    public async Task<IActionResult> GetNotifications()
+    public async Task<IActionResult> GetNotifications([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         var userId = GetUserId();
 
-        var notifications = await _context.MessageNotifications
+        if (page < 1 || pageSize <= 0)
+            return BadRequest("Ugyldig pagineringsverdi.");
+
+        var query = _context.MessageNotifications
             .Where(n => n.UserId == userId)
             .Include(n => n.FromUser)
             .Include(n => n.Message)
             .Include(n => n.Conversation)
-            .OrderByDescending(n => n.CreatedAt)
-            .Take(50)
+            .OrderByDescending(n => n.CreatedAt);
+
+        var totalCount = await query.CountAsync();
+        var notifications = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         var dtoList = notifications.Select(MapToDTO).ToList();
-        return Ok(dtoList);
+
+        return Ok(new
+        {
+            page,
+            pageSize,
+            totalCount,
+            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            notifications = dtoList
+        });
     }
     
     // Henter alle uleste notifications
@@ -69,7 +84,7 @@ public class MessageNotificationsController : ControllerBase
         return Ok(new { count });
     }
     
-    // Leser alle notifications
+    // Leser en notificastion
     [HttpPost("mark-as-read/{id}")]
     public async Task<IActionResult> MarkAsRead(int id)
     {
@@ -91,7 +106,7 @@ public class MessageNotificationsController : ControllerBase
         return NoContent();
     }
     
-    // Sette en notification som lest
+    // Sette en notification som lest, men gir oss informasjonen om notifikasjonen. Slette?
     [HttpGet("read/{id}")]
     public async Task<IActionResult> ReadNotification(int id)
     {
@@ -115,6 +130,26 @@ public class MessageNotificationsController : ControllerBase
 
         var dto = MapToDTO(notification);
         return Ok(dto);
+    }
+    
+    // setter alle notifikasjoner som lest
+    [HttpPost("mark-all-as-read")]
+    public async Task<IActionResult> MarkAllAsRead()
+    {
+        var userId = GetUserId();
+
+        var unreadNotifications = await _context.MessageNotifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+
+        foreach (var n in unreadNotifications)
+        {
+            n.IsRead = true;
+            n.ReadAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
     
     

@@ -16,6 +16,7 @@ import UserActionPopover from "../common/UserActionPopoverDropdown";
 import { useDropdown } from "@/context/DropdownContext";
 import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
+import NotificationsPanel from "@/components/messages/NotificationsPanel";
 
 
 
@@ -409,9 +410,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400 text-sm text-center px-4">
-              Select a conversation to view messages.
-            </div>
+              <NotificationsPanel />
           )}
         </div>
         
