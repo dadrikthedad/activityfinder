@@ -121,6 +121,27 @@ public class MessageNotificationsController : ControllerBase
         return NoContent();
     }
     
+    // Setter alle notifikasjoner til en samtale lest
+    [HttpPost("mark-conversation-as-read/{conversationId}")]
+    public async Task<IActionResult> MarkConversationAsRead(int conversationId)
+    {
+        var userId = GetUserId();
+
+        var unreadNotifications = await _context.MessageNotifications
+            .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId == conversationId)
+            .ToListAsync();
+
+        foreach (var n in unreadNotifications)
+        {
+            n.IsRead = true;
+            n.ReadAt = DateTime.UtcNow;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+    
     // Sette en notification som lest, men gir oss informasjonen om notifikasjonen. Slette?
     [HttpGet("read/{id}")]
     public async Task<IActionResult> ReadNotification(int id)
