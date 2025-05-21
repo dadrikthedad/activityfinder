@@ -5,6 +5,8 @@ import { useChatHub } from "@/hooks/signalr/useChatHub";
 import { useChatStore } from "@/store/useChatStore";
 import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
+import { handleIncomingMessage } from "./handleIncomingMessage";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -14,6 +16,7 @@ export default function ChatHubClient() {
     const updateMessageReactions = useChatStore((state) => state.updateMessageReactions); // Oppdaterer meldingsreaksjoner
     const updateSearchResultReactions = useChatStore((state) => state.updateSearchResultReactions); // Oppdater reaksjoner i søkefelt
     const searchMode = useChatStore((state) => state.searchMode);
+    const { userId } = useAuth();
 
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
@@ -21,6 +24,7 @@ export default function ChatHubClient() {
       console.log("💬 Mottatt melding via SignalR:", message);
       addMessage(message);
       updateConversationTimestamp(message.conversationId, message.sentAt);
+      handleIncomingMessage(message, userId ?? null);
     },
     (reaction) => {
         console.log("🎉 Mottatt reaksjon via SignalR:", reaction);

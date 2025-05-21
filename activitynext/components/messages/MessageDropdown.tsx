@@ -17,6 +17,7 @@ import { useDropdown } from "@/context/DropdownContext";
 import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
 import NotificationsPanel from "@/components/messages/NotificationsPanel";
+import { useUnreadConversationIds } from "@/hooks/messages/useUnreadConversationIds";
 
 
 
@@ -87,6 +88,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     setCurrentConversationId(id);
     setConversationVisible(true);
   };
+
+  useUnreadConversationIds();  // Setter notifications til samtaler
 
   // Ha kontroll på søke av samtaler
   const {

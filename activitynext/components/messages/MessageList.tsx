@@ -14,6 +14,8 @@ import { addReaction } from "@/services/messages/reactionService";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 import { debounce } from "lodash";
 import Spinner from "../common/Spinner";
+import { useMarkConversationNotificationsAsRead } from "@/hooks/messages/useMarkConversationNotificationAsRead";
+
 
 
 
@@ -70,6 +72,8 @@ export default function MessageList({
       // Id for å skille mellom sist hentete meldinger
     const lastFetchedId = useRef<number | null>(null);
 
+    const setIsAtBottom = useChatStore(state => state.setIsAtBottom);
+
     
 
     useEffect(() => {
@@ -84,6 +88,8 @@ export default function MessageList({
       const { search, resetSearch, loading: searchLoading } = useSearchMessages();
       const searchResults = useChatStore((s) => s.searchResults);
       const isSearching = useChatStore((s) => s.searchMode);
+      // Setter meldinger som lest ved å være i nærheten med scrollen
+      const { markAsReadForConversation } = useMarkConversationNotificationsAsRead();
     
     const displayedMessages = useMemo(() => {
       if (isSearching) return searchResults;
@@ -183,9 +189,11 @@ export default function MessageList({
               // Informer parent
             if (onScrollPositionChange) {
               onScrollPositionChange(isAtBottom);
+              setIsAtBottom(isAtBottom);
             }
 
             if (isAtBottom) {
+              markAsReadForConversation(conversationId); // Setter samtalen som lest
               // 👉 forsink skjuling for å unngå "blink"
               setTimeout(() => {
                 setShowNewMessageButton(false);

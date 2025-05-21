@@ -59,11 +59,11 @@ export const ConversationListItem = ({
       </button>
       <div className="flex-1 overflow-hidden">
         <span className="text-sm font-medium block truncate whitespace-nowrap overflow-hidden flex items-center gap-1">
-        {user.fullName}
-        {hasUnread && (
-          <span className="inline-block w-2 h-2 bg-green-600 rounded-full" title="Unread message" />
-        )}
-      </span>
+          {user.fullName}
+          {hasUnread && (
+            <span className="inline-block w-2 h-2 bg-green-600 rounded-full" title="Unread message" />
+          )}
+        </span>
         {subtitle && (
           <span className="text-xs text-gray-500 block truncate whitespace-nowrap overflow-hidden">
             {subtitle}

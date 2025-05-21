@@ -13,6 +13,7 @@ export interface ReactionDTO {
   userId: number;
   isRemoved: boolean;
   userFullName?: string;
+  conversationId: number; 
 }
 
 export interface MessageDTO {

@@ -52,7 +52,6 @@ const PendingRequestsList = ({
                 profileImageUrl: r.profileImageUrl || "/default-avatar.png",
               }}
               isClickable={true}
-              subtitle={r.limitReached ? "Grense nådd" : undefined}
               onClick={() => {
                 console.log("✅ Klikket på samtale:", r.conversationId);
                 if (r.conversationId && onSelectConversation) {

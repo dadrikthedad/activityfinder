@@ -6,6 +6,7 @@ export interface MessageNotificationDTO {
   readAt?: string | null;
   messageId?: number | null;
   conversationId?: number | null;
+  senderId?: number | null;    
   senderName?: string | null;
   groupName?: string | null;
   reactionEmoji?: string | null;

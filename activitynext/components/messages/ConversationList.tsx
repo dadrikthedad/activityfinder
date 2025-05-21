@@ -7,7 +7,6 @@ import { ConversationListItem } from "./ConversationListUserCard";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useRef, useEffect } from "react";
-import { useUnreadConversationIds } from "@/hooks/messages/useUnreadConversationIds";
 
 
 
@@ -28,7 +27,8 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
     };
     const displayedConversations = conversations ?? storeConversations; // Vise samtaler eller søkesamtaler
 
-    const { ids: unreadIds } = useUnreadConversationIds();
+    const unreadConversationIds = useChatStore(state => state.unreadConversationIds);
+    console.log("🟢 Unread conversation IDs:", unreadConversationIds);
 
     // Håndtere scrolling og paginering
     const handleScroll = () => {
@@ -71,6 +71,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
         <>
           <ul className="space-y-2 px-2">
             {displayedConversations.map((conv) => {
+              const hasUnread = unreadConversationIds.includes(conv.id);
               const isGroup = conv.isGroup;
               const otherUser = getOtherUser(conv);
 
@@ -85,6 +86,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
                     }}
                     selected={selectedId === conv.id}
                     isPendingApproval={conv.isPendingApproval}
+                    hasUnread={hasUnread}
                     onClick={() => onSelect(conv.id)}
                     onShowUserPopover={() => {}} // tom fordi det ikke gir mening
                   />
@@ -99,7 +101,7 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
                   user={otherUser}
                   selected={selectedId === conv.id}
                   isPendingApproval={conv.isPendingApproval}
-                  hasUnread={unreadIds.includes(conv.id)}
+                  hasUnread={hasUnread}
                   onClick={() => onSelect(conv.id)}
                   onShowUserPopover={onShowUserPopover}
                 />

@@ -84,6 +84,7 @@ public class ReactionService : IReactionService
             UserId = userId,
             Emoji = removedEmoji ?? emoji,
             UserFullName = user?.FullName,
+            ConversationId = message.ConversationId,
             IsRemoved = isRemoved
         };
 

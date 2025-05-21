@@ -37,9 +37,14 @@ type ChatStore = {
   messageNotifications: MessageNotificationDTO[];
   setMessageNotifications: (notifications: MessageNotificationDTO[]) => void;
   addMessageNotification: (notification: MessageNotificationDTO) => void;
+  unreadConversationIds: number[];
+  setUnreadConversationIds: (ids: number[]) => void;
+  markConversationAsReadLocally: (conversationId: number) => void;
+  isAtBottom: boolean;
+  setIsAtBottom: (value: boolean) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
-export const useChatStore = create<ChatStore>((set) => ({
+export const useChatStore = create<ChatStore>((set, get) => ({
   conversations: [],
   liveMessages: {},
   currentConversationId: null,
@@ -47,6 +52,9 @@ export const useChatStore = create<ChatStore>((set) => ({
   scrollPositions: {},
   cacheTimestamps: {},
   searchResults: [],
+  unreadConversationIds: [],
+  isAtBottom: true,
+  setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
   searchMode: false,
   setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
    setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
@@ -75,6 +83,24 @@ export const useChatStore = create<ChatStore>((set) => ({
         (r) => r.conversationId !== conversationId
       )
     })),
+
+    setUnreadConversationIds: (ids) => {
+      console.log("🔔 Setter unreadConversationIds i store:", ids);
+      set({ unreadConversationIds: ids });
+    },
+
+    markConversationAsReadLocally: (conversationId) => {
+    const { messageNotifications, unreadConversationIds } = get();
+
+    const updated = messageNotifications.map(n =>
+      n.conversationId === conversationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
+    );
+
+    set({
+      messageNotifications: updated,
+      unreadConversationIds: unreadConversationIds.filter(id => id !== conversationId),
+    });
+  },
 
 
   setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),

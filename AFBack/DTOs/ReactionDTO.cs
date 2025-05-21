@@ -6,6 +6,8 @@ public class ReactionDTO
     public string Emoji { get; set; } = string.Empty;
     public int UserId { get; set; }
     
+    public int ConversationId { get; set; }
+    
     public string? UserFullName { get; set; } 
-    public bool IsRemoved { get; set; } // 👈 Nytt felt
+    public bool IsRemoved { get; set; }
 }

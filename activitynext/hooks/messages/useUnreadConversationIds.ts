@@ -1,22 +1,33 @@
 import { useEffect, useState } from "react";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
+import { getUnreadConversationIds } from "@/services/messages/messageNotificationService";
+import { useChatStore } from "@/store/useChatStore";
 
 export function useUnreadConversationIds() {
-  const [ids, setIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const storeUnreadIds = useChatStore(state => state.unreadConversationIds);
+  const setStoreUnreadIds = useChatStore(state => state.setUnreadConversationIds);
 
-  useEffect(() => {
-    async function fetchIds() {
-      try {
-        const data = await fetchWithAuth<number[]>("/api/MessageNotifications/unread-conversations");
-        setIds(data ?? []);
-      } finally {
-        setLoading(false);
-      }
+ useEffect(() => {
+  async function fetchAndStoreUnreadIds() {
+    try {
+      const ids = await getUnreadConversationIds();
+      console.log("🟢 API: Hentet unreadConversationIds", ids); // ✅
+      setStoreUnreadIds(ids); // 🔥 må faktisk kalles her
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Ukjent feil"));
+    } finally {
+      setLoading(false);
     }
+  }
 
-    fetchIds();
-  }, []);
+  fetchAndStoreUnreadIds();
+}, [setStoreUnreadIds]);
 
-  return { ids, loading };
+  return {
+    ids: storeUnreadIds,
+    loading,
+    error,
+    hasUnread: storeUnreadIds.length > 0,
+  };
 }

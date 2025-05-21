@@ -15,7 +15,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     hasMore
     } = useMessageNotifications();
   const { markAsRead } = useMessageMarkNotificationAsRead();
-  const { markAllAsRead, loading: markAllLoading, error: markAllError } = useMarkAllMessageNotificationsAsRead();
+  const { markAllAsRead, loading: markAllLoading } = useMarkAllMessageNotificationsAsRead();
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start text-sm text-center px-4 pt-10 gap-4 custom-scrollbar">
