@@ -1,6 +1,32 @@
 import { useMessageNotifications } from "@/hooks/messages/useMessageNotifications";
 import { useMessageMarkNotificationAsRead } from "@/hooks/messages/useMarkMessageNotificationAsRead";
 import { useMarkAllMessageNotificationsAsRead } from "@/hooks/messages/useMarkAllMessageNotificationsAsRead";
+import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+
+function formatNotificationText(n: MessageNotificationDTO): string {
+  switch (n.type) {
+    case "NewMessage":
+    case 0:
+      return "sent you a message";
+    case "MessageRequest":
+    case 1:
+      return "requested to message you";
+    case "MessageRequestApproved":
+    case 2:
+      return "approved your message request";
+    case "MessageReaction":
+    case 4:
+      if (n.reactionEmoji) {
+        const preview = n.messagePreview
+          ? ` on "${n.messagePreview}"`
+          : "";
+        return `reacted with ${n.reactionEmoji}${preview}`;
+      }
+      return "reacted to your message";
+    default:
+      return "";
+  }
+}
 
 interface NotificationsPanelProps {
   onOpenConversation: (conversationId: number) => void;
@@ -70,11 +96,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
 
                 >
             {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
-              <strong>{n.senderName}</strong>{" "}
-              {n.type === "NewMessage" && "sent you a message"}
-              {n.type === "MessageReaction" && `reacted with ${n.reactionEmoji ?? "❓"}`}
-              {n.type === "MessageRequest" && "requested to message you"}
-              {n.type === "MessageRequestApproved" && "approved your message request"}
+              <strong>{n.senderName}</strong> {formatNotificationText(n)}
 
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(n.createdAt).toLocaleString()}

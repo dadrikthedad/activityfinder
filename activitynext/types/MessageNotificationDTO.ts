@@ -1,6 +1,6 @@
 export interface MessageNotificationDTO {
   id: number;
-  type: "NewMessage" | "MessageRequest" | "MessageRequestApproved" | "MessageReaction";
+  type: NotificationType | keyof typeof NotificationType;
   isRead: boolean;
   createdAt: string;
   readAt?: string | null;
@@ -11,4 +11,11 @@ export interface MessageNotificationDTO {
   groupName?: string | null;
   reactionEmoji?: string | null;
   messagePreview?: string | null;
+}
+
+export enum NotificationType {
+  NewMessage = 0,
+  MessageRequest = 1,
+  MessageRequestApproved = 2,
+  MessageReaction = 4
 }
