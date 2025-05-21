@@ -208,6 +208,7 @@ public class MessageNotificationsController : ControllerBase
             MessageId = n.MessageId,
             ConversationId = n.ConversationId,
             SenderName = n.FromUser?.FullName,
+            SenderId = n.FromUserId,   
             GroupName = n.Conversation?.GroupName,
             MessagePreview = n.Message?.Text?.Length > 40 
                 ? n.Message.Text.Substring(0, 40) + "..."

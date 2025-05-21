@@ -10,7 +10,7 @@ public class MessageNotificationDTO
 
     public int? MessageId { get; set; }
     public int? ConversationId { get; set; }
-
+    public int? SenderId { get; set; }
     public string? SenderName { get; set; }
     public string? GroupName { get; set; }
     public string? ReactionEmoji { get; set; }
