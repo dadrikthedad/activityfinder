@@ -98,6 +98,7 @@ public class MessageNotificationService
             .Include(n => n.FromUser)
             .Include(n => n.Conversation)
             .Include(n => n.Message)
+                .ThenInclude(m => m.Reactions) 
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
         return MapToDTO(created!); // Du har MapToDTO allerede

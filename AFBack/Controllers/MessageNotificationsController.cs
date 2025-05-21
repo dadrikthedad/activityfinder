@@ -199,8 +199,21 @@ public class MessageNotificationsController : ControllerBase
 
     private MessageNotificationDTO MapToDTO(MessageNotification n)
     {
+        
+        Console.WriteLine($"   MessageId: {n.MessageId}, Has Reactions? {n.Message?.Reactions?.Count}");
+        Console.WriteLine($"🔎 Notification ID: {n.Id}");
+        Console.WriteLine($"   FromUserId (notification): {n.FromUserId}");
+        if (n.Message != null && n.Message.Reactions != null)
+        {
+            foreach (var r in n.Message.Reactions)
+            {
+                Console.WriteLine($"   → Reaction by UserId: {r.UserId}, Emoji: {r.Emoji}");
+            }
+        }
         return new MessageNotificationDTO
         {
+            
+            
             Id = n.Id,
             Type = n.Type,
             CreatedAt = n.CreatedAt,
