@@ -92,27 +92,24 @@ public class ReactionService : IReactionService
             ? null
             : message.Conversation.Participants.Select(p => p.UserId.ToString()).ToList();
         
-        // ✅ Lag notification hvis det er ny eller endret reaksjon
-        if (!isRemoved)
-        {
-            var receiverUserId = message.SenderId;
+        MessageNotificationDTO? notificationDto = null;
 
-            // Ikke send notification til deg selv
-            if (receiverUserId != userId)
-            {
-                await _messageNotificationService.CreateMessageReactionNotificationAsync(
-                    reactingUserId: userId,
-                    receiverUserId: receiverUserId,
-                    messageId: message.Id,
-                    conversationId: message.ConversationId,
-                    emoji: emoji
-                );
-            }
+        if (!isRemoved && message.SenderId != userId)
+        {
+            notificationDto = await _messageNotificationService.CreateMessageReactionNotificationAsync(
+                reactingUserId: userId,
+                receiverUserId: message.SenderId,
+                messageId: message.Id,
+                conversationId: message.ConversationId,
+                emoji: emoji
+            );
         }
 
-        await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, dto);
+        
+        // Send den originale reaction + evt. notification
+        await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, dto, notificationDto);
 
-        // Om ønskelig, send ekstra melding for bytte (ikke nødvendig, forenklet her)
+        // Hvis byttet emoji – send ny versjon av reaction
         if (!isRemoved && removedEmoji != null && removedEmoji != emoji)
         {
             var newDto = new ReactionDTO
@@ -121,32 +118,39 @@ public class ReactionService : IReactionService
                 UserId = userId,
                 Emoji = emoji,
                 UserFullName = user?.FullName,
+                ConversationId = message.ConversationId,
                 IsRemoved = false
             };
 
-            await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, newDto);
+            await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, newDto, notificationDto);
         }
     }
 
 
     
-    private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, string? groupName, ReactionDTO dto)
+    private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, string? groupName, ReactionDTO reaction, MessageNotificationDTO? notification)
     {
+        var payload = new
+        {
+            reaction,
+            notification
+        };
+
         var tasks = new List<Task>();
-        
+
         if (!string.IsNullOrEmpty(groupName))
         {
-            tasks.Add(_hubContext.Clients.Group(groupName).SendAsync("ReceiveReaction", dto));
+            tasks.Add(_hubContext.Clients.Group(groupName).SendAsync("ReceiveReaction", payload));
         }
 
         if (userIds != null)
         {
             foreach (var userId in userIds)
             {
-                tasks.Add(_hubContext.Clients.User(userId).SendAsync("ReceiveReaction", dto));
+                tasks.Add(_hubContext.Clients.User(userId).SendAsync("ReceiveReaction", payload));
             }
         }
-        
+
         await Task.WhenAll(tasks);
     }
 }

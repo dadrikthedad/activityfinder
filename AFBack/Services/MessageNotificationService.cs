@@ -72,7 +72,12 @@ public class MessageNotificationService
         await _context.SaveChangesAsync();
     }
     
-    public async Task CreateMessageReactionNotificationAsync(int reactingUserId, int receiverUserId, int messageId, int conversationId, string emoji)
+    public async Task<MessageNotificationDTO> CreateMessageReactionNotificationAsync(
+        int reactingUserId,
+        int receiverUserId,
+        int messageId,
+        int conversationId,
+        string emoji)
     {
         var notification = new MessageNotification
         {
@@ -87,5 +92,36 @@ public class MessageNotificationService
 
         _context.MessageNotifications.Add(notification);
         await _context.SaveChangesAsync();
+
+        // Hent med relasjoner for mapping hvis nødvendig
+        var created = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .Include(n => n.Message)
+            .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+        return MapToDTO(created!); // Du har MapToDTO allerede
+    }
+    
+    private MessageNotificationDTO MapToDTO(MessageNotification n)
+    {
+        return new MessageNotificationDTO
+        {
+            Id = n.Id,
+            Type = n.Type,
+            CreatedAt = n.CreatedAt,
+            IsRead = n.IsRead,
+            ReadAt = n.ReadAt,
+            MessageId = n.MessageId,
+            ConversationId = n.ConversationId,
+            SenderName = n.FromUser?.FullName,
+            SenderId = n.FromUserId,   
+            GroupName = n.Conversation?.GroupName,
+            MessagePreview = n.Message?.Text?.Length > 40 
+                ? n.Message.Text.Substring(0, 40) + "..."
+                : n.Message?.Text,
+            ReactionEmoji = n.Type == NotificationType.MessageReaction ? n.Message?.Reactions?
+                .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji : null
+        };
     }
 }
