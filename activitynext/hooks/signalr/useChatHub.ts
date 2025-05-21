@@ -13,20 +13,22 @@ import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
   onReceiveReaction?: (reaction: ReactionDTO, notification?: MessageNotificationDTO) => void,
-  onRequestApproved?: (data: { ReceiverId: number; ConversationId: number }) => void,
+  onRequestApproved?: (notification: MessageNotificationDTO) => void,
   onRequestCreated?: (data: MessageRequestCreatedDto) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
     ((reaction: ReactionDTO, notification?: MessageNotificationDTO) => void) | undefined
   >(onReceiveReaction);
-  const approvedRef = useRef(onRequestApproved);
+  const approvedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null);
   const createdRef = useRef(onRequestCreated);
    // Oppdater refs hvis funksjonene endres
   const setPendingMessageRequests = useChatStore.getState().setPendingMessageRequests;
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
-  useEffect(() => { approvedRef.current = onRequestApproved }, [onRequestApproved]);
+  useEffect(() => {
+    approvedRef.current = onRequestApproved ?? null;
+  }, [onRequestApproved]);
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
 
   useEffect(() => {
@@ -67,13 +69,24 @@ export function useChatHub(
             }
           });
 
-          conn.on("MessageRequestApproved", (data) => {
-            console.log("✅ Meldingsforespørsel godkjent:", data);
-            approvedRef.current?.(data);
+          conn.on("MessageRequestApproved", (notification: MessageNotificationDTO) => {
+            console.log("✅ Mottatt godkjenningsnotifikasjon:", notification);
+
+            // 1. Send den til callback hvis noen bruker den
+            approvedRef.current?.(notification);
+
+            // 2. Eller legg den rett i notification-store:
+            useChatStore.getState().addMessageNotification(notification);
           });
 
           conn.on("MessageRequestCreated", async (data: MessageRequestCreatedDto) => {
             console.log("📨 Ny meldingsforespørsel mottatt:", data);
+
+             const { notification } = data;
+
+              if (notification) {
+                useChatStore.getState().addMessageNotification(notification); // 👈 oppdater notificationpanel
+              }
 
             try {
               const updated = await getPendingMessageRequests();

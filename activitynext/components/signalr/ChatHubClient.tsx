@@ -38,18 +38,31 @@ export default function ChatHubClient() {
         updateSearchResultReactions(reaction as ReactionDTO);
       }
     },
-    ({ ReceiverId, ConversationId }) => {
-        console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId); 
-      },
-    ({ senderId, receiverId, conversationId }: MessageRequestCreatedDto) => {
-      if (!conversationId) {
-        console.error("🚨 Mangler conversationId i signalr-data:", { senderId, receiverId, conversationId });
-        return;
-      }
+    (notification) => {
+        console.log("✅ Godkjent forespørsel via SignalR:", notification); 
 
-      console.log("📨 Forespørsel opprettet via SignalR:", { senderId, receiverId, conversationId });
-    }
-    );
+        // 🔔 Legg den direkte inn i notification-storen
+        useChatStore.getState().addMessageNotification(notification);
+      },
+      ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
+        if (!conversationId) {
+          console.error("🚨 Mangler conversationId i signalr-data:", { senderId, receiverId, conversationId });
+          return;
+        }
+
+        console.log("📨 Forespørsel opprettet via SignalR:", {
+          senderId,
+          receiverId,
+          conversationId,
+          notification
+        });
+
+        // ✅ Oppdater notification-panelet i sanntid
+        if (notification) {
+          useChatStore.getState().addMessageNotification(notification);
+        }
+      }
+      );
   
     return null; // Kun sideeffekt
   }

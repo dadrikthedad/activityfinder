@@ -97,6 +97,10 @@ export default function MessageList({
       const isSearching = useChatStore((s) => s.searchMode);
       // Setter meldinger som lest ved å være i nærheten med scrollen
       const { markAsReadForConversation } = useMarkConversationNotificationsAsRead();
+
+      // For å kunne scrolle til meldingen som en bruker har reagert på
+      const scrollToMessageId = useChatStore((s) => s.scrollToMessageId);
+      const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
     
     const displayedMessages = useMemo(() => {
       if (isSearching) return searchResults;
@@ -138,30 +142,30 @@ export default function MessageList({
     
   // Scroll til bunn (visuelt) når vi bytter samtale og Gjenopprett scrollposisjon (flex-col-reverse)
     useEffect(() => {
-      const container = scrollRef.current;
-      if (!container) return;
+  const container = scrollRef.current;
+  const scrollToMessageId = useChatStore.getState().scrollToMessageId;
 
-      if (!conversationVisible || displayedMessages.length === 0 || isSearching) return;
+  if (!container) return;
+  if (!conversationVisible || displayedMessages.length === 0 || isSearching) return;
 
-      // 🔒 Hvis meldinger nylig er lagt til via SignalR, ikke gjør noe – da har vi allerede riktig scroll
-      if (live.length > 0) return;
+  // Hvis vi eksplisitt skal scrolle til en melding – hopp over scroll restore
+  if (scrollToMessageId) return;
 
-      setInitializingConversation(true);
+  if (live.length > 0) return;
 
-      requestAnimationFrame(() => {
-        const saved = scrollPositions[conversationId] ?? 0;
-        container.scrollTop = saved;
+  setInitializingConversation(true);
 
-        lastFetchedId.current = displayedMessages.at(0)?.id ?? null;
+  requestAnimationFrame(() => {
+    const saved = scrollPositions[conversationId] ?? 0;
+    container.scrollTop = saved;
 
-        // 🛑 Ikke nullstill ny melding-knappen her – det gjøres i andre effekter
-        // setShowNewMessageButton(false);
+    lastFetchedId.current = displayedMessages.at(0)?.id ?? null;
 
-        setTimeout(() => {
-          setInitializingConversation(false);
-        }, 50);
-      });
-    }, [conversationId, conversationVisible, displayedMessages.length]);
+    setTimeout(() => {
+      setInitializingConversation(false);
+    }, 50);
+  });
+}, [conversationId, conversationVisible, displayedMessages.length]);
     
     
   
@@ -255,6 +259,28 @@ export default function MessageList({
         conversationId,
         messagesInView: liveMessages[conversationId],
       });
+
+      // Scrollen til melding hvor vi har fått en reaksjon ved trykk i panelet
+      useEffect(() => {
+        if (!scrollToMessageId || displayedMessages.length === 0) return;
+
+        // Sjekk hver 50ms om elementet finnes (i tilfelle async rendering)
+        const maxTries = 10;
+        let tries = 0;
+
+        const interval = setInterval(() => {
+          const el = document.getElementById(`message-${scrollToMessageId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            setScrollToMessageId(null);
+            clearInterval(interval);
+          } else if (++tries >= maxTries) {
+            clearInterval(interval);
+          }
+        }, 50);
+
+        return () => clearInterval(interval);
+      }, [scrollToMessageId, displayedMessages]);
       
       
 
@@ -333,7 +359,7 @@ export default function MessageList({
         const isMine = currentUser?.id === msg.sender?.id;
   
         return (
-            <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
               <ReactionHandler targetId={msg.id} userId={currentUser?.id ?? -1}  existingReactions={msg.reactions}>
             <div
                 className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${

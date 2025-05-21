@@ -30,38 +30,53 @@ public class MessageNotificationService
         await _context.SaveChangesAsync();
     }
     
-    public async Task CreateMessageRequestNotificationAsync(int senderId, int receiverId, int conversationId)
+    public async Task<MessageNotificationDTO?> CreateMessageRequestNotificationAsync(int senderId, int receiverId, int conversationId)
     {
-        var alreadyExists = await _context.MessageNotifications.AnyAsync(n =>
-            n.UserId == receiverId &&
-            n.FromUserId == senderId &&
-            n.ConversationId == conversationId &&
-            n.Type == NotificationType.MessageRequest &&
-            !n.IsRead);
+        var existing = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .FirstOrDefaultAsync(n =>
+                n.UserId == receiverId &&
+                n.FromUserId == senderId &&
+                n.ConversationId == conversationId &&
+                n.Type == NotificationType.MessageRequest &&
+                !n.IsRead);
 
-        if (!alreadyExists)
+        if (existing != null)
         {
-            var notification = new MessageNotification
-            {
-                UserId = receiverId,
-                FromUserId = senderId,
-                ConversationId = conversationId,
-                Type = NotificationType.MessageRequest,
-                CreatedAt = DateTime.UtcNow,
-                IsRead = false
-            };
-
-            _context.MessageNotifications.Add(notification);
-            await _context.SaveChangesAsync();
+            return null; // Allerede sendt – ikke send igjen
         }
+
+        var notification = new MessageNotification
+        {
+            UserId = receiverId,
+            FromUserId = senderId,
+            ConversationId = conversationId,
+            Type = NotificationType.MessageRequest,
+            CreatedAt = DateTime.UtcNow,
+            IsRead = false
+        };
+
+        _context.MessageNotifications.Add(notification);
+        await _context.SaveChangesAsync();
+
+        var created = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+        return MapToDTO(created!);
     }
     
-    public async Task CreateMessageRequestApprovedNotificationAsync(int approverId, int senderId, int conversationId)
+    public async Task<MessageNotificationDTO> CreateMessageRequestApprovedNotificationAsync(
+        int approverId,
+        int senderId,
+        int conversationId)
     {
         var notification = new MessageNotification
         {
-            UserId = senderId, // Mottakeren av varselet er den som opprinnelig sendte meldingsforespørselen
-            FromUserId = approverId, // Den som godkjente
+            UserId = senderId,
+            FromUserId = approverId,
             ConversationId = conversationId,
             Type = NotificationType.MessageRequestApproved,
             CreatedAt = DateTime.UtcNow,
@@ -70,6 +85,13 @@ public class MessageNotificationService
 
         _context.MessageNotifications.Add(notification);
         await _context.SaveChangesAsync();
+
+        var created = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+        return MapToDTO(created!);
     }
     
     public async Task<MessageNotificationDTO> CreateMessageReactionNotificationAsync(

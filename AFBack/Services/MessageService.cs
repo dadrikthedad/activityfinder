@@ -295,16 +295,18 @@ public class MessageService : IMessageService
             await SendMessageAsync(receiverId, systemMessage); // godkjenneren som avsender
             
             // 🆕 Lag notifikasjon til avsenderen om at forespørselen ble godkjent
-            await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
+            var notification = await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
                 receiverId, // godkjenner
-                senderId,   // den som sendte meldingsforespørselen
+                senderId,   // mottaker av notification
                 request.ConversationId!.Value
             );
-            
+
+// 👇 Send hele notifikasjonen over SignalR
             await _hubContext.Clients.User(senderId.ToString())
-                .SendAsync("MessageRequestApproved", new {
-                    ReceiverId = receiverId,
-                    ConversationId = request.ConversationId
+                .SendAsync("ReceiveReaction", new
+                {
+                    reaction = (object?)null, // vi har ingen reaction
+                    notification // 👈 sendes til frontend
                 });
         }
         
@@ -688,17 +690,21 @@ public class MessageService : IMessageService
                     ConversationId = conversation.Id
                 });
 
-                await _messageNotificationService.CreateMessageRequestNotificationAsync(
+                // 👇 Lag notification og legg den til
+                var notification = await _messageNotificationService.CreateMessageRequestNotificationAsync(
                     senderId, receiverId, conversation.Id);
 
                 await _context.SaveChangesAsync();
 
-                await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                if (notification != null)
                 {
-                    SenderId = senderId,
-                    ReceiverId = receiverId,
-                    ConversationId = conversation.Id
-                });
+                    await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new {
+                        senderId,
+                        receiverId,
+                        conversationId = conversation.Id,
+                        notification
+                    });
+                }
             }
         }
 

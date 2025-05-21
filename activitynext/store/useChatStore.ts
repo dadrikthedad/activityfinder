@@ -47,6 +47,8 @@ type ChatStore = {
   showNewMessageButton: boolean;
   setShowNewMessageButton: (value: boolean) => void;
   replaceReactionNotification: (notification: MessageNotificationDTO) => void;
+  scrollToMessageId: number | null;
+  setScrollToMessageId: (id: number | null) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -60,6 +62,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   unreadConversationIds: [],
   isAtBottom: true,
   showNewMessageButton: false,
+  scrollToMessageId: null,
+  setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
   setShowNewMessageButton: (value: boolean) => set({ showNewMessageButton: value }),
   setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
   searchMode: false,

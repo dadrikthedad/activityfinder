@@ -2,6 +2,7 @@ import { useMessageNotifications } from "@/hooks/messages/useMessageNotification
 import { useMessageMarkNotificationAsRead } from "@/hooks/messages/useMarkMessageNotificationAsRead";
 import { useMarkAllMessageNotificationsAsRead } from "@/hooks/messages/useMarkAllMessageNotificationsAsRead";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { useChatStore } from "@/store/useChatStore";
 
 function formatNotificationText(n: MessageNotificationDTO): string {
   switch (n.type) {
@@ -42,6 +43,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     } = useMessageNotifications();
   const { markAsRead } = useMessageMarkNotificationAsRead();
   const { markAllAsRead, loading: markAllLoading } = useMarkAllMessageNotificationsAsRead();
+  const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start text-sm text-center px-4 pt-10 gap-4 custom-scrollbar">
@@ -81,18 +83,20 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                     ? "bg-gray-100 dark:bg-[#2e2e2e] text-gray-400"
                     : "bg-white dark:bg-[#1e1e1e] font-semibold border border-[#1C6B1C] "}`}
                 onClick={() => {
-                if (!n.isRead) {
-                    markAsRead(n.id, () => {
-                    if (n.conversationId) {
-                        onOpenConversation(n.conversationId);
-                    }
-                    });
-                } else {
-                    if (n.conversationId) {
+              if (!n.isRead) {
+                markAsRead(n.id, () => {
+                  if (n.conversationId) {
+                    setScrollToMessageId(n.messageId ?? null);
                     onOpenConversation(n.conversationId);
-                    }
+                  }
+                });
+              } else {
+                if (n.conversationId) {
+                  setScrollToMessageId(n.messageId ?? null);
+                  onOpenConversation(n.conversationId);
                 }
-                }}
+              }
+            }}
 
                 >
             {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
