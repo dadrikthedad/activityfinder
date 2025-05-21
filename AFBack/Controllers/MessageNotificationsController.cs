@@ -32,7 +32,8 @@ public class MessageNotificationsController : ControllerBase
         var query = _context.MessageNotifications
             .Where(n => n.UserId == userId)
             .Include(n => n.FromUser)
-            .Include(n => n.Message)
+            .Include(n => n.Message!)
+            .ThenInclude(m => m.Reactions)
             .Include(n => n.Conversation)
             .OrderByDescending(n => n.CreatedAt);
 
@@ -208,11 +209,19 @@ public class MessageNotificationsController : ControllerBase
             MessageId = n.MessageId,
             ConversationId = n.ConversationId,
             SenderName = n.FromUser?.FullName,
-            SenderId = n.FromUserId,   
+            SenderId = n.FromUserId,
             GroupName = n.Conversation?.GroupName,
             MessagePreview = n.Message?.Text?.Length > 40 
                 ? n.Message.Text.Substring(0, 40) + "..."
-                : n.Message?.Text
+                : n.Message?.Text,
+
+            ReactionEmoji = n.Type == NotificationType.MessageReaction
+                ? n.Message?.Reactions
+                    .Where(r => r.UserId == n.FromUserId)
+                    .OrderByDescending(r => r.Id)
+                    .Select(r => r.Emoji)
+                    .FirstOrDefault()
+                : null
         };
     }
 }
