@@ -79,6 +79,29 @@ public class MessageNotificationService
         int conversationId,
         string emoji)
     {
+        // 🔍 Sjekk om det finnes en eksisterende notifikasjon
+        var existing = await _context.MessageNotifications
+            .Include(n => n.Message)
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .Where(n =>
+                n.UserId == receiverUserId &&
+                n.Type == NotificationType.MessageReaction &&
+                n.MessageId == messageId &&
+                n.FromUserId == reactingUserId)
+            .FirstOrDefaultAsync();
+
+        if (existing != null)
+        {
+            // 🔁 Oppdater timestamp og mark as unread
+            existing.CreatedAt = DateTime.UtcNow;
+            existing.IsRead = false;
+
+            await _context.SaveChangesAsync();
+            return MapToDTO(existing);
+        }
+
+        // ✨ Ny notifikasjon hvis ingen finnes
         var notification = new MessageNotification
         {
             UserId = receiverUserId,
@@ -87,21 +110,20 @@ public class MessageNotificationService
             MessageId = messageId,
             ConversationId = conversationId,
             CreatedAt = DateTime.UtcNow,
-            IsRead = false,
+            IsRead = false
         };
 
         _context.MessageNotifications.Add(notification);
         await _context.SaveChangesAsync();
 
-        // Hent med relasjoner for mapping hvis nødvendig
         var created = await _context.MessageNotifications
             .Include(n => n.FromUser)
             .Include(n => n.Conversation)
-            .Include(n => n.Message)
-                .ThenInclude(m => m.Reactions) 
+            .Include(n => n.Message!)
+            .ThenInclude(m => m.Reactions)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        return MapToDTO(created!); // Du har MapToDTO allerede
+        return MapToDTO(created!);
     }
     
     private MessageNotificationDTO MapToDTO(MessageNotification n)
