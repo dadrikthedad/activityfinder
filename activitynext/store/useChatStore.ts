@@ -46,7 +46,7 @@ type ChatStore = {
   bumpReactionsVersion: () => void;
   showNewMessageButton: boolean;
   setShowNewMessageButton: (value: boolean) => void;
-  replaceReactionNotification: (notification: MessageNotificationDTO) => void;
+  upsertReactionNotification: (notification: MessageNotificationDTO) => boolean;
   scrollToMessageId: number | null;
   setScrollToMessageId: (id: number | null) => void;
 };
@@ -73,21 +73,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setMessageNotifications: (notifications) =>
     set(() => ({ messageNotifications: notifications })),
 
-  addMessageNotification: (notification) =>
-  set((state) => {
-    const isReaction = notification.type === "MessageReaction";
+  addMessageNotification: (notification) => {
+    const state = get();
+    const alreadyExists = state.messageNotifications.some(n => n.id === notification.id);
 
-    // Hvis det er en reaction → fjern tidligere for samme messageId
+    const isReaction = notification.type === "MessageReaction";
     const filtered = isReaction
-      ? state.messageNotifications.filter(n =>
-          !(n.type === "MessageReaction" && n.messageId === notification.messageId)
+      ? state.messageNotifications.filter(
+          (n) => !(n.type === "MessageReaction" && n.messageId === notification.messageId)
         )
       : state.messageNotifications;
 
-    return {
-      messageNotifications: [notification, ...filtered].slice(0, 20),
-    };
-  }),
+    const updated = [notification, ...filtered].slice(0, 20);
+    set({ messageNotifications: updated });
+
+    return !alreadyExists;
+  },
 
   reactionsVersion: 0,
   bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
@@ -153,24 +154,42 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return { searchResults: updatedMessages };
     }),
 
-    replaceReactionNotification: (incoming) => {
-      set((state) => {
-        const exists = state.messageNotifications.find((n) => n.id === incoming.id);
+    upsertReactionNotification: (incoming) => {
+      const state = get();
 
-        if (exists) {
+      const isReaction = incoming.type === "MessageReaction";
+      if (!isReaction || incoming.messageId == null) return false;
+
+      let wasNew = true;
+
+      const updated = state.messageNotifications.map((n) => {
+        if (
+          n.type === "MessageReaction" &&
+          n.messageId === incoming.messageId
+        ) {
+          wasNew = false;
+
           return {
-            messageNotifications: state.messageNotifications.map((n) =>
-              n.id === incoming.id ? { ...n, ...incoming } : n
-            ),
+            ...n,
+            ...incoming,
+            id: n.id, // 👈 beholder ID for å unngå React re-mount
+            createdAt: incoming.createdAt ?? n.createdAt,
           };
         }
 
-        return {
-          messageNotifications: [incoming, ...state.messageNotifications].slice(0, 20),
-        };
+        return n;
       });
+
+      // Hvis ikke fantes fra før, legg til
+      const finalNotifications = wasNew
+        ? [incoming, ...updated].slice(0, 20)
+        : updated;
+
+      set({ messageNotifications: finalNotifications });
+
+      return wasNew;
     },
-  
+      
 
   updateMessageReactions: (reaction: ReactionDTO) =>
   set((state) => {

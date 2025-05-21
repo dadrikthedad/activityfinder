@@ -35,12 +35,13 @@ interface NotificationsPanelProps {
 
 export default function NotificationsPanel({ onOpenConversation }: NotificationsPanelProps) {
   const {
-    notifications,
     loading: notifLoading,
     error: notifError,
     loadMore,
     hasMore
-    } = useMessageNotifications();
+  } = useMessageNotifications();
+
+  const notifications = useChatStore((s) => s.messageNotifications);
   const { markAsRead } = useMessageMarkNotificationAsRead();
   const { markAllAsRead, loading: markAllLoading } = useMarkAllMessageNotificationsAsRead();
   const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);

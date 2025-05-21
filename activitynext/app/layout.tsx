@@ -7,6 +7,8 @@ import ChatHubClient from "@/components/signalr/ChatHubClient";  // Her kobler j
 import Navbar from "@/components/Navbar";
 import CacheCleanup from "@/components/common/CacheCleanup";
 import { DropdownProvider } from "@/context/DropdownContext";
+import { Toaster } from "sonner";
+
 
 
 console.log("🔄 Navbar re-rendered");
@@ -42,6 +44,7 @@ export default function RootLayout({
               <ChatHubClient />
                 <Navbar /> {/* 👈 LEGG TIL DENNE */}
                   <main>{children}</main>
+                  <Toaster position="bottom-right" richColors />
               </AuthProvider>
               </CacheCleanup>
             </ModalProvider>

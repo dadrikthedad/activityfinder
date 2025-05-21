@@ -8,6 +8,7 @@ import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { handleIncomingMessage } from "./handleIncomingMessage";
 import { useAuth } from "@/context/AuthContext";
 import { handleIncomingReaction } from "./handleIncomingReactions";
+import { showNotificationToast } from "../toast/Toast";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -26,6 +27,15 @@ export default function ChatHubClient() {
       addMessage(message);
       updateConversationTimestamp(message.conversationId, message.sentAt);
       handleIncomingMessage(message, userId ?? null);
+
+      if (message.senderId !== userId) {
+        showNotificationToast({
+          senderName: message.sender?.fullName ?? "ukjent",
+          messagePreview: message.text ?? "Du har fått en melding",
+          conversationId: message.conversationId,
+      });
+
+      }
     },
     (reaction, notification) => {
       console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
@@ -40,9 +50,15 @@ export default function ChatHubClient() {
     },
     (notification) => {
         console.log("✅ Godkjent forespørsel via SignalR:", notification); 
-
         // 🔔 Legg den direkte inn i notification-storen
         useChatStore.getState().addMessageNotification(notification);
+         if (notification.senderId !== userId && notification.conversationId) {
+            showNotificationToast({
+              senderName: notification.senderName,
+              messagePreview: notification.messagePreview,
+              conversationId: notification.conversationId,
+            });
+          }
       },
       ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
         if (!conversationId) {
@@ -58,11 +74,19 @@ export default function ChatHubClient() {
         });
 
         // ✅ Oppdater notification-panelet i sanntid
-        if (notification) {
-          useChatStore.getState().addMessageNotification(notification);
+         if (notification) {
+        useChatStore.getState().addMessageNotification(notification);
+
+        if (notification.senderId !== userId && conversationId) {
+          showNotificationToast({
+            senderName: notification.senderName,
+            messagePreview: notification.messagePreview,
+            conversationId,
+          });
         }
       }
-      );
-  
-    return null; // Kun sideeffekt
-  }
+    }
+  );
+
+  return null; // Kun sideeffekter
+}
