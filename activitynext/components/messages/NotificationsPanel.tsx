@@ -72,7 +72,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
             {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
               <strong>{n.senderName}</strong>{" "}
               {n.type === "NewMessage" && "sent you a message"}
-              {n.type === "MessageReaction" && `reacted with ${n.reactionEmoji}`}
+              {n.type === "MessageReaction" && `reacted with ${n.reactionEmoji ?? "❓"}`}
               {n.type === "MessageRequest" && "requested to message you"}
               {n.type === "MessageRequestApproved" && "approved your message request"}
 

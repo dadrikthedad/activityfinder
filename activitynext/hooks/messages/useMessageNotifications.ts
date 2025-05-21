@@ -28,7 +28,7 @@ export function useMessageNotifications(pageSize = 20) {
       setLoading(true);
       try {
         const data = await getMessageNotifications(page, pageSize);
-
+        console.log("📦 API response:", data);
         setNotifications(prev => {
           const combined = [...prev, ...data.notifications];
           const uniqueById = new Map<number, MessageNotificationDTO>();
