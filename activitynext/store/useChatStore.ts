@@ -42,6 +42,11 @@ type ChatStore = {
   markConversationAsReadLocally: (conversationId: number) => void;
   isAtBottom: boolean;
   setIsAtBottom: (value: boolean) => void;
+  reactionsVersion: number;
+  bumpReactionsVersion: () => void;
+  showNewMessageButton: boolean;
+  setShowNewMessageButton: (value: boolean) => void;
+  replaceReactionNotification: (notification: MessageNotificationDTO) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set, get) => ({
@@ -54,6 +59,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   searchResults: [],
   unreadConversationIds: [],
   isAtBottom: true,
+  showNewMessageButton: false,
+  setShowNewMessageButton: (value: boolean) => set({ showNewMessageButton: value }),
   setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
   searchMode: false,
   setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
@@ -63,14 +70,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set(() => ({ messageNotifications: notifications })),
 
   addMessageNotification: (notification) =>
-    set((state) => {
-      const exists = state.messageNotifications.some(n => n.id === notification.id);
-      if (exists) return state;
+  set((state) => {
+    const isReaction = notification.type === "MessageReaction";
 
-      return {
-        messageNotifications: [notification, ...state.messageNotifications].slice(0, 20),
-      };
-    }),
+    // Hvis det er en reaction → fjern tidligere for samme messageId
+    const filtered = isReaction
+      ? state.messageNotifications.filter(n =>
+          !(n.type === "MessageReaction" && n.messageId === notification.messageId)
+        )
+      : state.messageNotifications;
+
+    return {
+      messageNotifications: [notification, ...filtered].slice(0, 20),
+    };
+  }),
+
+  reactionsVersion: 0,
+  bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
   pendingMessageRequests: [],
   pendingLockedConversationId: null,
   setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
@@ -132,10 +148,29 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       return { searchResults: updatedMessages };
     }),
+
+    replaceReactionNotification: (incoming) => {
+      set((state) => {
+        const exists = state.messageNotifications.find((n) => n.id === incoming.id);
+
+        if (exists) {
+          return {
+            messageNotifications: state.messageNotifications.map((n) =>
+              n.id === incoming.id ? { ...n, ...incoming } : n
+            ),
+          };
+        }
+
+        return {
+          messageNotifications: [incoming, ...state.messageNotifications].slice(0, 20),
+        };
+      });
+    },
   
 
   updateMessageReactions: (reaction: ReactionDTO) =>
   set((state) => {
+        console.log("🔁 Oppdaterer reaction i store:", reaction);
     const updateMessages = (messages: MessageDTO[]) =>
       messages.map((m) => {
         if (m.id !== reaction.messageId) return m;
@@ -173,6 +208,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     return {
       liveMessages,
       cachedMessages,
+      reactionsVersion: state.reactionsVersion + 1,
     };
   }),
 

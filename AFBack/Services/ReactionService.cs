@@ -27,7 +27,7 @@ public class ReactionService : IReactionService
         if (!AllowedReactions.Emojis.Contains(emoji))
             throw new Exception("Ugyldig emoji. Denne reaksjonen er ikke tillatt.");
 
-        // ✅ Hent meldingen og tilhørende samtale
+        // ✅ Hent meldingen og samtaledeltakere
         var message = await _context.Messages
             .Include(m => m.Conversation)
                 .ThenInclude(c => c.Participants)
@@ -40,15 +40,16 @@ public class ReactionService : IReactionService
             .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == userId);
 
         var isRemoved = false;
-        var removedEmoji = existingReaction?.Emoji;
+        string? removedEmoji = existingReaction?.Emoji;
 
+        // Oppdater databasen
         if (existingReaction != null)
         {
             _context.Reactions.Remove(existingReaction);
 
             if (existingReaction.Emoji != emoji)
             {
-                // Brukeren bytter emoji
+                // Bruker bytter emoji
                 _context.Reactions.Add(new Reaction
                 {
                     MessageId = messageId,
@@ -58,13 +59,13 @@ public class ReactionService : IReactionService
             }
             else
             {
-                // Brukeren fjerner reaksjonen
+                // Bruker fjerner emoji
                 isRemoved = true;
             }
         }
         else
         {
-            // Førstegangs reaksjon
+            // Første reaksjon
             _context.Reactions.Add(new Reaction
             {
                 MessageId = messageId,
@@ -74,15 +75,14 @@ public class ReactionService : IReactionService
         }
 
         await _context.SaveChangesAsync();
-        
+
         var user = await _context.Users.FindAsync(userId);
 
-        // ✅ Send sanntidsoppdatering via SignalR
         var dto = new ReactionDTO
         {
             MessageId = messageId,
             UserId = userId,
-            Emoji = removedEmoji ?? emoji,
+            Emoji = emoji,
             UserFullName = user?.FullName,
             ConversationId = message.ConversationId,
             IsRemoved = isRemoved
@@ -91,7 +91,7 @@ public class ReactionService : IReactionService
         var recipients = message.Conversation.IsGroup && !string.IsNullOrEmpty(message.Conversation.GroupName)
             ? null
             : message.Conversation.Participants.Select(p => p.UserId.ToString()).ToList();
-        
+
         MessageNotificationDTO? notificationDto = null;
 
         if (!isRemoved && message.SenderId != userId)
@@ -105,25 +105,8 @@ public class ReactionService : IReactionService
             );
         }
 
-        
-        // Send den originale reaction + evt. notification
+        // ✅ Send bare én oppdatering via SignalR
         await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, dto, notificationDto);
-
-        // Hvis byttet emoji – send ny versjon av reaction
-        if (!isRemoved && removedEmoji != null && removedEmoji != emoji)
-        {
-            var newDto = new ReactionDTO
-            {
-                MessageId = messageId,
-                UserId = userId,
-                Emoji = emoji,
-                UserFullName = user?.FullName,
-                ConversationId = message.ConversationId,
-                IsRemoved = false
-            };
-
-            await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, newDto, notificationDto);
-        }
     }
 
 

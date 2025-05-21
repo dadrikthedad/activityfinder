@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace AFBack.Models;
 
 public class MessageNotificationDTO
@@ -13,6 +15,9 @@ public class MessageNotificationDTO
     public int? SenderId { get; set; }
     public string? SenderName { get; set; }
     public string? GroupName { get; set; }
+    
+    
+    [JsonPropertyName("reactionEmoji")]
     public string? ReactionEmoji { get; set; }
 
     public string? MessagePreview { get; set; } // For "Ola: Hei!"-type visninger

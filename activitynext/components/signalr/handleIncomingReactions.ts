@@ -2,50 +2,45 @@ import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
 
-export function handleIncomingReaction(reaction: ReactionDTO, currentUserId: number | null) {
+/**
+ * Håndter innkommende reaksjon – oppdater lokal state for notification og reactions.
+ * @param reaction Reaksjonen som ble sendt via SignalR
+ * @param currentUserId Innlogget bruker
+ * @param notification Notifikasjonen sendt fra backend (valgfri)
+ */
+export function handleIncomingReaction(
+  reaction: ReactionDTO,
+  currentUserId: number | null,
+  notification?: MessageNotificationDTO
+) {
   const {
     currentConversationId,
     isAtBottom,
-    addMessageNotification,
-    messageNotifications,
+    replaceReactionNotification,
+    markConversationAsReadLocally,
     unreadConversationIds,
     setUnreadConversationIds,
+    bumpReactionsVersion,
   } = useChatStore.getState();
 
+  // 👤 Ikke håndter egne reaksjoner
   if (reaction.userId === currentUserId) return;
 
-  const alreadyExists = messageNotifications.some(
-    (n) =>
-      n.type === "MessageReaction" &&
-      n.reactionEmoji === reaction.emoji &&
-      n.messageId === reaction.messageId &&
-      n.senderId === reaction.userId
-  );
+  const isInActiveConversation = reaction.conversationId === currentConversationId;
 
-  // Ikke vis notification hvis vi er i riktig samtale og scrollet i bunnen
-  if (reaction.conversationId === currentConversationId && isAtBottom) return;
+  // ✅ Hvis vi er i samtalen og i bunn – marker som lest direkte (lokalt)
+  if (isInActiveConversation && isAtBottom) {
+    markConversationAsReadLocally(reaction.conversationId);
+  } else if (notification) {
+    // ✅ Ellers: bruk notificationen hvis vi fikk den fra backend
+    replaceReactionNotification(notification);
 
-  if (!alreadyExists) {
-    const notification: MessageNotificationDTO = {
-      id: Date.now(), // fake ID
-      type: "MessageReaction",
-      isRead: false,
-      createdAt: new Date().toISOString(),
-      conversationId: reaction.conversationId,
-      messageId: reaction.messageId,
-      senderId: reaction.userId,
-      senderName: reaction.userFullName ?? "Unknown",
-      reactionEmoji: reaction.emoji,
-    };
-
-    addMessageNotification(notification);
+    // 🔔 Oppdater samtalelisten hvis ikke allerede markert
+    if (!unreadConversationIds.includes(reaction.conversationId)) {
+      setUnreadConversationIds([...unreadConversationIds, reaction.conversationId]);
+    }
   }
 
-  // Unread-oppdatering
-  if (
-    reaction.conversationId !== currentConversationId &&
-    !unreadConversationIds.includes(reaction.conversationId)
-  ) {
-    setUnreadConversationIds([...unreadConversationIds, reaction.conversationId]);
-  }
+  // ♻️ Tving rerender for f.eks. reactions i MessageList
+  bumpReactionsVersion();
 }

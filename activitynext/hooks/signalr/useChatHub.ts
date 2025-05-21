@@ -7,15 +7,19 @@ import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { getPendingMessageRequests } from "@/services/messages/messageService";
 import { useChatStore } from "@/store/useChatStore";
+import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
-  onReceiveReaction?: (reaction: ReactionDTO) => void,
+  onReceiveReaction?: (reaction: ReactionDTO, notification?: MessageNotificationDTO) => void,
   onRequestApproved?: (data: { ReceiverId: number; ConversationId: number }) => void,
   onRequestCreated?: (data: MessageRequestCreatedDto) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
-  const reactionRef = useRef(onReceiveReaction);
+  const reactionRef = useRef<
+    ((reaction: ReactionDTO, notification?: MessageNotificationDTO) => void) | undefined
+  >(onReceiveReaction);
   const approvedRef = useRef(onRequestApproved);
   const createdRef = useRef(onRequestCreated);
    // Oppdater refs hvis funksjonene endres
@@ -53,11 +57,13 @@ export function useChatHub(
             messageRef.current?.(message);
           });
 
-          conn.on("ReceiveReaction", (reaction) => {
-            if ('messageId' in reaction && 'emoji' in reaction && 'userId' in reaction && 'isRemoved' in reaction) {
-              reactionRef.current?.(reaction as ReactionDTO);
+          conn.on("ReceiveReaction", (data) => {
+            const { reaction, notification } = data;
+
+            if (reaction && 'messageId' in reaction && 'emoji' in reaction) {
+              reactionRef.current?.(reaction, notification);
             } else {
-              console.warn("❌ Ugyldig Reaction-data mottatt:", reaction);
+              console.warn("❌ Ugyldig reaction-data mottatt:", data);
             }
           });
 

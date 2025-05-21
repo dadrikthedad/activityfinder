@@ -7,6 +7,7 @@ import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { handleIncomingMessage } from "./handleIncomingMessage";
 import { useAuth } from "@/context/AuthContext";
+import { handleIncomingReaction } from "./handleIncomingReactions";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -26,14 +27,17 @@ export default function ChatHubClient() {
       updateConversationTimestamp(message.conversationId, message.sentAt);
       handleIncomingMessage(message, userId ?? null);
     },
-    (reaction) => {
-        console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
-        updateMessageReactions(reaction as ReactionDTO); // Oppdater cache uansett
+    (reaction, notification) => {
+      console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
+      console.log("🔔 Mottatt notification via SignalR:", notification);
 
-        if (searchMode) {
-          updateSearchResultReactions(reaction as ReactionDTO); // I tillegg oppdater søkeresultatene hvis aktivt søk
-        }
-      },
+      updateMessageReactions(reaction as ReactionDTO); // Oppdater cache uansett
+      handleIncomingReaction(reaction, userId, notification); // 👈 send med notification
+
+      if (searchMode) {
+        updateSearchResultReactions(reaction as ReactionDTO);
+      }
+    },
     ({ ReceiverId, ConversationId }) => {
         console.log("✅ Godkjent forespørsel via SignalR:", ReceiverId, ConversationId); 
       },

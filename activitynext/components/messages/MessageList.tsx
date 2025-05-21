@@ -50,10 +50,15 @@ export default function MessageList({
     const scrollPosition = useRef<number>(0); // Lagre midltertid
     const { scrollPositions } = useChatStore(); // hentet ved ny mount
     const { setScrollPosition } = useChatStore();
-    
+
+    // For å beskjed hvis noen har laget/endret reaksjon
+    const reactionsVersion = useChatStore(state => state.reactionsVersion);
+
     const live = useMemo(() => {
       return liveMessages[conversationId] || [];
-    }, [liveMessages, conversationId]);
+    }, [liveMessages, conversationId, reactionsVersion]);
+
+    const lastReactionCount = useRef<number>(0);
 
     // Tøm live-meldinger for forrige samtale
   
@@ -72,6 +77,7 @@ export default function MessageList({
       // Id for å skille mellom sist hentete meldinger
     const lastFetchedId = useRef<number | null>(null);
 
+    // Huske om vi er i bunn
     const setIsAtBottom = useChatStore(state => state.setIsAtBottom);
 
     
@@ -81,7 +87,8 @@ export default function MessageList({
       }, [conversationId, messages.length]);
 
     // Ved første last
-    const [showNewMessageButton, setShowNewMessageButton] = useState(false);
+    const showNewMessageButton = useChatStore((s) => s.showNewMessageButton);
+  const setShowNewMessageButton = useChatStore((s) => s.setShowNewMessageButton);
 
     // For søkefeltet
       const [query, setQuery] = useState("");
@@ -106,19 +113,28 @@ export default function MessageList({
     }, [messages, live, isSearching, searchResults]);
     // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
 
-      useEffect(() => {
-        if (initializingConversation || live.length === 0) return;
+      
+    useEffect(() => {
+      if (initializingConversation || live.length === 0) return;
 
-        const latest = live.at(-1);
-        if (!latest || latest.id === lastLiveMessageId.current) return;
+      const latestMessage = live.at(-1);
+      if (!latestMessage) return;
 
-        lastLiveMessageId.current = latest.id;
+      const sameMessage = latestMessage.id === lastLiveMessageId.current;
+      const currentReactionCount = latestMessage.reactions?.length ?? 0;
+      const hasNewReactions = currentReactionCount !== lastReactionCount.current;
 
-        // Fjern kravet om lastFetchedId for å håndtere første melding
-        if (!isBottomVisible.current) {
-          setShowNewMessageButton(true);
-        }
-      }, [liveMessages, initializingConversation, live]);
+      // Lagre ID og antall reaksjoner
+      lastLiveMessageId.current = latestMessage.id;
+      lastReactionCount.current = currentReactionCount;
+
+      // Vis knapp hvis det er en ny melding, eller en ny reaksjon på siste melding
+      if (!isBottomVisible.current && (!sameMessage || hasNewReactions)) {
+        console.log("🔔 Ny aktivitet – viser knapp");
+        setShowNewMessageButton(true);
+      }
+      console.log("👁️ showNewMessageButton:", showNewMessageButton);
+    }, [liveMessages, initializingConversation]);
     
   // Scroll til bunn (visuelt) når vi bytter samtale og Gjenopprett scrollposisjon (flex-col-reverse)
     useEffect(() => {
@@ -302,7 +318,7 @@ export default function MessageList({
       {showNewMessageButton && (
         <div className="sticky bottom-4 flex justify-start pointer-events-auto">
           <div className="bg-[#1C6B1C]/30 text-white/30 px-6 py-2 rounded shadow text-sm backdrop-blur-sm flex items-center gap-2">
-            <span>New messages. Press the downward-arrow button</span>
+            <span>New activity</span>
             <button
               onClick={() => setShowNewMessageButton(false)}
               className="text-white/30 text-xs hover:text-gray-300 px-2"
