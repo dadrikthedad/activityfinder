@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMessageNotifications } from "@/services/messages/messageNotificationService";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
-import { useChatStore } from "@/store/useChatStore";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 export function useMessageNotifications(pageSize = 20) {
   const [notifications, setNotifications] = useState<MessageNotificationDTO[]>([]);
@@ -11,46 +11,46 @@ export function useMessageNotifications(pageSize = 20) {
   const [totalPages, setTotalPages] = useState(1);
 
   // ✅ Hent fra store
-  const {
-    messageNotifications,
-    setMessageNotifications
-  } = useChatStore();
+  const messageNotifications = useMessageNotificationStore((s) => s.notifications);
 
   useEffect(() => {
-    const fetchNotifications = async () => {
-      // ✅ Bruk cached data ved første load
-      if (page === 1 && messageNotifications.length > 0) {
-        setNotifications(messageNotifications);
-        setLoading(false);
-        return;
+  const fetchNotifications = async () => {
+    if (page === 1 && messageNotifications.length > 0) {
+      setNotifications(messageNotifications);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await getMessageNotifications(page, pageSize);
+      console.log("📦 API response:", data);
+
+      // Lokalt tilstanden i hook
+      setNotifications((prev) => {
+        const combined = [...prev, ...data.notifications];
+        const uniqueById = new Map<number, MessageNotificationDTO>();
+        combined.forEach((n) => uniqueById.set(n.id, n));
+        return Array.from(uniqueById.values());
+      });
+
+      // 🔗 ZUSTAND oppdatering for side 1 (sanntidssynk)
+      if (page === 1) {
+        useMessageNotificationStore
+          .getState()
+          .setNotifications(data.notifications);
       }
 
-      setLoading(true);
-      try {
-        const data = await getMessageNotifications(page, pageSize);
-        console.log("📦 API response:", data);
-        setNotifications(prev => {
-          const combined = [...prev, ...data.notifications];
-          const uniqueById = new Map<number, MessageNotificationDTO>();
-          combined.forEach(n => uniqueById.set(n.id, n));
-          return Array.from(uniqueById.values());
-        });
+      setTotalPages(data.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Ukjent feil"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        // ✅ Cache kun første side i store
-        if (page === 1) {
-          setMessageNotifications(data.notifications);
-        }
-
-        setTotalPages(data.totalPages);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Ukjent feil"));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNotifications();
-  }, [page, pageSize, messageNotifications, setMessageNotifications]);
+  fetchNotifications();
+}, [page, pageSize, messageNotifications]);
 
   const loadMore = () => {
     if (page < totalPages) {

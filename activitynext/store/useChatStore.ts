@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
 import { ConversationDTO } from "@/types/ConversationDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { useMessageNotificationStore } from "./useMessageNotificationStore";
 
 
 
@@ -34,9 +34,6 @@ type ChatStore = {
   searchResults: MessageDTO[];
   setSearchResults: (messages: MessageDTO[]) => void;
   updateSearchResultReactions: (reaction: ReactionDTO) => void;
-  messageNotifications: MessageNotificationDTO[];
-  setMessageNotifications: (notifications: MessageNotificationDTO[]) => void;
-  addMessageNotification: (notification: MessageNotificationDTO) => void;
   unreadConversationIds: number[];
   setUnreadConversationIds: (ids: number[]) => void;
   markConversationAsReadLocally: (conversationId: number) => void;
@@ -46,12 +43,11 @@ type ChatStore = {
   bumpReactionsVersion: () => void;
   showNewMessageButton: boolean;
   setShowNewMessageButton: (value: boolean) => void;
-  upsertReactionNotification: (notification: MessageNotificationDTO) => boolean;
   scrollToMessageId: number | null;
   setScrollToMessageId: (id: number | null) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
-export const useChatStore = create<ChatStore>((set, get) => ({
+export const useChatStore = create<ChatStore>((set) => ({
   conversations: [],
   liveMessages: {},
   currentConversationId: null,
@@ -69,27 +65,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   searchMode: false,
   setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
    setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
-  messageNotifications: [],
-  setMessageNotifications: (notifications) =>
-    set(() => ({ messageNotifications: notifications })),
-
-  addMessageNotification: (notification) => {
-    const state = get();
-    const alreadyExists = state.messageNotifications.some(n => n.id === notification.id);
-
-    const isReaction = notification.type === "MessageReaction";
-    const filtered = isReaction
-      ? state.messageNotifications.filter(
-          (n) => !(n.type === "MessageReaction" && n.messageId === notification.messageId)
-        )
-      : state.messageNotifications;
-
-    const updated = [notification, ...filtered].slice(0, 20);
-    set({ messageNotifications: updated });
-
-    return !alreadyExists;
-  },
-
   reactionsVersion: 0,
   bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
   pendingMessageRequests: [],
@@ -111,17 +86,12 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     },
 
     markConversationAsReadLocally: (conversationId) => {
-    const { messageNotifications, unreadConversationIds } = get();
+      useMessageNotificationStore.getState().markAsReadForConversation(conversationId);
 
-    const updated = messageNotifications.map(n =>
-      n.conversationId === conversationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
-    );
-
-    set({
-      messageNotifications: updated,
-      unreadConversationIds: unreadConversationIds.filter(id => id !== conversationId),
-    });
-  },
+      set((state) => ({
+        unreadConversationIds: state.unreadConversationIds.filter((id) => id !== conversationId),
+      }));
+    },
 
 
   setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
@@ -153,42 +123,6 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
       return { searchResults: updatedMessages };
     }),
-
-    upsertReactionNotification: (incoming) => {
-      const state = get();
-
-      const isReaction = incoming.type === "MessageReaction";
-      if (!isReaction || incoming.messageId == null) return false;
-
-      let wasNew = true;
-
-      const updated = state.messageNotifications.map((n) => {
-        if (
-          n.type === "MessageReaction" &&
-          n.messageId === incoming.messageId
-        ) {
-          wasNew = false;
-
-          return {
-            ...n,
-            ...incoming,
-            id: n.id, // 👈 beholder ID for å unngå React re-mount
-            createdAt: incoming.createdAt ?? n.createdAt,
-          };
-        }
-
-        return n;
-      });
-
-      // Hvis ikke fantes fra før, legg til
-      const finalNotifications = wasNew
-        ? [incoming, ...updated].slice(0, 20)
-        : updated;
-
-      set({ messageNotifications: finalNotifications });
-
-      return wasNew;
-    },
       
 
   updateMessageReactions: (reaction: ReactionDTO) =>

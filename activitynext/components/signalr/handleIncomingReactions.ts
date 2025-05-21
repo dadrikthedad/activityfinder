@@ -4,6 +4,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { showNotificationToast } from "../toast/Toast";
 import { NotificationType } from "@/types/MessageNotificationDTO";
 import { toast } from "sonner";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 /**
  * Håndter innkommende reaksjon – oppdater lokal state for notification og reactions.
@@ -19,12 +20,12 @@ export function handleIncomingReaction(
   const {
     currentConversationId,
     isAtBottom,
-    upsertReactionNotification,
     markConversationAsReadLocally,
     unreadConversationIds,
     setUnreadConversationIds,
     bumpReactionsVersion,
   } = useChatStore.getState();
+
 
   // 👤 Ikke håndter egne reaksjoner
   if (reaction.userId === currentUserId) return;
@@ -36,7 +37,9 @@ export function handleIncomingReaction(
     markConversationAsReadLocally(reaction.conversationId);
     // ✅ Ellers: bruk notificationen hvis vi fikk den fra backend
   } else if (notification) {
-    const isNew = upsertReactionNotification(notification);
+     const { upsertNotification } = useMessageNotificationStore.getState();
+    const isNew = upsertNotification(notification);
+
 
       if (isNew) {
         showNotificationToast({

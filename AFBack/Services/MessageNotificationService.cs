@@ -117,7 +117,6 @@ public class MessageNotificationService
         {
             // 🔁 Oppdater timestamp og mark as unread
             existing.CreatedAt = DateTime.UtcNow;
-            existing.IsRead = false;
 
             await _context.SaveChangesAsync();
             return MapToDTO(existing);

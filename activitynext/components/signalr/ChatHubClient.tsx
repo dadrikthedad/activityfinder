@@ -9,6 +9,7 @@ import { handleIncomingMessage } from "./handleIncomingMessage";
 import { useAuth } from "@/context/AuthContext";
 import { handleIncomingReaction } from "./handleIncomingReactions";
 import { showNotificationToast } from "../toast/Toast";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -51,7 +52,7 @@ export default function ChatHubClient() {
     (notification) => {
         console.log("✅ Godkjent forespørsel via SignalR:", notification); 
         // 🔔 Legg den direkte inn i notification-storen
-        useChatStore.getState().addMessageNotification(notification);
+        useMessageNotificationStore.getState().upsertNotification(notification);
          if (notification.senderId !== userId && notification.conversationId) {
             showNotificationToast({
               senderName: notification.senderName,
@@ -75,7 +76,7 @@ export default function ChatHubClient() {
 
         // ✅ Oppdater notification-panelet i sanntid
          if (notification) {
-        useChatStore.getState().addMessageNotification(notification);
+        useMessageNotificationStore.getState().upsertNotification(notification);
 
         if (notification.senderId !== userId && conversationId) {
           showNotificationToast({

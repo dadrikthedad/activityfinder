@@ -1,8 +1,8 @@
 import { useMessageNotifications } from "@/hooks/messages/useMessageNotifications";
-import { useMessageMarkNotificationAsRead } from "@/hooks/messages/useMarkMessageNotificationAsRead";
-import { useMarkAllMessageNotificationsAsRead } from "@/hooks/messages/useMarkAllMessageNotificationsAsRead";
+import { useMessageNotificationActions } from "@/hooks/messages/useMessageNotificationActions";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 function formatNotificationText(n: MessageNotificationDTO): string {
   switch (n.type) {
@@ -41,9 +41,8 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     hasMore
   } = useMessageNotifications();
 
-  const notifications = useChatStore((s) => s.messageNotifications);
-  const { markAsRead } = useMessageMarkNotificationAsRead();
-  const { markAllAsRead, loading: markAllLoading } = useMarkAllMessageNotificationsAsRead();
+  const notifications = useMessageNotificationStore((s) => s.notifications);
+  const { markOneAsRead, markAllAsRead, loading: markAllLoading } = useMessageNotificationActions();
   const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
 
   return (
@@ -53,14 +52,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     <div className="w-full text-center">
         <button
         disabled={markAllLoading}
-        onClick={() =>
-            markAllAsRead(() => {
-            // Oppdater lokal state direkte (uten reload)
-            notifications.forEach((n) => {
-                n.isRead = true;
-            });
-            })
-        }
+        onClick={() => markAllAsRead()}
         className="text-xs text-blue-600 hover:underline disabled:opacity-50 mb-2"
         >
         {markAllLoading ? "Marking..." : "Mark all as read"}
@@ -85,12 +77,11 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                     : "bg-white dark:bg-[#1e1e1e] font-semibold border border-[#1C6B1C] "}`}
                 onClick={() => {
               if (!n.isRead) {
-                markAsRead(n.id, () => {
-                  if (n.conversationId) {
-                    setScrollToMessageId(n.messageId ?? null);
-                    onOpenConversation(n.conversationId);
-                  }
-                });
+                markOneAsRead(n.id);
+                if (n.conversationId) {
+                  setScrollToMessageId(n.messageId ?? null);
+                  onOpenConversation(n.conversationId);
+                }
               } else {
                 if (n.conversationId) {
                   setScrollToMessageId(n.messageId ?? null);

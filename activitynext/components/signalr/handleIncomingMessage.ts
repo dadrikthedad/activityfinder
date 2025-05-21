@@ -1,6 +1,7 @@
 import { MessageDTO } from "@/types/MessageDTO";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 /**
  * Håndter innkommende melding i frontend – oppdater notifications og unread-status
@@ -9,13 +10,16 @@ import { useChatStore } from "@/store/useChatStore";
  */
 export function handleIncomingMessage(message: MessageDTO, currentUserId: number | null) {
   const {
-    addMessageNotification,
-    messageNotifications,
     unreadConversationIds,
     currentConversationId,
     isAtBottom,
     setUnreadConversationIds,
   } = useChatStore.getState();
+
+  const {
+    upsertNotification,
+    notifications,
+  } = useMessageNotificationStore.getState();
 
   // Ikke lag notification for egne meldinger
   if (message.senderId === currentUserId) return;
@@ -26,7 +30,7 @@ export function handleIncomingMessage(message: MessageDTO, currentUserId: number
   }
 
   // Unngå duplikate notifications
-  const alreadyExists = messageNotifications.some(
+  const alreadyExists = notifications.some(
     (n) => n.conversationId === message.conversationId &&
            n.senderId === message.senderId &&
            n.createdAt === message.sentAt
@@ -45,7 +49,7 @@ export function handleIncomingMessage(message: MessageDTO, currentUserId: number
       messagePreview: message.text?.slice(0, 40) ?? "",
     };
 
-    addMessageNotification(fakeNotification);
+    upsertNotification(fakeNotification);
   }
 
   // Oppdater unread-conversationId-listen hvis vi ikke er i samtalen
