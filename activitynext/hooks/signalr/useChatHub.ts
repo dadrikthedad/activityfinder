@@ -8,6 +8,7 @@ import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { getPendingMessageRequests } from "@/services/messages/messageService";
 import { useChatStore } from "@/store/useChatStore";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 
 export function useChatHub(
@@ -76,7 +77,7 @@ export function useChatHub(
             approvedRef.current?.(notification);
 
             // 2. Eller legg den rett i notification-store:
-            useChatStore.getState().addMessageNotification(notification);
+            useMessageNotificationStore.getState().upsertNotification(notification);
           });
 
           conn.on("MessageRequestCreated", async (data: MessageRequestCreatedDto) => {
@@ -85,7 +86,7 @@ export function useChatHub(
              const { notification } = data;
 
               if (notification) {
-                useChatStore.getState().addMessageNotification(notification); // 👈 oppdater notificationpanel
+                useMessageNotificationStore.getState().upsertNotification(notification); // 👈 oppdater notificationpanel
               }
 
             try {
