@@ -27,6 +27,9 @@ type ChatStore = {
   cleanupOldCache: () => void;
   pendingMessageRequests: MessageRequestDTO[];
   setPendingMessageRequests: (requests: MessageRequestDTO[]) => void;
+  pendingRequestsCache: MessageRequestDTO[];
+  pendingRequestsCacheTimestamp: number;
+  setCachedPendingRequests: (requests: MessageRequestDTO[]) => void;
   removePendingRequest: (conversationId: number) => void;
   addConversation: (conversation: ConversationDTO) => void;
   setPendingLockedConversationId: (id: number | null) => void;
@@ -71,8 +74,21 @@ export const useChatStore = create<ChatStore>((set) => ({
   pendingLockedConversationId: null,
   setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
   setPendingMessageRequests: (requests) => set(() => ({
-  pendingMessageRequests: requests
+  pendingMessageRequests: [...requests].sort(
+      (a, b) =>
+        new Date(b.requestedAt).getTime() -
+        new Date(a.requestedAt).getTime()
+    )
   })),
+  pendingRequestsCache: [],
+  pendingRequestsCacheTimestamp: 0,
+
+  setCachedPendingRequests: (requests: MessageRequestDTO[]) =>
+    set({
+      pendingRequestsCache: requests,
+      pendingRequestsCacheTimestamp: Date.now(),
+    }),
+
   removePendingRequest: (conversationId) =>
     set((state) => ({
       pendingMessageRequests: state.pendingMessageRequests.filter(
@@ -261,10 +277,19 @@ export const useChatStore = create<ChatStore>((set) => ({
           }
         }
 
+            const cacheAge = now - state.pendingRequestsCacheTimestamp;
+            const keepPendingCache = cacheAge < TTL;
+
         return {
           cachedMessages: newCachedMessages,
           scrollPositions: newScrollPositions,
           cacheTimestamps: newCacheTimestamps,
+                 pendingRequestsCache: keepPendingCache
+         ? state.pendingRequestsCache
+         : [],
+       pendingRequestsCacheTimestamp: keepPendingCache
+         ? state.pendingRequestsCacheTimestamp
+         : 0,
         };
       }),
 
