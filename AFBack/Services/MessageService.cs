@@ -301,13 +301,9 @@ public class MessageService : IMessageService
                 request.ConversationId!.Value
             );
 
-// 👇 Send hele notifikasjonen over SignalR
+            // Send hele notifikasjonen over SignalR
             await _hubContext.Clients.User(senderId.ToString())
-                .SendAsync("ReceiveReaction", new
-                {
-                    reaction = (object?)null, // vi har ingen reaction
-                    notification // 👈 sendes til frontend
-                });
+                .SendAsync("MessageRequestApproved", notification);
         }
         
         // Søke etter meldinger til en samtale
