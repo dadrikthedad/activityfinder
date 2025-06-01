@@ -280,20 +280,6 @@ public class MessageService : IMessageService
             
             await _context.SaveChangesAsync();
             
-            var approver = await _context.Users
-                               .FirstOrDefaultAsync(u => u.Id == receiverId)
-                           ?? throw new Exception("Godkjenneren ble ikke funnet.");
-            
-            // ✅ Send automatisk melding via eksisterende sendelogikk
-            var systemMessage = new SendMessageRequestDTO
-            {
-                ConversationId = request.ConversationId ?? throw new Exception("ConversationId mangler på meldingforespørselen."),
-                Text = $"{approver.FullName} has accepted the conversation.",
-                ReceiverId = senderId.ToString()
-            };
-
-            await SendMessageAsync(receiverId, systemMessage); // godkjenneren som avsender
-            
             // 🆕 Lag notifikasjon til avsenderen om at forespørselen ble godkjent
             var notification = await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
                 receiverId, // godkjenner
