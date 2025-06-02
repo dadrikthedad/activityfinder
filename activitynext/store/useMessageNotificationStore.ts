@@ -87,13 +87,14 @@ export const useMessageNotificationStore = create<MessageNotificationStore>((set
     wasNew = !existing;
 
     const merged: MessageNotificationDTO = existing
-      ? {
-          ...existing,
-          ...incoming,
-          isRead: existing.isRead, // behold lest-status
-          readAt: existing.readAt, // behold tidspunkt for "lest"
-        }
-      : incoming;
+    ? {
+        ...existing,
+        ...incoming,
+        messagePreview: incoming.messagePreview ?? existing.messagePreview,
+        isRead: existing.isRead,
+        readAt: existing.readAt,
+      }
+    : incoming;
 
     const withoutDupes = state.notifications.filter((n) => n.id !== incoming.id);
 
@@ -103,6 +104,16 @@ export const useMessageNotificationStore = create<MessageNotificationStore>((set
     if (existing && existing.type === "MessageReaction" && merged.reactionEmoji !== existing.reactionEmoji) {
       toast("🔄 Reaksjon oppdatert", {
         description: `${merged.senderName} endret sin reaksjon til ${merged.reactionEmoji}`,
+      });
+    }
+
+      if (wasNew && incoming.type === NotificationType.MessageRequestApproved) {
+      showNotificationToast({
+        senderName: incoming.senderName!,
+        messagePreview: incoming.messagePreview!,
+        conversationId: incoming.conversationId!,
+        type: incoming.type,
+        reactionEmoji: incoming.reactionEmoji,
       });
     }
 

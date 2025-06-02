@@ -14,7 +14,7 @@ function formatNotificationText(n: MessageNotificationDTO): string {
       return "requested to message you";
     case "MessageRequestApproved":
     case 2:
-      return "approved your message request";
+      return n.messagePreview ?? "approved your message request";
     case "MessageReaction":
     case 4:
       if (n.reactionEmoji) {
@@ -25,7 +25,7 @@ function formatNotificationText(n: MessageNotificationDTO): string {
       }
       return "reacted to your message";
     default:
-      return "";
+      return n.messagePreview ?? "";
   }
 }
 

@@ -50,7 +50,7 @@ export function useMessageNotifications(pageSize = 20) {
   };
 
   fetchNotifications();
-}, [page, pageSize, messageNotifications]);
+}, [page, pageSize]);
 
   const loadMore = () => {
     if (page < totalPages) {
