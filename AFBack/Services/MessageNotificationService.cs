@@ -149,6 +149,27 @@ public class MessageNotificationService
     
     private MessageNotificationDTO MapToDTO(MessageNotification n)
     {
+        string preview;
+
+        if (n.Type == NotificationType.MessageRequestApproved)
+        {
+            // Skriv ut "{godkjennerens navn} has approved your message request"
+            preview = $"{n.FromUser?.FullName} has approved your message request";
+        }
+        else if (n.Type == NotificationType.MessageReaction)
+        {
+            preview = n.Message?.Reactions?
+                          .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
+                      ?? "";
+        }
+        else
+        {
+            // Standard: vis første 40 tegn av den faktiske meldingen, om det finnes
+            preview = n.Message?.Text?.Length > 40 
+                ? n.Message.Text.Substring(0, 40) + "..."
+                : n.Message?.Text ?? "";
+        }
+
         return new MessageNotificationDTO
         {
             Id = n.Id,
@@ -159,13 +180,13 @@ public class MessageNotificationService
             MessageId = n.MessageId,
             ConversationId = n.ConversationId,
             SenderName = n.FromUser?.FullName,
-            SenderId = n.FromUserId,   
+            SenderId = n.FromUserId,
             GroupName = n.Conversation?.GroupName,
-            MessagePreview = n.Message?.Text?.Length > 40 
-                ? n.Message.Text.Substring(0, 40) + "..."
-                : n.Message?.Text,
-            ReactionEmoji = n.Type == NotificationType.MessageReaction ? n.Message?.Reactions?
-                .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji : null
+            MessagePreview = preview,
+            ReactionEmoji = n.Type == NotificationType.MessageReaction 
+                ? n.Message?.Reactions?
+                    .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
+                : null
         };
     }
 }
