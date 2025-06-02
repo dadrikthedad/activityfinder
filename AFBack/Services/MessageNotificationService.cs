@@ -154,7 +154,7 @@ public class MessageNotificationService
         if (n.Type == NotificationType.MessageRequestApproved)
         {
             // Skriv ut "{godkjennerens navn} has approved your message request"
-            preview = $"{n.FromUser?.FullName} has approved your message request";
+            preview = $"approved your message request";
         }
         else if (n.Type == NotificationType.MessageReaction)
         {
