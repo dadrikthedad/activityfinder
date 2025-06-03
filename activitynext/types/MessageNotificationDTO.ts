@@ -15,8 +15,8 @@ export interface MessageNotificationDTO {
 }
 
 export enum NotificationType {
-  NewMessage = 0,
-  MessageRequest = 1,
-  MessageRequestApproved = 2,
+  NewMessage = 1,
+  MessageRequest = 2,
+  MessageRequestApproved = 3,
   MessageReaction = 4
 }

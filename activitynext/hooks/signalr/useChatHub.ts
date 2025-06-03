@@ -72,9 +72,11 @@ export function useChatHub(
 
           conn.on("MessageRequestApproved", (notification: MessageNotificationDTO) => {
             console.log("✅ Mottatt godkjenningsnotifikasjon:", notification);
+            console.log("🧪 Type på notification i godkjenning:", notification?.type);
 
             // 1. Send den til callback hvis noen bruker den
             approvedRef.current?.(notification);
+          
 
             // 2. Eller legg den rett i notification-store:
             useMessageNotificationStore.getState().upsertNotification(notification);
@@ -84,9 +86,10 @@ export function useChatHub(
             console.log("📨 Ny meldingsforespørsel mottatt:", data);
 
              const { notification } = data;
+             console.log("🧪 Type på notification i opprettelse:", notification?.type);
 
-              if (notification) {
-                useMessageNotificationStore.getState().upsertNotification(notification); // 👈 oppdater notificationpanel
+              if (notification && notification.type !== "MessageRequestApproved") {
+                useMessageNotificationStore.getState().upsertNotification(notification);
               }
 
             try {

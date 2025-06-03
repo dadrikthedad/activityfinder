@@ -7,15 +7,15 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 function formatNotificationText(n: MessageNotificationDTO): string {
   switch (n.type) {
     case "NewMessage":
-    case 0:
-      return n.messageCount && n.messageCount > 1
-        ? n.messagePreview ?? `sent you ${n.messageCount} messages`
-        : "";
-    case "MessageRequest":
     case 1:
+      return n.messageCount && n.messageCount > 1
+        ? `has sent you ${n.messageCount} messages`
+        : n.messagePreview ? `said: ${n.messagePreview}` : "sent you a message";
+    case "MessageRequest":
+    case 2:
       return "requested to message you";
     case "MessageRequestApproved":
-    case 2:
+    case 3:
       return n.messagePreview ?? "approved your message request";
     case "MessageReaction":
     case 4:
@@ -94,22 +94,12 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
 
                 >
             {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
-              {n.type === "NewMessage" && n.messageCount && n.messageCount > 1 ? (
-                <>
-                  <strong>{n.senderName}</strong> {formatNotificationText(n)}
-                </>
-              ) : n.type === "NewMessage" ? (
-                <>
-                  <span>{n.messagePreview}</span>
-                </>
-              ) : (
-                <>
-                  <strong>{n.senderName}</strong> {formatNotificationText(n)}
-                </>
-              )}
-
+              <strong>{n.senderName}</strong> {formatNotificationText(n)}
               <div className="text-xs text-gray-500 mt-1">
-                {new Date(n.createdAt).toLocaleString()}
+                {new Date(n.createdAt).toLocaleString(undefined, {
+                  dateStyle: "short",
+                  timeStyle: "short"
+                })}
               </div>
             </li>
           ))}

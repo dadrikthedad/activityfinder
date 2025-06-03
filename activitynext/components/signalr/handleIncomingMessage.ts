@@ -29,16 +29,26 @@ export function handleIncomingMessage(message: MessageDTO, currentUserId: number
     return;
   }
 
-  // Unngå duplikate notifications
-  const alreadyExists = notifications.some(
-    (n) => n.conversationId === message.conversationId &&
-           n.senderId === message.senderId &&
-           n.createdAt === message.sentAt
+  // Finn eksisterende ulest notification fra samme samtale og avsender
+  const existingNotif = notifications.find(
+    (n) =>
+      n.conversationId === message.conversationId &&
+      n.senderId === message.senderId &&
+      n.type === "NewMessage" &&
+      !n.isRead
   );
 
-  if (!alreadyExists) {
-    const fakeNotification: MessageNotificationDTO = {
-      id: Date.now(), // midlertidig lokal ID
+  if (existingNotif) {
+    const updatedNotif: MessageNotificationDTO = {
+      ...existingNotif,
+      messagePreview: message.text?.slice(0, 40) ?? "",
+      createdAt: message.sentAt, // valgfritt å oppdatere tid
+      messageCount: (existingNotif.messageCount ?? 1) + 1,
+    };
+    upsertNotification(updatedNotif);
+  } else {
+    const newNotif: MessageNotificationDTO = {
+      id: Date.now(), // midlertidig ID
       conversationId: message.conversationId,
       senderId: message.senderId,
       senderName: message.sender?.fullName ?? "Unknown",
@@ -47,9 +57,9 @@ export function handleIncomingMessage(message: MessageDTO, currentUserId: number
       createdAt: message.sentAt,
       reactionEmoji: null,
       messagePreview: message.text?.slice(0, 40) ?? "",
+      messageCount: 1,
     };
-
-    upsertNotification(fakeNotification);
+    upsertNotification(newNotif);
   }
 
   // Oppdater unread-conversationId-listen hvis vi ikke er i samtalen
