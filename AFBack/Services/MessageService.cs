@@ -53,16 +53,15 @@ public class MessageService : IMessageService
                 receiverId = conversation.Participants
                     .FirstOrDefault(p => p.UserId != senderId)?.UserId;
             }
-
+            
+            var messageCount = await _context.Messages
+                .CountAsync(m => m.ConversationId == conversation.Id && m.SenderId == senderId);
+            
             // 🔒 Sjekk om meldingen krever godkjenning (for både nye og eksisterende samtaler)
             if (receiverId != null && await ShouldRequireApproval(senderId, receiverId.Value, conversation.Id))
             {
                 await AddMessageRequestIfNotExists(senderId, receiverId.Value, conversation.Id);
                 isApproved = false;
-
-                var messageCount = await _context.Messages
-                    .CountAsync(m => m.ConversationId == conversation.Id && m.SenderId == senderId);
-
                 if (messageCount >= 5)
                 {
                     var messageRequest = await _context.MessageRequests
@@ -96,7 +95,10 @@ public class MessageService : IMessageService
 
             var response = await MapToResponseDto(message);
             
-            await BroadcastMessageIfApproved(conversation, senderId, response);
+            if (isApproved || messageCount > 0)
+            {
+                await BroadcastMessageIfApproved(conversation, senderId, response);
+            }
             
             foreach (var participant in conversation.Participants)
             {
