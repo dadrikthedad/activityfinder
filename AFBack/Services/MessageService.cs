@@ -95,21 +95,22 @@ public class MessageService : IMessageService
 
             var response = await MapToResponseDto(message);
             
+            // Send melding over signalr kun hvis det allerede eksisterer en MessageRequest og lag notifications så fremt det ikke er første samtale
             if (isApproved || messageCount > 0)
             {
                 await BroadcastMessageIfApproved(conversation, senderId, response);
-            }
-            
-            foreach (var participant in conversation.Participants)
-            {
-                if (participant.UserId != senderId)
+                
+                foreach (var participant in conversation.Participants)
                 {
-                    await _messageNotificationService.CreateMessageNotificationAsync(
-                        recipientUserId: participant.UserId,
-                        senderUserId: senderId,
-                        conversationId: conversation.Id,
-                        messageId: message.Id
-                    );
+                    if (participant.UserId != senderId)
+                    {
+                        await _messageNotificationService.CreateMessageNotificationAsync(
+                            recipientUserId: participant.UserId,
+                            senderUserId: senderId,
+                            conversationId: conversation.Id,
+                            messageId: message.Id
+                        );
+                    }
                 }
             }
             

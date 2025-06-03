@@ -15,19 +15,39 @@ public class MessageNotificationService
     
     public async Task CreateMessageNotificationAsync(int recipientUserId, int senderUserId, int conversationId, int messageId)
     {
-        var notification = new MessageNotification
-        {
-            UserId = recipientUserId,
-            FromUserId = senderUserId,
-            Type = NotificationType.NewMessage,
-            MessageId = messageId,
-            ConversationId = conversationId,
-            CreatedAt = DateTime.UtcNow,
-            IsRead = false
-        };
+        var existing = await _context.MessageNotifications
+            .Where(n =>
+                n.UserId == recipientUserId &&
+                n.FromUserId == senderUserId &&
+                n.ConversationId == conversationId &&
+                n.Type == NotificationType.NewMessage &&
+                !n.IsRead)
+            .OrderByDescending(n => n.CreatedAt)
+            .FirstOrDefaultAsync();
 
-        _context.MessageNotifications.Add(notification);
-        await _context.SaveChangesAsync();
+        if (existing != null)
+        {
+            // Du kan velge å lagre siste meldingens ID hvis du ønsker å "hoppe til" den
+            existing.MessageId = messageId;
+            existing.CreatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+        else
+        {
+            var notification = new MessageNotification
+            {
+                UserId = recipientUserId,
+                FromUserId = senderUserId,
+                Type = NotificationType.NewMessage,
+                MessageId = messageId,
+                ConversationId = conversationId,
+                CreatedAt = DateTime.UtcNow,
+                IsRead = false
+            };
+
+            _context.MessageNotifications.Add(notification);
+            await _context.SaveChangesAsync();
+        }
     }
     
     public async Task<MessageNotificationDTO?> CreateMessageRequestNotificationAsync(int senderId, int receiverId, int conversationId)
@@ -150,11 +170,16 @@ public class MessageNotificationService
     private MessageNotificationDTO MapToDTO(MessageNotification n)
     {
         string preview;
+        var messageCount = 0;
 
         if (n.Type == NotificationType.MessageRequestApproved)
         {
             // Skriv ut "{godkjennerens navn} has approved your message request"
             preview = $"approved your message request";
+        }
+        else if (n.Type == NotificationType.MessageRequest)
+        {
+            preview = "requested to message you";
         }
         else if (n.Type == NotificationType.MessageReaction)
         {
@@ -162,12 +187,28 @@ public class MessageNotificationService
                           .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
                       ?? "";
         }
-        else
+        else  (n.Type == NotificationType.NewMessage)
         {
-            // Standard: vis første 40 tegn av den faktiske meldingen, om det finnes
-            preview = n.Message?.Text?.Length > 40 
-                ? n.Message.Text.Substring(0, 40) + "..."
-                : n.Message?.Text ?? "";
+            var count = _context.MessageNotifications.Count(n2 =>
+                n2.Type == NotificationType.NewMessage &&
+                !n2.IsRead &&
+                n2.UserId == n.UserId &&
+                n2.FromUserId == n.FromUserId &&
+                n2.ConversationId == n.ConversationId);
+
+            if (count > 1)
+            {
+                preview = $"has sent you {count} messages";
+            }
+            else
+            {
+                preview = n.Message?.Text?.Length > 40
+                    ? n.Message.Text.Substring(0, 40) + "..."
+                    : n.Message?.Text ?? "sent you a message";
+            }
+
+            // legg til i DTO
+            messageCount = count;
         }
 
         return new MessageNotificationDTO
@@ -186,7 +227,8 @@ public class MessageNotificationService
             ReactionEmoji = n.Type == NotificationType.MessageReaction 
                 ? n.Message?.Reactions?
                     .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
-                : null
+                : null,
+            MessageCount = messageCount > 0 ? messageCount : null,
         };
     }
 }

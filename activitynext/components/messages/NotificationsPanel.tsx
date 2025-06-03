@@ -8,7 +8,9 @@ function formatNotificationText(n: MessageNotificationDTO): string {
   switch (n.type) {
     case "NewMessage":
     case 0:
-      return "sent you a message";
+      return n.messageCount && n.messageCount > 1
+        ? n.messagePreview ?? `sent you ${n.messageCount} messages`
+        : "";
     case "MessageRequest":
     case 1:
       return "requested to message you";
@@ -92,7 +94,19 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
 
                 >
             {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
-              <strong>{n.senderName}</strong> {formatNotificationText(n)}
+              {n.type === "NewMessage" && n.messageCount && n.messageCount > 1 ? (
+                <>
+                  <strong>{n.senderName}</strong> {formatNotificationText(n)}
+                </>
+              ) : n.type === "NewMessage" ? (
+                <>
+                  <span>{n.messagePreview}</span>
+                </>
+              ) : (
+                <>
+                  <strong>{n.senderName}</strong> {formatNotificationText(n)}
+                </>
+              )}
 
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(n.createdAt).toLocaleString()}

@@ -21,4 +21,5 @@ public class MessageNotificationDTO
     public string? ReactionEmoji { get; set; }
 
     public string? MessagePreview { get; set; } // For "Ola: Hei!"-type visninger
+    public int? MessageCount { get; set; }
 }

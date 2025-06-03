@@ -11,6 +11,7 @@ export interface MessageNotificationDTO {
   groupName?: string | null;
   reactionEmoji?: string | null;
   messagePreview?: string | null;
+  messageCount?: number | null;
 }
 
 export enum NotificationType {
