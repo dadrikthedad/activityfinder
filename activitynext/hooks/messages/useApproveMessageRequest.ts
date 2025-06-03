@@ -29,6 +29,7 @@ export function useApproveMessageRequest() {
         // 2) Hent hele samtalen fra backend
         const conversation = await getConversationById(conversationId);
         if (conversation) {
+          conversation.isPendingApproval = false;
           addConversation(conversation);
         }
 
