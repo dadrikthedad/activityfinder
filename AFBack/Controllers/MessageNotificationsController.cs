@@ -14,10 +14,12 @@ namespace AFBack.Controllers;
 public class MessageNotificationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly MessageNotificationService _notificationService;
 
-    public MessageNotificationsController(ApplicationDbContext context)
+    public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
     
     // Henter alle Notifications
@@ -43,7 +45,7 @@ public class MessageNotificationsController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        var dtoList = notifications.Select(MapToDTO).ToList();
+        var dtoList = notifications.Select(_notificationService.MapToDTO).ToList();
 
         return Ok(new
         {
@@ -69,7 +71,7 @@ public class MessageNotificationsController : ControllerBase
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync();
 
-        var dtoList = unreadNotifications.Select(MapToDTO).ToList();
+        var dtoList = unreadNotifications.Select(_notificationService.MapToDTO).ToList();
         return Ok(dtoList);
     }
     
@@ -165,7 +167,7 @@ public class MessageNotificationsController : ControllerBase
             await _context.SaveChangesAsync();
         }
 
-        var dto = MapToDTO(notification);
+        var dto = _notificationService.MapToDTO(notification);
         return Ok(dto);
     }
     
@@ -196,45 +198,5 @@ public class MessageNotificationsController : ControllerBase
         return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                          ?? throw new Exception("Ugyldig bruker"));
     }
-
-    private MessageNotificationDTO MapToDTO(MessageNotification n)
-    {
-        
-        Console.WriteLine($"   MessageId: {n.MessageId}, Has Reactions? {n.Message?.Reactions?.Count}");
-        Console.WriteLine($"🔎 Notification ID: {n.Id}");
-        Console.WriteLine($"   FromUserId (notification): {n.FromUserId}");
-        if (n.Message != null && n.Message.Reactions != null)
-        {
-            foreach (var r in n.Message.Reactions)
-            {
-                Console.WriteLine($"   → Reaction by UserId: {r.UserId}, Emoji: {r.Emoji}");
-            }
-        }
-        return new MessageNotificationDTO
-        {
-            
-            
-            Id = n.Id,
-            Type = n.Type,
-            CreatedAt = n.CreatedAt,
-            IsRead = n.IsRead,
-            ReadAt = n.ReadAt,
-            MessageId = n.MessageId,
-            ConversationId = n.ConversationId,
-            SenderName = n.FromUser?.FullName,
-            SenderId = n.FromUserId,
-            GroupName = n.Conversation?.GroupName,
-            MessagePreview = n.Message?.Text?.Length > 40 
-                ? n.Message.Text.Substring(0, 40) + "..."
-                : n.Message?.Text,
-
-            ReactionEmoji = n.Type == NotificationType.MessageReaction
-                ? n.Message?.Reactions
-                    .Where(r => r.UserId == n.FromUserId)
-                    .OrderByDescending(r => r.Id)
-                    .Select(r => r.Emoji)
-                    .FirstOrDefault()
-                : null
-        };
-    }
+    
 }

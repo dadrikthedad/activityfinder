@@ -15,21 +15,18 @@ public class MessageNotificationService
     
     public async Task CreateMessageNotificationAsync(int recipientUserId, int senderUserId, int conversationId, int messageId)
     {
-        var existing = await _context.MessageNotifications
-            .Where(n =>
+        var existingNotification = await _context.MessageNotifications
+            .FirstOrDefaultAsync(n =>
                 n.UserId == recipientUserId &&
                 n.FromUserId == senderUserId &&
                 n.ConversationId == conversationId &&
-                n.Type == NotificationType.NewMessage &&
-                !n.IsRead)
-            .OrderByDescending(n => n.CreatedAt)
-            .FirstOrDefaultAsync();
+                !n.IsRead &&
+                n.Type == NotificationType.NewMessage);
 
-        if (existing != null)
+        if (existingNotification != null)
         {
-            // Du kan velge å lagre siste meldingens ID hvis du ønsker å "hoppe til" den
-            existing.MessageId = messageId;
-            existing.CreatedAt = DateTime.UtcNow;
+            existingNotification.MessageCount = (existingNotification.MessageCount ?? 1) + 1;
+            existingNotification.CreatedAt = DateTime.UtcNow; // optional: bump it up to sort correctly
             await _context.SaveChangesAsync();
         }
         else
@@ -42,7 +39,8 @@ public class MessageNotificationService
                 MessageId = messageId,
                 ConversationId = conversationId,
                 CreatedAt = DateTime.UtcNow,
-                IsRead = false
+                IsRead = false,
+                MessageCount = 1
             };
 
             _context.MessageNotifications.Add(notification);
@@ -167,7 +165,7 @@ public class MessageNotificationService
         return MapToDTO(created!);
     }
     
-    private MessageNotificationDTO MapToDTO(MessageNotification n)
+    public MessageNotificationDTO MapToDTO(MessageNotification n)
     {
         string preview;
         var messageCount = 0;
@@ -187,18 +185,11 @@ public class MessageNotificationService
                           .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
                       ?? "";
         }
-        else
+        else if (n.Type == NotificationType.NewMessage)
         {
-            var count = _context.MessageNotifications.Count(n2 =>
-                n2.Type == NotificationType.NewMessage &&
-                !n2.IsRead &&
-                n2.UserId == n.UserId &&
-                n2.FromUserId == n.FromUserId &&
-                n2.ConversationId == n.ConversationId);
-
-            if (count > 1)
+            if ((n.MessageCount ?? 1) > 1)
             {
-                preview = $"has sent you {count} messages";
+                preview = $"has sent you {n.MessageCount} messages";
             }
             else
             {
@@ -206,9 +197,11 @@ public class MessageNotificationService
                     ? n.Message.Text.Substring(0, 40) + "..."
                     : n.Message?.Text ?? "sent you a message";
             }
-
-            // legg til i DTO
-            messageCount = count;
+        }
+        else
+        {
+            // ❗ fallback – hvis du legger til nye typer senere
+            preview = "You have a new notification";
         }
 
         return new MessageNotificationDTO
@@ -228,7 +221,7 @@ public class MessageNotificationService
                 ? n.Message?.Reactions?
                     .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
                 : null,
-            MessageCount = messageCount > 0 ? messageCount : null,
+            MessageCount = n.MessageCount
         };
     }
 }

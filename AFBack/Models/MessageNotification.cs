@@ -22,6 +22,8 @@ public class MessageNotification
 
     public bool IsRead { get; set; } = false;
     public DateTime? ReadAt { get; set; }
+    // Aggrere en meldingsnotification ved nye meldinger istedenfor å lage mange nye notifications
+    public int? MessageCount { get; set; }
 }
 
 public enum NotificationType
