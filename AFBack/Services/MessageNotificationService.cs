@@ -187,7 +187,7 @@ public class MessageNotificationService
                           .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
                       ?? "";
         }
-        else  (n.Type == NotificationType.NewMessage)
+        else
         {
             var count = _context.MessageNotifications.Count(n2 =>
                 n2.Type == NotificationType.NewMessage &&
