@@ -101,7 +101,17 @@ export default function MessageList({
       // For å kunne scrolle til meldingen som en bruker har reagert på
       const scrollToMessageId = useChatStore((s) => s.scrollToMessageId);
       const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
-    
+
+      // For å ikke bruke reaksjoner i en samtale som ikke er godkjent/venter på godkjenning
+      const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
+      const currentConversation = useChatStore((state) =>
+        state.conversations.find((c) => c.id === conversationId)
+      );
+
+      const isLocked =
+        currentConversation?.isPendingApproval === true ||
+        conversationId === pendingLockedConversationId;
+          
     const displayedMessages = useMemo(() => {
       if (isSearching) return searchResults;
       const all = [...messages, ...live];
@@ -360,7 +370,7 @@ export default function MessageList({
   
         return (
             <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-              <ReactionHandler targetId={msg.id} userId={currentUser?.id ?? -1}  existingReactions={msg.reactions}>
+              <ReactionHandler targetId={msg.id} userId={currentUser?.id ?? -1}  existingReactions={msg.reactions} disabled={isLocked}>
             <div
                 className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${
                     isMine ? "text-right ml-auto" : "text-left"

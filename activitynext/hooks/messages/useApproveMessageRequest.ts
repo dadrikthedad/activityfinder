@@ -41,10 +41,8 @@ export function useApproveMessageRequest() {
         removeRequest(conversationId);
 
         // 5) “Lås opp” og sett aktiv samtale
-        setPendingLockedConversationId(null);
         setCurrentConversationId(conversationId);
-
-        // 👇 eksplisitt: force samtalen til unlocked i store
+        setPendingLockedConversationId(null);
 
 
         console.log("✅ Meldingsforespørsel godkjent og samtale lagt til:", conversationId);
