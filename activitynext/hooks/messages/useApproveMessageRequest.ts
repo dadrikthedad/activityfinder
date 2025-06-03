@@ -29,8 +29,8 @@ export function useApproveMessageRequest() {
         // 2) Hent hele samtalen fra backend
         const conversation = await getConversationById(conversationId);
         if (conversation) {
-          conversation.isPendingApproval = false;
-          addConversation(conversation);
+          const unlockedConversation = { ...conversation, isPendingApproval: false };
+          addConversation(unlockedConversation);
         }
 
         // 3) Hent de siste meldingene, og cache dem
@@ -43,6 +43,9 @@ export function useApproveMessageRequest() {
         // 5) “Lås opp” og sett aktiv samtale
         setPendingLockedConversationId(null);
         setCurrentConversationId(conversationId);
+
+        // 👇 eksplisitt: force samtalen til unlocked i store
+
 
         console.log("✅ Meldingsforespørsel godkjent og samtale lagt til:", conversationId);
       } catch (err) {

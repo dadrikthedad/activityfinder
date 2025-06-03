@@ -12,6 +12,7 @@ import { showNotificationToast } from "../toast/Toast";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
+import { useStore } from "zustand";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -27,6 +28,7 @@ export default function ChatHubClient() {
     const setCachedMessages = useChatStore(s => s.setCachedMessages);
     const setPendingLockedConversationId = useChatStore(s => s.setPendingLockedConversationId);
     const setCurrentConversationId = useChatStore(s => s.setCurrentConversationId);
+    const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
 
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
@@ -36,13 +38,15 @@ export default function ChatHubClient() {
       updateConversationTimestamp(message.conversationId, message.sentAt);
       handleIncomingMessage(message, userId ?? null);
 
-      if (message.senderId !== userId) {
+      if (
+        message.senderId !== userId &&
+        message.conversationId !== currentConversationId
+      ) {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
           messagePreview: message.text ?? "Du har fått en melding",
           conversationId: message.conversationId,
-      });
-
+        });
       }
     },
     (reaction, notification) => {
