@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using AFBack.Models;
 
 namespace AFBack.DTOs;
 
@@ -12,4 +13,7 @@ public class MessageRequestCreatedDto
 
     [JsonPropertyName("conversationId")]
     public int ConversationId { get; set; }
+    
+    // Valgfri notification
+    public MessageNotificationDTO? Notification { get; set; }
 }

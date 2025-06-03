@@ -672,7 +672,8 @@ public class MessageService : IMessageService
                     {
                         SenderId = senderId,
                         ReceiverId = receiverId,
-                        ConversationId = conversation.Id
+                        ConversationId = conversation.Id,
+                        Notification = null,
                     });
                 }
 
@@ -704,13 +705,14 @@ public class MessageService : IMessageService
 
                 await _context.SaveChangesAsync();
 
-                if (notification != null)
+                if (notification != null && notification.Type == NotificationType.MessageRequest)
                 {
-                    await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new {
-                        senderId,
-                        receiverId,
-                        conversationId = conversation.Id,
-                        notification
+                    await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                    {
+                        SenderId = senderId,
+                        ReceiverId = receiverId,
+                        ConversationId = conversation.Id,
+                        Notification = notification
                     });
                 }
             }
