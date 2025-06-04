@@ -98,11 +98,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     results: searchResults,
     loading: searchLoading,
   } = useConversationSearch();
-  const storeConversations = useChatStore(state => state.conversations);
 
-  const conversationsToShow = searchQuery.trim()
-  ? searchResults
-  : storeConversations;
 
   console.log("🔍 Søketekst:", searchQuery);
   console.log("📥 Søkeresultater:", searchResults);
@@ -232,28 +228,47 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
     // Oppdater state lokalt + globalt
     const handleSelect = (id: number) => {
-      console.log("💡 handleSelect:", {
-        id,
-        pending,
-        matched: pending.some((r) => r.conversationId === id),
-      });
       const isSame = id === currentConversationId;
 
-        if (isSame) {
-          setCurrentConversationId(null);
-          setConversationVisible((prev) => !prev);
-          return;
-        }
-
-      const pendingRequest = pending.find((r) => r.conversationId === id);
-      if (pendingRequest) {
-        useChatStore.getState().setPendingLockedConversationId(id);
-      } else {
-        useChatStore.getState().setPendingLockedConversationId(null);
+      if (isSame) {
+        setCurrentConversationId(null);
+        setConversationVisible((prev) => !prev);
+        return;
       }
 
-      setCurrentConversationId(id);
-      setConversationVisible(true); 
+      const state = useChatStore.getState();
+      const isPending = state.pendingMessageRequests.some((r) => r.conversationId === id);
+
+      // 👷 Hvis samtalen finnes i pending men ikke i conversation-store, legg den til
+      const alreadyInConversations = state.conversations.some((c) => c.id === id);
+      if (!alreadyInConversations && isPending) {
+        const pending = state.pendingMessageRequests.find(
+          (r) => r.conversationId === id
+        );
+
+        if (pending?.conversationId !== undefined) {
+          state.addConversation({
+            id: pending.conversationId,
+            isPendingApproval: true,
+            participants: [
+              {
+                id: pending.senderId,
+                fullName: pending.senderName,
+                profileImageUrl: pending.profileImageUrl ?? "/default-avatar.png",
+              },
+            ],
+            lastMessageSentAt: pending.requestedAt,
+            isGroup: false,
+          });
+        }
+      }
+
+      // 🏷️ Merk samtalen som pending-locked hvis det er en forespørsel
+      state.setPendingLockedConversationId(isPending ? id : null);
+
+      // 🔁 Vis samtalen
+      state.setCurrentConversationId(id);
+      setConversationVisible(true);
     };
 
     // Rydd bare når man bytter til en annen samtale
@@ -283,10 +298,14 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       };
     }, [currentConversationId]);
 
-    console.log("🧭 Bytter samtale til", currentConversationId);
-
     const { showModal } = useModal(); // Viser ny meldingsmodalen
     
+    console.log("🧱 isBlocked:",
+      currentConversation?.isPendingApproval,
+      currentConversationId,
+      pendingLockedConversationId,
+      currentConversation
+    );
 
   return (
     <div   ref={dropdownRef}  onMouseDown={(e) => {
@@ -360,7 +379,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               </div>
             )}
             <ConversationList
-              conversations={conversationsToShow}
+              conversations={searchQuery.trim() ? searchResults : undefined}
               selectedId={currentConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}

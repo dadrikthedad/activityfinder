@@ -13,6 +13,7 @@ import { handleIncomingNotification } from "@/services/helpfunctions/getNotifica
 import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useStore } from "zustand";
+import { getPendingMessageRequests } from "@/services/messages/messageService";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -91,13 +92,6 @@ export default function ChatHubClient() {
         // 5) Oppdater notification‐panelet
         // 🔔 Legg den direkte inn i notification-storen
         await handleIncomingNotification(notification);
-         if (notification.senderId !== userId && notification.conversationId) {
-            showNotificationToast({
-              senderName: notification.senderName,
-              messagePreview: notification.messagePreview,
-              conversationId: notification.conversationId,
-            });
-          }
       },
       async ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
         if (!conversationId) {
@@ -115,6 +109,10 @@ export default function ChatHubClient() {
         // ✅ Oppdater notification-panelet i sanntid
          if (notification) {
         await handleIncomingNotification(notification);
+
+        // ➕ Hent og oppdater meldingsforespørsler i store
+        const updated = await getPendingMessageRequests();
+        useChatStore.getState().setPendingMessageRequests(updated ?? []);
 
         if (notification.senderId !== userId && conversationId) {
           showNotificationToast({

@@ -32,16 +32,27 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
 
     // Håndtere scrolling og paginering
     const handleScroll = () => {
+        console.log("📜 load - Scroll event fired");
       if (conversations) return; // deaktivert under søk
 
       const container = scrollContainerRef.current;
-      if (!container || loading || !hasMore) return;
+      console.log("🔎 Check: loading=", loading, "hasMore=", hasMore);
+        if (!container || loading || !hasMore) {
+          console.log("🚫 Not loading more:", { loading, hasMore });
+          return;
+        }
 
       const { scrollTop, scrollHeight, clientHeight } = container;
-      if (scrollTop + clientHeight >= scrollHeight - 50) {
-        loadMore();
-      }
+        console.log("📏 load - Scroll pos:", { scrollTop, clientHeight, scrollHeight });
+       if (scrollTop + clientHeight >= scrollHeight - 50) {
+          console.log("📥 Near bottom, loading more...");
+          loadMore();
+        }
     };
+
+    useEffect(() => {
+      console.log("🔧 load scrollContainerRef:", scrollContainerRef.current);
+    }, []);
 
     // Trenger å sjekke at denne funker
     useEffect(() => {

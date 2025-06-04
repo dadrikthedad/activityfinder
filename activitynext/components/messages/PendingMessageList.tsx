@@ -8,7 +8,7 @@ import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequ
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useUnlockConversation } from "@/hooks/messages/useUnlockConversation";
-import { useChatStore } from "@/store/useChatStore";
+
 
 
 interface PendingRequestsListProps {
@@ -27,7 +27,6 @@ const PendingRequestsList = ({
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
   const unlockConversation = useUnlockConversation();
-  const setPendingLockedConversationId = useChatStore(state => state.setPendingLockedConversationId);
 
   useEffect(() => {
     if (requests && requests.length > 0) {
@@ -58,9 +57,7 @@ const PendingRequestsList = ({
               onClick={() => {
                 console.log("✅ Klikket på samtale:", r.conversationId);
                 if (r.conversationId && onSelectConversation) {
-                  onSelectConversation(Number(r.conversationId));
-                  console.log("Blocked:", r.conversationId);
-                  setPendingLockedConversationId(r.conversationId);
+                  onSelectConversation(r.conversationId);
                 }
               }}
               onShowUserPopover={onShowUserPopover} 
