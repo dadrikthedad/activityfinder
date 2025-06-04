@@ -1,3 +1,4 @@
+// Hjelpefunksjon som gjør at vi laster inn alt i MessageDropdown i navbaren ved at vi er innlogget.
 import { useEffect } from "react";
 import { fetchAndSetNotifications } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { getPendingMessageRequests } from "@/services/messages/messageService";
@@ -5,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getMyConversations } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
 
-export function NotificationInitializer() {
+export function MessageDropdownInitializer() {
   const { userId } = useAuth();
 
 

@@ -299,6 +299,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     }, [currentConversationId]);
 
     const { showModal } = useModal(); // Viser ny meldingsmodalen
+
+    
     
     console.log("🧱 isBlocked:",
       currentConversation?.isPendingApproval,

@@ -1,4 +1,4 @@
-// services/helpfuctions/getNotificationsBeforeSignalr
+// Sikrer at vi hetner alle notifikasjoner før signalr gjør at ikke alle blir lastet inn
 
 import { getMessageNotifications } from "../messages/messageNotificationService";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";

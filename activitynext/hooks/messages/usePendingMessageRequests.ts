@@ -16,9 +16,13 @@ export function usePendingMessageRequests() {
   const hasFreshCache = cached.length > 0 && now - cacheTs < PENDING_TTL;
   const [loading, setLoading] = useState(!hasFreshCache);
 
-  useEffect(() => {
-    if (hasFreshCache) {
-      setRequests(cached); // ✅ Bruk setRequests for sortering
+  const state = useChatStore.getState();
+  const hasLiveRequests = state.pendingMessageRequests.length > 0;
+
+    useEffect(() => {
+    if (hasFreshCache && !hasLiveRequests) {
+      setRequests(cached);
+      return;
     }
 
     (async () => {
@@ -32,7 +36,7 @@ export function usePendingMessageRequests() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [hasFreshCache]);
 
   return {
     requests,
