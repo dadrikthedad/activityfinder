@@ -3,6 +3,8 @@ using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using AFBack.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Controllers;
 
@@ -13,9 +15,11 @@ public class MessagesController : BaseController
 {
     private readonly IMessageService _messageService;
     private readonly IFileService _fileService;
+    private readonly ApplicationDbContext _context;
 
-    public MessagesController(IMessageService messageService, IFileService fileService)
+    public MessagesController(ApplicationDbContext context, IMessageService messageService, IFileService fileService)
     {
+        _context = context;
         _messageService = messageService;
         _fileService = fileService;
     }
@@ -111,6 +115,39 @@ public class MessagesController : BaseController
         {
             return StatusCode(500, new { message = "Feil ved henting av forespørsler.", details = ex.Message });
         }
+    }
+    
+    // For å hente samtalen til en MessageRequest selv
+    [HttpGet("pending/{conversationId}")]
+    public async Task<IActionResult> GetPendingMessageRequestById(int conversationId)
+    {
+        var receiverIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(receiverIdClaim, out var receiverId))
+            return Unauthorized("Ugyldig bruker-ID.");
+
+        var request = await _context.MessageRequests
+            .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && r.ConversationId == conversationId)
+            .Include(r => r.Sender).ThenInclude(u => u.Profile)
+            .Include(r => r.Conversation)
+            .FirstOrDefaultAsync();
+
+        if (request == null)
+            return NotFound();
+
+        var dto = new MessageRequestDTO
+        {
+            SenderId = request.SenderId,
+            SenderName = request.Sender.FullName,
+            ProfileImageUrl = request.Sender.Profile?.ProfileImageUrl,
+            RequestedAt = request.RequestedAt,
+            ConversationId = request.ConversationId,
+            GroupName = request.Conversation?.GroupName,
+            IsGroup = request.Conversation?.IsGroup ?? false,
+            LimitReached = request.LimitReached,
+            IsPendingApproval = request.Conversation?.IsApproved == false
+        };
+
+        return Ok(dto);
     }
     
     // Her henter vi meldinger etter vi har godtatt meldingsforespørsel
