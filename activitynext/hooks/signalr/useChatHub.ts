@@ -5,8 +5,6 @@ import * as signalR from "@microsoft/signalr";
 import { MessageDTO } from "@/types/MessageDTO";
 import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
-import { getPendingMessageRequests } from "@/services/messages/messageService";
-import { useChatStore } from "@/store/useChatStore";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
@@ -24,7 +22,6 @@ export function useChatHub(
   const approvedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null);
   const createdRef = useRef(onRequestCreated);
    // Oppdater refs hvis funksjonene endres
-  const setPendingMessageRequests = useChatStore.getState().setPendingMessageRequests;
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
   useEffect(() => {
@@ -82,24 +79,16 @@ export function useChatHub(
             useMessageNotificationStore.getState().upsertNotification(notification);
           });
 
-          conn.on("MessageRequestCreated", async (data: MessageRequestCreatedDto) => {
+          conn.on("MessageRequestCreated", (data: MessageRequestCreatedDto) => {
             console.log("📨 Ny meldingsforespørsel mottatt:", data);
 
-             const { notification } = data;
-             console.log("🧪 Type på notification i opprettelse:", notification?.type);
+            const { notification } = data;
 
-              if (notification && notification.type !== "MessageRequestApproved") {
-                useMessageNotificationStore.getState().upsertNotification(notification);
-              }
-
-            try {
-              const updated = await getPendingMessageRequests();
-              setPendingMessageRequests(updated ?? []);
-            } catch (err) {
-              console.error("❌ Feil ved oppdatering av meldingsforespørsler:", err);
+            if (notification && notification.type !== "MessageRequestApproved") {
+              useMessageNotificationStore.getState().upsertNotification(notification);
             }
 
-            // Hvis du fortsatt vil trigge ekstern callback (f.eks. for toast):
+            // Send videre til frontend-logikk (f.eks. for toast + sync)
             createdRef.current?.(data);
           });
 

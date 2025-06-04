@@ -32,3 +32,9 @@ export async function searchMessagesInConversation(
   const url = `${API_BASE_URL}/api/messages/search?conversationId=${conversationId}&query=${encodeURIComponent(query)}&skip=${skip}&take=${take}`;
   return await getRequest<MessageDTO[]>(url);
 }
+
+// Henter én spesifikk meldingsforespørsel
+export async function getPendingMessageRequestById(conversationId: number): Promise<MessageRequestDTO | null> {
+  const url = `${API_BASE_URL}/api/messages/pending/${conversationId}`;
+  return await getRequest<MessageRequestDTO>(url);
+}

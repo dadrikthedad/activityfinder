@@ -239,30 +239,6 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       const state = useChatStore.getState();
       const isPending = state.pendingMessageRequests.some((r) => r.conversationId === id);
 
-      // 👷 Hvis samtalen finnes i pending men ikke i conversation-store, legg den til
-      const alreadyInConversations = state.conversations.some((c) => c.id === id);
-      if (!alreadyInConversations && isPending) {
-        const pending = state.pendingMessageRequests.find(
-          (r) => r.conversationId === id
-        );
-
-        if (pending?.conversationId !== undefined) {
-          state.addConversation({
-            id: pending.conversationId,
-            isPendingApproval: true,
-            participants: [
-              {
-                id: pending.senderId,
-                fullName: pending.senderName,
-                profileImageUrl: pending.profileImageUrl ?? "/default-avatar.png",
-              },
-            ],
-            lastMessageSentAt: pending.requestedAt,
-            isGroup: false,
-          });
-        }
-      }
-
       // 🏷️ Merk samtalen som pending-locked hvis det er en forespørsel
       state.setPendingLockedConversationId(isPending ? id : null);
 
@@ -300,8 +276,6 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
     const { showModal } = useModal(); // Viser ny meldingsmodalen
 
-    
-    
     console.log("🧱 isBlocked:",
       currentConversation?.isPendingApproval,
       currentConversationId,
@@ -420,12 +394,12 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                 </div>
               )}
 
-              {currentConversation?.isPendingApproval &&
+              {pending.some((r) => r.conversationId === currentConversationId) &&
                 currentConversationId === pendingLockedConversationId && (
                   <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
                     Approve the conversation to start sending messages.
                   </div>
-                )}
+              )}
 
               <div className="flex-1 min-h-0 overflow-auto">
                 <MessageList

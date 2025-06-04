@@ -11,19 +11,22 @@ export function usePendingMessageRequests() {
   const cached = useChatStore((s) => s.pendingRequestsCache);
   const cacheTs = useChatStore((s) => s.pendingRequestsCacheTimestamp);
   const setCached = useChatStore((s) => s.setCachedPendingRequests);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const now = Date.now();
   const hasFreshCache = cached.length > 0 && now - cacheTs < PENDING_TTL;
   const [loading, setLoading] = useState(!hasFreshCache);
 
-  const state = useChatStore.getState();
-  const hasLiveRequests = state.pendingMessageRequests.length > 0;
 
-    useEffect(() => {
-    if (hasFreshCache && !hasLiveRequests) {
-      setRequests(cached);
-      return;
-    }
+      useEffect(() => {
+      // Hvis vi allerede har hentet, ikke gjør det igjen
+      if (hasFetched) return;
+
+      if (hasFreshCache) {
+        setRequests(cached);
+        setHasFetched(true);
+        return;
+      }
 
     (async () => {
       try {
@@ -36,7 +39,7 @@ export function usePendingMessageRequests() {
         setLoading(false);
       }
     })();
-  }, [hasFreshCache]);
+  }, [hasFreshCache, cached, setRequests, setCached, hasFetched]);
 
   return {
     requests,

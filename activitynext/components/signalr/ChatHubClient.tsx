@@ -13,7 +13,7 @@ import { handleIncomingNotification } from "@/services/helpfunctions/getNotifica
 import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useStore } from "zustand";
-import { getPendingMessageRequests } from "@/services/messages/messageService";
+import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -30,6 +30,8 @@ export default function ChatHubClient() {
     const setPendingLockedConversationId = useChatStore(s => s.setPendingLockedConversationId);
     const setCurrentConversationId = useChatStore(s => s.setCurrentConversationId);
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
+    const { syncPendingConversation } = usePendingConversationSync();
+
 
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
@@ -95,7 +97,11 @@ export default function ChatHubClient() {
       },
       async ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
         if (!conversationId) {
-          console.error("🚨 Mangler conversationId i signalr-data:", { senderId, receiverId, conversationId });
+          console.error("🚨 Mangler conversationId i signalr-data:", {
+            senderId,
+            receiverId,
+            conversationId,
+          });
           return;
         }
 
@@ -103,26 +109,26 @@ export default function ChatHubClient() {
           senderId,
           receiverId,
           conversationId,
-          notification
+          notification,
         });
 
-        // ✅ Oppdater notification-panelet i sanntid
-         if (notification) {
-        await handleIncomingNotification(notification);
+        if (notification) {
+          // 🔔 Oppdater notification-panelet i sanntid
+          await handleIncomingNotification(notification);
 
-        // ➕ Hent og oppdater meldingsforespørsler i store
-        const updated = await getPendingMessageRequests();
-        useChatStore.getState().setPendingMessageRequests(updated ?? []);
+          // 🔄 Hent og legg til pending-samtale
+  
+            await syncPendingConversation(conversationId);
 
-        if (notification.senderId !== userId && conversationId) {
-          showNotificationToast({
-            senderName: notification.senderName,
-            messagePreview: notification.messagePreview,
-            conversationId,
-          });
+          if (notification.senderId !== userId) {
+            showNotificationToast({
+              senderName: notification.senderName,
+              messagePreview: notification.messagePreview,
+              conversationId,
+            });
+          }
         }
       }
-    }
   );
 
   return null; // Kun sideeffekter

@@ -48,6 +48,7 @@ type ChatStore = {
   setShowNewMessageButton: (value: boolean) => void;
   scrollToMessageId: number | null;
   setScrollToMessageId: (id: number | null) => void;
+    addPendingRequest: (request: MessageRequestDTO) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -88,6 +89,26 @@ export const useChatStore = create<ChatStore>((set) => ({
       pendingRequestsCache: requests,
       pendingRequestsCacheTimestamp: Date.now(),
     }),
+    addPendingRequest: (request: MessageRequestDTO) =>
+  set((state) => {
+    const alreadyExists = state.pendingMessageRequests.some(
+      (r) => r.conversationId === request.conversationId
+    );
+
+    if (alreadyExists) return {};
+
+    const updated = [...state.pendingMessageRequests, request].sort(
+      (a, b) =>
+        new Date(b.requestedAt).getTime() -
+        new Date(a.requestedAt).getTime()
+    );
+
+    return {
+      pendingMessageRequests: updated,
+      pendingRequestsCache: updated,
+      pendingRequestsCacheTimestamp: Date.now(),
+    };
+  }),
 
   removePendingRequest: (conversationId) =>
     set((state) => ({
