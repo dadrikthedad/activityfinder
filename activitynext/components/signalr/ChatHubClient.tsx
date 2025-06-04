@@ -9,7 +9,7 @@ import { handleIncomingMessage } from "./handleIncomingMessage";
 import { useAuth } from "@/context/AuthContext";
 import { handleIncomingReaction } from "./handleIncomingReactions";
 import { showNotificationToast } from "../toast/Toast";
-import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useStore } from "zustand";
@@ -90,7 +90,7 @@ export default function ChatHubClient() {
 
         // 5) Oppdater notification‐panelet
         // 🔔 Legg den direkte inn i notification-storen
-        useMessageNotificationStore.getState().upsertNotification(notification);
+        await handleIncomingNotification(notification);
          if (notification.senderId !== userId && notification.conversationId) {
             showNotificationToast({
               senderName: notification.senderName,
@@ -99,7 +99,7 @@ export default function ChatHubClient() {
             });
           }
       },
-      ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
+      async ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
         if (!conversationId) {
           console.error("🚨 Mangler conversationId i signalr-data:", { senderId, receiverId, conversationId });
           return;
@@ -114,7 +114,7 @@ export default function ChatHubClient() {
 
         // ✅ Oppdater notification-panelet i sanntid
          if (notification) {
-        useMessageNotificationStore.getState().upsertNotification(notification);
+        await handleIncomingNotification(notification);
 
         if (notification.senderId !== userId && conversationId) {
           showNotificationToast({

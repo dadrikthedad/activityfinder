@@ -3,8 +3,8 @@ import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { showNotificationToast } from "../toast/Toast";
 import { NotificationType } from "@/types/MessageNotificationDTO";
+import { handleIncomingReactionNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { toast } from "sonner";
-import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 /**
  * Håndter innkommende reaksjon – oppdater lokal state for notification og reactions.
@@ -12,7 +12,7 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
  * @param currentUserId Innlogget bruker
  * @param notification Notifikasjonen sendt fra backend (valgfri)
  */
-export function handleIncomingReaction(
+export async function handleIncomingReaction(
   reaction: ReactionDTO,
   currentUserId: number | null,
   notification?: MessageNotificationDTO
@@ -36,30 +36,27 @@ export function handleIncomingReaction(
    if (isInActiveConversation && isAtBottom) {
     markConversationAsReadLocally(reaction.conversationId);
     // ✅ Ellers: bruk notificationen hvis vi fikk den fra backend
-  } else if (notification) {
-     const { upsertNotification } = useMessageNotificationStore.getState();
-    const isNew = upsertNotification(notification);
+      } else if (notification) {
+  const isNew = await handleIncomingReactionNotification(notification, { onlyIfNew: false });
 
-
-      if (isNew) {
-        showNotificationToast({
-          senderName: notification.senderName,
-          messagePreview: `Reagerte på meldingen din`,
-          conversationId: notification.conversationId!,
-          type: NotificationType[notification.type as keyof typeof NotificationType],
-          reactionEmoji: notification.reactionEmoji,
-        });
-      } else {
+    if (isNew) {
+      showNotificationToast({
+        senderName: notification.senderName,
+        messagePreview: `Reagerte på "${notification.messagePreview}"`,
+        conversationId: notification.conversationId!,
+        type: NotificationType[notification.type as keyof typeof NotificationType],
+        reactionEmoji: notification.reactionEmoji,
+      });
+    } else {
         toast("🔄 Reaksjon oppdatert", {
-          description: `${notification.senderName} endret sin reaksjon`,
+          description: `${notification.senderName} endret sin reaksjon til ${notification.reactionEmoji ?? ""}`,
         });
       }
 
-    // 🔔 Oppdater samtalelisten hvis ikke allerede markert
-    if (!unreadConversationIds.includes(reaction.conversationId)) {
-      setUnreadConversationIds([...unreadConversationIds, reaction.conversationId]);
-    }
+  if (!unreadConversationIds.includes(reaction.conversationId)) {
+    setUnreadConversationIds([...unreadConversationIds, reaction.conversationId]);
   }
+}
 
   // ♻️ Tving rerender for f.eks. reactions i MessageList
   bumpReactionsVersion();

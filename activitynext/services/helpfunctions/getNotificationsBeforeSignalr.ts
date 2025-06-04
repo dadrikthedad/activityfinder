@@ -1,0 +1,120 @@
+// services/helpfuctions/getNotificationsBeforeSignalr
+
+import { getMessageNotifications } from "../messages/messageNotificationService";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+
+export async function fetchAndSetNotifications(page = 1, pageSize = 20) {
+  const data = await getMessageNotifications(page, pageSize);
+
+  const store = useMessageNotificationStore.getState();
+
+  // Fjern midlertidige notifikasjoner fra lokal zustand
+  const cleaned = store.notifications.filter(n => !n.isTemporary);
+
+  // Slå sammen og unngå duplikater på ID
+  const combined = [...data.notifications, ...cleaned];
+  const uniqueById = new Map<number, MessageNotificationDTO>();
+  combined.forEach((n) => uniqueById.set(n.id, n));
+
+  const merged = Array.from(uniqueById.values());
+
+  store.setNotifications(merged);
+
+  console.log(`🔔 Lagrer ${merged.length} unike notifikasjoner i Zustand.`);
+
+  return data.notifications;
+}
+
+
+export async function handleIncomingNotification(
+  notification: MessageNotificationDTO,
+  options?: { onlyIfNew?: boolean }
+): Promise<boolean> {
+      // 🚫 Ikke håndter reaksjonsnotifikasjoner her – de håndteres i ChatHubClient
+  if (notification.type === "MessageReaction") return false;
+  let store = useMessageNotificationStore.getState();
+
+    // 🚨 Må hente på nytt etter fetch
+    const hasFetchedNewMessageNotifs = store.notifications.some(
+    (n) => n.type === "NewMessage"
+    );
+
+    if (!hasFetchedNewMessageNotifs) {
+    await fetchAndSetNotifications();
+
+    // 🧠 Viktig! oppdater snapshot etter async
+    store = useMessageNotificationStore.getState();
+    }
+
+  const existing = store.notifications.find(
+    (n) =>
+      n.conversationId === notification.conversationId &&
+      n.type === notification.type &&
+      !n.isRead
+  );
+
+  // Blokker hvis kun nye er tillatt
+  if (options?.onlyIfNew && existing) return false;
+
+  // Hvis vi allerede har en notification for samtalen, oppdater count og behold preview
+  if (notification.type === "NewMessage" && existing) {
+    const count = (existing.messageCount ?? 1) + 1;
+
+    const updated: MessageNotificationDTO = {
+      ...existing,
+      messageCount: count,
+      createdAt: notification.createdAt,
+      // ⚠️ Behold eksisterende preview (backend-formatert)
+      messagePreview: existing.messagePreview,
+      isTemporary: existing.isTemporary ?? false,
+    };
+
+    store.upsertNotification(updated);
+    return false;
+  }
+
+  // Ny notification – lag preview fra meldingen
+  store.upsertNotification(notification);
+  return true;
+}
+
+export async function handleIncomingReactionNotification(
+  notification: MessageNotificationDTO,
+  options?: { onlyIfNew?: boolean }
+): Promise<boolean> {
+  let store = useMessageNotificationStore.getState();
+
+  const hasFetchedReactions = store.notifications.some(n => n.type === "MessageReaction");
+
+  if (!hasFetchedReactions) {
+    await fetchAndSetNotifications();
+    store = useMessageNotificationStore.getState(); // 📦 oppdater snapshot
+  }
+
+  const existing = store.notifications.find(
+    (n) =>
+      n.type === "MessageReaction" &&
+      n.messageId === notification.messageId &&
+      n.senderId === notification.senderId
+  );
+
+  if (options?.onlyIfNew && existing) return false;
+
+  if (existing) {
+    const updated: MessageNotificationDTO = {
+      ...existing,
+      reactionEmoji: notification.reactionEmoji,
+      createdAt: notification.createdAt,
+      messagePreview: notification.messagePreview ?? existing.messagePreview,
+      isRead: existing.isRead,
+    };
+
+    store.upsertNotification(updated);
+    return false;
+  }
+
+  // Ny reaksjonsnotifikasjon
+  store.upsertNotification(notification);
+  return true;
+}

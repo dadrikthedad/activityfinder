@@ -12,6 +12,7 @@ export interface MessageNotificationDTO {
   reactionEmoji?: string | null;
   messagePreview?: string | null;
   messageCount?: number | null;
+  isTemporary?: boolean;
 }
 
 export enum NotificationType {

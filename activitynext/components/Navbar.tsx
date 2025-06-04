@@ -21,6 +21,7 @@ import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
 import { useChatStore } from "@/store/useChatStore";
 import { SetGenericElementRef } from "@/types/ui/PopoverRefs";
 import { useDropdown } from "@/context/DropdownContext";
+import { NotificationInitializer } from "@/services/helpfunctions/messageDropdownInitializer";
 
 
 
@@ -166,6 +167,7 @@ export default function Navbar() {
       <ul className="flex gap-6 items-center relative">
         {isLoggedIn ? (
           <>
+            <NotificationInitializer /> {/* 👈 Initialiserer notifikasjoner kun hvis innlogget */}
              {/* Messages her kommer meldinger*/}
              <li className="relative">
                 <div

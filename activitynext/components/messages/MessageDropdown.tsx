@@ -240,6 +240,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       const isSame = id === currentConversationId;
 
         if (isSame) {
+          setCurrentConversationId(null);
           setConversationVisible((prev) => !prev);
           return;
         }
@@ -398,11 +399,12 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                 </div>
               )}
 
-              {currentConversationId === pendingLockedConversationId && (
-                <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
-                  Approve the conversation to start sending messages.
-                </div>
-              )}
+              {currentConversation?.isPendingApproval &&
+                currentConversationId === pendingLockedConversationId && (
+                  <div className="bg-yellow-300 border border-yellow-400 text-yellow-800 px-4 py-2 mb-2 rounded text-sm text-center">
+                    Approve the conversation to start sending messages.
+                  </div>
+                )}
 
               <div className="flex-1 min-h-0 overflow-auto">
                 <MessageList
