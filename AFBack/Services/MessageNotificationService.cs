@@ -181,9 +181,9 @@ public class MessageNotificationService
         }
         else if (n.Type == NotificationType.MessageReaction)
         {
-            preview = n.Message?.Reactions?
-                          .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
-                      ?? "";
+            preview = n.Message?.Text?.Length > 40
+                ? n.Message.Text.Substring(0, 40) + "..."
+                : n.Message?.Text ?? "";
         }
         else if (n.Type == NotificationType.NewMessage)
         {
