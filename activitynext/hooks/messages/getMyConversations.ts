@@ -3,8 +3,9 @@ import { useState, useCallback, useEffect } from "react";
 import { getMyConversations } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
 
+export const take = 20;
 export function usePaginatedConversations() {
-  const take = 20;
+
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 

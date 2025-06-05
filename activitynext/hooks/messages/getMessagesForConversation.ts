@@ -98,4 +98,6 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
     loading: isInvalidConversation ? false : loading,
     hasMore: isInvalidConversation ? false : hasMore,
   };
+  
 }
+

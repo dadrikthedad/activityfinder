@@ -46,8 +46,6 @@ export default function MessageList({
       hasMore,
     } = usePaginatedMessages(conversationId, conversationVisible);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
 
-    console.count("📄 MessageList render");
-    console.log("📥 Rendering messages for", conversationId, messages.length);
 
     const scrollPosition = useRef<number>(0); // Lagre midltertid
     const { scrollPositions } = useChatStore(); // hentet ved ny mount
@@ -118,7 +116,7 @@ export default function MessageList({
       if (isSearching) return searchResults;
       const all = [...messages, ...live];
       const seen = new Set();
-      console.log("📦 All messages to render", all);
+
       return all
         .filter((msg) => {
           if (seen.has(msg.id)) return false;
@@ -128,7 +126,6 @@ export default function MessageList({
         .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
     }, [messages, live, isSearching, searchResults]);
     // Her sikrer vi at New Message Button bare kommer ved ny melding, og ikke samtalebytte eller paginering
-
       
     useEffect(() => {
       if (initializingConversation || live.length === 0) return;
@@ -266,11 +263,6 @@ export default function MessageList({
           console.log(`[Scroll] Oppdatert scrollposisjon: ${scrollRef.current.scrollTop}`); // Hvis vi trenger å vite hva scrollposisjonen er
         }
       };
-
-      console.log("🧪 Rendering MessageList", {
-        conversationId,
-        messagesInView: liveMessages[conversationId],
-      });
 
       // Scrollen til melding hvor vi har fått en reaksjon ved trykk i panelet
       useEffect(() => {

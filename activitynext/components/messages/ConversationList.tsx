@@ -7,6 +7,7 @@ import { ConversationListItem } from "./ConversationListUserCard";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useRef, useEffect, useState } from "react";
+import { take } from "@/hooks/messages/getMyConversations";
 
 
 
@@ -51,15 +52,16 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
         }
     };
 
-    useEffect(() => {
-      console.log("🔧 load scrollContainerRef:", scrollContainerRef.current);
-    }, []);
-
     // Trenger å sjekke at denne funker
     const [hasAutoLoadedOnce, setHasAutoLoadedOnce] = useState(false);
 
     useEffect(() => {
-      if (hasAutoLoadedOnce || conversations || !hasLoadedConversations) return;
+      if (    
+        hasAutoLoadedOnce ||
+        conversations ||
+        !hasLoadedConversations ||
+        storeConversations.length <= take
+      ) return;
 
       const container = scrollContainerRef.current;
       if (
@@ -68,10 +70,24 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
         !loading &&
         hasMore
       ) {
+        console.log("🧪 autoLoad check:", {
+          loaded: hasLoadedConversations,
+          conversationsCount: storeConversations.length,
+          loading,
+          hasMore,
+        });
         loadMore();
         setHasAutoLoadedOnce(true);
       }
-    }, [storeConversations, loadMore, loading, hasMore, conversations, hasLoadedConversations]);
+    }, [
+      storeConversations.length,
+      loadMore,
+      loading,
+      hasMore,
+      conversations,
+      hasLoadedConversations,
+      hasAutoLoadedOnce,
+    ]);
 
 
 

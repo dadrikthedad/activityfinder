@@ -8,10 +8,8 @@ export function useConversationSearch(debounceDelay: number = 300) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    console.log("🔍 useConversationSearch → query:", query);
 
     if (!query.trim()) {
-      console.log("🔕 Tomt søkefelt, nullstiller resultater");
       setResults([]);
       return;
     }

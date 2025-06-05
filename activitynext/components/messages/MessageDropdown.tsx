@@ -96,10 +96,6 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     loading: searchLoading,
   } = useConversationSearch();
 
-
-  console.log("🔍 Søketekst:", searchQuery);
-  console.log("📥 Søkeresultater:", searchResults);
-
   const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
 
 
@@ -275,13 +271,6 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
     const { showModal } = useModal(); // Viser ny meldingsmodalen
 
-    console.log("🧱 isBlocked:",
-      currentConversation?.isPendingApproval,
-      currentConversationId,
-      pendingLockedConversationId,
-      currentConversation
-    );
-
   return (
     <div   ref={dropdownRef}  onMouseDown={(e) => {
           const target = e.target as Node;
@@ -421,7 +410,9 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               </div>
             </div>
           ) : (
+              <div className="flex-1 flex flex-col h-full pb-10 pr-2">
               <NotificationsPanel onOpenConversation={openConversationFromNotification} />
+                </div>
           )}
         </div>
         

@@ -1,8 +1,9 @@
-import { useMessageNotifications } from "@/hooks/messages/useMessageNotifications";
 import { useMessageNotificationActions } from "@/hooks/messages/useMessageNotificationActions";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import ProfileNavButton from "../settings/ProfileNavButton";
+import Router from "next/router";
 
 function formatNotificationText(n: MessageNotificationDTO): string {
   switch (n.type) {
@@ -36,29 +37,26 @@ interface NotificationsPanelProps {
 }
 
 export default function NotificationsPanel({ onOpenConversation }: NotificationsPanelProps) {
-  const {
-    loading: notifLoading,
-    loadMore,
-    hasMore
-  } = useMessageNotifications();
-
   const notifications = useMessageNotificationStore((s) => s.notifications);
   const { markOneAsRead, markAllAsRead, loading: markAllLoading } = useMessageNotificationActions();
   const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
   const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
 
+  const totalNotifications = useMessageNotificationStore((s) => s.notifications.length);
+
+  const canGoToChat = totalNotifications >= 20; 
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-start text-sm text-center px-4 pt-10 gap-4 custom-scrollbar">
-      <p className="text-gray-400">Recent notifications</p>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pt-10 gap-4 text-sm scrollbar-none">
+
       {notifications.length > 0 && (
     <div className="w-full text-center">
-        <button
-        disabled={markAllLoading}
+       <ProfileNavButton
         onClick={() => markAllAsRead()}
-        className="text-xs text-blue-600 hover:underline disabled:opacity-50 mb-2"
-        >
-        {markAllLoading ? "Marking..." : "Mark all as read"}
-        </button>
+        text={markAllLoading ? "Marking..." : "Mark all as read"}
+        variant="small"
+        disabled={markAllLoading}
+      />
     </div>
     )}
 
@@ -67,7 +65,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
         ) : notifications.length === 0 ? (
           <p className="text-gray-500 text-xs">No recent notifications</p>
         ) : (
-        <ul className="space-y-2 max-h-60 overflow-auto w-full max-w-md">
+      <ul className="space-y-2 overflow-auto w-full flex-1 min-h-0 pb-4 px-32">
           {notifications.map((n) => (
             <li
                 key={n.id}
@@ -101,17 +99,21 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
               </div>
             </li>
           ))}
+            <li className="w-full text-center pt-2">
+              <ProfileNavButton
+                onClick={() => {
+                  if (canGoToChat) Router.push("/page/chat");
+                }}
+                text="See more..."
+                variant="small"
+                disabled={!canGoToChat}
+              />
+            </li>
+              <li className="py-1" /> {/* Litt ekstra luft under knappen */}
         </ul>
+        
       )}
-      {hasMore && (
-        <button
-            onClick={loadMore}
-            disabled={notifLoading}
-            className="text-xs text-blue-600 hover:underline disabled:opacity-50 mt-2"
-        >
-            {notifLoading ? "Loading..." : "Load more"}
-        </button>
-        )}
+     
     </div>
   );
 }

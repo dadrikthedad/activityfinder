@@ -125,9 +125,6 @@ export default function MessageInput({
     list?.scrollTo({ top: list.scrollHeight, behavior: "auto" });
   };
 
-  console.log("🔍 currentConversation:", currentConversation);
-  console.log("🧱 isBlocked:", isBlocked);
-
   return (
       <div className="flex flex-col gap-2 mt-4">
         <MessageToolbar
