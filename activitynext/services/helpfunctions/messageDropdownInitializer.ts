@@ -7,38 +7,47 @@ import { getMyConversations } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
 import { getUnreadConversationIds } from "@/services/messages/messageNotificationService";
 
+let didRunInitializer = false;
+
 export function MessageDropdownInitializer() {
   const { userId } = useAuth();
-
+  const {
+    hasLoadedConversations,
+    hasLoadedPendingRequests,
+    hasLoadedUnreadConversationIds,
+  } = useChatStore();
 
   useEffect(() => {
-    if (!userId) return;
+    if (didRunInitializer || !userId) return;
+    didRunInitializer = true;
+
+    console.log("🚀 Initializer TRIGGERED with userId =", userId);
+
+    if (!hasLoadedUnreadConversationIds) {
+      getUnreadConversationIds()
+        .then((ids) => {
+          useChatStore.getState().setUnreadConversationIds(ids ?? []);
+          useChatStore.getState().setHasLoadedUnreadConversationIds(true);
+        })
+        .catch(console.error);
+    }
+
+    if (!hasLoadedPendingRequests) {
+      getPendingMessageRequests()
+        .then((data) => {
+          useChatStore.getState().setPendingMessageRequests(data ?? []);
+          useChatStore.getState().setCachedPendingRequests(data ?? []);
+          useChatStore.getState().setHasLoadedPendingRequests(true);
+        })
+        .catch(console.error);
+    }
+
+    if (!hasLoadedConversations) {
+      fetchInitialConversations().catch(console.error);
+    }
 
     fetchAndSetNotifications().catch(console.error);
-
-    getPendingMessageRequests()
-    .then((data) => {
-      useChatStore.getState().setPendingMessageRequests(data ?? []);
-      useChatStore.getState().setCachedPendingRequests(data ?? []);
-      useChatStore.getState().setHasLoadedPendingRequests(true); // ✅
-    })
-    .catch((err) => {
-      console.error("❌ Feil ved lasting av pending forespørsler:", err);
-    });
-
-    getUnreadConversationIds()
-      .then((ids) => {
-        useChatStore.getState().setUnreadConversationIds(ids ?? []);
-        useChatStore.getState().setHasLoadedUnreadConversationIds(true);
-      })
-      .catch((err) => {
-        console.error("❌ Feil ved henting av uleste samtaler:", err);
-      });
-
-    fetchInitialConversations().catch(console.error);
-}, [userId]);
-
-
+  }, [userId, hasLoadedConversations, hasLoadedPendingRequests, hasLoadedUnreadConversationIds]);
 
   return null;
 }

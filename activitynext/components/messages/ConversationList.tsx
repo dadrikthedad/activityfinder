@@ -6,7 +6,7 @@ import { ConversationDTO } from "@/types/ConversationDTO";
 import { ConversationListItem } from "./ConversationListUserCard";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 
 
 
@@ -30,7 +30,6 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
     const hasLoadedConversations = useChatStore((s) => s.hasLoadedConversations);
 
     const unreadConversationIds = useChatStore(state => state.unreadConversationIds);
-    console.log("🟢 Unread conversation IDs:", unreadConversationIds);
 
     // Håndtere scrolling og paginering
     const handleScroll = () => {
@@ -57,8 +56,10 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
     }, []);
 
     // Trenger å sjekke at denne funker
+    const [hasAutoLoadedOnce, setHasAutoLoadedOnce] = useState(false);
+
     useEffect(() => {
-      if (conversations) return; // deaktiver om vi søker
+      if (hasAutoLoadedOnce || conversations || !hasLoadedConversations) return;
 
       const container = scrollContainerRef.current;
       if (
@@ -68,8 +69,11 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
         hasMore
       ) {
         loadMore();
+        setHasAutoLoadedOnce(true);
       }
-    }, [storeConversations, loadMore, loading, hasMore, conversations]);
+    }, [storeConversations, loadMore, loading, hasMore, conversations, hasLoadedConversations]);
+
+
 
   if (!conversations && !hasLoadedConversations && storeConversations.length === 0) {
       return (

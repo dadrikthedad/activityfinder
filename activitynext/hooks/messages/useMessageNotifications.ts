@@ -10,44 +10,45 @@ export function useMessageNotifications(pageSize = 20) {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const messageNotifications = useMessageNotificationStore((s) => s.notifications);
-  const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
-  const setStoreNotifications = useMessageNotificationStore((s) => s.setNotifications);
-  const setHasLoaded = useMessageNotificationStore((s) => s.setHasLoadedNotifications);
-
   useEffect(() => {
-    const fetchNotifications = async () => {
-      if (page === 1 && hasLoaded) {
-        setLocalNotifications(messageNotifications);
-        return;
+  const fetchNotifications = async () => {
+    if (loading) return;
+
+    const store = useMessageNotificationStore.getState();
+    const hasLoaded = store.hasLoadedNotifications;
+    const storeNotifications = store.notifications;
+
+    if (page === 1 && hasLoaded) {
+      setLocalNotifications(storeNotifications);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await getMessageNotifications(page, pageSize);
+
+      setLocalNotifications((prev) => {
+        const combined = [...prev, ...data.notifications];
+        const uniqueById = new Map<number, MessageNotificationDTO>();
+        combined.forEach((n) => uniqueById.set(n.id, n));
+        return Array.from(uniqueById.values());
+      });
+
+      if (page === 1) {
+        store.setNotifications(data.notifications);
+        store.setHasLoadedNotifications(true);
       }
 
-      setLoading(true);
-      try {
-        const data = await getMessageNotifications(page, pageSize);
+      setTotalPages(data.totalPages);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Ukjent feil"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        setLocalNotifications((prev) => {
-          const combined = [...prev, ...data.notifications];
-          const uniqueById = new Map<number, MessageNotificationDTO>();
-          combined.forEach((n) => uniqueById.set(n.id, n));
-          return Array.from(uniqueById.values());
-        });
-
-        if (page === 1) {
-          setStoreNotifications(data.notifications);
-          setHasLoaded(true);
-        }
-
-        setTotalPages(data.totalPages);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Ukjent feil"));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNotifications();
-  }, [page, pageSize, hasLoaded, messageNotifications]);
+  fetchNotifications();
+}, [page, pageSize, loading]);
 
   const loadMore = () => {
     if (page < totalPages) {

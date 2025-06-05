@@ -20,6 +20,7 @@ export async function fetchAndSetNotifications(page = 1, pageSize = 20) {
   const merged = Array.from(uniqueById.values());
 
   store.setNotifications(merged);
+  store.setHasLoadedNotifications(true);
 
   console.log(`🔔 Lagrer ${merged.length} unike notifikasjoner i Zustand.`);
 
