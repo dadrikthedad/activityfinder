@@ -42,14 +42,22 @@ export async function handleIncomingReaction(
     if (isNew) {
       showNotificationToast({
         senderName: notification.senderName,
-        messagePreview: `Reagerte på "${notification.messagePreview}"`,
+        messagePreview: notification.messagePreview,
         conversationId: notification.conversationId!,
-        type: NotificationType[notification.type as keyof typeof NotificationType],
+        type: NotificationType.MessageReaction,
         reactionEmoji: notification.reactionEmoji,
       });
     } else {
+
+      showNotificationToast({
+        senderName: notification.senderName,
+        messagePreview: notification.messagePreview,
+        conversationId: notification.conversationId!,
+        type: NotificationType.MessageReaction,
+        reactionEmoji: notification.reactionEmoji,
+      });
         toast("🔄 Reaksjon oppdatert", {
-          description: `${notification.senderName} endret sin reaksjon til ${notification.reactionEmoji ?? ""}`,
+          description: `${notification.senderName} changed his reaction to ${notification.reactionEmoji ?? ""} on message: ${notification.messagePreview ?? ""}`,
         });
       }
 

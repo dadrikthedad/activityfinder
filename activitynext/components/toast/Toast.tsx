@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { NotificationType} from "@/types/MessageNotificationDTO";
+import ProfileNavButton from "../settings/ProfileNavButton";
 
 interface NotificationToastProps {
   senderName?: string | null;
@@ -28,7 +29,10 @@ export function showNotificationToast({
       type={type}
       reactionEmoji={reactionEmoji}
     />
-  ));
+  ),
+  {
+    duration: Infinity, // viktig!
+  });
 }
 
 function NotificationToast({
@@ -40,35 +44,74 @@ function NotificationToast({
   reactionEmoji,
 }: NotificationToastProps & { t: { id: string | number } }) {
   const router = useRouter();
-  const getTitle = () => {
-    switch (type) {
+    const getTitle = () => {
+      const name = (
+        <span className="font-semibold text-black dark:text-white">
+          {senderName ?? "ukjent"}
+        </span>
+      );
+
+      switch (type) {
         case NotificationType.MessageRequest:
-        return `📩 Forespørsel fra ${senderName ?? "ukjent"}`;
+          return (
+            <>
+              {name} sent you a message request
+            </>
+          );
         case NotificationType.MessageRequestApproved:
-        return `✅ Forespørsel godkjent`;
+          return (
+            <>
+              {name} approved your message request
+            </>
+          );
         case NotificationType.MessageReaction:
-        return `${reactionEmoji ?? "👍"} Reaksjon fra ${senderName ?? "ukjent"}`;
+          return (
+            <>
+              {name} reacted with {reactionEmoji ?? "👍"} on your message:
+            </>
+          );
         case NotificationType.NewMessage:
         default:
-        return `📝 Ny melding fra ${senderName ?? "ukjent"}`;
-    }
+          return (
+            <>
+              {name} says:
+            </>
+          );
+      }
     };
 
+
   return (
-    <div className="bg-white dark:bg-gray-900 shadow-lg rounded-xl p-4 max-w-sm w-full">
-      <p className="font-semibold text-sm">{getTitle()}</p>
-      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
-        {messagePreview ?? "Du har fått en melding"}
+    <div className="bg-white dark:bg-[#1e2122] border-1 border-[#1C6B1C] shadow-lg rounded-xl p-4 max-w-sm w-full text-center">
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        {getTitle()}
       </p>
-      <button
-        onClick={() => {
-          router.push(`/chat/${conversationId}`);
-          toast.dismiss(t.id);
-        }}
-        className="mt-2 text-blue-500 hover:underline text-sm"
-      >
-        Åpne samtale
-      </button>
+
+      {messagePreview && (
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+          {messagePreview}
+        </p>
+      )}
+      <div className="flex justify-center gap-2 mt-3 text-center">
+        <ProfileNavButton
+          text="Open"
+          variant="mini"
+          onClick={() => {
+            router.push(`/chat/${conversationId}`);
+            toast.dismiss(t.id);
+          }}
+          className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+        />
+        <ProfileNavButton
+          text="Close"
+          variant="mini"
+          onClick={() => {
+            router.push(`/chat/${conversationId}`);
+            toast.dismiss(t.id);
+          }}
+          className="bg-gray-500 hover:bg-gray-600 text-white"
+        />
+        </div>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useStore } from "zustand";
 import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
+import { NotificationType } from "@/types/MessageNotificationDTO";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -49,6 +50,7 @@ export default function ChatHubClient() {
           senderName: message.sender?.fullName ?? "ukjent",
           messagePreview: message.text ?? "Du har fått en melding",
           conversationId: message.conversationId,
+          type: NotificationType.NewMessage,
         });
       }
     },

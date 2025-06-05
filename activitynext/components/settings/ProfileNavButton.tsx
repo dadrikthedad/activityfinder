@@ -20,7 +20,8 @@ export interface ProfileNavButtonProps
     | "usual"
     | "iconOnly"
     | "smallx"
-    | "tiny";
+    | "tiny"
+    | "mini";
 }
 
 const ProfileNavButton = React.forwardRef<
@@ -71,6 +72,9 @@ const ProfileNavButton = React.forwardRef<
         break;
       case "tiny":
         baseClasses = "w-[28px] h-[28px] p-1 flex items-center justify-center text-sm";
+        break;
+       case "mini":
+        baseClasses = "w-[70px] h-[28px] flex rounded items-center justify-center text-sm px-4 py-2";
         break;
       default:
         baseClasses = "w-[200px] text-lg px-6 py-3";

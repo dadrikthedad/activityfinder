@@ -47,7 +47,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
   const canGoToChat = totalNotifications >= 20; 
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pt-10 gap-4 text-sm scrollbar-none">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pt-10 gap-4 text-sm custom-scrollbar">
 
       {notifications.length > 0 && (
     <div className="w-full text-center">
@@ -65,7 +65,8 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
         ) : notifications.length === 0 ? (
           <p className="text-gray-500 text-xs">No recent notifications</p>
         ) : (
-      <ul className="space-y-2 overflow-auto w-full flex-1 min-h-0 pb-4 px-32">
+      <ul className="space-y-2 overflow-auto w-full flex-1 min-h-0 pb-4 px-32
+      ">
           {notifications.map((n) => (
             <li
                 key={n.id}
