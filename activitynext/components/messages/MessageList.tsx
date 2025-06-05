@@ -38,6 +38,7 @@ export default function MessageList({
     const conversationId = rawConversationId ?? -1;
     
 
+
     const {
       messages,
       loadMore,
@@ -45,6 +46,7 @@ export default function MessageList({
       hasMore,
     } = usePaginatedMessages(conversationId, conversationVisible);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
 
+    console.count("📄 MessageList render");
     console.log("📥 Rendering messages for", conversationId, messages.length);
 
     const scrollPosition = useRef<number>(0); // Lagre midltertid

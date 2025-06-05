@@ -11,13 +11,11 @@ import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "./NewMessageModal";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useEffect, useRef, useState } from "react";
-import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import UserActionPopover from "../common/UserActionPopoverDropdown";
 import { useDropdown } from "@/context/DropdownContext";
 import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
 import NotificationsPanel from "@/components/messages/NotificationsPanel";
-import { useUnreadConversationIds } from "@/hooks/messages/useUnreadConversationIds";
 
 
 
@@ -46,7 +44,8 @@ function debounce<A extends unknown[], R>(
 
 export default function MessageDropdown({ currentUser, onCloseDropdown, initialPosition, setUserPopoverRef, openUserPopoverId, toggleUserPopover }: MessageDropdownProps) {
   const { currentConversationId, setCurrentConversationId } = useChatStore();
-  const { requests: pending, loading: pendingLoading } = usePendingMessageRequests();
+  const pending = useChatStore(state => state.pendingMessageRequests);
+  const hasLoadedPending = useChatStore(state => state.hasLoadedPendingRequests);
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === currentConversationId)
   );
@@ -89,8 +88,6 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     setConversationVisible(true);
   };
 
-  useUnreadConversationIds();  // Setter notifications til samtaler
-
   // Ha kontroll på søke av samtaler
   const {
     query: searchQuery,
@@ -102,6 +99,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
   console.log("🔍 Søketekst:", searchQuery);
   console.log("📥 Søkeresultater:", searchResults);
+
+  const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
 
 
   // Lukker dropdown ved klikk på Esc
@@ -331,7 +330,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
         {/* Venstre kolonne */}
         <div className="w-[275px] flex flex-col relative overflow-hidden">
           {/* Øverst: Pending + separator */}
-          {(pendingLoading || pending.length > 0) && (
+          {shouldShowPendingSection && (
             <div className="shrink-0">
               <PendingRequestsList 
                 limit={2} 

@@ -2,7 +2,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useSendMessage } from "@/hooks/messages/useSendMessage";
-import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
+import { MessageDTO } from "@/types/MessageDTO";
 import TextareaAutosize from "react-textarea-autosize";
 import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
@@ -21,7 +21,7 @@ export default function MessageInput({
   atBottom
 }: MessageInputProps) {
   const [text, setText] = useState("");
-  const { send, loading } = useSendMessage(onMessageSent);
+  const { send } = useSendMessage(onMessageSent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
@@ -54,30 +54,43 @@ export default function MessageInput({
     (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
     isLocked;
   
-  const handleSend = async () => {
+  const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    
 
-    const payload: SendMessageRequestDTO = {
-      text: trimmed,
-      conversationId: conversationId ?? undefined, 
+    // 1) Ta vare på teksten i en egen variabel
+    const tekstSomSendes = trimmed;
+
+    // 2) Tøm input-feltet og sett fokus umiddelbart
+    setText("");
+    inputRef.current?.focus();
+
+    // 3) Kall send(...) asynkront i bakgrunnen. 
+    //Hvis du vil håndtere respons (f.eks. oppdatere conversationId), gjør det i .then()/.catch().
+    send({
+      text: tekstSomSendes,
+      conversationId: conversationId ?? undefined,
       receiverId: receiverId?.toString()
-    };
-
-    const result = await send(payload);
-    if (result) {
-      setText("");
-      inputRef.current?.focus();
-
+    })
+      .then((result) => {
+        if (!result) return;
+        //–– Her kan du evt. oppdatere conversationId hvis det er ny samtale:
         if (!conversationId && result.conversationId) {
           useChatStore.getState().setCurrentConversationId(result.conversationId);
         }
-
-      if (conversationId) {
-        clearDraftFor(conversationId);
-      }
-    }
+        //–– Firkløver: Slett draft for samtalen:
+        if (conversationId) {
+          clearDraftFor(conversationId);
+        }
+        // (Eventuelt: sett en “sent status” på meldingen i chat-store eller vis feilmelding hvis send feiler)
+      })
+      .catch((err) => {
+        console.error("Feil ved sending av melding:", err);
+        // Du kan her vise “Kunne ikke sende”-feilmelding, 
+        // eller legge meldingen tilbake i input slik at brukeren kan prøve igjen, f.eks. setText(tekstSomSendes).
+        setText(tekstSomSendes);
+        inputRef.current?.focus();
+      });
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -146,11 +159,11 @@ export default function MessageInput({
           minRows={1}
           maxRows={6} // begrens hvor stor den kan bli
           className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px] focus:outline-none"
-          disabled={loading || isBlocked}
+          disabled={isBlocked}
           />
         <button
           onClick={handleSend}
-          disabled={loading || !text.trim() || isBlocked}
+          disabled={!text.trim() || isBlocked}
           className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
         >
           Send

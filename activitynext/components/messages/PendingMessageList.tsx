@@ -34,7 +34,13 @@ const PendingRequestsList = ({
     }
   }, [requests]);
 
-  if (loading) return <p className="px-4 py-2 text-sm"></p>;
+  if (loading) {
+    return (
+      <div className="flex justify-center py-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-t-green-600 border-gray-200"></div>
+      </div>
+    );
+  }
   if (error) return <p className="px-4 py-2 text-sm text-red-500">{error}</p>;
   if (!requests || requests.length === 0)
     return <p className="px-4 py-2 text-sm text-gray-500">No requests.</p>;

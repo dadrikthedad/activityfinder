@@ -16,12 +16,16 @@ type MessageNotificationStore = {
   markAsRead: (id: number) => Promise<void>;
   markAllAsRead: () => void;
   markAsReadForConversation: (conversationId: number) => void;
+  hasLoadedNotifications: boolean;
+  setHasLoadedNotifications: (v: boolean) => void;
 };
 
 export const useMessageNotificationStore = create<MessageNotificationStore>((set, get) => ({
   notifications: [],
 
   setNotifications: (notifications) => set({ notifications }),
+  hasLoadedNotifications: false,
+  setHasLoadedNotifications: (v) => set({ hasLoadedNotifications: v }),
 
   addNotificationFromApi: (incoming) => {
     // Duplikatkontroll basert på ID

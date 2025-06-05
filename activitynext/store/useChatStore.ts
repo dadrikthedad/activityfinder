@@ -48,7 +48,13 @@ type ChatStore = {
   setShowNewMessageButton: (value: boolean) => void;
   scrollToMessageId: number | null;
   setScrollToMessageId: (id: number | null) => void;
-    addPendingRequest: (request: MessageRequestDTO) => void;
+  addPendingRequest: (request: MessageRequestDTO) => void;
+  hasLoadedPendingRequests: boolean;
+  setHasLoadedPendingRequests: (value: boolean) => void;
+  hasLoadedConversations: boolean;
+  setHasLoadedConversations: (v: boolean) => void;
+  hasLoadedUnreadConversationIds: boolean;
+  setHasLoadedUnreadConversationIds: (v: boolean) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -83,6 +89,10 @@ export const useChatStore = create<ChatStore>((set) => ({
   })),
   pendingRequestsCache: [],
   pendingRequestsCacheTimestamp: 0,
+  hasLoadedPendingRequests: false,
+  setHasLoadedPendingRequests: (value) => set({ hasLoadedPendingRequests: value }),
+  hasLoadedUnreadConversationIds: false,
+  setHasLoadedUnreadConversationIds: (v) => set({ hasLoadedUnreadConversationIds: v }), 
 
   setCachedPendingRequests: (requests: MessageRequestDTO[]) =>
     set({
@@ -132,6 +142,8 @@ export const useChatStore = create<ChatStore>((set) => ({
 
 
   setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
+  hasLoadedConversations: false,
+  setHasLoadedConversations: (v) => set({ hasLoadedConversations: v }),
   
 
   setConversations: (conversations) =>
@@ -351,6 +363,5 @@ export const useChatStore = create<ChatStore>((set) => ({
       scrollPositions: {},
       cacheTimestamps: {},
       pendingMessageRequests: [],
-      messageNotifications: [],
     })),
 }));

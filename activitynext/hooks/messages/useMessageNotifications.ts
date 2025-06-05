@@ -4,67 +4,64 @@ import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 export function useMessageNotifications(pageSize = 20) {
-  const [notifications, setNotifications] = useState<MessageNotificationDTO[]>([]);
+  const [localNotifications, setLocalNotifications] = useState<MessageNotificationDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  // ✅ Hent fra store
   const messageNotifications = useMessageNotificationStore((s) => s.notifications);
+  const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
+  const setStoreNotifications = useMessageNotificationStore((s) => s.setNotifications);
+  const setHasLoaded = useMessageNotificationStore((s) => s.setHasLoadedNotifications);
 
   useEffect(() => {
-  const fetchNotifications = async () => {
-    if (page === 1 && messageNotifications.length > 0) {
-      setNotifications(messageNotifications);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await getMessageNotifications(page, pageSize);
-      console.log("📦 API response:", data);
-
-      // Lokalt tilstanden i hook
-      setNotifications((prev) => {
-        const combined = [...prev, ...data.notifications];
-        const uniqueById = new Map<number, MessageNotificationDTO>();
-        combined.forEach((n) => uniqueById.set(n.id, n));
-        return Array.from(uniqueById.values());
-      });
-
-      // 🔗 ZUSTAND oppdatering for side 1 (sanntidssynk)
-      if (page === 1) {
-        useMessageNotificationStore
-          .getState()
-          .setNotifications(data.notifications);
+    const fetchNotifications = async () => {
+      if (page === 1 && hasLoaded) {
+        setLocalNotifications(messageNotifications);
+        return;
       }
 
-      setTotalPages(data.totalPages);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error("Ukjent feil"));
-    } finally {
-      setLoading(false);
-    }
-  };
+      setLoading(true);
+      try {
+        const data = await getMessageNotifications(page, pageSize);
 
-  fetchNotifications();
-}, [page, pageSize]);
+        setLocalNotifications((prev) => {
+          const combined = [...prev, ...data.notifications];
+          const uniqueById = new Map<number, MessageNotificationDTO>();
+          combined.forEach((n) => uniqueById.set(n.id, n));
+          return Array.from(uniqueById.values());
+        });
+
+        if (page === 1) {
+          setStoreNotifications(data.notifications);
+          setHasLoaded(true);
+        }
+
+        setTotalPages(data.totalPages);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Ukjent feil"));
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [page, pageSize, hasLoaded, messageNotifications]);
 
   const loadMore = () => {
     if (page < totalPages) {
-      setPage(prev => prev + 1);
+      setPage((prev) => prev + 1);
     }
   };
 
   const hasMore = page < totalPages;
 
   return {
-    notifications,
+    notifications: localNotifications,
     loading,
     error,
     loadMore,
-    hasMore
+    hasMore,
   };
 }

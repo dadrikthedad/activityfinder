@@ -38,7 +38,6 @@ interface NotificationsPanelProps {
 export default function NotificationsPanel({ onOpenConversation }: NotificationsPanelProps) {
   const {
     loading: notifLoading,
-    error: notifError,
     loadMore,
     hasMore
   } = useMessageNotifications();
@@ -46,6 +45,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
   const notifications = useMessageNotificationStore((s) => s.notifications);
   const { markOneAsRead, markAllAsRead, loading: markAllLoading } = useMessageNotificationActions();
   const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
+  const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-start text-sm text-center px-4 pt-10 gap-4 custom-scrollbar">
@@ -62,13 +62,11 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     </div>
     )}
 
-      {notifLoading ? (
-        <p className="text-gray-500 text-xs">Loading notifications...</p>
-      ) : notifError ? (
-        <p className="text-red-500 text-xs">Error loading notifications</p>
-      ) : notifications.length === 0 ? (
-        <p className="text-gray-500 text-xs">No recent notifications</p>
-      ) : (
+      {!hasLoaded ? (
+          <p className="text-gray-500 text-xs">Loading notifications...</p>
+        ) : notifications.length === 0 ? (
+          <p className="text-gray-500 text-xs">No recent notifications</p>
+        ) : (
         <ul className="space-y-2 max-h-60 overflow-auto w-full max-w-md">
           {notifications.map((n) => (
             <li

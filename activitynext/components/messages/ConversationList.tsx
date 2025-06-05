@@ -27,6 +27,8 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
     };
     const displayedConversations = conversations ?? storeConversations; // Vise samtaler eller søkesamtaler
 
+    const hasLoadedConversations = useChatStore((s) => s.hasLoadedConversations);
+
     const unreadConversationIds = useChatStore(state => state.unreadConversationIds);
     console.log("🟢 Unread conversation IDs:", unreadConversationIds);
 
@@ -69,7 +71,13 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       }
     }, [storeConversations, loadMore, loading, hasMore, conversations]);
 
-  
+  if (!conversations && !hasLoadedConversations && storeConversations.length === 0) {
+      return (
+        <div className="flex justify-center items-center h-full">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-green-600 border-gray-200"></div>
+        </div>
+      );
+    }
     return (
       <div 
       ref={scrollContainerRef}
@@ -85,6 +93,8 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
               const hasUnread = unreadConversationIds.includes(conv.id);
               const isGroup = conv.isGroup;
               const otherUser = getOtherUser(conv);
+
+              
 
               if (isGroup) {
                 return (

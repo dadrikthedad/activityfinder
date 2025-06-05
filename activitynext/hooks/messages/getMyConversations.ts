@@ -7,56 +7,48 @@ export function usePaginatedConversations() {
   const take = 20;
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [initialized, setInitialized] = useState(false);
 
   const conversations = useChatStore((state) => state.conversations);
+  const hasLoaded = useChatStore((s) => s.hasLoadedConversations);
 
   const loadMore = useCallback(async () => {
-  // Ikke bruk gamle `loading`/`hasMore`-verdier som kan være stale
-  setLoading(true);
+    setLoading(true);
+    const skip = useChatStore.getState().conversations.length;
+    console.log("🔄 loadMore() called. Skip:", skip, "Take:", take);
 
-  const skip = useChatStore.getState().conversations.length;
-  console.log("🔄 loadMore() called. Skip:", skip, "Take:", take);
+    try {
+      const response = await getMyConversations(skip, take);
+      const newConversations = response?.conversations || [];
 
-  try {
-    const response = await getMyConversations(skip, take);
-    const newConversations = response?.conversations || [];
+      console.log("📬 load - Got conversations:", newConversations.length);
 
-    console.log("📬 load - Got conversations:", newConversations.length);
-
-    if (newConversations.length > 0) {
       newConversations.forEach(useChatStore.getState().addConversation);
+
+      // Justér hasMore basert på resultat
       if (newConversations.length < take) {
         setHasMore(false);
       }
-    } else {
-      if (skip % take === 0) {
-        console.warn("⚠️ load Tom respons, men mulig det finnes mer. Ikke sett hasMore = false ennå.");
-      }
-      setHasMore(false);
+    } catch (err) {
+      console.error("❌ Feil ved henting av samtaler:", err);
+      setHasMore(false); // fallback
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-}, []);
+  }, []);
 
-  // Initielt forsøk på å hente dersom vi ikke har fått noe fra NotificationInitializer
+  // Når init-data er lastet: bestem om det finnes mer
   useEffect(() => {
-    if (!initialized) {
-      if (conversations.length === 0) {
-        console.log("📥 load Ingen samtaler – henter første batch");
-        loadMore().then(() => setInitialized(true));
-      } else {
-        const possiblyMore = conversations.length % take === 0;
-        setHasMore(possiblyMore);
-        console.log("📦 load Samtaler allerede lastet fra init. Har flere?", possiblyMore);
-        setInitialized(true);
-      }
-    }
-  }, [initialized, loadMore, conversations.length]);
-return {
-  loadMore,
-  loading,
-  hasMore,
-};
+    if (!hasLoaded) return;
+
+    const remainder = conversations.length % take;
+    const shouldFetchMore = conversations.length > 0 && remainder === 0;
+
+    setHasMore(shouldFetchMore);
+  }, [hasLoaded, conversations.length]);
+
+  return {
+    loadMore,
+    loading,
+    hasMore,
+  };
 }
