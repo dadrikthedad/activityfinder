@@ -55,6 +55,9 @@ type ChatStore = {
   setHasLoadedConversations: (v: boolean) => void;
   hasLoadedUnreadConversationIds: boolean;
   setHasLoadedUnreadConversationIds: (v: boolean) => void;
+  openConversation: (conversationId: number) => void;
+  showMessages: boolean;
+  setShowMessages: (value: boolean) => void;
 };
 // Lagre når endringer ble gjort for å slette cachen
 export const useChatStore = create<ChatStore>((set) => ({
@@ -154,6 +157,13 @@ export const useChatStore = create<ChatStore>((set) => ({
         new Date(a.lastMessageSentAt ?? 0).getTime()
     ),
   })),
+  // Brukes for å åpne dropdown og gå til samtalen ved en notifikasjon
+  openConversation: (conversationId: number) => {
+    set(() => ({ currentConversationId: conversationId }));
+  },
+
+  showMessages: false,
+  setShowMessages: (value: boolean) => set({ showMessages: value }),
   
   updateSearchResultReactions: (reaction: ReactionDTO) =>
     set((state) => {

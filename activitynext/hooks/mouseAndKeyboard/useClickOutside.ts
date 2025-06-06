@@ -1,32 +1,53 @@
 // Gjenbrukbar hook som brukes til ved klik på utsiden av en dropdow, brukes til notifications og messagedropdown
 import { useEffect } from "react";
+import { useModal } from "@/context/ModalContext";
 
 type RefGroup = React.RefObject<HTMLElement | null>[];
 
 export function useClickOutsideGroups({
   includeRefs,
   excludeRefs = [],
+  excludeClassNames = [],
   onOutsideClick,
-  isActive
+  isActive,
+  dropdownId,
 }: {
   includeRefs: RefGroup;
   excludeRefs?: RefGroup;
+  excludeClassNames?: string[];
   onOutsideClick: () => void;
   isActive: boolean;
+  dropdownId: string;
 }) {
-  useEffect(() => {
+  const { isModalOpen } = useModal();
+    useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      const target = event.target as Node;
+      if (isModalOpen) return;
+      // vi trenger bare lese
+      const isThisDropdownTopmost = () => {
+        const dropdowns = document.querySelectorAll("[data-dropdown-id]");
+        return dropdowns.length && dropdowns[dropdowns.length - 1].getAttribute("data-dropdown-id") === dropdownId;
+      };
+
+
+      const targetElement = event.target as HTMLElement;
 
       const clickedInsideInclude = includeRefs.some(
-        (ref) => ref.current?.contains(target)
+        (ref) => ref.current?.contains(targetElement)
       );
       const clickedInsideExclude = excludeRefs.some(
-        (ref) => ref.current?.contains(target)
+        (ref) => ref.current?.contains(targetElement)
+      );
+      const clickedExcludedByClass = excludeClassNames.some((selector) =>
+        targetElement.closest(selector)
       );
 
-      // Hvis du klikker utenfor hovedinnholdet og ikke på et ekskludert element
-      if (!clickedInsideInclude && !clickedInsideExclude) {
+      if (
+        !clickedInsideInclude &&
+        !clickedInsideExclude &&
+        !clickedExcludedByClass &&
+        isThisDropdownTopmost()
+      ) {
         onOutsideClick();
       }
     };
@@ -38,5 +59,5 @@ export function useClickOutsideGroups({
     return () => {
       document.removeEventListener("mousedown", handleClick);
     };
-  }, [includeRefs, excludeRefs, onOutsideClick, isActive]);
+  }, [includeRefs, excludeRefs, onOutsideClick, isActive, excludeClassNames, dropdownId, isModalOpen]);
 }

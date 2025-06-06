@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 interface CardProps {
   children: ReactNode;
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 export default function Card({ children, className = "" }: CardProps) {

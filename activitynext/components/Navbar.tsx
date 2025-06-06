@@ -34,7 +34,8 @@ export default function Navbar() {
   const { notifications, setNotifications, loading } = useGetNavbarNotifications();
   const { invitations } = useFriendInvitations();
   const { markAllAsRead } = useMarkAllNotificationsAsRead();
-  const [showMessages, setShowMessages] = useState(false);
+  const showMessages = useChatStore((s) => s.showMessages);
+  const setShowMessages = useChatStore((s) => s.setShowMessages);
  
   const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary  popoverRef: React.RefObject<>;
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
@@ -48,7 +49,7 @@ export default function Navbar() {
     const y = rect.bottom + 8;
 
     setMessagePos({ x, y });
-    setShowMessages((prev) => !prev);
+      setShowMessages(!showMessages);
   };
   
   const DROPDOWN_WIDTH = 1200;
@@ -124,11 +125,13 @@ export default function Navbar() {
    useClickOutsideGroups({
     includeRefs: userPopoverRef ? [userPopoverRef, messageDropdownRef] : [messageDropdownRef],
     excludeRefs: [],
+    excludeClassNames: ["li[data-sonner-toast]", ".new-message-modal"],
     onOutsideClick: () => {
       setShowMessages(false); // 👈 Lukk hele dropdownen
       toggleUserPopover(null); // 👈 Lukk aktiv popover hvis åpen
     },
     isActive: showMessages,
+    dropdownId: "message-dropdown",
   });
 
 

@@ -8,6 +8,7 @@ import { useState } from "react";
 import MessageInput from "./MessageInput";
 import { useModal } from "@/context/ModalContext";
 
+
 export default function NewMessageModal() {
   const { hideModal } = useModal();
   const { query, setQuery, results, loading } = useUserSearch();
@@ -15,7 +16,7 @@ export default function NewMessageModal() {
   const [selectedUser, setSelectedUser] = useState<UserSummaryDTO | null>(null);
 
   return (
-    <div className="p-6 text-black dark:text-white">
+    <div className="new-message-modal p-6 text-black dark:text-white">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Ny melding</h2>
         <button onClick={hideModal} className="text-sm text-gray-500 hover:text-gray-800 dark:hover:text-white">

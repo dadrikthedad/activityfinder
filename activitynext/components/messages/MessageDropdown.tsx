@@ -272,7 +272,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     const { showModal } = useModal(); // Viser ny meldingsmodalen
 
   return (
-    <div   ref={dropdownRef}  onMouseDown={(e) => {
+    <div   ref={dropdownRef} data-dropdown-id="message-dropdown" onMouseDown={(e) => {
           const target = e.target as Node;
           const insideUserPopover = userPopoverRef?.current?.contains(target);
           const insideDropdown = dropdownRef?.current?.contains(target);

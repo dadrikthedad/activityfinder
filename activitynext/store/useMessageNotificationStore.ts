@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { MessageNotificationDTO, NotificationType } from "@/types/MessageNotificationDTO";
 import { showNotificationToast } from "@/components/toast/Toast";
-import { toast } from "sonner";
 import { markMessageNotificationAsRead } from "@/services/messages/messageNotificationService";
 
 type MessageNotificationStore = {
@@ -74,10 +73,6 @@ export const useMessageNotificationStore = create<MessageNotificationStore>((set
         type: NotificationType[incoming.type as keyof typeof NotificationType],
         reactionEmoji: incoming.reactionEmoji,
         });
-    } else {
-        toast("🔄 Reaksjon oppdatert", {
-        description: `${incoming.senderName} endret sin reaksjon`,
-        });
     }
 
     return wasNew; // ✅ viktig!
@@ -104,12 +99,6 @@ export const useMessageNotificationStore = create<MessageNotificationStore>((set
 
     const finalList = [merged, ...withoutDupes].slice(0, 50);
 
-    // 🔔 Hvis det er en oppdatering, vis toast (ikke for nye meldinger)
-    if (existing && existing.type === "MessageReaction" && merged.reactionEmoji !== existing.reactionEmoji) {
-      toast("🔄 Reaksjon oppdatert", {
-        description: `${merged.senderName} endret sin reaksjon til ${merged.reactionEmoji}`,
-      });
-    }
 
       if (wasNew && incoming.type === NotificationType.MessageRequestApproved) {
       showNotificationToast({

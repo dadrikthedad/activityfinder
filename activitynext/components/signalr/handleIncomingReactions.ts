@@ -4,7 +4,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { showNotificationToast } from "../toast/Toast";
 import { NotificationType } from "@/types/MessageNotificationDTO";
 import { handleIncomingReactionNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
-import { toast } from "sonner";
+import { LocalToastType } from "../toast/Toast";
 
 /**
  * Håndter innkommende reaksjon – oppdater lokal state for notification og reactions.
@@ -46,6 +46,7 @@ export async function handleIncomingReaction(
         conversationId: notification.conversationId!,
         type: NotificationType.MessageReaction,
         reactionEmoji: notification.reactionEmoji,
+        messageId: notification.messageId,
       });
     } else {
 
@@ -53,12 +54,10 @@ export async function handleIncomingReaction(
         senderName: notification.senderName,
         messagePreview: notification.messagePreview,
         conversationId: notification.conversationId!,
-        type: NotificationType.MessageReaction,
+        type: LocalToastType.MessageReactionChanged,
         reactionEmoji: notification.reactionEmoji,
+        messageId: notification.messageId,
       });
-        toast("🔄 Reaksjon oppdatert", {
-          description: `${notification.senderName} changed his reaction to ${notification.reactionEmoji ?? ""} on message: ${notification.messagePreview ?? ""}`,
-        });
       }
 
   if (!unreadConversationIds.includes(reaction.conversationId)) {
