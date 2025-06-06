@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import Card from "@/components/common/Card"; 
 
 interface ModalContextType {
-  showModal: (content: ReactNode) => void;
+  showModal: (content: ReactNode, options?: { blurBackground?: boolean }) => void;
   hideModal: () => void;
   isModalOpen: boolean;
 }
@@ -13,8 +13,12 @@ const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [modalContent, setModalContent] = useState<ReactNode | null>(null);
+  const [blurBackground, setBlurBackground] = useState(true); // standard: true
   const isModalOpen = modalContent !== null;
-  const showModal = (content: ReactNode) => setModalContent(content);
+  const showModal = (content: ReactNode, options?: { blurBackground?: boolean }) => {
+    setModalContent(content);
+    setBlurBackground(options?.blurBackground !== false); // true hvis undefined
+  };
   const hideModal = () => setModalContent(null);
 
   return (
@@ -25,8 +29,10 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           className="modal-overlay"
           onClick={(e) => e.stopPropagation()} // viktig
         >
-          <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+            <div
+              className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/30 ${
+                blurBackground ? "backdrop-blur-sm" : ""
+              }`}
             onClick={(e) => e.stopPropagation()} // viktig
           >
             <Card

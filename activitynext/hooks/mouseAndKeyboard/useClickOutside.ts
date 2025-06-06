@@ -17,18 +17,12 @@ export function useClickOutsideGroups({
   excludeClassNames?: string[];
   onOutsideClick: () => void;
   isActive: boolean;
-  dropdownId: string;
+  dropdownId?: string;
 }) {
   const { isModalOpen } = useModal();
     useEffect(() => {
     const handleClick = (event: MouseEvent) => {
       if (isModalOpen) return;
-      // vi trenger bare lese
-      const isThisDropdownTopmost = () => {
-        const dropdowns = document.querySelectorAll("[data-dropdown-id]");
-        return dropdowns.length && dropdowns[dropdowns.length - 1].getAttribute("data-dropdown-id") === dropdownId;
-      };
-
 
       const targetElement = event.target as HTMLElement;
 
@@ -41,6 +35,16 @@ export function useClickOutsideGroups({
       const clickedExcludedByClass = excludeClassNames.some((selector) =>
         targetElement.closest(selector)
       );
+
+         // 👇 Kun sjekk topp hvis vi fikk dropdownId
+      const isThisDropdownTopmost = () => {
+        if (!dropdownId) return true;
+        const dropdowns = document.querySelectorAll("[data-dropdown-id]");
+        return (
+          dropdowns.length &&
+          dropdowns[dropdowns.length - 1].getAttribute("data-dropdown-id") === dropdownId
+        );
+      };
 
       if (
         !clickedInsideInclude &&

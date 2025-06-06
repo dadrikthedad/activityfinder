@@ -366,7 +366,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
             <ProfileNavButton
               text="✚"
               variant="iconOnly"
-              onClick={() => showModal(<NewMessageModal />)}
+              onClick={() => showModal(<NewMessageModal />, { blurBackground: false })}
             />
           </div>
         </div>
