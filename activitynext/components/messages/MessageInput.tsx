@@ -155,7 +155,7 @@ export default function MessageInput({
             }
           minRows={1}
           maxRows={6} // begrens hvor stor den kan bli
-          className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px] focus:outline-none"
+          className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px] focus:outline-none custom-scrollbar"
           disabled={isBlocked}
           />
         <button

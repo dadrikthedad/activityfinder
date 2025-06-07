@@ -37,17 +37,18 @@ export default function RootLayout({
           min-h-screen`} 
         suppressHydrationWarning={true}>
           <DropdownProvider>
-            <ModalProvider>
-              <CacheCleanup>
-              <AuthProvider>
-              <NotificationHubClient /> 
-              <ChatHubClient />
-                <Navbar /> {/* 👈 LEGG TIL DENNE */}
-                  <main>{children}</main>
-                  <Toaster position="bottom-right" richColors />
-              </AuthProvider>
-              </CacheCleanup>
-            </ModalProvider>
+             <AuthProvider>
+              <ModalProvider>
+                <CacheCleanup>
+              
+                <NotificationHubClient /> 
+                  <ChatHubClient />
+                    <Navbar /> {/* 👈 LEGG TIL DENNE */}
+                      <main>{children}</main>
+                      <Toaster position="bottom-right" richColors />
+                </CacheCleanup>
+              </ModalProvider>
+            </AuthProvider>
           </DropdownProvider>
       </body>
     </html>

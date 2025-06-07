@@ -4,6 +4,7 @@
 import { useCallback } from "react";
 import { useModal } from "@/context/ModalContext";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import Card from "@/components/common/Card"; // husk riktig path
 import { ReactNode } from "react";
 
 export type ConfirmOptions = {
@@ -23,11 +24,13 @@ export function useConfirmDialog() {
         };
 
         showModal(
-          <div className="text-center space-y-6">
+          <Card className="max-w-md w-full text-center space-y-6 border-2 border-[#1C6B1C] bg-white dark:bg-[#1e2122] shadow-md p-6 ">
             <h2 className="text-2xl font-bold text-[#1C6B1C]">
               {options.title || "Confirm"}
             </h2>
-            <div className="text-gray-800 dark:text-gray-200">{options.message}</div>
+            <div className="text-gray-800 dark:text-gray-200">
+              {options.message}
+            </div>
             <div className="flex justify-center gap-4 mt-6">
               <ProfileNavButton
                 text="Cancel"
@@ -42,7 +45,7 @@ export function useConfirmDialog() {
                 className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
               />
             </div>
-          </div>
+          </Card>
         );
       });
     },

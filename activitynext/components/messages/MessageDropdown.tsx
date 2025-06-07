@@ -293,7 +293,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       >
         <div  className="bg-[#1C6B1C] text-white px-4 py-2 flex justify-between items-center cursor-move select-none w-full"           
               onMouseDown={onMouseDown}>
-          <div> Messages </div>
+          <div className="font-semibold"> Messages </div>
           <div className="flex gap-6">
             <button
               className="text-white hover:text-gray-200"
@@ -366,7 +366,12 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
             <ProfileNavButton
               text="✚"
               variant="iconOnly"
-              onClick={() => showModal(<NewMessageModal />, { blurBackground: false })}
+              onClick={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const x = rect.right - 400;
+                const y = rect.bottom + 10;
+                showModal(<NewMessageModal />, { blurBackground: false, position: { x, y } });
+              }}
             />
           </div>
         </div>
