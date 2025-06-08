@@ -4,16 +4,31 @@ import { useUserSearch } from "@/hooks/useUserSearch";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
-import { useKeyboardNavigation } from "@/hooks/mouseAndKeyboard/useKeyboardNagivation";
+import { useKeyboardNavigableList } from "@/hooks/mouseAndKeyboard/useKeyboardForDropdown";
 
 export default function NavbarSearch() {
   const { query, setQuery, results, loading } = useUserSearch();
   const dropdownRef = useRef<HTMLUListElement>(null);
-  const { activeIndex, setActiveIndex } = useKeyboardNavigation(
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  const {
+  activeIndex,
+  setActiveIndex,
+  setItemRef
+  } = useKeyboardNavigableList(
     results,
     (user) => (window.location.href = `/profile/${user.id}`),
     !!query
   );
+
+  useEffect(() => {
+    if (activeIndex >= 0 && itemRefs.current[activeIndex]) {
+      itemRefs.current[activeIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [activeIndex]);
 
    // Lukk dropdown når man klikker utenfor
    useEffect(() => {
@@ -67,10 +82,12 @@ export default function NavbarSearch() {
             results.map((user, index) => (
                <li
                 key={user.id}
+                ref={setItemRef(index)}
                 className={`p-2 hover:bg-gray-100 dark:hover:bg-[#2a2e31] ${
                   index === activeIndex ? "bg-gray-200 dark:bg-[#333]" : ""
                 }`}
                 onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => setQuery("")}
               >
                 <Link
                   href={`/profile/${user.id}`}

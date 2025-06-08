@@ -11,6 +11,8 @@ import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useRouter } from "next/navigation";
 import { useFriendWith } from "@/hooks/useFriendWith";
 import { useDropdown } from "@/context/DropdownContext";
+import { useModal } from "@/context/ModalContext";
+import NewMessageModal from "@/components/messages/NewMessageModal";
 
 
 interface Props {
@@ -49,6 +51,8 @@ export default function UserActionPopover({
   const [enabled, setEnabled] = useState(false);
   const { isFriend, loading: isFriendLoading } = useFriendWith(enabled ? user.id : undefined);
   const dropdownContext = useDropdown();
+
+  const { showModal } = useModal();
 
   // Lukke med escp
    
@@ -149,7 +153,11 @@ export default function UserActionPopover({
                 router.push(`/profile/${user.id}`);
                 onCloseDropdown?.();
               }}
-              onSendMessage={() => alert("Coming soon!")}
+              onSendMessage={() => {
+                showModal(<NewMessageModal initialReceiver={user} />);
+                toggleUserPopover(user.id);       // Lukk popover
+                onCloseDropdown?.();              // Lukk evt. dropdown
+              }}
               onRemoveFriend={handleRemove}
               onClose={() => toggleUserPopover(user.id)}
             />

@@ -8,11 +8,14 @@ import { useModal } from "@/context/ModalContext";
 import Card from "../common/Card";
 import MiniAvatar from "../common/MiniAvatar";
 import { useAuth } from "@/context/AuthContext";
-import { useKeyboardNavigation } from "@/hooks/mouseAndKeyboard/useKeyboardNagivation";
 import OverflowDropdown from "./NewMessageDropdown";
+import { useKeyboardNavigableList } from "@/hooks/mouseAndKeyboard/useKeyboardForDropdown";
 
+interface NewMessageModalProps {
+  initialReceiver?: UserSummaryDTO;
+}
 
-export default function NewMessageModal() {
+export default function NewMessageModal({ initialReceiver }: NewMessageModalProps) {
   const { hideModal } = useModal();
   const { query, setQuery, results, loading } = useUserSearch();
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
@@ -43,23 +46,17 @@ export default function NewMessageModal() {
   const MAX_VISIBLE = 5;
   const visibleUsers = selectedUsers.slice(0, MAX_VISIBLE - 1);
   const overflowUsers = selectedUsers.slice(MAX_VISIBLE - 1);
-
-  // Hvem index er vi på
-  const itemRefs = useRef<(HTMLLIElement | null)[]>([]); 
   
-  const keyboardNav = useKeyboardNavigation(filteredResults, (user) => {
-    if (!selectedUsers.find((u) => u.id === user.id)) {
-      setSelectedUsers([...selectedUsers, user]);
-    }
-    setQuery(""); // tøm søket etter valg
-  });
-
-  useEffect(() => {
-    const el = itemRefs.current[keyboardNav.activeIndex];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [keyboardNav.activeIndex]);
+  const keyboardNav = useKeyboardNavigableList(
+    filteredResults,
+    (user) => {
+      if (!selectedUsers.find((u) => u.id === user.id)) {
+        setSelectedUsers([...selectedUsers, user]);
+      }
+      setQuery("");
+    },
+    !!query
+  );
 
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -106,6 +103,13 @@ export default function NewMessageModal() {
   }, [isDragging]);
 
 const triggerRef = useRef<HTMLDivElement | null>(null);
+
+useEffect(() => {
+  if (initialReceiver && !selectedUsers.find((u) => u.id === initialReceiver.id)) {
+    setSelectedUsers([initialReceiver]);
+    setQuery(""); // tøm søkefeltet
+  }
+}, [initialReceiver, selectedUsers, setQuery]);
 
 
 
@@ -170,9 +174,7 @@ return (
               filteredResults.map((user, index) => (
                 <li
                   key={user.id}
-                  ref={(el: HTMLLIElement | null) => {
-                      itemRefs.current[index] = el;
-                    }}
+                  ref={keyboardNav.setItemRef(index)}
                   className={`p-2 cursor-pointer flex gap-3 items-center 
                       hover:bg-gray-100 dark:hover:bg-[#2a2e31] 
                       ${keyboardNav.activeIndex === index ? "bg-gray-100 dark:bg-[#2a2e31]" : ""}

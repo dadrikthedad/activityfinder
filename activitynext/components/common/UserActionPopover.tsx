@@ -11,6 +11,9 @@ import { useAuth } from "@/context/AuthContext";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useDropdown } from "@/context/DropdownContext";
+import { useModal } from "@/context/ModalContext";
+import NewMessageModal from "@/components/messages/NewMessageModal";
+
 
 interface Props {
   user: UserSummaryDTO;
@@ -30,6 +33,7 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
   const isOwner = user.id === currentUserId;
   const router = useRouter(); // Linke til profilsiden
   const dropdownContext = useDropdown();
+  const { showModal } = useModal();
 
   // Lukke UserActionPopvoer.tsx ved esc
     useEffect(() => {
@@ -107,7 +111,10 @@ export default function UserActionPopover({ user, avatarSize = 120, onRemoveSucc
                 router.push(`/profile/${user.id}`);
                 setIsOpen(false);
               }}
-              onSendMessage={() => alert("Coming soon!")}
+              onSendMessage={() => {
+                showModal(<NewMessageModal initialReceiver={user} />);
+                setIsOpen(false);
+              }}
               onRemoveFriend={handleRemove}
               onClose={() => setIsOpen(false)}
             />
