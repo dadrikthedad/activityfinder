@@ -2,19 +2,15 @@
 "use client"; // Gjør Navbar til en klientkomponent
 
 import Link from "next/link";
-import {  useState, useRef, useEffect } from "react";
-import { Settings, Mail } from "lucide-react";
+import {  useState, useRef, useEffect, useCallback } from "react";
+import { Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ProfileLink from "@/components/profile/ProfileLink";
 import NavbarSearch from "@/components/NavbarSearch";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 import NavbarNotifications from "@/components/notifications/NavbarNotifications";
-import { useFriendInvitations } from "@/hooks/useFriendInvitations";
-import { useGetNavbarNotifications } from "@/hooks/notifications/useGetNavbarNotifications";
 import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllNotificationsAsRead";
-import { useNotificationHub } from "@/hooks/signalr/useNotificationHub";
-import { NotificationDTO } from "@/types/NotificationEventDTO";
 import MessageDropdown from "@/components/messages/MessageDropdown";
 import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
 import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
@@ -22,6 +18,8 @@ import { useChatStore } from "@/store/useChatStore";
 import { SetGenericElementRef } from "@/types/ui/PopoverRefs";
 import { useDropdown } from "@/context/DropdownContext";
 import { MessageDropdownInitializer } from "@/services/helpfunctions/messageDropdownInitializer";
+import NavbarMessageNotifications from "./messages/NavbarMessageNotificaitons";
+import { useNotificationStore } from "@/store/useNotificationStore";
 
 
 
@@ -31,14 +29,21 @@ export default function Navbar() {
   const router = useRouter(); // sende oss videre til de forskjellige linkene
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
   const [showNotifications, setShowNotifications] = useState(false); // Her viser vi notifications og skjuler de ved at vi har trykket på den
-  const { notifications, setNotifications, loading } = useGetNavbarNotifications();
-  const { invitations } = useFriendInvitations();
+  const markAllNotificationsRead = useNotificationStore(
+    (s) => s.markAllNotificationsRead,
+  );
+
+  const notifications = useNotificationStore(
+    (s) => s.notifications,      // samme array-referanse til listen
+  );
+
+  const handleCloseNotif = useCallback(() => setShowNotifications(false), []);
+
   const { markAllAsRead } = useMarkAllNotificationsAsRead();
   const showMessages = useChatStore((s) => s.showMessages);
   const setShowMessages = useChatStore((s) => s.setShowMessages);
  
   const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary  popoverRef: React.RefObject<>;
-  const notificationDropdownRef = useRef<HTMLDivElement>(null);
   const resetChatStore = useChatStore((state) => state.resetStore);
   const [messagePos, setMessagePos] = useState<{ x: number; y: number } | null>(null); // For å se hvor messageDropdownen var lagret
   const handleToggleMessages = (e: React.MouseEvent) => {
@@ -81,29 +86,22 @@ export default function Navbar() {
     return () => dropdownContext.unregister(id);
   }, [showDropDown, dropdownContext]);
 
-  useNotificationHub({
-    onReceive: (newNotification: NotificationDTO) => {
-      setNotifications((prev) => [newNotification, ...(prev ?? [])]);
-    }
-  });
-
-  const handleToggleNotifications = async () => {
-    if (recentlyClosed) {
-      return;
-    }
+      /* ---- MEMOISERT toggle-handler ---- */
+  const handleToggleNotifications = useCallback(async () => {
+    if (recentlyClosed) return;
 
     if (!showNotifications) {
-      await markAllAsRead();
-      setNotifications((prev) => (prev ?? []).map((n) => ({ ...n, isRead: true })));
+      await markAllAsRead();           // backend
+      markAllNotificationsRead();      // zustand
     }
     setShowNotifications((prev) => !prev);
-  };
+  }, [recentlyClosed, showNotifications, markAllNotificationsRead]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (!showNotifications) {
       setRecentlyClosed(true);
-      const timer = setTimeout(() => setRecentlyClosed(false), 200);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => setRecentlyClosed(false), 200);
+      return () => clearTimeout(t);
     }
   }, [showNotifications]);
 
@@ -173,13 +171,8 @@ export default function Navbar() {
             <MessageDropdownInitializer /> {/* 👈 Initialiserer notifikasjoner kun hvis innlogget */}
              {/* Messages her kommer meldinger*/}
              <li className="relative">
-                <div
-                  className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2 cursor-pointer"
-                  onClick={handleToggleMessages}
-                >
-                  <Mail size={18} />
-                  <span>Messages</span>
-                </div>
+                <NavbarMessageNotifications onClick={handleToggleMessages} />
+
                 {showMessages && (
                 <div ref={messageDropdownRef}>
                   <MessageDropdown 
@@ -202,14 +195,7 @@ export default function Navbar() {
             />
 
             {showNotifications && (
-               <div ref={notificationDropdownRef}>
-                <NotificationDropdown
-                  onClose={() => setShowNotifications(false)}
-                  notifications={notifications}
-                  loading={loading}
-                  invitations={invitations}
-                />
-              </div>
+              <NotificationDropdown onClose={handleCloseNotif} />
             )}
             </div>
                           

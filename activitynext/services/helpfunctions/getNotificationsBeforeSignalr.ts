@@ -4,7 +4,7 @@ import { getMessageNotifications } from "../messages/messageNotificationService"
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 
-export async function fetchAndSetNotifications(page = 1, pageSize = 20) {
+export async function fetchAndSetMessageNotifications(page = 1, pageSize = 20) {
   const data = await getMessageNotifications(page, pageSize);
 
   const store = useMessageNotificationStore.getState();
@@ -42,7 +42,7 @@ export async function handleIncomingNotification(
     );
 
     if (!hasFetchedNewMessageNotifs) {
-    await fetchAndSetNotifications();
+    await fetchAndSetMessageNotifications();
 
     // 🧠 Viktig! oppdater snapshot etter async
     store = useMessageNotificationStore.getState();
@@ -89,7 +89,7 @@ export async function handleIncomingReactionNotification(
   const hasFetchedReactions = store.notifications.some(n => n.type === "MessageReaction");
 
   if (!hasFetchedReactions) {
-    await fetchAndSetNotifications();
+    await fetchAndSetMessageNotifications();
     store = useMessageNotificationStore.getState(); // 📦 oppdater snapshot
   }
 

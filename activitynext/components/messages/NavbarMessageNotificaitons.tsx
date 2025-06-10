@@ -1,24 +1,27 @@
-// Her er den som håndterer Notifications sammen med bjella i Navbaren. Her er eventen som kobler seg på websocketen til backend
 "use client";
 
-import { Bell } from "lucide-react";
+import { Mail } from "lucide-react";
 import NotificationBadge from "@/components/notifications/NotificationBadge";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 interface Props {
-  onClick: () => void;
-  unreadCount: number;
+    onClick: (e: React.MouseEvent) => void;
 }
 
-export default function NavbarNotifications({ onClick, unreadCount }: Props) {
+export default function NavbarMessageNotifications({ onClick }: Props) {
+  const unreadCount = useMessageNotificationStore(
+    (s) => s.notifications.filter((n) => !n.isRead).length
+  );
+
   return (
     <button
       type="button"
       onClick={onClick}
       className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition flex items-center gap-2"
     >
-      <Bell size={18} />
+      <Mail size={18} />
       <span className="relative">
-        Notifications
+        Messages
         <NotificationBadge count={unreadCount} />
       </span>
     </button>

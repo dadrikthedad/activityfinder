@@ -79,38 +79,60 @@ public class FriendInvitationsController : ControllerBase
         
         return Ok(new { message = "Friend request sent." });
     }
+    
+    /* ---------- HENT ÉN INVITASJON ---------- */
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<FriendInvitationDTO>> GetInvitationById(int id)
+    {
+        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+            return Unauthorized();
 
-    // GET: Hent mottatte forespørsler
+        var inv = await _context.FriendInvitations
+            .Include(i => i.Sender).ThenInclude(u => u.Profile)
+            .FirstOrDefaultAsync(i =>
+                i.Id == id &&
+                (i.ReceiverId == userId || i.SenderId == userId)); // sikkerhet
+
+        if (inv == null) return NotFound();
+
+        return Ok(ToDto(inv));
+    }
+
+    /* ---------- HENT ALLE (eksisterende) ---------- */
     [HttpGet("received")]
     public async Task<ActionResult<List<FriendInvitationDTO>>> GetReceivedInvitations()
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-        {
             return Unauthorized(new { message = "Invalid user ID in token." });
-        }
-        
-        var invitations = await _context.FriendInvitations
-            .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
-            .Include(i => i.Sender)
-            .ThenInclude(u => u.Profile)
-            .AsNoTracking()
-            .Select(i => new FriendInvitationDTO
-            {
-                Id = i.Id,
-                ReceiverId = i.ReceiverId,
-                Status = i.Status.ToString(),
-                SentAt = i.SentAt,
-                UserSummary = new UserSummaryDTO
-                {
-                    Id = i.Sender.Id,
-                    FullName = i.Sender.FullName,
-                    ProfileImageUrl = i.Sender.Profile != null ? i.Sender.Profile.ProfileImageUrl : null
-                }
-            })
-            .ToListAsync();
 
-        return Ok(invitations);
+        // 1) hent fra databasen
+        var dbList = await _context.FriendInvitations
+            .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
+            .Include(i => i.Sender).ThenInclude(u => u.Profile)
+            .AsNoTracking()
+            .ToListAsync();                       // nå funker ToListAsync()
+
+        // 2) projiser til DTO på klientsiden
+        var dtoList = dbList.Select(ToDto).ToList(); // OK for EF Core ≥ 3
+
+        return Ok(dtoList);
     }
+
+    /* ---------- Felles DTO-mapping ---------- */
+    private static FriendInvitationDTO ToDto(FriendInvitation inv) =>
+        new()
+        {
+            Id         = inv.Id,
+            ReceiverId = inv.ReceiverId,
+            Status     = inv.Status.ToString().ToLower(), // "pending"/"accepted"/"declined"
+            SentAt     = inv.SentAt,
+            UserSummary = new UserSummaryDTO
+            {
+                Id              = inv.Sender.Id,
+                FullName        = inv.Sender.FullName,
+                ProfileImageUrl = inv.Sender.Profile?.ProfileImageUrl
+            }
+        };
 
     // PATCH: Godta forespørsel
     [HttpPatch("{id}/accept")]

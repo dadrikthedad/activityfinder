@@ -11,6 +11,8 @@ import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { setCookie } from "cookies-next";
 import { clearAllDrafts } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
+import { useNotificationStore } from "@/store/useNotificationStore";
+import { indexedDBStorage } from "@/store/indexedNotificationDBStorage";
 
 interface AuthContextType {
   isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
@@ -60,26 +62,37 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
   
     router.push(redirectTo);
   };
-
-  // Logout: fjerner token og resetter bruker
-  const logout = () => {
+ 
+  const logout = async () => {
     if (typeof window !== "undefined") {
+      // Fjern kun sesjons­relaterte nøkler
       localStorage.removeItem("token");
       localStorage.removeItem("messageDropdownSize");
       localStorage.removeItem("messageDropdownPosition");
-      localStorage.clear(); // Fjerrn senere ved valg av språk og div
-      clearAllDrafts();
+      localStorage.removeItem("dropdown_convo");
     }
 
-    useChatStore.getState().resetStore();
-  
+    /* ---------- Zustand-stores ---------- */
+    useChatStore.getState().resetStore();          // tømmer chat
+    useNotificationStore.getState().reset();       // tømmer in-memory  (notifications & friendRequests)
+
+    /* ---------- Slett IDB-snapshot helt ---------- */
+    // 1) Zustand v4+ har .persist.clearStorage()
+    await useNotificationStore.persist.clearStorage();
+
+    // 2) fallback – slett direkte via idb-keyval (hvis du ønsker helt blank DB)
+    await indexedDBStorage.removeItem("notif-cache");
+
+    /* ---------- Annet UI-rot ---------- */
+    clearAllDrafts();                              // f.eks. editor-drafts o.l.
+
+    /* ---------- Auth-state i React-context ---------- */
     setToken(null);
     setUserId(null);
     setIsLoggedIn(false);
-  
-    setTimeout(() => {
-      router.push("/login");
-    }, 50);
+
+    /* ---------- Naviger til login ---------- */
+    router.push("/login");
   };
 
 

@@ -1,9 +1,10 @@
 // Her henter vi alle venneforespørselene våre som skal brukes i friends/page.tsx
+"use client";
+
 import { useEffect, useState } from "react";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
-import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
 import { useAuth } from "@/context/AuthContext";
+import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
+import { getFriendInvitations } from "@/services/friends/friendService";
 
 export function useFriendInvitations() {
   const { token } = useAuth();
@@ -15,14 +16,9 @@ export function useFriendInvitations() {
 
     const load = async () => {
       try {
-        const data = await fetchWithAuth<FriendInvitationDTO[]>(
-          `${API_BASE_URL}${API_ROUTES.friendInvitations.received}`,
-          {},
-          token
-        );
-
+        const data = await getFriendInvitations(token);
         console.log("📨 Fetched invitations:", data);
-        if (data) setInvitations(data);
+        setInvitations(data);
       } catch (err) {
         console.error("❌ Failed to load invitations:", err);
       } finally {

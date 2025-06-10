@@ -16,6 +16,7 @@ import { useStore } from "zustand";
 import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
 import { NotificationType } from "@/types/MessageNotificationDTO";
 import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -101,6 +102,7 @@ export default function ChatHubClient() {
         setPendingLockedConversationId(null);
         if (currentId === convId) {
           setCurrentConversationId(convId);
+          useMessageNotificationStore.getState().markAsReadForConversation(convId);
         }
         else {
           // Marker som ulest hvis vi ikke åpner samtalen
