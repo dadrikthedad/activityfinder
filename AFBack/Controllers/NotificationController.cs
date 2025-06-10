@@ -20,9 +20,7 @@ public class NotificationController : BaseController
     {
         _context = context;
     }
-
-    // 🔸 Hent notifikasjoner for den innloggede brukeren
-    [HttpGet]
+    
     /* ---------- HENT ENKELT NOTIFIKASJON ---------- */
     [HttpGet("{id:int}")]
     public async Task<ActionResult<NotificationDTO>> GetNotificationById(int id)
