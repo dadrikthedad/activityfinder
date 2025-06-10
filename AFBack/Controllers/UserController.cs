@@ -580,21 +580,28 @@ public class UserController : BaseController
             return BadRequest("Query cannot be empty.");
         }
 
-        var lowerQuery = query.ToLower();
+        // Normaliser søkestrengen
+        var normalizedQuery = string.Join(" ", query.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-        var results = await _context.Users
+        // Hent et begrenset antall brukere som kandidat (for ytelse)
+        var candidateUsers = await _context.Users
+            .Include(u => u.Profile)
+            .Take(100) // Hent f.eks. maks 100 brukere for å unngå å laste hele databasen
+            .ToListAsync();
+
+        // Bruk FullName på C#-siden for å filtrere
+        var results = candidateUsers
             .Where(u =>
-                (u.FirstName + " " +
-                 (u.MiddleName != null ? u.MiddleName + " " : "") +
-                 u.LastName).ToLower().Contains(lowerQuery))
+                string.Join(" ", u.FullName.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    .Contains(normalizedQuery))
             .Select(u => new UserSummaryDTO
             {
                 Id = u.Id,
                 FullName = u.FullName,
-                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
+                ProfileImageUrl = u.Profile?.ProfileImageUrl
             })
-            .Take(20) // Begrens antall resultater
-            .ToListAsync();
+            .Take(20)
+            .ToList();
 
         return Ok(results);
     }
