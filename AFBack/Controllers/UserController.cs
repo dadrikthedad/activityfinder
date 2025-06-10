@@ -579,28 +579,20 @@ public class UserController : BaseController
     
     // Søke etter en bruker, brukes i søkebaren til navbar. Senere eventuelt lage en egen SearchController.cs feks
     [HttpGet("search")]
-    [Authorize] // Må være innlogget for å søke
     public async Task<ActionResult<List<UserSummaryDTO>>> SearchUsers([FromQuery] string query)
     {
         if (string.IsNullOrWhiteSpace(query))
+        {
             return BadRequest("Query cannot be empty.");
+        }
 
+        // Normaliser søkestrengen
         var normalizedQuery = string.Join(" ", query
             .ToLower()
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-        var currentUser = await GetUserFromClaims();
-        if (currentUser == null)
-            return Unauthorized();
-
-        var userRegion = currentUser.Region;
-        var userCountry = currentUser.Country;
-
         var results = await _context.Users
             .Where(u => u.FullName.ToLower().Contains(normalizedQuery))
-            .OrderByDescending(u => u.Region == userRegion)
-            .ThenByDescending(u => u.Country == userCountry)
-            .ThenBy(u => u.FullName)
             .Select(u => new UserSummaryDTO
             {
                 Id = u.Id,
