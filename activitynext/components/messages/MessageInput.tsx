@@ -53,6 +53,9 @@ export default function MessageInput({
   const isBlocked = 
     (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
     isLocked;
+
+  // Sjekker om en samtale er pending for å låse toolbaren
+  const isPending = currentConversation?.isPendingApproval === true;
   
   const handleSend = () => {
     const trimmed = text.trim();
@@ -128,12 +131,15 @@ export default function MessageInput({
   return (
       <div className="flex flex-col gap-2 mt-4">
         <MessageToolbar
-            atBottom={Boolean(atBottom)}
-            onScrollToBottom={scrollToBottom}
-            onPickImage={() => console.log("Bilde")}
-            onPickFile={() => console.log("Fil")}
-            onPickEmoji={() => console.log("Emoji")}
-          />
+          atBottom={Boolean(atBottom)}
+          onScrollToBottom={scrollToBottom}
+          onPickImage={() => console.log("Bilde")}
+          onPickFile={() => console.log("Fil")}
+          onPickEmoji={() => console.log("Emoji")}
+          showFile={!isPending}
+          showEmoji={!isPending}
+          showSettings={!isPending}
+        />
 
       {/* Inputfelt + send-knapp */}
       <div className="flex gap-2 items-end">

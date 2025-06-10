@@ -4,6 +4,8 @@ import TextareaAutosize from "react-textarea-autosize";
 import { useSendMessage } from "@/hooks/messages/useSendMessage";
 import { MessageDTO } from "@/types/MessageDTO";
 import MessageToolbar from "./MessageToolbar";
+import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
+
 
 interface NewMessageInputProps {
   receiverId: number;
@@ -17,6 +19,7 @@ export default function NewMessageInput({
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { send } = useSendMessage(onMessageSent);
+  const { syncConversation } = useConversationSyncOnMessage();
 
   const handleSend = () => {
     const trimmed = text.trim();
@@ -27,15 +30,16 @@ export default function NewMessageInput({
     inputRef.current?.focus();
 
     send({ text: sendingText, receiverId: receiverId.toString() })
-      .then((result) => {
+      .then(async (result) => {
         if (!result) return;
+        await syncConversation(result); // 👈 Henter og legger til samtalen hvis den ikke finnes
         onMessageSent?.(result);
       })
       .catch((err) => {
         console.error("Feil ved sending:", err);
         setText(sendingText);
         inputRef.current?.focus();
-      });
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

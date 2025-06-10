@@ -1,6 +1,6 @@
 // Knappen i toolbaren med innstillinger til en chat
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 import { Settings } from "lucide-react";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
@@ -8,8 +8,13 @@ import { useDropdown } from "@/context/DropdownContext"; //
 import { useChatStore } from "@/store/useChatStore";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 
-export default function MessageSettingsDropdown() {
-    const [open, setOpen] = useState(false);
+
+interface MessageSettingsDropdownProps {
+  open: boolean;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export default function MessageSettingsDropdown({ open, setOpen }: MessageSettingsDropdownProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const dropdownContext = useDropdown();
     const searchMode = useChatStore((s) => s.searchMode);
@@ -34,7 +39,7 @@ export default function MessageSettingsDropdown() {
         return () => {
             dropdownContext.unregister(id);
         };
-    }, [open, dropdownContext]);
+    }, [open, dropdownContext, setOpen]);
 
     return (
         <div className="relative" ref={containerRef}>
