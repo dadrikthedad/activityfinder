@@ -21,7 +21,17 @@ public class User
     public string LastName { get; set; } = null!;
     
     // Kan hente hele navnet med FullName hvis det trengs, blir ikke lagret til databasen.
-    public string FullName => $"{FirstName} {MiddleName?.Trim()} {LastName}".Replace("  ", " ").Trim();
+    [Required]
+    [MaxLength(150)]
+    public string FullName { get; set; } = string.Empty;
+    
+    // Oppdatere fultnavn
+    public void UpdateFullName()
+    {
+        FullName = $"{FirstName} {(string.IsNullOrWhiteSpace(MiddleName) ? "" : MiddleName + " ")}{LastName}"
+            .Replace("  ", " ")
+            .Trim();
+    }
     public DateTime DateOfBirth { get; set; }
     
     // Henter alderen, trenger ikke da å lagre alderen når vi har fødseldag
@@ -121,3 +131,4 @@ public enum Gender
     Female,
     Unspecified
 }
+

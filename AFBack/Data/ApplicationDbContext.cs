@@ -299,4 +299,17 @@ public class ApplicationDbContext : DbContext
             .OnDelete(DeleteBehavior.SetNull);
         
     }
+    // Sikre oppdatering av FullName ved oppdatering av first, middle eller lastname
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var entry in ChangeTracker.Entries<User>())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                entry.Entity.UpdateFullName();
+            }
+        }
+
+        return await base.SaveChangesAsync(cancellationToken);
+    }
 }

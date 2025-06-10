@@ -402,6 +402,8 @@ public class UserController : BaseController
         if (user == null) return Unauthorized();
 
         user.FirstName = dto.FirstName;
+        user.UpdateFullName();
+        
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "First name updated." });
@@ -418,6 +420,8 @@ public class UserController : BaseController
         if (user == null) return Unauthorized();
 
         user.MiddleName = dto.MiddleName;
+        user.UpdateFullName();
+        
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Middle name updated." });
@@ -434,6 +438,8 @@ public class UserController : BaseController
         if (user == null) return Unauthorized();
 
         user.LastName = dto.LastName;
+        user.UpdateFullName();
+        
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Last name updated." });
@@ -581,27 +587,20 @@ public class UserController : BaseController
         }
 
         // Normaliser søkestrengen
-        var normalizedQuery = string.Join(" ", query.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        var normalizedQuery = string.Join(" ", query
+            .ToLower()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
-        // Hent et begrenset antall brukere som kandidat (for ytelse)
-        var candidateUsers = await _context.Users
-            .Include(u => u.Profile)
-            .Take(100) // Hent f.eks. maks 100 brukere for å unngå å laste hele databasen
-            .ToListAsync();
-
-        // Bruk FullName på C#-siden for å filtrere
-        var results = candidateUsers
-            .Where(u =>
-                string.Join(" ", u.FullName.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                    .Contains(normalizedQuery))
+        var results = await _context.Users
+            .Where(u => u.FullName.ToLower().Contains(normalizedQuery))
             .Select(u => new UserSummaryDTO
             {
                 Id = u.Id,
                 FullName = u.FullName,
-                ProfileImageUrl = u.Profile?.ProfileImageUrl
+                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
             })
             .Take(20)
-            .ToList();
+            .ToListAsync();
 
         return Ok(results);
     }
