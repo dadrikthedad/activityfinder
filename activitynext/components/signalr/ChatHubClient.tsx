@@ -15,6 +15,7 @@ import { getMessagesForConversation } from "@/services/messages/conversationServ
 import { useStore } from "zustand";
 import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
 import { NotificationType } from "@/types/MessageNotificationDTO";
+import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -32,10 +33,12 @@ export default function ChatHubClient() {
     const setCurrentConversationId = useChatStore(s => s.setCurrentConversationId);
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const { syncPendingConversation } = usePendingConversationSync();
+    const currentId = useChatStore.getState().currentConversationId; // Sjekke om vi er i riktig samtale for å sende oss tilbake i samme samtale etter godkjenning
 
 
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
+    // Melding
     useChatHub((message) => {
       console.log("💬 Mottatt melding via SignalR:", message);
       addMessage(message);
@@ -48,12 +51,14 @@ export default function ChatHubClient() {
       ) {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
-          messagePreview: message.text ?? "Du har fått en melding",
+          messagePreview: truncateText(message.text ?? "Du har fått en melding"),
           conversationId: message.conversationId,
           type: NotificationType.NewMessage,
         });
       }
     },
+
+    // reaksjon
     (reaction, notification) => {
       console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
       console.log("🔔 Mottatt notification via SignalR:", notification);
@@ -65,6 +70,9 @@ export default function ChatHubClient() {
         updateSearchResultReactions(reaction as ReactionDTO);
       }
     },
+
+
+    // Godkjent forespørsel
     async (notification) => {
         console.log("✅ Godkjent forespørsel via SignalR:", notification); 
         const convId = notification.conversationId;
@@ -91,12 +99,24 @@ export default function ChatHubClient() {
 
         // 4) “Lås opp” pending‐status og vis samtalen
         setPendingLockedConversationId(null);
-        setCurrentConversationId(convId);
+        if (currentId === convId) {
+          setCurrentConversationId(convId);
+        }
+        else {
+          // Marker som ulest hvis vi ikke åpner samtalen
+          const state = useChatStore.getState();
+          if (!state.unreadConversationIds.includes(convId)) {
+            state.setUnreadConversationIds([...state.unreadConversationIds, convId]);
+          }
+        }
 
         // 5) Oppdater notification‐panelet
         // 🔔 Legg den direkte inn i notification-storen
         await handleIncomingNotification(notification);
       },
+
+
+      // Lagd en meldingsforespørsel til en annen bruker
       async ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
         if (!conversationId) {
           console.error("🚨 Mangler conversationId i signalr-data:", {
@@ -126,6 +146,7 @@ export default function ChatHubClient() {
             showNotificationToast({
               senderName: notification.senderName,
               messagePreview: notification.messagePreview,
+              type: NotificationType.MessageRequest,
               conversationId,
             });
           }

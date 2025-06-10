@@ -86,8 +86,8 @@ function NotificationToast({
       case LocalToastType.MessageReactionChanged:
         return messagePreview ? `"${messagePreview}"` : null;
       case NotificationType.NewMessage:
-      case NotificationType.MessageRequest:
         return messagePreview ?? null;
+      case NotificationType.MessageRequest:
       case NotificationType.MessageRequestApproved:
       default:
         return null; // ingen ekstra tekst

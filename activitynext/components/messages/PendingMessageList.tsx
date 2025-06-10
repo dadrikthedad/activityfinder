@@ -7,7 +7,6 @@ import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageReq
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import { useUnlockConversation } from "@/hooks/messages/useUnlockConversation";
 
 
 
@@ -26,7 +25,6 @@ const PendingRequestsList = ({
 }: PendingRequestsListProps) => {
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
-  const unlockConversation = useUnlockConversation();
 
   useEffect(() => {
     if (requests && requests.length > 0) {
@@ -74,8 +72,6 @@ const PendingRequestsList = ({
                     onClick={async () => {
                         if (r.conversationId !== null && r.conversationId !== undefined) {
                         await approve(r.senderId, r.conversationId);
-                        unlockConversation(r.conversationId);
-                        onSelectConversation?.(r.conversationId);
                         console.log("✔ Approved conversation:", r.conversationId);
                          // 👈 naviger til samtalen etterpå
                         }

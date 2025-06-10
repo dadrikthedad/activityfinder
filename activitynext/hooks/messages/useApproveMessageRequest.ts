@@ -40,8 +40,21 @@ export function useApproveMessageRequest() {
         // 4) Fjern pending-forespørselen
         removeRequest(conversationId);
 
-        // 5) “Lås opp” og sett aktiv samtale
-        setCurrentConversationId(conversationId);
+        
+
+        const pendingId = useChatStore.getState().pendingLockedConversationId;
+        if (pendingId === conversationId) {
+          setCurrentConversationId(conversationId);
+        }
+        else {
+          // Marker som ulest hvis den ikke vises
+          const state = useChatStore.getState();
+          if (!state.unreadConversationIds.includes(conversationId)) {
+            state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
+          }
+        }
+
+        // 5) “Lås opp” og sett aktiv samtal
         setPendingLockedConversationId(null);
 
 
