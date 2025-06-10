@@ -10,7 +10,7 @@ export default function FriendListItem({ friend }: { friend: FriendDTO }) {
 
   return (
     <li className="flex items-center gap-4">
-      <UserActionPopover user={friend.friend} avatarSize={60} />
+      <UserActionPopover mode="standalone" user={friend.friend} avatarSize={60} />
       <div>
         <span className="text-md font-medium">{friend.friend.fullName}</span>
         {!loading && isFriend && (

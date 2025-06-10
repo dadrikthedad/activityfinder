@@ -43,6 +43,7 @@ export default function FriendList() {
           <Card className="flex justify-between items-center gap-6 w-full p-6 border-2 border-[#1C6B1C]">
             <div className="flex items-center gap-4 w-full">
             <UserActionPopover
+              mode="standalone"
               user={friend.friend}
               onRemoveSuccess={() =>
                 setFilteredFriends((prev) => prev.filter((f) => f.friend.id !== friend.friend.id))

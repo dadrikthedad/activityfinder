@@ -36,7 +36,7 @@ export default function SimpleFriendList() {
       <ul className="space-y-4">
         {filteredFriends.map((friend) => (
           <li key={friend.friend.id} className="flex items-center gap-4">
-            <UserActionPopover user={friend.friend} avatarSize={60} onRemoveSuccess={() =>
+            <UserActionPopover mode="standalone" user={friend.friend} avatarSize={60} onRemoveSuccess={() =>
     setFriendList((prev) => prev.filter((f) => f.friend.id !== friend.friend.id)) } />
             <span className="text-md font-medium">{friend.friend.fullName}</span>
           </li>

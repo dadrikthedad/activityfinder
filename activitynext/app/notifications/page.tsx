@@ -66,7 +66,7 @@ export default function NotificationsPage() {
         >
           <div className="flex items-center gap-4 flex-1 min-w-0">
             {notification.relatedUser ? (
-              <UserActionPopover user={notification.relatedUser} avatarSize={60} />
+              <UserActionPopover mode="standalone" user={notification.relatedUser} avatarSize={60} />
             ) : (
               <div className="w-[60px] h-[60px] bg-gray-300 rounded-full flex-shrink-0" />
             )}

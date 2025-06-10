@@ -37,7 +37,7 @@ const handleResponse = async (id: number, action: "accept" | "decline") => {
             <Card className="flex justify-between items-center gap-6 w-full p-6">
               {invite.userSummary && (
                 <span className="flex items-center gap-4 w-full">
-                  <UserActionPopover user={invite.userSummary}  />
+                  <UserActionPopover mode="standalone" user={invite.userSummary}  />
                   <span className="text-lg font-semibold">
                     {invite.userSummary.fullName}
                     </span>{" "} wants to be your friend!

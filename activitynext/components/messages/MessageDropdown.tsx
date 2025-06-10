@@ -11,7 +11,7 @@ import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "./NewMessageModal";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useEffect, useRef, useState } from "react";
-import UserActionPopover from "../common/UserActionPopoverDropdown";
+import UserActionPopover from "../common/UserActionPopover";
 import { useDropdown } from "@/context/DropdownContext";
 import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
@@ -424,6 +424,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       </div>
       {popoverUser && popoverPosition && openUserPopoverId === popoverUser.id && (
           <UserActionPopover
+            mode="dropdown"
             user={popoverUser}
             dropdownRef={dropdownRef}
             onCloseDropdown={onCloseDropdown}
