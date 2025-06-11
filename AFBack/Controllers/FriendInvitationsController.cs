@@ -207,7 +207,7 @@ public class FriendInvitationsController : ControllerBase
                     }
                 };
                 _context.Conversations.Add(conversation);
-                await _context.SaveChangesAsync(); // Trengs for å få ConversationId
+                await _context.SaveChangesAsync(); // Trengs for å få ConversationIdg
             }
 
             _context.MessageRequests.Add(new MessageRequest
@@ -224,7 +224,7 @@ public class FriendInvitationsController : ControllerBase
         }
         
         await _context.SaveChangesAsync();
-        return Ok("Friend request accepted.");
+        return Ok(new { message = "Friend request accepted." });
     }
 
     // PATCH: Avslå forespørsel
