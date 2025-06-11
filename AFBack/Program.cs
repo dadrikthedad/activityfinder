@@ -153,7 +153,11 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
 });
 
 // For signalR
-builder.Services.AddSignalR();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 
 // Services jeg har opprettet. Til Authentisering og Notifications og Meldinger
