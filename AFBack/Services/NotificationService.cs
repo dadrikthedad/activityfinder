@@ -1,4 +1,6 @@
-﻿using Serilog;
+﻿using AFBack.DTOs;
+using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace AFBack.Services;
 using AFBack.Data;
@@ -41,6 +43,25 @@ public class NotificationService : INotificationService
             FriendInvitationId = friendInvitationId,
             EventInvitationId = eventInvitationId
         };
+        
+        UserSummaryDTO? relatedUserDto = null;
+        
+        if (relatedUserId.HasValue)
+        {
+            var relatedUser = await _context.Users
+                .Include(u => u.Profile)
+                .FirstOrDefaultAsync(u => u.Id == relatedUserId.Value);
+
+            if (relatedUser != null)
+            {
+                relatedUserDto = new UserSummaryDTO
+                {
+                    Id = relatedUser.Id,
+                    FullName = relatedUser.FullName,
+                    ProfileImageUrl = relatedUser.Profile?.ProfileImageUrl
+                };
+            }
+        }
 
         Log.Information("🔔 Notification created for user {RecipientUserId} of type {Type}", recipientUserId, type);
 
@@ -59,7 +80,8 @@ public class NotificationService : INotificationService
                 notification.PostId,
                 notification.CommentId,
                 notification.FriendInvitationId,
-                notification.EventInvitationId
+                notification.EventInvitationId,
+                RelatedUser = relatedUserDto
             });
     }
 }
