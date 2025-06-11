@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
@@ -73,7 +72,8 @@ public class FriendInvitationsController : ControllerBase
         await _notificationService.CreateNotificationAsync(
             recipientUserId: dto.ReceiverId,
             relatedUserId: userId,
-            type: NotificationTypes.FriendRequest
+            type: NotificationEntityType.FriendInvitation,
+            friendInvitationId: invitation.Id
         );
 
         
@@ -166,7 +166,8 @@ public class FriendInvitationsController : ControllerBase
         await _notificationService.CreateNotificationAsync(
             recipientUserId: invitation.SenderId,
             relatedUserId: invitation.ReceiverId,
-            type: NotificationTypes.FriendRequestAccepted
+            type: NotificationEntityType.FriendInvAccepted,
+            friendInvitationId: invitation.Id
         );
         
         // Sjekk om det allerede finnes en meldingsforespørsel

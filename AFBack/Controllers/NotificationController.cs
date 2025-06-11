@@ -107,13 +107,16 @@ public class NotificationController : BaseController
     private static NotificationDTO ToDto(Notification n)
     {
         UserSummaryDTO? related = null;
+
         if (n.RelatedUser != null)
+        {
             related = new UserSummaryDTO
             {
                 Id = n.RelatedUser.Id,
                 FullName = n.RelatedUser.FullName,
                 ProfileImageUrl = n.RelatedUser.Profile?.ProfileImageUrl
             };
+        }
 
         return new NotificationDTO
         {
@@ -122,6 +125,10 @@ public class NotificationController : BaseController
             Message = n.Message,
             IsRead = n.IsRead,
             CreatedAt = n.CreatedAt,
+            PostId = n.PostId,
+            CommentId = n.CommentId,
+            FriendInvitationId = n.FriendInvitationId,
+            EventInvitationId = n.EventInvitationId,
             RelatedUser = related
         };
     }

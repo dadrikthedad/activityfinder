@@ -10,7 +10,7 @@ public class Notification
     
     // Typen av forespørsel
     [Required]
-    public string Type { get; set; } = null!; // F.eks. "FriendRequest", "Message"
+    public NotificationEntityType Type { get; set; } // F.eks. "FriendRequest", "Message"
     
     // Meldingen, feks hvis det er en melding sendt mellom brukere
     public string? Message { get; set; } // Frivillig meldingstekst
@@ -28,6 +28,20 @@ public class Notification
     // 🔸 Brukeren som relaterer til denne notif. (f.eks. den som sendte venneforespørsel)
     public int? RelatedUserId { get; set; }
     public User? RelatedUser { get; set; } = null!;
-
     
+    public int? PostId { get; set; }
+    public int? CommentId { get; set; }
+    public int? FriendInvitationId { get; set; }
+    public int? EventInvitationId { get; set; }
+    
+}
+
+public enum NotificationEntityType
+{
+    None,
+    Post,
+    Comment,
+    FriendInvitation,
+    FriendInvAccepted,
+    EventInvitation
 }

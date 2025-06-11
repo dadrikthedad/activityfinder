@@ -17,7 +17,16 @@ public class NotificationService : INotificationService
         _hubContext = hubContext;
     }
 
-    public async Task CreateNotificationAsync(int recipientUserId, int? relatedUserId, string type, string? message = null)
+    public async Task CreateNotificationAsync(
+        int recipientUserId,
+        int? relatedUserId,
+        NotificationEntityType type,
+        string? message = null,
+        int? postId = null,
+        int? commentId = null,
+        int? friendInvitationId = null,
+        int? eventInvitationId = null
+    )
     {
         var notification = new Notification
         {
@@ -26,23 +35,31 @@ public class NotificationService : INotificationService
             RelatedUserId = relatedUserId,
             Message = message,
             CreatedAt = DateTime.UtcNow,
-            IsRead = false
+            IsRead = false,
+            PostId = postId,
+            CommentId = commentId,
+            FriendInvitationId = friendInvitationId,
+            EventInvitationId = eventInvitationId
         };
+
         Log.Information("🔔 Notification created for user {RecipientUserId} of type {Type}", recipientUserId, type);
-        
-        
+
         _context.Notifications.Add(notification);
-        Log.Information("📡 Sender notification via SignalR til {UserId}", recipientUserId);
         await _context.SaveChangesAsync();
 
-        // Send sanntidsvarsel til den spesifikke brukeren
+        Log.Information("📡 Sender notification via SignalR til {UserId}", recipientUserId);
+
         await _hubContext.Clients.User(recipientUserId.ToString())
             .SendAsync("ReceiveNotification", new
             {
                 notification.Id,
                 notification.Type,
                 notification.Message,
-                notification.CreatedAt
+                notification.CreatedAt,
+                notification.PostId,
+                notification.CommentId,
+                notification.FriendInvitationId,
+                notification.EventInvitationId
             });
     }
 }
