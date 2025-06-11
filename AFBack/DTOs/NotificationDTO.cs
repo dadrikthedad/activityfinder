@@ -1,10 +1,12 @@
-﻿using AFBack.Models;
+﻿using System.Text.Json.Serialization;
+using AFBack.Models;
 
 namespace AFBack.DTOs;
 
 public class NotificationDTO
 {
     public int Id { get; set; }
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public NotificationEntityType Type { get; set; }
     public string? Message { get; set; }
     public bool IsRead { get; set; }

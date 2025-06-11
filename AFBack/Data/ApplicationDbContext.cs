@@ -81,6 +81,10 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(n => n.RelatedUserId)
             .OnDelete(DeleteBehavior.Restrict); 
         
+        modelBuilder.Entity<Notification>()
+            .Property(n => n.Type)
+            .HasConversion<string>(); // 🔹 konverter enum til string
+        
         // Til meldinger mellom bruker og annen bruker eller gruppe
         modelBuilder.Entity<Message>(entity =>
         {

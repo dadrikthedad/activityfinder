@@ -5,6 +5,8 @@ namespace AFBack.Models;
 public class MessageNotificationDTO
 {
     public int Id { get; set; }
+    
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public NotificationType Type { get; set; }
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; }

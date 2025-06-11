@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace AFBack.Controllers;
 // Kontroller for venneforespørsel mellom to brukere
@@ -65,19 +66,26 @@ public class FriendInvitationsController : ControllerBase
             SentAt = DateTime.UtcNow
         };
 
-        _context.FriendInvitations.Add(invitation);
-        await _context.SaveChangesAsync();
-        
-        // 🔔 Legg til notifikasjonen
-        await _notificationService.CreateNotificationAsync(
-            recipientUserId: dto.ReceiverId,
-            relatedUserId: userId,
-            type: NotificationEntityType.FriendInvitation,
-            friendInvitationId: invitation.Id
-        );
+        try
+        {
+            _context.FriendInvitations.Add(invitation);
+            await _context.SaveChangesAsync();
 
+            await _notificationService.CreateNotificationAsync(
+                recipientUserId: dto.ReceiverId,
+                relatedUserId: userId,
+                type: NotificationEntityType.FriendInvitation,
+                friendInvitationId: invitation.Id
+            );
+
+            return Ok(new { message = "Friend request sent." });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error while handling friend invitation send to {ReceiverId} by {SenderId}", dto.ReceiverId, userId);
+            return StatusCode(500, "An error occurred on the server.");
+        }
         
-        return Ok(new { message = "Friend request sent." });
     }
     
     /* ---------- HENT ÉN INVITASJON ---------- */
