@@ -27,7 +27,8 @@ public class NotificationService : INotificationService
         int? postId = null,
         int? commentId = null,
         int? friendInvitationId = null,
-        int? eventInvitationId = null
+        int? eventInvitationId = null,
+        int? conversationId = null
     )
     {
         var notification = new Notification
@@ -41,7 +42,8 @@ public class NotificationService : INotificationService
             PostId = postId,
             CommentId = commentId,
             FriendInvitationId = friendInvitationId,
-            EventInvitationId = eventInvitationId
+            EventInvitationId = eventInvitationId,
+            ConversationId = conversationId 
         };
         
         UserSummaryDTO? relatedUserDto = null;
@@ -81,6 +83,7 @@ public class NotificationService : INotificationService
                 notification.CommentId,
                 notification.FriendInvitationId,
                 notification.EventInvitationId,
+                notification.ConversationId, 
                 RelatedUser = relatedUserDto
             });
     }

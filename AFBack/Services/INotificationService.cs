@@ -12,6 +12,7 @@ public interface INotificationService
         int? postId = null,
         int? commentId = null,
         int? friendInvitationId = null,
-        int? eventInvitationId = null
+        int? eventInvitationId = null,
+        int? conversationId = null
     );
 }

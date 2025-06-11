@@ -171,13 +171,6 @@ public class FriendInvitationsController : ControllerBase
 
         _context.Friends.Add(newFriend);
         
-        await _notificationService.CreateNotificationAsync(
-            recipientUserId: invitation.SenderId,
-            relatedUserId: invitation.ReceiverId,
-            type: NotificationEntityType.FriendInvAccepted,
-            friendInvitationId: invitation.Id
-        );
-        
         // Sjekk om det allerede finnes en meldingsforespørsel
         var existingMessageRequest = await _context.MessageRequests
             .Include(mr => mr.Conversation)
@@ -201,6 +194,14 @@ public class FriendInvitationsController : ControllerBase
                 existingMessageRequest.Conversation.IsApproved = true;
             }
         }
+        
+        await _notificationService.CreateNotificationAsync(
+            recipientUserId: invitation.SenderId,
+            relatedUserId: invitation.ReceiverId,
+            type: NotificationEntityType.FriendInvAccepted,
+            friendInvitationId: invitation.Id,
+            conversationId: conversationId
+        );
 
         await _context.SaveChangesAsync();
 

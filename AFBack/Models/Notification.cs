@@ -33,6 +33,8 @@ public class Notification
     public int? CommentId { get; set; }
     public int? FriendInvitationId { get; set; }
     public int? EventInvitationId { get; set; }
+    // Brukes når vi aksepterer en venneforespørsel og det er en gyldig messagerequest der
+    public int? ConversationId { get; set; }
     
 }
 
