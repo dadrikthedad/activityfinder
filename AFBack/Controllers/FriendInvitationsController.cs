@@ -179,52 +179,38 @@ public class FriendInvitationsController : ControllerBase
         );
         
         // Sjekk om det allerede finnes en meldingsforespørsel
-        var messageRequest = await _context.MessageRequests.FirstOrDefaultAsync(r =>
-            r.SenderId == invitation.SenderId && r.ReceiverId == invitation.ReceiverId);
+        var existingMessageRequest = await _context.MessageRequests
+            .Include(mr => mr.Conversation)
+            .FirstOrDefaultAsync(r => 
+                ((r.SenderId == invitation.SenderId && r.ReceiverId == invitation.ReceiverId) ||
+                 (r.SenderId == invitation.ReceiverId && r.ReceiverId == invitation.SenderId)) &&
+                !r.IsAccepted);
 
-        // Hvis ikke, opprett én
-        if (messageRequest == null)
+        int? conversationId = null;
+
+
+        if (existingMessageRequest != null)
         {
-            var conversation = await _context.Conversations
-                .Include(c => c.Participants)
-                .FirstOrDefaultAsync(c =>
-                    !c.IsGroup &&
-                    c.Participants.Any(p => p.UserId == invitation.SenderId) &&
-                    c.Participants.Any(p => p.UserId == invitation.ReceiverId));
+            // Oppdater eksisterende meldingsforespørsel
+            existingMessageRequest.IsAccepted = true;
+            conversationId = existingMessageRequest.ConversationId;
 
-            if (conversation == null)
+            // Sett samtalen til godkjent
+            if (existingMessageRequest.Conversation != null)
             {
-                // Opprett samtalen hvis den ikke eksisterer
-                conversation = new Conversation
-                {
-                    IsGroup = false,
-                    CreatorId = invitation.SenderId,
-                    IsApproved = true, 
-                    Participants = new List<ConversationParticipant>
-                    {
-                        new() { UserId = invitation.SenderId },
-                        new() { UserId = invitation.ReceiverId }
-                    }
-                };
-                _context.Conversations.Add(conversation);
-                await _context.SaveChangesAsync(); // Trengs for å få ConversationIdg
+                existingMessageRequest.Conversation.IsApproved = true;
             }
+        }
 
-            _context.MessageRequests.Add(new MessageRequest
-            {
-                SenderId = invitation.SenderId,
-                ReceiverId = invitation.ReceiverId,
-                ConversationId = conversation.Id,
-                IsAccepted = true
-            });
-        }
-        else
-        {
-            messageRequest.IsAccepted = true;
-        }
-        
         await _context.SaveChangesAsync();
-        return Ok(new { message = "Friend request accepted." });
+
+        var responseData = new 
+        { 
+            message = "Friend request accepted.",
+            conversationId,
+        };
+
+        return Ok(responseData);
     }
 
     // PATCH: Avslå forespørsel
