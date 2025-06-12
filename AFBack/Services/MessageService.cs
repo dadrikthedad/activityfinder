@@ -57,10 +57,17 @@ public class MessageService : IMessageService
             var messageCount = await _context.Messages
                 .CountAsync(m => m.ConversationId == conversation.Id && m.SenderId == senderId);
             
-            // 🔒 Sjekk om meldingen krever godkjenning (for både nye og eksisterende samtaler)
-            if (receiverId != null && await ShouldRequireApproval(senderId, receiverId.Value, conversation.Id))
+            // 🔒 Sjekk om meldingen krever godkjenning
+            var requiresApproval = receiverId != null &&
+                                   await ShouldRequireApproval(senderId, receiverId.Value, conversation.Id);
+
+            // 🆕  Sett samtalen som godkjent dersom vi nettopp fant ut at ingen godkjenning trengs
+            if (!requiresApproval && !conversation.IsGroup && !conversation.IsApproved)             // 🆕
+                conversation.IsApproved = true;                                                    // 🆕
+
+            if (requiresApproval)                                                                  // 🆕 flyttet inn variabelen
             {
-                await AddMessageRequestIfNotExists(senderId, receiverId.Value, conversation.Id);
+                await AddMessageRequestIfNotExists(senderId, receiverId!.Value, conversation.Id);
                 isApproved = false;
                 if (messageCount >= 5)
                 {
