@@ -3,66 +3,56 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { FriendInvitationDTO, PaginatedFriendInvResponse } from "@/types/FriendInvitationDTO";
+import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
 import { getFriendInvitations } from "@/services/friends/friendService";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
 export function useFriendInvitations(pageSize = 10) {
   const { token } = useAuth();
-  const cachedInvitations = useNotificationStore(state => state.friendRequests);
 
-  const [invitations, setInvitations] = useState<FriendInvitationDTO[]>(cachedInvitations ?? []);
-  const [pageNumber, setPageNumber] = useState(cachedInvitations.length > 0 ? 1 : 0);
-  const [totalCount, setTotalCount] = useState(cachedInvitations.length); // vi justerer når neste side hentes
-  const [loading, setLoading] = useState(cachedInvitations.length === 0);
+  const friendRequests           = useNotificationStore(s => s.friendRequests);
+  const hasLoadedFriendRequests  = useNotificationStore(s => s.hasLoadedFriendRequests);
+  const friendRequestTotalCount  = useNotificationStore(s => s.friendRequestTotalCount);
+
+  const [invitations, setInvitations] = useState<FriendInvitationDTO[]>(friendRequests);
+  // 1) start side-teller riktig …
+  const [pageNumber, setPageNumber] = useState(
+    hasLoadedFriendRequests ? 1 : 0        // ikke regn antallet inviter
+  );
+  const [totalCount,  setTotalCount ] = useState(
+    friendRequestTotalCount ?? friendRequests.length
+  );
   const [loadingMore, setLoadingMore] = useState(false);
-  const addInvitation = (invitation: FriendInvitationDTO) => {
-    setInvitations((prev) => {
-      if (prev.some((i) => i.id === invitation.id)) return prev;
-      return [invitation, ...prev];
-    });
-  };
 
-  // Kun kjøres hvis vi ikke har cached første side
+  // 2) …og ikke nullstill den hver gang storen endrer seg
   useEffect(() => {
-    if (!token || cachedInvitations.length > 0) return;
+    setInvitations(friendRequests);
+    setTotalCount(friendRequestTotalCount ?? friendRequests.length);
 
-    const loadInitial = async () => {
-      setLoading(true);
-      try {
-        const response = await getFriendInvitations(token, 1, pageSize);
-        setInvitations(response.data);
-        setTotalCount(response.totalCount);
-        setPageNumber(1);
-      } catch (err) {
-        console.error("❌ Failed to load friend invitations:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // bump fra 0 → 1 kun første gang init-kallet er ferdig
+    if (hasLoadedFriendRequests && pageNumber === 0) {
+      setPageNumber(1);
+    }
+  }, [friendRequests, friendRequestTotalCount, hasLoadedFriendRequests, pageNumber ]);
 
-    loadInitial();
-  }, [token]);
+  const loading = !hasLoadedFriendRequests && invitations.length === 0;
+
+  const hasMore = invitations.length < totalCount;
 
   const loadMore = async () => {
-    if (!token) return;
+    if (!token || !hasMore) return;
 
-    const nextPage = pageNumber + 1;
     setLoadingMore(true);
+    const nextPage = pageNumber + 1;
 
     try {
-      const response: PaginatedFriendInvResponse<FriendInvitationDTO> = await getFriendInvitations(
-        token,
-        nextPage,
-        pageSize
-      );
+      const res = await getFriendInvitations(token, nextPage, pageSize);
       setInvitations(prev => {
-        const existingIds = new Set(prev.map(i => i.id));
-        const filtered = response.data.filter(i => !existingIds.has(i.id));
-        return [...prev, ...filtered];
+        const ids = new Set(prev.map(i => i.id));
+        return [...prev, ...res.data.filter(i => !ids.has(i.id))];
       });
       setPageNumber(nextPage);
-      setTotalCount(response.totalCount);
+      setTotalCount(res.totalCount);
     } catch (err) {
       console.error("❌ Failed to load more invitations:", err);
     } finally {
@@ -70,14 +60,5 @@ export function useFriendInvitations(pageSize = 10) {
     }
   };
 
-  const hasMore = invitations.length < totalCount;
-
-  return {
-    invitations,
-    loading,
-    loadingMore,
-    loadMore,
-    hasMore,
-    addInvitation,
-  };
+  return { invitations, loading, loadingMore, loadMore, hasMore };
 }

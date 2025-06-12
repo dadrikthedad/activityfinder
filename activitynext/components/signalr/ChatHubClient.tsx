@@ -29,6 +29,7 @@ export default function ChatHubClient() {
     const addConversation = useChatStore(s => s.addConversation);
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const { syncPendingConversation } = usePendingConversationSync();
+    const showMessages = useChatStore.getState().showMessages;
 
     const ensureConversationExists = async (conversationId: number) => {
       const { conversationIds, pendingMessageRequests } = useChatStore.getState();
@@ -77,7 +78,7 @@ export default function ChatHubClient() {
 
       if (
         message.senderId !== userId &&
-        message.conversationId !== currentConversationId
+        (!showMessages || message.conversationId !== currentConversationId)
       ) {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
@@ -109,6 +110,13 @@ export default function ChatHubClient() {
          if (!convId) {
           return;
         }
+
+          showNotificationToast({
+            senderName: notification.senderName ?? "Someone",
+            messagePreview: notification.messagePreview,
+            conversationId: convId,
+            type: NotificationType.MessageRequestApproved,
+          });
 
         await finalizeConversationApproval(convId, true, notification);
       },

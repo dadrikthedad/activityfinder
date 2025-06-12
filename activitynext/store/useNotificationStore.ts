@@ -32,6 +32,10 @@ interface NotificationState {
   friendRequestTotalCount: number;
   setFriendRequestTotalCount: (count: number) => void;
 
+  // Åpner dropdownen
+  showNotificationDropdown: boolean;
+  setShowNotificationDropdown: (value: boolean) => void;
+
   // Slett notifikasjoner
     clearNotifications: () => void;  
 
@@ -98,6 +102,10 @@ export const useNotificationStore = create<NotificationState>()(
        setHasLoadedFriendRequests: (b) => set({ hasLoadedFriendRequests: b }),
        setHasLoadedNotifications:   (b) => set({ hasLoadedNotifications:  b }),
        clearNotifications: () => set({ notifications: [] }),
+
+      showNotificationDropdown: false,
+      setShowNotificationDropdown: (value) =>
+        set({ showNotificationDropdown: value }),
 
       // --- full reset (bruk ved logout) ---
       reset: () =>

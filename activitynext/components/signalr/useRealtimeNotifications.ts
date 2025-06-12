@@ -7,6 +7,8 @@ import { getFriendInvitationById } from "@/services/friends/friendService";
 import { getNotificationById }     from "@/services/notifications/notificationService";
 import type { NotificationDTO } from "@/types/NotificationEventDTO";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
+import { showNotificationToast } from "../toast/Toast";
+import { LocalToastType } from "../toast/Toast";
 
 export function useRealtimeNotifications() {
   const { token } = useAuth();                    // token kan være undefined rett etter reload
@@ -28,6 +30,11 @@ export function useRealtimeNotifications() {
           if (fr) {
             addFriendRequest(fr);
             setFriendRequestTotalCount(friendRequestTotalCount + 1); // ✅ Øk total
+            showNotificationToast({
+                senderName: fr.userSummary?.fullName ?? "Someone",
+                conversationId: -1, // ikke en samtale ennå
+                type: LocalToastType.FriendRequestReceived,
+              });
           }
           return;
         }
@@ -35,6 +42,15 @@ export function useRealtimeNotifications() {
         // 🟢 Venneforespørsel akseptert – bare vis i listen
         if (evt.type === "FriendInvAccepted") {
           addNotification(evt);
+
+            if (evt.relatedUser) {
+              showNotificationToast({
+                senderName: evt.relatedUser.fullName ?? "Someone",
+                type: LocalToastType.FriendInvAccepted,
+                relatedUser: evt.relatedUser,
+              });
+            }
+          
 
             if (evt.conversationId) {
               await finalizeConversationApproval(evt.conversationId);

@@ -28,7 +28,8 @@ export default function Navbar() {
   const [showDropDown, setShowDropdown] = useState(false); // Her brukes vi dropdown
   const router = useRouter(); // sende oss videre til de forskjellige linkene
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
-  const [showNotifications, setShowNotifications] = useState(false); // Her viser vi notifications og skjuler de ved at vi har trykket på den
+  const showNotifications = useNotificationStore((s) => s.showNotificationDropdown);
+  const setShowNotifications = useNotificationStore((s) => s.setShowNotificationDropdown); // Her viser vi notifications og skjuler de ved at vi har trykket på den
   const markAllNotificationsRead = useNotificationStore(
     (s) => s.markAllNotificationsRead,
   );
@@ -87,15 +88,27 @@ export default function Navbar() {
   }, [showDropDown, dropdownContext]);
 
       /* ---- MEMOISERT toggle-handler ---- */
-  const handleToggleNotifications = useCallback(async () => {
+  const handleToggleNotifications = useCallback(() => {
     if (recentlyClosed) return;
 
-    if (!showNotifications) {
-      await markAllAsRead();           // backend
-      markAllNotificationsRead();      // zustand
+    const unread = notifications.filter((n) => !n.isRead);
+    const opening = !showNotifications;
+
+    if (opening && unread.length > 0) {
+      // Async sideeffekter, ikke blokk UI
+      markAllAsRead();
+      markAllNotificationsRead();
     }
-    setShowNotifications((prev) => !prev);
-  }, [recentlyClosed, showNotifications, markAllNotificationsRead]);
+
+    setShowNotifications(opening);
+  }, [
+    recentlyClosed,
+    showNotifications,
+    notifications,
+    markAllAsRead,
+    markAllNotificationsRead,
+    setShowNotifications
+  ]);
 
     useEffect(() => {
     if (!showNotifications) {

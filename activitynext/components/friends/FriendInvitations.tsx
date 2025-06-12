@@ -6,8 +6,7 @@ import FriendRequestButtons from "./FriendRequestButtons";
 import UserActionPopover from "@/components/common/UserActionPopover";
 import Card from "@/components/common/Card";
 import { useFriendInvitations } from "@/hooks/useFriendInvitations";
-import { useNotificationStore } from "@/store/useNotificationStore";
-import { useEffect } from "react";
+
 import ProfileNavButton from "../settings/ProfileNavButton";
 import Spinner from "../common/Spinner";
 
@@ -19,16 +18,11 @@ export default function FriendInvitations() {
       loadMore,
       hasMore,
       loadingMore,
-      loading,
-      addInvitation,
+      loading
     } = useFriendInvitations();
-    const friendRequestsStore = useNotificationStore((s) => s.friendRequests);
 
-    useEffect(() => {
-      for (const fr of friendRequestsStore) {
-        addInvitation(fr); // legg til i local hvis ny
-      }
-    }, [friendRequestsStore]);
+
+
 
 
   /* ---------- API-kall + lokal oppdatering ---------- */
