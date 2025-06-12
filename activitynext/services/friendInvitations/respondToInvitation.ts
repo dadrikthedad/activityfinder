@@ -2,6 +2,11 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
 
+type FriendInvitationResponse = {
+  message: string;
+  conversationId: number | null;
+};
+
 export async function respondToInvitation(
   id: number,
   action: "accept" | "decline",
@@ -9,12 +14,7 @@ export async function respondToInvitation(
 ) {
   const url = `${API_BASE_URL}${API_ROUTES.friendInvitations[action](id)}`;
 
-  try {
-    await fetchWithAuth(url, {
-      method: "PATCH",
-    }, token);
-  } catch (err) {
-    console.error(`❌ Failed to ${action} invitation:`, err);
-    throw err;
-  }
+   const data = await fetchWithAuth<FriendInvitationResponse>(url, { method: "PATCH" }, token);
+
+  return data?.conversationId ?? null;
 }

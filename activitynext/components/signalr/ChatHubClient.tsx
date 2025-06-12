@@ -11,12 +11,11 @@ import { handleIncomingReaction } from "./handleIncomingReactions";
 import { showNotificationToast } from "../toast/Toast";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { getConversationById } from "@/services/messages/conversationService";
-import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useStore } from "zustand";
 import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
 import { NotificationType } from "@/types/MessageNotificationDTO";
 import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
-import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -27,21 +26,42 @@ export default function ChatHubClient() {
     const updateSearchResultReactions = useChatStore((state) => state.updateSearchResultReactions); // Oppdater reaksjoner i søkefelt
     const searchMode = useChatStore((state) => state.searchMode);
     const { userId } = useAuth();
-    const removeRequest = useChatStore(s => s.removePendingRequest);
     const addConversation = useChatStore(s => s.addConversation);
-    const setCachedMessages = useChatStore(s => s.setCachedMessages);
-    const setPendingLockedConversationId = useChatStore(s => s.setPendingLockedConversationId);
-    const setCurrentConversationId = useChatStore(s => s.setCurrentConversationId);
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const { syncPendingConversation } = usePendingConversationSync();
-    const currentId = useChatStore.getState().currentConversationId; // Sjekke om vi er i riktig samtale for å sende oss tilbake i samme samtale etter godkjenning
+
+    const ensureConversationExists = async (conversationId: number) => {
+      const { conversationIds } = useChatStore.getState();
+      
+      // O(1) lookup i stedet for O(n)
+      if (conversationIds.has(conversationId)) {
+          return;
+      }
+        
+        console.log(`🔍 Samtale ${conversationId} finnes ikke i listen, henter den...`);
+        
+        try {
+            // Hent samtalen fra backend
+            const conversation = await getConversationById(conversationId);
+            if (conversation) {
+                addConversation(conversation);
+                console.log(`✅ Samtale ${conversationId} lagt til i listen`);
+            }
+        } catch (error) {
+            console.error(`❌ Kunne ikke hente samtale ${conversationId}:`, error);
+        }
+    };
+    
 
 
   
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
     // Melding
-    useChatHub((message) => {
+    useChatHub(async (message) => {
       console.log("💬 Mottatt melding via SignalR:", message);
+
+      await ensureConversationExists(message.conversationId);
+ 
       addMessage(message);
       updateConversationTimestamp(message.conversationId, message.sentAt);
       handleIncomingMessage(message, userId ?? null);
@@ -81,40 +101,7 @@ export default function ChatHubClient() {
           return;
         }
 
-        // 1) Fjern request fra pending-lista
-        removeRequest(convId);
-
-        // 2) Hent full samtale‐metadata og legg inn i listene
-        let conv = await getConversationById(convId);
-          if (!conv) return;
-
-        // 2.a) Sørg for at isPendingApproval blir false
-        conv = { ...conv, isPendingApproval: false };
-
-        // 2.b) push inn i store
-        addConversation(conv);
-
-        // 3) Hent de siste meldingene for cache
-        const msgs = await getMessagesForConversation(convId, 0, 20);
-        setCachedMessages(convId, msgs ?? []);
-
-        // 4) “Lås opp” pending‐status og vis samtalen
-        setPendingLockedConversationId(null);
-        if (currentId === convId) {
-          setCurrentConversationId(convId);
-          useMessageNotificationStore.getState().markAsReadForConversation(convId);
-        }
-        else {
-          // Marker som ulest hvis vi ikke åpner samtalen
-          const state = useChatStore.getState();
-          if (!state.unreadConversationIds.includes(convId)) {
-            state.setUnreadConversationIds([...state.unreadConversationIds, convId]);
-          }
-        }
-
-        // 5) Oppdater notification‐panelet
-        // 🔔 Legg den direkte inn i notification-storen
-        await handleIncomingNotification(notification);
+        await finalizeConversationApproval(convId, true, notification);
       },
 
 
@@ -157,4 +144,7 @@ export default function ChatHubClient() {
   );
 
   return null; // Kun sideeffekter
+  
 }
+
+    

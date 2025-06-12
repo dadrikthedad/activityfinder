@@ -14,11 +14,6 @@ import { fetchAndSetNotifications } from "@/hooks/notifications/useGetNotificati
 
 export function MessageDropdownInitializer() {
   const { userId, token } = useAuth();
-  const hasLoadedConversations       = useChatStore((s) => s.hasLoadedConversations);
-  const hasLoadedPendingRequests     = useChatStore((s) => s.hasLoadedPendingRequests);
-  const hasLoadedUnreadConversationIds = useChatStore((s) => s.hasLoadedUnreadConversationIds);
-  const hasLoadedFriendRequests = useNotificationStore((s) => s.hasLoadedFriendRequests);
-  const hasLoadedNotifications = useNotificationStore((s) => s.hasLoadedNotifications);
   
   const prevUserIdRef = useRef<number | null>(null);
 
@@ -35,55 +30,48 @@ export function MessageDropdownInitializer() {
 
     console.log("🚀 Initializer TRIGGERED with userId =", userId);
 
-    /* Chat: uleste ID-er */
-    if (!hasLoadedUnreadConversationIds) {
+       // --- 1) SETT FLAGGENE MED EN GANG ----------------
+  const chatSt  = useChatStore.getState();
+  const notifSt = useNotificationStore.getState();
+
+  if (!chatSt.hasLoadedUnreadConversationIds)
+    chatSt.setHasLoadedUnreadConversationIds(true);
+  if (!chatSt.hasLoadedPendingRequests)
+    chatSt.setHasLoadedPendingRequests(true);
+  if (!chatSt.hasLoadedConversations)
+    chatSt.setHasLoadedConversations(true);
+
+  if (!notifSt.hasLoadedFriendRequests)
+    notifSt.setHasLoadedFriendRequests(true);
+  if (!notifSt.hasLoadedNotifications)
+    notifSt.setHasLoadedNotifications(true);
+
+  // --- 2) KJØR ASYNKRONE KALL ----------------------
+    if (chatSt.unreadConversationIds.length === 0)
       getUnreadConversationIds()
-        .then((ids) => {
-          useChatStore.getState().setUnreadConversationIds(ids ?? []);
-          useChatStore.getState().setHasLoadedUnreadConversationIds(true);
-        })
+        .then(ids => chatSt.setUnreadConversationIds(ids ?? []))
         .catch(console.error);
-    }
 
-    /* Chat: pending requests */
-    if (!hasLoadedPendingRequests) {
+    if (chatSt.pendingMessageRequests.length === 0)
       getPendingMessageRequests()
-        .then((data) => {
-          useChatStore.getState().setPendingMessageRequests(data ?? []);
-          useChatStore.getState().setCachedPendingRequests(data ?? []);
-          useChatStore.getState().setHasLoadedPendingRequests(true);
+        .then(req => {
+          chatSt.setPendingMessageRequests(req ?? []);
+          chatSt.setCachedPendingRequests(req ?? []);
         })
         .catch(console.error);
-    }
-    /* Chat: samtaler */
-    if (!hasLoadedConversations) {
-      fetchInitialConversations().catch(console.error);
-    }
 
-    /* Friend-requests */
-    if (!hasLoadedFriendRequests && token) {
+    if (chatSt.conversations.length === 0)
+      fetchInitialConversations().catch(console.error);
+
+    if (notifSt.friendRequests.length === 0)
       fetchAndSetFriendRequests(token);
-    }
-    
-    /* Evt. egne chat-notifikasjoner før SignalR */
+
     fetchAndSetMessageNotifications().catch(console.error);
 
-        /* Notifikasjoner (vanlige) */
-    if (!hasLoadedNotifications) {
-      fetchAndSetNotifications(1, 50).then(() =>
-        useNotificationStore.getState().setHasLoadedNotifications(true),
-      );
-    }
+    if (notifSt.notifications.length === 0)
+      fetchAndSetNotifications(1, 50);
 
-    }, [
-    token,
-    userId,
-    hasLoadedConversations,
-    hasLoadedPendingRequests,
-    hasLoadedUnreadConversationIds,
-    hasLoadedFriendRequests,
-    hasLoadedNotifications,
-  ]);
+  }, [token, userId]);
 
   return null;
 }

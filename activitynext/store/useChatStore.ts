@@ -12,6 +12,7 @@ type ChatStore = {
   currentConversationId: number | null;
   setCurrentConversationId: (id: number | null) => void;
   setConversations: (conversations: ConversationDTO[]) => void;
+  conversationIds: Set<number>;
   addMessage: (message: MessageDTO) => void;
   clearLiveMessages: (conversationId: number) => void;
   updateConversationTimestamp: (conversationId: number, timestamp: string) => void;
@@ -72,6 +73,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   isAtBottom: true,
   showNewMessageButton: false,
   scrollToMessageId: null,
+  conversationIds: new Set<number>(),
   setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
   setShowNewMessageButton: (value: boolean) => set({ showNewMessageButton: value }),
   setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
@@ -156,6 +158,7 @@ export const useChatStore = create<ChatStore>((set) => ({
         new Date(b.lastMessageSentAt ?? 0).getTime() -
         new Date(a.lastMessageSentAt ?? 0).getTime()
     ),
+      conversationIds: new Set(conversations.map(c => c.id)),
   })),
   // Brukes for å åpne dropdown og gå til samtalen ved en notifikasjon
   openConversation: (conversationId: number) => {
@@ -269,7 +272,7 @@ export const useChatStore = create<ChatStore>((set) => ({
             new Date(a.lastMessageSentAt ?? 0).getTime()
         );
 
-        return { conversations: updated };
+        return { conversations: updated, conversationIds: new Set(updated.map(c => c.id)) };
       }),
 
       updateConversationTimestamp: (conversationId: number, timestamp: string) =>

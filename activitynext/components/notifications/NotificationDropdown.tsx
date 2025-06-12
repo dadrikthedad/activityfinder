@@ -3,29 +3,26 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useEffect } from "react";
 
-import { useAuth } from "@/context/AuthContext";
 import { useDropdown } from "@/context/DropdownContext";
 import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
 
-import { respondToInvitation } from "@/services/friendInvitations/respondToInvitation";
+import FriendRequestButtons from "../friends/FriendRequestButtons";
 
 import { useNotificationStore } from "@/store/useNotificationStore";
 
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import type { NotificationDTO } from "@/types/NotificationEventDTO";
+import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
 
 
 export default function NotificationDropdown({ onClose }: { onClose: () => void }) {
   /* ---------- data fra store ---------- */
   const invitations         = useNotificationStore((s) => s.friendRequests);
   const notifications       = useNotificationStore((s) => s.notifications);
-  const removeFriendRequest = useNotificationStore((s) => s.removeFriendRequest);
+  const { handleResponse, handlingId } = useFriendRequestHandler();
 
-  /* ---------- øvrig UI-state ---------- */
-  const { token } = useAuth();
-  const [handlingRequest, setHandlingRequest] = useState<number | null>(null);
 
   const dropdownContext = useDropdown();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -44,20 +41,6 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
     return () => dropdownContext.unregister(idRef.current);
   }, [dropdownContext, onClose]);       
 
-  /* ---------- håndter svar på venneforespørsel ---------- */
-  const handleResponse = async (
-    id: number,
-    action: "accept" | "decline",
-  ) => {
-    if (!token) return;
-    setHandlingRequest(id);
-    try {
-      await respondToInvitation(id, action, token);
-      removeFriendRequest(id); // fjern fra store
-    } finally {
-      setHandlingRequest(null);
-    }
-  };
 
   /* ---------- RENDER ---------- */
   return (
@@ -103,20 +86,12 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
               </Link>
 
               <div className="flex gap-1">
-                <ProfileNavButton
-                  text="✔"
-                  onClick={() => handleResponse(invite.id, "accept")}
-                  disabled={handlingRequest === invite.id}
-                  variant="smallx"
-                  className="bg-green-600 hover:bg-green-700 text-white text-lg font-bold flex items-center justify-center"
-                />
-
-                <ProfileNavButton
-                  text="✖"
-                  onClick={() => handleResponse(invite.id, "decline")}
-                  disabled={handlingRequest === invite.id}
-                  variant="smallx"
-                  className="bg-gray-500 hover:bg-gray-600 text-white text-lg font-bold flex items-center justify-center"
+                <FriendRequestButtons
+                  requestId={invite.id}
+                  isLoading={handlingId === invite.id}
+                  onRespond={handleResponse}
+                  variant="icons"
+                  size="smallx"
                 />
               </div>
             </li>
@@ -146,7 +121,7 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
       {/* -------- Vanlige notifikasjoner -------- */}
       <ul className="space-y-2">
         {notifications
-          .filter((n) => n.type !== "FriendRequest")
+          .filter((n) => n.type !== "FriendInvitation")
           .map((n: NotificationDTO) => (
             <li key={n.id}>
               <div
@@ -164,7 +139,7 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
                 ) : (
                   "Someone"
                 )}
-                {n.type === "FriendRequestAccepted"
+                {n.type === "FriendInvAccepted"
                   ? " accepted your friend request."
                   : " sent you a notification."}
               </div>

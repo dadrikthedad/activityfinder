@@ -86,9 +86,9 @@ export default function NotificationsPage() {
               <div className="truncate">
                 <p className="text-lg font-semibold truncate">
                   {n.relatedUser?.fullName ?? "Someone"}{" "}
-                  {n.type === "FriendRequest"
+                  {n.type === "FriendInvitation"
                     ? "wants to be your friend."
-                    : n.type === "FriendRequestAccepted"
+                    : n.type === "FriendInvAccepted"
                     ? "accepted your friend request."
                     : `sent a ${n.type}`}
                 </p>
@@ -98,7 +98,7 @@ export default function NotificationsPage() {
               </div>
             </div>
 
-            {n.type === "FriendRequest" && (
+            {n.type === "FriendInvitation" && (
               <ProfileNavButton
                 text="View Requests"
                 href="/friends"
