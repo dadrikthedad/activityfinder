@@ -23,26 +23,31 @@ public class FriendsController : ControllerBase
 
     // GET: Hent alle venner for innlogget bruker, brukes i Friends og skal senere brukes i profilsiden
     [HttpGet]
-    public async Task<ActionResult<List<FriendDTO>>> GetFriends()
+    public async Task<ActionResult<object>> GetFriends(int pageNumber = 1, int pageSize = 30)
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             return Unauthorized(new { message = "Invalid user ID in token." });
-        
 
-        var friends = await _context.Friends
-            .Include(f => f.User)
-            .ThenInclude(u => u.Profile)
-            .Include(f => f.FriendUser)
-            .ThenInclude(u => u.Profile)
+        if (pageNumber <= 0 || pageSize <= 0)
+            return BadRequest(new { message = "Page number and size must be greater than zero." });
+
+        var query = _context.Friends
+            .Include(f => f.User).ThenInclude(u => u.Profile)
+            .Include(f => f.FriendUser).ThenInclude(u => u.Profile)
             .AsNoTracking()
-            .Where(f => f.UserId == userId || f.FriendId == userId)
+            .Where(f => f.UserId == userId || f.FriendId == userId);
+
+        var totalCount = await query.CountAsync();
+
+        var paginatedFriends = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(f => new FriendDTO
             {
                 CurrentUserId = userId,
                 CreatedAt = f.CreatedAt,
                 UserToFriendUserScore = f.UserId == userId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
                 FriendUserToUserScore = f.UserId == userId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
-
                 Friend = f.UserId == userId
                     ? new UserSummaryDTO
                     {
@@ -58,8 +63,14 @@ public class FriendsController : ControllerBase
                     }
             })
             .ToListAsync();
-        
-        return Ok(friends);
+
+        return Ok(new
+        {
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            Data = paginatedFriends
+        });
     }
     
     // Henter venner til annen bruker
