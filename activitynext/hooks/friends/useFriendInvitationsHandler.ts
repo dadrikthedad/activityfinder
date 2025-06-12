@@ -1,3 +1,4 @@
+// håndterer det som skjer etter en venneforespørsel er godkjent
 import { useState } from "react";
 import { respondToInvitation } from "@/services/friendInvitations/respondToInvitation";
 import { useNotificationStore } from "@/store/useNotificationStore";

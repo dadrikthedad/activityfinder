@@ -1,23 +1,50 @@
 // Dette er venneinvitasjonsdelen på friends siden. Håndterer iterasjonen over listen med venneforespørsler. TODO: Må begrense den senere til kun 10 forespørsler per side, kanskje.
 // Henter venneforespørsler fra backened og det er her vi kan godta og avslå den
 "use client";
-import { useNotificationStore } from "@/store/useNotificationStore";
 import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
 import FriendRequestButtons from "./FriendRequestButtons";
 import UserActionPopover from "@/components/common/UserActionPopover";
 import Card from "@/components/common/Card";
+import { useFriendInvitations } from "@/hooks/useFriendInvitations";
+import { useNotificationStore } from "@/store/useNotificationStore";
+import { useEffect } from "react";
+import ProfileNavButton from "../settings/ProfileNavButton";
+import Spinner from "../common/Spinner";
 
 export default function FriendInvitations() {
   /* ---------- data fra zustand ---------- */
-  const friendRequests = useNotificationStore((s) => s.friendRequests);
-  const hasLoaded = useNotificationStore((s) => s.hasLoadedFriendRequests);
+
+    const {
+      invitations,
+      loadMore,
+      hasMore,
+      loadingMore,
+      loading,
+      addInvitation,
+    } = useFriendInvitations();
+    const friendRequestsStore = useNotificationStore((s) => s.friendRequests);
+
+    useEffect(() => {
+      for (const fr of friendRequestsStore) {
+        addInvitation(fr); // legg til i local hvis ny
+      }
+    }, [friendRequestsStore]);
+
 
   /* ---------- API-kall + lokal oppdatering ---------- */
   const { handleResponse, handlingId } = useFriendRequestHandler();
 
   /* ---------- tom- / laste-tilstand ---------- */
-  if (!hasLoaded) return <p>Loading requests...</p>;
-  if (friendRequests.length === 0) return null;
+  const isLoadingInitial = loading;
+
+  if (isLoadingInitial)
+  return (
+    <div className="py-10 flex justify-center">
+      <Spinner size={40} borderSize={4} text="Loading friendrequests..." />
+    </div>
+  );
+  if (invitations.length === 0) return null;
+
 
   /* ---------- render ---------- */
   return (
@@ -27,7 +54,7 @@ export default function FriendInvitations() {
       </h2>
 
       <ul className="space-y-6">
-        {friendRequests.map((invite) => (
+        {invitations.map((invite) => (
           <li key={invite.id}>
             <Card className="flex justify-between items-center gap-6 w-full p-6">
               {invite.userSummary && (
@@ -56,6 +83,25 @@ export default function FriendInvitations() {
           </li>
         ))}
       </ul>
+
+        {hasMore && (
+        <div className="mt-6 text-center">
+          <ProfileNavButton
+            text={
+              loadingMore ? (
+                <Spinner size={20} borderSize={3} />
+              ) : (
+                "Show more friend requests"
+              )
+            }
+            onClick={loadMore}
+            disabled={loadingMore}
+            variant="long"
+          />
+        </div>
+      )}
+
+
     </section>
   );
 }

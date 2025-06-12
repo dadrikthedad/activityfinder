@@ -12,3 +12,10 @@ export interface FriendInvitationDTO {
   status: "pending" | "accepted" | "declined";
   sentAt: string;
 }
+
+export interface PaginatedFriendInvResponse<T> {
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  data: T[];
+}

@@ -22,6 +22,7 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
   const invitations         = useNotificationStore((s) => s.friendRequests);
   const notifications       = useNotificationStore((s) => s.notifications);
   const { handleResponse, handlingId } = useFriendRequestHandler();
+  const totalFriendRequests = useNotificationStore((s) => s.friendRequestTotalCount);
 
 
   const dropdownContext = useDropdown();
@@ -46,7 +47,7 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
   return (
     <div
       ref={containerRef}
-      className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C]"
+      className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C] custom-scrollbar"
     >
       <h4 className="text-lg font-semibold mb-2 text-center">
         Notifications
@@ -97,10 +98,10 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
             </li>
           ))}
 
-          {invitations.length > 3 && (
+          {totalFriendRequests > 3 && (
             <>
               <li className="text-sm text-gray-500 text-center mt-1">
-                You have {invitations.length} total friend requests
+                You have {totalFriendRequests} total friend requests
               </li>
               <li className="text-center mt-2">
                 <ProfileNavButton

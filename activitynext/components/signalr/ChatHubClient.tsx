@@ -31,25 +31,34 @@ export default function ChatHubClient() {
     const { syncPendingConversation } = usePendingConversationSync();
 
     const ensureConversationExists = async (conversationId: number) => {
-      const { conversationIds } = useChatStore.getState();
-      
-      // O(1) lookup i stedet for O(n)
+      const { conversationIds, pendingMessageRequests } = useChatStore.getState();
+
+      // Sjekk om samtalen allerede finnes
       if (conversationIds.has(conversationId)) {
-          return;
+        return;
       }
-        
-        console.log(`🔍 Samtale ${conversationId} finnes ikke i listen, henter den...`);
-        
-        try {
-            // Hent samtalen fra backend
-            const conversation = await getConversationById(conversationId);
-            if (conversation) {
-                addConversation(conversation);
-                console.log(`✅ Samtale ${conversationId} lagt til i listen`);
-            }
-        } catch (error) {
-            console.error(`❌ Kunne ikke hente samtale ${conversationId}:`, error);
+
+      // Sjekk om samtalen er i pending-listen
+      const isPending = pendingMessageRequests.some(
+        (request) => request.conversationId === conversationId
+      );
+
+      if (isPending) {
+        console.log(`⏳ Samtale ${conversationId} er allerede i pending-listen, hopper over henting`);
+        return;
+      }
+
+      console.log(`🔍 Samtale ${conversationId} finnes ikke i listen, henter den...`);
+
+      try {
+        const conversation = await getConversationById(conversationId);
+        if (conversation) {
+          addConversation(conversation);
+          console.log(`✅ Samtale ${conversationId} lagt til i listen`);
         }
+      } catch (error) {
+        console.error(`❌ Kunne ikke hente samtale ${conversationId}:`, error);
+      }
     };
     
 

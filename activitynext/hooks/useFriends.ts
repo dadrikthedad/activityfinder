@@ -5,31 +5,66 @@ import { FriendDTO } from "@/types/FriendDTO";
 import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
 import { useAuth } from "@/context/AuthContext";
 
-export function useFriends() {
+interface PaginatedFriendsResponse {
+  data: FriendDTO[];
+  pageNumber: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export function useFriends(pageSize = 30) {
   const { token } = useAuth();
   const [friends, setFriends] = useState<FriendDTO[]>([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const fetchFriends = async (page: number): Promise<PaginatedFriendsResponse | null> => {
+    try {
+      const url = `${API_BASE_URL}${API_ROUTES.friends}?pageNumber=${page}&pageSize=${pageSize}`;
+      const res = await fetchWithAuth<PaginatedFriendsResponse>(url, {}, token ?? undefined);
+      return res;
+    } catch (err) {
+      console.error("❌ Failed to load friends:", err);
+      return null;
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
 
     const load = async () => {
-        try {
-            const data = await fetchWithAuth<FriendDTO[]>(
-              `${API_BASE_URL}${API_ROUTES.friends}`,
-              {},
-              token
-            );
-        if (data) setFriends(data);
-      } catch (err) {
-        console.error("❌ Failed to load friends:", err);
-      } finally {
-        setLoading(false);
+      setLoading(true);
+      const res = await fetchFriends(1);
+      if (res) {
+        setFriends(res.data);
+        setTotalCount(res.totalCount);
+        setPageNumber(1);
       }
+      setLoading(false);
     };
 
     load();
   }, [token]);
 
-  return { friends, loading };
+  const loadMore = async () => {
+    if (!token || loadingMore) return;
+
+    const nextPage = pageNumber + 1;
+    setLoadingMore(true);
+
+    const res = await fetchFriends(nextPage);
+    if (res) {
+      setFriends((prev) => [...prev, ...res.data]);
+      setTotalCount(res.totalCount);
+      setPageNumber(nextPage);
+    }
+
+    setLoadingMore(false);
+  };
+
+  const hasMore = friends.length < totalCount;
+
+  return { friends, loading, loadingMore, loadMore, hasMore };
 }

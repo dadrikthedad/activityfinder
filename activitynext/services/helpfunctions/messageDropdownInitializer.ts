@@ -9,7 +9,7 @@ import { getMyConversations } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
 import { getUnreadConversationIds } from "@/services/messages/messageNotificationService";
 import { useNotificationStore } from "@/store/useNotificationStore";
-import { fetchAndSetFriendRequests } from "@/hooks/friends/useFriendInvitations";
+import { fetchAndSetFriendRequests } from "@/hooks/friends/useFriendInvitationsInit";
 import { fetchAndSetNotifications } from "@/hooks/notifications/useGetNotifications";
 
 export function MessageDropdownInitializer() {

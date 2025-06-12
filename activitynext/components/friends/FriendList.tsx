@@ -5,14 +5,42 @@ import UserActionPopover from "@/components/common/UserActionPopover";
 import Card from "@/components/common/Card";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import DropdownProfileNavButton from "@/components/DropdownNavButton";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
+import Spinner from "../common/Spinner";
+
 
 export default function FriendList() {
-  const { friends, loading } = useFriends();
+  const { friends, loading, loadMore, hasMore, loadingMore } = useFriends();
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredFriends, setFilteredFriends] = useState(friends);
   const { confirmAndRemove } = useConfirmRemoveFriend();
+  const observerRef = useRef<HTMLDivElement>(null);
+
+  const handleLoadMore = useCallback(() => {
+    if (hasMore && !loadingMore) {
+      loadMore();
+    }
+  }, [hasMore, loadingMore, loadMore]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+
+    const current = observerRef.current;
+    if (current) observer.observe(current);
+
+    return () => {
+      if (current) observer.unobserve(current);
+    };
+  }, [handleLoadMore]);
+
 //Her iterere vi over hver venn og legger det til en venneliste. Og da når vi sletter en venn så fjernes den i UI-en samt backend
   useEffect(() => {
     setFilteredFriends(
@@ -22,7 +50,12 @@ export default function FriendList() {
     );
   }, [searchTerm, friends]);
 
-  if (loading) return <p>Loading friends...</p>;
+  if (loading)
+    return (
+      <div className="py-10 flex justify-center">
+        <Spinner size={40} borderSize={4} text="Loading friendlist..." />
+      </div>
+    );
   if (friends.length === 0) return <p>You have no friends yet</p>;
 
   return (
@@ -92,6 +125,11 @@ export default function FriendList() {
         </li>
       ))}
     </ul>
+    {hasMore && (
+      <div ref={observerRef} className="h-10 w-full flex justify-center items-center">
+        {loadingMore && <Spinner size={20} borderSize={3} />}
+      </div>
+    )}
     </>
   );
 }

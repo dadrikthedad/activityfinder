@@ -8,12 +8,13 @@ import { useNotificationStore } from "@/store/useNotificationStore";
  */
 export async function fetchAndSetFriendRequests(token: string) {
   try {
-    const data = await getFriendInvitations(token);
-    console.log("🤝 Friend requests fetched:", data?.length ?? 0);
+    const response = await getFriendInvitations(token, 1, 10); // henter side 1 med 10 invitasjoner
+    console.log("🤝 Friend requests fetched:", response.data.length);
 
     // legg i store
     const store = useNotificationStore.getState();
-    store.setFriendRequests(data ?? []);
+    store.setFriendRequests(response.data ?? []);
+    store.setFriendRequestTotalCount(response.totalCount);
     store.setHasLoadedFriendRequests(true);
   } catch (err) {
     console.error("❌ Failed to load friend requests:", err);

@@ -6,7 +6,7 @@ export default function FriendsPage() {
   return (
     <div className="flex flex-col items-center justify-start min-h-screen px-6 py-12 text-center bg-white dark:bg-black">
 
-      <section className="w-full max-w-5xl">
+      <section className="w-full max-w-5xl custom-scrollbar">
         <FriendInvitations />
       </section>
 

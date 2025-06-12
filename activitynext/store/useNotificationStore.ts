@@ -28,6 +28,10 @@ interface NotificationState {
   setHasLoadedFriendRequests: (b: boolean) => void;
   setHasLoadedNotifications:   (b: boolean) => void; 
 
+  // Teller antall forespørsler for vis i dropdown
+  friendRequestTotalCount: number;
+  setFriendRequestTotalCount: (count: number) => void;
+
   // Slett notifikasjoner
     clearNotifications: () => void;  
 
@@ -47,6 +51,8 @@ export const useNotificationStore = create<NotificationState>()(
       friendRequests: [],
       hasLoadedFriendRequests: false,
       hasLoadedNotifications:  false,
+      friendRequestTotalCount: 0,
+      setFriendRequestTotalCount: (count) => set({ friendRequestTotalCount: count }),
 
 
       // --- setters ---
@@ -100,6 +106,7 @@ export const useNotificationStore = create<NotificationState>()(
             friendRequests: [],
             hasLoadedFriendRequests: false,   // ⬅︎ beholder
             hasLoadedNotifications:  false,   // ⬅︎ legg til
+            friendRequestTotalCount: 0,
         }),
     })),
     {
@@ -116,6 +123,7 @@ export const useNotificationStore = create<NotificationState>()(
         friendRequests: state.friendRequests.slice(0, 100),
         hasLoadedFriendRequests: state.hasLoadedFriendRequests,
         hasLoadedNotifications:  state.hasLoadedNotifications,
+        friendRequestTotalCount: state.friendRequestTotalCount, 
       }),
 
       version: 1,

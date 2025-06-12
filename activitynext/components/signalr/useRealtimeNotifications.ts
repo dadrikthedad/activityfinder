@@ -14,6 +14,8 @@ export function useRealtimeNotifications() {
   const addNotification   = useNotificationStore((s) => s.addNotification);
   const addFriendRequest  = useNotificationStore((s) => s.addFriendRequest);
   const notificationsRef  = useNotificationStore((s) => s.notifications);
+  const setFriendRequestTotalCount = useNotificationStore((s) => s.setFriendRequestTotalCount);
+  const friendRequestTotalCount = useNotificationStore((s) => s.friendRequestTotalCount);
 
    useNotificationHub({
     onReceive: async (evt: NotificationDTO) => {
@@ -22,7 +24,11 @@ export function useRealtimeNotifications() {
         if (evt.type === "FriendInvitation") {
           if (!token || !evt.friendInvitationId) return;
           const fr = await getFriendInvitationById(evt.friendInvitationId, token);
-          if (fr) addFriendRequest(fr);
+          addNotification(evt);
+          if (fr) {
+            addFriendRequest(fr);
+            setFriendRequestTotalCount(friendRequestTotalCount + 1); // ✅ Øk total
+          }
           return;
         }
 
