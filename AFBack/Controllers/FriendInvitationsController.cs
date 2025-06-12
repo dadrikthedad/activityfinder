@@ -20,13 +20,15 @@ public class FriendInvitationsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly IHubContext<NotificationHub> _hubContext;
+    private readonly SendMessageCache       _msgCache;  
     
 
-    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<NotificationHub> hubContext)
+    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<NotificationHub> hubContext,  SendMessageCache msgCache)
     {
         _context = context;
         _notificationService = notificationService;
         _hubContext = hubContext;
+        _msgCache            = msgCache;
     }
 
     // POST: Send venneforespørsel
@@ -186,6 +188,9 @@ public class FriendInvitationsController : ControllerBase
         };
 
         _context.Friends.Add(newFriend);
+        
+        // 🆕   FJERN eventuelle “false” fra cachen før vi committer
+        _msgCache.InvalidateFriend(invitation.SenderId, invitation.ReceiverId);
         
         // Sjekk om det allerede finnes en meldingsforespørsel
         var existingMessageRequest = await _context.MessageRequests

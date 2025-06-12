@@ -169,6 +169,10 @@ builder.Services.AddScoped<IReactionService, ReactionService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddSingleton<IUserIdProvider, CustomUserIdProvider>();
 builder.Services.AddScoped<MessageNotificationService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<SendMessageCache>();
+builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
+builder.Services.AddHostedService<QueuedHostedService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
