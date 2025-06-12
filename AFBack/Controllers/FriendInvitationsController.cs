@@ -108,22 +108,38 @@ public class FriendInvitationsController : ControllerBase
 
     /* ---------- HENT ALLE (eksisterende) ---------- */
     [HttpGet("received")]
-    public async Task<ActionResult<List<FriendInvitationDTO>>> GetReceivedInvitations()
+    public async Task<ActionResult<List<FriendInvitationDTO>>> GetReceivedInvitations(
+        int pageNumber = 1, int pageSize = 10)
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             return Unauthorized(new { message = "Invalid user ID in token." });
 
-        // 1) hent fra databasen
-        var dbList = await _context.FriendInvitations
+        if (pageNumber <= 0 || pageSize <= 0)
+            return BadRequest(new { message = "Page number and size must be greater than zero." });
+
+        var query = _context.FriendInvitations
             .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
             .Include(i => i.Sender).ThenInclude(u => u.Profile)
-            .AsNoTracking()
-            .ToListAsync();                       // nå funker ToListAsync()
+            .OrderByDescending(i => i.SentAt)
+            .AsNoTracking();
 
-        // 2) projiser til DTO på klientsiden
-        var dtoList = dbList.Select(ToDto).ToList(); // OK for EF Core ≥ 3
+        var totalCount = await query.CountAsync();
+        var dbList = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
 
-        return Ok(dtoList);
+        var dtoList = dbList.Select(ToDto).ToList();
+
+        var response = new
+        {
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            Data = dtoList
+        };
+
+        return Ok(response);
     }
 
     /* ---------- Felles DTO-mapping ---------- */
