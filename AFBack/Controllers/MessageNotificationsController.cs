@@ -44,8 +44,32 @@ public class MessageNotificationsController : ControllerBase
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
+        
+        // 👇 Samle conversationId-er fra notificationene
+        var conversationIds = notifications
+            .Where(n => n.ConversationId.HasValue)
+            .Select(n => n.ConversationId!.Value)
+            .Distinct()
+            .ToList();
+        
+        // 👇 Slå opp alle rejected MessageRequests én gang
+        var rejectedConversations = await _context.MessageRequests
+            .Where(r =>
+                conversationIds.Contains(r.ConversationId!.Value) &&
+                r.ReceiverId == userId &&
+                r.IsRejected)
+            .Select(r => r.ConversationId!.Value)
+            .Distinct()
+            .ToListAsync();
+        
+        // 👇 Gjør om til HashSet for raskt oppslag
+        var rejectedConversationSet = new HashSet<int>(rejectedConversations);
 
-        var dtoList = notifications.Select(_notificationService.MapToDTO).ToList();
+
+        // 👇 Lag DTO-liste med status
+        var dtoList = notifications
+            .Select(n => _notificationService.MapToDTO(n, rejectedConversationSet))
+            .ToList();
 
         return Ok(new
         {
@@ -57,23 +81,24 @@ public class MessageNotificationsController : ControllerBase
         });
     }
     
-    // Henter alle uleste notifications
-    [HttpGet("unread")]
-    public async Task<IActionResult> GetUnreadNotifications()
-    {
-        var userId = GetUserId();
-
-        var unreadNotifications = await _context.MessageNotifications
-            .Where(n => n.UserId == userId && !n.IsRead)
-            .Include(n => n.FromUser)
-            .Include(n => n.Message)
-            .Include(n => n.Conversation)
-            .OrderByDescending(n => n.CreatedAt)
-            .ToListAsync();
-
-        var dtoList = unreadNotifications.Select(_notificationService.MapToDTO).ToList();
-        return Ok(dtoList);
-    }
+    // Brukes denne?
+    // // Henter alle uleste notifications
+    // [HttpGet("unread")]
+    // public async Task<IActionResult> GetUnreadNotifications()
+    // {
+    //     var userId = GetUserId();
+    //
+    //     var unreadNotifications = await _context.MessageNotifications
+    //         .Where(n => n.UserId == userId && !n.IsRead)
+    //         .Include(n => n.FromUser)
+    //         .Include(n => n.Message)
+    //         .Include(n => n.Conversation)
+    //         .OrderByDescending(n => n.CreatedAt)
+    //         .ToListAsync();
+    //
+    //     var dtoList = unreadNotifications.Select(_notificationService.MapToDTO).ToList();
+    //     return Ok(dtoList);
+    // }
     
     // Henter alle samtaler hvor vi har uleste notifikasjoner
     [HttpGet("unread-conversations")]

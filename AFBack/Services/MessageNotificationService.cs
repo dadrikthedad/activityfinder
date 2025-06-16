@@ -165,43 +165,38 @@ public class MessageNotificationService
         return MapToDTO(created!);
     }
     
-    public MessageNotificationDTO MapToDTO(MessageNotification n)
+    public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null)
     {
         string preview;
-        var messageCount = 0;
+        var messageCount = n.MessageCount ?? 0;
 
-        if (n.Type == NotificationType.MessageRequestApproved)
+        switch (n.Type)
         {
-            // Skriv ut "{godkjennerens navn} has approved your message request"
-            preview = $"approved your message request";
-        }
-        else if (n.Type == NotificationType.MessageRequest)
-        {
-            preview = "requested to message you";
-        }
-        else if (n.Type == NotificationType.MessageReaction)
-        {
-            preview = n.Message?.Text?.Length > 40
-                ? n.Message.Text.Substring(0, 40) + "..."
-                : n.Message?.Text ?? "";
-        }
-        else if (n.Type == NotificationType.NewMessage)
-        {
-            if ((n.MessageCount ?? 1) > 1)
-            {
-                preview = $"has sent you {n.MessageCount} messages";
-            }
-            else
-            {
+            case NotificationType.MessageRequestApproved:
+                preview = "approved your message request";
+                break;
+
+            case NotificationType.MessageRequest:
+                preview = "requested to message you";
+                break;
+
+            case NotificationType.MessageReaction:
                 preview = n.Message?.Text?.Length > 40
                     ? n.Message.Text.Substring(0, 40) + "..."
-                    : n.Message?.Text ?? "sent you a message";
-            }
-        }
-        else
-        {
-            // ❗ fallback – hvis du legger til nye typer senere
-            preview = "You have a new notification";
+                    : n.Message?.Text ?? "";
+                break;
+
+            case NotificationType.NewMessage:
+                preview = messageCount > 1
+                    ? $"has sent you {messageCount} messages"
+                    : n.Message?.Text?.Length > 40
+                        ? n.Message.Text.Substring(0, 40) + "..."
+                        : n.Message?.Text ?? "sent you a message";
+                break;
+
+            default:
+                preview = "You have a new notification";
+                break;
         }
 
         return new MessageNotificationDTO
@@ -221,7 +216,10 @@ public class MessageNotificationService
                 ? n.Message?.Reactions?
                     .FirstOrDefault(r => r.UserId == n.FromUserId)?.Emoji 
                 : null,
-            MessageCount = n.MessageCount
+            MessageCount = n.MessageCount,
+            IsConversationRejected = n.ConversationId.HasValue &&
+                                     rejectedConversations != null &&
+                                     rejectedConversations.Contains(n.ConversationId.Value)
         };
     }
 }

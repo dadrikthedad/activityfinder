@@ -24,4 +24,6 @@ public class MessageNotificationDTO
 
     public string? MessagePreview { get; set; } // For "Ola: Hei!"-type visninger
     public int? MessageCount { get; set; }
+    
+    public bool? IsConversationRejected { get; set; }
 }
