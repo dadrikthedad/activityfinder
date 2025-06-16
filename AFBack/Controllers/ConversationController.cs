@@ -233,7 +233,8 @@ public class ConversationsController : BaseController
                 ProfileImageUrl = p.User.Profile?.ProfileImageUrl
             }).ToList(),
             IsApproved = isApproved,
-            IsPendingApproval = isPending
+            IsPendingApproval = isPending,
+            CreatorId = conversation.CreatorId
         };
 
         return Ok(dto);
