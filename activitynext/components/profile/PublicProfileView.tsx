@@ -20,9 +20,6 @@ import { mutate } from "swr";
 import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "../messages/NewMessageModal";
 
-
-
-
 export default function PublicProfileView({
   profile: initialProfile, // Vi gir profilnavn initialProfile slik at det ikke blir forvirring mot profile
   isEditable = false,
@@ -40,6 +37,9 @@ export default function PublicProfileView({
   const { confirmAndRemove } = useConfirmRemoveFriend(); // Brukes til å slette en venn hvis vi allerede er venner
   const [friendRequestSent, setFriendRequestSent] = useState(false); // Holder styr på om vi har lagt til en bruker som en venn slik at vi ikke kan spamme brukeren med forespørsler
   const { showModal } = useModal();
+  const { userId } = useAuth()
+  const isActuallyOwner = isOwner || (userId === profile.userId);
+
 
   
   
@@ -89,7 +89,7 @@ export default function PublicProfileView({
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
       <h1 className="text-3xl font-bold mb-6 text-center text-[#145214]">
-        {isOwner ? "Your Profile" : "User Profile"}
+        {isActuallyOwner ? "Your Profile" : "User Profile"}
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
@@ -115,7 +115,7 @@ export default function PublicProfileView({
                 refetchProfile={refetchProfile}
               />
 
-          {isOwner ? (
+          {isActuallyOwner ? (
             isEditable ? (
               <>
                 <ProfileNavButton // Knapper under bilde. Disse knappene kommer hvis vi er på egen editprofil, tilbake til profil
@@ -208,13 +208,13 @@ export default function PublicProfileView({
         </div>
         
       </div>
-      {isOwner && !isEditable && (
+      {isActuallyOwner && !isEditable && (
           <div className="w-full">
             <h2 className="text-xl text-center font-semibold text-[#145214]">Your Friends</h2>
             <SimpleFriendList />
           </div>
           )}
-          {!isOwner && !isEditable && (
+          {!isActuallyOwner && !isEditable && (
           <div className="w-full mt-10">
               <h2 className="text-xl text-center font-semibold text-[#145214]">
                 Their Friends

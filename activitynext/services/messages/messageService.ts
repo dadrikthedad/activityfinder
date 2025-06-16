@@ -38,3 +38,9 @@ export async function getPendingMessageRequestById(conversationId: number): Prom
   const url = `${API_BASE_URL}/api/messages/pending/${conversationId}`;
   return await getRequest<MessageRequestDTO>(url);
 }
+
+// Avslår en meldingsforespørsel
+export async function rejectMessageRequest(senderId: number): Promise<void> {
+  const url = `${API_BASE_URL}/api/messages/reject-request`;
+  await postRequest<void, number>(url, senderId);
+}

@@ -32,6 +32,7 @@ type ChatStore = {
   pendingRequestsCacheTimestamp: number;
   setCachedPendingRequests: (requests: MessageRequestDTO[]) => void;
   removePendingRequest: (conversationId: number) => void;
+  removeConversation: (conversationId: number) => void;
   addConversation: (conversation: ConversationDTO) => void;
   setPendingLockedConversationId: (id: number | null) => void;
   pendingLockedConversationId: number | null;
@@ -79,7 +80,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
   searchMode: false,
   setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
-   setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
+  setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
   reactionsVersion: 0,
   bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
   pendingMessageRequests: [],
@@ -125,9 +126,12 @@ export const useChatStore = create<ChatStore>((set) => ({
     };
   }),
 
-  removePendingRequest: (conversationId) =>
+  removePendingRequest: (conversationId: number) =>
     set((state) => ({
       pendingMessageRequests: state.pendingMessageRequests.filter(
+        (r) => r.conversationId !== conversationId
+      ),
+      pendingRequestsCache: state.pendingRequestsCache.filter(
         (r) => r.conversationId !== conversationId
       )
     })),
@@ -290,6 +294,28 @@ export const useChatStore = create<ChatStore>((set) => ({
 
           return { conversations: updatedConversations };
         }),
+
+        // Sletter en samtale
+    removeConversation: (conversationId: number) =>
+      set((state) => ({
+        conversations: state.conversations.filter((c) => c.id !== conversationId),
+        conversationIds: new Set(
+          Array.from(state.conversationIds).filter((id) => id !== conversationId)
+        ),
+        cachedMessages: Object.fromEntries(
+          Object.entries(state.cachedMessages).filter(([id]) => +id !== conversationId)
+        ),
+        scrollPositions: Object.fromEntries(
+          Object.entries(state.scrollPositions).filter(([id]) => +id !== conversationId)
+        ),
+        cacheTimestamps: Object.fromEntries(
+          Object.entries(state.cacheTimestamps).filter(([id]) => +id !== conversationId)
+        ),
+        liveMessages: Object.fromEntries(
+          Object.entries(state.liveMessages).filter(([id]) => +id !== conversationId)
+        ),
+        unreadConversationIds: state.unreadConversationIds.filter(id => id !== conversationId),
+      })),
     
     // Rydder opp cache etter en satt tid, brukes i CacheCleanup
     cleanupOldCache: () =>

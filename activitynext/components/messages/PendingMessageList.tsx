@@ -2,11 +2,12 @@
 "use client"
 
 import { ConversationListItem } from "./ConversationListUserCard";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { useRejectMessageRequest } from "@/hooks/messages/useRejectMessageRequest";
 
 
 
@@ -25,6 +26,8 @@ const PendingRequestsList = ({
 }: PendingRequestsListProps) => {
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
+  const { reject, loading: rejecting } = useRejectMessageRequest();
+  const [rejectedStatus, setRejectedStatus] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (requests && requests.length > 0) {
@@ -76,21 +79,30 @@ const PendingRequestsList = ({
                          // 👈 naviger til samtalen etterpå
                         }
                     }}
-                    disabled={approving}
+                    disabled={approving || rejecting}
                     variant="smallx"
                     className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white text-lg font-bold flex items-center justify-center"
                 />
                 <ProfileNavButton
                     text="✖"
-                    onClick={() => {
-                    console.log("Avslo melding fra:", r.senderId);
-                    // TODO: Legg til faktisk funksjon for å avslå
+                    onClick={async () => {
+                      if (r.conversationId !== null && r.conversationId !== undefined) {
+                        setRejectedStatus((prev) => ({ ...prev, [r.conversationId!]: true }));
+
+                        setTimeout(async () => {
+                          await reject(r.senderId, r.conversationId!);
+                          // Fjernes først nå, etter at beskjeden fikk vises
+                        }, 2000);
+                      }
                     }}
-                    disabled={approving}
+                    disabled={approving || rejecting}
                     variant="smallx"
                     className="bg-gray-500 hover:bg-gray-600 text-white text-lg font-bold flex items-center justify-center"
                 /> 
                 </div>
+                {rejectedStatus[r.conversationId ?? -1] && (
+                  <p className="text-sm text-gray-500 mt-1 ml-1 animate-fade-out">You rejected the message request</p>
+                )}
           </li>
         ))}
       </ul>

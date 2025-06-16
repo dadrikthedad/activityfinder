@@ -52,6 +52,14 @@ export async function searchConversations(query: string): Promise<ConversationDT
   return await fetchWithAuth<ConversationDTO[]>(url);
 }
 
+// Henter samtaler som er avslått av mottakeren
+export async function getRejectedConversations(): Promise<ConversationDTO[] | null> {
+  const url = `${API_BASE_URL}/api/conversations/rejected`;
+
+  console.log("🔵 Henter avslåtte samtaler:", url);
+
+  return await fetchWithAuth<ConversationDTO[]>(url);
+}
 
 
 

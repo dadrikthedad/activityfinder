@@ -56,7 +56,7 @@ public class MessageService : IMessageService
             {
                 return new MessageResponseDTO
                 {
-                    Text = "You have rejected the message request. Accept the message request to start sending messages.",
+                    Text = "Your message request is waiting approval.",
                     ConversationId = conversation.Id,
                     SenderId = senderId
                 };
@@ -66,7 +66,7 @@ public class MessageService : IMessageService
             {
                 return new MessageResponseDTO
                 {
-                    Text = "Your message request is waiting approval.",
+                    Text = "You have rejected the message request. Accept the message request to start sending messages.",
                     ConversationId = conversation.Id,
                     SenderId = senderId
                 };

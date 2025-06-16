@@ -8,6 +8,7 @@ import { UserSummaryDTO } from "./UserSummaryDTO";
     lastMessageSentAt?: string;
     participants: UserSummaryDTO[];
     isPendingApproval: boolean;
+    isApproved?: boolean;
   }
   
   export interface PagedConversationsResponseDTO {
