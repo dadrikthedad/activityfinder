@@ -17,6 +17,8 @@ import { useSendFriendInvitation } from "@/hooks/useSendFriendInvitation";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import PublicSimpleFriendList from "@/components/friends/PublicSimpleFriendList";
 import { mutate } from "swr";
+import { useModal } from "@/context/ModalContext";
+import NewMessageModal from "../messages/NewMessageModal";
 
 
 
@@ -37,6 +39,7 @@ export default function PublicProfileView({
   const { sendInvitation, sending, error } = useSendFriendInvitation(); // Brukes til å sende en venneinvitasjon
   const { confirmAndRemove } = useConfirmRemoveFriend(); // Brukes til å slette en venn hvis vi allerede er venner
   const [friendRequestSent, setFriendRequestSent] = useState(false); // Holder styr på om vi har lagt til en bruker som en venn slik at vi ikke kan spamme brukeren med forespørsler
+  const { showModal } = useModal();
 
   
   
@@ -144,8 +147,12 @@ export default function PublicProfileView({
             <>
              {isFriend ? (
                   <>
-                    <ProfileNavButton // Sende melding, spiller ingen rolle om man er venn eller ikke MÅ ENDRES SENRE SENDE MELDING
-                      href="#"
+                    <ProfileNavButton
+                      onClick={() => showModal(<NewMessageModal initialReceiver={{
+                        id: profile.userId,
+                        fullName: profile.fullName ?? "",
+                        profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
+                      }} />)}
                       text="Send Message"
                       variant="long"
                     />
@@ -174,11 +181,15 @@ export default function PublicProfileView({
                         }
                         variant="long"
                       />
-                  <ProfileNavButton // Sende melding
-                    href="#"
-                    text="Send Message"
-                    variant="long"
-                  />
+                  <ProfileNavButton
+                      onClick={() => showModal(<NewMessageModal initialReceiver={{
+                        id: profile.userId,
+                        fullName: profile.fullName ?? "",
+                        profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
+                      }} />)}
+                      text="Send Message"
+                      variant="long"
+                    />
                   <ProfileNavButton // Følge bruker, MÅ ENDRES SENERE. VED FØLGING
                     href="#"
                     text="Follow User"
