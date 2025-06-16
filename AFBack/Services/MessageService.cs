@@ -354,6 +354,8 @@ public class MessageService : IMessageService
             .SendAsync("MessageRequestApproved", notification);
     }
 
+  
+
     // Søke etter meldinger til en samtale
     public async Task<List<MessageResponseDTO>> SearchMessagesInConversationAsync(int conversationId, int userId,
         string query, int skip = 0, int take = 50)
@@ -396,191 +398,7 @@ public class MessageService : IMessageService
 
         return messages.Select(MapToResponseForMessagesToConv).ToList();
     }
-
-
-    // Avslår meldinger fra en bruker og sletter forespørsel samt blokkerer sender fra å sende flere meldinger
-    public async Task DeclineMessageRequestAsync(int receiverId, int senderId)
-    {
-        // 1. Finn forespørselen
-        var request = await _context.MessageRequests
-            .FirstOrDefaultAsync(r => r.SenderId == senderId && r.ReceiverId == receiverId);
-
-        if (request == null)
-            throw new Exception("Ingen meldingsforespørsel funnet.");
-
-        // 2. Slett forespørselen
-        _context.MessageRequests.Remove(request);
-
-        // 3. Blokker senderen fra å sende flere meldinger
-        var alreadyBlocked = await _context.MessageBlocks
-            .AnyAsync(b => b.BlockerId == receiverId && b.BlockedUserId == senderId);
-
-        if (!alreadyBlocked)
-        {
-            _context.MessageBlocks.Add(new MessageBlock
-            {
-                BlockerId = receiverId,
-                BlockedUserId = senderId,
-                BlockedAt = DateTime.UtcNow
-            });
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    // Askeptere gruppeinvitasjoner
-    public async Task AcceptGroupInviteAsync(int userId, int conversationId)
-    {
-        var invite = await _context.GroupInviteRequests
-            .FirstOrDefaultAsync(i => i.InvitedUserId == userId && i.ConversationId == conversationId && !i.IsAccepted);
-
-        if (invite == null)
-            throw new Exception("Ingen gyldig invitasjon funnet.");
-
-        invite.IsAccepted = true;
-
-        var alreadyParticipant = await _context.ConversationParticipants
-            .AnyAsync(p => p.ConversationId == conversationId && p.UserId == userId);
-
-        if (!alreadyParticipant)
-        {
-            _context.ConversationParticipants.Add(new ConversationParticipant
-            {
-                ConversationId = conversationId,
-                UserId = userId
-            });
-        }
-
-        await _context.SaveChangesAsync();
-
-        // 🔄 Send systemmelding via eksisterende logikk
-        var user = await _context.Users
-            .Include(u => u.Profile)
-            .FirstOrDefaultAsync(u => u.Id == userId);
-
-        if (user != null)
-        {
-            var systemMessage = $"{user.FullName} joined the group.";
-
-            await SendMessageAsync(invite.InviterId, new SendMessageRequestDTO
-            {
-                ConversationId = conversationId,
-                Text = systemMessage,
-                Attachments = null
-            });
-        }
-    }
-
-    // Avslå en gruppeinvitasjon
-    public async Task DeclineGroupInviteAsync(int userId, int conversationId)
-    {
-        var invite = await _context.GroupInviteRequests
-            .FirstOrDefaultAsync(r => r.InvitedUserId == userId && r.ConversationId == conversationId && !r.IsAccepted);
-
-        if (invite == null)
-            throw new Exception("Ingen gruppeinvitasjon funnet.");
-
-        _context.GroupInviteRequests.Remove(invite);
-
-        // ✅ Blokker fremtidige invitasjoner fra denne gruppen
-        var alreadyBlocked = await _context.GroupBlocks
-            .AnyAsync(b => b.UserId == userId && b.ConversationId == conversationId);
-
-        if (!alreadyBlocked)
-        {
-            _context.GroupBlocks.Add(new GroupBlock
-            {
-                UserId = userId,
-                ConversationId = conversationId
-            });
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    // Unblokke en bruker
-    public async Task<bool> UnblockUserAsync(int blockerId, int blockedUserId)
-    {
-        var block = await _context.MessageBlocks
-            .FirstOrDefaultAsync(b => b.BlockerId == blockerId && b.BlockedUserId == blockedUserId);
-
-        if (block == null)
-            return false;
-
-        _context.MessageBlocks.Remove(block);
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    // Henter alle blokkerte brukere
-    public async Task<List<BlockedUserDTO>> GetBlockedUsersAsync(int userId)
-    {
-        var blocked = await _context.MessageBlocks
-            .Where(b => b.BlockerId == userId)
-            .Include(b => b.BlockedUser)
-            .ThenInclude(u => u.Profile)
-            .Select(b => new BlockedUserDTO
-            {
-                Id = b.BlockedUser.Id,
-                FullName = b.BlockedUser.FullName,
-                ProfileImageUrl = b.BlockedUser.Profile != null ? b.BlockedUser.Profile.ProfileImageUrl : null,
-                BlockedAt = b.BlockedAt
-            })
-            .ToListAsync();
-
-        return blocked;
-    }
-
-    // Blokkere en bruker
-    public async Task<bool> BlockUserAsync(int blockerId, int blockedUserId)
-    {
-        if (blockerId == blockedUserId)
-            throw new InvalidOperationException("Du kan ikke blokkere deg selv.");
-
-        var alreadyBlocked = await _context.MessageBlocks
-            .AnyAsync(b => b.BlockerId == blockerId && b.BlockedUserId == blockedUserId);
-
-        if (alreadyBlocked)
-            return false;
-
-        _context.MessageBlocks.Add(new MessageBlock
-        {
-            BlockerId = blockerId,
-            BlockedUserId = blockedUserId
-        });
-
-        await _context.SaveChangesAsync();
-        return true;
-    }
-
-    // Henter alle blokkerte grupper til en bruker
-    public async Task<List<BlockedGroupDTO>> GetBlockedGroupsAsync(int userId)
-    {
-        var blocked = await _context.GroupBlocks
-            .Where(b => b.UserId == userId)
-            .Include(b => b.Conversation)
-            .ToListAsync();
-
-        return blocked.Select(b => new BlockedGroupDTO
-        {
-            ConversationId = b.ConversationId,
-            GroupName = b.Conversation.GroupName ?? "(Ukjent gruppe)",
-            BlockedAt = b.BlockedAt
-        }).ToList();
-    }
-
-    // Unblokker en gruppe
-    public async Task UnblockGroupAsync(int userId, int conversationId)
-    {
-        var block = await _context.GroupBlocks
-            .FirstOrDefaultAsync(b => b.UserId == userId && b.ConversationId == conversationId);
-
-        if (block == null)
-            throw new Exception("Blokkeringen ble ikke funnet.");
-
-        _context.GroupBlocks.Remove(block);
-        await _context.SaveChangesAsync();
-    }
+    
     
     // Slette meldinger
     public async Task SoftDeleteMessageAsync(int messageId, int userId)
@@ -588,18 +406,173 @@ public class MessageService : IMessageService
         var message = await _context.Messages.FindAsync(messageId);
         if (message == null)
             throw new KeyNotFoundException("Meldingen finnes ikke.");
-
+    
         if (message.SenderId != userId)
             throw new UnauthorizedAccessException("Du kan bare slette dine egne meldinger.");
-
+    
         message.IsDeleted = true;
         await _context.SaveChangesAsync();
     }
+    
+    // // Askeptere gruppeinvitasjoner
+    // public async Task AcceptGroupInviteAsync(int userId, int conversationId)
+    // {
+    //     var invite = await _context.GroupInviteRequests
+    //         .FirstOrDefaultAsync(i => i.InvitedUserId == userId && i.ConversationId == conversationId && !i.IsAccepted);
+    //
+    //     if (invite == null)
+    //         throw new Exception("Ingen gyldig invitasjon funnet.");
+    //
+    //     invite.IsAccepted = true;
+    //
+    //     var alreadyParticipant = await _context.ConversationParticipants
+    //         .AnyAsync(p => p.ConversationId == conversationId && p.UserId == userId);
+    //
+    //     if (!alreadyParticipant)
+    //     {
+    //         _context.ConversationParticipants.Add(new ConversationParticipant
+    //         {
+    //             ConversationId = conversationId,
+    //             UserId = userId
+    //         });
+    //     }
+    //
+    //     await _context.SaveChangesAsync();
+    //
+    //     // 🔄 Send systemmelding via eksisterende logikk
+    //     var user = await _context.Users
+    //         .Include(u => u.Profile)
+    //         .FirstOrDefaultAsync(u => u.Id == userId);
+    //
+    //     if (user != null)
+    //     {
+    //         var systemMessage = $"{user.FullName} joined the group.";
+    //
+    //         await SendMessageAsync(invite.InviterId, new SendMessageRequestDTO
+    //         {
+    //             ConversationId = conversationId,
+    //             Text = systemMessage,
+    //             Attachments = null
+    //         });
+    //     }
+    // }
+    //
+    // // Avslå en gruppeinvitasjon
+    // public async Task DeclineGroupInviteAsync(int userId, int conversationId)
+    // {
+    //     var invite = await _context.GroupInviteRequests
+    //         .FirstOrDefaultAsync(r => r.InvitedUserId == userId && r.ConversationId == conversationId && !r.IsAccepted);
+    //
+    //     if (invite == null)
+    //         throw new Exception("Ingen gruppeinvitasjon funnet.");
+    //
+    //     _context.GroupInviteRequests.Remove(invite);
+    //
+    //     // ✅ Blokker fremtidige invitasjoner fra denne gruppen
+    //     var alreadyBlocked = await _context.GroupBlocks
+    //         .AnyAsync(b => b.UserId == userId && b.ConversationId == conversationId);
+    //
+    //     if (!alreadyBlocked)
+    //     {
+    //         _context.GroupBlocks.Add(new GroupBlock
+    //         {
+    //             UserId = userId,
+    //             ConversationId = conversationId
+    //         });
+    //     }
+    //
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    // // Unblokke en bruker
+    // public async Task<bool> UnblockUserAsync(int blockerId, int blockedUserId)
+    // {
+    //     var block = await _context.MessageBlocks
+    //         .FirstOrDefaultAsync(b => b.BlockerId == blockerId && b.BlockedUserId == blockedUserId);
+    //
+    //     if (block == null)
+    //         return false;
+    //
+    //     _context.MessageBlocks.Remove(block);
+    //     await _context.SaveChangesAsync();
+    //     return true;
+    // }
+    //
+    // // Henter alle blokkerte brukere
+    // public async Task<List<BlockedUserDTO>> GetBlockedUsersAsync(int userId)
+    // {
+    //     var blocked = await _context.MessageBlocks
+    //         .Where(b => b.BlockerId == userId)
+    //         .Include(b => b.BlockedUser)
+    //         .ThenInclude(u => u.Profile)
+    //         .Select(b => new BlockedUserDTO
+    //         {
+    //             Id = b.BlockedUser.Id,
+    //             FullName = b.BlockedUser.FullName,
+    //             ProfileImageUrl = b.BlockedUser.Profile != null ? b.BlockedUser.Profile.ProfileImageUrl : null,
+    //             BlockedAt = b.BlockedAt
+    //         })
+    //         .ToListAsync();
+    //
+    //     return blocked;
+    // }
+    //
+    // // Blokkere en bruker
+    // public async Task<bool> BlockUserAsync(int blockerId, int blockedUserId)
+    // {
+    //     if (blockerId == blockedUserId)
+    //         throw new InvalidOperationException("Du kan ikke blokkere deg selv.");
+    //
+    //     var alreadyBlocked = await _context.MessageBlocks
+    //         .AnyAsync(b => b.BlockerId == blockerId && b.BlockedUserId == blockedUserId);
+    //
+    //     if (alreadyBlocked)
+    //         return false;
+    //
+    //     _context.MessageBlocks.Add(new MessageBlock
+    //     {
+    //         BlockerId = blockerId,
+    //         BlockedUserId = blockedUserId
+    //     });
+    //
+    //     await _context.SaveChangesAsync();
+    //     return true;
+    // }
+    //
+    // // Henter alle blokkerte grupper til en bruker
+    // public async Task<List<BlockedGroupDTO>> GetBlockedGroupsAsync(int userId)
+    // {
+    //     var blocked = await _context.GroupBlocks
+    //         .Where(b => b.UserId == userId)
+    //         .Include(b => b.Conversation)
+    //         .ToListAsync();
+    //
+    //     return blocked.Select(b => new BlockedGroupDTO
+    //     {
+    //         ConversationId = b.ConversationId,
+    //         GroupName = b.Conversation.GroupName ?? "(Ukjent gruppe)",
+    //         BlockedAt = b.BlockedAt
+    //     }).ToList();
+    // }
+    //
+    // // Unblokker en gruppe
+    // public async Task UnblockGroupAsync(int userId, int conversationId)
+    // {
+    //     var block = await _context.GroupBlocks
+    //         .FirstOrDefaultAsync(b => b.UserId == userId && b.ConversationId == conversationId);
+    //
+    //     if (block == null)
+    //         throw new Exception("Blokkeringen ble ikke funnet.");
+    //
+    //     _context.GroupBlocks.Remove(block);
+    //     await _context.SaveChangesAsync();
+    // }
+    //
+    
 
 
 
-
-
+    
     // Hjelpemetoder til SendMessage
     // 1. Kombinert bruker-sjekk – 1 query i stedet for 2.
     private async Task CheckUsersExistAsync(int senderId, int receiverId)

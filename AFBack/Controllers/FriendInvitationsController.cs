@@ -207,8 +207,9 @@ public class FriendInvitationsController : ControllerBase
         {
             // Oppdater eksisterende meldingsforespørsel
             existingMessageRequest.IsAccepted = true;
+            existingMessageRequest.IsRejected = false;
             conversationId = existingMessageRequest.ConversationId;
-
+            
             // Sett samtalen til godkjent
             if (existingMessageRequest.Conversation != null)
             {
