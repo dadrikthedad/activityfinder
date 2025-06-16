@@ -6,6 +6,20 @@ import ProfileNavButton from "../settings/ProfileNavButton";
 import Router from "next/router";
 
 function formatNotificationText(n: MessageNotificationDTO): string {
+  // Hvis samtalen er avslått, vis spesifikk tekst
+  if (n.isConversationRejected) {
+    switch (n.type) {
+      case "MessageRequest":
+      case 2:
+        return "message request (declined)";
+      case "NewMessage":
+      case 1:
+        return "sent message (conversation declined)";
+      default:
+        return "notification (conversation declined)";
+    }
+  }
+
   switch (n.type) {
     case "NewMessage":
     case 1:
@@ -46,6 +60,26 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
 
   const canGoToChat = totalNotifications >= 20; 
 
+    const handleNotificationClick = (n: MessageNotificationDTO) => {
+      // Hvis samtalen er avslått, ikke gjør noe
+      if (n.isConversationRejected) {
+        return;
+      }
+
+      if (!n.isRead) {
+        markOneAsRead(n.id);
+        if (n.conversationId) {
+          setScrollToMessageId(n.messageId ?? null);
+          onOpenConversation(n.conversationId);
+        }
+      } else {
+        if (n.conversationId) {
+          setScrollToMessageId(n.messageId ?? null);
+          onOpenConversation(n.conversationId);
+        }
+      }
+    };
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pt-10 gap-4 text-sm custom-scrollbar">
 
@@ -69,28 +103,20 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
       ">
           {notifications.map((n) => (
             <li
-                key={n.id}
-                className={`px-4 py-2 rounded shadow-sm text-center cursor-pointer transition 
-                    ${n.isRead
+              key={n.id}
+              className={`px-4 py-2 rounded shadow-sm text-center transition 
+                ${n.isConversationRejected 
+                  ? "bg-gray-100 dark:bg-gray-100 border border-yellow-300 text-yellow-300 dark:text-yellow-300 cursor-not-allowed opacity-60" 
+                  : `cursor-pointer ${n.isRead
                     ? "bg-gray-100 dark:bg-[#2e2e2e] text-gray-400"
-                    : "bg-white dark:bg-[#1e1e1e] font-semibold border border-[#1C6B1C] "}`}
-                onClick={() => {
-              if (!n.isRead) {
-                markOneAsRead(n.id);
-                if (n.conversationId) {
-                  setScrollToMessageId(n.messageId ?? null);
-                  onOpenConversation(n.conversationId);
-                }
-              } else {
-                if (n.conversationId) {
-                  setScrollToMessageId(n.messageId ?? null);
-                  onOpenConversation(n.conversationId);
-                }
-              }
-            }}
-
-                >
-            {!n.isRead && <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />}
+                    : "bg-gray-100 dark:bg-gray-100 font-semibold border border-[#1C6B1C]"}`
+                }`}
+              onClick={() => handleNotificationClick(n)}
+              title={n.isConversationRejected ? "This conversation has been declined" : undefined}
+            >
+              {!n.isRead && (
+                <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />
+              )}
               <strong>{n.senderName}</strong> {formatNotificationText(n)}
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(n.createdAt).toLocaleString(undefined, {

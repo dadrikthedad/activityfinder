@@ -13,6 +13,7 @@ export interface MessageNotificationDTO {
   messagePreview?: string | null;
   messageCount?: number | null;
   isTemporary?: boolean;
+  isConversationRejected?: boolean;
 }
 
 export enum NotificationType {

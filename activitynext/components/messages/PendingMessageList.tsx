@@ -27,7 +27,9 @@ const PendingRequestsList = ({
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
   const { reject, loading: rejecting } = useRejectMessageRequest();
-  const [rejectedStatus, setRejectedStatus] = useState<Record<number, boolean>>({});
+  const [rejectedStatus, setRejectedStatus] = useState<Record<number, { name: string }>>({});
+  const [fadingOut, setFadingOut] = useState<Record<number, boolean>>({});
+  const [removedConversations, setRemovedConversations] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (requests && requests.length > 0) {
@@ -46,13 +48,16 @@ const PendingRequestsList = ({
   if (!requests || requests.length === 0)
     return <p className="px-4 py-2 text-sm text-gray-500">No requests.</p>;
 
-  const visibleRequests = limit ? requests.slice(0, limit) : requests;
+  const filteredRequests = requests.filter(
+    (r) => !removedConversations.has(r.conversationId!)
+  );
+  const visibleRequests = limit ? filteredRequests.slice(0, limit) : filteredRequests;
 
    return (
     <div className="px-2">
       <ul className="space-y-4">
         {visibleRequests.map((r) => (
-          <li key={`${r.senderId}-${r.conversationId ?? "privat"}`}>
+          <li key={`${r.senderId}-${r.conversationId ?? "privat"}`} className={fadingOut[r.conversationId ?? -1] ? "opacity-0 transition-opacity duration-700" : ""}>
             <ConversationListItem
               user={{
                 id: r.senderId,
@@ -85,14 +90,35 @@ const PendingRequestsList = ({
                 />
                 <ProfileNavButton
                     text="✖"
-                    onClick={async () => {
-                      if (r.conversationId !== null && r.conversationId !== undefined) {
-                        setRejectedStatus((prev) => ({ ...prev, [r.conversationId!]: true }));
+                   onClick={async () => {
+                      if (r.conversationId != null) {
+                        const id = r.conversationId!;
+                        
+                        // 1. Vis "rejected"-melding
+                        setRejectedStatus(prev => ({
+                          ...prev,
+                          [r.conversationId!]: { name: r.senderName }
+                        }));
+                                                
+                        // 2. Start fade ut av kort
+                        setTimeout(() => {
+                          setFadingOut(prev => ({ ...prev, [id]: true }));
+                        }, 800);
 
+                        // 3. Fjern samtalen
                         setTimeout(async () => {
-                          await reject(r.senderId, r.conversationId!);
-                          // Fjernes først nå, etter at beskjeden fikk vises
-                        }, 2000);
+                          await reject(r.senderId, id);
+                          setRemovedConversations(prev => new Set(prev).add(id));
+                        }, 1500);
+
+                        // 4. Fjern "You rejected..." teksten etter enda litt tid
+                        setTimeout(() => {
+                          setRejectedStatus(prev => {
+                            const updated = { ...prev };
+                            delete updated[id];
+                            return updated;
+                          });
+                        }, 4000); // teksten vises i 4 sekunder totalt
                       }
                     }}
                     disabled={approving || rejecting}
@@ -100,12 +126,14 @@ const PendingRequestsList = ({
                     className="bg-gray-500 hover:bg-gray-600 text-white text-lg font-bold flex items-center justify-center"
                 /> 
                 </div>
-                {rejectedStatus[r.conversationId ?? -1] && (
-                  <p className="text-sm text-gray-500 mt-1 ml-1 animate-fade-out">You rejected the message request</p>
-                )}
           </li>
         ))}
       </ul>
+      {Object.entries(rejectedStatus).map(([id, info]) => (
+        <p key={id} className="text-sm text-yellow-300 mt-1 ml-4 animate-fade-out-slow">
+          You rejected the message request from <span className="font-medium">{info.name}</span>
+        </p>
+      ))}
 
       {showMoreLink && requests.length > (limit ?? 0) && (
         <div className="mt-2 text-sm flex justify-end pr-2">

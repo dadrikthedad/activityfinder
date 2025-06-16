@@ -15,6 +15,7 @@ type MessageNotificationStore = {
   markAsRead: (id: number) => Promise<void>;
   markAllAsRead: () => void;
   markAsReadForConversation: (conversationId: number) => void;
+  updateNotificationsForRejectedConversation: (conversationId: number) => void;
   hasLoadedNotifications: boolean;
   setHasLoadedNotifications: (v: boolean) => void;
 };
@@ -150,4 +151,22 @@ export const useMessageNotificationStore = create<MessageNotificationStore>((set
             return { notifications: updated };
         });
         },
+
+    // Funksjon for å markere notifikasjoner som avslått og lest
+    updateNotificationsForRejectedConversation: (conversationId: number) => {
+        set((state) => ({
+            notifications: state.notifications.map((notification) => 
+                notification.conversationId === conversationId
+                    ? { 
+                        ...notification, 
+                        isConversationRejected: true,
+                        isRead: true,
+                        readAt: new Date().toISOString()
+                      }
+                    : notification
+            )
+        }));
+        
+        console.log(`🔄 Markerte notifikasjoner som avslått og lest for samtale: ${conversationId}`);
+    },
 }));
