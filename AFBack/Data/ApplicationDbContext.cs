@@ -172,11 +172,6 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(cp => cp.UserId)
             .OnDelete(DeleteBehavior.Cascade);
         
-        // Kun en MessageRequest pr bruker
-        modelBuilder.Entity<MessageRequest>()
-            .HasIndex(r => new { r.SenderId, r.ReceiverId })
-            .IsUnique();
-        
         // Blokkerte brukere (Funker kun for meldinger i øyeblikket)
         modelBuilder.Entity<MessageBlock>()
             .HasOne(mb => mb.BlockedUser)

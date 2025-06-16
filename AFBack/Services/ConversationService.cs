@@ -14,19 +14,31 @@ public class ConversationService
             _context = context;
         }
         // Hente alle samtalene til en bruker som er godkjente
-        public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(int userId)
+        public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
+            int userId, bool includeRejected = false)
         {
             var approvedGroupIds = await _context.MessageRequests
                 .Where(r => r.ReceiverId == userId && r.IsAccepted)
                 .Select(r => r.ConversationId)
                 .ToListAsync();
 
-            var conversations = await _context.Conversations
+            var query = _context.Conversations
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId) &&
                     (c.IsApproved || c.CreatorId == userId) &&
                     (!c.IsGroup || approvedGroupIds.Contains(c.Id))
-                )
+                );
+
+            if (!includeRejected)
+            {
+                query = query.Where(c =>
+                    c.IsGroup || !_context.MessageRequests
+                        .Any(r => r.ConversationId == c.Id &&
+                                  r.IsRejected &&
+                                  r.SenderId != userId));
+            }
+
+            var conversations = await query
                 .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
                 .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
@@ -230,7 +242,13 @@ public class ConversationService
             var conversations = await _context.Conversations
                 .Include(c => c.Participants)
                 .Include(c => c.Messages)
-                .Where(c => c.Participants.Any(p => p.UserId == userId))
+                .Where(c =>
+                    c.Participants.Any(p => p.UserId == userId) &&
+                    (c.IsGroup || !_context.MessageRequests
+                        .Any(r => r.ConversationId == c.Id &&
+                                  r.IsRejected &&
+                                  r.SenderId != userId))
+                )
                 .ToListAsync();
 
             var result = new UnreadSummaryDTO();

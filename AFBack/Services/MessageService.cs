@@ -47,8 +47,31 @@ public class MessageService : IMessageService
         }
 
         // 3️⃣  Må meldingen godkjennes? (3. og evt. 4. query)
-        bool requiresApproval = await ShouldRequireApprovalFast(
+        (bool requiresApproval, bool isRejected, bool requestSent) = await ShouldRequireApprovalFast(
             senderId, receiverId, conversation);
+
+        if (!conversation.IsGroup && requiresApproval)
+        {
+            if (isRejected)
+            {
+                return new MessageResponseDTO
+                {
+                    Text = "You have rejected the message request. Accept the message request to start sending messages.",
+                    ConversationId = conversation.Id,
+                    SenderId = senderId
+                };
+            }
+
+            if (requestSent)
+            {
+                return new MessageResponseDTO
+                {
+                    Text = "Your message request is waiting approval.",
+                    ConversationId = conversation.Id,
+                    SenderId = senderId
+                };
+            }
+        }
         
         /* === 3a. Gruppe: avsender må ha godkjent på forhånd === */
         if (conversation.IsGroup && requiresApproval)
@@ -247,7 +270,7 @@ public class MessageService : IMessageService
     public async Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId)
     {
         var requests = await _context.MessageRequests
-            .Where(r => r.ReceiverId == receiverId && !r.IsAccepted)
+            .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
             .Include(r => r.Sender).ThenInclude(u => u.Profile)
             .Include(r => r.Conversation)
             .ToListAsync();
@@ -280,6 +303,7 @@ public class MessageService : IMessageService
             throw new Exception("Forespørselen er allerede godkjent.");
 
         request.IsAccepted = true;
+        request.IsRejected = false;
 
         // 👇 Oppdater samtalen hvis det er én-til-én
         var conversation = await _context.Conversations
@@ -644,7 +668,7 @@ public class MessageService : IMessageService
     }
 
     // 4. Rask approval-sjekk – tar inn Conversation-objektet
-    private async Task<bool> ShouldRequireApprovalFast(
+    private async Task<(bool requiresApproval, bool isRejected, bool requestSent)> ShouldRequireApprovalFast(
         int senderId, int receiverId, Conversation conv)
     {
         if (conv.IsGroup)
@@ -653,21 +677,30 @@ public class MessageService : IMessageService
                 .AnyAsync(r => r.ConversationId == conv.Id &&
                                r.ReceiverId == senderId &&
                                r.IsAccepted);
-            return !hasApproved;
+            return (!hasApproved, false, false);
         }
 
-        if (conv.IsApproved) return false;
+        if (conv.IsApproved) return (false, false, false);
 
         // 🆕  Bruk cache
         bool isFriend = await _msgCache.IsFriendAsync(senderId, receiverId);
 
         // Om de ikke er venner må vi fortsatt sjekke tidligere MessageRequest
-        bool hasAccepted = await _context.MessageRequests.AsNoTracking()
-            .AnyAsync(r => r.IsAccepted &&
-                           ((r.SenderId == senderId && r.ReceiverId == receiverId) ||
-                            (r.SenderId == receiverId && r.ReceiverId == senderId)));
+        var req = await _context.MessageRequests.AsNoTracking()
+            .OrderByDescending(r => r.RequestedAt)
+            .FirstOrDefaultAsync(r =>
+                r.ConversationId == conv.Id &&
+                ((r.SenderId == senderId && r.ReceiverId == receiverId) ||
+                 (r.SenderId == receiverId && r.ReceiverId == senderId)));
 
-        return !(isFriend || hasAccepted);
+        if (isFriend || req?.IsAccepted == true)
+            return (false, false, false);
+
+
+        bool isRejected = req?.SenderId == senderId && req.IsRejected;
+        bool requestSent = req?.SenderId == senderId;
+
+        return (true, isRejected, requestSent);
     }
 
     // 5. Legg bare til en entity – ingen SaveChanges her

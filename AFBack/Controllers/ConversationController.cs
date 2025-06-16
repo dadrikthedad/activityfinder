@@ -116,7 +116,10 @@ public class ConversationsController : BaseController
 
         var isPending = !isApproved &&
                         await _context.MessageRequests.AnyAsync(r =>
-                            r.SenderId == userId && r.ReceiverId == otherUserId);
+                            r.SenderId == userId &&
+                            r.ReceiverId == otherUserId &&
+                            !r.IsAccepted &&
+                            !r.IsRejected);
 
         var dto = new ConversationDTO
         {
@@ -177,67 +180,6 @@ public class ConversationsController : BaseController
             .ToList();
 
         return Ok(filtered);
-    }
-    
-    // Sjekke om det eksistere en samtale mellom to brukere
-    [HttpGet("direct-conversation")]
-    public async Task<IActionResult> GetDirectConversation(int otherUserId)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        if (userId == otherUserId)
-            return BadRequest("Kan ikke starte samtale med seg selv.");
-
-        // Finn samtale som ikke er gruppe og kun mellom to brukere
-        var conversation = await _context.Conversations
-            .Include(c => c.Participants).ThenInclude(p => p.User).ThenInclude(u => u.Profile)
-            .Include(c => c.Messages)
-            .Where(c => !c.IsGroup)
-            .FirstOrDefaultAsync(c =>
-                c.Participants.Count == 2 &&
-                c.Participants.Any(p => p.UserId == userId) &&
-                c.Participants.Any(p => p.UserId == otherUserId));
-
-        if (conversation == null)
-            return NotFound("Ingen samtale funnet mellom brukerne.");
-
-        var lastMessage = conversation.Messages
-            .OrderByDescending(m => m.SentAt)
-            .FirstOrDefault();
-
-        var isFriend = await _context.Friends.AnyAsync(f =>
-            (f.UserId == userId && f.FriendId == otherUserId) ||
-            (f.UserId == otherUserId && f.FriendId == userId));
-
-        var isApproved = isFriend || await _context.MessageRequests.AnyAsync(r =>
-            ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
-             (r.SenderId == otherUserId && r.ReceiverId == userId)) &&
-            r.IsAccepted);
-
-        var isPending = !isApproved &&
-                        await _context.MessageRequests.AnyAsync(r =>
-                            r.SenderId == userId && r.ReceiverId == otherUserId);
-
-        var dto = new ConversationDTO
-        {
-            Id = conversation.Id,
-            GroupName = null,
-            IsGroup = false,
-            LastMessageSentAt = lastMessage?.SentAt,
-            Participants = conversation.Participants.Select(p => new UserSummaryDTO
-            {
-                Id = p.User.Id,
-                FullName = p.User.FullName,
-                ProfileImageUrl = p.User.Profile?.ProfileImageUrl
-            }).ToList(),
-            IsApproved = isApproved,
-            IsPendingApproval = isPending,
-            CreatorId = conversation.CreatorId
-        };
-
-        return Ok(dto);
     }
     
     // Opprette en gruppe

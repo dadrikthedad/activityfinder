@@ -12,8 +12,11 @@ public class MessageRequest
     public DateTime RequestedAt { get; set; } = DateTime.UtcNow;
     public bool IsAccepted { get; set; } = false;
     
+    public bool IsRejected { get; set; } = false; // For avslåtte samtaler
+    
     public bool LimitReached { get; set; } = false; // Maks 5 meldinger før bruker ikke får lov til å spamme mottaker lenger
     
     public bool IsRead { get; set; } = false;
     public User Sender { get; set; } = null!;
+    
 }

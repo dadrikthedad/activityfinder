@@ -169,6 +169,37 @@ public class MessagesController : BaseController
         }
     }
     
+    // Avslå venneforespørsel
+    [HttpPost("reject-request")]
+    public async Task<IActionResult> RejectMessageRequest([FromBody] int senderId)
+    {
+        var receiverId = GetUserId();
+        if (receiverId == null)
+            return Unauthorized();
+
+        try
+        {
+            var request = await _context.MessageRequests
+                .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && r.SenderId == senderId);
+
+            if (request == null)
+                return NotFound(new { message = "Forespørselen finnes ikke." });
+
+            if (request.IsAccepted)
+                return BadRequest(new { message = "Forespørselen er allerede godkjent." });
+
+            request.IsRejected = true;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Forespørsel avslått." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+    
     // Akseptere en gruppeinvitasjon
     [HttpPost("accept-invite")]
     public async Task<IActionResult> AcceptGroupInvite([FromBody] int conversationId)
