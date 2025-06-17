@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import {  useState, useRef, useEffect, useCallback } from "react";
-import { Settings } from "lucide-react";
+import { Settings, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import ProfileLink from "@/components/profile/ProfileLink";
@@ -20,12 +20,14 @@ import { useDropdown } from "@/context/DropdownContext";
 import { MessageDropdownInitializer } from "@/services/helpfunctions/messageDropdownInitializer";
 import NavbarMessageNotifications from "./messages/NavbarMessageNotificaitons";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import NavbarLoginDropdown from "./navbar/NavbarLoginDropdown";
 
 
 
 export default function Navbar() {
   
   const [showDropDown, setShowDropdown] = useState(false); // Her brukes vi dropdown
+  const [showLoginDropdown, setShowLoginDropdown] = useState(false);
   const router = useRouter(); // sende oss videre til de forskjellige linkene
   const { isLoggedIn, logout } = useAuth(); // Her henter vi en sjekk om vi er innlogget eller ikke, da Navbaren endres
   const showNotifications = useNotificationStore((s) => s.showNotificationDropdown);
@@ -61,14 +63,14 @@ export default function Navbar() {
   const DROPDOWN_WIDTH = 1200;
   const [openUserPopoverId, setOpenUserPopoverId] = useState<number | null>(null);
   const messageDropdownRef = useRef<HTMLDivElement>(null);// For å sende ref til Popover for å ikke lukke ved trykk i UserActionPopover
+   const loginDropdownRef = useRef<HTMLDivElement>(null)
   const [userPopoverRef, setUserPopoverRef] = useState<React.RefObject<HTMLDivElement> | null>(null);
   const dropdownContext = useDropdown();
   const [recentlyClosed, setRecentlyClosed] = useState(false);
-
   const [recentlyClosedMessage, setRecentlyClosedMessage] = useState(false);
+  const [recentlyClosedLogin, setRecentlyClosedLogin] = useState(false); 
 
-  
-
+  // Message Dropdown
   useEffect(() => {
     if (!showMessages) {
       setRecentlyClosedMessage(true);
@@ -77,6 +79,16 @@ export default function Navbar() {
     }
   }, [showMessages]);
 
+  // LoginDropdown
+  useEffect(() => {
+    if (!showLoginDropdown) {
+      setRecentlyClosedLogin(true);
+      const timer = setTimeout(() => setRecentlyClosedLogin(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [showLoginDropdown]);
+
+  // Notificaitons Dropdown
   useEffect(() => {
     if (!showDropDown) return;
 
@@ -86,6 +98,22 @@ export default function Navbar() {
     dropdownContext.register({ id, close });
     return () => dropdownContext.unregister(id);
   }, [showDropDown, dropdownContext]);
+
+  useEffect(() => {
+    if (!showLoginDropdown) return;
+
+    const id = "navbar-login-menu";
+    const close = () => setShowLoginDropdown(false);
+
+    dropdownContext.register({ id, close });
+    return () => dropdownContext.unregister(id);
+  }, [showLoginDropdown, dropdownContext]);
+
+    // Ny toggle handler for login dropdown
+  const handleToggleLogin = useCallback(() => {
+    if (recentlyClosedLogin) return;
+    setShowLoginDropdown(!showLoginDropdown);
+  }, [recentlyClosedLogin, showLoginDropdown]);
 
       /* ---- MEMOISERT toggle-handler ---- */
   const handleToggleNotifications = useCallback(() => {
@@ -143,6 +171,18 @@ export default function Navbar() {
     },
     isActive: showMessages,
     dropdownId: "message-dropdown",
+  });
+
+   // Ny click outside for login dropdown
+  useClickOutsideGroups({
+    includeRefs: [loginDropdownRef],
+    excludeRefs: [],
+    excludeClassNames: [],
+    onOutsideClick: () => {
+      setShowLoginDropdown(false);
+    },
+    isActive: showLoginDropdown,
+    dropdownId: "login-dropdown",
   });
 
 
@@ -260,11 +300,22 @@ export default function Navbar() {
             </li>
           </>
         ) : (
-          <>
-            <li>
-              <Link href="/login" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
+           <>
+            <li className="relative">
+              <button
+                onClick={handleToggleLogin}
+                className="flex items-center gap-2 hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition focus:outline-none focus:ring-2 focus:ring-white"
+                aria-label="Login"
+              >
+                <LogIn size={16} />
                 Login
-              </Link>
+              </button>
+
+              {showLoginDropdown && (
+                <div ref={loginDropdownRef}>
+                  <NavbarLoginDropdown onClose={() => setShowLoginDropdown(false)} />
+                </div>
+              )}
             </li>
             <li>
               <Link href="/signup" className="hover:bg-[#0F3D0F] px-4 py-2 rounded-md transition">
