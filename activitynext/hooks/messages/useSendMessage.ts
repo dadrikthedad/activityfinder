@@ -32,9 +32,19 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
   
         return null;
       } catch (err: unknown) {
-        const error = err instanceof Error ? err : new Error("Ukjent feil");
-        console.error("❌ Feil ved sending av melding:", error);
-        setError(error.message || "Noe gikk galt");
+        let errorMessage = "Noe gikk galt";
+  
+        if (err instanceof Error) {
+          try {
+            const parsed = JSON.parse(err.message);
+            errorMessage = parsed.details || parsed.message || err.message;
+          } catch {
+            errorMessage = err.message;
+          }
+        }
+        
+        console.error("❌ Feil ved sending av melding:", errorMessage);
+        setError(errorMessage);
         return null;
       } finally {
         setLoading(false);

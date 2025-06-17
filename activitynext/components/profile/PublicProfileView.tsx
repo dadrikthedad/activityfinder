@@ -152,7 +152,7 @@ export default function PublicProfileView({
                         id: profile.userId,
                         fullName: profile.fullName ?? "",
                         profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
-                      }} />)}
+                      }} />, { blurBackground: false })}
                       text="Send Message"
                       variant="long"
                     />
@@ -186,7 +186,7 @@ export default function PublicProfileView({
                         id: profile.userId,
                         fullName: profile.fullName ?? "",
                         profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
-                      }} />)}
+                      }} />, { blurBackground: false })}
                       text="Send Message"
                       variant="long"
                     />

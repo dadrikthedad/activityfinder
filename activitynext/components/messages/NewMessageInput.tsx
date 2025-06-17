@@ -18,7 +18,7 @@ export default function NewMessageInput({
 }: NewMessageInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { send } = useSendMessage(onMessageSent);
+  const { send, error } = useSendMessage(onMessageSent);
   const { syncConversation } = useConversationSyncOnMessage();
 
   const handleSend = () => {
@@ -39,11 +39,6 @@ export default function NewMessageInput({
 
         onMessageSent?.(result);
       })
-      .catch((err) => {
-        console.error("Feil ved sending:", err);
-        setText(sendingText);
-        inputRef.current?.focus();
-    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -56,6 +51,23 @@ export default function NewMessageInput({
   useEffect(() => {
     inputRef.current?.focus();
   }, [receiverId]);
+  
+    if (error) {
+    return (
+      <div className="flex flex-col gap-2 mt-4 h-full">
+        <MessageToolbar
+          showEmoji={false}
+          showFile={false}
+          showImage={true}
+          showScrollToBottom={false}
+          showSettings={false}
+        />
+        <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-4 rounded border text-center">
+          <div>{error}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2 mt-4 h-full">

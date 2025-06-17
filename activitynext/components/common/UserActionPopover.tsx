@@ -210,7 +210,7 @@ export default function UserActionPopover(props: Props) {
   };
 
   const handleSendMessage = () => {
-    showModal(<NewMessageModal initialReceiver={user} />);
+    showModal(<NewMessageModal initialReceiver={user} />, { blurBackground: false });
     handleClose();
     if (props.mode === 'dropdown') {
       props.onCloseDropdown?.();
