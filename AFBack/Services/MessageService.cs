@@ -55,7 +55,7 @@ public class MessageService : IMessageService
             if (isRejected && !requestSent) 
             {
                 // 🚨 Scenario 1: JEG har avslått den andre - BLOKKÉR helt
-                throw new Exception("You have rejected this message request. Accept it to allow messaging.");
+                throw new Exception("You have rejected this message request. Accept it from /Chat to send a message to this user."); // TODO: Link Her!
             }
         }
         
@@ -77,12 +77,7 @@ public class MessageService : IMessageService
             {
                 MarkLimitReached(senderId, receiverId, conversation.Id);
                 await _context.SaveChangesAsync();
-                return new MessageResponseDTO
-                {
-                    Text = "Du har nådd maksgrensen på 5 meldinger før forespørselen godkjennes.",
-                    ConversationId = conversation.Id,
-                    SenderId = senderId
-                };
+                throw new Exception("You have reached the limit of messages you can send while waiting for the receiver to accept your request.");
             }
 
             // 🆕 Sjekk om vi trenger å lage ny MessageRequest
