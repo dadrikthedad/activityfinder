@@ -12,6 +12,7 @@ interface PasswordFieldProps {
   touched?: boolean; // sjekker om vi har vært innom feltet
   placeholder?: string; // placeholder i feltet
   tooltip?: string; // tooltippen igjen
+  disabled?: boolean;
 }
 
 const PasswordField: React.FC<PasswordFieldProps> = ({
@@ -24,6 +25,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
   touched,
   placeholder,
   tooltip,
+  disabled,
 }) => {
   const [showPassword, setShowPassword] = useState(false); // Gjør passord synlig/ikke synlig
   const showError = touched && error; // Viser kun error hvis vi har vært i feltet og får en valideringsfeil
@@ -44,6 +46,7 @@ const PasswordField: React.FC<PasswordFieldProps> = ({
             value={value}
             onChange={onChange}
             onBlur={onBlur}
+            disabled={disabled} 
             className={`w-[280px] h-12 px-4 pr-16 border rounded-md bg-gray-700 text-white 
                 ${showError ? "border-red-500" : "border-gray-500"}`}
           />

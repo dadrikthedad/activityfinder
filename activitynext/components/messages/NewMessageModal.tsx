@@ -21,6 +21,9 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
   const { userId } = useAuth();
 
+  // Hvis vi sender inn med en bruker via UserActionPopover eller Profilsiden så har vi en egen visning
+  const hasInitialReceiver = !!initialReceiver;
+
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Dra og slipp-posisjon
@@ -154,6 +157,8 @@ return (
       {/* søkefelt + resultater + melding */}
       <div className="p-4 pt-0 mt-3 flex flex-col h-full">
         <div className="flex-1 min-h-0 overflow-hidden">
+       {!hasInitialReceiver && (
+        <>
        <input
           type="text"
           value={query}
@@ -198,9 +203,14 @@ return (
               ))}
           </ul>
         )}
+        </>
+        )}
 
          {selectedUsers.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2 relative">
+              <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 font-medium mr-2">
+                To:
+              </div>
             {visibleUsers.map((user) => (
               <div
                 key={user.id}
@@ -213,6 +223,7 @@ return (
                   withBorder={false}
                 />
                 <span className="text-sm">{user.fullName}</span>
+                 {!hasInitialReceiver && (
                 <button
                   onClick={() =>
                     setSelectedUsers((prev) => prev.filter((u) => u.id !== user.id))
@@ -221,6 +232,7 @@ return (
                 >
                   ✕
                 </button>
+                )}
               </div>
             ))}
 

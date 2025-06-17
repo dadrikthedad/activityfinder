@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth} from "@/context/AuthContext"
 import FormField from "@/components/FormField";
 import FormButton from "@/components/FormButton";
+import PasswordField from "@/components/PasswordField";
 
 export default function LoginPage() {
 // Tilstand for email, passord, feilmelding og submit-status
@@ -90,10 +91,9 @@ const handleLogin = async (e: React.FormEvent) => { // Håndterer innsending av 
           disabled={isSubmitting}
         />
 
-        <FormField //Passord feletet
+        <PasswordField
           id="password"
           label="Password"
-          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Your password"
