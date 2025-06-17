@@ -52,21 +52,15 @@ public class MessageService : IMessageService
 
         if (!conversation.IsGroup && requiresApproval)
         {
-            if (isRejected & requestSent)
-            {
-                return new MessageResponseDTO
-                {
-                    Text = "Your message request is waiting approval.",
-                    ConversationId = conversation.Id,
-                    SenderId = senderId
-                };
-            }
-
             if (isRejected)
             {
+                string rejectionMessage = requestSent 
+                    ? "Your message request was rejected. Cannot send messages until accepted."
+                    : "You have rejected this message request. Accept it to allow messaging.";
+        
                 return new MessageResponseDTO
                 {
-                    Text = "You have rejected the message request. Accept the message request to start sending messages.",
+                    Text = rejectionMessage,
                     ConversationId = conversation.Id,
                     SenderId = senderId
                 };
