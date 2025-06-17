@@ -118,9 +118,10 @@ public class MessageService : IMessageService
         
         // Rett før køing
         var shouldNotify = !requiresApproval || (messageCount > 0 && !isRejected);
+        var isRejectedSender = isRejected && requestSent;
         
         // NotifyAndBroadcastAsync
-        if (shouldNotify || needsMessageRequestNotification)
+        if (shouldNotify || needsMessageRequestNotification || isRejectedSender)
         {
             _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
                 conversationId : conversation.Id,
@@ -131,7 +132,8 @@ public class MessageService : IMessageService
                 receiverId     : receiverId,
                 response       : response,
                 shouldNotify   : shouldNotify,
-                needsMessageRequestNotification : needsMessageRequestNotification));
+                needsMessageRequestNotification : needsMessageRequestNotification,
+                isRejectedSender: isRejectedSender));
         }
         // 🆕 Marker type så frontend vet hva den skal gjøre
         
@@ -773,7 +775,8 @@ public class MessageService : IMessageService
     int    receiverId, // 🆕
     MessageResponseDTO response,
     bool   shouldNotify,
-    bool   needsMessageRequestNotification) // 🆕
+    bool   needsMessageRequestNotification,
+    bool isRejectedSender) // 🆕
     {
         /* 1. Send over SignalR  */
         if (shouldNotify)               // 👈 legg til
@@ -791,6 +794,13 @@ public class MessageService : IMessageService
                 await _hubContext.Clients.Group(groupName)
                     .SendAsync("ReceiveMessage", response);
             }
+        }
+        
+        else if (isRejectedSender) // 🆕 Spesialtilfelle
+        {
+            // Kun SignalR til avsender - ingen notifikasjoner til mottaker
+            await _hubContext.Clients.User(senderId.ToString())
+                .SendAsync("ReceiveMessage", response);
         }
         
         /* 2. MessageRequest notification hvis nødvendig */
@@ -816,7 +826,7 @@ public class MessageService : IMessageService
         }
 
         /* 3. Lag notifications (hvis vi skal) – egen DbContext-scope */
-        if (!shouldNotify) return;
+        if (!shouldNotify || isRejectedSender) return;
         
         using var scope2 = _scopeFactory.CreateScope();
         var notifSvc2 = scope2.ServiceProvider.GetRequiredService<MessageNotificationService>();
