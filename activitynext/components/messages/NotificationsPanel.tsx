@@ -106,10 +106,10 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
               key={n.id}
               className={`px-4 py-2 rounded shadow-sm text-center transition 
                 ${n.isConversationRejected 
-                  ? "bg-gray-100 dark:bg-gray-100 border border-yellow-300 text-yellow-300 dark:text-yellow-300 cursor-not-allowed opacity-60" 
+                  ? "bg-gray-[#2e2e2e] dark:bg-gray-[#2e2e2e] border border-yellow-300 text-yellow-300 dark:text-yellow-300 cursor-not-allowed opacity-60" 
                   : `cursor-pointer ${n.isRead
                     ? "bg-gray-100 dark:bg-[#2e2e2e] text-gray-400"
-                    : "bg-gray-100 dark:bg-gray-100 font-semibold border border-[#1C6B1C]"}`
+                    : "bg-[#2e2e2e] dark:bg-[#2e2e2e] font-semibold border border-[#1C6B1C]"}`
                 }`}
               onClick={() => handleNotificationClick(n)}
               title={n.isConversationRejected ? "This conversation has been declined" : undefined}

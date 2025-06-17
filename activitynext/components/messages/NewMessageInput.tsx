@@ -32,7 +32,11 @@ export default function NewMessageInput({
     send({ text: sendingText, receiverId: receiverId.toString() })
       .then(async (result) => {
         if (!result) return;
-        await syncConversation(result); // 👈 Henter og legger til samtalen hvis den ikke finnes
+        // 🚨 SJEKK isRejectedRequest FØR syncing
+        if (!result.isRejectedRequest) {
+          await syncConversation(result); // 👈 Henter og legger til samtalen hvis den ikke finnes. Kun sync hvis ikke avslått
+        }
+
         onMessageSent?.(result);
       })
       .catch((err) => {
