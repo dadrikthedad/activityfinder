@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
+import { indexedDBStorage } from "./indexedNotificationDBStorage";
 import { MessageNotificationDTO, NotificationType } from "@/types/MessageNotificationDTO";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { markMessageNotificationAsRead } from "@/services/messages/messageNotificationService";
@@ -18,155 +20,183 @@ type MessageNotificationStore = {
   updateNotificationsForRejectedConversation: (conversationId: number) => void;
   hasLoadedNotifications: boolean;
   setHasLoadedNotifications: (v: boolean) => void;
+  
+  /** Tøm alt ved logout */
+  reset: () => void;
 };
 
-export const useMessageNotificationStore = create<MessageNotificationStore>((set, get) => ({
-  notifications: [],
+export const useMessageNotificationStore = create<MessageNotificationStore>()(
+  persist(
+    subscribeWithSelector((set, get) => ({
+      // --- initial state ---
+      notifications: [],
+      hasLoadedNotifications: false,
 
-  setNotifications: (notifications) => set({ notifications }),
-  hasLoadedNotifications: false,
-  setHasLoadedNotifications: (v) => set({ hasLoadedNotifications: v }),
+      setNotifications: (notifications) => set({ notifications }),
+      setHasLoadedNotifications: (v) => set({ hasLoadedNotifications: v }),
 
-  addNotificationFromApi: (incoming) => {
-    // Duplikatkontroll basert på ID
-    const existing = new Map(get().notifications.map((n) => [n.id, n]));
-    incoming.forEach((n) => existing.set(n.id, n));
-    set({ notifications: Array.from(existing.values()).slice(0, 50) });
-  },
+      addNotificationFromApi: (incoming) => {
+        // Duplikatkontroll basert på ID
+        const existing = new Map(get().notifications.map((n) => [n.id, n]));
+        incoming.forEach((n) => existing.set(n.id, n));
+        set({ notifications: Array.from(existing.values()).slice(0, 50) });
+      },
 
-  upsertReactionNotification: (incoming, currentUserId) => {
-    if (incoming.senderId === currentUserId) return false;
+      upsertReactionNotification: (incoming, currentUserId) => {
+        if (incoming.senderId === currentUserId) return false;
 
-    const state = get();
-    const isReaction = incoming.type === NotificationType.MessageReaction;
+        const state = get();
+        const isReaction = incoming.type === NotificationType.MessageReaction;
 
-    if (!isReaction || incoming.messageId == null) return false;
+        if (!isReaction || incoming.messageId == null) return false;
 
-    let wasNew = true;
+        let wasNew = true;
 
-    const updated = state.notifications.map((n) => {
-        if (
-        n.type === NotificationType.MessageReaction &&
-        n.messageId === incoming.messageId
-        ) {
-        wasNew = false;
-        return {
-            ...n,
-            ...incoming,
-            id: n.id,
-            createdAt: incoming.createdAt ?? n.createdAt,
-        };
-        }
-        return n;
-    });
-
-    const finalList = wasNew
-        ? [incoming, ...updated].slice(0, 50)
-        : updated;
-
-    set({ notifications: finalList });
-
-    if (wasNew) {
-        showNotificationToast({
-        senderName: incoming.senderName,
-        messagePreview: `Reagerte på meldingen din`,
-        conversationId: incoming.conversationId!,
-        type: NotificationType[incoming.type as keyof typeof NotificationType],
-        reactionEmoji: incoming.reactionEmoji,
+        const updated = state.notifications.map((n) => {
+          if (
+            n.type === NotificationType.MessageReaction &&
+            n.messageId === incoming.messageId
+          ) {
+            wasNew = false;
+            return {
+              ...n,
+              ...incoming,
+              id: n.id,
+              createdAt: incoming.createdAt ?? n.createdAt,
+            };
+          }
+          return n;
         });
-    }
 
-    return wasNew; // ✅ viktig!
-    },
+        const finalList = wasNew
+          ? [incoming, ...updated].slice(0, 50)
+          : updated;
 
-    upsertNotification: (incoming: MessageNotificationDTO) => {
-  let wasNew = true;
+        set({ notifications: finalList });
 
-  set((state) => {
-    const existing = state.notifications.find((n) => n.id === incoming.id);
-    wasNew = !existing;
+        if (wasNew) {
+          showNotificationToast({
+            senderName: incoming.senderName,
+            messagePreview: `Reagerte på meldingen din`,
+            conversationId: incoming.conversationId!,
+            type: NotificationType[incoming.type as keyof typeof NotificationType],
+            reactionEmoji: incoming.reactionEmoji,
+          });
+        }
 
-    const merged: MessageNotificationDTO = existing
-    ? {
-        ...existing,
-        ...incoming,
-        messagePreview: incoming.messagePreview ?? existing.messagePreview,
-        isRead: existing.isRead,
-        readAt: existing.readAt,
-      }
-    : incoming;
+        return wasNew;
+      },
 
-    const withoutDupes = state.notifications.filter((n) => n.id !== incoming.id);
+      upsertNotification: (incoming: MessageNotificationDTO) => {
+        let wasNew = true;
 
-    const finalList = [merged, ...withoutDupes].slice(0, 50);
-
-
-      if (wasNew && incoming.type === NotificationType.MessageRequestApproved) {
-      showNotificationToast({
-        senderName: incoming.senderName!,
-        messagePreview: incoming.messagePreview!,
-        conversationId: incoming.conversationId!,
-        type: incoming.type,
-        reactionEmoji: incoming.reactionEmoji,
-      });
-    }
-
-    return {
-      notifications: finalList,
-    };
-  });
-
-  return wasNew;
-},
-
-  markAsRead: async (id: number) => {
-    try {
-        await markMessageNotificationAsRead(id);
-
-        set((state) => ({
-        notifications: state.notifications.map((n) =>
-            n.id === id
-            ? { ...n, isRead: true, readAt: new Date().toISOString() }
-            : n
-        ),
-        }));
-    } catch (err) {
-        console.error("❌ Kunne ikke markere notification som lest:", err);
-    }
-    },
-
-  markAllAsRead: () =>
-    set((state) => ({
-      notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
-    })),
-
-    markAsReadForConversation: (conversationId: number) => {
         set((state) => {
-            const updated = state.notifications.map((n) =>
-            n.conversationId === conversationId
+          const existing = state.notifications.find((n) => n.id === incoming.id);
+          wasNew = !existing;
+
+          const merged: MessageNotificationDTO = existing
+            ? {
+                ...existing,
+                ...incoming,
+                messagePreview: incoming.messagePreview ?? existing.messagePreview,
+                isRead: existing.isRead,
+                readAt: existing.readAt,
+              }
+            : incoming;
+
+          const withoutDupes = state.notifications.filter((n) => n.id !== incoming.id);
+          const finalList = [merged, ...withoutDupes].slice(0, 50);
+
+          if (wasNew && incoming.type === NotificationType.MessageRequestApproved) {
+            showNotificationToast({
+              senderName: incoming.senderName!,
+              messagePreview: incoming.messagePreview!,
+              conversationId: incoming.conversationId!,
+              type: incoming.type,
+              reactionEmoji: incoming.reactionEmoji,
+            });
+          }
+
+          return {
+            notifications: finalList,
+          };
+        });
+
+        return wasNew;
+      },
+
+      markAsRead: async (id: number) => {
+        try {
+          await markMessageNotificationAsRead(id);
+
+          set((state) => ({
+            notifications: state.notifications.map((n) =>
+              n.id === id
                 ? { ...n, isRead: true, readAt: new Date().toISOString() }
                 : n
-            );
+            ),
+          }));
+        } catch (err) {
+          console.error("❌ Kunne ikke markere notification som lest:", err);
+        }
+      },
 
-            return { notifications: updated };
-        });
-        },
-
-    // Funksjon for å markere notifikasjoner som avslått og lest
-    updateNotificationsForRejectedConversation: (conversationId: number) => {
+      markAllAsRead: () =>
         set((state) => ({
-            notifications: state.notifications.map((notification) => 
-                notification.conversationId === conversationId
-                    ? { 
-                        ...notification, 
-                        isConversationRejected: true,
-                        isRead: true,
-                        readAt: new Date().toISOString()
-                      }
-                    : notification
-            )
+          notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+        })),
+
+      markAsReadForConversation: (conversationId: number) => {
+        set((state) => {
+          const updated = state.notifications.map((n) =>
+            n.conversationId === conversationId
+              ? { ...n, isRead: true, readAt: new Date().toISOString() }
+              : n
+          );
+
+          return { notifications: updated };
+        });
+      },
+
+      updateNotificationsForRejectedConversation: (conversationId: number) => {
+        set((state) => ({
+          notifications: state.notifications.map((notification) =>
+            notification.conversationId === conversationId
+              ? {
+                  ...notification,
+                  isConversationRejected: true,
+                  isRead: true,
+                  readAt: new Date().toISOString(),
+                }
+              : notification
+          ),
         }));
-        
+
         console.log(`🔄 Markerte notifikasjoner som avslått og lest for samtale: ${conversationId}`);
-    },
-}));
+      },
+
+      // --- full reset (bruk ved logout) ---
+      reset: () =>
+        set({
+          notifications: [],
+          hasLoadedNotifications: false,
+        }),
+    })),
+    {
+      name: "message-notif-cache",
+      storage: createJSONStorage(() => indexedDBStorage),
+
+      /**
+       * partialize: begrens hvor mye som lagres.
+       * - 50 siste notifikasjoner (matcher slice(0, 50) logikken)
+       */
+      partialize: (state) => ({
+        notifications: state.notifications.slice(0, 50),
+        hasLoadedNotifications: state.hasLoadedNotifications,
+      }),
+
+      version: 1,
+      migrate: (persisted) => persisted as MessageNotificationStore,
+    }
+  )
+);

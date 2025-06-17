@@ -47,7 +47,6 @@ export default function Navbar() {
   const setShowMessages = useChatStore((s) => s.setShowMessages);
  
   const { user: currentUser } = useCurrentUserSummary(); // For å hente current user med UserSummary  popoverRef: React.RefObject<>;
-  const resetChatStore = useChatStore((state) => state.resetStore);
   const [messagePos, setMessagePos] = useState<{ x: number; y: number } | null>(null); // For å se hvor messageDropdownen var lagret
   const handleToggleMessages = (e: React.MouseEvent) => {
     if (recentlyClosedMessage) return;
@@ -148,7 +147,6 @@ export default function Navbar() {
 
   const handleLogout = () => { // Ved logout så lukke vi dropboxen og kjører logout funksjonen fra AuthContext
     setShowDropdown(false);
-    resetChatStore();
     logout();
   };
 

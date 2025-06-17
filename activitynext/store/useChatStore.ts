@@ -1,10 +1,10 @@
 import { create } from "zustand";
+import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
+import { indexedDBStorage } from "./indexedNotificationDBStorage";
 import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
 import { ConversationDTO } from "@/types/ConversationDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
 import { useMessageNotificationStore } from "./useMessageNotificationStore";
-
-
 
 type ChatStore = {
   conversations: ConversationDTO[];
@@ -23,7 +23,7 @@ type ChatStore = {
   cacheTimestamps: Record<number, number>;
   searchMode: boolean;
   setSearchMode: (value: boolean) => void;
-  resetStore: () => void;
+
   updateMessageReactions: (reaction: ReactionDTO) => void;
   cleanupOldCache: () => void;
   pendingMessageRequests: MessageRequestDTO[];
@@ -60,224 +60,222 @@ type ChatStore = {
   openConversation: (conversationId: number) => void;
   showMessages: boolean;
   setShowMessages: (value: boolean) => void;
+  
+  /** Tøm alt ved logout */
+  reset: () => void;
 };
-// Lagre når endringer ble gjort for å slette cachen
-export const useChatStore = create<ChatStore>((set) => ({
-  conversations: [],
-  liveMessages: {},
-  currentConversationId: null,
-  cachedMessages: {},
-  scrollPositions: {},
-  cacheTimestamps: {},
-  searchResults: [],
-  unreadConversationIds: [],
-  isAtBottom: true,
-  showNewMessageButton: false,
-  scrollToMessageId: null,
-  conversationIds: new Set<number>(),
-  setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
-  setShowNewMessageButton: (value: boolean) => set({ showNewMessageButton: value }),
-  setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
-  searchMode: false,
-  setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
-  setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
-  reactionsVersion: 0,
-  bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
-  pendingMessageRequests: [],
-  pendingLockedConversationId: null,
-  setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
-  setPendingMessageRequests: (requests) => set(() => ({
-  pendingMessageRequests: [...requests].sort(
-      (a, b) =>
-        new Date(b.requestedAt).getTime() -
-        new Date(a.requestedAt).getTime()
-    )
-  })),
-  pendingRequestsCache: [],
-  pendingRequestsCacheTimestamp: 0,
-  hasLoadedPendingRequests: false,
-  setHasLoadedPendingRequests: (value) => set({ hasLoadedPendingRequests: value }),
-  hasLoadedUnreadConversationIds: false,
-  setHasLoadedUnreadConversationIds: (v) => set({ hasLoadedUnreadConversationIds: v }), 
 
-  setCachedPendingRequests: (requests: MessageRequestDTO[]) =>
-    set({
-      pendingRequestsCache: requests,
-      pendingRequestsCacheTimestamp: Date.now(),
-    }),
-    addPendingRequest: (request: MessageRequestDTO) =>
-  set((state) => {
-    const alreadyExists = state.pendingMessageRequests.some(
-      (r) => r.conversationId === request.conversationId
-    );
+export const useChatStore = create<ChatStore>()(
+  persist(
+    subscribeWithSelector((set) => ({
+      // --- initial state ---
+      conversations: [],
+      liveMessages: {},
+      currentConversationId: null,
+      cachedMessages: {},
+      scrollPositions: {},
+      cacheTimestamps: {},
+      searchResults: [],
+      unreadConversationIds: [],
+      isAtBottom: true,
+      showNewMessageButton: false,
+      scrollToMessageId: null,
+      conversationIds: new Set<number>(),
+      searchMode: false,
+      reactionsVersion: 0,
+      pendingMessageRequests: [],
+      pendingLockedConversationId: null,
+      pendingRequestsCache: [],
+      pendingRequestsCacheTimestamp: 0,
+      hasLoadedPendingRequests: false,
+      hasLoadedUnreadConversationIds: false,
+      hasLoadedConversations: false,
+      showMessages: false,
 
-    if (alreadyExists) return {};
+      // --- setters ---
+      setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
+      setShowNewMessageButton: (value: boolean) => set({ showNewMessageButton: value }),
+      setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
+      setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
+      setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
+      bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
+      setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
+      setHasLoadedPendingRequests: (value) => set({ hasLoadedPendingRequests: value }),
+      setHasLoadedUnreadConversationIds: (v) => set({ hasLoadedUnreadConversationIds: v }),
+      setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
+      setHasLoadedConversations: (v) => set({ hasLoadedConversations: v }),
+      setShowMessages: (value: boolean) => set({ showMessages: value }),
 
-    const updated = [...state.pendingMessageRequests, request].sort(
-      (a, b) =>
-        new Date(b.requestedAt).getTime() -
-        new Date(a.requestedAt).getTime()
-    );
-
-    return {
-      pendingMessageRequests: updated,
-      pendingRequestsCache: updated,
-      pendingRequestsCacheTimestamp: Date.now(),
-    };
-  }),
-
-  removePendingRequest: (conversationId: number) =>
-    set((state) => ({
-      pendingMessageRequests: state.pendingMessageRequests.filter(
-        (r) => r.conversationId !== conversationId
-      ),
-      pendingRequestsCache: state.pendingRequestsCache.filter(
-        (r) => r.conversationId !== conversationId
-      )
-    })),
-
-    setUnreadConversationIds: (ids) => {
-      console.log("🔔 Setter unreadConversationIds i store:", ids);
-      set({ unreadConversationIds: ids });
-    },
-
-    markConversationAsReadLocally: (conversationId) => {
-      useMessageNotificationStore.getState().markAsReadForConversation(conversationId);
-
-      set((state) => ({
-        unreadConversationIds: state.unreadConversationIds.filter((id) => id !== conversationId),
-      }));
-    },
-
-
-  setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
-  hasLoadedConversations: false,
-  setHasLoadedConversations: (v) => set({ hasLoadedConversations: v }),
-  
-
-  setConversations: (conversations) =>
-  set(() => ({
-    conversations: [...conversations].sort(
-      (a, b) =>
-        new Date(b.lastMessageSentAt ?? 0).getTime() -
-        new Date(a.lastMessageSentAt ?? 0).getTime()
-    ),
-      conversationIds: new Set(conversations.map(c => c.id)),
-  })),
-  // Brukes for å åpne dropdown og gå til samtalen ved en notifikasjon
-  openConversation: (conversationId: number) => {
-    set(() => ({ currentConversationId: conversationId }));
-  },
-
-  showMessages: false,
-  setShowMessages: (value: boolean) => set({ showMessages: value }),
-  
-  updateSearchResultReactions: (reaction: ReactionDTO) =>
-    set((state) => {
-      const updatedMessages = state.searchResults.map((m) => {
-        if (m.id !== reaction.messageId) return m;
-
-        const existing = m.reactions ?? [];
-        const filtered = existing.filter((r) => r.userId !== reaction.userId);
-
-        if (!reaction.isRemoved) {
-          filtered.push(reaction);
-        }
-
-        return { ...m, reactions: filtered };
-      });
-
-      return { searchResults: updatedMessages };
-    }),
-      
-
-  updateMessageReactions: (reaction: ReactionDTO) =>
-  set((state) => {
-        console.log("🔁 Oppdaterer reaction i store:", reaction);
-    const updateMessages = (messages: MessageDTO[]) =>
-      messages.map((m) => {
-        if (m.id !== reaction.messageId) return m;
-
-        const existing = m.reactions ?? [];
-        const filtered = existing.filter((r) => r.userId !== reaction.userId);
-
-        if (!reaction.isRemoved) {
-          filtered.push(reaction);
-        }
-
-        return { ...m, reactions: filtered };
-      });
-
-      
-
-      
-
-    // Finn samtalen til meldingen – vi trenger conversationId
-    const liveMessages = { ...state.liveMessages };
-    const cachedMessages = { ...state.cachedMessages };
-
-    for (const [convId, msgs] of Object.entries(state.liveMessages)) {
-      if (msgs.some((m) => m.id === reaction.messageId)) {
-        liveMessages[+convId] = updateMessages(msgs);
-      }
-    }
-
-    for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
-      if (msgs.some((m) => m.id === reaction.messageId)) {
-        cachedMessages[+convId] = updateMessages(msgs);
-      }
-    }
-
-    return {
-      liveMessages,
-      cachedMessages,
-      reactionsVersion: state.reactionsVersion + 1,
-    };
-  }),
-
-  setCachedMessages: (conversationId, messages) =>
-      set((state) => ({
-          cachedMessages: {
-          ...state.cachedMessages,
-          [conversationId]: messages,
-        },
-        cacheTimestamps: {
-          ...state.cacheTimestamps,
-          [conversationId]: Date.now(),
-        },
+      setPendingMessageRequests: (requests) => set(() => ({
+        pendingMessageRequests: [...requests].sort(
+          (a, b) =>
+            new Date(b.requestedAt).getTime() -
+            new Date(a.requestedAt).getTime()
+        )
       })),
 
-     setScrollPosition: (conversationId, position) =>
-    set((state) => ({
-      scrollPositions: {
-        ...state.scrollPositions,
-        [conversationId]: position,
-      },
-    })),
+      setCachedPendingRequests: (requests: MessageRequestDTO[]) =>
+        set({
+          pendingRequestsCache: requests,
+          pendingRequestsCacheTimestamp: Date.now(),
+        }),
 
-    // legger til samtale i samtaleliste ved godkjent meldingsforespørsel
-    addConversation: (conversation) =>
-      set((state) => {
-        const exists = state.conversations.some((c) => c.id === conversation.id);
-         let updated;
-
-        if (exists) {
-          updated = state.conversations.map((c) =>
-            c.id === conversation.id ? { ...c, ...conversation } : c
+      addPendingRequest: (request: MessageRequestDTO) =>
+        set((state) => {
+          const alreadyExists = state.pendingMessageRequests.some(
+            (r) => r.conversationId === request.conversationId
           );
-        } else {
-          updated = [...state.conversations, conversation];
-        }
 
-        // Sorter etter sist sendt melding
-        updated.sort(
-          (a, b) =>
-            new Date(b.lastMessageSentAt ?? 0).getTime() -
-            new Date(a.lastMessageSentAt ?? 0).getTime()
-        );
+          if (alreadyExists) return {};
 
-        return { conversations: updated, conversationIds: new Set(updated.map(c => c.id)) };
-      }),
+          const updated = [...state.pendingMessageRequests, request].sort(
+            (a, b) =>
+              new Date(b.requestedAt).getTime() -
+              new Date(a.requestedAt).getTime()
+          );
+
+          return {
+            pendingMessageRequests: updated,
+            pendingRequestsCache: updated,
+            pendingRequestsCacheTimestamp: Date.now(),
+          };
+        }),
+
+      removePendingRequest: (conversationId: number) =>
+        set((state) => ({
+          pendingMessageRequests: state.pendingMessageRequests.filter(
+            (r) => r.conversationId !== conversationId
+          ),
+          pendingRequestsCache: state.pendingRequestsCache.filter(
+            (r) => r.conversationId !== conversationId
+          )
+        })),
+
+      setUnreadConversationIds: (ids) => {
+        console.log("🔔 Setter unreadConversationIds i store:", ids);
+        set({ unreadConversationIds: ids });
+      },
+
+      markConversationAsReadLocally: (conversationId) => {
+        useMessageNotificationStore.getState().markAsReadForConversation(conversationId);
+
+        set((state) => ({
+          unreadConversationIds: state.unreadConversationIds.filter((id) => id !== conversationId),
+        }));
+      },
+
+      setConversations: (conversations) =>
+        set(() => ({
+          conversations: [...conversations].sort(
+            (a, b) =>
+              new Date(b.lastMessageSentAt ?? 0).getTime() -
+              new Date(a.lastMessageSentAt ?? 0).getTime()
+          ),
+          conversationIds: new Set(conversations.map(c => c.id)),
+        })),
+
+      openConversation: (conversationId: number) => {
+        set(() => ({ currentConversationId: conversationId }));
+      },
+
+      updateSearchResultReactions: (reaction: ReactionDTO) =>
+        set((state) => {
+          const updatedMessages = state.searchResults.map((m) => {
+            if (m.id !== reaction.messageId) return m;
+
+            const existing = m.reactions ?? [];
+            const filtered = existing.filter((r) => r.userId !== reaction.userId);
+
+            if (!reaction.isRemoved) {
+              filtered.push(reaction);
+            }
+
+            return { ...m, reactions: filtered };
+          });
+
+          return { searchResults: updatedMessages };
+        }),
+
+      updateMessageReactions: (reaction: ReactionDTO) =>
+        set((state) => {
+          console.log("🔁 Oppdaterer reaction i store:", reaction);
+          const updateMessages = (messages: MessageDTO[]) =>
+            messages.map((m) => {
+              if (m.id !== reaction.messageId) return m;
+
+              const existing = m.reactions ?? [];
+              const filtered = existing.filter((r) => r.userId !== reaction.userId);
+
+              if (!reaction.isRemoved) {
+                filtered.push(reaction);
+              }
+
+              return { ...m, reactions: filtered };
+            });
+
+          const liveMessages = { ...state.liveMessages };
+          const cachedMessages = { ...state.cachedMessages };
+
+          for (const [convId, msgs] of Object.entries(state.liveMessages)) {
+            if (msgs.some((m) => m.id === reaction.messageId)) {
+              liveMessages[+convId] = updateMessages(msgs);
+            }
+          }
+
+          for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
+            if (msgs.some((m) => m.id === reaction.messageId)) {
+              cachedMessages[+convId] = updateMessages(msgs);
+            }
+          }
+
+          return {
+            liveMessages,
+            cachedMessages,
+            reactionsVersion: state.reactionsVersion + 1,
+          };
+        }),
+
+      setCachedMessages: (conversationId, messages) =>
+        set((state) => ({
+          cachedMessages: {
+            ...state.cachedMessages,
+            [conversationId]: messages,
+          },
+          cacheTimestamps: {
+            ...state.cacheTimestamps,
+            [conversationId]: Date.now(),
+          },
+        })),
+
+      setScrollPosition: (conversationId, position) =>
+        set((state) => ({
+          scrollPositions: {
+            ...state.scrollPositions,
+            [conversationId]: position,
+          },
+        })),
+
+      addConversation: (conversation) =>
+        set((state) => {
+          const exists = state.conversations.some((c) => c.id === conversation.id);
+          let updated;
+
+          if (exists) {
+            updated = state.conversations.map((c) =>
+              c.id === conversation.id ? { ...c, ...conversation } : c
+            );
+          } else {
+            updated = [...state.conversations, conversation];
+          }
+
+          updated.sort(
+            (a, b) =>
+              new Date(b.lastMessageSentAt ?? 0).getTime() -
+              new Date(a.lastMessageSentAt ?? 0).getTime()
+          );
+
+          return { conversations: updated, conversationIds: new Set(updated.map(c => c.id)) };
+        }),
 
       updateConversationTimestamp: (conversationId: number, timestamp: string) =>
         set((state) => {
@@ -290,117 +288,193 @@ export const useChatStore = create<ChatStore>((set) => ({
               new Date(b.lastMessageSentAt ?? 0).getTime() -
               new Date(a.lastMessageSentAt ?? 0).getTime()
           );
-          
 
           return { conversations: updatedConversations };
         }),
 
-        // Sletter en samtale
-    removeConversation: (conversationId: number) =>
-      set((state) => ({
-        conversations: state.conversations.filter((c) => c.id !== conversationId),
-        conversationIds: new Set(
-          Array.from(state.conversationIds).filter((id) => id !== conversationId)
-        ),
-        cachedMessages: Object.fromEntries(
-          Object.entries(state.cachedMessages).filter(([id]) => +id !== conversationId)
-        ),
-        scrollPositions: Object.fromEntries(
-          Object.entries(state.scrollPositions).filter(([id]) => +id !== conversationId)
-        ),
-        cacheTimestamps: Object.fromEntries(
-          Object.entries(state.cacheTimestamps).filter(([id]) => +id !== conversationId)
-        ),
-        liveMessages: Object.fromEntries(
-          Object.entries(state.liveMessages).filter(([id]) => +id !== conversationId)
-        ),
-        unreadConversationIds: state.unreadConversationIds.filter(id => id !== conversationId),
-      })),
-    
-    // Rydder opp cache etter en satt tid, brukes i CacheCleanup
-    cleanupOldCache: () =>
-      set((state) => {
-        console.log("🧹 Running cleanupOldCache at", new Date().toLocaleTimeString());
+      removeConversation: (conversationId: number) =>
+        set((state) => ({
+          conversations: state.conversations.filter((c) => c.id !== conversationId),
+          conversationIds: new Set(
+            Array.from(state.conversationIds).filter((id) => id !== conversationId)
+          ),
+          cachedMessages: Object.fromEntries(
+            Object.entries(state.cachedMessages).filter(([id]) => +id !== conversationId)
+          ),
+          scrollPositions: Object.fromEntries(
+            Object.entries(state.scrollPositions).filter(([id]) => +id !== conversationId)
+          ),
+          cacheTimestamps: Object.fromEntries(
+            Object.entries(state.cacheTimestamps).filter(([id]) => +id !== conversationId)
+          ),
+          liveMessages: Object.fromEntries(
+            Object.entries(state.liveMessages).filter(([id]) => +id !== conversationId)
+          ),
+          unreadConversationIds: state.unreadConversationIds.filter(id => id !== conversationId),
+        })),
 
-        const now = Date.now();
-        const TTL = 1000 * 60 * 10; // 10 minutter
+      cleanupOldCache: () =>
+        set((state) => {
+          console.log("🧹 Running cleanupOldCache at", new Date().toLocaleTimeString());
 
-        const newCachedMessages: typeof state.cachedMessages = {};
-        const newScrollPositions: typeof state.scrollPositions = {};
-        const newCacheTimestamps: typeof state.cacheTimestamps = {};
-        const currentId = state.currentConversationId;
+          const now = Date.now();
+          const TTL = 1000 * 60 * 10; // 10 minutter
 
-        for (const id in state.cacheTimestamps) {
-          const convId = +id;
+          const newCachedMessages: typeof state.cachedMessages = {};
+          const newScrollPositions: typeof state.scrollPositions = {};
+          const newCacheTimestamps: typeof state.cacheTimestamps = {};
+          const currentId = state.currentConversationId;
 
-          // Ikke slett cache for aktiv samtale
-          if (convId === currentId) {
-            newCachedMessages[convId] = state.cachedMessages[convId];
-            newScrollPositions[convId] = state.scrollPositions[convId];
-            newCacheTimestamps[convId] = state.cacheTimestamps[convId];
-            continue;
+          for (const id in state.cacheTimestamps) {
+            const convId = +id;
+
+            if (convId === currentId) {
+              newCachedMessages[convId] = state.cachedMessages[convId];
+              newScrollPositions[convId] = state.scrollPositions[convId];
+              newCacheTimestamps[convId] = state.cacheTimestamps[convId];
+              continue;
+            }
+
+            if (now - state.cacheTimestamps[convId] < TTL) {
+              newCachedMessages[convId] = state.cachedMessages[convId];
+              newScrollPositions[convId] = state.scrollPositions[convId];
+              newCacheTimestamps[convId] = state.cacheTimestamps[convId];
+            }
           }
 
-          // Behold hvis fortsatt gyldig
-          if (now - state.cacheTimestamps[convId] < TTL) {
-            newCachedMessages[convId] = state.cachedMessages[convId];
-            newScrollPositions[convId] = state.scrollPositions[convId];
-            newCacheTimestamps[convId] = state.cacheTimestamps[convId];
+          const cacheAge = now - state.pendingRequestsCacheTimestamp;
+          const keepPendingCache = cacheAge < TTL;
+
+          return {
+            cachedMessages: newCachedMessages,
+            scrollPositions: newScrollPositions,
+            cacheTimestamps: newCacheTimestamps,
+            pendingRequestsCache: keepPendingCache ? state.pendingRequestsCache : [],
+            pendingRequestsCacheTimestamp: keepPendingCache ? state.pendingRequestsCacheTimestamp : 0,
+          };
+        }),
+
+      addMessage: (message) =>
+        set((state) => {
+          console.log("🔔 addMessage called with:", message);
+          const current = state.liveMessages[message.conversationId] ?? [];
+          const alreadyExists = current.some((m) => m.id === message.id);
+          if (alreadyExists) {
+            console.log("⚠️ Message already exists, skipping:", message.id);
+            return state;
           }
+
+          const updated = {
+            ...state.liveMessages,
+            [message.conversationId]: [...current, message],
+          };
+
+          console.log("✅ Message added to liveMessages:", updated[message.conversationId]);
+
+          return {
+            liveMessages: updated,
+          };
+        }),
+
+      clearLiveMessages: (conversationId) =>
+        set((state) => {
+          const copy = { ...state.liveMessages };
+          delete copy[conversationId];
+          return { liveMessages: copy };
+        }),
+
+
+
+      // --- full reset (bruk ved logout) ---
+      reset: () =>
+        set({
+          conversations: [],
+          liveMessages: {},
+          currentConversationId: null,
+          cachedMessages: {},
+          scrollPositions: {},
+          cacheTimestamps: {},
+          pendingMessageRequests: [],
+          searchResults: [],
+          unreadConversationIds: [],
+          conversationIds: new Set<number>(),
+          pendingRequestsCache: [],
+          pendingRequestsCacheTimestamp: 0,
+          hasLoadedPendingRequests: false,
+          hasLoadedConversations: false,
+          hasLoadedUnreadConversationIds: false,
+          isAtBottom: true,
+          showNewMessageButton: false,
+          scrollToMessageId: null,
+          searchMode: false,
+          reactionsVersion: 0,
+          pendingLockedConversationId: null,
+          showMessages: false,
+        }),
+    })),
+    {
+      name: "chat-cache",
+      storage: createJSONStorage(() => indexedDBStorage),
+
+      /**
+       * partialize: begrens hvor mye som lagres.
+       * - conversations (alle)
+       * - cachedMessages (begrenset til siste 100 per samtale)
+       * - liveMessages (begrenset til siste 50 per samtale) ✅ LAGRES NÅ
+       * - scrollPositions (alle)
+       * - pendingRequestsCache (alle)
+       * - loading states
+       * - unreadConversationIds
+       * 
+       * IKKE lagre:
+       * - searchResults (midlertidige)
+       * - UI state (isAtBottom, showNewMessageButton, etc.)
+       */
+      partialize: (state) => {
+        // Begrens cachedMessages til max 100 meldinger per samtale
+        const limitedCachedMessages: Record<number, MessageDTO[]> = {};
+        for (const [convId, messages] of Object.entries(state.cachedMessages)) {
+          limitedCachedMessages[+convId] = messages.slice(-100); // Behold siste 100
         }
 
-            const cacheAge = now - state.pendingRequestsCacheTimestamp;
-            const keepPendingCache = cacheAge < TTL;
+        // Begrens liveMessages til max 50 meldinger per samtale
+        const limitedLiveMessages: Record<number, MessageDTO[]> = {};
+        for (const [convId, messages] of Object.entries(state.liveMessages)) {
+          limitedLiveMessages[+convId] = messages.slice(-50); // Behold siste 50
+        }
 
         return {
-          cachedMessages: newCachedMessages,
-          scrollPositions: newScrollPositions,
-          cacheTimestamps: newCacheTimestamps,
-                 pendingRequestsCache: keepPendingCache
-         ? state.pendingRequestsCache
-         : [],
-       pendingRequestsCacheTimestamp: keepPendingCache
-         ? state.pendingRequestsCacheTimestamp
-         : 0,
+          conversations: state.conversations,
+          cachedMessages: limitedCachedMessages,
+          liveMessages: limitedLiveMessages, // ✅ LAGRES NÅ
+          scrollPositions: state.scrollPositions,
+          cacheTimestamps: state.cacheTimestamps,
+          pendingRequestsCache: state.pendingRequestsCache,
+          pendingRequestsCacheTimestamp: state.pendingRequestsCacheTimestamp,
+          unreadConversationIds: state.unreadConversationIds,
+          conversationIds: Array.from(state.conversationIds), // Set kan ikke serialiseres direkte
+          hasLoadedPendingRequests: state.hasLoadedPendingRequests,
+          hasLoadedConversations: state.hasLoadedConversations,
+          hasLoadedUnreadConversationIds: state.hasLoadedUnreadConversationIds,
         };
-      }),
+      },
 
-  addMessage: (message) =>
-    set((state) => {
-      console.log("🔔 addMessage called with:", message);
-      const current = state.liveMessages[message.conversationId] ?? [];
-      const alreadyExists = current.some((m) => m.id === message.id);
-      if (alreadyExists) {
-        console.log("⚠️ Message already exists, skipping:", message.id);
-        return state;
-      }
+      // Håndter deserialisering av Set
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.conversationIds)) {
+          state.conversationIds = new Set(state.conversationIds);
+        }
+      },
 
-      const updated = {
-        ...state.liveMessages,
-        [message.conversationId]: [...current, message],
-      };
-
-      console.log("✅ Message added to liveMessages:", updated[message.conversationId]);
-
-      return {
-        liveMessages: updated,
-      };
-    }),
-
-  clearLiveMessages: (conversationId) =>
-    set((state) => {
-      const copy = { ...state.liveMessages };
-      delete copy[conversationId];
-      return { liveMessages: copy };
-    }),
-
-    resetStore: () => set(() => ({
-      conversations: [],
-      liveMessages: {},
-      currentConversationId: null,
-      cachedMessages: {},
-      scrollPositions: {},
-      cacheTimestamps: {},
-      pendingMessageRequests: [],
-    })),
-}));
+      version: 1,
+      migrate: (persisted: unknown) => {
+        // Sørg for at conversationIds er et Set
+        const state = persisted as Partial<ChatStore>;
+        if (state && Array.isArray(state.conversationIds)) {
+          state.conversationIds = new Set(state.conversationIds);
+        }
+        return state as ChatStore;
+      },
+    }
+  )
+);

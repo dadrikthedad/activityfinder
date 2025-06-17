@@ -13,6 +13,7 @@ import { clearAllDrafts } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { indexedDBStorage } from "@/store/indexedNotificationDBStorage";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 interface AuthContextType {
   isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
@@ -73,15 +74,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
     }
 
     /* ---------- Zustand-stores ---------- */
-    useChatStore.getState().resetStore();          // tømmer chat
+    useChatStore.getState().reset();          // tømmer chat
     useNotificationStore.getState().reset();       // tømmer in-memory  (notifications & friendRequests)
+    useMessageNotificationStore.getState().reset(); 
 
     /* ---------- Slett IDB-snapshot helt ---------- */
     // 1) Zustand v4+ har .persist.clearStorage()
+    await useChatStore.persist.clearStorage();
     await useNotificationStore.persist.clearStorage();
+    await useMessageNotificationStore.persist.clearStorage();
 
     // 2) fallback – slett direkte via idb-keyval (hvis du ønsker helt blank DB)
+    await indexedDBStorage.removeItem("chat-cache");
     await indexedDBStorage.removeItem("notif-cache");
+    await indexedDBStorage.removeItem("message-notif-cache"); 
 
     /* ---------- Annet UI-rot ---------- */
     clearAllDrafts();                              // f.eks. editor-drafts o.l.
