@@ -52,18 +52,10 @@ public class MessageService : IMessageService
 
         if (!conversation.IsGroup && requiresApproval)
         {
-            if (isRejected)
+            if (isRejected && !requestSent) 
             {
-                string rejectionMessage = requestSent 
-                    ? "Your message request was rejected. Cannot send messages until accepted."
-                    : "You have rejected this message request. Accept it to allow messaging.";
-        
-                return new MessageResponseDTO
-                {
-                    Text = rejectionMessage,
-                    ConversationId = conversation.Id,
-                    SenderId = senderId
-                };
+                // 🚨 Scenario 1: JEG har avslått den andre - BLOKKÉR helt
+                throw new Exception("You have rejected this message request. Accept it to allow messaging.");
             }
         }
         
@@ -117,13 +109,15 @@ public class MessageService : IMessageService
 
         // 7️⃣  Map DTO (5. query – henter avsender)
         var response = await MapToResponseDto(message);
+        
+        
 
         var participantIds = conversation.Participants
             .Select(p => p.UserId)
             .ToArray();
         
         // Rett før køing
-        var shouldNotify = !requiresApproval || messageCount > 0;
+        var shouldNotify = !requiresApproval || (messageCount > 0 && !isRejected);
         
         // NotifyAndBroadcastAsync
         if (shouldNotify || needsMessageRequestNotification)
@@ -138,6 +132,12 @@ public class MessageService : IMessageService
                 response       : response,
                 shouldNotify   : shouldNotify,
                 needsMessageRequestNotification : needsMessageRequestNotification));
+        }
+        // 🆕 Marker type så frontend vet hva den skal gjøre
+        
+        if (isRejected && requestSent)
+        {
+            response.IsRejectedRequest = true;
         }
         
         return response;
