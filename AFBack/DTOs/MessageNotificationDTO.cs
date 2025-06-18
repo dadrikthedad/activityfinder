@@ -18,6 +18,7 @@ public class MessageNotificationDTO
     public string? SenderName { get; set; }
     public string? GroupName { get; set; }
     
+    public string? GroupImageUrl { get; set; }
     
     [JsonPropertyName("reactionEmoji")]
     public string? ReactionEmoji { get; set; }

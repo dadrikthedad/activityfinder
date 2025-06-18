@@ -6,6 +6,8 @@ public class ConversationDTO
     public string? GroupName { get; set; }
     public bool IsGroup { get; set; }
     
+    public string? GroupImageUrl { get; set; }
+    
     public List<UserSummaryDTO> Participants { get; set; } = new();
     
     public int CreatorId { get; set; } // Hvem som opprettet samtalen

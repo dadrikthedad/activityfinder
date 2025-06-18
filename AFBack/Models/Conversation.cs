@@ -1,10 +1,17 @@
-﻿namespace AFBack.Models;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace AFBack.Models;
 
 public class Conversation
 {
     public int Id { get; set; }
     public bool IsGroup { get; set; }
+    
+    [MaxLength(100)]
     public string? GroupName { get; set; }
+    
+    [MaxLength(512)]
+    public string? GroupImageUrl { get; set; }
     
     public int CreatorId { get; set; } // Hvem som opprettet samtalen
 

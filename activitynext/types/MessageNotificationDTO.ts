@@ -9,6 +9,7 @@ export interface MessageNotificationDTO {
   senderId?: number | null;    
   senderName?: string | null;
   groupName?: string | null;
+  groupImageUrl?: string;
   reactionEmoji?: string | null;
   messagePreview?: string | null;
   messageCount?: number | null;

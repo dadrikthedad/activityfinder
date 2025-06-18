@@ -52,88 +52,89 @@ public class ConversationService
             }).ToList();
         }
 
-        // Opprette en gurppe
-        public async Task<Conversation> CreateGroupAsync(string groupName)
-        {
-            if (await _context.Conversations.AnyAsync(c => c.GroupName == groupName && c.IsGroup))
-                throw new Exception("En gruppe med dette navnet finnes allerede.");
-
-            var group = new Conversation
-            {
-                GroupName = groupName,
-                IsGroup = true
-            };
-
-            _context.Conversations.Add(group);
-            await _context.SaveChangesAsync();
-            return group;
-        }
+        // // Opprette en gurppe
+        // public async Task<Conversation> CreateGroupAsync(string groupName)
+        // {
+        //     if (await _context.Conversations.AnyAsync(c => c.GroupName == groupName && c.IsGroup))
+        //         throw new Exception("En gruppe med dette navnet finnes allerede.");
+        //
+        //     var group = new Conversation
+        //     {
+        //         GroupName = groupName,
+        //         IsGroup = true
+        //     };
+        //
+        //     _context.Conversations.Add(group);
+        //     await _context.SaveChangesAsync();
+        //     return group;
+        // }
         // Legge til en bruker i en gruppe
-        public async Task InviteParticipantAsync(int conversationId, int inviterId, int invitedUserId, bool autoAccept = false)
-        {
-            var conversation = await _context.Conversations
-                .Include(c => c.Participants)
-                .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
-
-            if (conversation == null)
-                throw new Exception("Gruppesamtale ikke funnet.");
-            
-            // Brukeren er allerede deltaker?
-            if (conversation.Participants.Any(p => p.UserId == invitedUserId))
-                throw new Exception("Brukeren er allerede deltaker i gruppen.");
-            
-            var isBlocked = await _context.GroupBlocks
-                .AnyAsync(b => b.UserId == invitedUserId && b.ConversationId == conversationId);
-            
-            if (isBlocked)
-                throw new Exception("Denne brukeren har blokkert invitasjoner til denne gruppen.");
-            
-            
-            
-
-            if (autoAccept)
-            {
-                // Legg direkte til som deltaker
-                _context.ConversationParticipants.Add(new ConversationParticipant
-                {
-                    ConversationId = conversationId,
-                    UserId = invitedUserId
-                });
-            }
-            else
-            {
-                // Sjekk om invitasjon finnes fra før
-                var alreadyInvited = await _context.GroupInviteRequests
-                    .AnyAsync(r => r.ConversationId == conversationId && r.InvitedUserId == invitedUserId && !r.IsAccepted);
-
-                if (!alreadyInvited)
-                {
-                    _context.GroupInviteRequests.Add(new GroupInviteRequest
-                    {
-                        ConversationId = conversationId,
-                        InviterId = inviterId,
-                        InvitedUserId = invitedUserId,
-                        IsAccepted = false,
-                        RequestedAt = DateTime.UtcNow
-                    });
-                }
-            }
-
-            await _context.SaveChangesAsync();
-        }
+        // public async Task InviteParticipantAsync(int conversationId, int inviterId, int invitedUserId, bool autoAccept = false)
+        // {
+        //     var conversation = await _context.Conversations
+        //         .Include(c => c.Participants)
+        //         .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
+        //
+        //     if (conversation == null)
+        //         throw new Exception("Gruppesamtale ikke funnet.");
+        //     
+        //     // Brukeren er allerede deltaker?
+        //     if (conversation.Participants.Any(p => p.UserId == invitedUserId))
+        //         throw new Exception("Brukeren er allerede deltaker i gruppen.");
+        //     
+        //     var isBlocked = await _context.GroupBlocks
+        //         .AnyAsync(b => b.UserId == invitedUserId && b.ConversationId == conversationId);
+        //     
+        //     if (isBlocked)
+        //         throw new Exception("Denne brukeren har blokkert invitasjoner til denne gruppen.");
+        //     
+        //     
+        //     
+        //
+        //     if (autoAccept)
+        //     {
+        //         // Legg direkte til som deltaker
+        //         _context.ConversationParticipants.Add(new ConversationParticipant
+        //         {
+        //             ConversationId = conversationId,
+        //             UserId = invitedUserId
+        //         });
+        //     }
+        //     else
+        //     {
+        //         // Sjekk om invitasjon finnes fra før
+        //         var alreadyInvited = await _context.GroupInviteRequests
+        //             .AnyAsync(r => r.ConversationId == conversationId && r.InvitedUserId == invitedUserId && !r.IsAccepted);
+        //
+        //         if (!alreadyInvited)
+        //         {
+        //             _context.GroupInviteRequests.Add(new GroupInviteRequest
+        //             {
+        //                 ConversationId = conversationId,
+        //                 InviterId = inviterId,
+        //                 InvitedUserId = invitedUserId,
+        //                 IsAccepted = false,
+        //                 RequestedAt = DateTime.UtcNow
+        //             });
+        //         }
+        //     }
+        //
+        //     await _context.SaveChangesAsync();
+        // }
         
-        // Fjerne en bruker fra en gruppe
-        public async Task RemoveParticipantAsync(int conversationId, int userId)
-        {
-            var participant = await _context.ConversationParticipants
-                .FirstOrDefaultAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
-
-            if (participant != null)
-            {
-                _context.ConversationParticipants.Remove(participant);
-                await _context.SaveChangesAsync();
-            }
-        }
+        // // Fjerne en bruker fra en gruppe
+        // public async Task RemoveParticipantAsync(int conversationId, int userId)
+        // {
+        //     var participant = await _context.ConversationParticipants
+        //         .FirstOrDefaultAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
+        //
+        //     if (participant != null)
+        //     {
+        //         _context.ConversationParticipants.Remove(participant);
+        //         await _context.SaveChangesAsync();
+        //     }
+        // }
+        
         // Henter alle samtelene til en bruker
         public async Task<List<Conversation>> GetUserConversationsAsync(int userId, bool isGroup)
         {
@@ -143,19 +144,6 @@ public class ConversationService
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
                 .ToListAsync();
-        }
-        // Henter meldinger for å vise samtalene
-        public async Task<Conversation?> GetConversationByIdAsync(int conversationId)
-        {
-            return await _context.Conversations
-                .Include(c => c.Participants)
-                .Include(c => c.Messages.Where(m => !m.IsDeleted)) // ✅ bare aktive meldinger
-                .ThenInclude(m => m.Reactions)
-                .Include(c => c.Messages.Where(m => !m.IsDeleted))
-                .ThenInclude(m => m.Attachments)
-                .Include(c => c.Messages.Where(m => !m.IsDeleted))
-                .ThenInclude(m => m.ParentMessage)
-                .FirstOrDefaultAsync(c => c.Id == conversationId);
         }
         
         // Slette en gruppe
@@ -200,36 +188,6 @@ public class ConversationService
             await _context.SaveChangesAsync();
         }
         
-        // Henter antall uleste meldinger i en samtale
-        public async Task<Dictionary<int, int>> GetUnreadMessageCountsAsync(int userId)
-        {
-            var states = await _context.ConversationReadStates
-                .Where(r => r.UserId == userId)
-                .ToDictionaryAsync(r => r.ConversationId, r => r.LastReadAt);
-
-            var conversations = await _context.Conversations
-                .Include(c => c.Participants)
-                .Include(c => c.Messages)
-                .Where(c => c.Participants.Any(p => p.UserId == userId))
-                .ToListAsync();
-
-            var result = new Dictionary<int, int>();
-
-            foreach (var conversation in conversations)
-            {
-                var lastRead = states.TryGetValue(conversation.Id, out var value)
-                    ? value
-                    : DateTime.MinValue;
-
-                var unreadCount = conversation.Messages
-                    .Where(m => m.SentAt > lastRead && m.SenderId != userId)
-                    .Count();
-
-                result[conversation.Id] = unreadCount;
-            }
-
-            return result;
-        }
         // Her henter vi totalt antall meldinger ulest
         public async Task<UnreadSummaryDTO> GetUnreadSummaryAsync(int userId)
         {

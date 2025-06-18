@@ -7,6 +7,7 @@ export interface MessageRequestDTO {
   conversationId?: number;
   groupName?: string;
   isGroup: boolean;
+  groupImageUrl?: string;
 
   limitReached: boolean;
   isPendingApproval: boolean;

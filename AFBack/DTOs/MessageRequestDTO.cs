@@ -10,6 +10,9 @@ public class MessageRequestDTO
     public int? ConversationId { get; set; }
     public string? GroupName { get; set; }
     public bool IsGroup { get; set; }
+    
+    public string? GroupImageUrl { get; set; }
+    
     public bool LimitReached { get; set; }
     
     public bool IsPendingApproval { get; set; }

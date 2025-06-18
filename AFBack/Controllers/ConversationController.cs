@@ -48,6 +48,7 @@ public class ConversationsController : BaseController
                 Id = c.Conversation.Id,
                 GroupName = c.Conversation.GroupName,
                 IsGroup = c.Conversation.IsGroup,
+                GroupImageUrl = c.Conversation.GroupImageUrl,
                 LastMessageSentAt = c.Conversation.LastMessageSentAt,
                 Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
                 {
@@ -126,6 +127,7 @@ public class ConversationsController : BaseController
             Id = conversation.Id,
             GroupName = conversation.GroupName,
             IsGroup = conversation.IsGroup,
+            GroupImageUrl = conversation.GroupImageUrl,
             LastMessageSentAt = lastMessage?.SentAt,
             Participants = conversation.Participants.Select(p => new UserSummaryDTO
             {
@@ -168,6 +170,7 @@ public class ConversationsController : BaseController
                 Id = c.Conversation.Id,
                 GroupName = c.Conversation.GroupName,
                 IsGroup = c.Conversation.IsGroup,
+                GroupImageUrl = c.Conversation.GroupImageUrl,
                 LastMessageSentAt = c.Conversation.LastMessageSentAt,
                 Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
                 {
@@ -225,6 +228,7 @@ public class ConversationsController : BaseController
             {
                 Id = c.Conversation.Id,
                 GroupName = c.Conversation.GroupName,
+                GroupImageUrl = c.Conversation.GroupImageUrl,
                 IsGroup = c.Conversation.IsGroup,
                 LastMessageSentAt = c.Conversation.LastMessageSentAt,
                 Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO

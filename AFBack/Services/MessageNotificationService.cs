@@ -211,6 +211,7 @@ public class MessageNotificationService
             SenderName = n.FromUser?.FullName,
             SenderId = n.FromUserId,
             GroupName = n.Conversation?.GroupName,
+            GroupImageUrl = n.Conversation!.GroupImageUrl,
             MessagePreview = preview,
             ReactionEmoji = n.Type == NotificationType.MessageReaction 
                 ? n.Message?.Reactions?

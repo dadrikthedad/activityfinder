@@ -122,6 +122,7 @@ public class MessageService : IMessageService
                 conversationId : conversation.Id,
                 isGroup        : conversation.IsGroup,
                 groupName      : conversation.GroupName,
+                groupImageUrl : conversation.GroupImageUrl,
                 participantIds : participantIds,
                 senderId       : senderId,
                 receiverId     : receiverId,
@@ -274,6 +275,7 @@ public class MessageService : IMessageService
             RequestedAt = r.RequestedAt,
             ConversationId = r.ConversationId,
             GroupName = r.Conversation?.GroupName,
+            GroupImageUrl = r.Conversation?.GroupImageUrl,
             IsGroup = r.Conversation?.IsGroup ?? false,
             LimitReached = r.LimitReached,
             IsPendingApproval = r.Conversation?.IsApproved == false
@@ -765,6 +767,7 @@ public class MessageService : IMessageService
     int    conversationId,
     bool   isGroup,
     string? groupName,
+    string ? groupImageUrl,
     int[]  participantIds,
     int    senderId,
     int    receiverId, // 🆕

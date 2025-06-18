@@ -143,6 +143,7 @@ public class MessagesController : BaseController
             ConversationId = request.ConversationId,
             GroupName = request.Conversation?.GroupName,
             IsGroup = request.Conversation?.IsGroup ?? false,
+            GroupImageUrl = request.Conversation.GroupImageUrl,
             LimitReached = request.LimitReached,
             IsPendingApproval = request.Conversation?.IsApproved == false
         };

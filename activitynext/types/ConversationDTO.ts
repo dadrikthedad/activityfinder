@@ -5,6 +5,7 @@ import { UserSummaryDTO } from "./UserSummaryDTO";
     id: number;
     groupName?: string;
     isGroup: boolean;
+    groupImageUrl?: string;
     lastMessageSentAt?: string;
     participants: UserSummaryDTO[];
     isPendingApproval: boolean;
