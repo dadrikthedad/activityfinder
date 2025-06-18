@@ -1,4 +1,5 @@
-﻿using AFBack.Data;
+﻿using AFBack.Controllers;
+using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Helpers;
 using AFBack.Hubs;
@@ -13,12 +14,14 @@ public class ReactionService : IReactionService
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<ChatHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
+    private readonly ILogger<UserController> _logger;
 
-    public ReactionService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService)
+    public ReactionService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService,  ILogger<UserController> logger)
     {
         _context = context;
         _hubContext = hubContext;
         _messageNotificationService = messageNotificationService;
+        _logger = logger;
     }
 
     public async Task AddReactionAsync(int messageId, int userId, string emoji)
@@ -35,6 +38,47 @@ public class ReactionService : IReactionService
 
         if (message == null)
             throw new KeyNotFoundException($"Melding med ID {messageId} eksisterer ikke.");
+        
+        // ✅ TILGANGSKONTROLL: Sjekk om brukeren har tilgang til samtalen
+        var conversation = message.Conversation;
+        var isParticipant = conversation.Participants.Any(p => p.UserId == userId);
+    
+        if (!isParticipant)
+            throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
+
+        // ✅ For grupper: Sjekk om brukeren har godkjent GroupRequest
+        if (conversation.IsGroup)
+        {
+            bool isCreator = conversation.CreatorId == userId;
+        
+            if (!isCreator)
+            {
+                var hasApprovedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
+                    gr.ReceiverId == userId &&
+                    gr.ConversationId == conversation.Id &&
+                    gr.Status == GroupRequestStatus.Approved);
+
+                if (!hasApprovedGroupRequest)
+                    throw new UnauthorizedAccessException("Du har ikke godkjent invitasjonen til denne gruppen.");
+            }
+        }
+
+        // ✅ For 1-til-1: Sjekk om samtalen er godkjent eller du har tilgang
+        if (!conversation.IsGroup && !conversation.IsApproved)
+        {
+            bool isCreator = conversation.CreatorId == userId;
+        
+            if (!isCreator)
+            {
+                var hasApprovedMessageRequest = await _context.MessageRequests.AnyAsync(mr =>
+                    mr.ReceiverId == userId &&
+                    mr.ConversationId == conversation.Id &&
+                    mr.IsAccepted);
+
+                if (!hasApprovedMessageRequest)
+                    throw new UnauthorizedAccessException("Du må godkjenne samtalen før du kan reagere på meldinger.");
+            }
+        }
 
         var existingReaction = await _context.Reactions
             .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == userId);
@@ -88,9 +132,10 @@ public class ReactionService : IReactionService
             IsRemoved = isRemoved
         };
 
-        var recipients = message.Conversation.IsGroup && !string.IsNullOrEmpty(message.Conversation.GroupName)
-            ? null
-            : message.Conversation.Participants.Select(p => p.UserId.ToString()).ToList();
+        // ✅ Send alltid til alle participants (ingen gruppehåndtering)
+        var participantIds = message.Conversation.Participants
+            .Select(p => p.UserId.ToString())
+            .ToList();
 
         MessageNotificationDTO? notificationDto = null;
 
@@ -105,8 +150,8 @@ public class ReactionService : IReactionService
             );
         }
 
-        // ✅ Send bare én oppdatering via SignalR
-        await SendReactionUpdateAsync(recipients, message.Conversation.GroupName, dto, notificationDto);
+        // ✅ Send til alle participants
+        await SendReactionUpdateAsync(participantIds, null, dto, notificationDto);
     }
 
 
@@ -119,21 +164,23 @@ public class ReactionService : IReactionService
             notification
         };
 
-        var tasks = new List<Task>();
-
-        if (!string.IsNullOrEmpty(groupName))
-        {
-            tasks.Add(_hubContext.Clients.Group(groupName).SendAsync("ReceiveReaction", payload));
-        }
-
+        // ✅ Send alltid til hver enkelt bruker
         if (userIds != null)
         {
-            foreach (var userId in userIds)
+            var tasks = userIds.Select(async userId =>
             {
-                tasks.Add(_hubContext.Clients.User(userId).SendAsync("ReceiveReaction", payload));
-            }
-        }
+                try
+                {
+                    await _hubContext.Clients.User(userId).SendAsync("ReceiveReaction", payload);
+                }
+                catch (Exception ex)
+                {
+                    // Log feilen, men fortsett med andre brukere
+                    _logger?.LogWarning(ex, "Failed to send reaction to user {UserId}", userId);
+                }
+            });
 
-        await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks);
+        }
     }
 }

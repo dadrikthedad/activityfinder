@@ -1,6 +1,7 @@
 ﻿using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
+using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -104,23 +105,60 @@ public class ConversationsController : BaseController
             .OrderByDescending(m => m.SentAt)
             .FirstOrDefault();
         
-        var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
+        bool isApproved;
+        bool isPending;
 
-        var isFriend = await _context.Friends.AnyAsync(f =>
-            (f.UserId == userId && f.FriendId == otherUserId) ||
-            (f.UserId == otherUserId && f.FriendId == userId));
+        if (conversation.IsGroup)
+        {
+            // ✅ GRUPPE LOGIKK
+            bool isCreator = conversation.CreatorId == userId;
+        
+            if (isCreator)
+            {
+                isApproved = true;
+                isPending = false;
+            }
+            else
+            {
+                var groupRequest = await _context.GroupRequests
+                    .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId);
 
-        var isApproved = isFriend || await _context.MessageRequests.AnyAsync(r =>
-            ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
-             (r.SenderId == otherUserId && r.ReceiverId == userId)) &&
-            r.IsAccepted);
+                isApproved = groupRequest?.Status == GroupRequestStatus.Approved;
+                isPending = groupRequest?.Status == GroupRequestStatus.Pending;
+            }
+        }
+        else
+        {
+            // ✅ 1-TIL-1 LOGIKK (eksisterende)
+            var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
 
-        var isPending = !isApproved &&
-                        await _context.MessageRequests.AnyAsync(r =>
-                            r.SenderId == userId &&
-                            r.ReceiverId == otherUserId &&
-                            !r.IsAccepted &&
-                            !r.IsRejected);
+            if (otherUserId == null)
+            {
+                // Sikkerhet: Bør ikke skje, men håndter det
+                isApproved = false;
+                isPending = false;
+            }
+            else
+            {
+                var isFriend = await _context.Friends.AnyAsync(f =>
+                    (f.UserId == userId && f.FriendId == otherUserId) ||
+                    (f.UserId == otherUserId && f.FriendId == userId));
+
+                var messageRequest = await _context.MessageRequests
+                    .FirstOrDefaultAsync(r =>
+                        r.ConversationId == conversationId &&
+                        ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
+                         (r.SenderId == otherUserId && r.ReceiverId == userId)));
+
+                isApproved = conversation.IsApproved || isFriend || messageRequest?.IsAccepted == true;
+            
+                isPending = !isApproved &&
+                            messageRequest != null &&
+                            messageRequest.SenderId == userId &&
+                            !messageRequest.IsAccepted &&
+                            !messageRequest.IsRejected;
+            }
+        }
 
         var dto = new ConversationDTO
         {
@@ -218,12 +256,21 @@ public class ConversationsController : BaseController
 
         var rejectedConversations = await _conversationService.GetUserConversationsSortedAsync(userId.Value, includeRejected: true);
 
-        // Filtrer her til bare samtaler som faktisk er avslått
+        // ✅ Filtrer til samtaler som faktisk er avslått (både 1-til-1 og grupper)
         var filtered = rejectedConversations
-            .Where(c => !c.Conversation.IsGroup && _context.MessageRequests
-                .Any(r => r.ConversationId == c.Conversation.Id &&
-                          r.IsRejected &&
-                          r.SenderId != userId))
+            .Where(c => 
+                // ✅ Avslåtte 1-til-1 samtaler
+                (!c.Conversation.IsGroup && _context.MessageRequests
+                    .Any(r => r.ConversationId == c.Conversation.Id &&
+                              r.IsRejected &&
+                              r.SenderId != userId)) ||
+            
+                // ✅ Avslåtte gruppesamtaler
+                (c.Conversation.IsGroup && _context.GroupRequests
+                    .Any(gr => gr.ConversationId == c.Conversation.Id &&
+                               gr.ReceiverId == userId &&
+                               gr.Status == GroupRequestStatus.Rejected))
+            )
             .Select(c => new ConversationDTO
             {
                 Id = c.Conversation.Id,
@@ -243,131 +290,5 @@ public class ConversationsController : BaseController
 
         return Ok(filtered);
     }
-    
-    // // Opprette en gruppe
-    // [HttpPost("group")]
-    // public async Task<IActionResult> CreateGroup([FromBody] string groupName)
-    // {
-    //     if (string.IsNullOrWhiteSpace(groupName))
-    //         return BadRequest("Gruppenavn kan ikke være tomt.");
-    //
-    //     var userId = GetUserId();
-    //     if (userId == null)
-    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-    //
-    //     try
-    //     {
-    //         // Opprett gruppen
-    //         var group = await _conversationService.CreateGroupAsync(groupName);
-    //
-    //         // Legg til oppretter som deltaker
-    //         await _conversationService.InviteParticipantAsync(group.Id, userId.Value, userId.Value, autoAccept: true);
-    //
-    //         return Ok(new
-    //         {
-    //             group.Id,
-    //             group.GroupName,
-    //             group.IsGroup
-    //         });
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         return BadRequest($"Kunne ikke opprette gruppe: {ex.Message}");
-    //     }
-    // }
-    //
-    // // Legge til medlem i gruppen
-    // [HttpPost("{conversationId}/participants")]
-    // public async Task<IActionResult> AddUserToGroup(int conversationId, [FromBody] int userId)
-    // {
-    //     var inviterId = GetUserId();
-    //     if (inviterId == null)
-    //         return Unauthorized("Ugyldig eller manglende inviter-ID i token.");
-    //
-    //     if (userId <= 0)
-    //         return BadRequest("Ugyldig bruker-ID oppgitt.");
-    //
-    //     try
-    //     {
-    //         await _conversationService.InviteParticipantAsync(conversationId, inviterId.Value, userId);
-    //         return Ok(new { message = $"Invitasjon sendt til bruker med ID {userId} for gruppe {conversationId}." });
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         return BadRequest(new { message = "Kunne ikke sende invitasjon.", details = ex.Message });
-    //     }
-    // }
-    //
-    //
-    // // Fjerne en bruker fra gruppen
-    // [HttpDelete("{conversationId}/participants/{userId}")]
-    // public async Task<IActionResult> RemoveUserFromGroup(int conversationId, int userId)
-    // {
-    //     if (userId <= 0 || conversationId <= 0)
-    //         return BadRequest("Ugyldig bruker- eller gruppe-ID.");
-    //
-    //     try
-    //     {
-    //         await _conversationService.RemoveParticipantAsync(conversationId, userId);
-    //
-    //         var group = await _conversationService.GetConversationByIdAsync(conversationId);
-    //         if (group?.GroupName != null)
-    //         {
-    //             await _hubContext.Clients.User(userId.ToString()).SendAsync("LeaveGroup", group.GroupName);
-    //         }
-    //
-    //         return Ok(new { message = $"Bruker med ID {userId} er fjernet fra gruppe {conversationId}." });
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         return BadRequest(new { message = "Kunne ikke fjerne bruker fra gruppen.", details = ex.Message });
-    //     }
-    // }
-    //
-    // // Henter mine grupper
-    // [HttpGet("mine")]
-    // public async Task<IActionResult> GetMyGroups()
-    // {
-    //     var userId = GetUserId();
-    //     if (userId == null)
-    //         return Unauthorized("Ugyldig bruker-ID.");
-    //
-    //     var groups = await _conversationService.GetUserConversationsAsync(userId.Value, isGroup: true);
-    //
-    //     var result = groups.Select(c => new GroupConversationDTO
-    //     {
-    //         Id = c.Id,
-    //         GroupName = c.GroupName,
-    //         Participants = c.Participants
-    //             .Where(p => p.User != null)
-    //             .Select(p => new UserSummaryDTO
-    //             {
-    //                 Id = p.User.Id,
-    //                 FullName = p.User.FullName,
-    //                 ProfileImageUrl = p.User.Profile?.ProfileImageUrl
-    //             }).ToList()
-    //     });
-    //
-    //     return Ok(result);
-    // }
-    //
-    // // Sletter en gruppe
-    // [HttpDelete("{conversationId}")]
-    // public async Task<IActionResult> DeleteGroup(int conversationId)
-    // {
-    //     try
-    //     {
-    //         await _conversationService.DeleteGroupAsync(conversationId);
-    //         return Ok();
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         return BadRequest($"Kunne ikke slette gruppe: {ex.Message}");
-    //     }
-    // }
-    
-    
-    
-    // Godta venneforespørsel
     
 }

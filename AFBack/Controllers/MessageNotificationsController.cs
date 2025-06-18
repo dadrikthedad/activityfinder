@@ -52,8 +52,8 @@ public class MessageNotificationsController : ControllerBase
             .Distinct()
             .ToList();
         
-        // 👇 Slå opp alle rejected MessageRequests én gang
-        var rejectedConversations = await _context.MessageRequests
+        // ✅ Slå opp alle rejected MessageRequests én gang
+        var rejectedMessageConversations = await _context.MessageRequests
             .Where(r =>
                 conversationIds.Contains(r.ConversationId!.Value) &&
                 r.ReceiverId == userId &&
@@ -62,8 +62,20 @@ public class MessageNotificationsController : ControllerBase
             .Distinct()
             .ToListAsync();
         
+        // ✅ Slå opp alle rejected GroupRequests én gang
+        var rejectedGroupConversations = await _context.GroupRequests
+            .Where(gr =>
+                conversationIds.Contains(gr.ConversationId) &&
+                gr.ReceiverId == userId &&
+                gr.Status == GroupRequestStatus.Rejected)
+            .Select(gr => gr.ConversationId)
+            .Distinct()
+            .ToListAsync();
+        
         // 👇 Gjør om til HashSet for raskt oppslag
-        var rejectedConversationSet = new HashSet<int>(rejectedConversations);
+        var rejectedConversationSet = new HashSet<int>(
+            rejectedMessageConversations.Concat(rejectedGroupConversations)
+        );
 
 
         // 👇 Lag DTO-liste med status

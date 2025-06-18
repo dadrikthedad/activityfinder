@@ -12,7 +12,7 @@ public interface IMessageService
 
     Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId);
 
-    Task ApproveMessageRequestAsync(int receiverId, int senderId);
+    Task ApproveMessageRequestAsync(int receiverId, int conversationId);
     
     Task SoftDeleteMessageAsync(int messageId, int userId);
 

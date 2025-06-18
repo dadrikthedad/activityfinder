@@ -3,6 +3,7 @@ using System;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250618095359_Lagt til Url")]
+    partial class LagttilUrl
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -194,7 +197,34 @@ namespace AFBack.Migrations
                     b.ToTable("Friends");
                 });
 
-            modelBuilder.Entity("AFBack.Models.GroupRequest", b =>
+            modelBuilder.Entity("AFBack.Models.GroupBlock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("BlockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("UserId", "ConversationId")
+                        .IsUnique();
+
+                    b.ToTable("GroupBlocks");
+                });
+
+            modelBuilder.Entity("AFBack.Models.GroupInviteRequest", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -205,31 +235,28 @@ namespace AFBack.Migrations
                     b.Property<int>("ConversationId")
                         .HasColumnType("integer");
 
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("ReceiverId")
+                    b.Property<int>("InvitedUserId")
                         .HasColumnType("integer");
+
+                    b.Property<int>("InviterId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsAccepted")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("RequestedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("SenderId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("ConversationId");
+                    b.HasIndex("InvitedUserId");
 
-                    b.HasIndex("SenderId");
+                    b.HasIndex("InviterId");
 
-                    b.HasIndex("ReceiverId", "ConversationId")
+                    b.HasIndex("ConversationId", "InvitedUserId")
                         .IsUnique();
 
-                    b.ToTable("GroupRequests");
+                    b.ToTable("GroupInviteRequests");
                 });
 
             modelBuilder.Entity("AFBack.Models.Message", b =>
@@ -806,7 +833,7 @@ namespace AFBack.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AFBack.Models.GroupRequest", b =>
+            modelBuilder.Entity("AFBack.Models.GroupBlock", b =>
                 {
                     b.HasOne("AFBack.Models.Conversation", "Conversation")
                         .WithMany()
@@ -814,23 +841,42 @@ namespace AFBack.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Receiver")
+                    b.HasOne("AFBack.Models.User", "User")
                         .WithMany()
-                        .HasForeignKey("ReceiverId")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AFBack.Models.GroupInviteRequest", b =>
+                {
+                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AFBack.Models.User", "InvitedUser")
+                        .WithMany()
+                        .HasForeignKey("InvitedUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Sender")
+                    b.HasOne("AFBack.Models.User", "Inviter")
                         .WithMany()
-                        .HasForeignKey("SenderId")
+                        .HasForeignKey("InviterId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Conversation");
 
-                    b.Navigation("Receiver");
+                    b.Navigation("InvitedUser");
 
-                    b.Navigation("Sender");
+                    b.Navigation("Inviter");
                 });
 
             modelBuilder.Entity("AFBack.Models.Message", b =>

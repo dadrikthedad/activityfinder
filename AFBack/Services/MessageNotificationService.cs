@@ -165,6 +165,79 @@ public class MessageNotificationService
         return MapToDTO(created!);
     }
     
+    public async Task<MessageNotificationDTO?> CreateGroupRequestNotificationAsync(
+        int senderId, 
+        int receiverId, 
+        int conversationId,
+        int groupRequestId,
+        string groupName)
+    {
+        // Sjekk om det allerede finnes en ulest GroupRequest-notifikasjon
+        var existing = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .FirstOrDefaultAsync(n =>
+                n.UserId == receiverId &&
+                n.FromUserId == senderId &&
+                n.ConversationId == conversationId &&
+                n.Type == NotificationType.GroupRequest &&
+                !n.IsRead);
+
+        if (existing != null)
+        {
+            return null; // Allerede sendt – ikke send igjen
+        }
+
+        // Opprett ny GroupRequest-notifikasjon
+        var notification = new MessageNotification
+        {
+            UserId = receiverId,
+            FromUserId = senderId,
+            ConversationId = conversationId,
+            Type = NotificationType.GroupRequest,
+            CreatedAt = DateTime.UtcNow,
+            IsRead = false,
+            MessageId = groupRequestId // Gjenbruk MessageId for GroupRequestId
+        };
+
+        _context.MessageNotifications.Add(notification);
+        await _context.SaveChangesAsync();
+
+        // Hent den opprettede notifikasjonen med alle includes
+        var created = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+        return MapToDTO(created!);
+    }
+    
+    public async Task<MessageNotificationDTO> CreateGroupRequestApprovedNotificationAsync(
+        int approverId,
+        int senderId,
+        int conversationId)
+    {
+        var notification = new MessageNotification
+        {
+            UserId = senderId,
+            FromUserId = approverId,
+            ConversationId = conversationId,
+            Type = NotificationType.GroupRequestApproved, // ✅ Ny type
+            CreatedAt = DateTime.UtcNow,
+            IsRead = false
+        };
+
+        _context.MessageNotifications.Add(notification);
+        await _context.SaveChangesAsync();
+
+        var created = await _context.MessageNotifications
+            .Include(n => n.FromUser)
+            .Include(n => n.Conversation)
+            .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+        return MapToDTO(created!);
+    }
+    
     public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null)
     {
         string preview;
@@ -175,9 +248,19 @@ public class MessageNotificationService
             case NotificationType.MessageRequestApproved:
                 preview = "approved your message request";
                 break;
+            
+            case NotificationType.GroupRequestApproved: // ✅ Legg til denne
+                preview = $"joined your group \"{n.Conversation?.GroupName}\"";
+                break;
 
             case NotificationType.MessageRequest:
                 preview = "requested to message you";
+                break;
+            
+            
+            
+            case NotificationType.GroupRequest: // 🆕 Legg til denne
+                preview = $"invited you to join \"{n.Conversation?.GroupName}\"";
                 break;
 
             case NotificationType.MessageReaction:

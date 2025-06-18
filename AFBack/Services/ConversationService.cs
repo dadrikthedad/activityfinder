@@ -17,25 +17,41 @@ public class ConversationService
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
             int userId, bool includeRejected = false)
         {
-            var approvedGroupIds = await _context.MessageRequests
-                .Where(r => r.ReceiverId == userId && r.IsAccepted)
-                .Select(r => r.ConversationId)
-                .ToListAsync();
+            // For 1-til-1: Hent godkjente MessageRequests
+            var approvedMessageRequestConvIds = new HashSet<int>(await _context.MessageRequests
+                .Where(r => r.ReceiverId == userId && r.IsAccepted && r.ConversationId != null)
+                .Select(r => r.ConversationId!.Value)
+                .ToListAsync());
+
+            // For grupper: Hent godkjente GroupRequests
+            var approvedGroupConvIds = new HashSet<int>(await _context.GroupRequests
+                .Where(gr => gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Approved)
+                .Select(gr => gr.ConversationId) // Ingen null-sjekk nødvendig
+                .ToListAsync());
 
             var query = _context.Conversations
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId) &&
-                    (c.IsApproved || c.CreatorId == userId) &&
-                    (!c.IsGroup || approvedGroupIds.Contains(c.Id))
+                    (
+                        // 1-til-1: Godkjent samtale ELLER jeg er creator ELLER godkjent MessageRequest
+                        (!c.IsGroup && (c.IsApproved || c.CreatorId == userId || approvedMessageRequestConvIds.Contains(c.Id))) ||
+                        
+                        // ✅ Grupper: Jeg er creator ELLER jeg har godkjent GroupRequest
+                        (c.IsGroup && (c.CreatorId == userId || approvedGroupConvIds.Contains(c.Id)))
+                    )
                 );
 
             if (!includeRejected)
             {
                 query = query.Where(c =>
-                    c.IsGroup || !_context.MessageRequests
-                        .Any(r => r.ConversationId == c.Id &&
-                                  r.IsRejected &&
-                                  r.SenderId != userId));
+                    // Filtrer bort avslåtte 1-til-1
+                    (c.IsGroup || !_context.MessageRequests
+                        .Any(r => r.ConversationId == c.Id && r.IsRejected && r.SenderId != userId)) &&
+                    
+                    // Filtrer bort avslåtte grupper
+                    (!c.IsGroup || c.CreatorId == userId || !_context.GroupRequests
+                        .Any(gr => gr.ConversationId == c.Id && gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Rejected))
+                );
             }
 
             var conversations = await query
@@ -51,89 +67,6 @@ public class ConversationService
                 IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId
             }).ToList();
         }
-
-        // // Opprette en gurppe
-        // public async Task<Conversation> CreateGroupAsync(string groupName)
-        // {
-        //     if (await _context.Conversations.AnyAsync(c => c.GroupName == groupName && c.IsGroup))
-        //         throw new Exception("En gruppe med dette navnet finnes allerede.");
-        //
-        //     var group = new Conversation
-        //     {
-        //         GroupName = groupName,
-        //         IsGroup = true
-        //     };
-        //
-        //     _context.Conversations.Add(group);
-        //     await _context.SaveChangesAsync();
-        //     return group;
-        // }
-        // Legge til en bruker i en gruppe
-        // public async Task InviteParticipantAsync(int conversationId, int inviterId, int invitedUserId, bool autoAccept = false)
-        // {
-        //     var conversation = await _context.Conversations
-        //         .Include(c => c.Participants)
-        //         .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
-        //
-        //     if (conversation == null)
-        //         throw new Exception("Gruppesamtale ikke funnet.");
-        //     
-        //     // Brukeren er allerede deltaker?
-        //     if (conversation.Participants.Any(p => p.UserId == invitedUserId))
-        //         throw new Exception("Brukeren er allerede deltaker i gruppen.");
-        //     
-        //     var isBlocked = await _context.GroupBlocks
-        //         .AnyAsync(b => b.UserId == invitedUserId && b.ConversationId == conversationId);
-        //     
-        //     if (isBlocked)
-        //         throw new Exception("Denne brukeren har blokkert invitasjoner til denne gruppen.");
-        //     
-        //     
-        //     
-        //
-        //     if (autoAccept)
-        //     {
-        //         // Legg direkte til som deltaker
-        //         _context.ConversationParticipants.Add(new ConversationParticipant
-        //         {
-        //             ConversationId = conversationId,
-        //             UserId = invitedUserId
-        //         });
-        //     }
-        //     else
-        //     {
-        //         // Sjekk om invitasjon finnes fra før
-        //         var alreadyInvited = await _context.GroupInviteRequests
-        //             .AnyAsync(r => r.ConversationId == conversationId && r.InvitedUserId == invitedUserId && !r.IsAccepted);
-        //
-        //         if (!alreadyInvited)
-        //         {
-        //             _context.GroupInviteRequests.Add(new GroupInviteRequest
-        //             {
-        //                 ConversationId = conversationId,
-        //                 InviterId = inviterId,
-        //                 InvitedUserId = invitedUserId,
-        //                 IsAccepted = false,
-        //                 RequestedAt = DateTime.UtcNow
-        //             });
-        //         }
-        //     }
-        //
-        //     await _context.SaveChangesAsync();
-        // }
-        
-        // // Fjerne en bruker fra en gruppe
-        // public async Task RemoveParticipantAsync(int conversationId, int userId)
-        // {
-        //     var participant = await _context.ConversationParticipants
-        //         .FirstOrDefaultAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
-        //
-        //     if (participant != null)
-        //     {
-        //         _context.ConversationParticipants.Remove(participant);
-        //         await _context.SaveChangesAsync();
-        //     }
-        // }
         
         // Henter alle samtelene til en bruker
         public async Task<List<Conversation>> GetUserConversationsAsync(int userId, bool isGroup)
@@ -144,24 +77,6 @@ public class ConversationService
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
                 .ToListAsync();
-        }
-        
-        // Slette en gruppe
-        public async Task DeleteGroupAsync(int conversationId)
-        {
-            var conversation = await _context.Conversations
-                .Include(c => c.Participants)
-                .Include(c => c.Messages)
-                .FirstOrDefaultAsync(c => c.Id == conversationId);
-
-            if (conversation == null)
-                throw new Exception("Samtalen ble ikke funnet.");
-
-            if (!conversation.IsGroup)
-                throw new Exception("Kan ikke slette en privat samtale som gruppe.");
-
-            _context.Conversations.Remove(conversation);
-            await _context.SaveChangesAsync();
         }
         
         // Når en bruker åpner en samtale så sjekker vi om vi har lest meldingen for å fjerne notifasjonen
@@ -191,27 +106,25 @@ public class ConversationService
         // Her henter vi totalt antall meldinger ulest
         public async Task<UnreadSummaryDTO> GetUnreadSummaryAsync(int userId)
         {
-            
             var readStates = await _context.ConversationReadStates
                 .Where(r => r.UserId == userId)
                 .ToDictionaryAsync(r => r.ConversationId, r => r.LastReadAt);
 
-            // Samtaler brukeren er med i
-            var conversations = await _context.Conversations
-                .Include(c => c.Participants)
+            // ✅ Bruk eksisterende service som allerede har riktig tilgangslogikk
+            var conversationResults = await GetUserConversationsSortedAsync(userId, includeRejected: false);
+    
+            // Hent conversation IDs som brukeren har tilgang til
+            var accessibleConversationIds = conversationResults.Select(cr => cr.Conversation.Id).ToHashSet();
+
+            // Hent meldinger for disse samtalene
+            var conversationsWithMessages = await _context.Conversations
                 .Include(c => c.Messages)
-                .Where(c =>
-                    c.Participants.Any(p => p.UserId == userId) &&
-                    (c.IsGroup || !_context.MessageRequests
-                        .Any(r => r.ConversationId == c.Id &&
-                                  r.IsRejected &&
-                                  r.SenderId != userId))
-                )
+                .Where(c => accessibleConversationIds.Contains(c.Id))
                 .ToListAsync();
 
             var result = new UnreadSummaryDTO();
 
-            foreach (var conversation in conversations)
+            foreach (var conversation in conversationsWithMessages)
             {
                 var lastRead = readStates.TryGetValue(conversation.Id, out var value)
                     ? value

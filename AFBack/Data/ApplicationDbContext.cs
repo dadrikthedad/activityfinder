@@ -26,10 +26,10 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<MessageBlock> MessageBlocks { get; set; } // Blokkere meldinger/avise meldingsforespørsel
     
-    public DbSet<GroupInviteRequest> GroupInviteRequests { get; set; } // Her har vi gruppeinvitasjoner
+    public DbSet<GroupRequest> GroupRequests { get; set; }
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
     public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
-    public DbSet<GroupBlock> GroupBlocks { get; set; }  // Blokkerte grupper
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -199,51 +199,6 @@ public class ApplicationDbContext : DbContext
             .HasIndex(crs => new { crs.UserId, crs.ConversationId })
             .IsUnique();
         
-        // Blokkerte grupper
-        modelBuilder.Entity<GroupBlock>()
-            .HasKey(gb => gb.Id);
-
-        modelBuilder.Entity<GroupBlock>()
-            .HasOne(gb => gb.User)
-            .WithMany()
-            .HasForeignKey(gb => gb.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<GroupBlock>()
-            .HasOne(gb => gb.Conversation)
-            .WithMany()
-            .HasForeignKey(gb => gb.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<GroupBlock>()
-            .HasIndex(gb => new { gb.UserId, gb.ConversationId })
-            .IsUnique();
-        
-        // Gruppeinvitasjoner
-        modelBuilder.Entity<GroupInviteRequest>()
-            .HasKey(g => g.Id);
-
-        modelBuilder.Entity<GroupInviteRequest>()
-            .HasOne(g => g.Inviter)
-            .WithMany()
-            .HasForeignKey(g => g.InviterId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<GroupInviteRequest>()
-            .HasOne(g => g.InvitedUser)
-            .WithMany()
-            .HasForeignKey(g => g.InvitedUserId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<GroupInviteRequest>()
-            .HasOne(g => g.Conversation)
-            .WithMany()
-            .HasForeignKey(g => g.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<GroupInviteRequest>()
-            .HasIndex(g => new { g.ConversationId, g.InvitedUserId })
-            .IsUnique();
         
         // Meldingsforespørsler (MessageRequest)
         modelBuilder.Entity<MessageRequest>()
@@ -296,6 +251,28 @@ public class ApplicationDbContext : DbContext
             .WithMany()
             .HasForeignKey(n => n.ConversationId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<GroupRequest>()
+            .HasOne(gr => gr.Sender)
+            .WithMany()
+            .HasForeignKey(gr => gr.SenderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<GroupRequest>()
+            .HasOne(gr => gr.Receiver)
+            .WithMany()
+            .HasForeignKey(gr => gr.ReceiverId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<GroupRequest>()
+            .HasOne(gr => gr.Conversation)
+            .WithMany()
+            .HasForeignKey(gr => gr.ConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<GroupRequest>()
+            .HasIndex(gr => new { gr.ReceiverId, gr.ConversationId })
+            .IsUnique(true); // Sett til true hvis du vil nekte duplikater
         
     }
     // Sikre oppdatering av FullName ved oppdatering av first, middle eller lastname

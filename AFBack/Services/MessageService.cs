@@ -1,4 +1,5 @@
-﻿using AFBack.Data;
+﻿using AFBack.Controllers;
+using AFBack.Data;
 using AFBack.Models;
 using AFBack.DTOs;
 using AFBack.Hubs;
@@ -16,10 +17,11 @@ public class MessageService : IMessageService
     private readonly SendMessageCache _msgCache;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<UserController> _logger;
 
     public MessageService(ApplicationDbContext context, IHubContext<ChatHub> hubContext,
         MessageNotificationService messageNotificationService, SendMessageCache msgCache,
-        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
+        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger)
     {
         _context = context;
         _hubContext = hubContext;
@@ -27,6 +29,7 @@ public class MessageService : IMessageService
         _msgCache = msgCache;
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
+        _logger = logger;
 
     }
 
@@ -38,17 +41,20 @@ public class MessageService : IMessageService
         
         // 1️⃣  Finn eller lag samtalen (1 query, ingen commit hvis den finnes)
         var (conversation, receiverId) = await GetOrCreateConversationFast(senderId, dto);
+        
+        if (!conversation.IsGroup && !receiverId.HasValue)
+            throw new InvalidOperationException("receiverId skal være satt i 1–1 samtale.");
 
         // 2️⃣  Blokkeringssjekk  (treffer cache først)
-        if (!conversation.IsGroup)                 // 👈 begrens til 1–1
+        if (!conversation.IsGroup)
         {
-            if (await _msgCache.IsBlockedAsync(receiverId, senderId))
+            if (await _msgCache.IsBlockedAsync(receiverId.Value, senderId))
                 throw new Exception("Du har ikke tilgang til å sende melding til denne brukeren.");
         }
 
         // 3️⃣  Må meldingen godkjennes? (3. og evt. 4. query)
         (bool requiresApproval, bool isRejected, bool requestSent) = await ShouldRequireApprovalFast(
-            senderId, receiverId, conversation);
+            senderId,  receiverId.Value, conversation);
 
         if (!conversation.IsGroup && requiresApproval)
         {
@@ -156,16 +162,26 @@ public class MessageService : IMessageService
         if (conversation.Participants.All(p => p.UserId != userId))
             throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
 
-        // 👥 GRUPPE: sjekk MessageRequest for brukeren
-        if (conversation.IsGroup && !conversation.IsApproved)
+        // 👥 GRUPPE: sjekk GroupRequest for brukeren
+        if (conversation.IsGroup)
         {
-            var hasApproved = await _context.MessageRequests.AnyAsync(r =>
-                r.ReceiverId == userId &&
-                r.ConversationId == conversationId &&
-                r.IsAccepted);
+            // Sjekk om brukeren er creator eller har godkjent GroupRequest
+            bool isCreator = conversation.CreatorId == userId;
+            bool hasApprovedGroupRequest = false;
 
-            if (!hasApproved)
-                return new List<MessageResponseDTO>(); // Ikke vis meldinger
+            if (!isCreator)
+            {
+                hasApprovedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
+                    gr.ReceiverId == userId &&
+                    gr.ConversationId == conversationId &&
+                    gr.Status == GroupRequestStatus.Approved);
+            }
+
+            // Hvis verken creator eller godkjent member, ingen tilgang
+            if (!isCreator && !hasApprovedGroupRequest)
+            {
+                throw new UnauthorizedAccessException("Du har ikke godkjent invitasjonen til denne gruppen.");
+            }
         }
 
         // 👤 PRIVAT: Begrens til maks 5 hvis ikke godkjent
@@ -179,33 +195,23 @@ public class MessageService : IMessageService
             if (!isCreator)
             {
                 // Bruker er ikke creator, og samtalen er ikke godkjent → begrenset visning
-                var ownMessages = await _context.Messages
-                    .Where(m => m.ConversationId == conversationId && m.SenderId == userId)
-                    .OrderByDescending(m => m.SentAt)
-                    .Skip(skip)
-                    .Take(take)
+                var previewMessages = await _context.Messages
+                    .Where(m => m.ConversationId == conversationId)
                     .Include(m => m.Attachments)
                     .Include(m => m.Reactions)
                     .Include(m => m.Sender).ThenInclude(u => u.Profile)
                     .Include(m => m.ParentMessage)
-                    .ToListAsync();
-
-                var otherMessages = await _context.Messages
-                    .Where(m => m.ConversationId == conversationId && m.SenderId == otherUserId)
                     .OrderByDescending(m => m.SentAt)
-                    .Take(5)
-                    .Include(m => m.Attachments)
-                    .Include(m => m.Reactions)
-                    .Include(m => m.Sender).ThenInclude(u => u.Profile)
-                    .Include(m => m.ParentMessage)
                     .ToListAsync();
 
-                var previewMessages = ownMessages
-                    .Concat(otherMessages)
+                var ownMessages = previewMessages.Where(m => m.SenderId == userId).Take(take);
+                var otherMessages = previewMessages.Where(m => m.SenderId == otherUserId).Take(5);
+
+                var combined = ownMessages.Concat(otherMessages)
                     .OrderBy(m => m.SentAt)
                     .ToList();
 
-                return previewMessages.Select(MapToResponseForMessagesToConv).ToList();
+                return combined.Select(MapToResponseForMessagesToConv).ToList();
             }
         }
 
@@ -261,13 +267,25 @@ public class MessageService : IMessageService
     // Hente alle meldingsforespørsler til en bruker
     public async Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId)
     {
-        var requests = await _context.MessageRequests
+        // ✅ Hent pending 1-til-1 message requests
+        var messageRequests = await _context.MessageRequests
             .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
             .Include(r => r.Sender).ThenInclude(u => u.Profile)
             .Include(r => r.Conversation)
             .ToListAsync();
 
-        return requests.Select(r => new MessageRequestDTO
+        // ✅ Hent pending gruppe requests
+        var groupRequests = await _context.GroupRequests
+            .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
+            .Include(gr => gr.Sender).ThenInclude(u => u.Profile)
+            .Include(gr => gr.Conversation)
+            .ToListAsync();
+
+        // ✅ Kombiner begge typer requests til samme DTO
+        var result = new List<MessageRequestDTO>();
+
+        // Legg til 1-til-1 requests
+        result.AddRange(messageRequests.Select(r => new MessageRequestDTO
         {
             SenderId = r.SenderId,
             SenderName = r.Sender.FullName,
@@ -278,76 +296,127 @@ public class MessageService : IMessageService
             GroupImageUrl = r.Conversation?.GroupImageUrl,
             IsGroup = r.Conversation?.IsGroup ?? false,
             LimitReached = r.LimitReached,
-            IsPendingApproval = r.Conversation?.IsApproved == false
-        }).ToList();
+            IsPendingApproval = r.Conversation?.IsApproved == false,
+        }));
+
+        // Legg til gruppe requests
+        result.AddRange(groupRequests.Select(gr => new MessageRequestDTO
+        {
+            SenderId = gr.SenderId,
+            SenderName = gr.Sender.FullName,
+            ProfileImageUrl = gr.Sender.Profile?.ProfileImageUrl,
+            RequestedAt = gr.RequestedAt,
+            ConversationId = gr.ConversationId,
+            GroupName = gr.Conversation?.GroupName,
+            GroupImageUrl = gr.Conversation?.GroupImageUrl,
+            IsGroup = true, // ✅ Alltid true for gruppe requests
+            LimitReached = false, // ✅ Ikke relevant for gruppe requests
+            IsPendingApproval = true, // ✅ Gruppe requests er alltid pending
+        }));
+
+        // ✅ Sorter etter dato (nyeste først)
+        return result.OrderByDescending(r => r.RequestedAt).ToList();
     }
 
 
     // Her henter vi og ser meldinger etter vi har godtkjent en meldingsforespørsel
-    public async Task ApproveMessageRequestAsync(int receiverId, int senderId)
+    public async Task ApproveMessageRequestAsync(int receiverId, int conversationId)
     {
-        var request = await _context.MessageRequests
-            .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && r.SenderId == senderId);
-
-        if (request == null)
-            throw new Exception("Forespørselen finnes ikke.");
-
-        if (request.IsAccepted)
-            throw new Exception("Forespørselen er allerede godkjent.");
-
-        request.IsAccepted = true;
-        request.IsRejected = false;
-
-        // 👇 Oppdater samtalen hvis det er én-til-én
+        // ✅ Sjekk først hvilken type samtale det er
         var conversation = await _context.Conversations
             .Include(c => c.Participants)
-            .FirstOrDefaultAsync(c => c.Id == request.ConversationId);
+            .FirstOrDefaultAsync(c => c.Id == conversationId);
 
-        if (conversation != null && !conversation.IsGroup)
+        if (conversation == null)
+            throw new Exception("Samtalen finnes ikke.");
+
+        bool isGroupRequest = conversation.IsGroup;
+        int senderId; // ✅ Definer senderId her
+
+        if (isGroupRequest)
         {
-            // Hvis begge brukere nå har godkjent (f.eks. begge har sendt), eller du bare vil godkjenne fra én side:
+            // ✅ Håndter GroupRequest
+            var groupRequest = await _context.GroupRequests
+                .FirstOrDefaultAsync(gr => gr.ReceiverId == receiverId && 
+                                          gr.ConversationId == conversationId && 
+                                          gr.Status == GroupRequestStatus.Pending);
+
+            if (groupRequest == null)
+                throw new Exception("Gruppeforespørselen finnes ikke eller er allerede behandlet.");
+
+            groupRequest.Status = GroupRequestStatus.Approved;
+            senderId = groupRequest.SenderId; // ✅ Lagre senderId
+
+            // ✅ Legg til brukeren som participant i gruppen
+            var existingParticipant = await _context.ConversationParticipants
+                .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == receiverId);
+
+            if (!existingParticipant)
+            {
+                _context.ConversationParticipants.Add(new ConversationParticipant
+                {
+                    ConversationId = conversationId,
+                    UserId = receiverId
+                });
+            }
+        }
+        else
+        {
+            // ✅ Håndter MessageRequest
+            var messageRequest = await _context.MessageRequests
+                .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && 
+                                         r.ConversationId == conversationId &&
+                                         !r.IsAccepted && !r.IsRejected);
+
+            if (messageRequest == null)
+                throw new Exception("Meldingsforespørselen finnes ikke eller er allerede behandlet.");
+
+            messageRequest.IsAccepted = true;
+            messageRequest.IsRejected = false;
+            senderId = messageRequest.SenderId; // ✅ Lagre senderId
+
+            // ✅ Marker samtalen som godkjent
             conversation.IsApproved = true;
         }
-
+        
         await _context.SaveChangesAsync();
-
-        // Hent brukeren som godkjenner (for navnetekst)
+        
+        // ✅ Hent brukeren som godkjenner
         var approver = await _context.Users
                            .FirstOrDefaultAsync(u => u.Id == receiverId)
                        ?? throw new Exception("Godkjenneren ble ikke funnet.");
 
-        // ✅ Send automatisk melding via eksisterende sendelogikk
+        // ✅ Send automatisk melding
+        var systemMessageText = isGroupRequest
+            ? $"{approver.FullName} has joined the group."
+            : $"{approver.FullName} has accepted the conversation.";
+
         var systemMessage = new SendMessageRequestDTO
         {
-            ConversationId = request.ConversationId ??
-                             throw new Exception("ConversationId mangler på meldingforespørselen."),
-            Text = $"{approver.FullName} has accepted the conversation.",
-            ReceiverId = senderId.ToString()
+            ConversationId = conversationId,
+            Text = systemMessageText,
         };
 
-        // Lag entiteten men uten å sende via BroadcastMessageIfApproved
-        var sysEntity = CreateMessage(receiverId, request.ConversationId.Value, systemMessage, isApproved: true);
+        var sysEntity = CreateMessage(receiverId, conversationId, systemMessage, isApproved: true);
         _context.Messages.Add(sysEntity);
 
-        // 2) Oppdater LastMessageSentAt på samtalen for å skyve den øverst
-        conversation!.LastMessageSentAt = sysEntity.SentAt;
+        // ✅ Oppdater LastMessageSentAt
+        conversation.LastMessageSentAt = sysEntity.SentAt;
 
         await _context.SaveChangesAsync();
 
+        // ✅ Lag notifikasjon (bruker senderId fra over)
+        var notification = isGroupRequest
+            ? await _messageNotificationService.CreateGroupRequestApprovedNotificationAsync(
+                receiverId, senderId, conversationId)
+            : await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
+                receiverId, senderId, conversationId);
 
-        // 🆕 Lag notifikasjon til avsenderen om at forespørselen ble godkjent
-        var notification = await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
-            receiverId, // godkjenner
-            senderId, // mottaker av notification
-            request.ConversationId!.Value
-        );
-
-        // Send hele notifikasjonen over SignalR
+        // ✅ Send notifikasjon
+        var signalREvent = isGroupRequest ? "GroupRequestApproved" : "MessageRequestApproved";
         await _hubContext.Clients.User(senderId.ToString())
-            .SendAsync("MessageRequestApproved", notification);
+            .SendAsync(signalREvent, notification);
     }
-
-  
 
     // Søke etter meldinger til en samtale
     public async Task<List<MessageResponseDTO>> SearchMessagesInConversationAsync(int conversationId, int userId,
@@ -362,12 +431,48 @@ public class MessageService : IMessageService
 
         if (conversation.Participants.All(p => p.UserId != userId))
             throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
+        
+        // ✅ GRUPPE: sjekk GroupRequest for brukeren
+        if (conversation.IsGroup)
+        {
+            // Sjekk om brukeren er creator eller har godkjent GroupRequest
+            bool isCreator = conversation.CreatorId == userId;
+            bool hasApprovedGroupRequest = false;
 
-        // Valgfritt: begrens søk i private samtaler hvis ikke godkjent
+            if (!isCreator)
+            {
+                hasApprovedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
+                    gr.ReceiverId == userId &&
+                    gr.ConversationId == conversationId &&
+                    gr.Status == GroupRequestStatus.Approved);
+            }
+
+            // Hvis verken creator eller godkjent member, ingen tilgang
+            if (!isCreator && !hasApprovedGroupRequest)
+            {
+                throw new UnauthorizedAccessException("Du har ikke godkjent invitasjonen til denne gruppen.");
+            }
+        }
+
+        // ✅ PRIVAT: Sjekk tilgang for 1-til-1 samtaler
         if (!conversation.IsGroup && !conversation.IsApproved)
         {
-            // Samme begrensningslogikk som du har i get-metoden
-            throw new Exception("Du må godkjenne samtalen før du kan søke i meldinger.");
+            var creatorId = conversation.CreatorId;
+            bool isCreator = userId == creatorId;
+
+            if (!isCreator)
+            {
+                // Sjekk om brukeren har godkjent MessageRequest
+                var hasApprovedMessageRequest = await _context.MessageRequests.AnyAsync(mr =>
+                    mr.ReceiverId == userId &&
+                    mr.ConversationId == conversationId &&
+                    mr.IsAccepted);
+
+                if (!hasApprovedMessageRequest)
+                {
+                    throw new UnauthorizedAccessException("Du må godkjenne samtalen før du kan søke i meldinger.");
+                }
+            }
         }
 
         var messages = await _context.Messages
@@ -407,164 +512,15 @@ public class MessageService : IMessageService
         await _context.SaveChangesAsync();
     }
     
-    // // Askeptere gruppeinvitasjoner
-    // public async Task AcceptGroupInviteAsync(int userId, int conversationId)
-    // {
-    //     var invite = await _context.GroupInviteRequests
-    //         .FirstOrDefaultAsync(i => i.InvitedUserId == userId && i.ConversationId == conversationId && !i.IsAccepted);
-    //
-    //     if (invite == null)
-    //         throw new Exception("Ingen gyldig invitasjon funnet.");
-    //
-    //     invite.IsAccepted = true;
-    //
-    //     var alreadyParticipant = await _context.ConversationParticipants
-    //         .AnyAsync(p => p.ConversationId == conversationId && p.UserId == userId);
-    //
-    //     if (!alreadyParticipant)
-    //     {
-    //         _context.ConversationParticipants.Add(new ConversationParticipant
-    //         {
-    //             ConversationId = conversationId,
-    //             UserId = userId
-    //         });
-    //     }
-    //
-    //     await _context.SaveChangesAsync();
-    //
-    //     // 🔄 Send systemmelding via eksisterende logikk
-    //     var user = await _context.Users
-    //         .Include(u => u.Profile)
-    //         .FirstOrDefaultAsync(u => u.Id == userId);
-    //
-    //     if (user != null)
-    //     {
-    //         var systemMessage = $"{user.FullName} joined the group.";
-    //
-    //         await SendMessageAsync(invite.InviterId, new SendMessageRequestDTO
-    //         {
-    //             ConversationId = conversationId,
-    //             Text = systemMessage,
-    //             Attachments = null
-    //         });
-    //     }
-    // }
-    //
-    // // Avslå en gruppeinvitasjon
-    // public async Task DeclineGroupInviteAsync(int userId, int conversationId)
-    // {
-    //     var invite = await _context.GroupInviteRequests
-    //         .FirstOrDefaultAsync(r => r.InvitedUserId == userId && r.ConversationId == conversationId && !r.IsAccepted);
-    //
-    //     if (invite == null)
-    //         throw new Exception("Ingen gruppeinvitasjon funnet.");
-    //
-    //     _context.GroupInviteRequests.Remove(invite);
-    //
-    //     // ✅ Blokker fremtidige invitasjoner fra denne gruppen
-    //     var alreadyBlocked = await _context.GroupBlocks
-    //         .AnyAsync(b => b.UserId == userId && b.ConversationId == conversationId);
-    //
-    //     if (!alreadyBlocked)
-    //     {
-    //         _context.GroupBlocks.Add(new GroupBlock
-    //         {
-    //             UserId = userId,
-    //             ConversationId = conversationId
-    //         });
-    //     }
-    //
-    //     await _context.SaveChangesAsync();
-    // }
-    //
-    // // Unblokke en bruker
-    // public async Task<bool> UnblockUserAsync(int blockerId, int blockedUserId)
-    // {
-    //     var block = await _context.MessageBlocks
-    //         .FirstOrDefaultAsync(b => b.BlockerId == blockerId && b.BlockedUserId == blockedUserId);
-    //
-    //     if (block == null)
-    //         return false;
-    //
-    //     _context.MessageBlocks.Remove(block);
-    //     await _context.SaveChangesAsync();
-    //     return true;
-    // }
-    //
-    // // Henter alle blokkerte brukere
-    // public async Task<List<BlockedUserDTO>> GetBlockedUsersAsync(int userId)
-    // {
-    //     var blocked = await _context.MessageBlocks
-    //         .Where(b => b.BlockerId == userId)
-    //         .Include(b => b.BlockedUser)
-    //         .ThenInclude(u => u.Profile)
-    //         .Select(b => new BlockedUserDTO
-    //         {
-    //             Id = b.BlockedUser.Id,
-    //             FullName = b.BlockedUser.FullName,
-    //             ProfileImageUrl = b.BlockedUser.Profile != null ? b.BlockedUser.Profile.ProfileImageUrl : null,
-    //             BlockedAt = b.BlockedAt
-    //         })
-    //         .ToListAsync();
-    //
-    //     return blocked;
-    // }
-    //
-    // // Blokkere en bruker
-    // public async Task<bool> BlockUserAsync(int blockerId, int blockedUserId)
-    // {
-    //     if (blockerId == blockedUserId)
-    //         throw new InvalidOperationException("Du kan ikke blokkere deg selv.");
-    //
-    //     var alreadyBlocked = await _context.MessageBlocks
-    //         .AnyAsync(b => b.BlockerId == blockerId && b.BlockedUserId == blockedUserId);
-    //
-    //     if (alreadyBlocked)
-    //         return false;
-    //
-    //     _context.MessageBlocks.Add(new MessageBlock
-    //     {
-    //         BlockerId = blockerId,
-    //         BlockedUserId = blockedUserId
-    //     });
-    //
-    //     await _context.SaveChangesAsync();
-    //     return true;
-    // }
-    //
-    // // Henter alle blokkerte grupper til en bruker
-    // public async Task<List<BlockedGroupDTO>> GetBlockedGroupsAsync(int userId)
-    // {
-    //     var blocked = await _context.GroupBlocks
-    //         .Where(b => b.UserId == userId)
-    //         .Include(b => b.Conversation)
-    //         .ToListAsync();
-    //
-    //     return blocked.Select(b => new BlockedGroupDTO
-    //     {
-    //         ConversationId = b.ConversationId,
-    //         GroupName = b.Conversation.GroupName ?? "(Ukjent gruppe)",
-    //         BlockedAt = b.BlockedAt
-    //     }).ToList();
-    // }
-    //
-    // // Unblokker en gruppe
-    // public async Task UnblockGroupAsync(int userId, int conversationId)
-    // {
-    //     var block = await _context.GroupBlocks
-    //         .FirstOrDefaultAsync(b => b.UserId == userId && b.ConversationId == conversationId);
-    //
-    //     if (block == null)
-    //         throw new Exception("Blokkeringen ble ikke funnet.");
-    //
-    //     _context.GroupBlocks.Remove(block);
-    //     await _context.SaveChangesAsync();
-    // }
-    //
     
-
-
-
+    
+    
+    
+    
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    
     
     // Hjelpemetoder til SendMessage
     // 1. Kombinert bruker-sjekk – 1 query i stedet for 2.
@@ -581,7 +537,7 @@ public class MessageService : IMessageService
     }
 
     // 3. GetOrCreate uten ekstra SaveChanges når samtalen finnes
-    private async Task<(Conversation conv, int receiverId)> GetOrCreateConversationFast(
+    private async Task<(Conversation conv, int? receiverId)> GetOrCreateConversationFast(
         int senderId, SendMessageRequestDTO dto)
     {
         if (dto.ConversationId > 0)
@@ -590,19 +546,27 @@ public class MessageService : IMessageService
                            .Include(c => c.Participants)
                            .FirstOrDefaultAsync(c => c.Id == dto.ConversationId)
                        ?? throw new Exception("Samtalen finnes ikke.");
-            
+        
+            // ✅ Sjekk at sender er medlem
             if (conv.Participants.All(p => p.UserId != senderId))
                 throw new Exception("Du er ikke medlem av denne samtalen.");
 
+            // ✅ For grupper, returner en gyldig receiverId (eller -1 som placeholder)
+            if (conv.IsGroup)
+            {
+                return (conv, null); // Ingen spesifikk receiver for grupper
+            }
+
+            // For 1-1 samtaler
             int receiverId = conv.Participants.First(p => p.UserId != senderId).UserId;
 
-            // 🆕 Valider bruker selv for eksisterende samtaler
             if (senderId == receiverId)
                 throw new Exception("Du kan ikke sende en melding til deg selv.");
 
             return (conv, receiverId);
         }
 
+        // Resten av logikken for nye 1-1 samtaler...
         if (!int.TryParse(dto.ReceiverId, out var recId))
             throw new Exception("Ugyldig mottaker-ID.");
 
@@ -639,11 +603,17 @@ public class MessageService : IMessageService
     {
         if (conv.IsGroup)
         {
-            bool hasApproved = await _context.MessageRequests.AsNoTracking()
-                .AnyAsync(r => r.ConversationId == conv.Id &&
-                               r.ReceiverId == senderId &&
-                               r.IsAccepted);
-            return (!hasApproved, false, false);
+            // 🆕 Sjekk GroupRequest i stedet for MessageRequest
+            bool hasApprovedGroupRequest = await _context.GroupRequests.AsNoTracking()
+                .AnyAsync(gr => gr.ConversationId == conv.Id &&
+                                gr.ReceiverId == senderId &&
+                                gr.Status == GroupRequestStatus.Approved);
+        
+            // 🆕 Eller sjekk om brukeren er creator av gruppen
+            bool isCreator = conv.CreatorId == senderId;
+        
+            // Ikke krev approval hvis bruker har godkjent GroupRequest ELLER er creator
+            return (!(hasApprovedGroupRequest || isCreator), false, false);
         }
 
         if (conv.IsApproved) return (false, false, false);
@@ -670,7 +640,7 @@ public class MessageService : IMessageService
     }
 
     // 5. Legg bare til en entity – ingen SaveChanges her
-    private bool AddMessageRequestEntityIfMissing(int senderId, int receiverId, Conversation conv)
+    private bool AddMessageRequestEntityIfMissing(int senderId, int? receiverId, Conversation conv)
     {
         bool exists = _context.MessageRequests.Local
                           .Any(r => r.ConversationId == conv.Id &&
@@ -688,7 +658,7 @@ public class MessageService : IMessageService
         _context.MessageRequests.Add(new MessageRequest
         {
             SenderId = senderId,
-            ReceiverId = receiverId,
+            ReceiverId = receiverId.Value,
             Conversation = conv
         });
 
@@ -696,7 +666,7 @@ public class MessageService : IMessageService
     }
 
     // 6. Limit-reached markeres, men vi committer senere
-    private void MarkLimitReached(int senderId, int receiverId, int convId)
+    private void MarkLimitReached(int senderId, int? receiverId, int convId)
     {
         var req = _context.MessageRequests
             .FirstOrDefault(r =>
@@ -770,7 +740,7 @@ public class MessageService : IMessageService
     string ? groupImageUrl,
     int[]  participantIds,
     int    senderId,
-    int    receiverId, // 🆕
+    int?    receiverId, // 🆕
     MessageResponseDTO response,
     bool   shouldNotify,
     bool   needsMessageRequestNotification,
@@ -779,19 +749,21 @@ public class MessageService : IMessageService
         /* 1. Send over SignalR  */
         if (shouldNotify)               // 👈 legg til
         {
-            if (!isGroup)
+            var signalrTasks = participantIds.Select(async uid =>
             {
-                foreach (var uid in participantIds)
+                try
                 {
                     await _hubContext.Clients.User(uid.ToString())
                         .SendAsync("ReceiveMessage", response);
                 }
-            }
-            else if (!string.IsNullOrEmpty(groupName))
-            {
-                await _hubContext.Clients.Group(groupName)
-                    .SendAsync("ReceiveMessage", response);
-            }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send message to user {UserId}", uid);
+                }
+            });
+
+            await Task.WhenAll(signalrTasks);
+  
         }
         
         else if (isRejectedSender) // 🆕 Spesialtilfelle
@@ -808,15 +780,15 @@ public class MessageService : IMessageService
             var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
             
             var notification = await notifSvc.CreateMessageRequestNotificationAsync(
-                senderId, receiverId, conversationId);
+                senderId, receiverId.Value, conversationId);
 
             // Send SignalR for MessageRequest
             if (notification != null && notification.Type == NotificationType.MessageRequest)
             {
-                await _hubContext.Clients.User(receiverId.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                await _hubContext.Clients.User(receiverId.Value.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
                 {
                     SenderId = senderId,
-                    ReceiverId = receiverId,
+                    ReceiverId = receiverId.Value,
                     ConversationId = conversationId,
                     Notification = notification
                 });
