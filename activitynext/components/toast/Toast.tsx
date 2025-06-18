@@ -71,6 +71,7 @@ function NotificationToast({
     switch (type) {
       case NotificationType.MessageRequestApproved:
       case NotificationType.NewMessage:
+      case NotificationType.MessageReaction:
       case NotificationType.MessageRequest:
         if (conversationId != null) {
           if (!showMessages) setShowMessages(true);

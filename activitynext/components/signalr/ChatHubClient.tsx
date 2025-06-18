@@ -11,6 +11,7 @@ import { handleIncomingReaction } from "./handleIncomingReactions";
 import { showNotificationToast } from "../toast/Toast";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { getConversationById } from "@/services/messages/conversationService";
+import { getMessagesForConversation } from "@/services/messages/conversationService"; // 🆕 Bruk din eksisterende service
 import { useStore } from "zustand";
 import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
 import { NotificationType } from "@/types/MessageNotificationDTO";
@@ -27,15 +28,29 @@ export default function ChatHubClient() {
     const searchMode = useChatStore((state) => state.searchMode);
     const { userId } = useAuth();
     const addConversation = useChatStore(s => s.addConversation);
+    const setCachedMessages = useChatStore(s => s.setCachedMessages); // 🆕 For å cache meldinger
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const { syncPendingConversation } = usePendingConversationSync();
     const showMessages = useChatStore.getState().showMessages;
 
-    const ensureConversationExists = async (conversationId: number) => {
-      const { conversationIds, pendingMessageRequests } = useChatStore.getState();
+    const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
+      const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
 
       // Sjekk om samtalen allerede finnes
       if (conversationIds.has(conversationId)) {
+        // 🆕 Proaktiv caching av meldinger hvis vi ikke har dem allerede
+        if (shouldCacheMessages && !cachedMessages[conversationId]) {
+          console.log(`💾 Proaktiv caching av meldinger for samtale ${conversationId}...`);
+          try {
+            const messages = await getMessagesForConversation(conversationId, 0, 50); // Hent siste 50 meldinger
+            if (messages && messages.length > 0) {
+              setCachedMessages(conversationId, messages);
+              console.log(`✅ Cachet ${messages.length} meldinger for samtale ${conversationId}`);
+            }
+          } catch (error) {
+            console.error(`❌ Kunne ikke cache meldinger for samtale ${conversationId}:`, error);
+          }
+        }
         return;
       }
 
@@ -52,25 +67,53 @@ export default function ChatHubClient() {
       console.log(`🔍 Samtale ${conversationId} finnes ikke i listen, henter den...`);
 
       try {
-        const conversation = await getConversationById(conversationId);
+        // 🆕 Hent både samtale og meldinger parallelt
+        const [conversation, messages] = await Promise.all([
+          getConversationById(conversationId),
+          shouldCacheMessages ? getMessagesForConversation(conversationId, 0, 50) : Promise.resolve(null)
+        ]);
+
         if (conversation) {
           addConversation(conversation);
           console.log(`✅ Samtale ${conversationId} lagt til i listen`);
+
+          // 🆕 Cache meldinger hvis vi fikk dem
+          if (messages && messages.length > 0 && shouldCacheMessages) {
+            setCachedMessages(conversationId, messages);
+            console.log(`✅ Cachet ${messages.length} meldinger for samtale ${conversationId}`);
+          }
         }
       } catch (error) {
         console.error(`❌ Kunne ikke hente samtale ${conversationId}:`, error);
       }
     };
+
+    // 🆕 Utvidet funksjon for å cache meldinger for eksisterende samtaler
+    const preloadMessagesForConversation = async (conversationId: number) => {
+      const { cachedMessages, conversationIds } = useChatStore.getState();
+      
+      // Kun cache hvis samtalen finnes og vi ikke allerede har cachet meldinger
+      if (conversationIds.has(conversationId) && !cachedMessages[conversationId]) {
+        console.log(`🚀 Preloader meldinger for samtale ${conversationId}...`);
+        try {
+          const messages = await getMessagesForConversation(conversationId, 0, 50);
+          if (messages && messages.length > 0) {
+            setCachedMessages(conversationId, messages);
+            console.log(`✅ Preloadet ${messages.length} meldinger for samtale ${conversationId}`);
+          }
+        } catch (error) {
+          console.error(`❌ Kunne ikke preloade meldinger for samtale ${conversationId}:`, error);
+        }
+      }
+    };
     
-
-
-  
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
     // Melding
     useChatHub(async (message) => {
       console.log("💬 Mottatt melding via SignalR:", message);
 
-      await ensureConversationExists(message.conversationId);
+      // 🆕 Sørg for at samtalen finnes og cache meldinger proaktivt
+      await ensureConversationExists(message.conversationId, true);
  
       addMessage(message);
       updateConversationTimestamp(message.conversationId, message.sentAt);
@@ -90,9 +133,14 @@ export default function ChatHubClient() {
     },
 
     // reaksjon
-    (reaction, notification) => {
+    async (reaction, notification) => {
       console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
       console.log("🔔 Mottatt notification via SignalR:", notification);
+
+      // 🆕 Preload meldinger for reakcsjonssamtalen
+      if (notification?.conversationId) {
+        await preloadMessagesForConversation(notification.conversationId);
+      }
 
       updateMessageReactions(reaction as ReactionDTO); // Oppdater cache uansett
       handleIncomingReaction(reaction, userId, notification); // 👈 send med notification
@@ -102,7 +150,6 @@ export default function ChatHubClient() {
       }
     },
 
-
     // Godkjent forespørsel
     async (notification) => {
         console.log("✅ Godkjent forespørsel via SignalR:", notification); 
@@ -111,16 +158,15 @@ export default function ChatHubClient() {
           return;
         }
 
-          showNotificationToast({
-            senderName: notification.senderName ?? "Someone",
-            messagePreview: notification.messagePreview,
-            conversationId: convId,
-            type: NotificationType.MessageRequestApproved,
-          });
+        showNotificationToast({
+          senderName: notification.senderName ?? "Someone",
+          messagePreview: notification.messagePreview,
+          conversationId: convId,
+          type: NotificationType.MessageRequestApproved,
+        });
 
         await finalizeConversationApproval(convId, true, notification);
       },
-
 
       // Lagd en meldingsforespørsel til en annen bruker
       async ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
@@ -144,9 +190,8 @@ export default function ChatHubClient() {
           // 🔔 Oppdater notification-panelet i sanntid
           await handleIncomingNotification(notification);
 
-          // 🔄 Hent og legg til pending-samtale
-  
-            await syncPendingConversation(conversationId);
+          // 🔄 Hent og legg til pending-samtale (uten å cache meldinger for pending)
+          await syncPendingConversation(conversationId);
 
           if (notification.senderId !== userId) {
             showNotificationToast({
@@ -161,7 +206,4 @@ export default function ChatHubClient() {
   );
 
   return null; // Kun sideeffekter
-  
 }
-
-    
