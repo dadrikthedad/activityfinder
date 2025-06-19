@@ -17,11 +17,6 @@ import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
 import NotificationsPanel from "@/components/messages/NotificationsPanel";
 
-
-
-
-
-
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
     onCloseDropdown: () => void;
@@ -61,14 +56,30 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
   const [popoverUser, setPopoverUser] = useState<UserSummaryDTO | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<{ x: number, y: number } | null>(null);
+  const [popoverGroupData, setPopoverGroupData] = useState<{
+    isGroup: boolean;
+    participants: UserSummaryDTO[];
+    onLeaveGroup?: () => void;
+    isPendingRequest?: boolean; // ✅ Legg til dette feltet
+  } | null>(null);
   const userPopoverRef = useRef<HTMLDivElement | null>(null);
   // Skjule MessageList.tsx uten valgt samtale og at vi kan toggle en samtale av igjen
   const [conversationVisible, setConversationVisible] = useState(true);
 
   // Brukes for å hente userActionPopover til MessageDropdown
-  const showUserPopover = (user: UserSummaryDTO, pos: { x: number; y: number }) => {
+  const showUserPopover = (
+    user: UserSummaryDTO, 
+    pos: { x: number; y: number },
+    groupData?: {
+      isGroup: boolean;
+      participants: UserSummaryDTO[];
+      onLeaveGroup?: () => void;
+      isPendingRequest?: boolean; // ✅ Fjern conversationId, bare bruk onLeaveGroup
+    }
+  ) => {
     setPopoverUser(user);
     setPopoverPosition(pos);
+    setPopoverGroupData(groupData || null); // ✅ Enkelt! Ingen ekstra logikk
     toggleUserPopover(user.id);
   };
 
@@ -269,6 +280,28 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       };
     }, [currentConversationId]);
 
+    const handleLeaveGroup = async (conversationId: number) => {
+    try {
+      console.log("🚪 Leave group clicked for conversation:", conversationId);
+      
+      // ✅ Placeholder: Vis en alert eller console melding
+      alert(`Leave group functionality will be implemented soon!\nConversation ID: ${conversationId}`);
+      
+      // ✅ Lukk popover
+      toggleUserPopover(null);
+      
+      // TODO: Implementer faktisk leave group logikk senere:
+      // - API kall til backend
+      // - Oppdater useChatStore 
+      // - Fjern samtalen fra listen
+      // - Vis success melding
+      
+    } catch (error) {
+      console.error("❌ Failed to leave group:", error);
+    }
+  };
+
+
     const { showModal } = useModal(); // Viser ny meldingsmodalen
 
   return (
@@ -325,7 +358,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                 limit={2} 
                 onSelectConversation={handleSelect} 
                 showMoreLink={true} 
-                onShowUserPopover={showUserPopover}
+                currentUser={currentUser}
+                onShowUserPopover={(user, pos, groupData) => showUserPopover(user, pos, groupData)}   
               />
               <hr className="my-2 w-3/4 mx-auto border-y border-gray-300 dark:border-[#1C6B1C]" />
             </div>
@@ -347,7 +381,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
               selectedId={currentConversationId}
               onSelect={handleSelect}
               currentUser={currentUser}
-              onShowUserPopover={showUserPopover}
+              onShowUserPopover={(user, pos, groupData) => showUserPopover(user, pos, groupData)}
+              onLeaveGroup={handleLeaveGroup} // ✅ Send handleLeaveGroup som prop
             />
           </div>
 
@@ -423,19 +458,23 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
         
       </div>
       {popoverUser && popoverPosition && openUserPopoverId === popoverUser.id && (
-          <UserActionPopover
-            mode="dropdown"
-            user={popoverUser}
-            dropdownRef={dropdownRef}
-            onCloseDropdown={onCloseDropdown}
-            setUserPopoverRef={setUserPopoverRef}
-            openUserPopoverId={openUserPopoverId}
-            toggleUserPopover={toggleUserPopover}
-            avatarSize={120}
-            position={popoverPosition} 
-            
-          />
-        )}
+        <UserActionPopover
+          mode="dropdown"
+          user={popoverUser}
+          dropdownRef={dropdownRef}
+          onCloseDropdown={onCloseDropdown}
+          setUserPopoverRef={setUserPopoverRef}
+          openUserPopoverId={openUserPopoverId}
+          toggleUserPopover={toggleUserPopover}
+          avatarSize={120}
+          position={popoverPosition}
+          // ✅ Pass gruppedata hvis det finnes
+          isGroup={popoverGroupData?.isGroup || false}
+          participants={popoverGroupData?.participants || []}
+          onLeaveGroup={popoverGroupData?.onLeaveGroup}
+          isPendingRequest={popoverGroupData?.isPendingRequest || false}
+        />
+      )}
     </div>
   );
 }

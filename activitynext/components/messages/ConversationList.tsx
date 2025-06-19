@@ -15,11 +15,20 @@ interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   currentUser: UserSummaryDTO | null;
-  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+    onShowUserPopover: (
+    user: UserSummaryDTO, 
+    pos: { x: number; y: number },
+    groupData?: { // ✅ Legg til valgfri gruppedata
+      isGroup: boolean;
+      participants: UserSummaryDTO[];
+      onLeaveGroup?: () => void;
+    }
+  ) => void;
   conversations?: ConversationDTO[];
+  onLeaveGroup?: (conversationId: number) => void;
 }
 
-export default function ConversationList({ selectedId, onSelect, currentUser, onShowUserPopover, conversations }: Props) {
+export default function ConversationList({ selectedId, onSelect, currentUser, onShowUserPopover, conversations, onLeaveGroup }: Props) {
     const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
     const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -117,22 +126,27 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
               
 
               if (isGroup) {
-                const groupDisplayName = conv.groupName || "Gruppe";
-                const groupImage = conv.groupImageUrl || "/default-group.png";
-
                 return (
                   <ConversationListItem
                     key={conv.id}
                     user={{
                       id: conv.id,
-                      fullName: groupDisplayName,
-                      profileImageUrl: groupImage,
+                      fullName: conv.groupName || "Navnløs gruppe",
+                      profileImageUrl: conv.groupImageUrl || "/default-group.png",
                     }}
                     selected={selectedId === conv.id}
                     isPendingApproval={conv.isPendingApproval}
                     hasUnread={hasUnread}
                     onClick={() => onSelect(conv.id)}
-                    onShowUserPopover={() => {}} // tom, som du allerede gjør riktig
+                    onShowUserPopover={(user, pos) => 
+                    onShowUserPopover(user, pos, { 
+                        isGroup: true,
+                        participants: conv.participants,
+                        onLeaveGroup: () => onLeaveGroup?.(conv.id) // ✅ Bruk prop fra MessageDropdown
+                      })
+                    }
+                    isGroup={true}
+                    memberCount={conv.participants.length}
                   />
                 );
               }

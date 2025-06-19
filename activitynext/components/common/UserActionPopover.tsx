@@ -24,6 +24,10 @@ interface StandaloneProps {
   avatarSize?: number;
   onRemoveSuccess?: () => void;
   popoverRef?: React.RefObject<HTMLDivElement | null>;
+  isGroup?: boolean;
+  participants?: UserSummaryDTO[];
+  onLeaveGroup?: () => void;
+  isPendingRequest?: boolean;
 }
 
 // Dropdown mode props (original UserActionPopoverDropdown)
@@ -39,12 +43,16 @@ interface DropdownProps {
   openUserPopoverId: number | null;
   toggleUserPopover: (userId: number) => void;
   position: { x: number; y: number };
+  isGroup?: boolean;
+  participants?: UserSummaryDTO[];
+  onLeaveGroup?: () => void;
+  isPendingRequest?: boolean;
 }
 
 type Props = StandaloneProps | DropdownProps;
 
 export default function UserActionPopover(props: Props) {
-  const { user, avatarSize = 120, onRemoveSuccess } = props;
+    const { user, avatarSize = 120, onRemoveSuccess, isGroup = false, participants = [], onLeaveGroup, isPendingRequest = false  } = props;
   
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -57,6 +65,8 @@ export default function UserActionPopover(props: Props) {
     
   const [panelStyles, setPanelStyles] = useState<React.CSSProperties>({});
   const [friendCheckEnabled, setFriendCheckEnabled] = useState(props.mode === 'standalone');
+
+  
   
   const { confirmAndRemove } = useConfirmRemoveFriend();
   const { isFriend, loading: isFriendLoading } = useFriendWith(friendCheckEnabled ? user.id : undefined);
@@ -73,21 +83,37 @@ export default function UserActionPopover(props: Props) {
     }
   }, [isOpen, friendCheckEnabled]);
 
+  const [nestedUserPopover, setNestedUserPopover] = useState<{
+      user: UserSummaryDTO;
+      position: { x: number; y: number };
+    } | null>(null);
+
   // ESC key handling
-  useEffect(() => {
+    useEffect(() => {
     if (!isOpen) return;
 
     const id = `user-popover-${user.id}`;
-    const close = props.mode === 'standalone' 
-      ? () => setStandaloneIsOpen(false)
-      : () => props.toggleUserPopover(user.id);
+    const close = () => {
+      // ✅ Hierarkisk lukking ved ESC også
+      if (nestedUserPopover) {
+        console.log("🔸 ESC: Lukker nested popover først");
+        setNestedUserPopover(null);
+      } else {
+        console.log("🔸 ESC: Lukker hovedpopover");
+        if (props.mode === 'standalone') {
+          setStandaloneIsOpen(false);
+        } else {
+          props.toggleUserPopover(user.id);
+        }
+      }
+    };
 
     dropdownContext.register({ id, close });
 
     return () => {
       dropdownContext.unregister(id);
     };
-  }, [isOpen, props.mode, user.id]);
+  }, [isOpen, props.mode, user.id, nestedUserPopover]);
 
   // Dropdown mode specific effects
   useEffect(() => {
@@ -115,10 +141,13 @@ export default function UserActionPopover(props: Props) {
     }
   };
 
+    
+
+
   useEffect(() => {
     if (props.mode === 'dropdown' && isOpen && props.position) {
       setPanelStyles({
-        position: "absolute",
+        position: "fixed",
         top: props.position.y,
         left: props.position.x,
         zIndex: 1000,
@@ -162,18 +191,37 @@ export default function UserActionPopover(props: Props) {
       const target = e.target as Node;
       const insideDropdown = props.dropdownRef?.current?.contains(target);
       const insidePanel = panelRef.current?.contains(target);
+      
+      // ✅ Sjekk om klikket er inne i nested popover
+      const insideNestedPopover = nestedUserPopover && 
+        document.querySelector('[data-nested-user-popover]')?.contains(target);
 
-      if (!insideDropdown && !insidePanel) {
-        props.toggleUserPopover(user.id);
+      // ✅ Klikk i hovedpopover (men ikke i nested) - lukk nested
+      if (insidePanel && !insideNestedPopover && nestedUserPopover) {
+        console.log("🔸 Klikk i hovedpopover - lukker nested");
+        setNestedUserPopover(null);
+        e.stopPropagation(); // ✅ Stopp propagering
+        return;
+      }
+
+      // ✅ Outside click - hierarkisk lukking
+      if (!insideDropdown && !insidePanel && !insideNestedPopover) {
+        if (nestedUserPopover) {
+          console.log("🔸 Outside click - lukker nested popover først");
+          setNestedUserPopover(null);
+          e.stopPropagation(); // ✅ Stopp propagering så hovedpopover ikke lukkes
+          return;
+        } else {
+          console.log("🔸 Outside click - lukker hovedpopover");
+          props.toggleUserPopover(user.id);
+        }
       }
     };
 
-    document.addEventListener("mousedown", handleOutsideClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [props.mode, isOpen]);
+    // ✅ Bruk capture fase for å fange events før de når nested componenter
+    document.addEventListener("mousedown", handleOutsideClick, { capture: true });
+    return () => document.removeEventListener("mousedown", handleOutsideClick, { capture: true });
+  }, [props.mode, isOpen, nestedUserPopover, user.id]);
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);
@@ -217,14 +265,38 @@ export default function UserActionPopover(props: Props) {
     }
   };
 
+  // ✅ Handler for å vise nested user popover fra participants
+  const handleShowUserPopover = (participantUser: UserSummaryDTO, pos: { x: number; y: number }) => {
+    setNestedUserPopover({ user: participantUser, position: pos });
+  };
+
+  // ✅ Handler for å lukke nested user popover
+  const handleCloseNestedPopover = () => {
+    setNestedUserPopover(null);
+  };
+
+  // ✅ Oppdater handleLeaveGroup
+  const handleLeaveGroup = () => {
+    if (onLeaveGroup) {
+      onLeaveGroup();
+    }
+    handleClose();
+    if (props.mode === 'dropdown') {
+      props.onCloseDropdown?.();
+    }
+  };
+
   const finalPopoverRef = props.mode === 'standalone' && props.popoverRef 
     ? props.popoverRef 
     : panelRef;
 
-  return (
+   return (
     <>
       <button ref={buttonRef} onClick={handleClick}>
-        <MiniAvatar imageUrl={user.profileImageUrl ?? "/default-avatar.png"} size={avatarSize} />
+        <MiniAvatar 
+          imageUrl={user.profileImageUrl ?? (isGroup ? "/default-group.png" : "/default-avatar.png")} 
+          size={avatarSize} 
+        />
       </button>
 
       {isOpen &&
@@ -239,6 +311,54 @@ export default function UserActionPopover(props: Props) {
               onSendMessage={handleSendMessage}
               onRemoveFriend={handleRemove}
               onClose={handleClose}
+              // ✅ Pass gruppe-props
+              isGroup={isGroup}
+              participants={participants}
+              onLeaveGroup={handleLeaveGroup}
+              onShowUserPopover={handleShowUserPopover}
+              isPendingRequest={isPendingRequest}
+            />
+          </div>,
+          document.body
+        )}
+
+      {/* ✅ Nested UserActionPopover for participants */}
+      {nestedUserPopover &&
+        createPortal(
+          <div
+            data-nested-user-popover
+            data-nested-popover 
+            style={{
+              position: "fixed",
+              top: nestedUserPopover.position.y,
+              left: nestedUserPopover.position.x,
+              zIndex: 1100, // Høyere enn hovedpopover
+            }}
+          >
+            <UserActionPopoverContent
+              user={nestedUserPopover.user}
+              isOwner={nestedUserPopover.user.id === currentUserId}
+              isFriend={false} // Du kan implementere friend-check hvis nødvendig
+              isFriendLoading={false}
+              onVisitProfile={() => {
+                router.push(`/profile/${nestedUserPopover.user.id}`);
+                handleCloseNestedPopover();
+                handleClose();
+                if (props.mode === 'dropdown') {
+                  props.onCloseDropdown?.();
+                }
+              }}
+              onSendMessage={() => {
+                showModal(<NewMessageModal initialReceiver={nestedUserPopover.user} />, { blurBackground: false });
+                handleCloseNestedPopover();
+                handleClose();
+                if (props.mode === 'dropdown') {
+                  props.onCloseDropdown?.();
+                }
+              }}
+              onRemoveFriend={() => {}} // Implementer hvis ønskelig
+              onClose={handleCloseNestedPopover}
+              isGroup={false} // Participants er aldri grupper
             />
           </div>,
           document.body

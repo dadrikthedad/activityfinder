@@ -1,3 +1,5 @@
+import { UserSummaryDTO } from "./UserSummaryDTO";
+
 export interface MessageRequestDTO {
   senderId: number;
   senderName: string;
@@ -11,4 +13,5 @@ export interface MessageRequestDTO {
 
   limitReached: boolean;
   isPendingApproval: boolean;
+  participants?: UserSummaryDTO[];
 }

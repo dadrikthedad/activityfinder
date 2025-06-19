@@ -8,6 +8,7 @@ import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequ
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useRejectMessageRequest } from "@/hooks/messages/useRejectMessageRequest";
+import { ConversationDTO } from "@/types/ConversationDTO";
 
 
 
@@ -15,7 +16,19 @@ interface PendingRequestsListProps {
   limit?: number;
   showMoreLink?: boolean;
   onSelectConversation?: (conversationId: number) => void;
-  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void; // 👈 Ny prop
+  currentUser: UserSummaryDTO | null;
+    onShowUserPopover: (
+    user: UserSummaryDTO, 
+    pos: { x: number; y: number },
+    groupData?: {
+      isGroup: boolean;
+      participants: UserSummaryDTO[];
+      onLeaveGroup?: () => void; // ✅ Legg til onLeaveGroup (men vi sender ikke den for pending)
+      isPendingRequest?: boolean;
+    }
+  ) => void;
+  conversations?: ConversationDTO[];
+  onLeaveGroup?: (conversationId: number) => void;// 👈 Ny prop
 }
 
 const PendingRequestsList = ({
@@ -53,7 +66,7 @@ const PendingRequestsList = ({
   );
   const visibleRequests = limit ? filteredRequests.slice(0, limit) : filteredRequests;
 
-   return (
+    return (
     <div className="px-2">
       <ul className="space-y-4">
         {visibleRequests.map((r) => (
@@ -74,7 +87,18 @@ const PendingRequestsList = ({
                   onSelectConversation(r.conversationId);
                 }
               }}
-              onShowUserPopover={r.isGroup ? () => {} : onShowUserPopover}
+              onShowUserPopover={(user, pos) => 
+                r.isGroup 
+                  ? onShowUserPopover(user, pos, {
+                      isGroup: true,
+                      participants: r.participants || [],
+                      isPendingRequest: true,
+                    })
+                  : onShowUserPopover(user, pos)
+              }
+              // ✅ Legg til gruppe-props
+              isGroup={r.isGroup || false}
+              memberCount={r.isGroup ? (r.participants?.length || 0) : undefined}
             />
             <div className="mt-1 flex gap-2 pl-12">
                 <ProfileNavButton
