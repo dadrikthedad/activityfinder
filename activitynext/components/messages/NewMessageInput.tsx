@@ -2,43 +2,92 @@
 import { useState, useRef, useEffect } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useSendMessage } from "@/hooks/messages/useSendMessage";
+import { useGroupRequests } from "@/hooks/messages/useGroupRequests"; // ✅ Import group requests hook
 import { MessageDTO } from "@/types/MessageDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageToolbar from "./MessageToolbar";
+import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";// ✅ Import response type
 import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
 
-
 interface NewMessageInputProps {
-  receiverId: number;
+  // ✅ Support both single user and multiple users
+  receiverId?: number; // Optional for group mode
+  selectedUsers?: UserSummaryDTO[]; // For group mode
+  groupName?: string; // Optional group name
   onMessageSent?: (message: MessageDTO) => void;
+  onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void; // Callback when group is created
 }
 
 export default function NewMessageInput({
   receiverId,
+  selectedUsers = [],
+  groupName,
   onMessageSent,
+  onGroupCreated,
 }: NewMessageInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { send, error } = useSendMessage(onMessageSent);
+  
+  // ✅ Hooks for both scenarios
+  const { send, error: messageError } = useSendMessage(onMessageSent);
+  const { sendGroupInvitations, isLoading: groupRequestLoading, error: groupRequestError, clearError: clearGroupError } = useGroupRequests();
   const { syncConversation } = useConversationSyncOnMessage();
 
-  const handleSend = () => {
+  // ✅ Determine if we're in group mode
+  const isGroupMode = selectedUsers.length > 1;
+  const isDisabled = (isGroupMode && groupRequestLoading) || (!isGroupMode && !text.trim());
+
+  const handleSend = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    const sendingText = trimmed;
-    setText("");
-    inputRef.current?.focus();
+    if (isGroupMode) {
+      // ✅ Handle group creation
+      try {
+        const invitedUserIds = selectedUsers.map(user => user.id);
+        
+        const response = await sendGroupInvitations({
+          groupName: groupName?.trim() || undefined,
+          invitedUserIds,
+          initialMessage: trimmed,
+        });
 
-    send({ text: sendingText, receiverId: receiverId.toString() })
-      .then(async (result) => {
-        if (!result) return;
-        // 🚨 SJEKK isRejectedRequest FØR syncing
-        if (!result.isRejectedRequest) {
-          await syncConversation(result); // 👈 Henter og legger til samtalen hvis den ikke finnes. Kun sync hvis ikke avslått
+        if (response) {
+          console.log("✅ Group created successfully:", response);
+          setText(""); // Clear the input
+          onGroupCreated?.(response);
+          
+          // TODO: Send the initial message to the group conversation
+          // This would require another API call after group creation
+          // if (response.conversationId) {
+          //   await sendMessageToConversation(response.conversationId, trimmed);
+          // }
         }
+      } catch (error) {
+        console.error("❌ Failed to create group:", error);
+      }
+    } else {
+      // ✅ Handle regular 1-to-1 message
+      if (!receiverId) {
+        console.error("❌ No receiverId provided for 1-to-1 message");
+        return;
+      }
 
-        onMessageSent?.(result);
-      })
+      const sendingText = trimmed;
+      setText("");
+      inputRef.current?.focus();
+
+      send({ text: sendingText, receiverId: receiverId.toString() })
+        .then(async (result) => {
+          if (!result) return;
+          
+          // 🚨 SJEKK isRejectedRequest FØR syncing
+          if (!result.isRejectedRequest) {
+            await syncConversation(result);
+          }
+          onMessageSent?.(result);
+        });
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -50,9 +99,12 @@ export default function NewMessageInput({
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, [receiverId]);
-  
-    if (error) {
+  }, [receiverId, selectedUsers]);
+
+  // ✅ Show error from either message sending or group creation
+  const currentError = messageError || groupRequestError;
+
+  if (currentError) {
     return (
       <div className="flex flex-col gap-2 mt-4 h-full">
         <MessageToolbar
@@ -63,7 +115,15 @@ export default function NewMessageInput({
           showSettings={false}
         />
         <div className="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 p-4 rounded border text-center">
-          <div>{error}</div>
+          <div>{currentError}</div>
+          {groupRequestError && (
+            <button 
+              onClick={clearGroupError}
+              className="ml-2 text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
     );
@@ -71,6 +131,14 @@ export default function NewMessageInput({
 
   return (
     <div className="flex flex-col gap-2 mt-4 h-full">
+      {/* ✅ Show group info above toolbar if in group mode */}
+      {isGroupMode && (
+        <div className="text-sm text-gray-600 dark:text-gray-400 px-2 text-center">
+          Creating group with {selectedUsers.length} members
+          {groupName && `: "${groupName}"`}
+        </div>
+      )}
+
       <MessageToolbar
         showEmoji={false}
         showFile={false}
@@ -85,17 +153,23 @@ export default function NewMessageInput({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Write a message..."
+          placeholder={isGroupMode 
+            ? "Write an initial message for the group (optional)..." 
+            : "Write a message..."
+          }
           minRows={1}
           maxRows={6}
           className="flex-1 border border-[#1C6B1C] rounded px-4 py-2 dark:bg-[#1e2122] bg-white text-sm resize-none overflow-y-auto max-h-[200px] focus:outline-none custom-scrollbar"
         />
         <button
           onClick={handleSend}
-          disabled={!text.trim()}
-          className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
+          disabled={isDisabled}
+          className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50 min-w-[80px]"
         >
-          Send
+          {isGroupMode 
+            ? (groupRequestLoading ? "Creating..." : "Create Group")
+            : "Send"
+          }
         </button>
       </div>
     </div>

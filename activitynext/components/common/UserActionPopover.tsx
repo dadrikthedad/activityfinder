@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useDropdown } from "@/context/DropdownContext";
 import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "@/components/messages/NewMessageModal";
+import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
 
 // Standalone mode props (original UserActionPopover)
 interface StandaloneProps {
@@ -184,44 +185,29 @@ export default function UserActionPopover(props: Props) {
   }, [props.mode, isOpen]);
 
   // Outside click for dropdown mode
-  useEffect(() => {
-    if (props.mode !== 'dropdown' || !isOpen) return;
-    
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as Node;
-      const insideDropdown = props.dropdownRef?.current?.contains(target);
-      const insidePanel = panelRef.current?.contains(target);
-      
-      // ✅ Sjekk om klikket er inne i nested popover
-      const insideNestedPopover = nestedUserPopover && 
-        document.querySelector('[data-nested-user-popover]')?.contains(target);
-
-      // ✅ Klikk i hovedpopover (men ikke i nested) - lukk nested
-      if (insidePanel && !insideNestedPopover && nestedUserPopover) {
-        console.log("🔸 Klikk i hovedpopover - lukker nested");
+  useClickOutsideGroups({
+    includeRefs: props.mode === 'dropdown' 
+      ? (props.dropdownRef ? [props.dropdownRef, panelRef] : [panelRef])
+      : [buttonRef, panelRef],
+    excludeRefs: nestedUserPopover ? [
+      // Legg til nested popover ref hvis du lager en
+    ] : [],
+    excludeClassNames: ["[data-nested-user-popover]"],
+    onOutsideClick: () => {
+      // ✅ Hierarkisk lukking
+      if (nestedUserPopover) {
         setNestedUserPopover(null);
-        e.stopPropagation(); // ✅ Stopp propagering
-        return;
-      }
-
-      // ✅ Outside click - hierarkisk lukking
-      if (!insideDropdown && !insidePanel && !insideNestedPopover) {
-        if (nestedUserPopover) {
-          console.log("🔸 Outside click - lukker nested popover først");
-          setNestedUserPopover(null);
-          e.stopPropagation(); // ✅ Stopp propagering så hovedpopover ikke lukkes
-          return;
+      } else {
+        if (props.mode === 'standalone') {
+          setStandaloneIsOpen(false);
         } else {
-          console.log("🔸 Outside click - lukker hovedpopover");
           props.toggleUserPopover(user.id);
         }
       }
-    };
-
-    // ✅ Bruk capture fase for å fange events før de når nested componenter
-    document.addEventListener("mousedown", handleOutsideClick, { capture: true });
-    return () => document.removeEventListener("mousedown", handleOutsideClick, { capture: true });
-  }, [props.mode, isOpen, nestedUserPopover, user.id]);
+    },
+    isActive: isOpen,
+    dropdownId: `user-popover-${user.id}`,
+  });
 
   const handleRemove = async () => {
     await confirmAndRemove(user.id, user.fullName ?? "this user", onRemoveSuccess);

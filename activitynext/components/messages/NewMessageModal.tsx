@@ -1,7 +1,7 @@
-"use client";
-
 import { useUserSearch } from "@/hooks/useUserSearch";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { MessageDTO } from "@/types/MessageDTO";
+import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";// ✅ Import response type
 import { useState, useRef, useEffect } from "react";
 import NewMessageInput from "./NewMessageInput";
 import { useModal } from "@/context/ModalContext";
@@ -20,9 +20,13 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
   const { query, setQuery, results, loading } = useUserSearch();
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
   const { userId } = useAuth();
+  
+  // ✅ Add group creation state
+  const [groupName, setGroupName] = useState("");
 
   // Hvis vi sender inn med en bruker via UserActionPopover eller Profilsiden så har vi en egen visning
   const hasInitialReceiver = !!initialReceiver;
+  const isMultipleUsers = selectedUsers.length > 1;
 
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -73,26 +77,25 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
   const handleMouseLeave = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setShowDropdown(false);
-    }, 200); // gir litt tid til å bevege musepekeren inn i dropdownen
+    }, 200);
   };
-
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-    if (!isDragging) return;
+      if (!isDragging) return;
 
-    const newX = e.clientX - offset.current.x;
-    const newY = e.clientY - offset.current.y;
+      const newX = e.clientX - offset.current.x;
+      const newY = e.clientY - offset.current.y;
 
-    const modal = modalRef.current;
-    const width = modal?.offsetWidth || 300;
-    const height = modal?.offsetHeight || 200;
+      const modal = modalRef.current;
+      const width = modal?.offsetWidth || 300;
+      const height = modal?.offsetHeight || 200;
 
-    const clampedX = Math.max(0, Math.min(window.innerWidth - width, newX));
-    const clampedY = Math.max(0, Math.min(window.innerHeight - height, newY));
+      const clampedX = Math.max(0, Math.min(window.innerWidth - width, newX));
+      const clampedY = Math.max(0, Math.min(window.innerHeight - height, newY));
 
-    setPosition({ x: clampedX, y: clampedY });
-  };
+      setPosition({ x: clampedX, y: clampedY });
+    };
 
     const handleMouseUp = () => setIsDragging(false);
 
@@ -105,21 +108,17 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
     };
   }, [isDragging]);
 
-const triggerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
 
-useEffect(() => {
-  if (initialReceiver && !selectedUsers.find((u) => u.id === initialReceiver.id)) {
-    setSelectedUsers([initialReceiver]);
-    setQuery(""); // tøm søkefeltet
-  }
-}, [initialReceiver, selectedUsers, setQuery]);
+  useEffect(() => {
+    if (initialReceiver && !selectedUsers.find((u) => u.id === initialReceiver.id)) {
+      setSelectedUsers([initialReceiver]);
+      setQuery("");
+    }
+  }, [initialReceiver, selectedUsers, setQuery]);
 
-
-
-
-
-return (
-       <Card
+  return (
+    <Card
       ref={modalRef}
       className="fixed z-[9999] max-w-[100vw] w-full min-w-[300px] min-h-[200px] border-2 border-[#1C6B1C] bg-white dark:bg-[#1e2122] text-black dark:text-white shadow-md rounded-xl resize overflow-hidden flex flex-col"
       style={{
@@ -133,157 +132,171 @@ return (
         maxHeight: window.innerHeight - 40,
       }}
     >
-  {/* Dra-linje - alltid øverst */}
-  <div
-    className="bg-[#1C6B1C] text-white px-4 py-2 flex justify-between items-center cursor-move select-none"
-    onMouseDown={(e) => {
-      const rect = modalRef.current?.getBoundingClientRect();
-      if (rect) {
-        offset.current = {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top,
-        };
-        setIsDragging(true);
-      }
-    }}
-  >
-    <div className="font-semibold">New conversation</div>
-    <div className="flex gap-4">
-      <button onClick={() => setPosition({ x: 200, y: 200 })} title="Reset">⟳</button>
-      <button onClick={hideModal} title="Close">✕</button>
-    </div>
-  </div>
-    <div className="flex-1 min-h-0 overflow-hidden">
-      {/* søkefelt + resultater + melding */}
-      <div className="p-4 pt-0 mt-3 flex flex-col h-full">
-        <div className="flex-1 min-h-0 overflow-hidden">
-       {!hasInitialReceiver && (
-        <>
-       <input
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value); // viktig: null -> []
-          }}
-          placeholder="Search users..."
-          className="w-full p-2 mb-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none"
-        />
+      {/* Dra-linje - alltid øverst */}
+      <div
+        className="bg-[#1C6B1C] text-white px-4 py-2 flex justify-between items-center cursor-move select-none"
+        onMouseDown={(e) => {
+          const rect = modalRef.current?.getBoundingClientRect();
+          if (rect) {
+            offset.current = {
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            };
+            setIsDragging(true);
+          }
+        }}
+      >
+        <div className="font-semibold">
+          {isMultipleUsers ? "New Group Conversation" : "New Conversation"}
+        </div>
+        <div className="flex gap-4">
+          <button onClick={() => setPosition({ x: 200, y: 200 })} title="Reset">⟳</button>
+          <button onClick={hideModal} title="Close">✕</button>
+        </div>
+      </div>
 
-        {query && (
-          <ul className="w-full border border-[#1C6B1C] rounded bg-white dark:bg-[#1e2122] max-h-60 overflow-auto mb-4">
-            {loading && <li className="p-2 text-center">Loading...</li>}
-            {!loading && results.length === 0 && (
-              <li className="p-2 text-center text-gray-500">No users found</li>
-            )}
-            {!loading &&
-              filteredResults.map((user, index) => (
-                <li
-                  key={user.id}
-                  ref={keyboardNav.setItemRef(index)}
-                  className={`p-2 cursor-pointer flex gap-3 items-center 
-                      hover:bg-gray-100 dark:hover:bg-[#2a2e31] 
-                      ${keyboardNav.activeIndex === index ? "bg-gray-100 dark:bg-[#2a2e31]" : ""}
-                    `}
-                  onClick={() => {
-                    if (!selectedUsers.find((u) => u.id === user.id)) {
-                      setSelectedUsers([...selectedUsers, user]);
-                    }
-                    setQuery("");
-                    keyboardNav.setActiveIndex(0); 
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="p-4 pt-0 mt-3 flex flex-col h-full">
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {!hasInitialReceiver && (
+              <>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
                   }}
-                >
-                  <MiniAvatar
-                    imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
-                    alt={user.fullName}
-                    size={40}
-                    withBorder={true}
-                  />
-                  <span>{user.fullName}</span>
-                </li>
-              ))}
-          </ul>
-        )}
-        </>
-        )}
-
-         {selectedUsers.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2 relative">
-              <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 font-medium mr-2">
-                To:
-              </div>
-            {visibleUsers.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center gap-2 border border-[#1C6B1C] rounded-full px-2 py-1 bg-white dark:bg-[#2a2e31]"
-              >
-                <MiniAvatar
-                  imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
-                  alt={user.fullName}
-                  size={30}
-                  withBorder={false}
+                  placeholder="Search users..."
+                  className="w-full p-2 mb-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-center"
                 />
-                <span className="text-sm">{user.fullName}</span>
-                 {!hasInitialReceiver && (
-                <button
-                  onClick={() =>
-                    setSelectedUsers((prev) => prev.filter((u) => u.id !== user.id))
-                  }
-                  className="text-gray-500 hover:text-red-500 ml-1"
-                >
-                  ✕
-                </button>
+
+                {query && (
+                  <ul className="w-full border border-[#1C6B1C] rounded bg-white dark:bg-[#1e2122] max-h-60 overflow-auto mb-4">
+                    {loading && <li className="p-2 text-center">Loading...</li>}
+                    {!loading && results.length === 0 && (
+                      <li className="p-2 text-center text-gray-500">No users found</li>
+                    )}
+                    {!loading &&
+                      filteredResults.map((user, index) => (
+                        <li
+                          key={user.id}
+                          ref={keyboardNav.setItemRef(index)}
+                          className={`p-2 cursor-pointer flex gap-3 items-center 
+                              hover:bg-gray-100 dark:hover:bg-[#2a2e31] 
+                              ${keyboardNav.activeIndex === index ? "bg-gray-100 dark:bg-[#2a2e31]" : ""}
+                            `}
+                          onClick={() => {
+                            if (!selectedUsers.find((u) => u.id === user.id)) {
+                              setSelectedUsers([...selectedUsers, user]);
+                            }
+                            setQuery("");
+                            keyboardNav.setActiveIndex(0);
+                          }}
+                        >
+                          <MiniAvatar
+                            imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
+                            alt={user.fullName}
+                            size={40}
+                            withBorder={true}
+                          />
+                          <span>{user.fullName}</span>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </>
+            )}
+
+            {selectedUsers.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2 relative">
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 font-medium mr-2">
+                  To:
+                </div>
+                {visibleUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-2 border border-[#1C6B1C] rounded-full px-2 py-1 bg-white dark:bg-[#2a2e31]"
+                  >
+                    <MiniAvatar
+                      imageUrl={user.profileImageUrl ?? "/default-avatar.png"}
+                      alt={user.fullName}
+                      size={30}
+                      withBorder={false}
+                    />
+                    <span className="text-sm">{user.fullName}</span>
+                    {!hasInitialReceiver && (
+                      <button
+                        onClick={() =>
+                          setSelectedUsers((prev) => prev.filter((u) => u.id !== user.id))
+                        }
+                        className="text-gray-500 hover:text-red-500 ml-1"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {overflowUsers.length > 0 && (
+                  <div>
+                    <div
+                      ref={triggerRef}
+                      onMouseEnter={handleMouseEnter}
+                      onMouseLeave={handleMouseLeave}
+                      className="px-3 py-1 border border-[#1C6B1C] rounded-full text-sm bg-white dark:bg-[#2a2e31] cursor-pointer select-none relative"
+                    >
+                      +{overflowUsers.length} more
+                      {showDropdown && (
+                        <OverflowDropdown
+                          anchorRef={triggerRef}
+                          users={overflowUsers}
+                          onRemove={(id) =>
+                            setSelectedUsers((prev) => prev.filter((u) => u.id !== id))
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
-            ))}
+            )}
 
-            {overflowUsers.length > 0 && (
-             <div>
-                <div
-                ref={triggerRef}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                className="px-3 py-1 border border-[#1C6B1C] rounded-full text-sm bg-white dark:bg-[#2a2e31] cursor-pointer select-none relative"
-              >
-                +{overflowUsers.length} more
-                {showDropdown && (
-                  <OverflowDropdown
-                    anchorRef={triggerRef}
-                    users={overflowUsers}
-                    onRemove={(id) =>
-                      setSelectedUsers((prev) => prev.filter((u) => u.id !== id))
-                    }
-                  />
-                )}
+            {/* ✅ Group name input for multiple users */}
+            {isMultipleUsers && (
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  placeholder="Group name (optional)"
+                  maxLength={100}
+                  className="w-full p-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm text-center"
+                />
               </div>
-                </div>
-                            )}
-                            
-                          </div>
-                          
-                        )}
-
-                    
-                    </div>
-                    {selectedUsers.length > 0 && (
-                    <div className="shrink-0 mt-4">
-                      <NewMessageInput
-                        receiverId={selectedUsers[0].id}
-                        onMessageSent={(message) => {
-                          console.log("Melding sendt!", message);
-                          hideModal();
-                        }}
-                        
-                      />
-                      
-                    </div>
-                    
-                  )}
-                </div>
+            )}
           </div>
-  </Card>
-    
+
+          {selectedUsers.length > 0 && (
+            <div className="shrink-0 mt-4">
+              {/* ✅ NewMessageInput handles both single user and group logic */}
+              <NewMessageInput
+                receiverId={isMultipleUsers ? undefined : selectedUsers[0].id}
+                selectedUsers={isMultipleUsers ? selectedUsers : undefined}
+                groupName={isMultipleUsers ? groupName : undefined}
+                onMessageSent={(message: MessageDTO) => {
+                  console.log("Message sent!", message);
+                  hideModal();
+                }}
+                onGroupCreated={(response: SendGroupRequestsResponseDTO) => {
+                  console.log("Group created!", response);
+                  alert(`Group created! Sent ${response.invitationsSent} invitations out of ${response.totalRequestedUsers} users.`);
+                  hideModal();
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
-
-
-

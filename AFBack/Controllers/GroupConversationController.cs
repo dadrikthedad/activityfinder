@@ -253,6 +253,24 @@ public class GroupConversationController : BaseController
 
         // 3️⃣ Oppdater LastMessageSentAt
         newConversation.LastMessageSentAt = introMessage.SentAt;
+        
+        // 4️⃣ (NY) Legg til creator's melding hvis den finnes
+        if (!string.IsNullOrWhiteSpace(request.InitialMessage))
+        {
+            var creatorMessage = new Message
+            {
+                ConversationId = newConversation.Id,
+                SenderId = senderId,
+                Text = request.InitialMessage.Trim(),
+                SentAt = DateTime.UtcNow.AddMilliseconds(1), // Sørg for riktig rekkefølge
+                IsApproved = true,
+                // Ikke legg på systemflag eller trigger SignalR
+            };
+            _context.Messages.Add(creatorMessage);
+
+            // Oppdater LastMessageSentAt om ønskelig
+            newConversation.LastMessageSentAt = creatorMessage.SentAt;
+        }
 
         await _context.SaveChangesAsync(); // Lagre både melding og oppdatert conversation
 
@@ -327,6 +345,9 @@ public class SendGroupRequestsDTO
     
     [MaxLength(512)]
     public string? GroupImageUrl { get; set; }
+    
+    [MaxLength(1000)]
+    public string? InitialMessage { get; set; }
     
     [Required]
     public List<int> InvitedUserIds { get; set; } = new();
