@@ -15,4 +15,6 @@ public class MessageResponseDTO
     public string? ParentMessageText { get; set; } // valgfritt for visning
     // Hvis brukeren har avslått meldingsforespørsel så må vi ikke legge samtalen inn i store
     public bool IsRejectedRequest { get; set; } = false;
+    
+    public bool? IsNowApproved { get; set; }
 }

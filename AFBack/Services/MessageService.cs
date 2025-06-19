@@ -94,14 +94,21 @@ public class MessageService : IMessageService
             conversation.IsApproved = true;
         }
 
+        bool nowApproved = false;
+        if (!conversation.IsGroup && requiresApproval && requestSent == false && isRejected == false)
+        {
+            await ApproveMessageRequestAsync(senderId, conversation.Id);
+            nowApproved = true;
+        }
+
         // 5️⃣  Lag selve meldingen
         var message = CreateMessage(senderId, conversation.Id, dto, !requiresApproval);
-        
+
         if (conversation.Id == 0)          // samtalen er ny
             message.Conversation = conversation;
         else
             message.ConversationId = conversation.Id;
-        
+
         _context.Messages.Add(message);
         conversation.LastMessageSentAt = message.SentAt;
 
@@ -110,9 +117,12 @@ public class MessageService : IMessageService
 
         // 7️⃣  Map DTO (5. query – henter avsender)
         var response = await MapToResponseDto(message);
-        
-        
 
+        if (nowApproved)
+        {
+            response.IsNowApproved = true;
+        }
+        
         var participantIds = conversation.Participants
             .Select(p => p.UserId)
             .ToArray();
