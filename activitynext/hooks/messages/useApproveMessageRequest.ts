@@ -4,6 +4,7 @@ import { approveMessageRequest } from "@/services/messages/messageService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
 import { getConversationById } from "@/services/messages/conversationService";
+import { ConversationDTO } from "@/types/ConversationDTO";
 
 export function useApproveMessageRequest() {
   const [loading, setLoading] = useState(false);
@@ -18,13 +19,13 @@ export function useApproveMessageRequest() {
   );
 
   const approve = useCallback(
-    async (senderId: number, conversationId: number) => {
+    async (conversationId: number) => {
       setLoading(true);
       setError(null);
 
       try {
         // 1) Godkjenn på API
-        await approveMessageRequest(senderId);
+        await approveMessageRequest(conversationId);
 
         // 2) Hent hele samtalen fra backend
         const conversation = await getConversationById(conversationId);
@@ -75,5 +76,40 @@ export function useApproveMessageRequest() {
     ]
   );
 
-  return { approve, loading, error };
+  const approveLocally = useCallback(async (conversationId: number) => {
+    const state = useChatStore.getState();
+
+    // Fjern "venter på godkjenning"-status
+    removeRequest(conversationId);
+
+    let convo: ConversationDTO | null = state.conversations.find(c => c.id === conversationId) ?? null;
+
+    if (!convo) {
+      try {
+        convo = await getConversationById(conversationId);
+      } catch (err) {
+        console.error("❌ Kunne ikke hente samtale for lokal godkjenning:", err);
+      }
+    }
+
+    if (convo) {
+      const updated = { ...convo, isPendingApproval: false };
+      addConversation(updated);
+    }
+
+    if (state.pendingLockedConversationId === conversationId) {
+      setCurrentConversationId(conversationId);
+    } else if (!state.unreadConversationIds.includes(conversationId)) {
+      state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
+    }
+
+    setPendingLockedConversationId(null);
+  }, [
+    removeRequest,
+    addConversation,
+    setCurrentConversationId,
+    setPendingLockedConversationId,
+  ]);
+
+  return { approve, approveLocally, loading, error };
 }

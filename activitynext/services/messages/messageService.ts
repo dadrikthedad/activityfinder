@@ -17,9 +17,9 @@ export async function getPendingMessageRequests(): Promise<MessageRequestDTO[] |
 }
 
 // Godkjenner meldingsforespørsler
-export async function approveMessageRequest(senderId: number): Promise<void> {
-  const url = `${API_BASE_URL}/api/messages/approve-request`;
-  await postRequest<void, number>(url, senderId);
+export async function approveMessageRequest(conversationId: number): Promise<void> {
+  const url = `${API_BASE_URL}/api/messages/approve-request/${conversationId}`;
+  await postRequest<void, undefined>(url, undefined); // Ingen body
 }
 
 // Søker etter meldinger i en gitt samtale

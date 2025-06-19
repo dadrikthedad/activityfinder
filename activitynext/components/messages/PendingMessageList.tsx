@@ -106,7 +106,7 @@ const PendingRequestsList = ({
                     text="✔"
                     onClick={async () => {
                         if (r.conversationId !== null && r.conversationId !== undefined) {
-                        await approve(r.senderId, r.conversationId);
+                        await approve(r.conversationId);
                         console.log("✔ Approved conversation:", r.conversationId);
                          // 👈 naviger til samtalen etterpå
                         }

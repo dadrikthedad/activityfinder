@@ -28,6 +28,7 @@ export interface MessageDTO {
   parentMessageText?: string | null;
   isRejectedRequest?: boolean;
   sender?: UserSummaryDTO;
+  isNowApproved?: boolean;
 }
 
 export interface SendMessageRequestDTO {

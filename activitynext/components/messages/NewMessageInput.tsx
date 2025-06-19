@@ -8,6 +8,7 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageToolbar from "./MessageToolbar";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";// ✅ Import response type
 import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
+import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 
 interface NewMessageInputProps {
   // ✅ Support both single user and multiple users
@@ -35,7 +36,11 @@ export default function NewMessageInput({
 
   // ✅ Determine if we're in group mode
   const isGroupMode = selectedUsers.length > 1;
-  const isDisabled = (isGroupMode && groupRequestLoading) || (!isGroupMode && !text.trim());
+  const isDisabled = isGroupMode
+  ? groupRequestLoading
+  : !text.trim();
+
+  const { approveLocally } = useApproveMessageRequest();
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -56,12 +61,6 @@ export default function NewMessageInput({
           console.log("✅ Group created successfully:", response);
           setText(""); // Clear the input
           onGroupCreated?.(response);
-          
-          // TODO: Send the initial message to the group conversation
-          // This would require another API call after group creation
-          // if (response.conversationId) {
-          //   await sendMessageToConversation(response.conversationId, trimmed);
-          // }
         }
       } catch (error) {
         console.error("❌ Failed to create group:", error);
@@ -77,9 +76,20 @@ export default function NewMessageInput({
       setText("");
       inputRef.current?.focus();
 
-      send({ text: sendingText, receiverId: receiverId.toString() })
+       const payload = {
+        text: sendingText,
+        receiverId: receiverId.toString(),
+      };
+
+      console.log("📤 Sender melding med payload:", payload);
+
+      send(payload)
         .then(async (result) => {
           if (!result) return;
+
+          if (result.isNowApproved) {
+              approveLocally(result.conversationId);
+          }
           
           // 🚨 SJEKK isRejectedRequest FØR syncing
           if (!result.isRejectedRequest) {
