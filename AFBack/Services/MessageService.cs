@@ -93,12 +93,23 @@ public class MessageService : IMessageService
         {
             conversation.IsApproved = true;
         }
-
+        
+        // Brukeren svarer på en åpen meldingsforespørsel som de ikke selv har sendt.
+        // Dette tolkes som en godkjenning – men bare dersom det faktisk finnes en ubehandlet forespørsel.
         bool nowApproved = false;
-        if (!conversation.IsGroup && requiresApproval && requestSent == false && isRejected == false)
+        if (!conversation.IsGroup && requiresApproval && !isRejected && !requestSent)
         {
-            await ApproveMessageRequestAsync(senderId, conversation.Id);
-            nowApproved = true;
+            var existingRequest = await _context.MessageRequests
+                .AsNoTracking()
+                .AnyAsync(r => r.ConversationId == conversation.Id && 
+                               r.ReceiverId == senderId &&
+                               !r.IsAccepted && !r.IsRejected);
+
+            if (existingRequest)
+            {
+                await ApproveMessageRequestAsync(senderId, conversation.Id);
+                nowApproved = true;
+            }
         }
 
         // 5️⃣  Lag selve meldingen
@@ -575,21 +586,18 @@ public class MessageService : IMessageService
         if (dto.ConversationId > 0)
         {
             var conv = await _context.Conversations
-                           .Include(c => c.Participants)
-                           .FirstOrDefaultAsync(c => c.Id == dto.ConversationId)
-                       ?? throw new Exception("Samtalen finnes ikke.");
-        
-            // ✅ Sjekk at sender er medlem
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == dto.ConversationId);
+
+            if (conv == null)
+                throw new Exception("Samtalen finnes ikke.");
+
             if (conv.Participants.All(p => p.UserId != senderId))
                 throw new Exception("Du er ikke medlem av denne samtalen.");
 
-            // ✅ For grupper, returner en gyldig receiverId (eller -1 som placeholder)
             if (conv.IsGroup)
-            {
-                return (conv, null); // Ingen spesifikk receiver for grupper
-            }
+                return (conv, null);
 
-            // For 1-1 samtaler
             int receiverId = conv.Participants.First(p => p.UserId != senderId).UserId;
 
             if (senderId == receiverId)
@@ -598,7 +606,6 @@ public class MessageService : IMessageService
             return (conv, receiverId);
         }
 
-        // Resten av logikken for nye 1-1 samtaler...
         if (!int.TryParse(dto.ReceiverId, out var recId))
             throw new Exception("Ugyldig mottaker-ID.");
 
@@ -625,6 +632,7 @@ public class MessageService : IMessageService
                 new() { UserId = recId }
             }
         };
+
         _context.Conversations.Add(convNew);
         return (convNew, recId);
     }
