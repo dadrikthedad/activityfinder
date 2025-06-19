@@ -16,4 +16,6 @@ public class MessageRequestDTO
     public bool LimitReached { get; set; }
     
     public bool IsPendingApproval { get; set; }
+    // For å sende antall medlemmer til frontend
+    public List<UserSummaryDTO>? Participants { get; set; }
 }

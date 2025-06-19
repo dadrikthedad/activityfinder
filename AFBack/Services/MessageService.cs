@@ -272,6 +272,9 @@ public class MessageService : IMessageService
             .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
             .Include(r => r.Sender).ThenInclude(u => u.Profile)
             .Include(r => r.Conversation)
+                .ThenInclude(c => c.Participants) // ✅ Legg til participants
+                    .ThenInclude(p => p.User)
+                        .ThenInclude(u => u.Profile)
             .ToListAsync();
 
         // ✅ Hent pending gruppe requests
@@ -279,6 +282,9 @@ public class MessageService : IMessageService
             .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
             .Include(gr => gr.Sender).ThenInclude(u => u.Profile)
             .Include(gr => gr.Conversation)
+                .ThenInclude(c => c.Participants) // ✅ Legg til participants
+                    .ThenInclude(p => p.User)
+                        .ThenInclude(u => u.Profile)
             .ToListAsync();
 
         // ✅ Kombiner begge typer requests til samme DTO
@@ -297,6 +303,15 @@ public class MessageService : IMessageService
             IsGroup = r.Conversation?.IsGroup ?? false,
             LimitReached = r.LimitReached,
             IsPendingApproval = r.Conversation?.IsApproved == false,
+            // ✅ Rett variabel - bruk r.Conversation
+            Participants = r.Conversation?.IsGroup == true 
+                ? r.Conversation.Participants?.Select(p => new UserSummaryDTO 
+                {
+                    Id = p.User.Id,
+                    FullName = p.User.FullName,
+                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                }).ToList()
+                : null
         }));
 
         // Legg til gruppe requests
@@ -312,6 +327,13 @@ public class MessageService : IMessageService
             IsGroup = true, // ✅ Alltid true for gruppe requests
             LimitReached = false, // ✅ Ikke relevant for gruppe requests
             IsPendingApproval = true, // ✅ Gruppe requests er alltid pending
+            // ✅ Rett variabel - bruk gr.Conversation
+            Participants = gr.Conversation?.Participants?.Select(p => new UserSummaryDTO 
+            {
+                Id = p.User.Id,
+                FullName = p.User.FullName,
+                ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+            }).ToList()
         }));
 
         // ✅ Sorter etter dato (nyeste først)
