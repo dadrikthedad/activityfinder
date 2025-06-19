@@ -360,7 +360,7 @@ public class MessageService : IMessageService
             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
         if (conversation == null)
-            throw new Exception("Samtalen finnes ikke.");
+            throw new Exception("The conversation does not exist.");
 
         bool isGroupRequest = conversation.IsGroup;
         int senderId; // ✅ Definer senderId her
