@@ -117,19 +117,22 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
               
 
               if (isGroup) {
+                const groupDisplayName = conv.groupName || "Gruppe";
+                const groupImage = conv.groupImageUrl || "/default-group.png";
+
                 return (
                   <ConversationListItem
                     key={conv.id}
                     user={{
-                      id: conv.id, // unik identifikator, selv om det ikke er en faktisk bruker
-                      fullName: conv.groupName || "Group Chat",
-                      profileImageUrl: "/default-group.png", // eller conv.groupImageUrl
+                      id: conv.id,
+                      fullName: groupDisplayName,
+                      profileImageUrl: groupImage,
                     }}
                     selected={selectedId === conv.id}
                     isPendingApproval={conv.isPendingApproval}
                     hasUnread={hasUnread}
                     onClick={() => onSelect(conv.id)}
-                    onShowUserPopover={() => {}} // tom fordi det ikke gir mening
+                    onShowUserPopover={() => {}} // tom, som du allerede gjør riktig
                   />
                 );
               }

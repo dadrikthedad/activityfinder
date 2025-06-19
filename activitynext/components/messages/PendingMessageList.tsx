@@ -60,9 +60,11 @@ const PendingRequestsList = ({
           <li key={`${r.senderId}-${r.conversationId ?? "privat"}`} className={fadingOut[r.conversationId ?? -1] ? "opacity-0 transition-opacity duration-700" : ""}>
             <ConversationListItem
               user={{
-                id: r.senderId,
-                fullName: r.senderName,
-                profileImageUrl: r.profileImageUrl || "/default-avatar.png",
+                id: r.isGroup ? r.conversationId ?? 0 : r.senderId,
+                fullName: r.isGroup ? r.groupName ?? "Gruppe" : r.senderName,
+                profileImageUrl: r.isGroup
+                  ? r.groupImageUrl || "/default-group.png"
+                  : r.profileImageUrl || "/default-avatar.png",
               }}
               isClickable={true}
               isPendingApproval={true}
@@ -72,7 +74,7 @@ const PendingRequestsList = ({
                   onSelectConversation(r.conversationId);
                 }
               }}
-              onShowUserPopover={onShowUserPopover} 
+              onShowUserPopover={r.isGroup ? () => {} : onShowUserPopover}
             />
             <div className="mt-1 flex gap-2 pl-12">
                 <ProfileNavButton
