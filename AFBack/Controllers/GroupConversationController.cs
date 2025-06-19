@@ -235,6 +235,26 @@ public class GroupConversationController : BaseController
 
         _context.ConversationParticipants.Add(creatorParticipant);
         await _context.SaveChangesAsync();
+        
+        // 1️⃣ Hent avsender (creator)
+        var creator = await _context.Users.FindAsync(senderId);
+        var senderName = creator?.FullName ?? "En bruker";
+
+        // 2️⃣ Lag systemmelding
+        var introMessage = new Message
+        {
+            ConversationId = newConversation.Id,
+            SenderId = senderId,
+            Text = $"{senderName} created the group '{groupName}'",
+            SentAt = DateTime.UtcNow,
+            IsApproved = true // Så meldingen vises for alle
+        };
+        _context.Messages.Add(introMessage);
+
+        // 3️⃣ Oppdater LastMessageSentAt
+        newConversation.LastMessageSentAt = introMessage.SentAt;
+
+        await _context.SaveChangesAsync(); // Lagre både melding og oppdatert conversation
 
         return (newConversation, true);
     }
@@ -293,6 +313,7 @@ public class GroupConversationController : BaseController
         }
     }
 }
+
 
 
 
