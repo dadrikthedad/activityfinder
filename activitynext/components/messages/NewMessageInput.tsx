@@ -15,6 +15,7 @@ interface NewMessageInputProps {
   receiverId?: number; // Optional for group mode
   selectedUsers?: UserSummaryDTO[]; // For group mode
   groupName?: string; // Optional group name
+  shouldFocus?: boolean;
   onMessageSent?: (message: MessageDTO) => void;
   onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void; // Callback when group is created
 }
@@ -23,6 +24,7 @@ export default function NewMessageInput({
   receiverId,
   selectedUsers = [],
   groupName,
+  shouldFocus = false,
   onMessageSent,
   onGroupCreated,
 }: NewMessageInputProps) {
@@ -107,9 +109,11 @@ export default function NewMessageInput({
     }
   };
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [receiverId, selectedUsers]);
+    useEffect(() => {
+    if (shouldFocus) {
+      inputRef.current?.focus();
+    }
+  }, [shouldFocus]);
 
   // ✅ Show error from either message sending or group creation
   const currentError = messageError || groupRequestError;

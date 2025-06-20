@@ -127,6 +127,7 @@ export default function ChatHubClient() {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
           messagePreview: truncateText(message.text ?? "Du har fått en melding"),
+          senderProfileImage: message.sender?.profileImageUrl,
           conversationId: message.conversationId,
           type: NotificationType.NewMessage,
         });
@@ -234,13 +235,16 @@ export default function ChatHubClient() {
           // Only show toast if it's not from the current user
           if (notification.senderId !== userId) {
             showNotificationToast({
-              senderName: notification.senderName || "Someone",
-              messagePreview: notification.messagePreview || `You've been invited to join "${groupName}"`,
-              type: NotificationType.GroupRequest, // Or create NotificationType.GroupRequest if you want different handling
+              messagePreview: notification.messagePreview,
+              type: NotificationType.GroupRequest,
               conversationId,
               groupName: groupName,
+              groupImage: notification.groupImageUrl,
+              senderName: notification.senderName || "Someone",
+              senderProfileImage: notification.senderProfileImageUrl || "/default-avatar.png" // Sett default her
             });
           }
+          
         }
       }
   );

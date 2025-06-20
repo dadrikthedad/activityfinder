@@ -26,6 +26,7 @@ export default function TooltipButton({ icon, tooltip, onClick, className }: Too
         variant="tiny" 
         onClick={onClick} 
         className={className || "hover:bg-[#0F3D0F]"} 
+        tabIndex={-1}
       />
     </TooltipWrapper>
   );

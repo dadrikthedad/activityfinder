@@ -18,13 +18,15 @@ export default function MiniAvatar({
     ? "border-1 border-[#1C6B1C] shadow-md" 
     : "border border-gray-300 shadow-sm";
 
+    const displayImageUrl = imageUrl || "/default-avatar.png";
+
   return (
     <div
       className={`rounded-full overflow-hidden ${borderClasses}`}
       style={{ width: size, height: size, minWidth: size }}
     >
       <Image
-        src={imageUrl}
+        src={displayImageUrl}
         alt={alt}
         width={size}
         height={size}

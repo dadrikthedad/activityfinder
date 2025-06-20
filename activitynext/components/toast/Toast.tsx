@@ -7,6 +7,7 @@ import ProfileNavButton from "../settings/ProfileNavButton";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useRouter } from "next/navigation";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import MiniAvatar from "../common/MiniAvatar";// 🆕 Importer MiniAvatar
 
 export enum LocalToastType {
   MessageReactionChanged = "MessageReactionChanged",
@@ -19,14 +20,17 @@ export enum LocalToastType {
 export type ToastType = NotificationType | LocalToastType;
 
 interface NotificationToastProps {
-  senderName?: string | null;
   messagePreview?: string | null;
   conversationId?: number;
   type?: ToastType;
   reactionEmoji?: string | null;
   messageId?: number | null;
-  relatedUser?: UserSummaryDTO | null;
+  relatedUser?: UserSummaryDTO | null; // Primær kilde for sender info
   groupName?: string | null;
+  groupImage?: string | null;
+  // 🆕 Kun fallback felter hvis relatedUser ikke finnes
+  senderName?: string | null; // Fallback
+  senderProfileImage?: string | null; // Fallback
 }
 
 export function showNotificationToast({
@@ -38,6 +42,8 @@ export function showNotificationToast({
   messageId,
   relatedUser,
   groupName,
+  senderProfileImage, // 🆕
+  groupImage, // 🆕
 }: NotificationToastProps) {
   toast.custom((tId) => (
     <NotificationToast
@@ -50,6 +56,8 @@ export function showNotificationToast({
       messageId={messageId}
       relatedUser={relatedUser}
       groupName={groupName}
+      senderProfileImage={senderProfileImage} // 🆕
+      groupImage={groupImage} // 🆕
     />
   ), { duration: Infinity });
 }
@@ -64,6 +72,8 @@ function NotificationToast({
   messageId,
   relatedUser,
   groupName,
+  senderProfileImage, // 🆕
+  groupImage, // 🆕
 }: NotificationToastProps & { t: { id: string | number } }) {
   const router = useRouter();
   const setShowMessages = useChatStore((s) => s.setShowMessages);
@@ -98,19 +108,24 @@ function NotificationToast({
     toast.dismiss(t.id);
   };
 
+  // 🆕 Bruk nullish coalescing og eksplisitt typing for å unngå TypeScript feil
+  const senderDisplayName = relatedUser?.fullName ?? senderName ?? "ukjent";
+  const senderDisplayImage = relatedUser?.profileImageUrl ?? senderProfileImage ?? "/default-avatar.png";
+
   const name = (
     <span className="font-semibold text-black dark:text-white">
-      {senderName ?? "ukjent"}
-    </span>
-  );
-
-  const styledGroupName = (
-    <span className="font-semibold text-black dark:text-white">
-      {groupName ?? "a group"}
+      {senderDisplayName}
     </span>
   );
 
   const getTitle = () => {
+    // Style group name samme som sender name
+    const styledGroupName = (
+      <span className="font-semibold text-black dark:text-white">
+        {groupName ?? "a group"}
+      </span>
+    );
+
     switch (type) {
       case NotificationType.MessageRequest:
         return <>{name} sent you a message request</>;
@@ -119,7 +134,7 @@ function NotificationToast({
       case NotificationType.MessageReaction:
         return <>{name} reacted with {reactionEmoji ?? "👍"} on your message</>;
       case NotificationType.GroupRequest:
-        return <>{name} invited you to group {styledGroupName}</>
+        return <>{name} invited you to join {styledGroupName}</>;
       case LocalToastType.MessageReactionChanged:
         return <>{name} changed their reaction to {reactionEmoji ?? "👍"} on message:</>;
       case LocalToastType.FriendInvAccepted:
@@ -148,15 +163,50 @@ function NotificationToast({
     }
   };
 
+  // 🆕 Vis gruppe-relaterte bilder for GroupRequest
+  const showGroupImages = type === NotificationType.GroupRequest;
+
   return (
-    <div className="bg-white dark:bg-[#1e2122] border-1 border-[#1C6B1C] shadow-lg rounded-xl p-4 max-w-sm w-full text-center">
-      <p className="text-sm text-gray-600 dark:text-gray-300">{getTitle()}</p>
+    <div className="bg-white dark:bg-[#1e2122] border-1 border-[#1C6B1C] shadow-lg rounded-xl p-4 max-w-sm w-full">
+      {/* 🆕 Header med bilder */}
+      <div className="flex items-center gap-3 mb-3">
+        {/* Avsender profilbilde */}
+        <MiniAvatar
+          imageUrl={senderDisplayImage}
+          alt={senderDisplayName}
+          size={40}
+          withBorder={true}
+        />
+
+        {/* Gruppe bilde (kun for GroupRequest) */}
+        {showGroupImages && (
+          <>
+            <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs text-gray-600 dark:text-gray-300">
+              →
+            </div>
+            <MiniAvatar
+              imageUrl={groupImage || "/default-group.png"}
+              alt={groupName || "Group"}
+              size={40}
+              withBorder={true}
+            />
+          </>
+        )}
+
+        <div className="flex-1">
+          <p className="text-sm text-gray-600 dark:text-gray-300 text-left">{getTitle()}</p>
+        </div>
+      </div>
+
+      {/* Message body */}
       {getBody() && (
-        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 text-left">
           {getBody()}
         </p>
       )}
-      <div className="flex justify-center gap-2 mt-3 text-center">
+
+      {/* Action buttons */}
+      <div className="flex justify-center gap-2">
         <ProfileNavButton
           text="Open"
           variant="mini"

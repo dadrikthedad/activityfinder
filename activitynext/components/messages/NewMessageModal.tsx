@@ -28,6 +28,9 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
   const hasInitialReceiver = !!initialReceiver;
   const isMultipleUsers = selectedUsers.length > 1;
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [shouldFocusMessageInput, setShouldFocusMessageInput] = useState(false);
+
   const [showDropdown, setShowDropdown] = useState(false);
 
   // Dra og slipp-posisjon
@@ -117,6 +120,17 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
     }
   }, [initialReceiver, selectedUsers, setQuery]);
 
+  useEffect(() => {
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      hideModal();
+    }
+  };
+
+  document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [hideModal]);
+
   return (
     <Card
       ref={modalRef}
@@ -161,6 +175,7 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
             {!hasInitialReceiver && (
               <>
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={query}
                   onChange={(e) => {
@@ -168,6 +183,12 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
                   }}
                   placeholder="Search users..."
                   className="w-full p-2 mb-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-center"
+                  onBlur={() => {
+                  // Kun sett fokus på meldingsfeltet hvis brukeren aktivt forlater søkefeltet
+                  if (selectedUsers.length > 0) {
+                    setShouldFocusMessageInput(true);
+                  }
+                }}
                 />
 
                 {query && (
@@ -191,6 +212,10 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
                             }
                             setQuery("");
                             keyboardNav.setActiveIndex(0);
+                            // Behold fokus på søkefeltet
+                            setTimeout(() => {
+                              searchInputRef.current?.focus();
+                            }, 0);
                           }}
                         >
                           <MiniAvatar
@@ -226,6 +251,7 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
                     <span className="text-sm">{user.fullName}</span>
                     {!hasInitialReceiver && (
                       <button
+                      tabIndex={-1}
                         onClick={() =>
                           setSelectedUsers((prev) => prev.filter((u) => u.id !== user.id))
                         }
@@ -283,6 +309,7 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
                 receiverId={isMultipleUsers ? undefined : selectedUsers[0].id}
                 selectedUsers={isMultipleUsers ? selectedUsers : undefined}
                 groupName={isMultipleUsers ? groupName : undefined}
+                shouldFocus={shouldFocusMessageInput}
                 onMessageSent={(message: MessageDTO) => {
                   console.log("Message sent!", message);
                   hideModal();

@@ -16,6 +16,7 @@ export interface MessageNotificationDTO {
   isTemporary?: boolean;
   isConversationRejected?: boolean;
   isReactionUpdate?: boolean;
+  senderProfileImageUrl?: string | null;
 }
 
 export enum NotificationType {
