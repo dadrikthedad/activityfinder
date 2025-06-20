@@ -277,10 +277,8 @@ public class GroupConversationController : BaseController
         return (newConversation, true);
     }
     
-    private async Task NotifyAndBroadcastGroupRequestAsync(List<GroupRequest> groupRequests, int conversationId)// 🆕
+    private async Task NotifyAndBroadcastGroupRequestAsync(List<GroupRequest> groupRequests, int conversationId)
     {
-        
-
         using var scope = _scopeFactory.CreateScope();
         var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -291,8 +289,9 @@ public class GroupConversationController : BaseController
             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
         if (conversation == null) return;
-    
-        foreach (var groupRequest in groupRequests)
+
+        // 🆕 Send SignalR først (like etter som i SendMessageAsync)
+        var signalrTasks = groupRequests.Select(async groupRequest =>
         {
             try
             {
@@ -305,7 +304,7 @@ public class GroupConversationController : BaseController
                     groupName: conversation.GroupName
                 );
 
-                // 2️⃣ Send SignalR for GroupRequest
+                // 2️⃣ Send SignalR for GroupRequest (samme pattern som MessageRequest)
                 if (notification != null)
                 {
                     await _hubContext.Clients.User(groupRequest.ReceiverId.ToString())
@@ -328,7 +327,10 @@ public class GroupConversationController : BaseController
                 // Log feilen, men fortsett med andre invitasjoner
                 Console.WriteLine($"Failed to notify user {groupRequest.ReceiverId} about group invitation: {ex.Message}");
             }
-        }
+        });
+
+        // 🆕 Vent på alle SignalR-kall (samme som i SendMessageAsync)
+        await Task.WhenAll(signalrTasks);
     }
 }
 
