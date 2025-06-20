@@ -15,7 +15,8 @@ export function useChatHub(
   onReceiveReaction?: (reaction: ReactionDTO, notification?: MessageNotificationDTO) => void,
   onRequestApproved?: (notification: MessageNotificationDTO) => void,
   onRequestCreated?: (data: MessageRequestCreatedDto) => void,
-  onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void 
+  onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void,
+  onGroupRequestApproved?: (notification: MessageNotificationDTO) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -24,6 +25,7 @@ export function useChatHub(
   const approvedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null);
   const createdRef = useRef(onRequestCreated);
   const groupRequestCreatedRef = useRef(onGroupRequestCreated);
+  const groupRequestApprovedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null); 
    // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
@@ -32,6 +34,9 @@ export function useChatHub(
   }, [onRequestApproved]);
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
   useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
+  useEffect(() => {
+    groupRequestApprovedRef.current = onGroupRequestApproved ?? null; // 🆕
+  }, [onGroupRequestApproved]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -56,6 +61,7 @@ export function useChatHub(
           conn.off("MessageRequestApproved");
           conn.off("MessageRequestCreated");
           conn.off("GroupRequestCreated");
+          conn.off("GroupRequestApproved");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             console.log("📩 Received:", message);
@@ -80,6 +86,18 @@ export function useChatHub(
             approvedRef.current?.(notification);
           
 
+            // 2. Eller legg den rett i notification-store:
+            useMessageNotificationStore.getState().upsertNotification(notification);
+          });
+
+          // Ny GroupRequestApproved listener
+          conn.on("GroupRequestApproved", (notification: MessageNotificationDTO) => {
+            console.log("✅ Mottatt gruppegodkjenningsnotifikasjon:", notification);
+            console.log("🧪 Type på notification i gruppegodkjenning:", notification?.type);
+
+            // 1. Send den til callback hvis noen bruker den
+            groupRequestApprovedRef.current?.(notification);
+          
             // 2. Eller legg den rett i notification-store:
             useMessageNotificationStore.getState().upsertNotification(notification);
           });

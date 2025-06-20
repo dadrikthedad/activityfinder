@@ -205,7 +205,7 @@ export default function ChatHubClient() {
           }
         }
       },
-       // 🆕 Gruppeforespørsel opprettet - handle exactly like MessageRequest
+       // Gruppeforespørsel opprettet - handle exactly like MessageRequest
       async ({ senderId, receiverId, conversationId, groupName, notification }: GroupRequestCreatedDto) => {
         if (!conversationId) {
           console.error("🚨 Mangler conversationId i gruppe signalr-data:", {
@@ -246,7 +246,28 @@ export default function ChatHubClient() {
           }
           
         }
+      },
+
+      async (notification) => {
+        console.log("✅ Godkjent gruppeforespørsel via SignalR:", notification); 
+        const convId = notification.conversationId;
+        if (!convId) {
+          return;
+        }
+
+        showNotificationToast({
+          senderName: notification.senderName ?? "Someone",
+          messagePreview: notification.messagePreview,
+          conversationId: convId,
+          type: NotificationType.GroupRequestApproved, // Antar at du har denne typen
+          groupName: notification.groupName,
+          groupImage: notification.groupImageUrl,
+        });
+
+        // await finalizeConversationApproval(convId, true, notification);
       }
+
+
   );
 
   return null; // Kun sideeffekter
