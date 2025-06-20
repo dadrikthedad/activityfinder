@@ -316,7 +316,6 @@ export default function NewMessageModal({ initialReceiver }: NewMessageModalProp
                 }}
                 onGroupCreated={(response: SendGroupRequestsResponseDTO) => {
                   console.log("Group created!", response);
-                  alert(`Group created! Sent ${response.invitationsSent} invitations out of ${response.totalRequestedUsers} users.`);
                   hideModal();
                 }}
               />
