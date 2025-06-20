@@ -22,6 +22,8 @@ public class MessageNotificationDTO
     
     [JsonPropertyName("reactionEmoji")]
     public string? ReactionEmoji { get; set; }
+    
+    public bool IsReactionUpdate { get; set; } = false;
 
     public string? MessagePreview { get; set; } // For "Ola: Hei!"-type visninger
     public int? MessageCount { get; set; }

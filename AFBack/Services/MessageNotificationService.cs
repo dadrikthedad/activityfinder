@@ -137,7 +137,7 @@ public class MessageNotificationService
             existing.CreatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            return MapToDTO(existing);
+            return MapToDTO(existing, isUpdate: true);
         }
 
         // ✨ Ny notifikasjon hvis ingen finnes
@@ -238,7 +238,7 @@ public class MessageNotificationService
         return MapToDTO(created!);
     }
     
-    public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null)
+    public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)
     {
         string preview;
         var messageCount = n.MessageCount ?? 0;
@@ -303,7 +303,8 @@ public class MessageNotificationService
             MessageCount = n.MessageCount,
             IsConversationRejected = n.ConversationId.HasValue &&
                                      rejectedConversations != null &&
-                                     rejectedConversations.Contains(n.ConversationId.Value)
+                                     rejectedConversations.Contains(n.ConversationId.Value),
+            IsReactionUpdate = isUpdate
         };
     }
 }
