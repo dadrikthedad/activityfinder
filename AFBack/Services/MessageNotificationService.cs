@@ -52,6 +52,7 @@ public class MessageNotificationService
     {
         var existing = await _context.MessageNotifications
             .Include(n => n.FromUser)
+            .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n =>
                 n.UserId == receiverId &&
@@ -80,6 +81,7 @@ public class MessageNotificationService
 
         var created = await _context.MessageNotifications
             .Include(n => n.FromUser)
+                .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
@@ -106,6 +108,7 @@ public class MessageNotificationService
 
         var created = await _context.MessageNotifications
             .Include(n => n.FromUser)
+                .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
@@ -123,6 +126,7 @@ public class MessageNotificationService
         var existing = await _context.MessageNotifications
             .Include(n => n.Message)
             .Include(n => n.FromUser)
+                .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .Where(n =>
                 n.UserId == receiverUserId &&
@@ -157,6 +161,7 @@ public class MessageNotificationService
 
         var created = await _context.MessageNotifications
             .Include(n => n.FromUser)
+            .ThenInclude(u => u.Profile) 
             .Include(n => n.Conversation)
             .Include(n => n.Message!)
             .ThenInclude(m => m.Reactions)
@@ -175,6 +180,7 @@ public class MessageNotificationService
         // Sjekk om det allerede finnes en ulest GroupRequest-notifikasjon
         var existing = await _context.MessageNotifications
             .Include(n => n.FromUser)
+            .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n =>
                 n.UserId == receiverId &&
@@ -205,6 +211,7 @@ public class MessageNotificationService
         // Hent den opprettede notifikasjonen med alle includes
         var created = await _context.MessageNotifications
             .Include(n => n.FromUser)
+            .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
@@ -231,6 +238,7 @@ public class MessageNotificationService
 
         var created = await _context.MessageNotifications
             .Include(n => n.FromUser)
+            .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
@@ -292,6 +300,7 @@ public class MessageNotificationService
             ConversationId = n.ConversationId,
             SenderName = n.FromUser?.FullName,
             SenderId = n.FromUserId,
+            SenderProfileImageUrl = n.FromUser?.Profile?.ProfileImageUrl, 
             GroupName = n.Conversation?.GroupName,
             GroupImageUrl = n.Conversation!.GroupImageUrl,
             MessagePreview = preview,

@@ -16,6 +16,8 @@ public class MessageNotificationDTO
     public int? ConversationId { get; set; }
     public int? SenderId { get; set; }
     public string? SenderName { get; set; }
+    
+    public string? SenderProfileImageUrl { get; set; }
     public string? GroupName { get; set; }
     
     public string? GroupImageUrl { get; set; }
