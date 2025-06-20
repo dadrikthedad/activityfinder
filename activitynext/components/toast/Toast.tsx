@@ -178,12 +178,13 @@ function NotificationToast({
           withBorder={true}
         />
 
+        <div className="flex-1">
+          <p className="text-sm text-gray-600 dark:text-gray-300 text-left">{getTitle()}</p>
+        </div>
+
         {/* Gruppe bilde (kun for GroupRequest) */}
         {showGroupImages && (
           <>
-            <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center text-xs text-gray-600 dark:text-gray-300">
-              →
-            </div>
             <MiniAvatar
               imageUrl={groupImage || "/default-group.png"}
               alt={groupName || "Group"}
@@ -192,10 +193,6 @@ function NotificationToast({
             />
           </>
         )}
-
-        <div className="flex-1">
-          <p className="text-sm text-gray-600 dark:text-gray-300 text-left">{getTitle()}</p>
-        </div>
       </div>
 
       {/* Message body */}
@@ -226,6 +223,7 @@ function NotificationToast({
           className="bg-gray-500 hover:bg-gray-600 text-white"
         />
       </div>
+      
     </div>
   );
 }

@@ -39,68 +39,71 @@ export default function NewMessageInput({
   // ✅ Determine if we're in group mode
   const isGroupMode = selectedUsers.length > 1;
   const isDisabled = isGroupMode
-  ? groupRequestLoading
-  : !text.trim();
+  ? groupRequestLoading  // For grupper: kun disabled når loading
+  : !text.trim() || !receiverId; 
 
   const { approveLocally } = useApproveMessageRequest();
 
   const handleSend = async () => {
+  // ✅ For 1-til-1 samtaler: krev tekst
+  if (!isGroupMode) {
     const trimmed = text.trim();
     if (!trimmed) return;
-
-    if (isGroupMode) {
-      // ✅ Handle group creation
-      try {
-        const invitedUserIds = selectedUsers.map(user => user.id);
-        
-        const response = await sendGroupInvitations({
-          groupName: groupName?.trim() || undefined,
-          invitedUserIds,
-          initialMessage: trimmed,
-        });
-
-        if (response) {
-          console.log("✅ Group created successfully:", response);
-          setText(""); // Clear the input
-          onGroupCreated?.(response);
-        }
-      } catch (error) {
-        console.error("❌ Failed to create group:", error);
-      }
-    } else {
-      // ✅ Handle regular 1-to-1 message
-      if (!receiverId) {
-        console.error("❌ No receiverId provided for 1-to-1 message");
-        return;
-      }
-
-      const sendingText = trimmed;
-      setText("");
-      inputRef.current?.focus();
-
-       const payload = {
-        text: sendingText,
-        receiverId: receiverId.toString(),
-      };
-
-      console.log("📤 Sender melding med payload:", payload);
-
-      send(payload)
-        .then(async (result) => {
-          if (!result) return;
-
-          if (result.isNowApproved) {
-              approveLocally(result.conversationId);
-          }
-          
-          // 🚨 SJEKK isRejectedRequest FØR syncing
-          if (!result.isRejectedRequest) {
-            await syncConversation(result);
-          }
-          onMessageSent?.(result);
-        });
+    
+    if (!receiverId) {
+      console.error("❌ No receiverId provided for 1-to-1 message");
+      return;
     }
-  };
+
+    const sendingText = trimmed;
+    setText("");
+    inputRef.current?.focus();
+
+    const payload = {
+      text: sendingText,
+      receiverId: receiverId.toString(),
+    };
+
+    console.log("📤 Sender melding med payload:", payload);
+
+    send(payload)
+      .then(async (result) => {
+        if (!result) return;
+
+        if (result.isNowApproved) {
+            approveLocally(result.conversationId);
+        }
+        
+        // 🚨 SJEKK isRejectedRequest FØR syncing
+        if (!result.isRejectedRequest) {
+          await syncConversation(result);
+        }
+        onMessageSent?.(result);
+      });
+    
+    return;
+  }
+
+  // ✅ For gruppesamtaler: tekst er optional
+  try {
+    const trimmed = text.trim();
+    const invitedUserIds = selectedUsers.map(user => user.id);
+    
+    const response = await sendGroupInvitations({
+      groupName: groupName?.trim() || undefined,
+      invitedUserIds,
+      initialMessage: trimmed || undefined, // Send undefined hvis tom
+    });
+
+    if (response) {
+      console.log("✅ Group created successfully:", response);
+      setText(""); // Clear the input
+      onGroupCreated?.(response);
+    }
+  } catch (error) {
+    console.error("❌ Failed to create group:", error);
+  }
+};
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
