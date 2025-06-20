@@ -7,13 +7,15 @@ import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
   onReceiveReaction?: (reaction: ReactionDTO, notification?: MessageNotificationDTO) => void,
   onRequestApproved?: (notification: MessageNotificationDTO) => void,
-  onRequestCreated?: (data: MessageRequestCreatedDto) => void
+  onRequestCreated?: (data: MessageRequestCreatedDto) => void,
+  onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void 
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -21,6 +23,7 @@ export function useChatHub(
   >(onReceiveReaction);
   const approvedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null);
   const createdRef = useRef(onRequestCreated);
+  const groupRequestCreatedRef = useRef(onGroupRequestCreated);
    // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
@@ -28,6 +31,7 @@ export function useChatHub(
     approvedRef.current = onRequestApproved ?? null;
   }, [onRequestApproved]);
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
+  useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -51,6 +55,7 @@ export function useChatHub(
           conn.off("ReceiveReaction");
           conn.off("MessageRequestApproved");
           conn.off("MessageRequestCreated");
+          conn.off("GroupRequestCreated");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             console.log("📩 Received:", message);
@@ -90,6 +95,20 @@ export function useChatHub(
 
             // Send videre til frontend-logikk (f.eks. for toast + sync)
             createdRef.current?.(data);
+          });
+
+          conn.on("GroupRequestCreated", (data: GroupRequestCreatedDto) => {
+            console.log("👥 Ny gruppeforespørsel mottatt:", data);
+
+            const { notification } = data;
+
+            // Add notification to store (similar to MessageRequestCreated)
+            if (notification && notification.type !== "MessageRequestApproved") {
+              useMessageNotificationStore.getState().upsertNotification(notification);
+            }
+
+            // Send videre til frontend-logikk
+            groupRequestCreatedRef.current?.(data);
           });
 
         } catch (err) {

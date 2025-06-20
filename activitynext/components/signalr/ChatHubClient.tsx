@@ -17,6 +17,7 @@ import { usePendingConversationSync } from "@/hooks/messages/getPendingConversat
 import { NotificationType } from "@/types/MessageNotificationDTO";
 import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
+import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -199,6 +200,45 @@ export default function ChatHubClient() {
               messagePreview: notification.messagePreview,
               type: NotificationType.MessageRequest,
               conversationId,
+            });
+          }
+        }
+      },
+       // 🆕 Gruppeforespørsel opprettet - handle exactly like MessageRequest
+      async ({ senderId, receiverId, conversationId, groupName, notification }: GroupRequestCreatedDto) => {
+        if (!conversationId) {
+          console.error("🚨 Mangler conversationId i gruppe signalr-data:", {
+            senderId,
+            receiverId,
+            conversationId,
+            groupName,
+          });
+          return;
+        }
+
+        console.log("👥 Gruppeforespørsel opprettet via SignalR:", {
+          senderId,
+          receiverId,
+          conversationId,
+          groupName,
+          notification,
+        });
+
+        if (notification) {
+          // 🔔 Oppdater notification-panelet i sanntid
+          await handleIncomingNotification(notification);
+
+          // 🔄 Hent og legg til pending-samtale (uten å cache meldinger for pending)
+          await syncPendingConversation(conversationId);
+
+          // Only show toast if it's not from the current user
+          if (notification.senderId !== userId) {
+            showNotificationToast({
+              senderName: notification.senderName || "Someone",
+              messagePreview: notification.messagePreview || `You've been invited to join "${groupName}"`,
+              type: NotificationType.GroupRequest, // Or create NotificationType.GroupRequest if you want different handling
+              conversationId,
+              groupName: groupName,
             });
           }
         }

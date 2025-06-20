@@ -26,6 +26,7 @@ interface NotificationToastProps {
   reactionEmoji?: string | null;
   messageId?: number | null;
   relatedUser?: UserSummaryDTO | null;
+  groupName?: string | null;
 }
 
 export function showNotificationToast({
@@ -36,6 +37,7 @@ export function showNotificationToast({
   reactionEmoji,
   messageId,
   relatedUser,
+  groupName,
 }: NotificationToastProps) {
   toast.custom((tId) => (
     <NotificationToast
@@ -47,6 +49,7 @@ export function showNotificationToast({
       reactionEmoji={reactionEmoji}
       messageId={messageId}
       relatedUser={relatedUser}
+      groupName={groupName}
     />
   ), { duration: Infinity });
 }
@@ -60,6 +63,7 @@ function NotificationToast({
   reactionEmoji,
   messageId,
   relatedUser,
+  groupName,
 }: NotificationToastProps & { t: { id: string | number } }) {
   const router = useRouter();
   const setShowMessages = useChatStore((s) => s.setShowMessages);
@@ -74,6 +78,7 @@ function NotificationToast({
       case NotificationType.NewMessage:
       case NotificationType.MessageReaction:
       case NotificationType.MessageRequest:
+      case NotificationType.GroupRequest:
         if (conversationId != null) {
           if (!showMessages) setShowMessages(true);
           openConversation(conversationId);
@@ -99,6 +104,12 @@ function NotificationToast({
     </span>
   );
 
+  const styledGroupName = (
+    <span className="font-semibold text-black dark:text-white">
+      {groupName ?? "a group"}
+    </span>
+  );
+
   const getTitle = () => {
     switch (type) {
       case NotificationType.MessageRequest:
@@ -107,6 +118,8 @@ function NotificationToast({
         return <>{name} approved your message request</>;
       case NotificationType.MessageReaction:
         return <>{name} reacted with {reactionEmoji ?? "👍"} on your message</>;
+      case NotificationType.GroupRequest:
+        return <>{name} invited you to group {styledGroupName}</>
       case LocalToastType.MessageReactionChanged:
         return <>{name} changed their reaction to {reactionEmoji ?? "👍"} on message:</>;
       case LocalToastType.FriendInvAccepted:
