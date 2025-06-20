@@ -15,11 +15,14 @@ export interface MessageNotificationDTO {
   messageCount?: number | null;
   isTemporary?: boolean;
   isConversationRejected?: boolean;
+  isReactionUpdate?: boolean;
 }
 
 export enum NotificationType {
   NewMessage = 1,
   MessageRequest = 2,
   MessageRequestApproved = 3,
-  MessageReaction = 4
+  MessageReaction = 4,
+  GroupRequest = 5,
+  GroupRequestApproved = 6,
 }

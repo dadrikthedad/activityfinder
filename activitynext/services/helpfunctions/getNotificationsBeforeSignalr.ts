@@ -83,16 +83,22 @@ export async function handleIncomingNotification(
 export async function handleIncomingReactionNotification(
   notification: MessageNotificationDTO,
   options?: { onlyIfNew?: boolean }
-): Promise<boolean> {
+): Promise<void> {
   let store = useMessageNotificationStore.getState();
-
+  
+  // Sørg for at vi har lastet notifikasjoner
   const hasFetchedReactions = store.notifications.some(n => n.type === "MessageReaction");
-
   if (!hasFetchedReactions) {
     await fetchAndSetMessageNotifications();
-    store = useMessageNotificationStore.getState(); // 📦 oppdater snapshot
+    store = useMessageNotificationStore.getState();
   }
 
+  // Hvis vi bare skal håndtere nye og dette er en oppdatering, ikke gjør noe
+  if (options?.onlyIfNew && notification.isReactionUpdate) {
+    return;
+  }
+
+  // Finn eksisterende notifikasjon
   const existing = store.notifications.find(
     (n) =>
       n.type === "MessageReaction" &&
@@ -100,22 +106,17 @@ export async function handleIncomingReactionNotification(
       n.senderId === notification.senderId
   );
 
-  if (options?.onlyIfNew && existing) return false;
-
   if (existing) {
+    // Oppdater eksisterende notifikasjon
     const updated: MessageNotificationDTO = {
       ...existing,
-      reactionEmoji: notification.reactionEmoji,
-      createdAt: notification.createdAt,
-      messagePreview: notification.messagePreview ?? existing.messagePreview,
-      isRead: existing.isRead,
+      ...notification,
+      isRead: existing.isRead, // Behold lokal read-status
+      readAt: existing.readAt, // Behold lokal read-timestamp
     };
-
     store.upsertNotification(updated);
-    return false;
+  } else {
+    // Ny notifikasjon
+    store.upsertNotification(notification);
   }
-
-  // Ny reaksjonsnotifikasjon
-  store.upsertNotification(notification);
-  return true;
 }

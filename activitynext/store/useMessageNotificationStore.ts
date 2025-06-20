@@ -10,16 +10,15 @@ type MessageNotificationStore = {
   setNotifications: (notifications: MessageNotificationDTO[]) => void;
   addNotificationFromApi: (notifications: MessageNotificationDTO[]) => void;
   upsertNotification: (incoming: MessageNotificationDTO) => boolean;
-  upsertReactionNotification: (
-    incoming: MessageNotificationDTO,
-    currentUserId: number | null
-  ) => boolean;
   markAsRead: (id: number) => Promise<void>;
   markAllAsRead: () => void;
   markAsReadForConversation: (conversationId: number) => void;
   updateNotificationsForRejectedConversation: (conversationId: number) => void;
   hasLoadedNotifications: boolean;
   setHasLoadedNotifications: (v: boolean) => void;
+  seenReactions: Record<string, boolean>;
+  markReactionSeen: (messageId: number, userId: number) => void;
+  hasSeenReaction: (messageId: number, userId: number) => boolean;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -40,51 +39,6 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
         const existing = new Map(get().notifications.map((n) => [n.id, n]));
         incoming.forEach((n) => existing.set(n.id, n));
         set({ notifications: Array.from(existing.values()).slice(0, 50) });
-      },
-
-      upsertReactionNotification: (incoming, currentUserId) => {
-        if (incoming.senderId === currentUserId) return false;
-
-        const state = get();
-        const isReaction = incoming.type === NotificationType.MessageReaction;
-
-        if (!isReaction || incoming.messageId == null) return false;
-
-        let wasNew = true;
-
-        const updated = state.notifications.map((n) => {
-          if (
-            n.type === NotificationType.MessageReaction &&
-            n.messageId === incoming.messageId
-          ) {
-            wasNew = false;
-            return {
-              ...n,
-              ...incoming,
-              id: n.id,
-              createdAt: incoming.createdAt ?? n.createdAt,
-            };
-          }
-          return n;
-        });
-
-        const finalList = wasNew
-          ? [incoming, ...updated].slice(0, 50)
-          : updated;
-
-        set({ notifications: finalList });
-
-        if (wasNew) {
-          showNotificationToast({
-            senderName: incoming.senderName,
-            messagePreview: `Reagerte på meldingen din`,
-            conversationId: incoming.conversationId!,
-            type: NotificationType[incoming.type as keyof typeof NotificationType],
-            reactionEmoji: incoming.reactionEmoji,
-          });
-        }
-
-        return wasNew;
       },
 
       upsertNotification: (incoming: MessageNotificationDTO) => {
@@ -145,6 +99,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
         set((state) => ({
           notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
         })),
+        
 
       markAsReadForConversation: (conversationId: number) => {
         set((state) => {
@@ -175,11 +130,28 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
         console.log(`🔄 Markerte notifikasjoner som avslått og lest for samtale: ${conversationId}`);
       },
 
+      seenReactions: {},
+
+      markReactionSeen: (messageId, userId) => {
+        const key = `${messageId}-${userId}`;
+        const current = get().seenReactions;
+        if (!current[key]) {
+          set({ seenReactions: { ...current, [key]: true } });
+        }
+      },
+
+      hasSeenReaction: (messageId, userId) => {
+        const key = `${messageId}-${userId}`;
+        return !!get().seenReactions[key];
+      },
+      
+
       // --- full reset (bruk ved logout) ---
       reset: () =>
         set({
           notifications: [],
           hasLoadedNotifications: false,
+          seenReactions: {},
         }),
     })),
     {

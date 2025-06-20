@@ -26,44 +26,37 @@ export async function handleIncomingReaction(
     bumpReactionsVersion,
   } = useChatStore.getState();
 
-
   // 👤 Ikke håndter egne reaksjoner
   if (reaction.userId === currentUserId) return;
 
   const isInActiveConversation = reaction.conversationId === currentConversationId;  
 
   // ✅ Hvis vi er i samtalen og i bunn – marker som lest direkte (lokalt)
-   if (isInActiveConversation && isAtBottom) {
+  if (isInActiveConversation && isAtBottom) {
     markConversationAsReadLocally(reaction.conversationId);
-    // ✅ Ellers: bruk notificationen hvis vi fikk den fra backend
-      } else if (notification) {
-  const isNew = await handleIncomingReactionNotification(notification, { onlyIfNew: false });
+  } 
+  // ✅ Ellers: bruk notificationen hvis vi fikk den fra backend
+  else if (notification) {
+    // Oppdater notification store
+    await handleIncomingReactionNotification(notification, { onlyIfNew: false });
 
-    if (isNew) {
-      showNotificationToast({
-        senderName: notification.senderName,
-        messagePreview: notification.messagePreview,
-        conversationId: notification.conversationId!,
-        type: NotificationType.MessageReaction,
-        reactionEmoji: notification.reactionEmoji,
-        messageId: notification.messageId,
-      });
-    } else {
+    // ✅ Bruk backend-informasjonen for å bestemme toast-type
+    showNotificationToast({
+      senderName: notification.senderName,
+      messagePreview: notification.messagePreview,
+      conversationId: notification.conversationId!,
+      type: notification.isReactionUpdate 
+        ? LocalToastType.MessageReactionChanged 
+        : NotificationType.MessageReaction,
+      reactionEmoji: notification.reactionEmoji,
+      messageId: notification.messageId,
+    });
 
-      showNotificationToast({
-        senderName: notification.senderName,
-        messagePreview: notification.messagePreview,
-        conversationId: notification.conversationId!,
-        type: LocalToastType.MessageReactionChanged,
-        reactionEmoji: notification.reactionEmoji,
-        messageId: notification.messageId,
-      });
-      }
-
-  if (!unreadConversationIds.includes(reaction.conversationId)) {
-    setUnreadConversationIds([...unreadConversationIds, reaction.conversationId]);
+    // Marker samtale som ulest hvis ikke allerede markert
+    if (!unreadConversationIds.includes(reaction.conversationId)) {
+      setUnreadConversationIds([...unreadConversationIds, reaction.conversationId]);
+    }
   }
-}
 
   // ♻️ Tving rerender for f.eks. reactions i MessageList
   bumpReactionsVersion();
