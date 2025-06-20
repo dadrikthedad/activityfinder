@@ -5,6 +5,8 @@ import { getMessagesForConversation } from "@/services/messages/conversationServ
 import { useChatStore } from "@/store/useChatStore";
 import { getConversationById } from "@/services/messages/conversationService";
 import { ConversationDTO } from "@/types/ConversationDTO";
+import { LocalToastType, showNotificationToast } from "@/components/toast/Toast";
+import { useAuth } from "@/context/AuthContext";
 
 export function useApproveMessageRequest() {
   const [loading, setLoading] = useState(false);
@@ -17,6 +19,7 @@ export function useApproveMessageRequest() {
   const setPendingLockedConversationId = useChatStore(
     (s) => s.setPendingLockedConversationId
   );
+    const { userId: currentUserId } = useAuth();
 
   const approve = useCallback(
     async (conversationId: number) => {
@@ -103,12 +106,23 @@ export function useApproveMessageRequest() {
       state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
     }
 
+    if (convo) {
+      const otherParticipant = convo.participants.find(p => p.id !== currentUserId); // Antatt at du har en currentUserId
+      showNotificationToast({
+        senderName: otherParticipant?.fullName ?? "Samtale",
+        conversationId: convo.id,
+        type: LocalToastType.MsgRequestAcceptedLocally, // Eller LocalToastType hvis du vil ha en egen
+        relatedUser: otherParticipant ?? undefined,
+      });
+    }
+
     setPendingLockedConversationId(null);
   }, [
     removeRequest,
     addConversation,
     setCurrentConversationId,
     setPendingLockedConversationId,
+    currentUserId
   ]);
 
   return { approve, approveLocally, loading, error };

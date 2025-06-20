@@ -13,6 +13,7 @@ export enum LocalToastType {
   FriendRequestReceived = "FriendRequestReceived",
   CustomSystemNotice = "CustomSystemNotice",
   FriendInvAccepted = "FriendRequestAccepted",
+  MsgRequestAcceptedLocally ="MsgRequestAcceptedLocally"
 }
 
 export type ToastType = NotificationType | LocalToastType;
@@ -112,9 +113,13 @@ function NotificationToast({
         return <>{name} accepted your friend request</>;
       case LocalToastType.FriendRequestReceived:
         return <>{name} sent you a friend request</>;
+      case LocalToastType.MsgRequestAcceptedLocally:
+        return <>Message request from {name} is approved</>
       case NotificationType.NewMessage:
-      default:
         return <>{name} says:</>;
+      
+      default:
+        return;  
     }
   };
 
