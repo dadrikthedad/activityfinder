@@ -197,7 +197,6 @@ public class MessageNotificationService
             Type = NotificationType.GroupRequest,
             CreatedAt = DateTime.UtcNow,
             IsRead = false,
-            MessageId = groupRequestId // Gjenbruk MessageId for GroupRequestId
         };
 
         _context.MessageNotifications.Add(notification);

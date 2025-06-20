@@ -85,7 +85,8 @@ public class GroupConversationController : BaseController
         }
 
         await _context.SaveChangesAsync();
-
+        
+        Console.WriteLine("🟡 Queueing background task for group requests...");
         // 6️⃣ Send notifikasjoner i bakgrunnen
         _taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id));
 
