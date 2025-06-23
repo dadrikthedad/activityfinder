@@ -204,20 +204,21 @@ public class MessageService : IMessageService
         // 👥 GRUPPE: sjekk GroupRequest for brukeren
         if (conversation.IsGroup)
         {
-            // Sjekk om brukeren er creator eller har godkjent GroupRequest
+            // Sjekk om brukeren er creator eller har avslått GroupRequest
             bool isCreator = conversation.CreatorId == userId;
-            bool hasApprovedGroupRequest = false;
+            bool hasRejectedGroupRequest = false;
 
             if (!isCreator)
             {
-                hasApprovedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
+                // Sjekk om brukeren har en REJECTED GroupRequest
+                hasRejectedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
                     gr.ReceiverId == userId &&
                     gr.ConversationId == conversationId &&
-                    gr.Status == GroupRequestStatus.Approved);
+                    gr.Status == GroupRequestStatus.Rejected);
             }
 
-            // Hvis verken creator eller godkjent member, ingen tilgang
-            if (!isCreator && !hasApprovedGroupRequest)
+            // Hvis brukeren har avslått invitasjonen og ikke er creator, ingen tilgang
+            if (!isCreator && hasRejectedGroupRequest)
             {
                 throw new UnauthorizedAccessException("Du har ikke godkjent invitasjonen til denne gruppen.");
             }
