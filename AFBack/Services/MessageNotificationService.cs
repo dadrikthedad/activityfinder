@@ -248,31 +248,72 @@ public class MessageNotificationService
     }
     
     public async Task<MessageNotificationDTO> CreateGroupRequestApprovedNotificationAsync(
-        int approverId,
-        int senderId,
-        int conversationId)
+    int approverId,
+    int senderId,
+    int conversationId)
     {
-        var notification = new MessageNotification
+        // Hent gruppe-informasjon
+        var conversation = await _context.Conversations
+            .Where(c => c.Id == conversationId)
+            .Select(c => new { c.GroupName })
+            .FirstOrDefaultAsync();
+
+        if (conversation == null) 
+            throw new ArgumentException("Conversation not found");
+
+        // Sjekk om det finnes en eksisterende ulest GroupRequestApproved-notifikasjon for samme gruppe
+        var existingNotification = await _context.MessageNotifications
+            .FirstOrDefaultAsync(n =>
+                n.UserId == senderId &&
+                n.ConversationId == conversationId &&
+                n.Type == NotificationType.GroupRequestApproved &&
+                !n.IsRead);
+
+        if (existingNotification != null)
         {
-            UserId = senderId,
-            FromUserId = approverId,
-            ConversationId = conversationId,
-            Type = NotificationType.GroupRequestApproved, // ✅ Ny type
-            CreatedAt = DateTime.UtcNow,
-            IsRead = false
-        };
+            // Oppdater eksisterende notifikasjon
+            existingNotification.MessageCount = (existingNotification.MessageCount ?? 1) + 1;
+            existingNotification.CreatedAt = DateTime.UtcNow;
+            existingNotification.FromUserId = approverId; // Oppdater til siste approver
+            
+            await _context.SaveChangesAsync();
 
-        _context.MessageNotifications.Add(notification);
-        await _context.SaveChangesAsync();
+            // Returner oppdatert notifikasjon
+            var updated = await _context.MessageNotifications
+                .Include(n => n.FromUser)
+                .ThenInclude(u => u.Profile)
+                .Include(n => n.Conversation)
+                .FirstOrDefaultAsync(n => n.Id == existingNotification.Id);
 
-        var created = await _context.MessageNotifications
-            .Include(n => n.FromUser)
-            .ThenInclude(u => u.Profile)
-            .Include(n => n.Conversation)
-            .FirstOrDefaultAsync(n => n.Id == notification.Id);
+            return MapToDTO(updated!);
+        }
+        else
+        {
+            // Opprett ny notifikasjon
+            var notification = new MessageNotification
+            {
+                UserId = senderId,
+                FromUserId = approverId,
+                ConversationId = conversationId,
+                Type = NotificationType.GroupRequestApproved,
+                CreatedAt = DateTime.UtcNow,
+                IsRead = false,
+                MessageCount = 1
+            };
 
-        return MapToDTO(created!);
+            _context.MessageNotifications.Add(notification);
+            await _context.SaveChangesAsync();
+
+            var created = await _context.MessageNotifications
+                .Include(n => n.FromUser)
+                .ThenInclude(u => u.Profile)
+                .Include(n => n.Conversation)
+                .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+            return MapToDTO(created!);
+        }
     }
+
     
     public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)
     {
@@ -285,9 +326,26 @@ public class MessageNotificationService
                 preview = "approved your message request";
                 break;
             
-            case NotificationType.GroupRequestApproved: // ✅ Legg til denne
-                preview = $"joined your group \"{n.Conversation?.GroupName}\"";
+            case NotificationType.GroupRequestApproved:
+                if (messageCount > 1)
+                {
+                    // Flere medlemmer har blitt med
+                    if (messageCount == 2)
+                    {
+                        preview = $"and 1 other person have joined \"{n.Conversation?.GroupName}\"";
+                    }
+                    else
+                    {
+                        preview = $"and {messageCount - 1} others have joined \"{n.Conversation?.GroupName}\"";
+                    }
+                }
+                else
+                {
+                    // Første medlem som blir med
+                    preview = $"has joined \"{n.Conversation?.GroupName}\"";
+                }
                 break;
+
 
             case NotificationType.MessageRequest:
                 preview = "requested to message you";
