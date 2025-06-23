@@ -6,6 +6,7 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useDropdown } from "@/context/DropdownContext";
 import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
 import MiniAvatar from "./MiniAvatar";
+import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
 
 interface ParticipantsDropdownButtonProps {
   participants: UserSummaryDTO[];
@@ -30,15 +31,16 @@ export default function ParticipantsDropdownButton({
     return () => dropdownContext.unregister(id);
   }, [open, dropdownContext]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  useClickOutsideGroups({
+      includeRefs: [ref],
+      excludeClassNames: [
+          "[data-user-action-popover]",
+          "[data-nested-user-popover]",
+          "[data-nested-popover]"
+      ],
+      onOutsideClick: () => setOpen(false),
+      isActive: open
+  });
 
     const handleParticipantClick = (participant: UserSummaryDTO, event: React.MouseEvent) => {
   event.stopPropagation();
@@ -51,7 +53,6 @@ export default function ParticipantsDropdownButton({
   };
   
   onShowUserPopover(participant, pos);
-  setOpen(false);
 };
 
     return (

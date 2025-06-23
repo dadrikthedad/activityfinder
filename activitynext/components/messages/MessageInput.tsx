@@ -7,18 +7,34 @@ import TextareaAutosize from "react-textarea-autosize";
 import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
 import MessageToolbar from "./MessageToolbar";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
 
 interface MessageInputProps {
   receiverId?: number;
   onMessageSent?: (message: MessageDTO) => void;
   atBottom?: boolean;
+   onShowUserPopover: (
+    user: UserSummaryDTO, 
+    pos: { x: number; y: number },
+    groupData?: {
+      isGroup: boolean;
+      participants: UserSummaryDTO[];
+      onLeaveGroup?: () => void;
+      isPendingRequest?: boolean;
+    }
+  ) => void;
+  onLeaveGroup: (conversationId: number) => Promise<void>;
+  userPopoverRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function MessageInput({
   receiverId,
   onMessageSent,
-  atBottom
+  atBottom,
+  onShowUserPopover,
+  onLeaveGroup,
+  userPopoverRef,
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const { send } = useSendMessage(onMessageSent);
@@ -53,9 +69,6 @@ export default function MessageInput({
   const isBlocked = 
     (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
     isLocked;
-
-  // Sjekker om en samtale er pending for å låse toolbaren
-  const isPending = currentConversation?.isPendingApproval === true;
   
   const handleSend = () => {
     const trimmed = text.trim();
@@ -128,6 +141,7 @@ export default function MessageInput({
     list?.scrollTo({ top: list.scrollHeight, behavior: "auto" });
   };
 
+
   return (
       <div className="flex flex-col gap-2 mt-4">
         <MessageToolbar
@@ -136,9 +150,12 @@ export default function MessageInput({
           onPickImage={() => console.log("Bilde")}
           onPickFile={() => console.log("Fil")}
           onPickEmoji={() => console.log("Emoji")}
-          showFile={!isPending}
-          showEmoji={!isPending}
-          showSettings={!isPending}
+          showFile={!isBlocked}
+          showEmoji={!isBlocked}
+          showSettings={!isBlocked}
+          onShowUserPopover={onShowUserPopover}
+          onLeaveGroup={onLeaveGroup}
+          userPopoverRef={userPopoverRef}
         />
 
       {/* Inputfelt + send-knapp */}

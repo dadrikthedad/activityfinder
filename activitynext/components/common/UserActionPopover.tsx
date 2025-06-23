@@ -287,7 +287,7 @@ export default function UserActionPopover(props: Props) {
 
       {isOpen &&
         createPortal(
-          <div ref={finalPopoverRef} style={panelStyles}>
+          <div ref={finalPopoverRef} style={panelStyles} data-user-action-popover>
             <UserActionPopoverContent
               user={user}
               isOwner={isOwner}

@@ -40,9 +40,26 @@ export default function UserActionPopoverContent({
   return (
     <div className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]"
     onMouseDown={(e) => {
+        // ✅ SMART PROPAGATION HANDLING
+        const target = e.target as HTMLElement;
+        
+        // ✅ LA VÆRE å stoppe propagation for:
+        // - Dropdowns (data-dropdown-id)
+        // - Interactive buttons/inputs
+        // - Nested popovers
+        if (
+          target.closest('[data-dropdown-id]') ||
+          target.closest('button') ||
+          target.closest('input') ||
+          target.closest('[data-nested-user-popover]') ||
+          target.closest('[data-nested-popover]')
+        ) {
+          return; // La event propagere
+        }
+        
+        // ✅ Kun stopp propagation for klikk på selve popover-bakgrunnen
         e.stopPropagation();
-        e.preventDefault();
-    }}>
+      }}>
       <div className="relative">
         <ProfileNavButton
           onClick={onClose}

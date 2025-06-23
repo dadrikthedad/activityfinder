@@ -446,6 +446,9 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
                     console.log("Ny melding sendt:", message);
                   }}
                   atBottom={atBottom} // ✅ send videre
+                  onShowUserPopover={(user, pos, groupData) => showUserPopover(user, pos, groupData)}
+                  onLeaveGroup={handleLeaveGroup}
+                  userPopoverRef={userPopoverRef} 
                 />
               </div>
             </div>

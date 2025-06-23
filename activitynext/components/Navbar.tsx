@@ -162,7 +162,13 @@ export default function Navbar() {
    useClickOutsideGroups({
     includeRefs: userPopoverRef ? [userPopoverRef, messageDropdownRef] : [messageDropdownRef],
     excludeRefs: [],
-    excludeClassNames: ["li[data-sonner-toast]", ".new-message-modal"],
+    excludeClassNames: [
+    "li[data-sonner-toast]", 
+    ".new-message-modal",
+    "[data-user-action-popover]",        // ✅ Legg til dette
+    "[data-nested-user-popover]",        // ✅ Legg til dette  
+    "[data-nested-popover]"              // ✅ Legg til dette
+  ],
     onOutsideClick: () => {
       setShowMessages(false); // 👈 Lukk hele dropdownen
       toggleUserPopover(null); // 👈 Lukk aktiv popover hvis åpen
