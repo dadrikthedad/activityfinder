@@ -14,7 +14,7 @@ import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
 interface MessageSettingsDropdownProps {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  onShowUserPopover: (
+  onShowUserPopover?: (
     user: UserSummaryDTO, 
     pos: { x: number; y: number },
     groupData?: {
@@ -24,7 +24,7 @@ interface MessageSettingsDropdownProps {
       isPendingRequest?: boolean;
     }
   ) => void;
-  onLeaveGroup: (conversationId: number) => Promise<void>;
+  onLeaveGroup?: (conversationId: number) => Promise<void>;
   userPopoverRef?: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -94,7 +94,7 @@ export default function MessageSettingsDropdown({
         };
         
         // ✅ For individuelle deltakere: IKKE send gruppedata, bare brukeren
-        onShowUserPopover(participant, pos);
+        onShowUserPopover?.(participant, pos);
     };
 
     // ✅ Håndter klikk på gruppe-header
@@ -119,11 +119,11 @@ export default function MessageSettingsDropdown({
         const groupData = {
             isGroup: true,
             participants: participants,
-            onLeaveGroup: currentConversationId ? () => onLeaveGroup(currentConversationId) : undefined,
+            onLeaveGroup: currentConversationId ? () => onLeaveGroup?.(currentConversationId) : undefined,
             isPendingRequest: false
         };
         
-        onShowUserPopover(groupUser, pos, groupData);
+        onShowUserPopover?.(groupUser, pos, groupData);
     };
 
     return (

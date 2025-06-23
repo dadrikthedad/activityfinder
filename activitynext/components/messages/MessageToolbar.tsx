@@ -15,7 +15,7 @@ interface MessageToolbarProps {
   showFile?: boolean;
   showEmoji?: boolean;
   showSettings?: boolean;
-  onShowUserPopover: (
+  onShowUserPopover?: (
     user: UserSummaryDTO,
     pos: { x: number; y: number },
     groupData?: {
@@ -25,7 +25,7 @@ interface MessageToolbarProps {
       isPendingRequest?: boolean;
     }
   ) => void;
-  onLeaveGroup: (conversationId: number) => Promise<void>;
+  onLeaveGroup?: (conversationId: number) => Promise<void>;
   userPopoverRef?: React.RefObject<HTMLDivElement | null>;
 }
 
