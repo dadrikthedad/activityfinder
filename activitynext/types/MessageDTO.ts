@@ -29,6 +29,7 @@ export interface MessageDTO {
   isRejectedRequest?: boolean;
   sender?: UserSummaryDTO;
   isNowApproved?: boolean;
+  isSilent?: boolean;
 }
 
 export interface SendMessageRequestDTO {

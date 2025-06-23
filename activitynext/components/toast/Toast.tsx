@@ -135,6 +135,8 @@ function NotificationToast({
         return <>{name} reacted with {reactionEmoji ?? "👍"} on your message</>;
       case NotificationType.GroupRequest:
         return <>{name} invited you to join {styledGroupName}</>;
+      case NotificationType.GroupRequestApproved:
+        return <>{name} has accepted to join {styledGroupName}</>;
       case LocalToastType.MessageReactionChanged:
         return <>{name} changed their reaction to {reactionEmoji ?? "👍"} on message:</>;
       case LocalToastType.FriendInvAccepted:
@@ -164,7 +166,7 @@ function NotificationToast({
   };
 
   // 🆕 Vis gruppe-relaterte bilder for GroupRequest
-  const showGroupImages = type === NotificationType.GroupRequest;
+  const showGroupImages = type === NotificationType.GroupRequest || type === NotificationType.GroupRequestApproved;
 
   return (
     <div className="bg-white dark:bg-[#1e2122] border-1 border-[#1C6B1C] shadow-lg rounded-xl p-4 max-w-sm w-full">

@@ -118,11 +118,14 @@ export default function ChatHubClient() {
  
       addMessage(message);
       updateConversationTimestamp(message.conversationId, message.sentAt);
-      handleIncomingMessage(message, userId ?? null);
+      
+      if (!message.isSilent) {
+        handleIncomingMessage(message, userId ?? null);
+      }
 
       if (
         message.senderId !== userId &&
-        (!showMessages || message.conversationId !== currentConversationId)
+        (!showMessages || message.conversationId !== currentConversationId) && !message.isSilent
       ) {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",

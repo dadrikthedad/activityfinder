@@ -156,7 +156,7 @@ export default function MessageInput({
           onKeyDown={handleKeyDown}
             placeholder={
               isBlocked
-                ? "You can't write any more messages until the request is accepted"
+                ? "You can't send messages until the request is accepted..."
                 : "Write a message..."
             }
           minRows={1}
