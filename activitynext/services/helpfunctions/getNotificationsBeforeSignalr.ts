@@ -60,20 +60,32 @@ export async function handleIncomingNotification(
 
   // Hvis vi allerede har en notification for samtalen, oppdater count og behold preview
   if (notification.type === "NewMessage" && existing) {
-    const count = (existing.messageCount ?? 1) + 1;
-
-    const updated: MessageNotificationDTO = {
-      ...existing,
-      messageCount: count,
-      createdAt: notification.createdAt,
-      // ⚠️ Behold eksisterende preview (backend-formatert)
-      messagePreview: existing.messagePreview,
-      isTemporary: existing.isTemporary ?? false,
-    };
-
-    store.upsertNotification(updated);
-    return false;
+  const count = (existing.messageCount ?? 1) + 1;
+  
+  // 🆕 Generer ny messagePreview basert på count (som backend gjør)
+  let newMessagePreview: string;
+  if (existing.groupName) {
+    // For grupper: "There are X new messages in GroupName"
+    newMessagePreview = `There are ${count} new messages in ${existing.groupName}`;
+  } else {
+    // For private: "has sent you X messages"
+    newMessagePreview = `has sent you ${count} messages`;
   }
+
+  const updated: MessageNotificationDTO = {
+    ...existing,
+    messageCount: count,
+    createdAt: notification.createdAt,
+    messagePreview: newMessagePreview, // 🆕 Ny preview basert på count
+    senderId: notification.senderId, // 🆕 Oppdater til siste sender
+    senderName: notification.senderName, // 🆕 Oppdater til siste sender
+    senderProfileImageUrl: notification.senderProfileImageUrl, // 🆕 Oppdater avatar
+    isTemporary: existing.isTemporary ?? false,
+  };
+  
+  store.upsertNotification(updated);
+  return false;
+}
 
   // Ny notification – lag preview fra meldingen
   store.upsertNotification(notification);

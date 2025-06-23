@@ -5,6 +5,7 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import ProfileNavButton from "../settings/ProfileNavButton";
 import Router from "next/router";
 
+
 function formatNotificationText(n: MessageNotificationDTO): string {
   // Hvis samtalen er avslått, vis spesifikk tekst
   if (n.isConversationRejected) {
@@ -20,30 +21,52 @@ function formatNotificationText(n: MessageNotificationDTO): string {
     }
   }
 
-  switch (n.type) {
+    switch (n.type) {
     case "NewMessage":
     case 1:
-      return n.messageCount && n.messageCount > 1
-        ? `has sent you ${n.messageCount} messages`
-        : n.messagePreview ? `said: ${n.messagePreview}` : "sent you a message";
+      // 🆕 Bruk messagePreview direkte - backend håndterer alt
+      return n.messagePreview ?? "sent you a message";
+      
     case "MessageRequest":
     case 2:
       return "requested to message you";
+      
     case "MessageRequestApproved":
     case 3:
       return n.messagePreview ?? "approved your message request";
+      
+    case "GroupRequest":
+    case 5:
+      return n.messagePreview ?? "invited you to join a group";
+      
+    case "GroupRequestApproved":
+    case 6:
+      return n.messagePreview ?? "joined your group";
+      
     case "MessageReaction":
     case 4:
       if (n.reactionEmoji) {
-        const preview = n.messagePreview
-          ? ` on "${n.messagePreview}"`
-          : "";
+        const preview = n.messagePreview ? ` on "${n.messagePreview}"` : "";
         return `reacted with ${n.reactionEmoji}${preview}`;
       }
       return "reacted to your message";
+      
     default:
-      return n.messagePreview ?? "";
+      return n.messagePreview ?? "You have a notification";
   }
+}
+
+function shouldShowSenderName(n: MessageNotificationDTO): boolean {
+  if (n.type === "NewMessage" || n.type === 1) {
+    // For grupper: kun vis sender-navn hvis det er 1 melding
+    if (n.groupName) {
+      return (n.messageCount ?? 1) === 1;
+    }
+    // For private: alltid vis sender-navn
+    return true;
+  }
+  // For andre typer: alltid vis sender-navn
+  return true;
 }
 
 interface NotificationsPanelProps {
@@ -117,7 +140,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
               {!n.isRead && (
                 <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />
               )}
-              <strong>{n.senderName}</strong> {formatNotificationText(n)}
+              <strong>{shouldShowSenderName(n) ? n.senderName : ""}</strong> {formatNotificationText(n)}
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(n.createdAt).toLocaleString(undefined, {
                   dateStyle: "short",
