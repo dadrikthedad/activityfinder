@@ -68,6 +68,8 @@ public class GroupConversationController : BaseController
 
         // 5️⃣ Opprett GroupRequests
         var groupRequests = new List<GroupRequest>();
+        var newParticipants = new List<ConversationParticipant>();
+        
         foreach (var userId in validRecipients)
         {
             var groupRequest = new GroupRequest
@@ -82,8 +84,18 @@ public class GroupConversationController : BaseController
 
             _context.GroupRequests.Add(groupRequest);
             groupRequests.Add(groupRequest);
-        }
+            
+            // 🆕 Legg til som Participant ved invitasjon
+            var participant = new ConversationParticipant
+            {
+                ConversationId = conversation.Id,
+                UserId = userId
+            };
 
+            _context.ConversationParticipants.Add(participant);
+            newParticipants.Add(participant);
+        }
+        
         await _context.SaveChangesAsync();
         
         Console.WriteLine("🟡 Queueing background task for group requests...");
@@ -139,24 +151,22 @@ public class GroupConversationController : BaseController
 
     private async Task<List<int>> FilterValidRecipientsAsync(int conversationId, List<int> userIds)
     {
-        // Hent alle participants på én gang
+        // Hent eksisterende participants
         var existingParticipants = await _context.ConversationParticipants
             .Where(cp => cp.ConversationId == conversationId && userIds.Contains(cp.UserId))
             .Select(cp => cp.UserId)
             .ToListAsync();
 
-        // Hent alle pending requests på én gang
-        var pendingRequestUsers = await _context.GroupRequests
+        // Hent alle som har GroupRequests (ALLE statuser - inkludert Rejected)
+        var existingRequestUsers = await _context.GroupRequests
             .Where(gr => gr.ConversationId == conversationId && 
-                         userIds.Contains(gr.ReceiverId) &&
-                         gr.Status == GroupRequestStatus.Pending)
+                         userIds.Contains(gr.ReceiverId))  // 👈 Ingen status-filter
             .Select(gr => gr.ReceiverId)
             .ToListAsync();
 
-        // Filtrer på memory
         return userIds
             .Where(userId => !existingParticipants.Contains(userId) && 
-                             !pendingRequestUsers.Contains(userId))
+                             !existingRequestUsers.Contains(userId))
             .ToList();
     }
 
