@@ -17,4 +17,6 @@ public class MessageResponseDTO
     public bool IsRejectedRequest { get; set; } = false;
     
     public bool? IsNowApproved { get; set; }
+    // Da viser ikke frontend toast/notifikasjon
+    public bool IsSilent { get; set; }
 }

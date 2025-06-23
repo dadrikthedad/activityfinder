@@ -772,28 +772,82 @@ public class MessageService : IMessageService
         };
     }
 
-    private async Task NotifyAndBroadcastAsync(
-    int    conversationId,
-    bool   isGroup,
+   private async Task NotifyAndBroadcastAsync(
+    int conversationId,
+    bool isGroup,
     string? groupName,
-    string ? groupImageUrl,
-    int[]  participantIds,
-    int    senderId,
-    int?    receiverId, // 🆕
+    string? groupImageUrl,
+    int[] participantIds,
+    int senderId,
+    int? receiverId,
     MessageResponseDTO response,
-    bool   shouldNotify,
-    bool   needsMessageRequestNotification,
-    bool isRejectedSender) // 🆕
+    bool shouldNotify,
+    bool needsMessageRequestNotification,
+    bool isRejectedSender)
     {
-        /* 1. Send over SignalR  */
-        if (shouldNotify)               // 👈 legg til
+        using var scope = _scopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        /* 1. Send over SignalR med per-bruker isSilent */
+        
+        var approvedUsers = new HashSet<int>();
+        int? creatorId = null;
+        
+        if (shouldNotify)
         {
+            if (isGroup)
+            {
+                // Hent både approved users og creator i én gang
+                var approvedUsersList = await context.GroupRequests
+                    .Where(gr => gr.ConversationId == conversationId && 
+                                 participantIds.Contains(gr.ReceiverId) &&
+                                 gr.Status == GroupRequestStatus.Approved)
+                    .Select(gr => gr.ReceiverId)
+                    .ToListAsync();
+        
+                approvedUsers = approvedUsersList.ToHashSet();
+                    
+                creatorId = await context.Conversations
+                    .Where(c => c.Id == conversationId)
+                    .Select(c => c.CreatorId)
+                    .FirstOrDefaultAsync();
+            }
+
             var signalrTasks = participantIds.Select(async uid =>
             {
                 try
                 {
+                    // 🆕 Beregn isSilent per bruker
+                    bool userIsSilent = false;
+                    if (isGroup)
+                    {
+                        bool isCreator = uid == creatorId;
+                        bool hasApproved = approvedUsers.Contains(uid);
+                        
+                        // Silent hvis ikke creator og ikke approved
+                        userIsSilent = !isCreator && !hasApproved;
+                    }
+
+                    // 🆕 Opprett kopi av response med bruker-spesifikk isSilent
+                    var userResponse = new MessageResponseDTO
+                    {
+                        Id = response.Id,
+                        SenderId = response.SenderId,
+                        Sender = response.Sender,
+                        Text = response.Text,
+                        SentAt = response.SentAt,
+                        ConversationId = response.ConversationId,
+                        IsSilent = userIsSilent, // 🆕 Per-bruker silent
+                        Attachments = response.Attachments,
+                        Reactions = response.Reactions,
+                        ParentMessageId = response.ParentMessageId,
+                        ParentMessageText = response.ParentMessageText,
+                        IsNowApproved = response.IsNowApproved,
+                        IsRejectedRequest = response.IsRejectedRequest
+                    };
+
                     await _hubContext.Clients.User(uid.ToString())
-                        .SendAsync("ReceiveMessage", response);
+                        .SendAsync("ReceiveMessage", userResponse);
                 }
                 catch (Exception ex)
                 {
@@ -802,22 +856,18 @@ public class MessageService : IMessageService
             });
 
             await Task.WhenAll(signalrTasks);
-  
         }
-        
-        else if (isRejectedSender) // 🆕 Spesialtilfelle
+        else if (isRejectedSender)
         {
-            // Kun SignalR til avsender - ingen notifikasjoner til mottaker
             await _hubContext.Clients.User(senderId.ToString())
                 .SendAsync("ReceiveMessage", response);
         }
         
+        var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+        
         /* 2. MessageRequest notification hvis nødvendig */
         if (needsMessageRequestNotification && !isGroup && receiverId.HasValue)
         {
-            using var scope = _scopeFactory.CreateScope();
-            var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
-        
             var notification = await notifSvc.CreateMessageRequestNotificationAsync(
                 senderId, receiverId.Value, conversationId);
 
@@ -834,21 +884,32 @@ public class MessageService : IMessageService
             }
         }
 
-        /* 3. Lag notifications (hvis vi skal) – egen DbContext-scope */
+        /* 3. Lag notifications kun for approved users i grupper */
         if (!shouldNotify || isRejectedSender) return;
-        
-        using var scope2 = _scopeFactory.CreateScope();
-        var notifSvc2 = scope2.ServiceProvider.GetRequiredService<MessageNotificationService>();
         
         foreach (var uid in participantIds)
         {
             if (uid == senderId) continue;
+        
+            // 🆕 For grupper: kun lag notifikasjon hvis bruker har approved
+            bool shouldCreateNotification = true;
+            if (isGroup)
+            {
+                // Bruk allerede hentet data
+                bool isCreator = uid == creatorId;
+                bool hasApproved = approvedUsers.Contains(uid);
             
-            await notifSvc2.CreateMessageNotificationAsync(
-                recipientUserId : uid,
-                senderUserId    : senderId,
-                conversationId  : conversationId,
-                messageId       : response.Id);
+                shouldCreateNotification = isCreator || hasApproved;
+            }
+        
+            if (shouldCreateNotification)
+            {
+                await notifSvc.CreateMessageNotificationAsync(
+                    recipientUserId: uid,
+                    senderUserId: senderId,
+                    conversationId: conversationId,
+                    messageId: response.Id);
+            }
         }
     }
 
