@@ -4,6 +4,8 @@ import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import Router from "next/router";
+import { useState } from 'react';
+import GroupMembersTooltip from "./GroupMembersTooltip";
 
 
 function formatNotificationText(n: MessageNotificationDTO): string {
@@ -83,25 +85,49 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
 
   const canGoToChat = totalNotifications >= 20; 
 
-    const handleNotificationClick = (n: MessageNotificationDTO) => {
-      // Hvis samtalen er avslått, ikke gjør noe
-      if (n.isConversationRejected) {
-        return;
-      }
+  const handleNotificationClick = (n: MessageNotificationDTO) => {
+    // Hvis samtalen er avslått, ikke gjør noe
+    if (n.isConversationRejected) {
+      return;
+    }
 
-      if (!n.isRead) {
-        markOneAsRead(n.id);
-        if (n.conversationId) {
-          setScrollToMessageId(n.messageId ?? null);
-          onOpenConversation(n.conversationId);
-        }
-      } else {
-        if (n.conversationId) {
-          setScrollToMessageId(n.messageId ?? null);
-          onOpenConversation(n.conversationId);
-        }
+    if (!n.isRead) {
+       markOneAsRead(n.id);
+      if (n.conversationId) {
+        setScrollToMessageId(n.messageId ?? null);
+        onOpenConversation(n.conversationId);
       }
-    };
+    } else {
+      if (n.conversationId) {
+        setScrollToMessageId(n.messageId ?? null);
+        onOpenConversation(n.conversationId);
+      }
+    }
+  };
+  
+    // Tooltip
+  const [activeTooltip, setActiveTooltip] = useState<number | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+
+  // Handler for å vise tooltip
+  const handleMouseEnter = (notificationId: number, event: React.MouseEvent) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setTooltipPosition({
+      x: rect.right + 10, // Til høyre for notifikasjonen
+      y: rect.top
+    });
+    setActiveTooltip(notificationId);
+  };
+
+  const handleMouseLeave = () => {
+    setActiveTooltip(null);
+  };
+  
+  const shouldShowTooltip = (n: MessageNotificationDTO): boolean => {
+    return n.type === "GroupRequestApproved" || n.type === 6;
+  };
+
+
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pt-10 gap-4 text-sm custom-scrollbar">
@@ -135,18 +161,38 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                     : "bg-[#2e2e2e] dark:bg-[#2e2e2e] font-semibold border border-[#1C6B1C]"}`
                 }`}
               onClick={() => handleNotificationClick(n)}
+              onMouseEnter={shouldShowTooltip(n) ? (e) => handleMouseEnter(n.id, e) : undefined}
+              onMouseLeave={shouldShowTooltip(n) ? handleMouseLeave : undefined}
               title={n.isConversationRejected ? "This conversation has been declined" : undefined}
             >
               {!n.isRead && (
                 <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />
               )}
               <strong>{shouldShowSenderName(n) ? n.senderName : ""}</strong> {formatNotificationText(n)}
+              {shouldShowTooltip(n) && n.messageCount && n.messageCount > 1 && (
+                <span className="ml-1"></span>
+              )}
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(n.createdAt).toLocaleString(undefined, {
                   dateStyle: "short",
                   timeStyle: "short"
                 })}
               </div>
+              {/* 🆕 Tooltip */}
+              {activeTooltip === n.id && n.conversationId && (
+                <div 
+                  className="fixed z-50"
+                  style={{
+                    left: tooltipPosition.x,
+                    top: tooltipPosition.y
+                  }}
+                >
+                  <GroupMembersTooltip
+                    conversationId={n.conversationId}
+                    isVisible={true}
+                  />
+                </div>
+              )}
             </li>
           ))}
             <li className="w-full text-center pt-2">

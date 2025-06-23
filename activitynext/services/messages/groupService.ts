@@ -2,6 +2,7 @@ import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/constants/routes";
 import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
 
+
 // Service function to send group requests/invitations
 export async function sendGroupRequests(
   request: SendGroupRequestsDTO
@@ -18,3 +19,4 @@ export async function sendGroupRequests(
     body: JSON.stringify(request),
   });
 }
+
