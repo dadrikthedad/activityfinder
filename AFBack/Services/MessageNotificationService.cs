@@ -306,31 +306,35 @@ public class MessageNotificationService
                 break;
 
             case NotificationType.NewMessage:
-                // 🆕 Skille mellom gruppe- og private meldinger
                 if (n.Conversation?.IsGroup == true)
                 {
                     // Gruppemeldinger
                     if (messageCount > 1)
                     {
+                        // Flere meldinger: UTEN sender-navn
                         preview = $"There are {messageCount} new messages in {n.Conversation.GroupName}";
                     }
                     else
                     {
-                        // Første melding i gruppen
-                        var senderName = n.FromUser?.FullName ?? "Someone";
+                        // Første melding: MED sender-navn
                         var msgText = n.Message?.Text;
                         var msgPreview = msgText?.Length > 40 ? msgText.Substring(0, 40) + "..." : msgText ?? "";
-                        preview = $"{senderName} sent to {n.Conversation.GroupName}: {msgPreview}";
+                        preview = $"sent to {n.Conversation.GroupName}: {msgPreview}";
                     }
                 }
                 else
                 {
-                    // Private meldinger (eksisterende logikk)
-                    preview = messageCount > 1
-                        ? $"has sent you {messageCount} messages"
-                        : n.Message?.Text?.Length > 40
-                            ? n.Message.Text.Substring(0, 40) + "..."
-                            : n.Message?.Text ?? "sent you a message";
+                    // Private meldinger: UTEN sender-navn (frontend legger til med <strong>)
+                    if (messageCount > 1)
+                    {
+                        preview = $"has sent you {messageCount} messages";
+                    }
+                    else
+                    {
+                        var msgText = n.Message?.Text;
+                        var msgPreview = msgText?.Length > 40 ? msgText.Substring(0, 40) + "..." : msgText ?? "";
+                        preview = $"said: {msgPreview}";
+                    }
                 }
                 break;
 
