@@ -15,22 +15,51 @@ public class MessageNotificationService
     
     public async Task CreateMessageNotificationAsync(int recipientUserId, int senderUserId, int conversationId, int messageId)
     {
-        var existingNotification = await _context.MessageNotifications
-            .FirstOrDefaultAsync(n =>
-                n.UserId == recipientUserId &&
-                n.FromUserId == senderUserId &&
-                n.ConversationId == conversationId &&
-                !n.IsRead &&
-                n.Type == NotificationType.NewMessage);
+        // Hent conversation info for å bestemme type melding
+        var conversation = await _context.Conversations
+            .Where(c => c.Id == conversationId)
+            .Select(c => new { c.IsGroup, c.GroupName })
+            .FirstOrDefaultAsync();
 
-        if (existingNotification != null)
+        if (conversation == null) return;
+
+        // For grupper: finn eksisterende notification basert på conversationId (ikke senderId)
+        MessageNotification? existingNotification = null;
+        
+        if (conversation.IsGroup)
         {
-            existingNotification.MessageCount = (existingNotification.MessageCount ?? 1) + 1;
-            existingNotification.CreatedAt = DateTime.UtcNow; // optional: bump it up to sort correctly
-            await _context.SaveChangesAsync();
+            // For grupper: samle alle meldinger fra samme gruppe
+            existingNotification = await _context.MessageNotifications
+                .FirstOrDefaultAsync(n =>
+                    n.UserId == recipientUserId &&
+                    n.ConversationId == conversationId &&
+                    !n.IsRead &&
+                    n.Type == NotificationType.NewMessage);
         }
         else
         {
+            // For 1-1 samtaler: gruppér per sender
+            existingNotification = await _context.MessageNotifications
+                .FirstOrDefaultAsync(n =>
+                    n.UserId == recipientUserId &&
+                    n.FromUserId == senderUserId &&
+                    n.ConversationId == conversationId &&
+                    !n.IsRead &&
+                    n.Type == NotificationType.NewMessage);
+        }
+
+        if (existingNotification != null)
+        {
+            // Oppdater eksisterende notification
+            existingNotification.MessageCount = (existingNotification.MessageCount ?? 1) + 1;
+            existingNotification.CreatedAt = DateTime.UtcNow;
+            existingNotification.MessageId = messageId; // Oppdater til nyeste melding
+            existingNotification.FromUserId = senderUserId;
+            
+        }
+        else
+        {
+            // Opprett ny notification
             var notification = new MessageNotification
             {
                 UserId = recipientUserId,
@@ -44,8 +73,8 @@ public class MessageNotificationService
             };
 
             _context.MessageNotifications.Add(notification);
-            await _context.SaveChangesAsync();
         }
+        await _context.SaveChangesAsync();
     }
     
     public async Task<MessageNotificationDTO?> CreateMessageRequestNotificationAsync(int senderId, int receiverId, int conversationId)
@@ -277,12 +306,34 @@ public class MessageNotificationService
                 break;
 
             case NotificationType.NewMessage:
-                preview = messageCount > 1
-                    ? $"has sent you {messageCount} messages"
-                    : n.Message?.Text?.Length > 40
-                        ? n.Message.Text.Substring(0, 40) + "..."
-                        : n.Message?.Text ?? "sent you a message";
+                // 🆕 Skille mellom gruppe- og private meldinger
+                if (n.Conversation?.IsGroup == true)
+                {
+                    // Gruppemeldinger
+                    if (messageCount > 1)
+                    {
+                        preview = $"There are {messageCount} new messages in {n.Conversation.GroupName}";
+                    }
+                    else
+                    {
+                        // Første melding i gruppen
+                        var senderName = n.FromUser?.FullName ?? "Someone";
+                        var msgText = n.Message?.Text;
+                        var msgPreview = msgText?.Length > 40 ? msgText.Substring(0, 40) + "..." : msgText ?? "";
+                        preview = $"{senderName} sent to {n.Conversation.GroupName}: {msgPreview}";
+                    }
+                }
+                else
+                {
+                    // Private meldinger (eksisterende logikk)
+                    preview = messageCount > 1
+                        ? $"has sent you {messageCount} messages"
+                        : n.Message?.Text?.Length > 40
+                            ? n.Message.Text.Substring(0, 40) + "..."
+                            : n.Message?.Text ?? "sent you a message";
+                }
                 break;
+
 
             default:
                 preview = "You have a new notification";
@@ -302,7 +353,7 @@ public class MessageNotificationService
             SenderId = n.FromUserId,
             SenderProfileImageUrl = n.FromUser?.Profile?.ProfileImageUrl, 
             GroupName = n.Conversation?.GroupName,
-            GroupImageUrl = n.Conversation!.GroupImageUrl,
+            GroupImageUrl = n.Conversation?.GroupImageUrl,
             MessagePreview = preview,
             ReactionEmoji = n.Type == NotificationType.MessageReaction 
                 ? n.Message?.Reactions?
