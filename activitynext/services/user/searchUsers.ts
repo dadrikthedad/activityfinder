@@ -1,5 +1,5 @@
 // Her henter vi alle brukerens fullenavn fra backend slik at vi kan søke etter brukere i navbaren. Henter api fra UserController.cs
-import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { API_BASE_URL } from "@/constants/routes";
 
 export async function searchUsers(query: string): Promise<UserSummaryDTO[]> {

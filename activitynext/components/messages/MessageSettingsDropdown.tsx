@@ -9,7 +9,8 @@ import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside"
 import { useDropdown } from "@/context/DropdownContext";
 import { useChatStore } from "@/store/useChatStore";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
-import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import ParticipantsList from "./ParticipantsListProps";
 
 interface MessageSettingsDropdownProps {
   open: boolean;
@@ -209,23 +210,11 @@ export default function MessageSettingsDropdown({
                     </div>
                     
                     {/* ✅ Participants liste */}
-                    <div className="max-h-48 overflow-y-auto custom-scrollbar">
-                        {participants.map((participant) => (
-                            <button
-                                key={participant.id}
-                                className="flex items-center gap-3 w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm overflow-hidden"
-                                onClick={(e) => handleParticipantClick(participant, e)}
-                            >
-                                <MiniAvatar
-                                    imageUrl={participant.profileImageUrl ?? "/default-avatar.png"}
-                                    size={24}
-                                    alt={participant.fullName}
-                                    withBorder={false}
-                                />
-                                <span className="text-left truncate">{participant.fullName}</span>
-                            </button>
-                        ))}
-                    </div>
+                    <ParticipantsList
+                        participants={participants}
+                        onParticipantClick={handleParticipantClick}
+                        showGroupRequestStatus={true} // ✅ Ikke vis status i settings dropdown
+                    />
                     
                     {/* ✅ Tilbake-knapp */}
                     <div className="border-t border-gray-200 dark:border-gray-600">
@@ -236,7 +225,7 @@ export default function MessageSettingsDropdown({
                             }}
                             className="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-[#2a2d2e] text-sm text-gray-600 dark:text-gray-400"
                         >
-                            ← Back to settings
+                            Close
                         </button>
                     </div>
                 </div>

@@ -6,7 +6,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import MiniAvatar from "./MiniAvatar";
-import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import { useFriendWith } from "@/hooks/useFriendWith";

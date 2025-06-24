@@ -1,7 +1,7 @@
 // Hook for å søke etter brukere i søkefeltet i navbaren, bruker services sin searchUser for API-kallet til backend sin UserController.cs
 import { useState, useEffect } from "react";
 import { searchUsers } from "@/services/user/searchUsers";
-import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
 export function useUserSearch() {
   const [query, setQuery] = useState("");

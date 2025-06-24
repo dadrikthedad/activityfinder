@@ -1,12 +1,11 @@
-// ParticipantsDropdownButton.tsx
+// ParticipantsDropdownButton.tsx - forenklet med gjenbrukbar komponent
 "use client";
-
 import { useState, useRef, useEffect } from "react";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useDropdown } from "@/context/DropdownContext";
-import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
-import MiniAvatar from "./MiniAvatar";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
+import ParticipantsList from "../messages/ParticipantsListProps"; // ✅ Import ny komponent
 
 interface ParticipantsDropdownButtonProps {
   participants: UserSummaryDTO[];
@@ -14,10 +13,10 @@ interface ParticipantsDropdownButtonProps {
   className?: string;
 }
 
-export default function ParticipantsDropdownButton({ 
-  participants, 
-  onShowUserPopover, 
-  className = "" 
+export default function ParticipantsDropdownButton({
+  participants,
+  onShowUserPopover,
+  className = ""
 }: ParticipantsDropdownButtonProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -32,30 +31,29 @@ export default function ParticipantsDropdownButton({
   }, [open, dropdownContext]);
 
   useClickOutsideGroups({
-      includeRefs: [ref],
-      excludeClassNames: [
-          "[data-user-action-popover]",
-          "[data-nested-user-popover]",
-          "[data-nested-popover]"
-      ],
-      onOutsideClick: () => setOpen(false),
-      isActive: open
+    includeRefs: [ref],
+    excludeClassNames: [
+      "[data-user-action-popover]",
+      "[data-nested-user-popover]",
+      "[data-nested-popover]"
+    ],
+    onOutsideClick: () => setOpen(false),
+    isActive: open
   });
 
-    const handleParticipantClick = (participant: UserSummaryDTO, event: React.MouseEvent) => {
-  event.stopPropagation();
-  
-  // ✅ Samme som ConversationListItem håndterer avatar klikk
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-  const pos = {
-    x: rect.left + window.scrollX,
-    y: rect.bottom + window.scrollY + 8, // Litt under elementet
+  const handleParticipantClick = (participant: UserSummaryDTO, event: React.MouseEvent) => {
+    event.stopPropagation();
+   
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const pos = {
+      x: rect.left + window.scrollX,
+      y: rect.bottom + window.scrollY + 8,
+    };
+   
+    onShowUserPopover(participant, pos);
   };
-  
-  onShowUserPopover(participant, pos);
-};
 
-    return (
+  return (
     <div ref={ref} className={`relative w-auto flex flex-col items-center ${className}`}>
       <ProfileNavButton
         text="Participants"
@@ -63,23 +61,13 @@ export default function ParticipantsDropdownButton({
         variant="small"
         className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
       />
-
       {open && (
-        <div className="absolute top-full mt-2 w-64 bg-white dark:bg-[#1e2122] rounded-md shadow-lg z-30 border-2 border-[#1C6B1C] max-h-64 overflow-y-auto">
-          {participants.map((participant) => (
-            <button
-              key={participant.id}
-              className="flex items-center gap-3 w-full px-4 py-2 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"
-              onClick={(e) => handleParticipantClick(participant, e)} // ✅ Send event
-            >
-              <MiniAvatar 
-                imageUrl={participant.profileImageUrl ?? "/default-avatar.png"} 
-                size={32} 
-                alt={participant.fullName}
-              />
-              <span className="text-left">{participant.fullName}</span>
-            </button>
-          ))}
+        <div className="absolute top-full mt-2 w-64 bg-white dark:bg-[#1e2122] rounded-md shadow-lg z-30 border-2 border-[#1C6B1C]">
+          <ParticipantsList
+            participants={participants}
+            onParticipantClick={handleParticipantClick}
+            showGroupRequestStatus={true} // ✅ Vis status i dropdown
+          />
         </div>
       )}
     </div>

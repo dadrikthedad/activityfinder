@@ -1,6 +1,6 @@
 // UserActionPopoverContent.tsx
 import EnlargeableImage from "@/components/common/EnlargeableImage";
-import { UserSummaryDTO } from "@/types/FriendInvitationDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import DropdownNavButton from "../DropdownNavButton";
 import ParticipantsDropdownButton from "./UserActionParticipantDropdown";
@@ -101,7 +101,7 @@ export default function UserActionPopoverContent({
                       text="Leave Group"
                       onClick={onLeaveGroup}
                       variant="small"
-                      className="bg-red-600 hover:bg-red-700 text-white"
+                      className="bg-gray-500 hover:bg-gray-600 text-white"
                     />
                   )}
               </>
