@@ -8,6 +8,7 @@ import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
+import { GroupMemberInvitedDto } from "@/types/GroupMemberInvitedDTO";
 
 
 export function useChatHub(
@@ -16,7 +17,9 @@ export function useChatHub(
   onRequestApproved?: (notification: MessageNotificationDTO) => void,
   onRequestCreated?: (data: MessageRequestCreatedDto) => void,
   onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void,
-  onGroupRequestApproved?: (notification: MessageNotificationDTO) => void
+  onGroupRequestApproved?: (notification: MessageNotificationDTO) => void,
+  onGroupMemberInvited?: (data: GroupMemberInvitedDto) => void
+
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -26,6 +29,8 @@ export function useChatHub(
   const createdRef = useRef(onRequestCreated);
   const groupRequestCreatedRef = useRef(onGroupRequestCreated);
   const groupRequestApprovedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null); 
+  const groupMemberInvitedRef = useRef(onGroupMemberInvited);
+
    // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
@@ -35,8 +40,9 @@ export function useChatHub(
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
   useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
   useEffect(() => {
-    groupRequestApprovedRef.current = onGroupRequestApproved ?? null; // 🆕
+    groupRequestApprovedRef.current = onGroupRequestApproved ?? null;
   }, [onGroupRequestApproved]);
+  useEffect(() => { groupMemberInvitedRef.current = onGroupMemberInvited }, [onGroupMemberInvited]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -62,6 +68,7 @@ export function useChatHub(
           conn.off("MessageRequestCreated");
           conn.off("GroupRequestCreated");
           conn.off("GroupRequestApproved");
+          conn.off("GroupMemberInvited");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             console.log("📩 Received:", message);
@@ -127,6 +134,21 @@ export function useChatHub(
 
             // Send videre til frontend-logikk
             groupRequestCreatedRef.current?.(data);
+          });
+
+           // 🆕 Ny GroupMemberInvited listener
+          conn.on("GroupMemberInvited", (data: GroupMemberInvitedDto) => {
+            console.log("👥➕ Gruppemedlem invitert via SignalR:", data);
+
+            const { notification } = data;
+
+            // Legg til notifikasjon i store
+            if (notification) {
+              useMessageNotificationStore.getState().upsertNotification(notification);
+            }
+
+            // Send videre til frontend-logikk
+            groupMemberInvitedRef.current?.(data);
           });
 
         } catch (err) {

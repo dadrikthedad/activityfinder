@@ -18,6 +18,7 @@ import { NotificationType } from "@/types/MessageNotificationDTO";
 import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
+import { GroupMemberInvitedDto } from "@/types/GroupMemberInvitedDTO";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -268,7 +269,29 @@ export default function ChatHubClient() {
         });
 
         // await finalizeConversationApproval(convId, true, notification);
+      },
+
+       async (data: GroupMemberInvitedDto) => {
+        console.log("👥➕ Gruppemedlem invitert i ChatHubClient:", data);
+
+        const { notification, inviterName, conversationId } = data;
+
+        if (notification) {
+          // 🔔 Oppdater notification-panelet i sanntid
+          await handleIncomingNotification(notification);
+
+            showNotificationToast({
+              senderName: inviterName,
+              messagePreview: notification.messagePreview, // Bruker preview fra backend
+              type: NotificationType.GroupRequestInvited,
+              conversationId,
+              groupName: notification.groupName,
+              groupImage: notification.groupImageUrl,
+            });
+          }
+        
       }
+
 
 
   );

@@ -23,6 +23,7 @@ interface MessageToolbarProps {
       participants: UserSummaryDTO[];
       onLeaveGroup?: () => void;
       isPendingRequest?: boolean;
+      conversationId?: number;
     }
   ) => void;
   onLeaveGroup?: (conversationId: number) => Promise<void>;

@@ -61,6 +61,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
     participants: UserSummaryDTO[];
     onLeaveGroup?: () => void;
     isPendingRequest?: boolean; // ✅ Legg til dette feltet
+    conversationId?: number;
   } | null>(null);
   const userPopoverRef = useRef<HTMLDivElement | null>(null);
   // Skjule MessageList.tsx uten valgt samtale og at vi kan toggle en samtale av igjen
@@ -74,7 +75,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
       isGroup: boolean;
       participants: UserSummaryDTO[];
       onLeaveGroup?: () => void;
-      isPendingRequest?: boolean; // ✅ Fjern conversationId, bare bruk onLeaveGroup
+      isPendingRequest?: boolean;
+      conversationId?: number;
     }
   ) => {
     setPopoverUser(user);
@@ -310,7 +312,10 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
           const insideUserPopover = userPopoverRef?.current?.contains(target);
           const insideDropdown = dropdownRef?.current?.contains(target);
 
-          if (openUserPopoverId !== null && insideDropdown && !insideUserPopover) {
+          const insideModal = (target as Element)?.closest('[data-modal]') || 
+                       (target as Element)?.closest('.fixed.z-\\[9999\\]'); // InviteUsersModal z-index class
+    
+          if (openUserPopoverId !== null && insideDropdown && !insideUserPopover && !insideModal) {
             toggleUserPopover(null);
           }
         }}
@@ -476,6 +481,7 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
           participants={popoverGroupData?.participants || []}
           onLeaveGroup={popoverGroupData?.onLeaveGroup}
           isPendingRequest={popoverGroupData?.isPendingRequest || false}
+          conversationId={popoverGroupData?.conversationId}
         />
       )}
     </div>

@@ -89,6 +89,8 @@ function NotificationToast({
       case NotificationType.MessageReaction:
       case NotificationType.MessageRequest:
       case NotificationType.GroupRequest:
+      case NotificationType.GroupRequestApproved:
+      case NotificationType.GroupRequestInvited:
         if (conversationId != null) {
           if (!showMessages) setShowMessages(true);
           openConversation(conversationId);

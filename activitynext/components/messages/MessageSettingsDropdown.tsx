@@ -23,6 +23,7 @@ interface MessageSettingsDropdownProps {
       participants: UserSummaryDTO[];
       onLeaveGroup?: () => void;
       isPendingRequest?: boolean;
+      conversationId?: number;
     }
   ) => void;
   onLeaveGroup?: (conversationId: number) => Promise<void>;
@@ -55,7 +56,9 @@ export default function MessageSettingsDropdown({
         excludeClassNames: [
             "[data-user-action-popover]",
             "[data-nested-user-popover]", 
-            "[data-nested-popover]"
+            "[data-nested-popover]",
+            "[data-modal]", // 🆕 Ekskluder modaler
+            ".fixed.z-\\[9999\\]" // 🆕 Ekskluder InviteUsersModal
         ],
         onOutsideClick: () => {
             setOpen(false);
@@ -100,7 +103,7 @@ export default function MessageSettingsDropdown({
 
     // ✅ Håndter klikk på gruppe-header
     const handleGroupHeaderClick = (event: React.MouseEvent) => {
-        if (!isGroup || !currentConversation) return;
+        if (!isGroup || !currentConversation || !currentConversationId) return; // 🆕 Sjekk currentConversationId
         
         event.stopPropagation();
         
@@ -110,7 +113,6 @@ export default function MessageSettingsDropdown({
             y: rect.bottom + window.scrollY + 8,
         };
         
-        // ✅ Opprett en "fake" bruker for gruppen (samme som i ConversationList)
         const groupUser: UserSummaryDTO = {
             id: currentConversation.id,
             fullName: currentConversation.groupName || "Navnløs gruppe",
@@ -120,8 +122,9 @@ export default function MessageSettingsDropdown({
         const groupData = {
             isGroup: true,
             participants: participants,
-            onLeaveGroup: currentConversationId ? () => onLeaveGroup?.(currentConversationId) : undefined,
-            isPendingRequest: false
+            onLeaveGroup: () => onLeaveGroup?.(currentConversationId), // 🆕 Nå vet TypeScript at den ikke er null
+            isPendingRequest: false,
+            conversationId: currentConversationId // 🆕 Ikke null her
         };
         
         onShowUserPopover?.(groupUser, pos, groupData);

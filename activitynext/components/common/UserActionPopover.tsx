@@ -17,6 +17,7 @@ import { useDropdown } from "@/context/DropdownContext";
 import { useModal } from "@/context/ModalContext";
 import NewMessageModal from "@/components/messages/NewMessageModal";
 import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
+import InviteUsersModal from "../messages/InviteUsersModal";
 
 // Standalone mode props (original UserActionPopover)
 interface StandaloneProps {
@@ -29,6 +30,7 @@ interface StandaloneProps {
   participants?: UserSummaryDTO[];
   onLeaveGroup?: () => void;
   isPendingRequest?: boolean;
+  conversationId?: number;
 }
 
 // Dropdown mode props (original UserActionPopoverDropdown)
@@ -48,16 +50,18 @@ interface DropdownProps {
   participants?: UserSummaryDTO[];
   onLeaveGroup?: () => void;
   isPendingRequest?: boolean;
+  conversationId?: number;
+  
 }
 
 type Props = StandaloneProps | DropdownProps;
 
 export default function UserActionPopover(props: Props) {
-    const { user, avatarSize = 120, onRemoveSuccess, isGroup = false, participants = [], onLeaveGroup, isPendingRequest = false  } = props;
+    const { user, avatarSize = 120, onRemoveSuccess, isGroup = false, participants = [], onLeaveGroup, isPendingRequest = false, conversationId  } = props;
   
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  
+
   // State management basert på mode
   const [standaloneIsOpen, setStandaloneIsOpen] = useState(false);
   const isOpen = props.mode === 'standalone' 
@@ -192,7 +196,11 @@ export default function UserActionPopover(props: Props) {
     excludeRefs: nestedUserPopover ? [
       // Legg til nested popover ref hvis du lager en
     ] : [],
-    excludeClassNames: ["[data-nested-user-popover]"],
+    excludeClassNames: [
+      "[data-nested-user-popover]",
+      "[data-modal]", // 🆕 Ekskluder modaler
+      ".fixed.z-\\[9999\\]" // 🆕 Ekskluder InviteUsersModal (spesifikk z-index)
+    ],
     onOutsideClick: () => {
       // ✅ Hierarkisk lukking
       if (nestedUserPopover) {
@@ -272,6 +280,44 @@ export default function UserActionPopover(props: Props) {
     }
   };
 
+  // Invitere gruppere
+  const handleInviteUsers = () => {
+    console.log("🟡 handleInviteUsers called!", {
+      conversationId, // 🆕 Nå har vi den!
+      isGroup,
+      isPendingRequest,
+      groupName: user.fullName,
+      participantsCount: participants.length
+    });
+
+    if (!conversationId) {
+      console.warn("❌ No conversation ID provided for inviting users");
+      return;
+    }
+
+    if (!isGroup) {
+      console.warn("❌ Cannot invite users to non-group conversation");
+      return;
+    }
+
+    console.log("✅ Opening InviteUsersModal with conversationId:", conversationId);
+    
+    showModal(
+      <InviteUsersModal 
+        conversationId={conversationId} // 🆕 Bruk prop conversationId
+        groupName={user.fullName}
+        existingParticipants={participants}
+      />, 
+      { blurBackground: false }
+    );
+    
+    handleClose();
+    
+    if (props.mode === 'dropdown') {
+      props.onCloseDropdown?.();
+    }
+  };
+
   const finalPopoverRef = props.mode === 'standalone' && props.popoverRef 
     ? props.popoverRef 
     : panelRef;
@@ -303,6 +349,7 @@ export default function UserActionPopover(props: Props) {
               onLeaveGroup={handleLeaveGroup}
               onShowUserPopover={handleShowUserPopover}
               isPendingRequest={isPendingRequest}
+              onInviteUsers={isGroup ? handleInviteUsers : undefined}
             />
           </div>,
           document.body

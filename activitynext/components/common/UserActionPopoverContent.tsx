@@ -20,6 +20,7 @@ interface Props {
   onLeaveGroup?: () => void;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
   isPendingRequest?: boolean; 
+  onInviteUsers?: () => void;
 }
 
 export default function UserActionPopoverContent({
@@ -36,6 +37,7 @@ export default function UserActionPopoverContent({
   onLeaveGroup,
   onShowUserPopover,
   isPendingRequest = false,
+  onInviteUsers,
 }: Props) {
   return (
     <div className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]"
@@ -93,8 +95,18 @@ export default function UserActionPopoverContent({
                     className="self-start"
                   />
                 )}
+
+                {/* Invite Users button - vis kun hvis ikke pending request */}
+                {onInviteUsers && !isPendingRequest && (
+                  <ProfileNavButton
+                    text="Invite Users"
+                    onClick={onInviteUsers}
+                    variant="small"
+                    className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+                  />
+                )}
                 
-                {/* Leave Group knapp - bare vis hvis onLeaveGroup finnes */}
+                
                  {/* Leave Group knapp - bare vis hvis IKKE pending request */}
                   {onLeaveGroup && !isPendingRequest && ( // ✅ Legg til !isPendingRequest check
                     <ProfileNavButton

@@ -22,6 +22,7 @@ interface Props {
       isGroup: boolean;
       participants: UserSummaryDTO[];
       onLeaveGroup?: () => void;
+      conversationId?: number;
     }
   ) => void;
   conversations?: ConversationDTO[];
@@ -142,7 +143,8 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
                     onShowUserPopover(user, pos, { 
                         isGroup: true,
                         participants: conv.participants,
-                        onLeaveGroup: () => onLeaveGroup?.(conv.id) // ✅ Bruk prop fra MessageDropdown
+                        onLeaveGroup: () => onLeaveGroup?.(conv.id), // ✅ Bruk prop fra MessageDropdown
+                        conversationId: conv.id
                       })
                     }
                     isGroup={true}

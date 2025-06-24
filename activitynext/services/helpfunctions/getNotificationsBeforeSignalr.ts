@@ -29,63 +29,63 @@ export async function fetchAndSetMessageNotifications(page = 1, pageSize = 20) {
 
 
 export async function handleIncomingNotification(
-  notification: MessageNotificationDTO,
-  options?: { onlyIfNew?: boolean }
-): Promise<boolean> {
-      // 🚫 Ikke håndter reaksjonsnotifikasjoner her – de håndteres i ChatHubClient
-  if (notification.type === "MessageReaction") return false;
-  let store = useMessageNotificationStore.getState();
+    notification: MessageNotificationDTO,
+    options?: { onlyIfNew?: boolean }
+  ): Promise<boolean> {
+        // 🚫 Ikke håndter reaksjonsnotifikasjoner her – de håndteres i ChatHubClient
+    if (notification.type === "MessageReaction") return false;
+    let store = useMessageNotificationStore.getState();
 
-    // 🚨 Må hente på nytt etter fetch
-    const hasFetchedNewMessageNotifs = store.notifications.some(
-    (n) => n.type === "NewMessage"
+      // 🚨 Må hente på nytt etter fetch
+      const hasFetchedNewMessageNotifs = store.notifications.some(
+      (n) => n.type === "NewMessage"
+      );
+
+      if (!hasFetchedNewMessageNotifs) {
+      await fetchAndSetMessageNotifications();
+
+      // 🧠 Viktig! oppdater snapshot etter async
+      store = useMessageNotificationStore.getState();
+      }
+
+    const existing = store.notifications.find(
+      (n) =>
+        n.conversationId === notification.conversationId &&
+        n.type === notification.type &&
+        !n.isRead
     );
 
-    if (!hasFetchedNewMessageNotifs) {
-    await fetchAndSetMessageNotifications();
+    // Blokker hvis kun nye er tillatt
+    if (options?.onlyIfNew && existing) return false;
 
-    // 🧠 Viktig! oppdater snapshot etter async
-    store = useMessageNotificationStore.getState();
+    // Hvis vi allerede har en notification for samtalen, oppdater count og behold preview
+    if (notification.type === "NewMessage" && existing) {
+    const count = (existing.messageCount ?? 1) + 1;
+    
+    // 🆕 Generer ny messagePreview basert på count (som backend gjør)
+    let newMessagePreview: string;
+    if (existing.groupName) {
+      // For grupper: "There are X new messages in GroupName"
+      newMessagePreview = `There are ${count} new messages in ${existing.groupName}`;
+    } else {
+      // For private: "has sent you X messages"
+      newMessagePreview = `has sent you ${count} messages`;
     }
 
-  const existing = store.notifications.find(
-    (n) =>
-      n.conversationId === notification.conversationId &&
-      n.type === notification.type &&
-      !n.isRead
-  );
-
-  // Blokker hvis kun nye er tillatt
-  if (options?.onlyIfNew && existing) return false;
-
-  // Hvis vi allerede har en notification for samtalen, oppdater count og behold preview
-  if (notification.type === "NewMessage" && existing) {
-  const count = (existing.messageCount ?? 1) + 1;
-  
-  // 🆕 Generer ny messagePreview basert på count (som backend gjør)
-  let newMessagePreview: string;
-  if (existing.groupName) {
-    // For grupper: "There are X new messages in GroupName"
-    newMessagePreview = `There are ${count} new messages in ${existing.groupName}`;
-  } else {
-    // For private: "has sent you X messages"
-    newMessagePreview = `has sent you ${count} messages`;
+    const updated: MessageNotificationDTO = {
+      ...existing,
+      messageCount: count,
+      createdAt: notification.createdAt,
+      messagePreview: newMessagePreview, // 🆕 Ny preview basert på count
+      senderId: notification.senderId, // 🆕 Oppdater til siste sender
+      senderName: notification.senderName, // 🆕 Oppdater til siste sender
+      senderProfileImageUrl: notification.senderProfileImageUrl, // 🆕 Oppdater avatar
+      isTemporary: existing.isTemporary ?? false,
+    };
+    
+    store.upsertNotification(updated);
+    return false;
   }
-
-  const updated: MessageNotificationDTO = {
-    ...existing,
-    messageCount: count,
-    createdAt: notification.createdAt,
-    messagePreview: newMessagePreview, // 🆕 Ny preview basert på count
-    senderId: notification.senderId, // 🆕 Oppdater til siste sender
-    senderName: notification.senderName, // 🆕 Oppdater til siste sender
-    senderProfileImageUrl: notification.senderProfileImageUrl, // 🆕 Oppdater avatar
-    isTemporary: existing.isTemporary ?? false,
-  };
-  
-  store.upsertNotification(updated);
-  return false;
-}
 
   // Ny notification – lag preview fra meldingen
   store.upsertNotification(notification);
