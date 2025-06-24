@@ -55,7 +55,11 @@ public class ConversationsController : BaseController
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
+                    GroupRequestStatus = !c.Conversation.IsGroup ? null :
+                        p.User.Id == c.Conversation.CreatorId ? GroupRequestStatus.Creator :  // ✅ Bruk Creator enum
+                        c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
+                        null  // ✅ null = ingen GroupRequest finnes (ikke invitert ennå)
                 }).ToList(),
                 IsPendingApproval = c.IsPendingApproval 
             })
@@ -67,7 +71,7 @@ public class ConversationsController : BaseController
             Conversations = paged
         });
     }
-    
+
     // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
     [HttpGet("conversation/{conversationId}")]
     public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
@@ -107,12 +111,20 @@ public class ConversationsController : BaseController
         
         bool isApproved;
         bool isPending;
+        
+        // Hent GroupRequests for denne samtalen hvis det er en gruppe
+        Dictionary<int, GroupRequestStatus> groupRequestLookup = new();
+        if (conversation.IsGroup)
+        {
+            groupRequestLookup = await _context.GroupRequests
+                .Where(gr => gr.ConversationId == conversationId)
+                .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status);
+        }
 
         if (conversation.IsGroup)
         {
-            // ✅ GRUPPE LOGIKK
             bool isCreator = conversation.CreatorId == userId;
-        
+    
             if (isCreator)
             {
                 isApproved = true;
@@ -120,11 +132,17 @@ public class ConversationsController : BaseController
             }
             else
             {
-                var groupRequest = await _context.GroupRequests
-                    .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId);
-
-                isApproved = groupRequest?.Status == GroupRequestStatus.Approved;
-                isPending = groupRequest?.Status == GroupRequestStatus.Pending;
+                // Bruk groupRequestLookup i stedet for ny database-query
+                if (groupRequestLookup.TryGetValue(userId.Value, out var myStatus))
+                {
+                    isApproved = myStatus == GroupRequestStatus.Approved;
+                    isPending = myStatus == GroupRequestStatus.Pending;
+                }
+                else
+                {
+                    isApproved = false;
+                    isPending = true; // Ingen request funnet = pending
+                }
             }
         }
         else
@@ -171,7 +189,11 @@ public class ConversationsController : BaseController
             {
                 Id = p.User.Id,
                 FullName = p.User.FullName,
-                ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
+                GroupRequestStatus = !conversation.IsGroup ? null :
+                    p.User.Id == conversation.CreatorId ? GroupRequestStatus.Creator :  // ✅ Bruk Creator enum
+                    groupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
+                    null
             }).ToList(),
             IsApproved = isApproved, // Tilpass etter behov
             IsPendingApproval = isPending // Tilpass etter behov

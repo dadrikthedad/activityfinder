@@ -24,9 +24,10 @@ public class GroupRequest
     
 }
 
-public enum GroupRequestStatus
-{
-    Pending,
-    Approved,
-    Rejected
+public enum GroupRequestStatus 
+{ 
+    Pending = 0,
+    Approved = 1, 
+    Rejected = 2,
+    Creator = 3
 }

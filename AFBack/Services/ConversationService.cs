@@ -15,28 +15,44 @@ public class ConversationService
         }
         // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
-            int userId, bool includeRejected = false)
+        int userId, bool includeRejected = false)
         {
-            // For 1-til-1: Hent godkjente MessageRequests
+            // Hent godkjente 1-til-1 MessageRequests
             var approvedMessageRequestConvIds = new HashSet<int>(await _context.MessageRequests
                 .Where(r => r.ReceiverId == userId && r.IsAccepted && r.ConversationId != null)
                 .Select(r => r.ConversationId!.Value)
                 .ToListAsync());
 
-            // For grupper: Hent godkjente GroupRequests
+            // Hent godkjente GroupRequests for denne brukeren
             var approvedGroupConvIds = new HashSet<int>(await _context.GroupRequests
                 .Where(gr => gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Approved)
-                .Select(gr => gr.ConversationId) // Ingen null-sjekk nødvendig
+                .Select(gr => gr.ConversationId)
                 .ToListAsync());
+
+            // Hent alle gruppe-samtale-id-er brukeren er deltaker i
+            var myGroupConversationIds = await _context.Conversations
+                .Where(c => c.IsGroup && c.Participants.Any(p => p.UserId == userId))
+                .Select(c => c.Id)
+                .ToListAsync();
+
+            // Hent alle GroupRequests for disse samtalene
+            var groupRequests = await _context.GroupRequests
+                .Where(gr => myGroupConversationIds.Contains(gr.ConversationId))
+                .ToListAsync();
+
+            // Bygg lookup for å finne status per (ConversationId, UserId)
+            var groupRequestLookup = groupRequests
+                .GroupBy(gr => gr.ConversationId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(gr => gr.ReceiverId, gr => gr.Status) // <int, GroupRequestStatus>
+                );
 
             var query = _context.Conversations
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId) &&
                     (
-                        // 1-til-1: Godkjent samtale ELLER jeg er creator ELLER godkjent MessageRequest
                         (!c.IsGroup && (c.IsApproved || c.CreatorId == userId || approvedMessageRequestConvIds.Contains(c.Id))) ||
-                        
-                        // ✅ Grupper: Jeg er creator ELLER jeg har godkjent GroupRequest
                         (c.IsGroup && (c.CreatorId == userId || approvedGroupConvIds.Contains(c.Id)))
                     )
                 );
@@ -44,11 +60,8 @@ public class ConversationService
             if (!includeRejected)
             {
                 query = query.Where(c =>
-                    // Filtrer bort avslåtte 1-til-1
                     (c.IsGroup || !_context.MessageRequests
                         .Any(r => r.ConversationId == c.Id && r.IsRejected && r.SenderId != userId)) &&
-                    
-                    // Filtrer bort avslåtte grupper
                     (!c.IsGroup || c.CreatorId == userId || !_context.GroupRequests
                         .Any(gr => gr.ConversationId == c.Id && gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Rejected))
                 );
@@ -64,7 +77,10 @@ public class ConversationService
             return conversations.Select(c => new ConversationWithApprovalDTO
             {
                 Conversation = c,
-                IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId
+                IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId,
+                GroupRequestLookup = c.IsGroup && groupRequestLookup.TryGetValue(c.Id, out var lookup)
+                    ? lookup
+                    : new Dictionary<int, GroupRequestStatus>()
             }).ToList();
         }
         
