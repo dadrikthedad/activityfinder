@@ -100,7 +100,7 @@ public class GroupConversationController : BaseController
         
         Console.WriteLine("🟡 Queueing background task for group requests...");
         // 6️⃣ Send notifikasjoner i bakgrunnen
-        _taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id));
+        _taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id, senderId, !isNewConversation));
 
         return new SendGroupRequestsResponseDTO
         {
@@ -288,10 +288,8 @@ public class GroupConversationController : BaseController
         return (newConversation, true);
     }
     
-    private async Task NotifyAndBroadcastGroupRequestAsync(List<GroupRequest> groupRequests, int conversationId)// 🆕
+    private async Task NotifyAndBroadcastGroupRequestAsync(List<GroupRequest> groupRequests, int conversationId, int senderId, bool isExistingGroup)
     {
-        
-
         using var scope = _scopeFactory.CreateScope();
         var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -302,6 +300,12 @@ public class GroupConversationController : BaseController
             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
         if (conversation == null) return;
+
+        // 🆕 Hvis dette er en eksisterende gruppe, send SignalR til eksisterende medlemmer
+        if (isExistingGroup)
+        {
+            await NotifyExistingGroupMembersAsync(context, conversationId, senderId, groupRequests);
+        }
     
         foreach (var groupRequest in groupRequests)
         {
@@ -343,10 +347,85 @@ public class GroupConversationController : BaseController
             }
         }
     }
+
+    // 🆕 Ny metode for å varsle eksisterende gruppemedlemmer
+      private async Task NotifyExistingGroupMembersAsync(ApplicationDbContext context, int conversationId, int senderId, List<GroupRequest> groupRequests)
+    {
+        try
+        {
+            // Hent alle eksisterende medlemmer (unntatt den som sender invitasjonene)
+            var existingMemberIds = await context.ConversationParticipants
+                .Where(cp => cp.ConversationId == conversationId && cp.UserId != senderId)
+                .Select(cp => cp.UserId)
+                .ToListAsync();
+
+            if (!existingMemberIds.Any()) return;
+
+            // Opprett notifikasjoner for eksisterende medlemmer
+            using var notifScope = _scopeFactory.CreateScope();
+            var notifSvc = notifScope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+            
+            var notifications = await notifSvc.CreateGroupRequestInvitedNotificationsAsync(
+                senderId, 
+                conversationId, 
+                existingMemberIds, 
+                groupRequests.Count);
+
+            // Hent sender info
+            var sender = await context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == senderId)
+                .Select(u => new { u.Id, u.FullName })
+                .FirstOrDefaultAsync();
+
+            // Hent info om de inviterte brukerne
+            var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
+            var invitedUsers = await context.Users
+                .AsNoTracking()
+                .Where(u => invitedUserIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FullName })
+                .ToListAsync();
+
+            var invitedUserNames = invitedUsers.Select(u => u.FullName).ToList();
+
+            // Send SignalR til alle eksisterende medlemmer
+            foreach (var memberId in existingMemberIds)
+            {
+                try
+                {
+                    // Finn riktig notifikasjon for dette medlemmet
+                    // Siden notifications ikke inneholder UserId direkte, kan vi anta at de er i samme rekkefølge
+                    // eller vi kan bruke index-basert matching
+                    var memberIndex = existingMemberIds.IndexOf(memberId);
+                    var memberNotification = memberIndex < notifications.Count ? notifications[memberIndex] : null;
+                    
+                    await _hubContext.Clients.User(memberId.ToString())
+                        .SendAsync("GroupMemberInvited", new GroupMemberInvitedDto
+                        {
+                            ConversationId = conversationId,
+                            InviterUserId = senderId,
+                            InviterName = sender?.FullName ?? "En bruker",
+                            InvitedUserIds = invitedUserIds,
+                            InvitedUserNames = invitedUserNames,
+                            InvitedAt = DateTime.UtcNow,
+                            Notification = memberNotification // 🆕 Inkluder notifikasjonen
+                        });
+        
+                    Console.WriteLine($"✅ Sent GroupMemberInvited to existing member {memberId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Failed to send GroupMemberInvited to {memberId}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to notify existing group members: {ex.Message}");
+        }
+    }
+    
 }
-
-
-
 
 // Sendes fra frontend
 public class SendGroupRequestsDTO
@@ -373,4 +452,16 @@ public class SendGroupRequestsResponseDTO
     public bool IsNewConversation { get; set; }
     public int InvitationsSent { get; set; }
     public int TotalRequestedUsers { get; set; }
+}
+
+// 🆕 Ny DTO for å varsle eksisterende gruppemedlemmer
+public class GroupMemberInvitedDto
+{
+    public int ConversationId { get; set; }
+    public int InviterUserId { get; set; }
+    public string InviterName { get; set; } = string.Empty;
+    public List<int> InvitedUserIds { get; set; } = new();
+    public List<string> InvitedUserNames { get; set; } = new();
+    public DateTime InvitedAt { get; set; }
+    public MessageNotificationDTO? Notification { get; set; }
 }

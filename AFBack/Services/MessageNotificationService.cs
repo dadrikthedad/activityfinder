@@ -313,6 +313,78 @@ public class MessageNotificationService
             return MapToDTO(created!);
         }
     }
+    
+    public async Task<List<MessageNotificationDTO>> CreateGroupRequestInvitedNotificationsAsync(
+    int senderId, 
+    int conversationId,
+    List<int> existingMemberIds,
+    int invitedCount)
+    {
+        var notifications = new List<MessageNotificationDTO>();
+
+        foreach (var memberId in existingMemberIds)
+        {
+            try
+            {
+                // Sjekk om det allerede finnes en ulest GroupRequestInvited-notifikasjon fra samme sender
+                var existing = await _context.MessageNotifications
+                    .FirstOrDefaultAsync(n =>
+                        n.UserId == memberId &&
+                        n.FromUserId == senderId &&
+                        n.ConversationId == conversationId &&
+                        n.Type == NotificationType.GroupRequestInvited &&
+                        !n.IsRead);
+
+                if (existing != null)
+                {
+                    // Oppdater eksisterende notifikasjon med nytt antall
+                    existing.MessageCount = invitedCount;
+                    existing.CreatedAt = DateTime.UtcNow; // Oppdater tidsstempel
+                }
+                else
+                {
+                    // Opprett ny GroupRequestInvited-notifikasjon
+                    var notification = new MessageNotification
+                    {
+                        UserId = memberId,
+                        FromUserId = senderId,
+                        ConversationId = conversationId,
+                        Type = NotificationType.GroupRequestInvited,
+                        CreatedAt = DateTime.UtcNow,
+                        IsRead = false,
+                        MessageCount = invitedCount
+                    };
+
+                    _context.MessageNotifications.Add(notification);
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Hent den opprettede/oppdaterte notifikasjonen med alle includes
+                var created = await _context.MessageNotifications
+                    .Include(n => n.FromUser)
+                    .ThenInclude(u => u.Profile)
+                    .Include(n => n.Conversation)
+                    .FirstOrDefaultAsync(n =>
+                        n.UserId == memberId &&
+                        n.FromUserId == senderId &&
+                        n.ConversationId == conversationId &&
+                        n.Type == NotificationType.GroupRequestInvited &&
+                        !n.IsRead);
+
+                if (created != null)
+                {
+                    notifications.Add(MapToDTO(created));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to create GroupRequestInvited notification for user {memberId}: {ex.Message}");
+            }
+        }
+
+        return notifications;
+    }
 
     
     public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)
@@ -343,6 +415,20 @@ public class MessageNotificationService
                 {
                     // Første medlem som blir med
                     preview = $"has joined \"{n.Conversation?.GroupName}\"";
+                }
+                break;
+            
+            
+            case NotificationType.GroupRequestInvited: // 🆕 Ny notifikasjon type
+                if (messageCount > 1)
+                {
+                    // Flere brukere invitert
+                    preview = $"invited {messageCount} people to join \"{n.Conversation?.GroupName}\"";
+                }
+                else
+                {
+                    // Én bruker invitert
+                    preview = $"invited someone to join \"{n.Conversation?.GroupName}\"";
                 }
                 break;
 
