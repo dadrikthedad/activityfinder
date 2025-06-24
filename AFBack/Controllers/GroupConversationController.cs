@@ -349,17 +349,28 @@ public class GroupConversationController : BaseController
     }
 
     // 🆕 Ny metode for å varsle eksisterende gruppemedlemmer
-      private async Task NotifyExistingGroupMembersAsync(ApplicationDbContext context, int conversationId, int senderId, List<GroupRequest> groupRequests)
+    private async Task NotifyExistingGroupMembersAsync(ApplicationDbContext context, int conversationId, int senderId, List<GroupRequest> groupRequests)
     {
         try
         {
-            // Hent alle eksisterende medlemmer (unntatt den som sender invitasjonene)
+            // 🆕 Hent IDs for de som nettopp ble invitert
+            var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToHashSet();
+            
+            // Hent alle eksisterende medlemmer (unntatt sender OG de nettopp inviterte)
             var existingMemberIds = await context.ConversationParticipants
-                .Where(cp => cp.ConversationId == conversationId && cp.UserId != senderId)
+                .Where(cp => cp.ConversationId == conversationId && 
+                             cp.UserId != senderId &&
+                             !invitedUserIds.Contains(cp.UserId)) // 🆕 Ekskluder nettopp inviterte
                 .Select(cp => cp.UserId)
                 .ToListAsync();
 
-            if (!existingMemberIds.Any()) return;
+            if (!existingMemberIds.Any()) 
+            {
+                Console.WriteLine($"🔍 No existing members to notify (excluding {invitedUserIds.Count} newly invited users)");
+                return;
+            }
+
+            Console.WriteLine($"🔍 Notifying {existingMemberIds.Count} existing members about {invitedUserIds.Count} new invitations");
 
             // Opprett notifikasjoner for eksisterende medlemmer
             using var notifScope = _scopeFactory.CreateScope();
@@ -378,8 +389,7 @@ public class GroupConversationController : BaseController
                 .Select(u => new { u.Id, u.FullName })
                 .FirstOrDefaultAsync();
 
-            // Hent info om de inviterte brukerne
-            var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
+            // Hent info om de inviterte brukerne (for visning i notifikasjon)
             var invitedUsers = await context.Users
                 .AsNoTracking()
                 .Where(u => invitedUserIds.Contains(u.Id))
@@ -388,14 +398,11 @@ public class GroupConversationController : BaseController
 
             var invitedUserNames = invitedUsers.Select(u => u.FullName).ToList();
 
-            // Send SignalR til alle eksisterende medlemmer
+            // Send SignalR til alle eksisterende medlemmer (ikke de inviterte)
             foreach (var memberId in existingMemberIds)
             {
                 try
                 {
-                    // Finn riktig notifikasjon for dette medlemmet
-                    // Siden notifications ikke inneholder UserId direkte, kan vi anta at de er i samme rekkefølge
-                    // eller vi kan bruke index-basert matching
                     var memberIndex = existingMemberIds.IndexOf(memberId);
                     var memberNotification = memberIndex < notifications.Count ? notifications[memberIndex] : null;
                     
@@ -405,13 +412,13 @@ public class GroupConversationController : BaseController
                             ConversationId = conversationId,
                             InviterUserId = senderId,
                             InviterName = sender?.FullName ?? "En bruker",
-                            InvitedUserIds = invitedUserIds,
+                            InvitedUserIds = invitedUserIds.ToList(),
                             InvitedUserNames = invitedUserNames,
                             InvitedAt = DateTime.UtcNow,
-                            Notification = memberNotification // 🆕 Inkluder notifikasjonen
+                            Notification = memberNotification
                         });
         
-                    Console.WriteLine($"✅ Sent GroupMemberInvited to existing member {memberId}");
+                    Console.WriteLine($"✅ Sent GroupMemberInvited to existing member {memberId} about {invitedUserIds.Count} new invitations");
                 }
                 catch (Exception ex)
                 {
