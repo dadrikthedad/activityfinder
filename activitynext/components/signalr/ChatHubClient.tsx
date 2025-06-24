@@ -19,6 +19,7 @@ import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 import { GroupMemberInvitedDto } from "@/types/GroupMemberInvitedDTO";
+import { updateConversationParticipants } from "@/services/helpfunctions/conversationUpdateSerivce";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -69,7 +70,7 @@ export default function ChatHubClient() {
       console.log(`🔍 Samtale ${conversationId} finnes ikke i listen, henter den...`);
 
       try {
-        // 🆕 Hent både samtale og meldinger parallelt
+        // Hent både samtale og meldinger parallelt
         const [conversation, messages] = await Promise.all([
           getConversationById(conversationId),
           shouldCacheMessages ? getMessagesForConversation(conversationId, 0, 50) : Promise.resolve(null)
@@ -90,7 +91,7 @@ export default function ChatHubClient() {
       }
     };
 
-    // 🆕 Utvidet funksjon for å cache meldinger for eksisterende samtaler
+    // Utvidet funksjon for å cache meldinger for eksisterende samtaler
     const preloadMessagesForConversation = async (conversationId: number) => {
       const { cachedMessages, conversationIds } = useChatStore.getState();
       
@@ -108,6 +109,8 @@ export default function ChatHubClient() {
         }
       }
     };
+
+    
     
     // Kjør useChatHub direkte – hooken sørger selv for å starte og stoppe
     // Melding
@@ -252,11 +255,16 @@ export default function ChatHubClient() {
         }
       },
 
+      // GroupRequestApproved
       async (notification) => {
         console.log("✅ Godkjent gruppeforespørsel via SignalR:", notification); 
         const convId = notification.conversationId;
         if (!convId) {
           return;
+        }
+
+        if (notification.senderId) {
+          await updateConversationParticipants(convId, "User approved group request");
         }
 
         showNotificationToast({
@@ -272,14 +280,18 @@ export default function ChatHubClient() {
       },
 
        async (data: GroupMemberInvitedDto) => {
-        console.log("👥➕ Gruppemedlem invitert i ChatHubClient:", data);
-
-        const { notification, inviterName, conversationId } = data;
-
+        console.log("➕ Gruppemedlem invitert i ChatHubClient:", data);
+        const { notification, inviterName, conversationId, isSilent } = data;
+        
+        // Oppdater participants når noen blir invitert
+        await updateConversationParticipants(conversationId, "New members invited to group");
+        
         if (notification) {
           // 🔔 Oppdater notification-panelet i sanntid
           await handleIncomingNotification(notification);
-
+          
+          // 🔕 Vis kun toast hvis ikke silent
+          if (!isSilent) {
             showNotificationToast({
               senderName: inviterName,
               messagePreview: notification.messagePreview, // Bruker preview fra backend
@@ -289,7 +301,7 @@ export default function ChatHubClient() {
               groupImage: notification.groupImageUrl,
             });
           }
-        
+        }
       }
 
 

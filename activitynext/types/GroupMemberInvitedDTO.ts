@@ -7,4 +7,5 @@ export interface GroupMemberInvitedDto {
   invitedUserNames: string[];
   invitedAt: Date;
   notification?: MessageNotificationDTO;
+  isSilent?: boolean;
 }

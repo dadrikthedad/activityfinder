@@ -3,6 +3,7 @@ import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from '@/types/Send
 import { sendGroupRequests } from '@/services/messages/groupService';
 import { useConversationSyncOnMessage } from './getConversationById';
 import { useChatStore } from '@/store/useChatStore';
+import { updateConversationParticipants } from '@/services/helpfunctions/conversationUpdateSerivce';
 
 interface UseGroupRequestsResult {
   sendGroupInvitations: (request: SendGroupRequestsDTO) => Promise<SendGroupRequestsResponseDTO | null>;
@@ -45,6 +46,9 @@ export function useGroupRequests(): UseGroupRequestsResult {
             setCurrentConversationId(response.conversationId);
             console.log("🔄 Satt aktiv samtale til:", response.conversationId);
           }
+
+          await updateConversationParticipants(response.conversationId, "After inviting users");
+          
         } catch (syncError) {
           console.error("❌ Feil ved synkronisering av gruppesamtale:", syncError);
           // Fortsett likevel, siden invitasjonene er sendt

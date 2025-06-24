@@ -62,6 +62,8 @@ export default function UserActionPopover(props: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  const { isModalOpen } = useModal();
+
   // State management basert på mode
   const [standaloneIsOpen, setStandaloneIsOpen] = useState(false);
   const isOpen = props.mode === 'standalone' 
@@ -95,30 +97,33 @@ export default function UserActionPopover(props: Props) {
 
   // ESC key handling
     useEffect(() => {
-    if (!isOpen) return;
+  if (!isOpen) return;
 
-    const id = `user-popover-${user.id}`;
-    const close = () => {
-      // ✅ Hierarkisk lukking ved ESC også
-      if (nestedUserPopover) {
-        console.log("🔸 ESC: Lukker nested popover først");
-        setNestedUserPopover(null);
+  const id = `user-popover-${user.id}`;
+  const close = () => {
+    // 🆕 Ikke lukk ved ESC hvis modal er åpen
+    if (isModalOpen) return;
+    
+    // ✅ Hierarkisk lukking ved ESC også
+    if (nestedUserPopover) {
+      console.log("🔸 ESC: Lukker nested popover først");
+      setNestedUserPopover(null);
+    } else {
+      console.log("🔸 ESC: Lukker hovedpopover");
+      if (props.mode === 'standalone') {
+        setStandaloneIsOpen(false);
       } else {
-        console.log("🔸 ESC: Lukker hovedpopover");
-        if (props.mode === 'standalone') {
-          setStandaloneIsOpen(false);
-        } else {
-          props.toggleUserPopover(user.id);
-        }
+        props.toggleUserPopover(user.id);
       }
-    };
+    }
+  };
 
-    dropdownContext.register({ id, close });
+  dropdownContext.register({ id, close });
 
-    return () => {
-      dropdownContext.unregister(id);
-    };
-  }, [isOpen, props.mode, user.id, nestedUserPopover]);
+  return () => {
+    dropdownContext.unregister(id);
+  };
+}, [isOpen, props.mode, user.id, nestedUserPopover, isModalOpen]);
 
   // Dropdown mode specific effects
   useEffect(() => {
@@ -189,19 +194,16 @@ export default function UserActionPopover(props: Props) {
   }, [props.mode, isOpen]);
 
   // Outside click for dropdown mode
-  useClickOutsideGroups({
+   useClickOutsideGroups({
     includeRefs: props.mode === 'dropdown' 
       ? (props.dropdownRef ? [props.dropdownRef, panelRef] : [panelRef])
       : [buttonRef, panelRef],
-    excludeRefs: nestedUserPopover ? [
-      // Legg til nested popover ref hvis du lager en
-    ] : [],
-    excludeClassNames: [
-      "[data-nested-user-popover]",
-      "[data-modal]", // 🆕 Ekskluder modaler
-      ".fixed.z-\\[9999\\]" // 🆕 Ekskluder InviteUsersModal (spesifikk z-index)
-    ],
+    excludeRefs: nestedUserPopover ? [] : [],
+    excludeClassNames: ["[data-nested-user-popover]"],
     onOutsideClick: () => {
+      // 🆕 Ikke lukk hvis modal er åpen
+      if (isModalOpen) return;
+      
       // ✅ Hierarkisk lukking
       if (nestedUserPopover) {
         setNestedUserPopover(null);

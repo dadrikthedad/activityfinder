@@ -60,6 +60,7 @@ type ChatStore = {
   openConversation: (conversationId: number) => void;
   showMessages: boolean;
   setShowMessages: (value: boolean) => void;
+  updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) => void;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -177,6 +178,31 @@ export const useChatStore = create<ChatStore>()(
       openConversation: (conversationId: number) => {
         set(() => ({ currentConversationId: conversationId }));
       },
+
+      updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) =>
+        set((state) => {
+          console.log(`📝 Updating conversation ${conversationId} with:`, updates);
+          
+          const updatedConversations = state.conversations.map((conv) =>
+            conv.id === conversationId 
+              ? { ...conv, ...updates }
+              : conv
+          );
+
+          // Sort conversations by lastMessageSentAt if that was updated
+          if (updates.lastMessageSentAt) {
+            updatedConversations.sort(
+              (a, b) =>
+                new Date(b.lastMessageSentAt ?? 0).getTime() -
+                new Date(a.lastMessageSentAt ?? 0).getTime()
+            );
+          }
+
+          return { 
+            conversations: updatedConversations,
+            conversationIds: new Set(updatedConversations.map(c => c.id))
+          };
+        }),
 
       updateSearchResultReactions: (reaction: ReactionDTO) =>
         set((state) => {

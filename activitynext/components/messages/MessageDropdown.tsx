@@ -17,6 +17,7 @@ import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
 import NotificationsPanel from "@/components/messages/NotificationsPanel";
 
+
 interface MessageDropdownProps {
     currentUser: UserSummaryDTO | null;
     onCloseDropdown: () => void;
@@ -52,6 +53,8 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
 
   // Lukke dropdown med Esc
   const dropdownContext = useDropdown();
+
+  const { isModalOpen } = useModal();
 
 
   const [popoverUser, setPopoverUser] = useState<UserSummaryDTO | null>(null);
@@ -311,13 +314,10 @@ export default function MessageDropdown({ currentUser, onCloseDropdown, initialP
           const target = e.target as Node;
           const insideUserPopover = userPopoverRef?.current?.contains(target);
           const insideDropdown = dropdownRef?.current?.contains(target);
-
-          const insideModal = (target as Element)?.closest('[data-modal]') || 
-                       (target as Element)?.closest('.fixed.z-\\[9999\\]'); // InviteUsersModal z-index class
     
-          if (openUserPopoverId !== null && insideDropdown && !insideUserPopover && !insideModal) {
-            toggleUserPopover(null);
-          }
+          if (openUserPopoverId !== null && insideDropdown && !insideUserPopover && !isModalOpen) {
+          toggleUserPopover(null);
+        }
         }}
       className="fixed right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md z-10 max-w-[100vw] border-2 border-[#1C6B1C] overflow-hidden resize"
         style={{

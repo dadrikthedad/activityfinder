@@ -139,6 +139,8 @@ function NotificationToast({
         return <>{name} invited you to join {styledGroupName}</>;
       case NotificationType.GroupRequestApproved:
         return <>{name} has accepted to join {styledGroupName}</>;
+      case NotificationType.GroupRequestInvited:
+        return <>{name} has invited user1 and 4 more to to join {styledGroupName}</>;
       case LocalToastType.MessageReactionChanged:
         return <>{name} changed their reaction to {reactionEmoji ?? "👍"} on message:</>;
       case LocalToastType.FriendInvAccepted:

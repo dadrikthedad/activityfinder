@@ -11,6 +11,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ParticipantsList from "./ParticipantsListProps";
+import { useModal } from "@/context/ModalContext";
 
 interface MessageSettingsDropdownProps {
   open: boolean;
@@ -51,26 +52,32 @@ export default function MessageSettingsDropdown({
     const participants = currentConversation?.participants || [];
     const isGroup = currentConversation?.isGroup || false;
 
+    const { isModalOpen } = useModal();
+
     useClickOutsideGroups({
-        includeRefs: [containerRef],
-        excludeClassNames: [
-            "[data-user-action-popover]",
-            "[data-nested-user-popover]", 
-            "[data-nested-popover]",
-            "[data-modal]", // 🆕 Ekskluder modaler
-            ".fixed.z-\\[9999\\]" // 🆕 Ekskluder InviteUsersModal
-        ],
-        onOutsideClick: () => {
-            setOpen(false);
-            setShowParticipants(false);
-        },
-        isActive: open || showParticipants
-    });
+    includeRefs: [containerRef],
+    excludeClassNames: [
+      "[data-user-action-popover]",
+      "[data-nested-user-popover]", 
+      "[data-nested-popover]"
+    ],
+    onOutsideClick: () => {
+      // 🆕 Ikke lukk hvis modal er åpen
+      if (isModalOpen) return;
+      
+      setOpen(false);
+      setShowParticipants(false);
+    },
+    isActive: open || showParticipants
+  });
 
     // Registrer i context når åpen
     useEffect(() => {
         const id = "message-settings";
         const close = () => {
+            // 🆕 Ikke lukk ved ESC hvis modal er åpen
+            if (isModalOpen) return;
+            
             setOpen(false);
             setShowParticipants(false);
         };
@@ -80,7 +87,7 @@ export default function MessageSettingsDropdown({
         return () => {
             dropdownContext.unregister(id);
         };
-    }, [open, showParticipants, dropdownContext, setOpen]);
+        }, [open, showParticipants, dropdownContext, setOpen, isModalOpen]);
 
     const handleShowParticipants = () => {
         setShowParticipants(true);

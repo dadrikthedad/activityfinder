@@ -141,7 +141,8 @@ export function useChatHub(
             console.log("👥➕ Gruppemedlem invitert via SignalR:", data);
 
             const { notification } = data;
-
+            
+            
             // Legg til notifikasjon i store
             if (notification) {
               useMessageNotificationStore.getState().upsertNotification(notification);
