@@ -348,89 +348,130 @@ public class GroupConversationController : BaseController
         }
     }
 
-    // 🆕 Ny metode for å varsle eksisterende gruppemedlemmer
-    private async Task NotifyExistingGroupMembersAsync(ApplicationDbContext context, int conversationId, int senderId, List<GroupRequest> groupRequests)
-    {
-        try
+        //  Ny metode for å varsle eksisterende gruppemedlemmer
+        private async Task NotifyExistingGroupMembersAsync(ApplicationDbContext context, int conversationId, int senderId, List<GroupRequest> groupRequests)
         {
-            // 🆕 Hent IDs for de som nettopp ble invitert
-            var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToHashSet();
-            
-            // Hent alle eksisterende medlemmer (unntatt sender OG de nettopp inviterte)
-            var existingMemberIds = await context.ConversationParticipants
-                .Where(cp => cp.ConversationId == conversationId && 
-                             cp.UserId != senderId &&
-                             !invitedUserIds.Contains(cp.UserId)) // 🆕 Ekskluder nettopp inviterte
-                .Select(cp => cp.UserId)
-                .ToListAsync();
-
-            if (!existingMemberIds.Any()) 
+            try
             {
-                Console.WriteLine($"🔍 No existing members to notify (excluding {invitedUserIds.Count} newly invited users)");
-                return;
-            }
+                // 🆕 Hent IDs for de som nettopp ble invitert
+                var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToHashSet();
+                
+                // 🆕 Hent alle som har pending GroupRequests (inkludert de nettopp inviterte)
+                var allPendingUserIds = (await context.GroupRequests
+                    .Where(gr => gr.ConversationId == conversationId && 
+                                 gr.Status == GroupRequestStatus.Pending)
+                    .Select(gr => gr.ReceiverId)
+                    .ToListAsync())
+                    .ToHashSet();
+                
+                // 🆕 Separer brukere: godkjente medlemmer vs pending medlemmer
+                var allParticipantIds = await context.ConversationParticipants
+                    .Where(cp => cp.ConversationId == conversationId && cp.UserId != senderId)
+                    .Select(cp => cp.UserId)
+                    .ToListAsync();
 
-            Console.WriteLine($"🔍 Notifying {existingMemberIds.Count} existing members about {invitedUserIds.Count} new invitations");
+                // Godkjente medlemmer = participants som IKKE har pending requests
+                var approvedMemberIds = allParticipantIds
+                    .Where(userId => !allPendingUserIds.Contains(userId))
+                    .ToList();
 
-            // Opprett notifikasjoner for eksisterende medlemmer
-            using var notifScope = _scopeFactory.CreateScope();
-            var notifSvc = notifScope.ServiceProvider.GetRequiredService<MessageNotificationService>();
-            
-            var notifications = await notifSvc.CreateGroupRequestInvitedNotificationsAsync(
-                senderId, 
-                conversationId, 
-                existingMemberIds, 
-                groupRequests.Count);
+                // Pending medlemmer = participants som HAR pending requests (men ikke nylig inviterte)
+                var pendingMemberIds = allParticipantIds
+                    .Where(userId => allPendingUserIds.Contains(userId) && !invitedUserIds.Contains(userId))
+                    .ToList();
 
-            // Hent sender info
-            var sender = await context.Users
-                .AsNoTracking()
-                .Where(u => u.Id == senderId)
-                .Select(u => new { u.Id, u.FullName })
-                .FirstOrDefaultAsync();
+                Console.WriteLine($"🔍 Notifying {approvedMemberIds.Count} approved members (with toast) and {pendingMemberIds.Count} pending members (silent) about {invitedUserIds.Count} new invitations");
 
-            // Hent info om de inviterte brukerne (for visning i notifikasjon)
-            var invitedUsers = await context.Users
-                .AsNoTracking()
-                .Where(u => invitedUserIds.Contains(u.Id))
-                .Select(u => new { u.Id, u.FullName })
-                .ToListAsync();
-
-            var invitedUserNames = invitedUsers.Select(u => u.FullName).ToList();
-
-            // Send SignalR til alle eksisterende medlemmer (ikke de inviterte)
-            foreach (var memberId in existingMemberIds)
-            {
-                try
+                // Opprett notifikasjoner kun for godkjente medlemmer
+                var notifications = new List<MessageNotificationDTO>();
+                if (approvedMemberIds.Any())
                 {
-                    var memberIndex = existingMemberIds.IndexOf(memberId);
-                    var memberNotification = memberIndex < notifications.Count ? notifications[memberIndex] : null;
+                    using var notifScope = _scopeFactory.CreateScope();
+                    var notifSvc = notifScope.ServiceProvider.GetRequiredService<MessageNotificationService>();
                     
-                    await _hubContext.Clients.User(memberId.ToString())
-                        .SendAsync("GroupMemberInvited", new GroupMemberInvitedDto
-                        {
-                            ConversationId = conversationId,
-                            InviterUserId = senderId,
-                            InviterName = sender?.FullName ?? "En bruker",
-                            InvitedUserIds = invitedUserIds.ToList(),
-                            InvitedUserNames = invitedUserNames,
-                            InvitedAt = DateTime.UtcNow,
-                            Notification = memberNotification
-                        });
-        
-                    Console.WriteLine($"✅ Sent GroupMemberInvited to existing member {memberId} about {invitedUserIds.Count} new invitations");
+                    notifications = await notifSvc.CreateGroupRequestInvitedNotificationsAsync(
+                        senderId, 
+                        conversationId, 
+                        approvedMemberIds, 
+                        groupRequests.Count);
                 }
-                catch (Exception ex)
+
+                // Hent sender info
+                var sender = await context.Users
+                    .AsNoTracking()
+                    .Where(u => u.Id == senderId)
+                    .Select(u => new { u.Id, u.FullName })
+                    .FirstOrDefaultAsync();
+
+                // Hent info om de inviterte brukerne (for visning i notifikasjon)
+                var invitedUsers = await context.Users
+                    .AsNoTracking()
+                    .Where(u => invitedUserIds.Contains(u.Id))
+                    .Select(u => new { u.Id, u.FullName })
+                    .ToListAsync();
+
+                var invitedUserNames = invitedUsers.Select(u => u.FullName).ToList();
+
+                // 1️⃣ Send SignalR til godkjente medlemmer (med toast + notifikasjon)
+                foreach (var memberId in approvedMemberIds)
                 {
-                    Console.WriteLine($"❌ Failed to send GroupMemberInvited to {memberId}: {ex.Message}");
+                    try
+                    {
+                        var memberIndex = approvedMemberIds.IndexOf(memberId);
+                        var memberNotification = memberIndex < notifications.Count ? notifications[memberIndex] : null;
+                        
+                        await _hubContext.Clients.User(memberId.ToString())
+                            .SendAsync("GroupMemberInvited", new GroupMemberInvitedDto
+                            {
+                                ConversationId = conversationId,
+                                InviterUserId = senderId,
+                                InviterName = sender?.FullName ?? "En bruker",
+                                InvitedUserIds = invitedUserIds.ToList(),
+                                InvitedUserNames = invitedUserNames,
+                                InvitedAt = DateTime.UtcNow,
+                                Notification = memberNotification,
+                                IsSilent = false // 🆕 Godkjente medlemmer får toast
+                            });
+            
+                        Console.WriteLine($"✅ Sent GroupMemberInvited (with toast) to approved member {memberId} about {invitedUserIds.Count} new invitations");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ Failed to send GroupMemberInvited to approved member {memberId}: {ex.Message}");
+                    }
+                }
+
+                // 2️⃣ Send SignalR til pending medlemmer (silent, ingen notifikasjon)
+                foreach (var memberId in pendingMemberIds)
+                {
+                    try
+                    {
+                        await _hubContext.Clients.User(memberId.ToString())
+                            .SendAsync("GroupMemberInvited", new GroupMemberInvitedDto
+                            {
+                                ConversationId = conversationId,
+                                InviterUserId = senderId,
+                                InviterName = sender?.FullName ?? "En bruker",
+                                InvitedUserIds = invitedUserIds.ToList(),
+                                InvitedUserNames = invitedUserNames,
+                                InvitedAt = DateTime.UtcNow,
+                                Notification = null, // 🆕 Ingen notifikasjon for pending
+                                IsSilent = true // 🆕 Pending medlemmer får ikke toast
+                            });
+            
+                        Console.WriteLine($"✅ Sent GroupMemberInvited (silent) to pending member {memberId} about {invitedUserIds.Count} new invitations");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ Failed to send GroupMemberInvited to pending member {memberId}: {ex.Message}");
+                    }
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to notify existing group members: {ex.Message}");
-        }
-    }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to notify existing group members: {ex.Message}");
+            }
+}
     
 }
 
@@ -471,4 +512,6 @@ public class GroupMemberInvitedDto
     public List<string> InvitedUserNames { get; set; } = new();
     public DateTime InvitedAt { get; set; }
     public MessageNotificationDTO? Notification { get; set; }
+    
+    public bool? IsSilent { get; set; }
 }
