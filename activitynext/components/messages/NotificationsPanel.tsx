@@ -5,7 +5,7 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import ProfileNavButton from "../settings/ProfileNavButton";
 import Router from "next/router";
 import { useState } from 'react';
-import GroupMembersTooltip from "./GroupMembersTooltip";
+import GroupEventTooltip from "./GroupEventTooltip";
 
 
 function formatNotificationText(n: MessageNotificationDTO): string {
@@ -44,6 +44,10 @@ function formatNotificationText(n: MessageNotificationDTO): string {
     case "GroupRequestApproved":
     case 6:
       return n.messagePreview ?? "joined your group";
+
+    case "GroupEvent":
+    case 8:
+      return n.messagePreview ?? "new activity in group";
       
     case "MessageReaction":
     case 4:
@@ -59,6 +63,11 @@ function formatNotificationText(n: MessageNotificationDTO): string {
 }
 
 function shouldShowSenderName(n: MessageNotificationDTO): boolean {
+
+    if (n.type === "GroupEvent" || n.type === 8) {
+      return false;
+    }
+
   if (n.type === "NewMessage" || n.type === 1) {
     // For grupper: kun vis sender-navn hvis det er 1 melding
     if (n.groupName) {
@@ -124,9 +133,8 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
   };
   
   const shouldShowTooltip = (n: MessageNotificationDTO): boolean => {
-    return n.type === "GroupRequestApproved" || n.type === 6;
+    return (n.type === "GroupEvent" || n.type === 8);
   };
-
 
 
   return (
@@ -179,7 +187,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                 })}
               </div>
               {/* 🆕 Tooltip */}
-              {activeTooltip === n.id && n.conversationId && (
+              {activeTooltip === n.id && n.conversationId && (n.type === "GroupEvent" || n.type === 8) && (
                 <div 
                   className="fixed z-50"
                   style={{
@@ -187,8 +195,10 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                     top: tooltipPosition.y
                   }}
                 >
-                  <GroupMembersTooltip
-                    conversationId={n.conversationId}
+                  <GroupEventTooltip
+                    eventSummaries={n.eventSummaries || []}
+                    groupName={n.groupName || "Unknown Group"}
+                    eventCount={n.messageCount || 0}
                     isVisible={true}
                   />
                 </div>

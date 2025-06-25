@@ -17,6 +17,10 @@ export interface MessageNotificationDTO {
   isConversationRejected?: boolean;
   isReactionUpdate?: boolean;
   senderProfileImageUrl?: string | null;
+  eventSummaries?: string[] | null;
+
+  eventCount?: number | null;
+  lastUpdatedAt?: string | null;
 }
 
 export enum NotificationType {
@@ -27,4 +31,5 @@ export enum NotificationType {
   GroupRequest = 5,
   GroupRequestApproved = 6,
   GroupRequestInvited = 7,
+  GroupEvent = 8
 }

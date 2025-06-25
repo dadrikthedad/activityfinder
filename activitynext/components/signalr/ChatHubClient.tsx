@@ -20,6 +20,7 @@ import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversat
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 import { GroupMemberInvitedDto } from "@/types/GroupMemberInvitedDTO";
 import { updateConversationParticipants } from "@/services/helpfunctions/conversationUpdateSerivce";
+import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotificationUpdateDTO";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -266,43 +267,61 @@ export default function ChatHubClient() {
         if (notification.senderId) {
           await updateConversationParticipants(convId, "User approved group request");
         }
-
-        showNotificationToast({
-          senderName: notification.senderName ?? "Someone",
-          messagePreview: notification.messagePreview,
-          conversationId: convId,
-          type: NotificationType.GroupRequestApproved, // Antar at du har denne typen
-          groupName: notification.groupName,
-          groupImage: notification.groupImageUrl,
-        });
-
-        // await finalizeConversationApproval(convId, true, notification);
       },
 
        async (data: GroupMemberInvitedDto) => {
         console.log("➕ Gruppemedlem invitert i ChatHubClient:", data);
-        const { notification, inviterName, conversationId, isSilent } = data;
+        const { conversationId } = data;
         
         // Oppdater participants når noen blir invitert
         await updateConversationParticipants(conversationId, "New members invited to group");
-        
+      },
+
+      // 🆕 Ny GroupNotificationUpdated callback
+      async (data: GroupNotificationUpdateDTO) => {
+        console.log("🔔 GroupNotification oppdatert i ChatHubClient:", data);
+        const { userId: targetUserId, notification, isNewNotification, groupEventType, affectedUserNames } = data;
+      
+        // Sjekk at notifikasjonen er for den innloggede brukeren
+        if (targetUserId !== userId) {
+          console.log("⚠️ GroupNotification ikke for denne brukeren, hopper over");
+          return;
+        }
+      
         if (notification) {
           // 🔔 Oppdater notification-panelet i sanntid
           await handleIncomingNotification(notification);
+        
+          // 🆕 Vis toast for alle nye hendelser, ikke bare nye notifikasjoner
+          if (notification.conversationId) {
+            // Konverter string til enum verdi
+            let eventTypeEnum: GroupEventType;
           
-          // 🔕 Vis kun toast hvis ikke silent
-          if (!isSilent) {
+            // Håndter både string og nummer fra backend
+            if (typeof groupEventType === 'string') {
+              eventTypeEnum = GroupEventType[groupEventType as keyof typeof GroupEventType];
+            } else {
+              eventTypeEnum = groupEventType;
+            }
+          
+            console.log('🔍 Original groupEventType:', groupEventType);
+            console.log('🔍 Converted eventTypeEnum:', eventTypeEnum);
+            console.log('🔍 isNewNotification:', isNewNotification);
+          
+            // 🆕 Vis toast for alle hendelser (ikke bare nye notifikasjoner)
             showNotificationToast({
-              senderName: inviterName,
-              messagePreview: notification.messagePreview, // Bruker preview fra backend
-              type: NotificationType.GroupRequestInvited,
-              conversationId,
+              senderName: notification.senderName ?? "Someone",
+              type: NotificationType.GroupEvent,
+              conversationId: notification.conversationId,
               groupName: notification.groupName,
               groupImage: notification.groupImageUrl,
+              groupEventType: eventTypeEnum,
+              affectedUserNames: affectedUserNames,
             });
           }
         }
-      }
+    }
+
 
 
 

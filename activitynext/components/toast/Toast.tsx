@@ -8,6 +8,8 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useRouter } from "next/navigation";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import MiniAvatar from "../common/MiniAvatar";// 🆕 Importer MiniAvatar
+import { GroupEventType } from "@/types/GroupNotificationUpdateDTO";
+import React, { JSX } from 'react';
 
 export enum LocalToastType {
   MessageReactionChanged = "MessageReactionChanged",
@@ -28,9 +30,11 @@ interface NotificationToastProps {
   relatedUser?: UserSummaryDTO | null; // Primær kilde for sender info
   groupName?: string | null;
   groupImage?: string | null;
-  // 🆕 Kun fallback felter hvis relatedUser ikke finnes
   senderName?: string | null; // Fallback
   senderProfileImage?: string | null; // Fallback
+
+  groupEventType?: GroupEventType | string;
+  affectedUserNames?: string[];
 }
 
 export function showNotificationToast({
@@ -42,8 +46,10 @@ export function showNotificationToast({
   messageId,
   relatedUser,
   groupName,
-  senderProfileImage, // 🆕
-  groupImage, // 🆕
+  senderProfileImage,
+  groupImage,
+  groupEventType,
+  affectedUserNames,
 }: NotificationToastProps) {
   toast.custom((tId) => (
     <NotificationToast
@@ -56,8 +62,10 @@ export function showNotificationToast({
       messageId={messageId}
       relatedUser={relatedUser}
       groupName={groupName}
-      senderProfileImage={senderProfileImage} // 🆕
-      groupImage={groupImage} // 🆕
+      senderProfileImage={senderProfileImage}
+      groupImage={groupImage}
+      groupEventType={groupEventType}
+      affectedUserNames={affectedUserNames}
     />
   ), { duration: Infinity });
 }
@@ -72,8 +80,10 @@ function NotificationToast({
   messageId,
   relatedUser,
   groupName,
-  senderProfileImage, // 🆕
-  groupImage, // 🆕
+  senderProfileImage,
+  groupImage,
+  groupEventType,
+  affectedUserNames,
 }: NotificationToastProps & { t: { id: string | number } }) {
   const router = useRouter();
   const setShowMessages = useChatStore((s) => s.setShowMessages);
@@ -91,6 +101,7 @@ function NotificationToast({
       case NotificationType.GroupRequest:
       case NotificationType.GroupRequestApproved:
       case NotificationType.GroupRequestInvited:
+      case NotificationType.GroupEvent:
         if (conversationId != null) {
           if (!showMessages) setShowMessages(true);
           openConversation(conversationId);
@@ -120,6 +131,50 @@ function NotificationToast({
     </span>
   );
 
+  const formatUserList = (userNames: string[]): JSX.Element => {
+    if (userNames.length === 0) {
+      return <span className="font-semibold text-black dark:text-white">someone</span>;
+    }
+    
+    if (userNames.length === 1) {
+      return <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>;
+    }
+    
+    if (userNames.length === 2) {
+      return (
+        <>
+          <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>
+          {" and "}
+          <span className="font-semibold text-black dark:text-white">{userNames[1]}</span>
+        </>
+      );
+    }
+    
+    if (userNames.length === 3) {
+      return (
+        <>
+          <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>
+          {", "}
+          <span className="font-semibold text-black dark:text-white">{userNames[1]}</span>
+          {" and "}
+          <span className="font-semibold text-black dark:text-white">{userNames[2]}</span>
+        </>
+      );
+    }
+    
+    // For 4 eller flere brukere
+    const remainingCount = userNames.length - 2;
+    return (
+      <>
+        <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>
+        {", "}
+        <span className="font-semibold text-black dark:text-white">{userNames[1]}</span>
+        {" and "}
+        <span className="font-semibold text-black dark:text-white">{remainingCount} more</span>
+      </>
+    );
+  };
+
   const getTitle = () => {
     // Style group name samme som sender name
     const styledGroupName = (
@@ -127,6 +182,56 @@ function NotificationToast({
         {groupName ?? "a group"}
       </span>
     );
+
+     if (type === NotificationType.GroupEvent && groupEventType) {
+      switch (groupEventType) {
+        case GroupEventType.MemberInvited:
+          return (
+            <>
+              {name} invited {formatUserList(affectedUserNames || [])} to {styledGroupName}
+            </>
+          );
+          
+        case GroupEventType.MemberAccepted:
+          if (affectedUserNames && affectedUserNames.length > 0) {
+            return (
+              <>
+                {formatUserList(affectedUserNames)} joined {styledGroupName}
+              </>
+            );
+          }
+          return <>{name} joined {styledGroupName}</>;
+          
+        case GroupEventType.MemberLeft:
+          if (affectedUserNames && affectedUserNames.length > 0) {
+            return (
+              <>
+                {formatUserList(affectedUserNames)} left {styledGroupName}
+              </>
+            );
+          }
+          return <>{name} left {styledGroupName}</>;
+          
+        case GroupEventType.MemberRemoved:
+          return (
+            <>
+              {name} removed {formatUserList(affectedUserNames || [])} from {styledGroupName}
+            </>
+          );
+          
+        case GroupEventType.GroupNameChanged:
+          return <>{name} changed the name of {styledGroupName}</>;
+          
+        case GroupEventType.GroupImageChanged:
+          return <>{name} changed the image of {styledGroupName}</>;
+          
+        case GroupEventType.GroupCreated:
+          return <>{name} created {styledGroupName}</>;
+          
+        default:
+          return <>{name} performed an action in {styledGroupName}</>;
+      }
+    }
 
     switch (type) {
       case NotificationType.MessageRequest:
@@ -170,7 +275,7 @@ function NotificationToast({
   };
 
   // 🆕 Vis gruppe-relaterte bilder for GroupRequest
-  const showGroupImages = type === NotificationType.GroupRequest || type === NotificationType.GroupRequestApproved;
+  const showGroupImages = type === NotificationType.GroupRequest || type === NotificationType.GroupRequestApproved || type === NotificationType.GroupEvent;
 
   return (
     <div className="bg-white dark:bg-[#1e2122] border-1 border-[#1C6B1C] shadow-lg rounded-xl p-4 max-w-sm w-full">
