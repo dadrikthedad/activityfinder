@@ -133,32 +133,76 @@ public class GroupNotificationService
     private async Task<List<string>> BuildEventSummariesAsync(List<GroupEvent> events)
     {
         var summaries = new List<string>();
-
-        // Grupper hendelser av samme type og actor for å minimere tekst
-        var groupedEvents = events
-            .GroupBy(e => new { e.EventType, e.ActorUserId })
-            .OrderBy(g => g.Min(e => e.CreatedAt));
-
-        foreach (var group in groupedEvents)
+        
+        // Sorter hendelser etter tidspunkt
+        var sortedEvents = events.OrderBy(e => e.CreatedAt).ToList();
+        
+        for (int i = 0; i < sortedEvents.Count; i++)
         {
-            var firstEvent = group.First();
-            var actorName = firstEvent.ActorUser?.FullName ?? "En bruker";
+            var currentEvent = sortedEvents[i];
+            var actorName = currentEvent.ActorUser?.FullName ?? "En bruker";
+            var currentAffectedUserNames = await GetUserNamesAsync(currentEvent.AffectedUserIds);
             
-            var allAffectedUserIds = group.SelectMany(e => e.AffectedUserIds).Distinct().ToList();
-            var affectedUserNames = await GetUserNamesAsync(allAffectedUserIds);
-
-            string summary = group.Key.EventType switch
+            // 🔄 Konsekutiv gruppering: Samle alle påfølgende like hendelser
+            var allAffectedUsers = new List<string>(currentAffectedUserNames);
+            int eventsToSkip = 0;
+            
+            // 🎯 Sjekk kun hendelser som kan grupperes (invite/remove)
+            if (currentEvent.EventType == GroupEventType.MemberInvited || 
+                currentEvent.EventType == GroupEventType.MemberRemoved)
             {
-                GroupEventType.MemberInvited => $"{actorName} has invited: {string.Join(", ", affectedUserNames)}",
-                GroupEventType.MemberAccepted => BuildAcceptedSummary(affectedUserNames),
-                GroupEventType.MemberLeft => $"{actorName} has left the group",
-                GroupEventType.MemberRemoved => $"{actorName} removed: {string.Join(", ", affectedUserNames)}",
-                GroupEventType.GroupNameChanged => $"{actorName} changed the group name",
-                GroupEventType.GroupImageChanged => $"{actorName} changed the group image",
+                // Se framover og samle alle konsekutive like hendelser fra samme actor
+                for (int j = i + 1; j < sortedEvents.Count; j++)
+                {
+                    var nextEvent = sortedEvents[j];
+                    
+                    // ✅ Samme type OG samme actor = fortsett gruppering
+                    if (nextEvent.EventType == currentEvent.EventType && 
+                        nextEvent.ActorUserId == currentEvent.ActorUserId)
+                    {
+                        var nextAffectedUserNames = await GetUserNamesAsync(nextEvent.AffectedUserIds);
+                        allAffectedUsers.AddRange(nextAffectedUserNames);
+                        eventsToSkip++;
+                    }
+                    else
+                    {
+                        // ❌ Annen type event eller annen actor = stopp gruppering
+                        break;
+                    }
+                }
+            }
+            
+            // 📝 Generer summary
+            string summary = currentEvent.EventType switch
+            {
+                GroupEventType.MemberInvited => 
+                    $"{actorName} has invited: {string.Join(", ", allAffectedUsers.Distinct())}",
+                    
+                GroupEventType.MemberAccepted => 
+                    BuildAcceptedSummary(currentAffectedUserNames),
+                    
+                GroupEventType.MemberLeft => 
+                    $"{actorName} has left the group",
+                    
+                GroupEventType.MemberRemoved => 
+                    $"{actorName} removed: {string.Join(", ", allAffectedUsers.Distinct())}",
+                    
+                GroupEventType.GroupNameChanged => 
+                    $"{actorName} changed the group name",
+                    
+                GroupEventType.GroupImageChanged => 
+                    $"{actorName} changed the group image",
+                    
+                GroupEventType.GroupCreated => 
+                    $"{actorName} created the group",
+                    
                 _ => $"{actorName} performed an action"
             };
 
             summaries.Add(summary);
+            
+            // ⏭️ Hopp over hendelser vi allerede har behandlet
+            i += eventsToSkip;
         }
 
         return summaries;
