@@ -292,6 +292,7 @@ public class GroupConversationController : BaseController
     {
         using var scope = _scopeFactory.CreateScope();
         var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+        var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         // Hent conversation data i background task context
@@ -301,17 +302,23 @@ public class GroupConversationController : BaseController
 
         if (conversation == null) return;
 
-        // 🆕 Hvis dette er en eksisterende gruppe, send SignalR til eksisterende medlemmer
+        // 1️⃣ Opprett GroupEvent for invitasjoner (til godkjente medlemmer)
         if (isExistingGroup)
         {
-            await NotifyExistingGroupMembersAsync(context, conversationId, senderId, groupRequests);
+            var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
+            await groupNotifSvc.CreateGroupEventAsync(
+                GroupEventType.MemberInvited, 
+                conversationId, 
+                senderId, 
+                invitedUserIds);
         }
-    
+
+        // 2️⃣ Send individuelle GroupRequest notifikasjoner til nye inviterte (EKSISTERENDE KODE)
         foreach (var groupRequest in groupRequests)
         {
             try
             {
-                // 1️⃣ Opprett notifikasjon
+                // Opprett notifikasjon
                 var notification = await notifSvc.CreateGroupRequestNotificationAsync(
                     senderId: groupRequest.SenderId,
                     receiverId: groupRequest.ReceiverId,
@@ -320,7 +327,7 @@ public class GroupConversationController : BaseController
                     groupName: conversation.GroupName
                 );
 
-                // 2️⃣ Send SignalR for GroupRequest
+                // Send SignalR for GroupRequest
                 if (notification != null)
                 {
                     await _hubContext.Clients.User(groupRequest.ReceiverId.ToString())
@@ -342,9 +349,15 @@ public class GroupConversationController : BaseController
             }
             catch (Exception ex)
             {
-                // Log feilen, men fortsett med andre invitasjoner
                 Console.WriteLine($"Failed to notify user {groupRequest.ReceiverId} about group invitation: {ex.Message}");
             }
+        }
+
+        // 3️⃣ Send oppdaterte GroupNotifications til godkjente medlemmer (NY KODE)
+        if (isExistingGroup)
+        {
+            await NotifyExistingGroupMembersAsync(context, conversationId, senderId, groupRequests);
+            await SendGroupNotificationUpdatesAsync(conversationId, groupNotifSvc);
         }
     }
 
@@ -471,7 +484,69 @@ public class GroupConversationController : BaseController
             {
                 Console.WriteLine($"Failed to notify existing group members: {ex.Message}");
             }
-}
+        }
+        
+        
+        private async Task SendGroupNotificationUpdatesAsync(int conversationId, GroupNotificationService groupNotifSvc)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    
+            try
+            {
+                // Hent alle godkjente medlemmer
+                var approvedMemberIds = await GetApprovedMembersAsync(context, conversationId);
+
+                foreach (var memberId in approvedMemberIds)
+                {
+                    try
+                    {
+                        // Hent oppdatert GroupNotification for denne brukeren
+                        var notifications = await groupNotifSvc.GetGroupNotificationsAsync(memberId);
+                        var relevantNotification = notifications.FirstOrDefault(n => n.ConversationId == conversationId);
+
+                        if (relevantNotification != null)
+                        {
+                            await _hubContext.Clients.User(memberId.ToString())
+                                .SendAsync("GroupNotificationUpdated", new GroupNotificationUpdateDTO
+                                {
+                                    UserId = memberId,
+                                    Notification = relevantNotification,
+                                    IsNewNotification = relevantNotification.EventCount == 1
+                                });
+
+                            Console.WriteLine($"✅ Sent GroupNotificationUpdated to approved member {memberId} for conversation {conversationId}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"❌ Failed to send group notification update to user {memberId}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Failed to send group notification updates for conversation {conversationId}: {ex.Message}");
+            }
+        }
+        
+        private async Task<List<int>> GetApprovedMembersAsync(ApplicationDbContext context, int conversationId)
+        {
+            // Hent alle participants
+            var allParticipantIds = await context.ConversationParticipants
+                .Where(cp => cp.ConversationId == conversationId)
+                .Select(cp => cp.UserId)
+                .ToListAsync();
+
+            // Hent alle som har pending GroupRequests
+            var pendingUserIds = await context.GroupRequests
+                .Where(gr => gr.ConversationId == conversationId && gr.Status == GroupRequestStatus.Pending)
+                .Select(gr => gr.ReceiverId)
+                .ToListAsync();
+
+            // Godkjente medlemmer = participants som IKKE har pending requests
+            return allParticipantIds.Where(userId => !pendingUserIds.Contains(userId)).ToList();
+        }
     
 }
 

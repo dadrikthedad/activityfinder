@@ -431,6 +431,17 @@ public class MessageNotificationService
                     preview = $"invited someone to join \"{n.Conversation?.GroupName}\"";
                 }
                 break;
+            
+            case NotificationType.GroupEvent: // 🆕 Ny case for GroupEvent
+                if (messageCount > 1)
+                {
+                    preview = $"There are {messageCount} new activities in \"{n.Conversation?.GroupName}\"";
+                }
+                else
+                {
+                    preview = $"New activity in \"{n.Conversation?.GroupName}\"";
+                }
+                break;
 
 
             case NotificationType.MessageRequest:
@@ -511,7 +522,12 @@ public class MessageNotificationService
             IsConversationRejected = n.ConversationId.HasValue &&
                                      rejectedConversations != null &&
                                      rejectedConversations.Contains(n.ConversationId.Value),
-            IsReactionUpdate = isUpdate
+            IsReactionUpdate = isUpdate,
+            
+            // 🆕 Legg til EventSummaries for GroupEvent notifikasjoner
+            EventSummaries = n.Type == NotificationType.GroupEvent 
+                ? null // Dette populeres separat i GetNotifications
+                : null,
         };
     }
 }

@@ -15,12 +15,15 @@ public class MessageNotificationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly MessageNotificationService _notificationService;
+    private readonly GroupNotificationService _groupNotificationService;
 
-    public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService)
+    public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService, GroupNotificationService groupNotificationService)
     {
         _context = context;
         _notificationService = notificationService;
+        _groupNotificationService = groupNotificationService;
     }
+
     
     // Henter alle Notifications
     [HttpGet]
@@ -31,28 +34,35 @@ public class MessageNotificationsController : ControllerBase
         if (page < 1 || pageSize <= 0)
             return BadRequest("Ugyldig pagineringsverdi.");
 
-        var query = _context.MessageNotifications
+        // 1️⃣ Tell totale antall notifications først (for paginering)
+        var totalMessageCount = await _context.MessageNotifications
+            .Where(n => n.UserId == userId)
+            .CountAsync();
+        
+        var groupNotifications = await _groupNotificationService.GetGroupNotificationsAsync(userId);
+        var totalGroupCount = groupNotifications.Count;
+        var totalCount = totalMessageCount + totalGroupCount;
+
+        // 2️⃣ Hent alle notifications for å kunne sortere riktig
+        // (Alternativt: implementer mer avansert paginering hvis du har mange notifications)
+        var messageNotifications = await _context.MessageNotifications
             .Where(n => n.UserId == userId)
             .Include(n => n.FromUser)
+            .ThenInclude(u => u.Profile)
             .Include(n => n.Message!)
             .ThenInclude(m => m.Reactions)
             .Include(n => n.Conversation)
-            .OrderByDescending(n => n.CreatedAt);
-
-        var totalCount = await query.CountAsync();
-        var notifications = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .OrderByDescending(n => n.CreatedAt)
             .ToListAsync();
-        
-        // 👇 Samle conversationId-er fra notificationene
-        var conversationIds = notifications
+
+        // 3️⃣ Bygg rejected conversation set
+        var conversationIds = messageNotifications
             .Where(n => n.ConversationId.HasValue)
             .Select(n => n.ConversationId!.Value)
+            .Concat(groupNotifications.Select(gn => gn.ConversationId))
             .Distinct()
             .ToList();
-        
-        // ✅ Slå opp alle rejected MessageRequests én gang
+
         var rejectedMessageConversations = await _context.MessageRequests
             .Where(r =>
                 conversationIds.Contains(r.ConversationId!.Value) &&
@@ -61,8 +71,7 @@ public class MessageNotificationsController : ControllerBase
             .Select(r => r.ConversationId!.Value)
             .Distinct()
             .ToListAsync();
-        
-        // ✅ Slå opp alle rejected GroupRequests én gang
+
         var rejectedGroupConversations = await _context.GroupRequests
             .Where(gr =>
                 conversationIds.Contains(gr.ConversationId) &&
@@ -71,16 +80,31 @@ public class MessageNotificationsController : ControllerBase
             .Select(gr => gr.ConversationId)
             .Distinct()
             .ToListAsync();
-        
-        // 👇 Gjør om til HashSet for raskt oppslag
+
         var rejectedConversationSet = new HashSet<int>(
             rejectedMessageConversations.Concat(rejectedGroupConversations)
         );
 
+        // 4️⃣ Konverter alle notifikasjoner til samme format
+        var allNotificationDTOs = new List<MessageNotificationDTO>();
 
-        // 👇 Lag DTO-liste med status
-        var dtoList = notifications
-            .Select(n => _notificationService.MapToDTO(n, rejectedConversationSet))
+        // Konverter vanlige notifications
+        allNotificationDTOs.AddRange(
+            messageNotifications.Select(n => _notificationService.MapToDTO(n, rejectedConversationSet))
+        );
+
+        // Konverter group notifications
+        var groupNotificationDTOs = await _groupNotificationService.ConvertGroupNotificationsToMessageDTOsAsync(
+            groupNotifications,
+            rejectedConversationSet
+        );
+        allNotificationDTOs.AddRange(groupNotificationDTOs);
+
+        // 5️⃣ Sorter og paginer
+        var sortedNotifications = allNotificationDTOs
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToList();
 
         return Ok(new
@@ -89,7 +113,7 @@ public class MessageNotificationsController : ControllerBase
             pageSize,
             totalCount,
             totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-            notifications = dtoList
+            notifications = sortedNotifications
         });
     }
     

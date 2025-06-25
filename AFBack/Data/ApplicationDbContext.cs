@@ -29,6 +29,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<GroupRequest> GroupRequests { get; set; }
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
     public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
+    public DbSet<GroupEvent> GroupEvents { get; set; }
+    public DbSet<GroupNotification> GroupNotifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -273,6 +275,73 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<GroupRequest>()
             .HasIndex(gr => new { gr.ReceiverId, gr.ConversationId })
             .IsUnique(true); // Sett til true hvis du vil nekte duplikater
+        
+        // Gruppe events
+         modelBuilder.Entity<GroupEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.EventType)
+                .IsRequired()
+                .HasConversion<int>();
+            
+            entity.Property(e => e.AffectedUserIdsJson)
+                .HasMaxLength(2000)
+                .IsRequired();
+            
+            entity.Property(e => e.Metadata)
+                .HasMaxLength(4000);
+
+            // Relasjoner
+            entity.HasOne(e => e.Conversation)
+                .WithMany()
+                .HasForeignKey(e => e.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.ActorUser)
+                .WithMany()
+                .HasForeignKey(e => e.ActorUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Ignorer computed property
+            entity.Ignore(e => e.AffectedUserIds);
+
+            // Indekser
+            entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
+            entity.HasIndex(e => e.ActorUserId);
+        });
+
+        // Konfigurer GroupNotification
+        modelBuilder.Entity<GroupNotification>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            entity.Property(e => e.GroupEventIdsJson)
+                .HasMaxLength(4000)
+                .IsRequired();
+
+            // Relasjoner
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Conversation)
+                .WithMany()
+                .HasForeignKey(e => e.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ignorer computed property
+            entity.Ignore(e => e.GroupEventIds);
+
+            // Unique constraint for uleste notifikasjoner (PostgreSQL syntax)
+            entity.HasIndex(e => new { e.UserId, e.ConversationId, e.IsRead })
+                .IsUnique()
+                .HasFilter("\"IsRead\" = false");
+
+            // Andre indekser
+            entity.HasIndex(e => new { e.UserId, e.IsRead, e.LastUpdatedAt });
+        });
         
     }
     // Sikre oppdatering av FullName ved oppdatering av first, middle eller lastname

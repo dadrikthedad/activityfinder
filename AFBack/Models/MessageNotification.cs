@@ -35,4 +35,5 @@ public enum NotificationType
     GroupRequest = 5,
     GroupRequestApproved = 6,
     GroupRequestInvited = 7, // For å la de andre brukerne vite om nye invitasjoner
+    GroupEvent = 8,
 }

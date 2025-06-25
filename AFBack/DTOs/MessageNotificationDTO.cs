@@ -31,4 +31,6 @@ public class MessageNotificationDTO
     public int? MessageCount { get; set; }
     
     public bool? IsConversationRejected { get; set; }
+    // Visning av hendelser
+    public List<string>? EventSummaries { get; set; }
 }
