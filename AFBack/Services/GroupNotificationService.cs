@@ -38,18 +38,35 @@ public class GroupNotificationService
 
     private async Task UpdateGroupNotificationsAsync(int conversationId, int newEventId)
     {
+        Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: UpdateGroupNotifications START - ConversationId: {conversationId}, EventId: {newEventId}");
+        
         // Finn alle godkjente medlemmer i gruppen (ikke pending)
         var approvedMemberIds = await GetApprovedMembersAsync(conversationId);
+        Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: Approved members: [{string.Join(", ", approvedMemberIds)}]");
 
         foreach (var memberId in approvedMemberIds)
         {
+            Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: Processing member {memberId}");
+            
             // Finn eller opprett GroupNotification for denne brukeren og gruppen
             var notification = await _context.GroupNotifications
                 .FirstOrDefaultAsync(gn => gn.UserId == memberId && gn.ConversationId == conversationId && !gn.IsRead);
 
+            Console.WriteLine($"🐛🐛🐛🐛🐛🐛 DEBUG: Query result for user {memberId}: {(notification != null ? $"Found ID {notification.Id}" : "NULL")}");
+            
+            // DEBUG: Sjekk om det finnes NOEN notifications for denne brukeren (även lästa)
+            var allNotifications = await _context.GroupNotifications
+                .Where(gn => gn.UserId == memberId && gn.ConversationId == conversationId)
+                .ToListAsync();
+            Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: All notifications for user {memberId}: {allNotifications.Count} total");
+            foreach (var n in allNotifications)
+            {
+                Console.WriteLine($"🐛🐛🐛🐛🐛🐛 DEBUG:   - ID: {n.Id}, IsRead: {n.IsRead}, EventCount: {n.EventCount}, Events: {n.GroupEventIdsJson}");
+            }
+
             if (notification == null)
             {
-                // Opprett ny GroupNotification
+                Console.WriteLine($"🐛🐛🐛🐛🐛🐛 DEBUG: Creating NEW notification for user {memberId}");
                 notification = new GroupNotification
                 {
                     UserId = memberId,
@@ -64,15 +81,25 @@ public class GroupNotificationService
             }
             else
             {
-                // Oppdater eksisterende GroupNotification
+                Console.WriteLine($"🐛 DEBUG: Updating EXISTING notification {notification.Id} for user {memberId}");
+                Console.WriteLine($"🐛 DEBUG: BEFORE - EventCount: {notification.EventCount}, Events: {notification.GroupEventIdsJson}");
+    
+                // Deserializa befintlig lista
+                var existingEventIds = JsonSerializer.Deserialize<List<int>>(notification.GroupEventIdsJson);
+                existingEventIds.Add(newEventId);
+    
+                // Uppdatera direkt
                 notification.EventCount++;
                 notification.LastUpdatedAt = DateTime.UtcNow;
-                notification.GroupEventIds.Add(newEventId);
-                notification.GroupEventIdsJson = JsonSerializer.Serialize(notification.GroupEventIds);
+                notification.GroupEventIdsJson = JsonSerializer.Serialize(existingEventIds);
+    
+                Console.WriteLine($"🐛 DEBUG: AFTER - EventCount: {notification.EventCount}, Events: {notification.GroupEventIdsJson}");
             }
         }
 
+        Console.WriteLine($"🐛 DEBUG: Saving changes...");
         await _context.SaveChangesAsync();
+        Console.WriteLine($"🐛 DEBUG: UpdateGroupNotifications COMPLETE");
     }
 
     private async Task<List<int>> GetApprovedMembersAsync(int conversationId)
