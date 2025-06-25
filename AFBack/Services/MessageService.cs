@@ -447,17 +447,31 @@ public class MessageService : IMessageService
 
         await _context.SaveChangesAsync();
 
-        // ✅ Lag notifikasjon (bruker senderId fra over)
-        var notification = isGroupRequest
-            ? await _messageNotificationService.CreateGroupRequestApprovedNotificationAsync(
-                receiverId, senderId, conversationId)
-            : await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
+        if (isGroupRequest)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
+        
+            // 🆕 Opprett GroupEvent for MemberAccepted - dette vil automatisk:
+            // - Opprette GroupEvent
+            // - Oppdatere GroupNotifications for alle godkjente medlemmer
+            // - Sende SendGroupNotificationUpdatesAsync til alle godkjente medlemmer
+            await groupNotifSvc.CreateGroupEventAsync(
+                GroupEventType.MemberAccepted,
+                conversationId,
+                receiverId, // receiverId er den som aksepterte
+                new List<int> { receiverId } // affected user er den som aksepterte
+            );
+        }
+        else
+        {
+            // ✅ Håndter MessageRequest som før
+            var notification = await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
                 receiverId, senderId, conversationId);
 
-        // ✅ Send notifikasjon
-        var signalREvent = isGroupRequest ? "GroupRequestApproved" : "MessageRequestApproved";
-        await _hubContext.Clients.User(senderId.ToString())
-            .SendAsync(signalREvent, notification);
+            await _hubContext.Clients.User(senderId.ToString())
+                .SendAsync("MessageRequestApproved", notification);
+        }
     }
 
     // Søke etter meldinger til en samtale

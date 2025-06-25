@@ -31,6 +31,10 @@ public class MessageNotificationDTO
     public int? MessageCount { get; set; }
     
     public bool? IsConversationRejected { get; set; }
+    
+    public int? EventCount { get; set; }            // For GroupEvent notifikasjoner
+    
+    public DateTime? LastUpdatedAt { get; set; }
     // Visning av hendelser
     public List<string>? EventSummaries { get; set; }
 }

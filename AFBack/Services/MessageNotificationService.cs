@@ -390,7 +390,10 @@ public class MessageNotificationService
     public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)
     {
         string preview;
-        var messageCount = n.MessageCount ?? 0;
+        
+        var displayCount = n.Type == NotificationType.GroupEvent 
+            ? (n.EventCount ?? 0)    // For GroupEvent: bruk EventCount
+            : (n.MessageCount ?? 0);
 
         switch (n.Type)
         {
@@ -399,16 +402,16 @@ public class MessageNotificationService
                 break;
             
             case NotificationType.GroupRequestApproved:
-                if (messageCount > 1)
+                if (displayCount > 1)
                 {
                     // Flere medlemmer har blitt med
-                    if (messageCount == 2)
+                    if (displayCount == 2)
                     {
                         preview = $"and 1 other person have joined \"{n.Conversation?.GroupName}\"";
                     }
                     else
                     {
-                        preview = $"and {messageCount - 1} others have joined \"{n.Conversation?.GroupName}\"";
+                        preview = $"and {displayCount - 1} others have joined \"{n.Conversation?.GroupName}\"";
                     }
                 }
                 else
@@ -419,11 +422,11 @@ public class MessageNotificationService
                 break;
             
             
-            case NotificationType.GroupRequestInvited: // 🆕 Ny notifikasjon type
-                if (messageCount > 1)
+            case NotificationType.GroupRequestInvited: 
+                if (displayCount > 1)
                 {
                     // Flere brukere invitert
-                    preview = $"invited {messageCount} people to join \"{n.Conversation?.GroupName}\"";
+                    preview = $"invited {displayCount} people to join \"{n.Conversation?.GroupName}\"";
                 }
                 else
                 {
@@ -432,10 +435,10 @@ public class MessageNotificationService
                 }
                 break;
             
-            case NotificationType.GroupEvent: // 🆕 Ny case for GroupEvent
-                if (messageCount > 1)
+            case NotificationType.GroupEvent: 
+                if (displayCount > 1)
                 {
-                    preview = $"There are {messageCount} new activities in \"{n.Conversation?.GroupName}\"";
+                    preview = $"There are {displayCount} new activities in \"{n.Conversation?.GroupName}\"";
                 }
                 else
                 {
@@ -450,7 +453,7 @@ public class MessageNotificationService
             
             
             
-            case NotificationType.GroupRequest: // 🆕 Legg til denne
+            case NotificationType.GroupRequest: 
                 preview = $"invited you to join \"{n.Conversation?.GroupName}\"";
                 break;
 
@@ -464,10 +467,10 @@ public class MessageNotificationService
                 if (n.Conversation?.IsGroup == true)
                 {
                     // Gruppemeldinger
-                    if (messageCount > 1)
+                    if (displayCount > 1)
                     {
                         // Flere meldinger: UTEN sender-navn
-                        preview = $"There are {messageCount} new messages in {n.Conversation.GroupName}";
+                        preview = $"There are {displayCount} new messages in {n.Conversation.GroupName}";
                     }
                     else
                     {
@@ -480,9 +483,9 @@ public class MessageNotificationService
                 else
                 {
                     // Private meldinger: UTEN sender-navn (frontend legger til med <strong>)
-                    if (messageCount > 1)
+                    if (displayCount > 1)
                     {
-                        preview = $"has sent you {messageCount} messages";
+                        preview = $"has sent you {displayCount} messages";
                     }
                     else
                     {
@@ -524,9 +527,10 @@ public class MessageNotificationService
                                      rejectedConversations.Contains(n.ConversationId.Value),
             IsReactionUpdate = isUpdate,
             
-            // 🆕 Legg til EventSummaries for GroupEvent notifikasjoner
+            EventCount = n.EventCount,
+            LastUpdatedAt = n.LastUpdatedAt,
             EventSummaries = n.Type == NotificationType.GroupEvent 
-                ? null // Dette populeres separat i GetNotifications
+                ? null // Dette populeres i GroupNotificationService.ConvertToMessageNotificationDTOAsync
                 : null,
         };
     }

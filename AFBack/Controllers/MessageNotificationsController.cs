@@ -34,17 +34,12 @@ public class MessageNotificationsController : ControllerBase
         if (page < 1 || pageSize <= 0)
             return BadRequest("Ugyldig pagineringsverdi.");
 
-        // 1️⃣ Tell totale antall notifications først (for paginering)
-        var totalMessageCount = await _context.MessageNotifications
+        // 1️⃣ Tell totale antall notifications (nå kun fra MessageNotifications tabellen)
+        var totalCount = await _context.MessageNotifications
             .Where(n => n.UserId == userId)
             .CountAsync();
-        
-        var groupNotifications = await _groupNotificationService.GetGroupNotificationsAsync(userId);
-        var totalGroupCount = groupNotifications.Count;
-        var totalCount = totalMessageCount + totalGroupCount;
 
-        // 2️⃣ Hent alle notifications for å kunne sortere riktig
-        // (Alternativt: implementer mer avansert paginering hvis du har mange notifications)
+        // 2️⃣ Hent alle notifications inkludert GroupEvent notifikasjoner
         var messageNotifications = await _context.MessageNotifications
             .Where(n => n.UserId == userId)
             .Include(n => n.FromUser)
@@ -53,13 +48,14 @@ public class MessageNotificationsController : ControllerBase
             .ThenInclude(m => m.Reactions)
             .Include(n => n.Conversation)
             .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         // 3️⃣ Bygg rejected conversation set
         var conversationIds = messageNotifications
             .Where(n => n.ConversationId.HasValue)
             .Select(n => n.ConversationId!.Value)
-            .Concat(groupNotifications.Select(gn => gn.ConversationId))
             .Distinct()
             .ToList();
 
@@ -85,27 +81,26 @@ public class MessageNotificationsController : ControllerBase
             rejectedMessageConversations.Concat(rejectedGroupConversations)
         );
 
-        // 4️⃣ Konverter alle notifikasjoner til samme format
+        // 4️⃣ Konverter alle notifikasjoner til DTO format
         var allNotificationDTOs = new List<MessageNotificationDTO>();
 
-        // Konverter vanlige notifications
-        allNotificationDTOs.AddRange(
-            messageNotifications.Select(n => _notificationService.MapToDTO(n, rejectedConversationSet))
-        );
-
-        // Konverter group notifications
-        var groupNotificationDTOs = await _groupNotificationService.ConvertGroupNotificationsToMessageDTOsAsync(
-            groupNotifications,
-            rejectedConversationSet
-        );
-        allNotificationDTOs.AddRange(groupNotificationDTOs);
-
-        // 5️⃣ Sorter og paginer
-        var sortedNotifications = allNotificationDTOs
-            .OrderByDescending(n => n.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
+        foreach (var notification in messageNotifications)
+        {
+            MessageNotificationDTO dto;
+            
+            if (notification.Type == NotificationType.GroupEvent)
+            {
+                // 🆕 Bruk GroupNotificationService for GroupEvent notifikasjoner
+                dto = await _groupNotificationService.ConvertToMessageNotificationDTOAsync(notification);
+            }
+            else
+            {
+                // Vanlige notifikasjoner
+                dto = _notificationService.MapToDTO(notification, rejectedConversationSet);
+            }
+            
+            allNotificationDTOs.Add(dto);
+        }
 
         return Ok(new
         {
@@ -113,7 +108,7 @@ public class MessageNotificationsController : ControllerBase
             pageSize,
             totalCount,
             totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-            notifications = sortedNotifications
+            notifications = allNotificationDTOs
         });
     }
     

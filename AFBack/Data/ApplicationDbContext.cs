@@ -30,7 +30,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
     public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
     public DbSet<GroupEvent> GroupEvents { get; set; }
-    public DbSet<GroupNotification> GroupNotifications { get; set; }
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -230,29 +230,60 @@ public class ApplicationDbContext : DbContext
         
         // MessageNotificaitons
         
-        modelBuilder.Entity<MessageNotification>()
-            .HasOne(n => n.User)
-            .WithMany() // eller .WithMany(u => u.Notifications) hvis du har det
-            .HasForeignKey(n => n.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<MessageNotification>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+    
+            // Type konvertering
+            entity.Property(e => e.Type)
+                .IsRequired()
+                .HasConversion<int>();
+    
+            // 🆕 Nye felter for GroupEvent notifikasjoner
+            entity.Property(e => e.GroupEventIdsJson)
+                .HasMaxLength(4000)
+                .IsRequired(false); // Kun påkrevd for GroupEvent notifikasjoner
+    
+            entity.Property(e => e.EventCount)
+                .IsRequired(false);
+    
+            entity.Property(e => e.LastUpdatedAt)
+                .IsRequired(false);
+    
+            // Relasjoner
+            entity.HasOne(n => n.User)
+                .WithMany() // eller .WithMany(u => u.Notifications) hvis du har det
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<MessageNotification>()
-            .HasOne(n => n.FromUser)
-            .WithMany()
-            .HasForeignKey(n => n.FromUserId)
-            .OnDelete(DeleteBehavior.NoAction); // Unngå slettekjede
+            entity.HasOne(n => n.FromUser)
+                .WithMany()
+                .HasForeignKey(n => n.FromUserId)
+                .OnDelete(DeleteBehavior.NoAction); // Unngå slettekjede
 
-        modelBuilder.Entity<MessageNotification>()
-            .HasOne(n => n.Message)
-            .WithMany()
-            .HasForeignKey(n => n.MessageId)
-            .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(n => n.Message)
+                .WithMany()
+                .HasForeignKey(n => n.MessageId)
+                .OnDelete(DeleteBehavior.SetNull);
 
-        modelBuilder.Entity<MessageNotification>()
-            .HasOne(n => n.Conversation)
-            .WithMany()
-            .HasForeignKey(n => n.ConversationId)
-            .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(n => n.Conversation)
+                .WithMany()
+                .HasForeignKey(n => n.ConversationId)
+                .OnDelete(DeleteBehavior.SetNull);
+    
+            // 🆕 Ignorer computed property
+            entity.Ignore(e => e.GroupEventIds);
+    
+            // 🆕 Indekser for GroupEvent notifikasjoner
+            entity.HasIndex(e => new { e.UserId, e.Type, e.IsRead, e.LastUpdatedAt });
+            entity.HasIndex(e => new { e.ConversationId, e.Type, e.IsRead });
+    
+            // 🆕 Unique constraint for uleste GroupEvent notifikasjoner
+            entity.HasIndex(e => new { e.UserId, e.ConversationId, e.Type, e.IsRead })
+                .IsUnique()
+                .HasFilter("\"Type\" = 8 AND \"IsRead\" = false"); // 8 = NotificationType.GroupEvent
+        });
+
 
         modelBuilder.Entity<GroupRequest>()
             .HasOne(gr => gr.Sender)
@@ -309,38 +340,6 @@ public class ApplicationDbContext : DbContext
             // Indekser
             entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
             entity.HasIndex(e => e.ActorUserId);
-        });
-
-        // Konfigurer GroupNotification
-        modelBuilder.Entity<GroupNotification>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            
-            entity.Property(e => e.GroupEventIdsJson)
-                .HasMaxLength(4000)
-                .IsRequired();
-
-            // Relasjoner
-            entity.HasOne(e => e.User)
-                .WithMany()
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.Conversation)
-                .WithMany()
-                .HasForeignKey(e => e.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Ignorer computed property
-            entity.Ignore(e => e.GroupEventIds);
-
-            // Unique constraint for uleste notifikasjoner (PostgreSQL syntax)
-            entity.HasIndex(e => new { e.UserId, e.ConversationId, e.IsRead })
-                .IsUnique()
-                .HasFilter("\"IsRead\" = false");
-
-            // Andre indekser
-            entity.HasIndex(e => new { e.UserId, e.IsRead, e.LastUpdatedAt });
         });
         
     }

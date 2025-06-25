@@ -3,17 +3,96 @@ using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.DTOs;
+using AFBack.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AFBack.Services;
 
 public class GroupNotificationService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IHubContext<ChatHub> _hubContext;
 
-    public GroupNotificationService(ApplicationDbContext context)
+    public GroupNotificationService(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
     }
+    
+    /// <summary>
+    /// Sender oppdaterte GroupNotifications til alle godkjente medlemmer i en samtale
+    /// </summary>
+    /// <param name="conversationId">ID for samtalen som skal oppdateres</param>
+    /// <param name="excludeUserIds">Brukere som skal ekskluderes fra oppdateringen (valgfritt)</param>
+   public async Task SendGroupNotificationUpdatesAsync(int conversationId, List<int>? excludeUserIds = null,GroupEventType? eventType = null, List<int>? affectedUserIds = null )
+    {
+        try
+        {
+            // Hent alle godkjente medlemmer
+            var approvedMemberIds = await GetApprovedMembersAsync(conversationId);
+            
+            // Ekskluder spesifiserte brukere hvis angitt
+            if (excludeUserIds?.Any() == true)
+            {
+                approvedMemberIds = approvedMemberIds.Where(id => !excludeUserIds.Contains(id)).ToList();
+            }
+            
+            var affectedUserNames = new List<string>();
+            if (affectedUserIds?.Any() == true)
+            {
+                affectedUserNames = await _context.Users
+                    .Where(u => affectedUserIds.Contains(u.Id))
+                    .Select(u => u.FullName)
+                    .ToListAsync();
+            }
+
+
+            foreach (var memberId in approvedMemberIds)
+            {
+                try
+                {
+                    // 🆕 Hent MessageNotification direkte (GroupEvent type)
+                    var notification = await _context.MessageNotifications
+                        .Include(n => n.Conversation)
+                        .FirstOrDefaultAsync(n => n.UserId == memberId && 
+                                                 n.ConversationId == conversationId && 
+                                                 n.Type == NotificationType.GroupEvent && 
+                                                 !n.IsRead);
+
+                    if (notification != null)
+                    {
+                        // Konverter til DTO med event summaries
+                        var messageNotificationDTO = await ConvertToMessageNotificationDTOAsync(notification);
+                        
+                        if (messageNotificationDTO != null)
+                        {
+                            await _hubContext.Clients.User(memberId.ToString())
+                                .SendAsync("GroupNotificationUpdated", new GroupNotificationUpdateDTO
+                                {
+                                    UserId = memberId,
+                                    Notification = messageNotificationDTO,
+                                    IsNewNotification = notification.EventCount == 1,
+                                    GroupEventType = eventType ?? GroupEventType.MemberInvited,
+                                    AffectedUserNames = affectedUserNames 
+                                });
+
+                            Console.WriteLine($"✅ Sent GroupNotificationUpdated to member {memberId} for conversation {conversationId}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Failed to send group notification update to user {memberId}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Failed to send group notification updates for conversation {conversationId}: {ex.Message}");
+        }
+    }
+    
+
 
     public async Task CreateGroupEventAsync(GroupEventType eventType, int conversationId, int actorUserId, List<int> affectedUserIds, string? metadata = null)
     {
@@ -34,72 +113,106 @@ public class GroupNotificationService
 
         // 2️⃣ Oppdater GroupNotifications for relevante brukere
         await UpdateGroupNotificationsAsync(conversationId, groupEvent.Id);
+        
+        // 3️⃣ Send automatisk GroupNotificationUpdates til alle godkjente medlemmer
+        await SendGroupNotificationUpdatesAsync(conversationId, new List<int> { actorUserId }, eventType, affectedUserIds);
     }
 
     private async Task UpdateGroupNotificationsAsync(int conversationId, int newEventId)
     {
-        Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: UpdateGroupNotifications START - ConversationId: {conversationId}, EventId: {newEventId}");
-        
         // Finn alle godkjente medlemmer i gruppen (ikke pending)
         var approvedMemberIds = await GetApprovedMembersAsync(conversationId);
-        Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: Approved members: [{string.Join(", ", approvedMemberIds)}]");
 
         foreach (var memberId in approvedMemberIds)
         {
-            Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: Processing member {memberId}");
+            // 🆕 Finn eller opprett MessageNotification (GroupEvent type)
+            var notification = await _context.MessageNotifications
+                .FirstOrDefaultAsync(n => n.UserId == memberId && 
+                                          n.ConversationId == conversationId && 
+                                          n.Type == NotificationType.GroupEvent && 
+                                          !n.IsRead);
             
-            // Finn eller opprett GroupNotification for denne brukeren og gruppen
-            var notification = await _context.GroupNotifications
-                .FirstOrDefaultAsync(gn => gn.UserId == memberId && gn.ConversationId == conversationId && !gn.IsRead);
-
-            Console.WriteLine($"🐛🐛🐛🐛🐛🐛 DEBUG: Query result for user {memberId}: {(notification != null ? $"Found ID {notification.Id}" : "NULL")}");
-            
-            // DEBUG: Sjekk om det finnes NOEN notifications for denne brukeren (även lästa)
-            var allNotifications = await _context.GroupNotifications
-                .Where(gn => gn.UserId == memberId && gn.ConversationId == conversationId)
-                .ToListAsync();
-            Console.WriteLine($"🐛🐛🐛🐛🐛 DEBUG: All notifications for user {memberId}: {allNotifications.Count} total");
-            foreach (var n in allNotifications)
-            {
-                Console.WriteLine($"🐛🐛🐛🐛🐛🐛 DEBUG:   - ID: {n.Id}, IsRead: {n.IsRead}, EventCount: {n.EventCount}, Events: {n.GroupEventIdsJson}");
-            }
-
             if (notification == null)
             {
-                Console.WriteLine($"🐛🐛🐛🐛🐛🐛 DEBUG: Creating NEW notification for user {memberId}");
-                notification = new GroupNotification
+                // Opprett ny MessageNotification
+                notification = new MessageNotification
                 {
                     UserId = memberId,
                     ConversationId = conversationId,
+                    Type = NotificationType.GroupEvent,
                     EventCount = 1,
                     LastUpdatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow,
                     IsRead = false,
-                    GroupEventIds = new List<int> { newEventId },
-                    GroupEventIdsJson = JsonSerializer.Serialize(new List<int> { newEventId })
+                    GroupEventIds = new List<int> { newEventId }
                 };
-                _context.GroupNotifications.Add(notification);
+                _context.MessageNotifications.Add(notification);
             }
             else
             {
-                Console.WriteLine($"🐛 DEBUG: Updating EXISTING notification {notification.Id} for user {memberId}");
-                Console.WriteLine($"🐛 DEBUG: BEFORE - EventCount: {notification.EventCount}, Events: {notification.GroupEventIdsJson}");
-    
-                // Deserializa befintlig lista
-                var existingEventIds = JsonSerializer.Deserialize<List<int>>(notification.GroupEventIdsJson);
+                // Oppdater eksisterende notification
+                var existingEventIds = notification.GroupEventIds;
                 existingEventIds.Add(newEventId);
-    
-                // Uppdatera direkt
-                notification.EventCount++;
+                
+                notification.EventCount = (notification.EventCount ?? 0) + 1;
                 notification.LastUpdatedAt = DateTime.UtcNow;
-                notification.GroupEventIdsJson = JsonSerializer.Serialize(existingEventIds);
-    
-                Console.WriteLine($"🐛 DEBUG: AFTER - EventCount: {notification.EventCount}, Events: {notification.GroupEventIdsJson}");
+                notification.GroupEventIds = existingEventIds; // Trigger setter
             }
         }
-
-        Console.WriteLine($"🐛 DEBUG: Saving changes...");
+        
         await _context.SaveChangesAsync();
-        Console.WriteLine($"🐛 DEBUG: UpdateGroupNotifications COMPLETE");
+    }
+    
+    public async Task<MessageNotificationDTO> ConvertToMessageNotificationDTOAsync(MessageNotification notification)
+    {
+        // Finn den siste hendelsen for å få ActorUser info
+        var lastEvent = await _context.GroupEvents
+            .Include(ge => ge.ActorUser)
+            .ThenInclude(u => u.Profile)
+            .Where(ge => notification.GroupEventIds.Contains(ge.Id))
+            .OrderByDescending(ge => ge.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        // Bygg event summaries
+        var events = await _context.GroupEvents
+            .Include(ge => ge.ActorUser)
+            .Where(ge => notification.GroupEventIds.Contains(ge.Id))
+            .OrderBy(ge => ge.CreatedAt)
+            .ToListAsync();
+
+        var eventSummaries = await BuildEventSummariesAsync(events);
+
+        // Sjekk rejected status
+        var isRejected = await _context.GroupRequests
+            .AnyAsync(gr => gr.ConversationId == notification.ConversationId && 
+                           gr.ReceiverId == notification.UserId && 
+                           gr.Status == GroupRequestStatus.Rejected);
+
+        var groupName = notification.Conversation?.GroupName ?? "Unknown Group";
+        
+        return new MessageNotificationDTO
+        {
+            Id = notification.Id,
+            Type = NotificationType.GroupEvent,
+            CreatedAt = notification.LastUpdatedAt ?? notification.CreatedAt,
+            IsRead = notification.IsRead,
+            ReadAt = notification.ReadAt,
+            MessageId = null,
+            ConversationId = notification.ConversationId,
+            SenderName = lastEvent?.ActorUser?.FullName,
+            SenderId = lastEvent?.ActorUserId,
+            SenderProfileImageUrl = lastEvent?.ActorUser?.Profile?.ProfileImageUrl,
+            GroupName = groupName,
+            GroupImageUrl = notification.Conversation?.GroupImageUrl,
+            MessagePreview = (notification.EventCount ?? 0) > 1 
+                ? $"There are {notification.EventCount} new activities in \"{groupName}\""
+                : $"New activity in \"{groupName}\"",
+            ReactionEmoji = null,
+            MessageCount = notification.EventCount,
+            IsConversationRejected = isRejected,
+            IsReactionUpdate = false,
+            EventSummaries = eventSummaries
+        };
     }
 
     private async Task<List<int>> GetApprovedMembersAsync(int conversationId)
@@ -118,43 +231,6 @@ public class GroupNotificationService
 
         // Godkjente medlemmer = participants som IKKE har pending requests
         return allParticipantIds.Where(userId => !pendingUserIds.Contains(userId)).ToList();
-    }
-
-    public async Task<List<GroupNotificationDTO>> GetGroupNotificationsAsync(int userId)
-    {
-        var notifications = await _context.GroupNotifications
-            .Include(gn => gn.Conversation)
-            .Where(gn => gn.UserId == userId && !gn.IsRead && gn.EventCount > 0)
-            .OrderByDescending(gn => gn.LastUpdatedAt)
-            .ToListAsync();
-
-        var result = new List<GroupNotificationDTO>();
-
-        foreach (var notification in notifications)
-        {
-            // Hent alle gruppehendelser for denne notifikasjonen
-            var events = await _context.GroupEvents
-                .Include(ge => ge.ActorUser)
-                .Where(ge => notification.GroupEventIds.Contains(ge.Id))
-                .OrderBy(ge => ge.CreatedAt)
-                .ToListAsync();
-
-            var eventSummaries = await BuildEventSummariesAsync(events);
-
-            result.Add(new GroupNotificationDTO
-            {
-                Id = notification.Id,
-                ConversationId = notification.ConversationId,
-                GroupName = notification.Conversation?.GroupName ?? "Ukjent gruppe",
-                GroupImageUrl = notification.Conversation?.GroupImageUrl,
-                EventCount = notification.EventCount,
-                LastUpdatedAt = notification.LastUpdatedAt,
-                EventSummaries = eventSummaries,
-                GroupEventIds = notification.GroupEventIds // 🆕 Legg til GroupEventIds
-            });
-        }
-
-        return result;
     }
 
     private async Task<List<string>> BuildEventSummariesAsync(List<GroupEvent> events)
@@ -261,61 +337,5 @@ public class GroupNotificationService
             .ToListAsync();
     }
 
-    public async Task MarkGroupNotificationAsReadAsync(int notificationId, int userId)
-    {
-        var notification = await _context.GroupNotifications
-            .FirstOrDefaultAsync(gn => gn.Id == notificationId && gn.UserId == userId);
-
-        if (notification != null)
-        {
-            notification.IsRead = true;
-            notification.ReadAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
-    }
-    
-    public async Task<List<MessageNotificationDTO>> ConvertGroupNotificationsToMessageDTOsAsync(List<GroupNotificationDTO> groupNotifications, HashSet<int> rejectedConversationSet)
-    {
-        var result = new List<MessageNotificationDTO>();
-    
-        foreach (var groupNotification in groupNotifications)
-        {
-            // Finn den siste hendelsen for å få ActorUser info
-            var lastEvent = await _context.GroupEvents
-                .Include(ge => ge.ActorUser)
-                .ThenInclude(u => u.Profile)
-                .Where(ge => groupNotification.GroupEventIds.Contains(ge.Id))
-                .OrderByDescending(ge => ge.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            var dto = new MessageNotificationDTO
-            {
-                Id = groupNotification.Id,
-                Type = NotificationType.GroupEvent,
-                CreatedAt = groupNotification.LastUpdatedAt,
-                IsRead = false, // GroupNotifications har sin egen IsRead
-                ReadAt = null,
-                MessageId = null,
-                ConversationId = groupNotification.ConversationId,
-                SenderName = lastEvent?.ActorUser?.FullName,
-                SenderId = lastEvent?.ActorUserId,
-                SenderProfileImageUrl = lastEvent?.ActorUser?.Profile?.ProfileImageUrl,
-                GroupName = groupNotification.GroupName,
-                GroupImageUrl = groupNotification.GroupImageUrl,
-                MessagePreview = groupNotification.EventCount > 1 
-                    ? $"There are {groupNotification.EventCount} new activities in \"{groupNotification.GroupName}\""
-                    : $"New activity in \"{groupNotification.GroupName}\"",
-                ReactionEmoji = null,
-                MessageCount = groupNotification.EventCount,
-                IsConversationRejected = rejectedConversationSet.Contains(groupNotification.ConversationId),
-                IsReactionUpdate = false,
-                EventSummaries = groupNotification.EventSummaries
-            };
-
-            result.Add(dto);
-        }
-
-        return result;
-    }
     
 }

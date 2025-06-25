@@ -40,43 +40,6 @@ public class GroupEvent
     }
 }
 
-public class GroupNotification
-{
-    public int Id { get; set; }
-    
-    [Required]
-    public int UserId { get; set; }
-    public User User { get; set; } = null!;
-    
-    [Required]
-    public int ConversationId { get; set; }
-    public Conversation Conversation { get; set; } = null!;
-    
-    public int EventCount { get; set; } = 0;
-    
-    public DateTime LastUpdatedAt { get; set; } = DateTime.UtcNow;
-    
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    
-    public bool IsRead { get; set; } = false;
-    public DateTime? ReadAt { get; set; }
-    
-    // JSON-serialisert liste for EF Core
-    [Required]
-    [MaxLength(4000)]
-    public string GroupEventIdsJson { get; set; } = "[]";
-    
-    // Computed property - ikke lagret i database
-    [NotMapped]
-    public List<int> GroupEventIds
-    {
-        get => string.IsNullOrEmpty(GroupEventIdsJson) 
-            ? new List<int>() 
-            : JsonSerializer.Deserialize<List<int>>(GroupEventIdsJson) ?? new List<int>();
-        set => GroupEventIdsJson = JsonSerializer.Serialize(value);
-    }
-}
-
 public enum GroupEventType
 {
     MemberInvited = 1,      // Brukere invitert til gruppen

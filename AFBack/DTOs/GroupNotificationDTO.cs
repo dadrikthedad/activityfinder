@@ -1,22 +1,16 @@
-namespace AFBack.DTOs;
+using AFBack.Models;
 
-public class GroupNotificationDTO
-{
-    public int Id { get; set; }
-    public int ConversationId { get; set; }
-    public string GroupName { get; set; } = string.Empty;
-    public string? GroupImageUrl { get; set; }
-    public int EventCount { get; set; }
-    public DateTime LastUpdatedAt { get; set; }
-    public List<string> EventSummaries { get; set; } = new();
-    
-    public List<int> GroupEventIds { get; set; } = new();
-}
+namespace AFBack.DTOs;
 
 // SignalR DTO for å sende live oppdateringer
 public class GroupNotificationUpdateDTO
 {
     public int UserId { get; set; }
-    public GroupNotificationDTO Notification { get; set; } = null!;
+    public MessageNotificationDTO Notification { get; set; } = null!;
     public bool IsNewNotification { get; set; } // true hvis dette er en helt ny notifikasjon
+    
+    public GroupEventType GroupEventType { get; set; } // Forteller hvilken eventtype det er til frontend for 
+    
+    public List<string> AffectedUserNames { get; set; } = new(); // Påvirkede brukere, de som har blitt invitert
 }
+
