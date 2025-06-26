@@ -47,6 +47,7 @@ public class MessageNotificationsController : ControllerBase
             .Include(n => n.Message!)
             .ThenInclude(m => m.Reactions)
             .Include(n => n.Conversation)
+            .Include(n => n.GroupEvents) // 🆕 LEGG TIL DENNE LINJEN
             .OrderByDescending(n => n.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)

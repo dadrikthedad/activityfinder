@@ -7,37 +7,21 @@ namespace AFBack.Models;
 public class GroupEvent
 {
     public int Id { get; set; }
-    
-    [Required]
-    public int ConversationId { get; set; }
+
+    [Required] public int ConversationId { get; set; }
     public Conversation Conversation { get; set; } = null!;
-    
-    [Required]
-    public GroupEventType EventType { get; set; }
-    
-    [Required]
-    public int ActorUserId { get; set; }
+
+    [Required] public GroupEventType EventType { get; set; }
+
+    [Required] public int ActorUserId { get; set; }
     public User ActorUser { get; set; } = null!;
-    
-    // JSON-serialisert liste med bruker-IDs for EF Core
-    [Required]
-    [MaxLength(2000)]
-    public string AffectedUserIdsJson { get; set; } = "[]";
-    
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    
-    [MaxLength(4000)]
-    public string? Metadata { get; set; }
-    
-    // Computed property - ikke lagret i database
-    [NotMapped]
-    public List<int> AffectedUserIds
-    {
-        get => string.IsNullOrEmpty(AffectedUserIdsJson) 
-            ? new List<int>() 
-            : JsonSerializer.Deserialize<List<int>>(AffectedUserIdsJson) ?? new List<int>();
-        set => AffectedUserIdsJson = JsonSerializer.Serialize(value);
-    }
+
+    [MaxLength(4000)] public string? Metadata { get; set; }
+
+    // Navigation property til affected users
+    public ICollection<GroupEventAffectedUser> AffectedUsers { get; set; } = new List<GroupEventAffectedUser>();
 }
 
 public enum GroupEventType

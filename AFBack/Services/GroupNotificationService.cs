@@ -56,14 +56,14 @@ public class GroupNotificationService
                     .ToListAsync();
             }
 
-
             foreach (var memberId in approvedMemberIds)
             {
                 try
                 {
-                    // 🆕 Hent MessageNotification direkte (GroupEvent type)
+                    // 🆕 Hent MessageNotification direkte (GroupEvent type) med GroupEvents inkludert
                     var notification = await _context.MessageNotifications
                         .Include(n => n.Conversation)
+                        .Include(n => n.GroupEvents) // Inkluder GroupEvents relasjonen
                         .FirstOrDefaultAsync(n => n.UserId == memberId && 
                                                  n.ConversationId == conversationId && 
                                                  n.Type == NotificationType.GroupEvent && 
@@ -112,13 +112,21 @@ public class GroupNotificationService
             ConversationId = conversationId,
             EventType = eventType,
             ActorUserId = actorUserId,
-            AffectedUserIds = affectedUserIds,
-            AffectedUserIdsJson = JsonSerializer.Serialize(affectedUserIds),
             Metadata = metadata,
             CreatedAt = DateTime.UtcNow
         };
 
         _context.GroupEvents.Add(groupEvent);
+        await _context.SaveChangesAsync();
+        
+        foreach (var userId in affectedUserIds)
+        {
+            _context.GroupEventAffectedUsers.Add(new GroupEventAffectedUser
+            {
+                GroupEventId = groupEvent.Id,
+                UserId = userId
+            });
+        }
         await _context.SaveChangesAsync();
 
         // 2️⃣ Oppdater GroupNotifications for relevante brukere
@@ -154,19 +162,26 @@ public class GroupNotificationService
                     LastUpdatedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     IsRead = false,
-                    GroupEventIds = new List<int> { newEventId }
                 };
                 _context.MessageNotifications.Add(notification);
+                await _context.SaveChangesAsync();
+                
+                _context.MessageNotificationGroupEvents.Add(new MessageNotificationGroupEvent
+                {
+                    MessageNotificationId = notification.Id,
+                    GroupEventId = newEventId
+                });
             }
             else
             {
                 // Oppdater eksisterende notification
-                var existingEventIds = notification.GroupEventIds;
-                existingEventIds.Add(newEventId);
+                _context.MessageNotificationGroupEvents.Add(new MessageNotificationGroupEvent
+                {
+                    MessageNotificationId = notification.Id,
+                    GroupEventId = newEventId
+                });
                 
                 notification.EventCount = (notification.EventCount ?? 0) + 1;
-                notification.LastUpdatedAt = DateTime.UtcNow;
-                notification.GroupEventIds = existingEventIds; // Trigger setter
             }
         }
         
@@ -175,18 +190,25 @@ public class GroupNotificationService
     
     public async Task<MessageNotificationDTO> ConvertToMessageNotificationDTOAsync(MessageNotification notification)
     {
+        // Hent GroupEvent IDs fra relasjonstabellen
+        var groupEventIds = notification.GroupEvents.Select(nge => nge.GroupEventId).ToList();
+
         // Finn den siste hendelsen for å få ActorUser info
         var lastEvent = await _context.GroupEvents
             .Include(ge => ge.ActorUser)
             .ThenInclude(u => u.Profile)
-            .Where(ge => notification.GroupEventIds.Contains(ge.Id))
+            .Include(ge => ge.AffectedUsers) // Inkluder affected users
+                .ThenInclude(au => au.User)
+            .Where(ge => groupEventIds.Contains(ge.Id))
             .OrderByDescending(ge => ge.CreatedAt)
             .FirstOrDefaultAsync();
 
         // Bygg event summaries
         var events = await _context.GroupEvents
             .Include(ge => ge.ActorUser)
-            .Where(ge => notification.GroupEventIds.Contains(ge.Id))
+            .Include(ge => ge.AffectedUsers)
+                .ThenInclude(au => au.User)
+            .Where(ge => groupEventIds.Contains(ge.Id))
             .OrderBy(ge => ge.CreatedAt)
             .ToListAsync();
 
@@ -195,10 +217,12 @@ public class GroupNotificationService
         // 🆕 Hent affected users for den siste hendelsen
         List<UserSummaryDTO> latestAffectedUsers = new();
     
-        if (lastEvent != null && lastEvent.AffectedUserIds.Any())
+        if (lastEvent?.AffectedUsers?.Any() == true)
         {
+            var affectedUserIds = lastEvent.AffectedUsers.Select(au => au.UserId).ToList();
+            
             latestAffectedUsers = await _context.Users
-                .Where(u => lastEvent.AffectedUserIds.Contains(u.Id))
+                .Where(u => affectedUserIds.Contains(u.Id))
                 .Select(u => new UserSummaryDTO
                 {
                     Id = u.Id,
@@ -224,7 +248,7 @@ public class GroupNotificationService
         {
             Id = notification.Id,
             Type = NotificationType.GroupEvent,
-            CreatedAt = notification.LastUpdatedAt ?? notification.CreatedAt,
+            CreatedAt = notification.CreatedAt,
             IsRead = notification.IsRead,
             ReadAt = notification.ReadAt,
             MessageId = null,
@@ -268,78 +292,64 @@ public class GroupNotificationService
     private async Task<List<string>> BuildEventSummariesAsync(List<GroupEvent> events)
     {
         var summaries = new List<string>();
-        
         // Sorter hendelser etter tidspunkt
         var sortedEvents = events.OrderBy(e => e.CreatedAt).ToList();
-        
         for (int i = 0; i < sortedEvents.Count; i++)
         {
             var currentEvent = sortedEvents[i];
             var actorName = currentEvent.ActorUser?.FullName ?? "En bruker";
-            var currentAffectedUserNames = await GetUserNamesAsync(currentEvent.AffectedUserIds);
-            
-            // 🔄 Konsekutiv gruppering: Samle alle påfølgende like hendelser
+            // ✅ Bruk allerede inkluderte AffectedUsers
+            var currentAffectedUserNames = currentEvent.AffectedUsers
+                .Select(au => au.User.FullName)
+                .ToList();
+            // 🔄 Konsekutiv gruppering
             var allAffectedUsers = new List<string>(currentAffectedUserNames);
             int eventsToSkip = 0;
-            
-            // 🎯 Sjekk kun hendelser som kan grupperes (invite/remove)
             if (currentEvent.EventType == GroupEventType.MemberInvited || 
                 currentEvent.EventType == GroupEventType.MemberRemoved)
             {
-                // Se framover og samle alle konsekutive like hendelser fra samme actor
                 for (int j = i + 1; j < sortedEvents.Count; j++)
                 {
                     var nextEvent = sortedEvents[j];
-                    
-                    // ✅ Samme type OG samme actor = fortsett gruppering
                     if (nextEvent.EventType == currentEvent.EventType && 
                         nextEvent.ActorUserId == currentEvent.ActorUserId)
                     {
-                        var nextAffectedUserNames = await GetUserNamesAsync(nextEvent.AffectedUserIds);
+                        // ✅ Også her: Bruk inkluderte data
+                        var nextAffectedUserNames = nextEvent.AffectedUsers
+                            .Select(au => au.User.FullName)
+                            .ToList();
                         allAffectedUsers.AddRange(nextAffectedUserNames);
                         eventsToSkip++;
                     }
                     else
                     {
-                        // ❌ Annen type event eller annen actor = stopp gruppering
                         break;
                     }
                 }
             }
-            
-            // 📝 Generer summary
+            // 📝 Generer tekst
             string summary = currentEvent.EventType switch
             {
                 GroupEventType.MemberInvited => 
                     $"{actorName} has invited: {string.Join(", ", allAffectedUsers.Distinct())}",
-                    
                 GroupEventType.MemberAccepted => 
                     BuildAcceptedSummary(currentAffectedUserNames),
-                    
                 GroupEventType.MemberLeft => 
                     $"{actorName} has left the group",
-                    
                 GroupEventType.MemberRemoved => 
                     $"{actorName} removed: {string.Join(", ", allAffectedUsers.Distinct())}",
-                    
                 GroupEventType.GroupNameChanged => 
                     $"{actorName} changed the group name",
-                    
                 GroupEventType.GroupImageChanged => 
                     $"{actorName} changed the group image",
-                    
                 GroupEventType.GroupCreated => 
                     $"{actorName} created the group",
-                    
                 _ => $"{actorName} performed an action"
             };
-
             summaries.Add(summary);
-            
-            // ⏭️ Hopp over hendelser vi allerede har behandlet
+            // ⏭️ Hopp over grupperte events
             i += eventsToSkip;
         }
-
         return summaries;
     }
 
@@ -360,14 +370,5 @@ public class GroupNotificationService
 
         return "Users have accepted the invite";
     }
-
-    private async Task<List<string>> GetUserNamesAsync(List<int> userIds)
-    {
-        return await _context.Users
-            .Where(u => userIds.Contains(u.Id))
-            .Select(u => u.FullName)
-            .ToListAsync();
-    }
-
     
 }

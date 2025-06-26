@@ -30,7 +30,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
     public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
     public DbSet<GroupEvent> GroupEvents { get; set; }
-
+    
+    public DbSet<MessageNotificationGroupEvent> MessageNotificationGroupEvents { get; set; }
+    
+    public DbSet<GroupEventAffectedUser> GroupEventAffectedUsers { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -233,33 +236,25 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<MessageNotification>(entity =>
         {
             entity.HasKey(e => e.Id);
-    
+
             // Type konvertering
             entity.Property(e => e.Type)
                 .IsRequired()
                 .HasConversion<int>();
-    
-            // 🆕 Nye felter for GroupEvent notifikasjoner
-            entity.Property(e => e.GroupEventIdsJson)
-                .HasMaxLength(4000)
-                .IsRequired(false); // Kun påkrevd for GroupEvent notifikasjoner
-    
-            entity.Property(e => e.EventCount)
-                .IsRequired(false);
-    
-            entity.Property(e => e.LastUpdatedAt)
-                .IsRequired(false);
-    
-            // Relasjoner
+
+            // FJERNET: GroupEventIdsJson og EventCount (erstattes med relasjonstabell)
+            // FJERNET: LastUpdatedAt (kan beholdes hvis du trenger den til andre formål)
+
+            // Relasjoner (samme som før)
             entity.HasOne(n => n.User)
-                .WithMany() // eller .WithMany(u => u.Notifications) hvis du har det
+                .WithMany()
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(n => n.FromUser)
                 .WithMany()
                 .HasForeignKey(n => n.FromUserId)
-                .OnDelete(DeleteBehavior.NoAction); // Unngå slettekjede
+                .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(n => n.Message)
                 .WithMany()
@@ -270,18 +265,46 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(n => n.ConversationId)
                 .OnDelete(DeleteBehavior.SetNull);
-    
-            // 🆕 Ignorer computed property
-            entity.Ignore(e => e.GroupEventIds);
-    
-            // 🆕 Indekser for GroupEvent notifikasjoner
-            entity.HasIndex(e => new { e.UserId, e.Type, e.IsRead, e.LastUpdatedAt });
+
+            // FJERNET: Ignore GroupEventIds (ikke lenger nødvendig)
+
+            // Oppdaterte indekser
+            entity.HasIndex(e => new { e.UserId, e.Type, e.IsRead });
             entity.HasIndex(e => new { e.ConversationId, e.Type, e.IsRead });
-    
-            // 🆕 Unique constraint for uleste GroupEvent notifikasjoner
+            
+            // ENDRET: Unique constraint for GroupEvent notifikasjoner (forenklet)
             entity.HasIndex(e => new { e.UserId, e.ConversationId, e.Type, e.IsRead })
+                .HasFilter("\"Type\" = 8 AND \"IsRead\" = false")
+                .HasDatabaseName("IX_MessageNotification_UniqueGroupEvent");
+        });
+
+        // NY: Legg til konfigurasjon for MessageNotificationGroupEvent
+        modelBuilder.Entity<MessageNotificationGroupEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            
+            // Unique constraint - samme GroupEvent kan ikke være knyttet til samme notification flere ganger
+            entity.HasIndex(e => new { e.MessageNotificationId, e.GroupEventId })
                 .IsUnique()
-                .HasFilter("\"Type\" = 8 AND \"IsRead\" = false"); // 8 = NotificationType.GroupEvent
+                .HasDatabaseName("IX_MessageNotificationGroupEvent_NotificationId_EventId");
+            
+            // Separate indekser for ytelse
+            entity.HasIndex(e => e.MessageNotificationId)
+                .HasDatabaseName("IX_MessageNotificationGroupEvent_NotificationId");
+                
+            entity.HasIndex(e => e.GroupEventId)
+                .HasDatabaseName("IX_MessageNotificationGroupEvent_EventId");
+            
+            // Relasjoner
+            entity.HasOne(e => e.MessageNotification)
+                .WithMany(n => n.GroupEvents)
+                .HasForeignKey(e => e.MessageNotificationId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            entity.HasOne(e => e.GroupEvent)
+                .WithMany()
+                .HasForeignKey(e => e.GroupEventId)
+                .OnDelete(DeleteBehavior.Restrict); // Ikke slett GroupEvents når notifications slettes
         });
 
 
@@ -308,18 +331,16 @@ public class ApplicationDbContext : DbContext
             .IsUnique(true); // Sett til true hvis du vil nekte duplikater
         
         // Gruppe events
-         modelBuilder.Entity<GroupEvent>(entity =>
+        modelBuilder.Entity<GroupEvent>(entity =>
         {
             entity.HasKey(e => e.Id);
-            
+    
             entity.Property(e => e.EventType)
                 .IsRequired()
                 .HasConversion<int>();
-            
-            entity.Property(e => e.AffectedUserIdsJson)
-                .HasMaxLength(2000)
-                .IsRequired();
-            
+    
+            // FJERNET: AffectedUserIdsJson property (ikke lenger nødvendig)
+    
             entity.Property(e => e.Metadata)
                 .HasMaxLength(4000);
 
@@ -334,13 +355,42 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.ActorUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Ignorer computed property
-            entity.Ignore(e => e.AffectedUserIds);
+            // FJERNET: Ignore AffectedUserIds (ikke lenger nødvendig)
 
-            // Indekser
+            // Indekser (samme som før)
             entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
             entity.HasIndex(e => e.ActorUserId);
         });
+
+// NY: Legg til konfigurasjon for GroupEventAffectedUser
+        modelBuilder.Entity<GroupEventAffectedUser>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+    
+            // Unique constraint - en user kan bare være affected én gang per event
+            entity.HasIndex(e => new { e.GroupEventId, e.UserId })
+                .IsUnique()
+                .HasDatabaseName("IX_GroupEventAffectedUser_GroupEventId_UserId");
+    
+            // Separate indekser for ytelse
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_GroupEventAffectedUser_UserId");
+        
+            entity.HasIndex(e => e.GroupEventId)
+                .HasDatabaseName("IX_GroupEventAffectedUser_GroupEventId");
+    
+            // Relasjoner
+            entity.HasOne(e => e.GroupEvent)
+                .WithMany(g => g.AffectedUsers)
+                .HasForeignKey(e => e.GroupEventId)
+                .OnDelete(DeleteBehavior.Cascade);
+        
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere når events slettes
+        });
+
         
     }
     // Sikre oppdatering av FullName ved oppdatering av first, middle eller lastname

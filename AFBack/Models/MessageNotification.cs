@@ -29,22 +29,12 @@ public class MessageNotification
     // Aggrere en meldingsnotification ved nye meldinger istedenfor å lage mange nye notifications
     public int? MessageCount { get; set; }
     
-    // 🆕 For GroupEvent notifikasjoner
-    [MaxLength(4000)]
-    public string? GroupEventIdsJson { get; set; }
+    // Navigation property til GroupEvents istedenfor JSON
+    public ICollection<MessageNotificationGroupEvent> GroupEvents { get; set; } = new List<MessageNotificationGroupEvent>();
     
     public int? EventCount { get; set; }
     public DateTime? LastUpdatedAt { get; set; }
     
-    // Computed property for GroupEventIds
-    [NotMapped]
-    public List<int> GroupEventIds
-    {
-        get => string.IsNullOrEmpty(GroupEventIdsJson) 
-            ? new List<int>() 
-            : JsonSerializer.Deserialize<List<int>>(GroupEventIdsJson) ?? new List<int>();
-        set => GroupEventIdsJson = JsonSerializer.Serialize(value);
-    }
 }
 
 public enum NotificationType
