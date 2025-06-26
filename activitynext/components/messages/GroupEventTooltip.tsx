@@ -20,7 +20,7 @@ export default function GroupEventTooltip({
 
    return (
     <div className="absolute z-50 bg-[#2e2e2e] dark:bg-gray-[#2e2e2e] border border-[#1C6B1C] dark:border-[#1C6B1C] rounded-lg shadow-lg p-3 min-w-[250px] max-w-[400px]"
-          onClick={handleTooltipClick}
+         onClick={handleTooltipClick}
     >
       <h4 className="font-semibold text-sm mb-2 text-gray-800 dark:text-gray-200">
         Recent Activities in {groupName}

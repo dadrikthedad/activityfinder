@@ -2,7 +2,7 @@ import { GroupEventType } from "@/types/GroupNotificationUpdateDTO";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import React, { JSX } from 'react';
 import { formatUserList } from "./NotificationsUserListFormatter";
-import { HighlightedText } from "./HighlightedText";
+import { HighlightedText } from "../HighlightedText";
 
 export const buildGroupEventText = (
   eventType: GroupEventType | string,

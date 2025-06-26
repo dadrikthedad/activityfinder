@@ -6,7 +6,6 @@ import React, { useEffect, useState } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import ProfileNavButton from "../settings/ProfileNavButton";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useRejectMessageRequest } from "@/hooks/messages/useRejectMessageRequest";
 import { ConversationDTO } from "@/types/ConversationDTO";
 
@@ -17,17 +16,6 @@ interface PendingRequestsListProps {
   limit?: number;
   showMoreLink?: boolean;
   onSelectConversation?: (conversationId: number) => void;
-  currentUser: UserSummaryDTO | null;
-    onShowUserPopover: (
-    user: UserSummaryDTO, 
-    pos: { x: number; y: number },
-    groupData?: {
-      isGroup: boolean;
-      participants: UserSummaryDTO[];
-      onLeaveGroup?: () => void; // ✅ Legg til onLeaveGroup (men vi sender ikke den for pending)
-      isPendingRequest?: boolean;
-    }
-  ) => void;
   conversations?: ConversationDTO[];
   onLeaveGroup?: (conversationId: number) => void;// 👈 Ny prop
 }
@@ -36,7 +24,6 @@ const PendingRequestsList = ({
   limit,
   showMoreLink = false,
   onSelectConversation,
-  onShowUserPopover,
 }: PendingRequestsListProps) => {
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
@@ -90,15 +77,6 @@ const PendingRequestsList = ({
                   onSelectConversation(r.conversationId);
                 }
               }}
-              onShowUserPopover={(user, pos) => 
-                r.isGroup 
-                  ? onShowUserPopover(user, pos, {
-                      isGroup: true,
-                      participants: r.participants || [],
-                      isPendingRequest: true,
-                    })
-                  : onShowUserPopover(user, pos)
-              }
               // ✅ Legg til gruppe-props
               isGroup={r.isGroup || false}
               memberCount={r.isGroup ? (r.participants?.length || 0) : undefined}

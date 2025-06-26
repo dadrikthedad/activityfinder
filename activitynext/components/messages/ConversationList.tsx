@@ -9,37 +9,25 @@ import { useChatStore } from "@/store/useChatStore";
 import { useRef, useEffect, useState } from "react";
 import { take } from "@/hooks/messages/getMyConversations";
 
-
-
 interface Props {
   selectedId: number | null;
   onSelect: (id: number) => void;
   currentUser: UserSummaryDTO | null;
-    onShowUserPopover: (
-    user: UserSummaryDTO, 
-    pos: { x: number; y: number },
-    groupData?: { // ✅ Legg til valgfri gruppedata
-      isGroup: boolean;
-      participants: UserSummaryDTO[];
-      onLeaveGroup?: () => void;
-      conversationId?: number;
-    }
-  ) => void;
   conversations?: ConversationDTO[];
-  onLeaveGroup?: (conversationId: number) => void;
+  // FJERNET: onShowUserPopover og onLeaveGroup - brukes ikke lenger
 }
 
-export default function ConversationList({ selectedId, onSelect, currentUser, onShowUserPopover, conversations, onLeaveGroup }: Props) {
+export default function ConversationList({ selectedId, onSelect, currentUser, conversations }: Props) {
     const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
     const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    
     const getOtherUser = (conv: ConversationDTO): UserSummaryDTO | undefined => {
       return conv.participants.find(p => p.id !== currentUser?.id);
     };
+    
     const displayedConversations = conversations ?? storeConversations; // Vise samtaler eller søkesamtaler
-
     const hasLoadedConversations = useChatStore((s) => s.hasLoadedConversations);
-
     const unreadConversationIds = useChatStore(state => state.unreadConversationIds);
 
     // Håndtere scrolling og paginering
@@ -99,84 +87,73 @@ export default function ConversationList({ selectedId, onSelect, currentUser, on
       hasAutoLoadedOnce,
     ]);
 
-
-
-  if (!conversations && !hasLoadedConversations && storeConversations.length === 0) {
+    if (!conversations && !hasLoadedConversations && storeConversations.length === 0) {
       return (
         <div className="flex justify-center items-center h-full">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-green-600 border-gray-200"></div>
         </div>
       );
     }
+    
     return (
       <div 
-      ref={scrollContainerRef}
-      onScroll={handleScroll}
-      className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar">{storeConversations.length === 0 && loading ? (
-        <div className="flex justify-center items-center h-full">
-          <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-green-600 border-gray-200"></div>
-        </div>
-      ) : (
-        <>
-          <ul className="space-y-2 px-2">
-            {displayedConversations.map((conv) => {
-              const hasUnread = unreadConversationIds.includes(conv.id);
-              const isGroup = conv.isGroup;
-              const otherUser = getOtherUser(conv);
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="w-full h-full overflow-y-auto overflow-x-hidden custom-scrollbar"
+      >
+        {storeConversations.length === 0 && loading ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="animate-spin rounded-full h-10 w-10 border-4 border-t-green-600 border-gray-200"></div>
+          </div>
+        ) : (
+          <>
+            <ul className="space-y-2 px-2">
+              {displayedConversations.map((conv) => {
+                const hasUnread = unreadConversationIds.includes(conv.id);
+                const isGroup = conv.isGroup;
+                const otherUser = getOtherUser(conv);
 
-              
+                if (isGroup) {
+                  return (
+                    <ConversationListItem
+                      key={conv.id}
+                      user={{
+                        id: conv.id,
+                        fullName: conv.groupName || "Navnløs gruppe",
+                        profileImageUrl: conv.groupImageUrl || "/default-group.png",
+                      }}
+                      selected={selectedId === conv.id}
+                      isPendingApproval={conv.isPendingApproval}
+                      hasUnread={hasUnread}
+                      onClick={() => onSelect(conv.id)}
+                      isGroup={true}
+                      memberCount={conv.participants.length}
+                    />
+                  );
+                }
 
-              if (isGroup) {
+                if (!otherUser) return null;
+
                 return (
                   <ConversationListItem
                     key={conv.id}
-                    user={{
-                      id: conv.id,
-                      fullName: conv.groupName || "Navnløs gruppe",
-                      profileImageUrl: conv.groupImageUrl || "/default-group.png",
-                    }}
+                    user={otherUser}
                     selected={selectedId === conv.id}
                     isPendingApproval={conv.isPendingApproval}
                     hasUnread={hasUnread}
                     onClick={() => onSelect(conv.id)}
-                    onShowUserPopover={(user, pos) => 
-                    onShowUserPopover(user, pos, { 
-                        isGroup: true,
-                        participants: conv.participants,
-                        onLeaveGroup: () => onLeaveGroup?.(conv.id), // ✅ Bruk prop fra MessageDropdown
-                        conversationId: conv.id
-                      })
-                    }
-                    isGroup={true}
-                    memberCount={conv.participants.length}
                   />
                 );
-              }
+              })}
+            </ul>
 
-              if (!otherUser) return null;
-
-              return (
-                <ConversationListItem
-                  key={conv.id}
-                  user={otherUser}
-                  selected={selectedId === conv.id}
-                  isPendingApproval={conv.isPendingApproval}
-                  hasUnread={hasUnread}
-                  onClick={() => onSelect(conv.id)}
-                  onShowUserPopover={onShowUserPopover}
-                />
-              );
-            })}
-          </ul>
-
-          {loading && (
-            <div className="flex justify-center my-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-green-600 border-gray-200"></div>
-            </div>
-          )}
-        </>
-      )}
-
-            </div>
+            {loading && (
+              <div className="flex justify-center my-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-green-600 border-gray-200"></div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     );
-  }
+}

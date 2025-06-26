@@ -18,6 +18,7 @@ interface NewMessageInputProps {
   shouldFocus?: boolean;
   onMessageSent?: (message: MessageDTO) => void;
   onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void; // Callback when group is created
+  parentOverlayId?: string; 
 }
 
 export default function NewMessageInput({
@@ -31,12 +32,12 @@ export default function NewMessageInput({
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
   
-  // ✅ Hooks for both scenarios
+  // Hooks for both scenarios
   const { send, error: messageError } = useSendMessage(onMessageSent);
   const { sendGroupInvitations, isLoading: groupRequestLoading, error: groupRequestError, clearError: clearGroupError } = useGroupRequests();
   const { syncConversation } = useConversationSyncOnMessage();
 
-  // ✅ Determine if we're in group mode
+  // Determine if we're in group mode
   const isGroupMode = selectedUsers.length > 1;
   const isDisabled = isGroupMode
   ? groupRequestLoading  // For grupper: kun disabled når loading
@@ -45,7 +46,7 @@ export default function NewMessageInput({
   const { approveLocally } = useApproveMessageRequest();
 
   const handleSend = async () => {
-  // ✅ For 1-til-1 samtaler: krev tekst
+  // For 1-til-1 samtaler: krev tekst
   if (!isGroupMode) {
     const trimmed = text.trim();
     if (!trimmed) return;

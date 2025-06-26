@@ -1,5 +1,5 @@
 import React, { JSX } from 'react';
-import { HighlightedText } from './HighlightedText';
+import { HighlightedText } from '../HighlightedText';
 import { UserSummaryDTO } from '@/types/UserSummaryDTO';
 
 // Hjelpefunksjon med forhåndsdefinerte stiler

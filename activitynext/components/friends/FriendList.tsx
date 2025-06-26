@@ -1,14 +1,13 @@
 "use client";
 // Vennelisten på friends siden, sjekker først antall venner samt at den viser antall dager vedkommende har vært venner. Vi har også dropdownen med flrer options
 import { useFriends } from "@/hooks/useFriends";
-import UserActionPopover from "@/components/common/UserActionPopover";
+import ClickableAvatar from "@/components/common/ClickableAvatar"; // NY IMPORT
 import Card from "@/components/common/Card";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import DropdownProfileNavButton from "@/components/DropdownNavButton";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import Spinner from "../common/Spinner";
-
 
 export default function FriendList() {
   const { friends, loading, loadMore, hasMore, loadingMore } = useFriends();
@@ -40,6 +39,8 @@ export default function FriendList() {
       if (current) observer.unobserve(current);
     };
   }, [handleLoadMore]);
+
+  // NY: Håndter avatar klikk med store-metode - FJERNET, bruker ClickableAvatar nå
 
 //Her iterere vi over hver venn og legger det til en venneliste. Og da når vi sletter en venn så fjernes den i UI-en samt backend
   useEffect(() => {
@@ -75,13 +76,12 @@ export default function FriendList() {
         <li key={friend.friend.id}>
           <Card className="flex justify-between items-center gap-6 w-full p-6 border-2 border-[#1C6B1C]">
             <div className="flex items-center gap-4 w-full">
-            <UserActionPopover
-              mode="standalone"
-              user={friend.friend}
-              onRemoveSuccess={() =>
-                setFilteredFriends((prev) => prev.filter((f) => f.friend.id !== friend.friend.id))
-              }
-            />
+              {/* NY: Bruk ClickableAvatar komponent */}
+              <ClickableAvatar
+                user={friend.friend}
+                size={80}
+              />
+              
               <div>
                 <p className="text-lg font-semibold">{friend.friend.fullName}</p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">

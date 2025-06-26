@@ -3,51 +3,43 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef, useEffect } from "react";
-
-import { useDropdown } from "@/context/DropdownContext";
-import { useClickOutsideGroups } from "@/hooks/mouseAndKeyboard/useClickOutside";
-
+import { useOverlayAutoRegister  } from "@/context/OverlayProvider"; // NY IMPORT
 import FriendRequestButtons from "../friends/FriendRequestButtons";
-
 import { useNotificationStore } from "@/store/useNotificationStore";
-
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import type { NotificationDTO } from "@/types/NotificationEventDTO";
 import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
+import { useRef } from "react";
 
+interface NotificationDropdownProps {
+  onClose: () => void;
+}
 
-export default function NotificationDropdown({ onClose }: { onClose: () => void }) {
+export default function NotificationDropdown({ 
+  onClose
+}: NotificationDropdownProps) {
   /* ---------- data fra store ---------- */
-  const invitations         = useNotificationStore((s) => s.friendRequests);
-  const notifications       = useNotificationStore((s) => s.notifications);
+  const invitations = useNotificationStore((s) => s.friendRequests);
+  const notifications = useNotificationStore((s) => s.notifications);
   const { handleResponse, handlingId } = useFriendRequestHandler();
   const totalFriendRequests = useNotificationStore((s) => s.friendRequestTotalCount);
 
-
-  const dropdownContext = useDropdown();
   const containerRef = useRef<HTMLDivElement>(null);
-  const idRef = useRef("notification-dropdown");
+  
+  // NY: Auto-register med overlay system
+  const { zIndex } = useOverlayAutoRegister(containerRef, true);
 
-  /* ---------- lukk ved klikk utenfor ---------- */
-  useClickOutsideGroups({
-    includeRefs: [containerRef],
-    onOutsideClick: onClose,
-    isActive: true,
-  });
-
-  /* ---------- registrer i DropdownContext ---------- */
-  useEffect(() => {
-    dropdownContext.register({ id: idRef.current, close: onClose });
-    return () => dropdownContext.unregister(idRef.current);
-  }, [dropdownContext, onClose]);       
-
+  // Handle close
+  const handleClose = () => {
+    onClose();
+  };
 
   /* ---------- RENDER ---------- */
   return (
     <div
       ref={containerRef}
-      className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 z-10 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C] custom-scrollbar"
+      style={{ zIndex }}
+      className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C] custom-scrollbar"
     >
       <h4 className="text-lg font-semibold mb-2 text-center">
         Notifications
@@ -63,7 +55,7 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
             >
               <Link
                 href={`/profile/${invite.userSummary?.id}`}
-                onClick={onClose}
+                onClick={handleClose}
                 className="flex items-center gap-3"
               >
                 <Image
@@ -126,13 +118,13 @@ export default function NotificationDropdown({ onClose }: { onClose: () => void 
           .map((n: NotificationDTO) => (
             <li key={n.id}>
               <div
-                onClick={onClose}
+                onClick={handleClose}
                 className="block p-2 rounded hover:bg-[#e7f3e7] dark:hover:bg-[#2c2f30] cursor-pointer"
               >
                 {n.relatedUser ? (
                   <Link
                     href={`/profile/${n.relatedUser.id}`}
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="underline hover:text-[#1C6B1C]"
                   >
                     {n.relatedUser.fullName}

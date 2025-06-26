@@ -1,10 +1,9 @@
 // Her zoomer vi inn på bilde ved trykk. Brukes foreløpig kun i UserActionPopover.tsx
 "use client";
-
 import { useState, useEffect } from "react";
 import { Dialog } from "@headlessui/react";
+import { useOverlay } from "@/context/OverlayProvider"; // NY IMPORT
 import Image from "next/image";
-import { useDropdown } from "@/context/DropdownContext"; 
 
 interface EnlargeableImageProps {
   src: string;
@@ -20,24 +19,32 @@ export default function EnlargeableImage({
   className = "",
 }: EnlargeableImageProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const dropdownContext = useDropdown();
+ 
+  // NY: Auto-level overlay
+  const overlay = useOverlay();
 
-   // Registrer i dropdownContext når åpen
+  // Sync overlay state with local state
   useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen && !overlay.isOpen) {
+      overlay.open();
+    } else if (!isOpen && overlay.isOpen) {
+      overlay.close();
+    }
+  }, [isOpen, overlay]);
 
-    const id = `enlarge-image-${src}`;
-    const close = () => setIsOpen(false);
+  const handleOpen = () => {
+    setIsOpen(true);
+  };
 
-    dropdownContext.register({ id, close });
-
-    return () => dropdownContext.unregister(id);
-  }, [isOpen, dropdownContext, src]);
+  const handleClose = () => {
+    setIsOpen(false);
+    overlay.close();
+  };
 
   return (
     <>
       <div
-        onClick={() => setIsOpen(true)}
+        onClick={handleOpen}
         className={`cursor-pointer rounded-full border-1 border-[#1C6B1C] shadow-md overflow-hidden ${className}`}
         style={{ width: size, height: size }}
       >
@@ -49,11 +56,14 @@ export default function EnlargeableImage({
           className="object-cover w-full h-full rounded-full"
         />
       </div>
-
-      <Dialog open={isOpen} onClose={() => setIsOpen(false)} className="fixed z-[1100] inset-0">
+     
+      <Dialog open={isOpen} onClose={handleClose} style={{ zIndex: overlay.zIndex }}>
         <div className="fixed inset-0 bg-black/80" aria-hidden="true" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto">
+          <Dialog.Panel
+            ref={overlay.ref}
+            className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto"
+          >
             <Image
               src={src}
               alt="Enlarged profile"
@@ -63,7 +73,7 @@ export default function EnlargeableImage({
             />
             <div className="mt-6 flex justify-center">
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={handleClose}
                 className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
               >
                 Close

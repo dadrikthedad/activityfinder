@@ -1,7 +1,7 @@
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import React, { JSX } from 'react';
 import { buildGroupEventText } from "./GroupEventTextBuilder";
-import { HighlightedText } from "./HighlightedText";
+import { HighlightedText } from "../HighlightedText";
 
 export function formatNotificationText(n: MessageNotificationDTO): JSX.Element {
   const plainText = (text: string): JSX.Element => <span>{text}</span>;

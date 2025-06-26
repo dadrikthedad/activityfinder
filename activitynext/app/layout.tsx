@@ -6,8 +6,9 @@ import NotificationHubClient from "@/components/signalr/NotificationHubClient"; 
 import ChatHubClient from "@/components/signalr/ChatHubClient";  // Her kobler jeg opp mot ChatHub. Brukes en gang slik at den kjøres globalt
 import Navbar from "@/components/Navbar";
 import CacheCleanup from "@/components/common/CacheCleanup";
-import { DropdownProvider } from "@/context/DropdownContext";
 import { Toaster } from "sonner";
+import { OverlayLayerProvider } from "@/context/OverlayProvider";
+import UserActionPopoverPortal from "@/components/common/UserActionPopoverPortal";
 
 
 
@@ -36,7 +37,7 @@ export default function RootLayout({
           dark:text-white 
           min-h-screen`} 
         suppressHydrationWarning={true}>
-          <DropdownProvider>
+          <OverlayLayerProvider>
              <AuthProvider>
               <ModalProvider>
                 <CacheCleanup>
@@ -44,12 +45,13 @@ export default function RootLayout({
                 <NotificationHubClient /> 
                   <ChatHubClient />
                     <Navbar /> {/* 👈 LEGG TIL DENNE */}
+                      <UserActionPopoverPortal />
                       <main>{children}</main>
                       <Toaster position="bottom-right" richColors />
                 </CacheCleanup>
               </ModalProvider>
             </AuthProvider>
-          </DropdownProvider>
+          </OverlayLayerProvider>
       </body>
     </html>
   );

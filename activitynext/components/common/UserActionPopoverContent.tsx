@@ -18,7 +18,7 @@ interface Props {
   isGroup?: boolean;
   participants?: UserSummaryDTO[];
   onLeaveGroup?: () => void;
-  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  onShowUserPopover?: (user: UserSummaryDTO, event: React.MouseEvent) => void;
   isPendingRequest?: boolean; 
   onInviteUsers?: () => void;
 }
@@ -50,6 +50,7 @@ export default function UserActionPopoverContent({
         // - Interactive buttons/inputs
         // - Nested popovers
         if (
+          target.closest('[data-overlay-id]') ||
           target.closest('[data-dropdown-id]') ||
           target.closest('button') ||
           target.closest('input') ||
@@ -87,14 +88,11 @@ export default function UserActionPopoverContent({
           <div className="flex flex-col justify-center flex-1 items-start space-y-2">
             {isGroup ? (
               <>
-                {/* ✅ Bruk din ParticipantsDropdownButton i stedet for DropdownNavButton */}
-                {onShowUserPopover && (
-                  <ParticipantsDropdownButton
-                    participants={participants}
-                    onShowUserPopover={onShowUserPopover}
-                    className="self-start"
-                  />
-                )}
+                {/* ✅ ParticipantsDropdownButton - fjernet onShowUserPopover prop */}
+                <ParticipantsDropdownButton
+                  participants={participants}
+                  onShowUserPopover={onShowUserPopover}
+                />
 
                 {/* Invite Users button - vis kun hvis ikke pending request */}
                 {onInviteUsers && !isPendingRequest && (

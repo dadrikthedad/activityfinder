@@ -1,6 +1,7 @@
 // Viser kortene til en bruker i Conv og Pending listene
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import MiniAvatar from "../common/MiniAvatar";
+import ClickableAvatar from "../common/ClickableAvatar"; // ✅ Bytt ut MiniAvatar import
+import { useChatStore } from "@/store/useChatStore";
 
 interface Props {
   user: UserSummaryDTO
@@ -9,7 +10,6 @@ interface Props {
   subtitle?: string;
   isClickable?: boolean;
   isPendingApproval?: boolean;
-  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void; // 👈 Ny prop
   hasUnread?: boolean;
   isGroup?: boolean;
   memberCount?: number;
@@ -22,30 +22,23 @@ export const ConversationListItem = ({
   subtitle,
   isClickable = true,
   isPendingApproval = false,
-  onShowUserPopover,
   hasUnread,
   isGroup = false,
   memberCount,
 }: Props) => {
-  
-  // For å regne hvor UserActionPopover skal åpnes
-  const handleAvatarClick = (event: React.MouseEvent) => {
-    event.stopPropagation();
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const pos = {
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY,
-    };
-    onShowUserPopover(user, pos);
-  };
-
+ 
+  // Hent participants fra conversation store hvis det er en gruppe
+  const conversations = useChatStore((s) => s.conversations);
+  const conversation = isGroup ? conversations.find(c => c.id === user.id) : null;
+  const participants = conversation?.participants || [];
+   
   const borderClass = selected
     ? "border-2 border-[#166016]"
     : isPendingApproval
     ? "border-2 border-yellow-300"
     : "border border-transparent";
-
-    return (
+   
+  return (
     <div
       onClick={() => onClick && onClick(user.id)}
       className={`flex items-center gap-3 p-2 rounded-md transition ${borderClass} ${
@@ -58,24 +51,26 @@ export const ConversationListItem = ({
           : "bg-gray-50 dark:bg-[#2b2f2f]"
       }`}
     >
-      <button 
-        onClick={handleAvatarClick} 
-        className={`flex-shrink-0 relative ${!isGroup ? 'cursor-pointer' : 'cursor-default'}`}
-      >
-        <MiniAvatar 
-          imageUrl={user.profileImageUrl ?? (isGroup ? "/default-group.png" : "/default-avatar.png")} 
-          size={40} 
-          alt={user.fullName}
-          withBorder={true}
+      {/* ✅ Bruk ClickableAvatar i stedet for button + MiniAvatar */}
+      <div className="relative">
+        <ClickableAvatar
+          user={user}
+          size={40}
+          isGroup={isGroup}
+          participants={participants}
+          isPendingRequest={isPendingApproval}
+          conversationId={typeof user.id === 'number' ? user.id : undefined}
+          className="flex-shrink-0"
         />
-        {/* ✅ Gruppeindikator */}
+        
+        {/* ✅ Gruppeindikator - flytt til egen div for bedre kontroll */}
         {isGroup && (
           <span className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
             👥
           </span>
         )}
-      </button>
-      
+      </div>
+     
       <div className="flex-1 overflow-hidden">
         <span className="text-sm font-medium block truncate whitespace-nowrap overflow-hidden flex items-center gap-1">
           {user.fullName}
@@ -83,8 +78,8 @@ export const ConversationListItem = ({
             <span className="inline-block w-2 h-2 bg-green-600 rounded-full" title="Unread message" />
           )}
         </span>
-        
-        {/* ✅ Vis medlemsantall eller eksisterende subtitle */}
+       
+        {/* Vis medlemsantall eller eksisterende subtitle */}
         {isGroup && memberCount ? (
           <span className="text-xs text-gray-500 block truncate whitespace-nowrap overflow-hidden">
             {memberCount} medlemmer

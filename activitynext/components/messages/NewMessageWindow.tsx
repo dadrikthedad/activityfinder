@@ -9,23 +9,30 @@ import MiniAvatar from "../common/MiniAvatar";
 import { useAuth } from "@/context/AuthContext";
 import OverflowDropdown from "./NewMessageDropdown";
 import { useKeyboardNavigableList } from "@/hooks/mouseAndKeyboard/useKeyboardForDropdown";
+import { useOverlay } from "@/context/OverlayProvider";
+import { createPortal } from "react-dom";
 
-interface NewMessageDialogProps {
+interface NewMessageWindowProps {
   initialReceiver?: UserSummaryDTO;
   onClose: () => void;
   onMessageSent?: (message: MessageDTO) => void;
   onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void;
+  initialPosition?: { x: number; y: number };
 }
 
-export default function NewMessageDialog({ 
+export default function NewMessageWindow({ 
   initialReceiver, 
   onClose, 
   onMessageSent, 
-  onGroupCreated 
-}: NewMessageDialogProps) {
+  onGroupCreated,
+  initialPosition
+}: NewMessageWindowProps) {
   const { query, setQuery, results, loading } = useUserSearch();
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
   const { userId } = useAuth();
+  
+  // NY: Bruk auto-level - blir automatisk riktig level basert på context
+  const overlay = useOverlay(); // Fjernet hardkodet level 2
   
   const [groupName, setGroupName] = useState("");
 
@@ -36,6 +43,20 @@ export default function NewMessageDialog({
   const [shouldFocusMessageInput, setShouldFocusMessageInput] = useState(false);
 
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Window state
+  const windowRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const offset = useRef({ x: 0, y: 0 });
+  const [size] = useState({ width: 700, height: 500 });
+  
+  const defaultWidth = 700;
+  const defaultHeight = 500;
+
+  const [position, setPosition] = useState(() => ({
+    x: initialPosition?.x ?? (window.innerWidth - defaultWidth) / 2,
+    y: initialPosition?.y ?? (window.innerHeight - defaultHeight) / 2,
+  }));
 
   const filteredResults = results.filter(
     (user) =>
@@ -73,6 +94,40 @@ export default function NewMessageDialog({
     }, 200);
   };
 
+  // NY: Auto-åpne overlay når komponenten mountes
+  useEffect(() => {
+    overlay.open();
+  }, []);
+
+  // Drag and drop functionality
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+
+      const newX = e.clientX - offset.current.x;
+      const newY = e.clientY - offset.current.y;
+
+      const windowElement = windowRef.current;
+      const width = windowElement?.offsetWidth || 300;
+      const height = windowElement?.offsetHeight || 200;
+
+      const clampedX = Math.max(0, Math.min(window.innerWidth - width, newX));
+      const clampedY = Math.max(0, Math.min(window.innerHeight - height, newY));
+
+      setPosition({ x: clampedX, y: clampedY });
+    };
+
+    const handleMouseUp = () => setIsDragging(false);
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
   const triggerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -82,39 +137,82 @@ export default function NewMessageDialog({
     }
   }, [initialReceiver, selectedUsers, setQuery]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  // NY: Enklere close handling
+  const handleClose = () => {
+    overlay.close();
+    onClose();
+  };
 
   const handleMessageSent = (message: MessageDTO) => {
     console.log("Message sent!", message);
     onMessageSent?.(message);
-    onClose();
+    handleClose();
   };
 
   const handleGroupCreated = (response: SendGroupRequestsResponseDTO) => {
     console.log("Group created!", response);
     onGroupCreated?.(response);
-    onClose();
+    handleClose();
   };
 
-  return (
-    <Card className="w-full border-2 border-[#1C6B1C] bg-white dark:bg-[#1e2122] text-black dark:text-white shadow-md rounded-xl overflow-hidden flex flex-col min-h-[400px] max-h-[600px]">
-      {/* Header */}
-      <div className="bg-[#1C6B1C] text-white px-4 py-2 flex justify-between items-center">
+  // NY: Vis kun hvis overlay er åpen
+  if (!overlay.isOpen) {
+    return null;
+  }
+
+  return createPortal(
+    <Card
+      ref={(el) => {
+        windowRef.current = el;
+        overlay.ref(el); // NY: Registrer med overlay system
+      }}
+      data-new-message-window
+      className="fixed max-w-[100vw] w-full min-w-[300px] min-h-[200px] border-2 border-[#1C6B1C] bg-white dark:bg-[#1e2122] text-black dark:text-white shadow-lg rounded-xl resize overflow-hidden flex flex-col"
+      style={{
+        left: position.x,
+        top: position.y,
+        width: size.width,
+        height: size.height,
+        minWidth: 500,
+        minHeight: 300,
+        maxWidth: window.innerWidth - 40,
+        maxHeight: window.innerHeight - 40,
+        zIndex: overlay.zIndex, // NY: Bruk z-index fra overlay system
+      }}
+    >
+      {/* Drag handle - header */}
+      <div
+        className="bg-[#1C6B1C] text-white px-4 py-2 flex justify-between items-center cursor-move select-none"
+        onMouseDown={(e) => {
+          const rect = windowRef.current?.getBoundingClientRect();
+          if (rect) {
+            offset.current = {
+              x: e.clientX - rect.left,
+              y: e.clientY - rect.top,
+            };
+            setIsDragging(true);
+          }
+        }}
+      >
         <div className="font-semibold">
           {isMultipleUsers ? "New Group Conversation" : "New Conversation"}
         </div>
-        <button onClick={onClose} title="Close" className="hover:bg-[#2a7a2a] rounded p-1">
-          ✕
-        </button>
+        <div className="flex gap-4">
+          <button 
+            onClick={() => setPosition({ x: 200, y: 200 })} 
+            title="Reset Position"
+            className="hover:bg-[#2a7a2a] rounded p-1"
+          >
+            ⟳
+          </button>
+          <button 
+            onClick={handleClose} 
+            title="Close"
+            className="hover:bg-[#2a7a2a] rounded p-1"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -262,6 +360,7 @@ export default function NewMessageDialog({
           )}
         </div>
       </div>
-    </Card>
+    </Card>,
+    document.body
   );
 }

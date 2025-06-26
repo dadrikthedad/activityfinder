@@ -1,8 +1,7 @@
 // En simpel utgave av venne listen for å se alle vennene, brukes på egen profil side. Skal implimentere en egen for å se en annens venneliste
 "use client";
-
 import { useFriends } from "@/hooks/useFriends";
-import UserActionPopover from "@/components/common/UserActionPopover";
+import ClickableAvatar from "@/components/common/ClickableAvatar"; // NY IMPORT
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useState, useEffect } from "react";
 
@@ -14,7 +13,6 @@ export default function SimpleFriendList() {
   useEffect(() => {
     setFriendList(friends);
   }, [friends]);
-
 
   const filteredFriends = friendList.filter((friend) =>
     friend.friend.fullName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -32,17 +30,19 @@ export default function SimpleFriendList() {
         onChange={(e) => setSearchTerm(e.target.value)}
         className="w-full p-3 py-3 border-2 border-[#1C6B1C] rounded-lg bg-white dark:bg-[#1e2122] text-black dark:text-white text-center"
       />
-
       <ul className="space-y-4">
         {filteredFriends.map((friend) => (
           <li key={friend.friend.id} className="flex items-center gap-4">
-            <UserActionPopover mode="standalone" user={friend.friend} avatarSize={60} onRemoveSuccess={() =>
-    setFriendList((prev) => prev.filter((f) => f.friend.id !== friend.friend.id)) } />
+            {/* NY: Bruk ClickableAvatar i stedet for UserActionPopover */}
+            <ClickableAvatar
+              user={friend.friend}
+              size={60}
+            />
             <span className="text-md font-medium">{friend.friend.fullName}</span>
           </li>
         ))}
       </ul>
-        
+       
       <div className="flex justify-center pt-2">
         <ProfileNavButton
           href="/friends"
@@ -51,7 +51,7 @@ export default function SimpleFriendList() {
           className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
         />
       </div>
-      
+     
     </div>
   );
 }
