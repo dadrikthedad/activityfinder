@@ -254,38 +254,4 @@ public class MessageNotificationsController : ControllerBase
         return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                          ?? throw new Exception("Ugyldig bruker"));
     }
-    
-    // Henter brukerne som har godkjent en samtale
-    [HttpGet("group-approved-members/{conversationId}")]
-    public async Task<IActionResult> GetGroupApprovedMembers(int conversationId)
-    {
-        var userId = GetUserId();
-    
-        // Sjekk tilgang
-        var hasAccess = await _context.ConversationParticipants
-            .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
-        
-        if (!hasAccess)
-            return Forbid("Du har ikke tilgang til denne samtalen");
-
-        // Hent alle som har fått GroupRequestApproved for denne gruppen
-        var approvedMembers = await _context.MessageNotifications
-            .Where(n => n.ConversationId == conversationId && 
-                        n.Type == NotificationType.GroupRequestApproved)
-            .Include(n => n.FromUser)
-            .ThenInclude(u => u.Profile)
-            .OrderBy(n => n.CreatedAt)
-            .Select(n => new 
-            {
-                UserId = n.FromUserId,
-                FullName = n.FromUser!.FullName,
-                ProfileImageUrl = n.FromUser.Profile != null ? n.FromUser.Profile.ProfileImageUrl : null,
-                JoinedAt = n.CreatedAt
-            })
-            .Distinct() // I tilfelle det er duplikater
-            .ToListAsync();
-
-        return Ok(approvedMembers);
-    }
-    
 }

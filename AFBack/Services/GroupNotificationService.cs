@@ -191,6 +191,26 @@ public class GroupNotificationService
             .ToListAsync();
 
         var eventSummaries = await BuildEventSummariesAsync(events);
+        
+        // 🆕 Hent affected users for den siste hendelsen
+        List<UserSummaryDTO> latestAffectedUsers = new();
+    
+        if (lastEvent != null && lastEvent.AffectedUserIds.Any())
+        {
+            latestAffectedUsers = await _context.Users
+                .Where(u => lastEvent.AffectedUserIds.Contains(u.Id))
+                .Select(u => new UserSummaryDTO
+                {
+                    Id = u.Id,
+                    FullName = u.FullName,
+                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                    GroupRequestStatus = _context.GroupRequests
+                        .Where(gr => gr.ConversationId == notification.ConversationId && gr.ReceiverId == u.Id)
+                        .Select(gr => gr.Status)
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+        }
 
         // Sjekk rejected status
         var isRejected = await _context.GroupRequests
@@ -221,7 +241,9 @@ public class GroupNotificationService
             MessageCount = notification.EventCount,
             IsConversationRejected = isRejected,
             IsReactionUpdate = false,
-            EventSummaries = eventSummaries
+            EventSummaries = eventSummaries,
+            LatestGroupEventType = lastEvent?.EventType.ToString(),
+            LatestAffectedUsers = latestAffectedUsers
         };
     }
 

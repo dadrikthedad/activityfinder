@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using AFBack.DTOs;
 
 namespace AFBack.Models;
 
@@ -37,4 +38,12 @@ public class MessageNotificationDTO
     public DateTime? LastUpdatedAt { get; set; }
     // Visning av hendelser
     public List<string>? EventSummaries { get; set; }
+    
+    // For å ha riktig notification ved kun 1 groupevent
+    public string? LatestGroupEventType { get; set; }
+    // Oppdatere participants i sanntid
+    public List<UserSummaryDTO>? LatestAffectedUsers { get; set; }
+    
+    
+
 }
