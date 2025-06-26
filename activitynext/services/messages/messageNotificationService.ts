@@ -1,7 +1,7 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";// eller hvor du har den
 import { PaginatedNotifications } from "@/types/PaginatedNotificationsDTO";
 import { API_BASE_URL } from "@/constants/routes";
-import { GroupApprovedMember } from "@/types/GroupApprovedMemberDTO";
+
 
 // Hente ALLE notifikasjoner
 export async function getMessageNotifications(page = 1, pageSize = 20): Promise<PaginatedNotifications> {
@@ -40,21 +40,4 @@ export async function getUnreadConversationIds(): Promise<number[]> {
 export async function markConversationNotificationsAsRead(conversationId: number): Promise<void> {
   const url = `${API_BASE_URL}/api/MessageNotifications/mark-conversation-as-read/${conversationId}`;
   await fetchWithAuth<void>(url, { method: "POST" });
-}
-
-
-// Henter godkjente brukere til en notifikasjon for å vise de som har akseptert
-export async function getGroupApprovedMembers(
-  conversationId: number
-): Promise<GroupApprovedMember[] | null> {
-  const url = `${API_BASE_URL}/api/messagenotifications/group-approved-members/${conversationId}`;
-  
-  console.log("🔵 Henter godkjente gruppemedlemmer:", url, conversationId);
-  
-  return await fetchWithAuth<GroupApprovedMember[]>(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
 }

@@ -1,3 +1,5 @@
+import { UserSummaryDTO } from "./UserSummaryDTO";
+
 export interface MessageNotificationDTO {
   id: number;
   type: NotificationType | keyof typeof NotificationType;
@@ -21,6 +23,10 @@ export interface MessageNotificationDTO {
 
   eventCount?: number | null;
   lastUpdatedAt?: string | null;
+
+  // Felter for GroupEvent data
+  latestGroupEventType?: string | null;
+  latestAffectedUsers?: UserSummaryDTO[] | null;
 }
 
 export enum NotificationType {

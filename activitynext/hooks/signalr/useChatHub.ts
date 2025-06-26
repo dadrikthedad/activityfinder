@@ -8,7 +8,6 @@ import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
-import { GroupMemberInvitedDto } from "@/types/GroupMemberInvitedDTO";
 import { GroupNotificationUpdateDTO } from "@/types/GroupNotificationUpdateDTO";
 
 
@@ -19,8 +18,6 @@ export function useChatHub(
   onRequestApproved?: (notification: MessageNotificationDTO) => void,
   onRequestCreated?: (data: MessageRequestCreatedDto) => void,
   onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void,
-  onGroupRequestApproved?: (notification: MessageNotificationDTO) => void,
-  onGroupMemberInvited?: (data: GroupMemberInvitedDto) => void,
   onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
@@ -30,8 +27,6 @@ export function useChatHub(
   const approvedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null);
   const createdRef = useRef(onRequestCreated);
   const groupRequestCreatedRef = useRef(onGroupRequestCreated);
-  const groupRequestApprovedRef = useRef<((notification: MessageNotificationDTO) => void) | null>(null); 
-  const groupMemberInvitedRef = useRef(onGroupMemberInvited);
   const groupNotificationUpdatedRef = useRef(onGroupNotificationUpdated);
 
    // Oppdater refs hvis funksjonene endres
@@ -42,10 +37,6 @@ export function useChatHub(
   }, [onRequestApproved]);
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
   useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
-  useEffect(() => {
-    groupRequestApprovedRef.current = onGroupRequestApproved ?? null;
-  }, [onGroupRequestApproved]);
-  useEffect(() => { groupMemberInvitedRef.current = onGroupMemberInvited }, [onGroupMemberInvited]);
   useEffect(() => { groupNotificationUpdatedRef.current = onGroupNotificationUpdated }, [onGroupNotificationUpdated]);
 
   useEffect(() => {
@@ -71,8 +62,6 @@ export function useChatHub(
           conn.off("MessageRequestApproved");
           conn.off("MessageRequestCreated");
           conn.off("GroupRequestCreated");
-          conn.off("GroupRequestApproved");
-          conn.off("GroupMemberInvited");
           conn.off("GroupNotificationUpdated");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
@@ -102,14 +91,6 @@ export function useChatHub(
             useMessageNotificationStore.getState().upsertNotification(notification);
           });
 
-          // Ny GroupRequestApproved listener
-          conn.on("GroupRequestApproved", (notification: MessageNotificationDTO) => {
-            console.log("✅ Mottatt gruppegodkjenningsnotifikasjon:", notification);
-
-            // 1. Send den til callback hvis noen bruker den
-            groupRequestApprovedRef.current?.(notification);
-          });
-
           conn.on("MessageRequestCreated", (data: MessageRequestCreatedDto) => {
             console.log("📨 Ny meldingsforespørsel mottatt:", data);
 
@@ -137,23 +118,8 @@ export function useChatHub(
             groupRequestCreatedRef.current?.(data);
           });
 
-           // 🆕 Ny GroupMemberInvited listener
-          conn.on("GroupMemberInvited", (data: GroupMemberInvitedDto) => {
-            console.log("👥➕ Gruppemedlem invitert via SignalR:", data);
-
-            // Send videre til frontend-logikk
-            groupMemberInvitedRef.current?.(data);
-          });
-
           conn.on("GroupNotificationUpdated", (data: GroupNotificationUpdateDTO) => {
             console.log("🔔 GroupNotification oppdatert via SignalR:", data);
-
-            const { notification } = data;
-            
-            // Legg til/oppdater notifikasjon i store
-            if (notification) {
-              useMessageNotificationStore.getState().upsertNotification(notification);
-            }
 
             // Send videre til frontend-logikk
             groupNotificationUpdatedRef.current?.(data);

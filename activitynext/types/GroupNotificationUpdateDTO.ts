@@ -1,4 +1,5 @@
 import { MessageNotificationDTO } from "./MessageNotificationDTO";
+import { UserSummaryDTO } from "./UserSummaryDTO";
 
 export interface GroupNotificationUpdateDTO {
   userId: number;
@@ -6,6 +7,7 @@ export interface GroupNotificationUpdateDTO {
   isNewNotification: boolean;
   groupEventType: GroupEventType;
   affectedUserNames: string[];
+  affectedUsers: UserSummaryDTO[];
 }
 
 export enum GroupEventType {

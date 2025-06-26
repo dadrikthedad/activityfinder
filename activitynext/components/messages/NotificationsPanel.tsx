@@ -6,61 +6,9 @@ import ProfileNavButton from "../settings/ProfileNavButton";
 import Router from "next/router";
 import { useState } from 'react';
 import GroupEventTooltip from "./GroupEventTooltip";
+import React from 'react'; 
+import { formatNotificationText } from "../functions/message/FormatNotificationsText";
 
-
-function formatNotificationText(n: MessageNotificationDTO): string {
-  // Hvis samtalen er avslått, vis spesifikk tekst
-  if (n.isConversationRejected) {
-    switch (n.type) {
-      case "MessageRequest":
-      case 2:
-        return "message request (declined)";
-      case "NewMessage":
-      case 1:
-        return "sent message (conversation declined)";
-      default:
-        return "notification (conversation declined)";
-    }
-  }
-
-    switch (n.type) {
-    case "NewMessage":
-    case 1:
-      // 🆕 Bruk messagePreview direkte - backend håndterer alt
-      return n.messagePreview ?? "sent you a message";
-      
-    case "MessageRequest":
-    case 2:
-      return "requested to message you";
-      
-    case "MessageRequestApproved":
-    case 3:
-      return n.messagePreview ?? "approved your message request";
-      
-    case "GroupRequest":
-    case 5:
-      return n.messagePreview ?? "invited you to join a group";
-      
-    case "GroupRequestApproved":
-    case 6:
-      return n.messagePreview ?? "joined your group";
-
-    case "GroupEvent":
-    case 8:
-      return n.messagePreview ?? "new activity in group";
-      
-    case "MessageReaction":
-    case 4:
-      if (n.reactionEmoji) {
-        const preview = n.messagePreview ? ` on "${n.messagePreview}"` : "";
-        return `reacted with ${n.reactionEmoji}${preview}`;
-      }
-      return "reacted to your message";
-      
-    default:
-      return n.messagePreview ?? "You have a notification";
-  }
-}
 
 function shouldShowSenderName(n: MessageNotificationDTO): boolean {
 

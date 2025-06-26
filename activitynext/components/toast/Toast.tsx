@@ -9,7 +9,8 @@ import { useRouter } from "next/navigation";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import MiniAvatar from "../common/MiniAvatar";// 🆕 Importer MiniAvatar
 import { GroupEventType } from "@/types/GroupNotificationUpdateDTO";
-import React, { JSX } from 'react';
+import React from 'react';
+import { formatUserList } from "../functions/message/NotificationsUserListFormatter";
 
 export enum LocalToastType {
   MessageReactionChanged = "MessageReactionChanged",
@@ -35,6 +36,7 @@ interface NotificationToastProps {
 
   groupEventType?: GroupEventType | string;
   affectedUserNames?: string[];
+  affectedUsers?: UserSummaryDTO[];
 }
 
 export function showNotificationToast({
@@ -50,6 +52,7 @@ export function showNotificationToast({
   groupImage,
   groupEventType,
   affectedUserNames,
+  affectedUsers,
 }: NotificationToastProps) {
   toast.custom((tId) => (
     <NotificationToast
@@ -66,6 +69,7 @@ export function showNotificationToast({
       groupImage={groupImage}
       groupEventType={groupEventType}
       affectedUserNames={affectedUserNames}
+      affectedUsers={affectedUsers} 
     />
   ), { duration: Infinity });
 }
@@ -84,6 +88,7 @@ function NotificationToast({
   groupImage,
   groupEventType,
   affectedUserNames,
+  affectedUsers,
 }: NotificationToastProps & { t: { id: string | number } }) {
   const router = useRouter();
   const setShowMessages = useChatStore((s) => s.setShowMessages);
@@ -131,50 +136,6 @@ function NotificationToast({
     </span>
   );
 
-  const formatUserList = (userNames: string[]): JSX.Element => {
-    if (userNames.length === 0) {
-      return <span className="font-semibold text-black dark:text-white">someone</span>;
-    }
-    
-    if (userNames.length === 1) {
-      return <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>;
-    }
-    
-    if (userNames.length === 2) {
-      return (
-        <>
-          <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>
-          {" and "}
-          <span className="font-semibold text-black dark:text-white">{userNames[1]}</span>
-        </>
-      );
-    }
-    
-    if (userNames.length === 3) {
-      return (
-        <>
-          <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>
-          {", "}
-          <span className="font-semibold text-black dark:text-white">{userNames[1]}</span>
-          {" and "}
-          <span className="font-semibold text-black dark:text-white">{userNames[2]}</span>
-        </>
-      );
-    }
-    
-    // For 4 eller flere brukere
-    const remainingCount = userNames.length - 2;
-    return (
-      <>
-        <span className="font-semibold text-black dark:text-white">{userNames[0]}</span>
-        {", "}
-        <span className="font-semibold text-black dark:text-white">{userNames[1]}</span>
-        {" and "}
-        <span className="font-semibold text-black dark:text-white">{remainingCount} more</span>
-      </>
-    );
-  };
-
   const getTitle = () => {
     // Style group name samme som sender name
     const styledGroupName = (
@@ -188,7 +149,7 @@ function NotificationToast({
         case GroupEventType.MemberInvited:
           return (
             <>
-              {name} invited {formatUserList(affectedUserNames || [])} to {styledGroupName}
+              {name} invited {formatUserList(affectedUsers)} to {styledGroupName}
             </>
           );
           
@@ -196,7 +157,7 @@ function NotificationToast({
           if (affectedUserNames && affectedUserNames.length > 0) {
             return (
               <>
-                {formatUserList(affectedUserNames)} joined {styledGroupName}
+                {formatUserList(affectedUsers)} joined {styledGroupName}
               </>
             );
           }
@@ -206,7 +167,7 @@ function NotificationToast({
           if (affectedUserNames && affectedUserNames.length > 0) {
             return (
               <>
-                {formatUserList(affectedUserNames)} left {styledGroupName}
+                {formatUserList(affectedUsers)} left {styledGroupName}
               </>
             );
           }
@@ -215,7 +176,7 @@ function NotificationToast({
         case GroupEventType.MemberRemoved:
           return (
             <>
-              {name} removed {formatUserList(affectedUserNames || [])} from {styledGroupName}
+              {name} removed {formatUserList(affectedUsers)} from {styledGroupName}
             </>
           );
           

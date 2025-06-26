@@ -59,7 +59,7 @@ export async function handleIncomingNotification(
     
     // 🆕 Håndter GroupEvent notifikasjoner
     if (notification.type === "GroupEvent" && existing) {
-      const eventCount = notification.eventCount ?? 1;
+      const eventCount = notification.messageCount ?? notification.eventCount ?? 1;
       
       // Generer ny messagePreview basert på eventCount
       let newMessagePreview: string;
@@ -71,15 +71,17 @@ export async function handleIncomingNotification(
       
       const updated: MessageNotificationDTO = {
         ...existing,
-        eventCount: eventCount, // 🆕 Oppdater eventCount
+        eventCount: eventCount, // Oppdater eventCount
         messageCount: eventCount, // Sync med eventCount for konsistens
-        createdAt: notification.lastUpdatedAt || notification.createdAt, // 🆕 Bruk lastUpdatedAt
-        lastUpdatedAt: notification.lastUpdatedAt, // 🆕
+        createdAt: notification.lastUpdatedAt || notification.createdAt, // Bruk lastUpdatedAt
+        lastUpdatedAt: notification.lastUpdatedAt,
         messagePreview: newMessagePreview,
         senderId: notification.senderId, // Oppdater til siste actor
         senderName: notification.senderName, // Oppdater til siste actor
         senderProfileImageUrl: notification.senderProfileImageUrl,
-        eventSummaries: notification.eventSummaries, // 🆕 Oppdater event summaries
+        eventSummaries: notification.eventSummaries, // Oppdater event summaries
+        latestGroupEventType: notification.latestGroupEventType,
+        latestAffectedUsers: notification.latestAffectedUsers,
         isTemporary: existing.isTemporary ?? false,
       };
       

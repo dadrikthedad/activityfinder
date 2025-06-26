@@ -18,9 +18,9 @@ import { NotificationType } from "@/types/MessageNotificationDTO";
 import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
-import { GroupMemberInvitedDto } from "@/types/GroupMemberInvitedDTO";
 import { updateConversationParticipants } from "@/services/helpfunctions/conversationUpdateSerivce";
 import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotificationUpdateDTO";
+import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -256,58 +256,45 @@ export default function ChatHubClient() {
         }
       },
 
-      // GroupRequestApproved
-      async (notification) => {
-        console.log("✅ Godkjent gruppeforespørsel via SignalR:", notification); 
-        const convId = notification.conversationId;
-        if (!convId) {
-          return;
-        }
-
-        if (notification.senderId) {
-          await updateConversationParticipants(convId, "User approved group request");
-        }
-      },
-
-       async (data: GroupMemberInvitedDto) => {
-        console.log("➕ Gruppemedlem invitert i ChatHubClient:", data);
-        const { conversationId } = data;
-        
-        // Oppdater participants når noen blir invitert
-        await updateConversationParticipants(conversationId, "New members invited to group");
-      },
-
       // 🆕 Ny GroupNotificationUpdated callback
       async (data: GroupNotificationUpdateDTO) => {
         console.log("🔔 GroupNotification oppdatert i ChatHubClient:", data);
-        const { userId: targetUserId, notification, isNewNotification, groupEventType, affectedUserNames } = data;
-      
+        const { userId: targetUserId, notification, groupEventType, affectedUsers } = data;
+        
         // Sjekk at notifikasjonen er for den innloggede brukeren
         if (targetUserId !== userId) {
           console.log("⚠️ GroupNotification ikke for denne brukeren, hopper over");
           return;
         }
-      
-        if (notification) {
-          // 🔔 Oppdater notification-panelet i sanntid
-          await handleIncomingNotification(notification);
         
-          // 🆕 Vis toast for alle nye hendelser, ikke bare nye notifikasjoner
-          if (notification.conversationId) {
+        if (notification) {
+          
+          // 🆕 Fikset: Cast til any eller bruk type assertion
+          const enhancedNotification: MessageNotificationDTO = {
+            ...notification,
+            latestGroupEventType: typeof groupEventType === 'string' ? groupEventType : String(groupEventType),
+            latestAffectedUsers: affectedUsers
+          };
+      
+          // Oppdater notification-panelet med enhanced data
+          await handleIncomingNotification(enhancedNotification);
+        
+          if (notification.conversationId != null) {
+            await updateConversationParticipants(notification.conversationId, "New members invited to group");
+          }
+      
+          // Vis toast for alle nye hendelser, ikke bare nye notifikasjoner
+          if (notification.conversationId != null) {
             // Konverter string til enum verdi
             let eventTypeEnum: GroupEventType;
-          
+      
             // Håndter både string og nummer fra backend
             if (typeof groupEventType === 'string') {
               eventTypeEnum = GroupEventType[groupEventType as keyof typeof GroupEventType];
             } else {
               eventTypeEnum = groupEventType;
             }
-          
-            console.log('🔍 Original groupEventType:', groupEventType);
-            console.log('🔍 Converted eventTypeEnum:', eventTypeEnum);
-            console.log('🔍 isNewNotification:', isNewNotification);
-          
+
             // 🆕 Vis toast for alle hendelser (ikke bare nye notifikasjoner)
             showNotificationToast({
               senderName: notification.senderName ?? "Someone",
@@ -316,11 +303,11 @@ export default function ChatHubClient() {
               groupName: notification.groupName,
               groupImage: notification.groupImageUrl,
               groupEventType: eventTypeEnum,
-              affectedUserNames: affectedUserNames,
+              affectedUsers: affectedUsers, // 🆕 Send også hele user-objektene
             });
           }
         }
-    }
+      }
 
 
 
