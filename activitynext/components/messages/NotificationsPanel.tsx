@@ -4,7 +4,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import Router from "next/router";
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import GroupEventTooltip from "./GroupEventTooltip";
 import React from 'react'; 
 import { formatNotificationText } from "../functions/message/FormatNotificationsText";
@@ -40,7 +40,13 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
 
   const totalNotifications = useMessageNotificationStore((s) => s.notifications.length);
 
-  const canGoToChat = totalNotifications >= 20; 
+  const canGoToChat = totalNotifications >= 20;
+
+   // 🆕 Forbedret tooltip state med timeout
+  const [activeTooltip, setActiveTooltip] = useState<number | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   const handleNotificationClick = (n: MessageNotificationDTO) => {
     // Hvis samtalen er avslått, ikke gjør noe
@@ -61,28 +67,54 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
       }
     }
   };
-  
-    // Tooltip
-  const [activeTooltip, setActiveTooltip] = useState<number | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
   // Handler for å vise tooltip
   const handleMouseEnter = (notificationId: number, event: React.MouseEvent) => {
+    // Kanseller eventuell pending hide timeout
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+
     const rect = event.currentTarget.getBoundingClientRect();
     setTooltipPosition({
-      x: rect.right + 10, // Til høyre for notifikasjonen
+      x: rect.right + 5, // Mindre gap - 5px istedenfor 10px
       y: rect.top
     });
     setActiveTooltip(notificationId);
   };
 
   const handleMouseLeave = () => {
+    // Ikke skjul umiddelbart - gi tid til å bevege musen til tooltip
+    hideTimeoutRef.current = setTimeout(() => {
+      setActiveTooltip(null);
+    }, 150); // 150ms delay
+  };
+
+  const handleTooltipMouseEnter = () => {
+    // Kanseller hide timeout når musen er over tooltip
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
+  };
+
+  const handleTooltipMouseLeave = () => {
+    // Skjul tooltip når musen forlater tooltip
     setActiveTooltip(null);
   };
-  
+
   const shouldShowTooltip = (n: MessageNotificationDTO): boolean => {
     return (n.type === "GroupEvent" || n.type === 8);
   };
+
+  React.useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
+  }, []);
 
 
   return (
@@ -135,22 +167,29 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                 })}
               </div>
               {/* 🆕 Tooltip */}
-              {activeTooltip === n.id && n.conversationId && (n.type === "GroupEvent" || n.type === 8) && (
-                <div 
-                  className="fixed z-50"
-                  style={{
-                    left: tooltipPosition.x,
-                    top: tooltipPosition.y
-                  }}
-                >
-                  <GroupEventTooltip
-                    eventSummaries={n.eventSummaries || []}
-                    groupName={n.groupName || "Unknown Group"}
-                    eventCount={n.messageCount || 0}
-                    isVisible={true}
-                  />
-                </div>
-              )}
+               {activeTooltip !== null && (
+                  (() => {
+                    const notification = notifications.find(n => n.id === activeTooltip);
+                    return notification && shouldShowTooltip(notification) && notification.conversationId ? (
+                      <div 
+                        className="fixed z-50"
+                        style={{
+                          left: tooltipPosition.x,
+                          top: tooltipPosition.y
+                        }}
+                        onMouseEnter={handleTooltipMouseEnter}
+                        onMouseLeave={handleTooltipMouseLeave}
+                      >
+                        <GroupEventTooltip
+                          eventSummaries={notification.eventSummaries || []}
+                          groupName={notification.groupName || "Unknown Group"}
+                          eventCount={notification.messageCount || 0}
+                          isVisible={true}
+                        />
+                      </div>
+                    ) : null;
+                  })()
+                )}
             </li>
           ))}
             <li className="w-full text-center pt-2">
