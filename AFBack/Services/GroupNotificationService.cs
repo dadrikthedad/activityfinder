@@ -37,12 +37,22 @@ public class GroupNotificationService
                 approvedMemberIds = approvedMemberIds.Where(id => !excludeUserIds.Contains(id)).ToList();
             }
             
-            var affectedUserNames = new List<string>();
+            var affectedUsers = new List<UserSummaryDTO>();
             if (affectedUserIds?.Any() == true)
             {
-                affectedUserNames = await _context.Users
+                affectedUsers = await _context.Users
                     .Where(u => affectedUserIds.Contains(u.Id))
-                    .Select(u => u.FullName)
+                    .Select(u => new UserSummaryDTO
+                    {
+                        Id = u.Id,
+                        FullName = u.FullName,
+                        ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                        // 🆕 Legg til GroupRequestStatus basert på samtalen
+                        GroupRequestStatus = _context.GroupRequests
+                            .Where(gr => gr.ConversationId == conversationId && gr.ReceiverId == u.Id)
+                            .Select(gr => gr.Status)
+                            .FirstOrDefault()
+                    })
                     .ToListAsync();
             }
 
@@ -73,7 +83,7 @@ public class GroupNotificationService
                                     Notification = messageNotificationDTO,
                                     IsNewNotification = notification.EventCount == 1,
                                     GroupEventType = eventType ?? GroupEventType.MemberInvited,
-                                    AffectedUserNames = affectedUserNames 
+                                    AffectedUsers = affectedUsers 
                                 });
 
                             Console.WriteLine($"✅ Sent GroupNotificationUpdated to member {memberId} for conversation {conversationId}");
