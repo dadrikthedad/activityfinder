@@ -30,7 +30,7 @@ export default function NewMessageWindow({
   initialPosition,
   useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: NewMessageWindowProps) {
-  console.log('💬 OVERLAY NewMessageWindow props received:', { useOverlaySystem, hasInitialReceiver: !!initialReceiver });
+  
   const { query, setQuery, results, loading } = useUserSearch();
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
   const { userId } = useAuth();
@@ -41,6 +41,7 @@ export default function NewMessageWindow({
     return !useOverlaySystem; // If not using overlay, start open
   });
   const overlay = useOverlay(); // Always call useOverlay - we'll always register for outside click detection
+  console.log('💬 OVERLAY NewMessageWindow props received:', { useOverlaySystem, hasInitialReceiver: !!initialReceiver, isOpen });
   
   const [groupName, setGroupName] = useState("");
 
@@ -105,12 +106,12 @@ export default function NewMessageWindow({
   // ✅ Auto-open when component mounts (only if using overlay system)
   useEffect(() => {
     if (useOverlaySystem) {
-      console.log('💬 OVERLAY NewMessageWindow mounting, opening overlay');
-      setIsOpen(true);
+      console.log('💬 OVERLAY NewMessageWindow mounting, will use full overlay state management');
+      // Component starts with isOpen: true, so overlay.open() will be called in sync effect
     } else {
       // Always register for outside click detection, even when not using overlay state management
       console.log('💬 OVERLAY NewMessageWindow mounting without overlay state management, but registering for outside clicks');
-      overlay.open(); // Register as level 2, but don't use state management
+      overlay.open(); // Register as level, but don't use state management
     }
   }, [useOverlaySystem, overlay]);
 
@@ -191,11 +192,13 @@ export default function NewMessageWindow({
   // Auto-close on action completion (only if using overlay system)
   useEffect(() => {
     console.log('💬 OVERLAY NewMessageWindow effect check:', { useOverlaySystem, isOpen, shouldTriggerClose: useOverlaySystem && !isOpen });
-    if (useOverlaySystem && !isOpen) {
+    
+    // ✅ FIXED: Only trigger onClose when overlay system is used AND isOpen becomes false AFTER being true
+    if (useOverlaySystem && !isOpen && overlay.level !== null) {
       console.log('💬 OVERLAY NewMessageWindow closed via overlay system, calling onClose');
       onClose();
     }
-  }, [isOpen, onClose, useOverlaySystem]);
+  }, [isOpen, onClose, useOverlaySystem, overlay.level]);
 
   const handleMessageSent = useCallback((message: MessageDTO) => {
     console.log("💬 OVERLAY Message sent!", message);
@@ -211,6 +214,7 @@ export default function NewMessageWindow({
 
   // ✅ Conditional rendering based on local state (or always render if not using overlay)
   if (useOverlaySystem && !isOpen) {
+    console.log('💬 OVERLAY NewMessageWindow not rendering due to isOpen=false');
     return null;
   }
 

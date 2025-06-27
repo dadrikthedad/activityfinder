@@ -183,6 +183,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
             initialReceiver={newMessageInitialReceiver}
             initialPosition={{ x: 500, y: 300 }}
             onClose={handleCloseNewMessageWindow}
+            useOverlaySystem={false}
             onMessageSent={handleMessageSent}
             onGroupCreated={handleGroupCreated}
           />
