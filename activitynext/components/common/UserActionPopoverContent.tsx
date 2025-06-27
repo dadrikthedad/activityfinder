@@ -23,6 +23,8 @@ interface Props {
   onInviteUsers?: () => void;
   // ✅ NEW: Handler for send message from nested context
   onSendMessageFromNested?: (user: UserSummaryDTO) => void;
+  // ✅ NEW: Handler for opening invite users window
+  onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
 }
 
 export default function UserActionPopoverContent({
@@ -39,8 +41,8 @@ export default function UserActionPopoverContent({
   onLeaveGroup,
   onShowUserPopover,
   isPendingRequest = false,
-  onInviteUsers,
   onSendMessageFromNested, // ✅ NEW prop
+  onOpenInviteWindow, // ✅ NEW prop
 }: Props) {
   
   // ✅ FIXED: Handler for showing user popover - should NOT automatically send message
@@ -89,10 +91,10 @@ export default function UserActionPopoverContent({
                 />
 
                 {/* Invite Users button - show only if not pending request */}
-                {onInviteUsers && !isPendingRequest && (
+                {onOpenInviteWindow && !isPendingRequest && (
                   <ProfileNavButton
                     text="Invite Users"
-                    onClick={onInviteUsers}
+                    onClick={() => onOpenInviteWindow?.(undefined, participants)}
                     variant="small"
                     className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
                   />

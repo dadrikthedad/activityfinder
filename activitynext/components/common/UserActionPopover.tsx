@@ -1,6 +1,5 @@
-// UserActionPopover.tsx - Fixed to handle NewMessageWindow in nested contexts
 "use client";
-import React, { useEffect, useState, useCallback} from "react"; // ✅ LAGT TIL: useRef import
+import React, { useEffect, useState, useCallback } from "react"; // ✅ LAGT TIL: useRef import
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
@@ -10,6 +9,7 @@ import { useOverlay } from "@/context/OverlayProvider";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import NewMessageWindow from "../messages/NewMessageWindow";
+import InviteUsersWindow from "../messages/InviteUsersWindow"; // ✅ NEW import
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
 
@@ -39,6 +39,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     participants = [], 
     onLeaveGroup, 
     isPendingRequest = false,
+    conversationId, // ✅ Extract conversationId
     zIndex,
     overlayRef
   } = props;
@@ -49,12 +50,15 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     position,
   });
 
-  // Only need overlay for new message window
+  // Only need overlay for new message window and invite users window
   const newMessageOverlay = useOverlay();
+  const inviteUsersOverlay = useOverlay(); // ✅ NEW overlay for invite users
 
   // State
   const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
   const [newMessageInitialReceiver, setNewMessageInitialReceiver] = useState<UserSummaryDTO | undefined>();
+  // ✅ NEW: Invite users window state
+  const [showInviteUsersWindow, setShowInviteUsersWindow] = useState(false);
 
   // Hooks
   const { confirmAndRemove } = useConfirmRemoveFriend();
@@ -78,9 +82,15 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
       newMessageOverlay.close();
     }
 
-    // Close any open message window state
+    // ✅ NEW: Close invite users window if open
+    if (inviteUsersOverlay.isOpen) {
+      inviteUsersOverlay.close();
+    }
+
+    // Close any open window state
     setShowNewMessageWindow(false);
     setNewMessageInitialReceiver(undefined);
+    setShowInviteUsersWindow(false); // ✅ NEW
 
     // Tell parent to close (UserActionPopoverPortal)
     if (onCloseDropdown) {
@@ -154,12 +164,30 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     handleClose();
   };
 
-  const handleInviteUsers = () => {
-    console.log("👥 Invite users clicked!");
-    handleClose();
+  // ✅ NEW: Handle opening invite users window
+  const handleOpenInviteWindow = useCallback(() => {
+    console.log('👥 Opening invite users window for group:', user.fullName);
+    setShowInviteUsersWindow(true);
+    
+    // Force open the overlay after a short delay to ensure state is set
+    setTimeout(() => {
+      inviteUsersOverlay.open();
+    }, 0);
+  }, [inviteUsersOverlay, user.fullName]);
+
+  const handleCloseInviteWindow = useCallback(() => {
+    console.log('👥 Closing invite users window');
+    setShowInviteUsersWindow(false);
+    inviteUsersOverlay.close();
+  }, [inviteUsersOverlay]);
+
+  const handleInvitesSent = (response: unknown) => {
+    console.log("👥 Invites sent from popover:", response);
+    handleCloseInviteWindow();
+    // Don't automatically close the UserActionPopover - let user decide
   };
 
-  // Debug logging for message window state
+  // Debug logging for window states
   useEffect(() => {
     console.log('📝 OVERLAY Message window state:', {
       showNewMessageWindow,
@@ -168,6 +196,14 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
       receiverName: newMessageInitialReceiver?.fullName
     });
   }, [showNewMessageWindow, newMessageOverlay.isOpen, newMessageInitialReceiver]);
+
+  useEffect(() => {
+    console.log('👥 OVERLAY Invite users window state:', {
+      showInviteUsersWindow,
+      overlayOpen: inviteUsersOverlay.isOpen,
+      groupName: user.fullName
+    });
+  }, [showInviteUsersWindow, inviteUsersOverlay.isOpen, user.fullName]);
 
   return (
     <>
@@ -195,8 +231,9 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           onLeaveGroup={handleLeaveGroup}
           onShowUserPopover={handleShowUserPopover}
           isPendingRequest={isPendingRequest}
-          onInviteUsers={isGroup ? handleInviteUsers : undefined}
-          // ✅ NEW: Pass the nested send message handler
+          // ✅ NEW: Pass the new invite window handler
+          onOpenInviteWindow={isGroup ? handleOpenInviteWindow : undefined}
+          // ✅ Pass the nested send message handler
           onSendMessageFromNested={handleSendMessageFromNested}
         />
       </div>
@@ -232,6 +269,46 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
                   useOverlaySystem={false} // We're managing the overlay ourselves
                   onMessageSent={handleMessageSent}
                   onGroupCreated={handleGroupCreated}
+                />
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
+      )}
+
+      {/* ✅ NEW: Invite Users Window */}
+      {showInviteUsersWindow && isGroup && (
+        <>
+          {inviteUsersOverlay.isOpen && createPortal(
+            <div 
+              ref={inviteUsersOverlay.ref} 
+              style={{ 
+                zIndex: inviteUsersOverlay.zIndex,
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                pointerEvents: 'none' // Allow clicks to pass through to positioned content
+              }}
+            >
+              <div 
+                style={{ 
+                  position: 'absolute',
+                  top: '200px',
+                  left: '600px',
+                  pointerEvents: 'auto' // Re-enable clicks for the actual window
+                }}
+              >
+                <InviteUsersWindow
+                  conversationId={conversationId || 0} // You might need to pass this as a prop
+                  groupName={user.fullName ?? "Group"}
+                  existingParticipants={participants}
+                  onClose={handleCloseInviteWindow}
+                  onInvitesSent={handleInvitesSent}
+                  initialPosition={{ x: 0, y: 0 }} // Position handled by parent div
+                  useOverlaySystem={false} // We're managing the overlay ourselves
                 />
               </div>
             </div>,
