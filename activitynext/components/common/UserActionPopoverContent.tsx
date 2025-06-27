@@ -67,10 +67,11 @@ export default function UserActionPopoverContent({
           <div className="flex flex-col justify-center flex-1 items-start space-y-2">
             {isGroup ? (
               <>
-                {/* ✅ ParticipantsDropdownButton - fjernet onShowUserPopover prop */}
+                {/* ✅ ParticipantsDropdownButton - disabled overlay system since we're nested */}
                 <ParticipantsDropdownButton
                   participants={participants}
                   onShowUserPopover={onShowUserPopover}
+                  useOverlaySystem={false} // ✅ Disable overlay system since we're already in an overlay
                 />
 
                 {/* Invite Users button - vis kun hvis ikke pending request */}

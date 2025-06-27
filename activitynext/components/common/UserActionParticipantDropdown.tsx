@@ -1,36 +1,74 @@
-// ParticipantsDropdownButton.tsx - forenklet med gjenbrukbar komponent
+// ParticipantsDropdownButton.tsx - Updated to use overlay system properly
 "use client";
-import { useState, useRef, useEffect } from "react";
-import { createPortal } from "react-dom"; // NY IMPORT
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { UserSummaryDTO, GroupRequestStatus } from "@/types/UserSummaryDTO";
-import { useOverlay } from "@/context/OverlayProvider";
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import MiniAvatar from "../common/MiniAvatar";
 
 interface ParticipantsDropdownButtonProps {
   participants: UserSummaryDTO[];
   className?: string;
   onShowUserPopover?: (user: UserSummaryDTO, event: React.MouseEvent) => void;
+  // ✅ NEW: Optional prop to disable overlay system when used as nested component
+  useOverlaySystem?: boolean;
 }
 
 export default function ParticipantsDropdownButton({
   participants,
   className = "",
-  onShowUserPopover
+  onShowUserPopover,
+  useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: ParticipantsDropdownButtonProps) {
-  const [open, setOpen] = useState(false);
+  console.log('👥 OVERLAY ParticipantsDropdownButton props received:', { useOverlaySystem, participantCount: participants.length });
+
+  // ✅ Always start closed - different from NewMessageWindow which should start open when nested
+  const [isOpen, setIsOpen] = useState(false);
+  const overlay = useOverlay(); // Always call useOverlay
+
   const ref = useRef<HTMLDivElement>(null);
   
-  // NY: Beregn posisjon ved mount og oppdater kontinuerlig
+  // Position calculation
   const [position, setPosition] = useState(() => {
-    // Initial safe position
-    return { x: -9999, y: -9999 }; // Utenfor skjermen til vi får riktig posisjon
+    return { x: -9999, y: -9999 }; // Off-screen until we get correct position
   });
- 
-  // NY: Auto-level overlay
-  const overlay = useOverlay();
 
-  // NY: Oppdater posisjon kontinuerlig når ref endres
+  // ✅ Only register overlay when actually opening (not on mount)
+  useEffect(() => {
+    if (!useOverlaySystem && isOpen && !overlay.isOpen) {
+      // Register for outside click detection only when opening
+      console.log('👥 OVERLAY ParticipantsDropdownButton opening without overlay state management, but registering for outside clicks');
+      overlay.open();
+    }
+  }, [useOverlaySystem, isOpen, overlay]);
+
+  // ✅ Sync overlay state with local state (conditional logic inside)
+  useEffect(() => {
+    if (!useOverlaySystem) return;
+    
+    if (isOpen && !overlay.isOpen) {
+      console.log('👥 OVERLAY ParticipantsDropdownButton opening overlay');
+      overlay.open();
+    } else if (!isOpen && overlay.isOpen) {
+      console.log('👥 OVERLAY ParticipantsDropdownButton closing overlay');
+      overlay.close();
+    }
+  }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
+
+  // ✅ Always call useOverlayAutoClose to listen for external closing
+  useOverlayAutoClose(() => {
+    console.log('👥 OVERLAY ParticipantsDropdownButton auto-close triggered');
+    if (useOverlaySystem) {
+      setIsOpen(false);
+    } else {
+      // If not using overlay system, just close dropdown directly
+      console.log('👥 OVERLAY ParticipantsDropdownButton closing directly');
+      setIsOpen(false);
+    }
+  }, overlay.level ?? undefined);
+
+  // Update position continuously when ref changes
   useEffect(() => {
     const updatePosition = () => {
       if (ref.current) {
@@ -46,42 +84,29 @@ export default function ParticipantsDropdownButton({
       }
     };
 
-    // Oppdater posisjon når komponenten rendres
     updatePosition();
     
-    // Oppdater på window resize
     window.addEventListener('resize', updatePosition);
     return () => window.removeEventListener('resize', updatePosition);
   }, []);
 
-  // Sync overlay state with local state
-  useEffect(() => {
-    if (open && !overlay.isOpen) {
-      overlay.open();
-    } else if (!open && overlay.isOpen) {
-      overlay.close();
-    }
-  }, [open, overlay]);
+  const handleToggle = useCallback(() => {
+    console.log('👥 OVERLAY ParticipantsDropdownButton toggle:', { currentlyOpen: isOpen });
+    setIsOpen(prev => !prev);
+  }, [isOpen]);
 
-  const handleToggle = () => {
-    setOpen(prev => !prev);
-  };
-
-  // NY: Bruk store-metoden for UserActionPopover
-  const handleParticipantClick = (participant: UserSummaryDTO, event: React.MouseEvent) => {
+  const handleParticipantClick = useCallback((participant: UserSummaryDTO, event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     
-    console.log('👥 Participant clicked:', participant.fullName);
+    console.log('👥 OVERLAY Participant clicked:', participant.fullName);
     
-    // ✅ Kall callback som kommer fra UserActionPopover
     if (onShowUserPopover) {
       onShowUserPopover(participant, event);
     }
-  };
+  }, [onShowUserPopover]);
 
-
-  // Hjelpefunksjon for status-info
+  // Helper function for status info
   const getStatusInfo = (participant: UserSummaryDTO) => {
     const status = participant.groupRequestStatus;
    
@@ -94,7 +119,7 @@ export default function ParticipantsDropdownButton({
     return null;
   };
 
-  // Sortering
+  // Sorting
   const getStatusOrder = (status: GroupRequestStatus | string | null | undefined): number => {
     if (status === "Creator" || status === GroupRequestStatus.Creator) return 0;
     if (status === "Approved" || status === GroupRequestStatus.Approved) return 1;
@@ -115,15 +140,15 @@ export default function ParticipantsDropdownButton({
         className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
       />
      
-      {/* Bruk createPortal for smooth positioning - vis kun når position er klar */}
-      {open && position.x > -9999 && createPortal(
+      {/* ✅ Conditional rendering based on local state */}
+      {isOpen && position.x > -9999 && createPortal(
         <div
           ref={overlay.ref}
           style={{ 
             position: 'fixed',
             top: position.y,
             left: position.x,
-            zIndex: overlay.zIndex
+            zIndex: overlay.zIndex // Always use overlay z-index
           }}
           className="w-64 min-h-[100px] bg-white dark:bg-[#1e2122] rounded-md shadow-lg border-2 border-[#1C6B1C]"
         >
@@ -163,7 +188,7 @@ export default function ParticipantsDropdownButton({
             )}
           </div>
         </div>,
-        document.body // Portal til document.body
+        document.body
       )}
     </div>
   );
