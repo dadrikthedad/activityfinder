@@ -4,7 +4,7 @@
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useDeleteAllNotifications } from "@/hooks/notifications/useDeleteAllNotifications";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
-import UserActionPopover   from "@/components/common/UserActionPopover";
+import ClickableAvatar from "@/components/common/ClickableAvatar";
 import ProfileNavButton    from "@/components/settings/ProfileNavButton";
 import { useRouter }       from "next/navigation";
 
@@ -74,10 +74,9 @@ export default function NotificationsPage() {
           >
             <div className="flex items-center gap-4 flex-1 min-w-0">
               {n.relatedUser ? (
-                <UserActionPopover
-                  mode="standalone"
-                  user={n.relatedUser}
-                  avatarSize={60}
+                <ClickableAvatar
+                   user={n.relatedUser}
+                   size={60}
                 />
               ) : (
                 <div className="w-[60px] h-[60px] bg-gray-300 rounded-full flex-shrink-0" />

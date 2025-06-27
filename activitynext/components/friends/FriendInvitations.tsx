@@ -3,7 +3,7 @@
 "use client";
 import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
 import FriendRequestButtons from "./FriendRequestButtons";
-import UserActionPopover from "@/components/common/UserActionPopover";
+import ClickableAvatar from "../common/ClickableAvatar";
 import Card from "@/components/common/Card";
 import { useFriendInvitations } from "@/hooks/useFriendInvitations";
 
@@ -53,9 +53,9 @@ export default function FriendInvitations() {
             <Card className="flex justify-between items-center gap-6 w-full p-6">
               {invite.userSummary && (
                 <span className="flex items-center gap-4 w-full">
-                  <UserActionPopover
-                    mode="standalone"
-                    user={invite.userSummary}
+                  <ClickableAvatar
+                     user={invite.userSummary}
+                     size={60}
                   />
                   <span className="text-lg font-semibold">
                     {invite.userSummary.fullName}
