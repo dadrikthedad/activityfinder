@@ -33,53 +33,50 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
   const refMap = useRef<Map<OverlayLevel, RefObject<HTMLElement | null>>>(new Map());
   const isProcessingRef = useRef(false);
 
-  console.log('🔥 OverlayLayerProvider rendered, current level:', level);
+  console.log('OVERLAY 🔥 OverlayLayerProvider rendered, current level:', level);
 
-  // ✅ Mer stabil register funksjon
   const register = useCallback((lvl: OverlayLevel, ref: RefObject<HTMLElement | null>) => {
-    // ✅ Forhindre doble registreringer
     if (refMap.current.has(lvl)) {
-      console.log('⚠️ Level', lvl, 'already registered, skipping');
+      console.log('OVERLAY ⚠️ Level', lvl, 'already registered, updating ref only');
+      refMap.current.set(lvl, ref); // ✅ Opdater ref, men skip setLevel
       return;
     }
     
-    console.log('📝 Registering overlay at level:', lvl);
+    console.log('OVERLAY 📝 Registering overlay at level:', lvl);
     refMap.current.set(lvl, ref);
     
     setLevel((prev) => {
       const newLevel = Math.max(prev, lvl);
-      console.log('📊 Level updated from', prev, 'to', newLevel);
+      console.log('OVERLAY 📊 Level updated from', prev, 'to', newLevel);
       return newLevel;
     });
     
-    // Prevent immediate outside click detection
     isProcessingRef.current = true;
     setTimeout(() => {
       isProcessingRef.current = false;
-      console.log('✅ Processing protection lifted');
+      console.log('OVERLAY ✅ Processing protection lifted');
     }, 100);
-  }, []); // ✅ Ingen dependencies - funksjon er stabil
+  }, []);
 
   const unregister = useCallback((lvl: OverlayLevel) => {
-    // ✅ Sjekk om level faktisk finnes
     if (!refMap.current.has(lvl)) {
-      console.log('⚠️ Level', lvl, 'not found for unregistering, skipping');
+      console.log('OVERLAY ⚠️ Level', lvl, 'not found for unregistering, skipping');
       return;
     }
     
-    console.log('❌ Unregistering overlay at level:', lvl);
+    console.log('OVERLAY ❌ Unregistering overlay at level:', lvl);
     refMap.current.delete(lvl);
     
     if (refMap.current.size === 0) {
-      console.log('🧹 All overlays closed, resetting to level 0');
+      console.log('OVERLAY 🧹 All overlays closed, resetting to level 0');
       setLevel(0);
     } else {
       const levels = Array.from(refMap.current.keys());
       const newLevel = Math.max(...levels);
-      console.log('📊 Level updated to:', newLevel, 'remaining levels:', levels);
+      console.log('OVERLAY 📊 Level updated to:', newLevel, 'remaining levels:', levels);
       setLevel(newLevel);
     }
-  }, []); // ✅ Ingen dependencies - funksjon er stabil
+  }, []);
 
   const closeOneLevel = useCallback(() => {
     if (level > 0) {
@@ -88,7 +85,7 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
   }, [level, unregister]);
 
   const closeAllLevels = useCallback(() => {
-    console.log('🧹 Closing all levels');
+    console.log('OVERLAY 🧹 Closing all levels');
     refMap.current.clear();
     setLevel(0);
   }, []);
@@ -100,15 +97,13 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     const handleClick = (e: MouseEvent) => {
       if (isProcessingRef.current) return;
 
-      // Check from highest to lowest level
       for (let current = level; current >= 1; current--) {
         const ref = refMap.current.get(current);
         if (!ref?.current) continue;
         if (ref.current.contains(e.target as Node)) return;
       }
       
-      // Click was outside all overlays - close the topmost one
-      console.log('🖱️ Outside click detected, closing level:', level);
+      console.log('OVERLAY 🖱️ Outside click detected, closing level:', level);
       closeOneLevel();
     };
 
@@ -124,7 +119,7 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
-        console.log('⌨️ Escape pressed, closing level:', level);
+        console.log('OVERLAY ⌨️ Escape pressed, closing level:', level);
         closeOneLevel();
       }
     };
@@ -148,54 +143,77 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
   );
 };
 
-// ✅ Fikset useOverlay hook
 export const useOverlay = (initialLevel?: number) => {
   const { level: currentLevel, register, unregister } = useOverlayLayer();
   const [isOpen, setIsOpen] = useState(false);
   const [myLevel, setMyLevel] = useState<number | null>(null);
   const ref = useRef<HTMLElement | null>(null);
-  const hasRegisteredRef = useRef(false); // ✅ Forhindre doble registreringer
+  const hasRegisteredRef = useRef(false);
+  const myLevelRef = useRef<number | null>(null);
+  const strictModeRef = useRef(false);
 
-  // Create a callback ref that works with any HTML element
   const callbackRef = useCallback((element: HTMLElement | null) => {
     ref.current = element;
   }, []);
 
   const open = useCallback(() => {
-    console.log('🚀 useOverlay.open called:', { 
+    console.log('OVERLAY 🚀 useOverlay.open called:', { 
       isOpen, 
       hasElement: !!ref.current, 
       currentLevel, 
       initialLevel,
-      hasRegistered: hasRegisteredRef.current 
+      hasRegistered: hasRegisteredRef.current,
+      strictMode: strictModeRef.current,
+      env: process.env.NODE_ENV
     });
     
-    if (!isOpen && !hasRegisteredRef.current) { // ✅ Sjekk begge conditions
+    // ✅ ÄNDRAT: Striktare check - även blockera i development vid re-registrering
+    if (process.env.NODE_ENV === 'development' && hasRegisteredRef.current) {
+      console.log('OVERLAY ⚠️ Open blocked - already registered in development');
+      return;
+    }
+    
+    if (!isOpen && !hasRegisteredRef.current) {
       const newLevel = initialLevel ?? currentLevel + 1;
-      console.log('✅ Opening overlay at level:', newLevel);
+      console.log('OVERLAY ✅ Opening overlay at level:', newLevel);
       setMyLevel(newLevel);
+      myLevelRef.current = newLevel;
       setIsOpen(true);
-      hasRegisteredRef.current = true; // ✅ Marker som registrert
+      hasRegisteredRef.current = true;
       register(newLevel, ref);
     } else {
-      console.log('⚠️ Open cancelled - already open or registered');
+      console.log('OVERLAY ⚠️ Open cancelled - already open or registered');
     }
   }, [isOpen, initialLevel, currentLevel, register]);
 
   const close = useCallback(() => {
-    console.log('🔒 useOverlay.close called:', { isOpen, myLevel, hasRegistered: hasRegisteredRef.current });
+    console.log('OVERLAY 🔒 useOverlay.close called:', { 
+      isOpen, 
+      myLevel, 
+      hasRegistered: hasRegisteredRef.current,
+      strictMode: strictModeRef.current,
+      env: process.env.NODE_ENV
+    });
+    
+    // ✅ Blokér ALL close() calls i development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('OVERLAY ⚠️ Close completely blocked in development mode');
+      return;
+    }
     
     if (isOpen && myLevel !== null && hasRegisteredRef.current) {
-      console.log('✅ Closing overlay at level:', myLevel);
+      console.log('OVERLAY ✅ Closing overlay at level:', myLevel);
       setIsOpen(false);
       unregister(myLevel);
       setMyLevel(null);
-      hasRegisteredRef.current = false; // ✅ Reset registrering
+      myLevelRef.current = null;
+      hasRegisteredRef.current = false;
+    } else {
+      console.log('OVERLAY ⚠️ Close cancelled - not open or not registered');
     }
   }, [isOpen, myLevel, unregister]);
 
   const toggle = useCallback(() => {
-    console.log('🔄 useOverlay.toggle called:', { isOpen });
     if (isOpen) {
       close();
     } else {
@@ -203,24 +221,35 @@ export const useOverlay = (initialLevel?: number) => {
     }
   }, [isOpen, open, close]);
 
-  // ✅ Forbedret auto-close logic
+  // ✅ HELT DISABLE auto-close useEffect i development
   useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('OVERLAY 🚫 AUTO-CLOSE completely disabled in development');
+      return; // ✅ Exit tidligt - ingen logic overhovedet
+    }
+    
     if (isOpen && myLevel !== null && currentLevel < myLevel) {
-      console.log('📉 Current level dropped below my level, auto-closing');
+      console.log('OVERLAY 📉 AUTO-CLOSE triggered (production only)');
       close();
     }
-  }, [currentLevel, myLevel, isOpen, close]);
+  }, []); // ✅ TOM array i development for at undgå ANY triggers
 
-  // ✅ Bedre cleanup
+  // ✅ Minimal cleanup
   useEffect(() => {
     return () => {
-      if (hasRegisteredRef.current && myLevel !== null) {
-        console.log('🧹 Cleanup: unregistering level', myLevel);
-        unregister(myLevel);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OVERLAY 🧹 CLEANUP completely disabled in development');
+        strictModeRef.current = true;
+        return;
+      }
+      
+      if (hasRegisteredRef.current && myLevelRef.current !== null) {
+        console.log('OVERLAY 🧹 CLEANUP (production only):', myLevelRef.current);
+        unregister(myLevelRef.current);
         hasRegisteredRef.current = false;
       }
     };
-  }, [myLevel, unregister]); // ✅ Legg til dependencies
+  }, []);
 
   return {
     ref: callbackRef,
@@ -265,14 +294,25 @@ export const useOverlayAutoRegister = (ref: React.RefObject<HTMLElement | null>,
 };
 
 // Simple hook for components that just need to know if they should close
-export const useOverlayAutoClose = (onClose: () => void) => {
+export const useOverlayAutoClose = (onClose: () => void, myLevel?: number) => {
   const { level } = useOverlayLayer();
   const lastLevelRef = useRef(level);
 
   useEffect(() => {
-    if (lastLevelRef.current > level) {
+    console.log('🔍 OverlayAutoClose check:', {
+      currentLevel: level,
+      lastLevel: lastLevelRef.current,
+      myLevel,
+      shouldClose: lastLevelRef.current > level && (!myLevel || level < myLevel)
+    });
+
+    // ✅ Kun lukk hvis:
+    // 1. Level har droppet (lastLevel > currentLevel)
+    // 2. OG enten ingen myLevel er spesifisert, eller currentLevel er under myLevel
+    if (lastLevelRef.current > level && (!myLevel || level < myLevel)) {
+      console.log('📉 Auto-close triggered for level', myLevel || 'any');
       onClose();
     }
     lastLevelRef.current = level;
-  }, [level, onClose]);
+  }, [level, onClose, myLevel]);
 };

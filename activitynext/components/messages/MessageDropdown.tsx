@@ -6,7 +6,7 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
 import PendingRequestsList from "./PendingMessageList";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useOverlay, useOverlayAutoRegister } from "@/context/OverlayProvider"; // NY IMPORT
+import { useOverlay, useOverlayAutoClose  } from "@/context/OverlayProvider"; // NY IMPORT
 import { useChatStore } from "@/store/useChatStore";
 import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
@@ -39,11 +39,6 @@ export default function MessageDropdown({
   onCloseDropdown, 
   initialPosition, 
 }: MessageDropdownProps) {
-
-  // NY: Auto-register overlay system - dette er level 1 komponenten
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const { zIndex } = useOverlayAutoRegister(dropdownRef, true); // Always open
-
   const { currentConversationId, setCurrentConversationId } = useChatStore();
   const pending = useChatStore(state => state.pendingMessageRequests);
   const hasLoadedPending = useChatStore(state => state.hasLoadedPendingRequests);
@@ -62,8 +57,11 @@ export default function MessageDropdown({
     showMessages
   });
 
-  // NY: New message dialog overlay - level 2
+  const mainOverlay = useOverlay();
   const newMessageOverlay = useOverlay();
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
 
   // Dropdown refs og sizing
   const DROPDOWN_SIZE_KEY = "messageDropdownSize";
@@ -150,13 +148,30 @@ export default function MessageDropdown({
     }
   };
 
-  // Update store når dropdown unmountes
+  
+    useOverlayAutoClose(() => {
+    console.log('📉 Level dropped below 1, closing MessageDropdown');
+    setShowMessages(false);
+    onCloseDropdown();
+  }, 1);
+
+   useEffect(() => {
+    console.log('📝 Opening main overlay');
+    mainOverlay.open();
+    
+    return () => {
+      console.log('🧹 Closing main overlay');
+      mainOverlay.close();
+    };
+  }, []); // Tom array - kun mount/unmount
+
+  // ✅ Separér store logic
   useEffect(() => {
-    console.log('🔥 MessageDropdown mounted');
+    console.log('🔥 MessageDropdown store setup');
     setShowMessages(true);
     
     return () => {
-      console.log('🧹 MessageDropdown unmounting');
+      console.log('🧹 MessageDropdown store cleanup');
       setShowMessages(false);
       
       // Cleanup chat state
@@ -181,7 +196,7 @@ export default function MessageDropdown({
         state.clearLiveMessages(currentConversationId);
       }
     };
-  }, [setShowMessages, currentConversationId]);
+  }, []);
 
   // Sync new message dialog state
   useEffect(() => {
@@ -331,7 +346,10 @@ export default function MessageDropdown({
 
   return (
     <div
-      ref={dropdownRef}
+      ref={(el) => {
+        dropdownRef.current = el; // For localStorage funksjonalitet
+        mainOverlay.ref(el); // ✅ For overlay system
+      }}
       className="fixed right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md max-w-[100vw] border-2 border-[#1C6B1C] overflow-hidden resize"
       style={{
         minWidth: 600,
@@ -340,7 +358,7 @@ export default function MessageDropdown({
         maxHeight: 1000,
         left: positionRef.current.x,
         top: positionRef.current.y,
-        zIndex,
+        zIndex: mainOverlay.zIndex,
       }}
     >
       {/* Header */}
