@@ -9,14 +9,16 @@ import UserActionPopover from "./UserActionPopover";
 
 export default function UserActionPopoverPortal() {
   const { data, hide } = useUserActionPopoverStore();
-  
-  // NY: Auto-level overlay - vil automatisk få riktig level basert på context
-  const overlay = useOverlay();
+    const overlay = useOverlay();
 
-  // Sync overlay state with store data
+    // ✅ FIKSET: Sync overlay state med store data
   React.useEffect(() => {
-    console.log('🌐 UserActionPopoverPortal effect:', { hasData: !!data, overlayOpen: overlay.isOpen, userId: data?.user.id });
-    
+    console.log('🌐 UserActionPopoverPortal data effect:', { 
+      hasData: !!data, 
+      overlayOpen: overlay.isOpen, 
+      userId: data?.user.id 
+    });
+
     if (data && !overlay.isOpen) {
       console.log('🌐 Opening portal overlay for:', data.user.fullName);
       overlay.open();
@@ -24,33 +26,37 @@ export default function UserActionPopoverPortal() {
       console.log('🌐 Closing portal overlay - no data');
       overlay.close();
     }
-  }, [data]); // FJERNET overlay dependency for å unngå loops
+  }, [data]); // ✅ Kun data dependency for å unngå loops
 
-  // Close store data when overlay closes externally (men kun hvis det ikke er pga re-render)
+  // ✅ FIKSET: Auto-close når overlay lukkes eksternt - med delay for å unngå race condition
   React.useEffect(() => {
-    console.log('🌐 Portal overlay state changed:', { overlayOpen: overlay.isOpen, hasData: !!data });
-    
-    // Kun lukk hvis vi faktisk har data OG overlay lukkes eksternt
+    // Kun reagér på overlay lukking hvis vi har data
     if (!overlay.isOpen && data) {
-      // Legg til en liten delay for å la render-syklusen fullføres
+      console.log('🌐 Overlay closed externally detected');
+      
+      // Kort delay for å la åpning fullføres først
       const timer = setTimeout(() => {
-        // Dobbelsjekk at data fortsatt finnes og overlay fortsatt er lukket
+        // Dobbelsjekk at overlay fortsatt er lukket og vi fortsatt har data
         if (!overlay.isOpen && useUserActionPopoverStore.getState().data) {
-          console.log('🌐 Overlay closed externally after delay, hiding store data');
+          console.log('🌐 Confirmed: Overlay closed externally, hiding store data');
           hide();
         }
-      }, 50);
+      }, 100);
       
       return () => clearTimeout(timer);
     }
   }, [overlay.isOpen]);
 
-  if (!data || !overlay.isOpen) return null;
+  // ✅ Don't render if no data OR overlay is not open
+  if (!data || !overlay.isOpen) {
+    return null;
+  }
 
-  console.log('🌐 UserActionPopoverPortal rendering:', { 
-    position: data.position, 
-    zIndex: overlay.zIndex 
+  console.log('🌐 UserActionPopoverPortal rendering:', {
+    position: data.position,
+    zIndex: overlay.zIndex
   });
+
 
   return createPortal(
     <UserActionPopover
@@ -64,6 +70,7 @@ export default function UserActionPopoverPortal() {
         isPendingRequest={data.isPendingRequest}
         conversationId={data.conversationId}
         overlayRef={overlay.ref}
+        zIndex={overlay.zIndex}
     />,
     document.body
     );

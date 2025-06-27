@@ -149,8 +149,8 @@ export default function MessageDropdown({
   };
 
   
-    useOverlayAutoClose(() => {
-    console.log('📉 Level dropped below 1, closing MessageDropdown');
+   useOverlayAutoClose(() => {
+    console.log('📉 Overlay Level dropped below 1, closing MessageDropdown');
     setShowMessages(false);
     onCloseDropdown();
   }, 1);

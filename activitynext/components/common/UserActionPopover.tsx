@@ -1,4 +1,4 @@
-// Oppdatert UserActionPopover.tsx - renere overlay håndtering
+// Oppdatert UserActionPopover.tsx - fjernet unødvendig overlay registrering
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
@@ -26,6 +26,7 @@ interface UserActionPopoverProps {
   isPendingRequest?: boolean;
   conversationId?: number;
   overlayRef?: React.Ref<HTMLDivElement>;
+  zIndex?: number;
 }
 
 export default React.memo(function UserActionPopover(props: UserActionPopoverProps) {
@@ -38,7 +39,8 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     participants = [], 
     onLeaveGroup, 
     isPendingRequest = false,
-    overlayRef
+    overlayRef,
+    zIndex
   } = props;
   
   console.log('👤 UserActionPopover rendered:', {
@@ -47,8 +49,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     position,
   });
 
-  // ✅ Forenklet overlay system - kun 3 overlays
-  const mainOverlay = useOverlay(); // Hovedpopover
+  // ✅ FIKSET: Kun 2 overlays - hovedpopover er allerede håndtert av UserActionPopoverPortal
   const nestedPopoverOverlay = useOverlay(); // Nested popover  
   const newMessageOverlay = useOverlay(); // New message window
 
@@ -67,11 +68,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const isOwner = user.id === currentUserId;
   const router = useRouter();
 
-  // ✅ Åpne hovedoverlay ved mount
-  useEffect(() => {
-    mainOverlay.open();
-    return () => mainOverlay.close();
-  }, []);
+  // ✅ FJERNET: mainOverlay åpning - det håndteres av UserActionPopoverPortal
 
   // Sync states med overlays
   useEffect(() => {
@@ -106,14 +103,12 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
       newMessageOverlay.close();
     }
 
-    // Close main overlay
-    mainOverlay.close();
-
-    // Tell parent to close
+    // ✅ FIKSET: Ikke lukk mainOverlay her - det håndteres av UserActionPopoverPortal
+    // Tell parent to close (UserActionPopoverPortal)
     if (onCloseDropdown) {
       onCloseDropdown();
     }
-  }, [nestedPopoverOverlay, newMessageOverlay, mainOverlay, user.id, onCloseDropdown]);
+  }, [nestedPopoverOverlay, newMessageOverlay, user.id, onCloseDropdown]);
 
   const handleVisitProfile = () => {
     console.log('👤 Visiting profile for:', user.fullName);
@@ -147,34 +142,24 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     handleClose();
   };
 
-  // ✅ Din eksisterende handleShowUserPopover - perfekt som den er!
   const handleShowUserPopover = (participantUser: UserSummaryDTO, event: React.MouseEvent) => {
-  console.log('👥 Showing nested popover for:', participantUser.fullName);
-  
-  // ✅ Bruk samme utility som ClickableAvatar
-  const pos = calculatePopoverPosition(event);
-  
-  console.log('👥 Nested popover position:', {
-    mousePos: { x: event.clientX, y: event.clientY },
-    calculatedPos: pos,
-    currentNestedUser: nestedUserPopover?.user.id,
-    newUser: participantUser.id
-  });
-  
-  // ✅ ENDRING: Ikke lukk eksisterende overlay, bare oppdater state
-  // hvis (!nestedUserPopover) {
-  //   nestedPopoverOverlay.open(); // Kun åpne hvis ingen eksisterer
-  // }
-  
-  // ✅ Sjekk om overlay allerede er åpent
-  if (!nestedPopoverOverlay.isOpen) {
-    // Ingen nested popover åpen - åpne ny
-    nestedPopoverOverlay.open();
-  }
-  
-  // ✅ Oppdater state direkte - dette vil re-render med ny bruker og posisjon
-  setNestedUserPopover({ user: participantUser, position: pos });
-};
+    console.log('👥 Showing nested popover for:', participantUser.fullName);
+    
+    const pos = calculatePopoverPosition(event);
+    
+    console.log('👥 Nested popover position:', {
+      mousePos: { x: event.clientX, y: event.clientY },
+      calculatedPos: pos,
+      currentNestedUser: nestedUserPopover?.user.id,
+      newUser: participantUser.id
+    });
+    
+    if (!nestedPopoverOverlay.isOpen) {
+      nestedPopoverOverlay.open();
+    }
+    
+    setNestedUserPopover({ user: participantUser, position: pos });
+  };
 
   const handleCloseNestedPopover = useCallback(() => {
     console.log('❌ Closing nested popover');
@@ -197,49 +182,44 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
 
   return (
     <>
-      {/* Main popover - ✅ Forenklet ref håndtering */}
-      {createPortal(
-        <div
-          ref={(el) => {
-            // Støtt eksisterende overlayRef prop
-            if (overlayRef) {
-              if (typeof overlayRef === 'function') {
-                overlayRef(el);
-              } else {
-                (overlayRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-              }
+      {/* ✅ FIKSET: Main popover content - ikke wrap i eget overlay */}
+      <div
+        ref={(el) => {
+          // Støtt eksisterende overlayRef prop fra UserActionPopoverPortal
+          if (overlayRef) {
+            if (typeof overlayRef === 'function') {
+              overlayRef(el);
+            } else {
+              (overlayRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
             }
-            // Registrer med overlay system
-            mainOverlay.ref(el);
-          }}
-          style={{
-            position: "fixed",
-            top: position.y,
-            left: position.x,
-            zIndex: mainOverlay.zIndex, // ✅ Auto z-index
-          }}
-        >
-          <UserActionPopoverContent
-            user={user}
-            isOwner={isOwner}
-            isFriend={!!isFriend}
-            isFriendLoading={isFriendLoading}
-            onVisitProfile={handleVisitProfile}
-            onSendMessage={handleSendMessage}
-            onRemoveFriend={handleRemove}
-            onClose={handleClose}
-            isGroup={isGroup}
-            participants={participants}
-            onLeaveGroup={handleLeaveGroup}
-            onShowUserPopover={handleShowUserPopover}
-            isPendingRequest={isPendingRequest}
-            onInviteUsers={isGroup ? handleInviteUsers : undefined}
-          />
-        </div>,
-        document.body
-      )}
+          }
+        }}
+        style={{
+          position: "fixed",
+          top: position.y,
+          left: position.x,
+          zIndex: zIndex || 1002,
+        }}
+      >
+        <UserActionPopoverContent
+          user={user}
+          isOwner={isOwner}
+          isFriend={!!isFriend}
+          isFriendLoading={isFriendLoading}
+          onVisitProfile={handleVisitProfile}
+          onSendMessage={handleSendMessage}
+          onRemoveFriend={handleRemove}
+          onClose={handleClose}
+          isGroup={isGroup}
+          participants={participants}
+          onLeaveGroup={handleLeaveGroup}
+          onShowUserPopover={handleShowUserPopover}
+          isPendingRequest={isPendingRequest}
+          onInviteUsers={isGroup ? handleInviteUsers : undefined}
+        />
+      </div>
 
-      {/* Nested popover - ✅ Automatisk høyere z-index */}
+      {/* Nested popover - level 3 */}
       {nestedPopoverOverlay.isOpen && nestedUserPopover && createPortal(
         <div
           ref={nestedPopoverOverlay.ref}
@@ -247,7 +227,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
             position: "fixed",
             top: nestedUserPopover.position.y,
             left: nestedUserPopover.position.x,
-            zIndex: nestedPopoverOverlay.zIndex, // ✅ Automatisk høyere
+            zIndex: nestedPopoverOverlay.zIndex,
           }}
           className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 min-w-[200px]"
         >
@@ -275,7 +255,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
         document.body
       )}
 
-      {/* New Message Window - ✅ Høyeste z-index */}
+      {/* New Message Window - level 4 */}
       {newMessageOverlay.isOpen && showNewMessageWindow && createPortal(
         <div ref={newMessageOverlay.ref} style={{ zIndex: newMessageOverlay.zIndex }}>
           <NewMessageWindow
