@@ -1,5 +1,4 @@
-// Denne viser profilen til en bruker både på profile/[id] og editprofile. Henter info fra PublicProfileDTO for å vise info
-
+// Oppdatert PublicProfileView.tsx med NewMessageWindow og overlay system
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -17,44 +16,83 @@ import { useSendFriendInvitation } from "@/hooks/useSendFriendInvitation";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import PublicSimpleFriendList from "@/components/friends/PublicSimpleFriendList";
 import { mutate } from "swr";
-import { useModal } from "@/context/ModalContext";
-import NewMessageModal from "../messages/NewMessageModal";
+// ✅ ENDRE: Bytt ut modal import med overlay og NewMessageWindow
+import { useOverlay } from "@/context/OverlayProvider";
+import NewMessageWindow from "../messages/NewMessageWindow";
+import { MessageDTO } from "@/types/MessageDTO";
+import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
 export default function PublicProfileView({
-  profile: initialProfile, // Vi gir profilnavn initialProfile slik at det ikke blir forvirring mot profile
+  profile: initialProfile,
   isEditable = false,
   isOwner = false,
 }: {
-  profile: PublicProfileDTO; // Hentet med API med PublicProfileDTO
-  isEditable?: boolean; // isEditable blir satt hvis vi er på editprofile
-  isOwner?: boolean; // vi sjekker om vi er brukeren og setter denne true hvis vi er det
+  profile: PublicProfileDTO;
+  isEditable?: boolean;
+  isOwner?: boolean;
 }) {
-  const [profile, setProfile] = useState(initialProfile); // ✅ må kalles initialProfile her
-  const [reloadCounter ] = useState(0); // Brukes til å trigge refetch av siden ved subtmitting til backend
-  const { token } = useAuth(); // Henter token
-  const { isFriend, loading: friendshipLoading } = useFriendWith(profile.userId); // Her kjører vi en sjekk til backend om vi er venn med brukeren for å gi en egen visning av brukeren
-  const { sendInvitation, sending, error } = useSendFriendInvitation(); // Brukes til å sende en venneinvitasjon
-  const { confirmAndRemove } = useConfirmRemoveFriend(); // Brukes til å slette en venn hvis vi allerede er venner
-  const [friendRequestSent, setFriendRequestSent] = useState(false); // Holder styr på om vi har lagt til en bruker som en venn slik at vi ikke kan spamme brukeren med forespørsler
-  const { showModal } = useModal();
+  const [profile, setProfile] = useState(initialProfile);
+  const [reloadCounter ] = useState(0);
+  const { token } = useAuth();
+  const { isFriend, loading: friendshipLoading } = useFriendWith(profile.userId);
+  const { sendInvitation, sending, error } = useSendFriendInvitation();
+  const { confirmAndRemove } = useConfirmRemoveFriend();
+  const [friendRequestSent, setFriendRequestSent] = useState(false);
   const { userId } = useAuth()
   const isActuallyOwner = isOwner || (userId === profile.userId);
 
+  // ✅ NYTT: Overlay system for New Message Window
+  const newMessageOverlay = useOverlay();
+  const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
+  const [newMessageReceiver, setNewMessageReceiver] = useState<UserSummaryDTO | undefined>();
 
-  
-  
-
-  // Her bruker vi et default bilde hvis bruker ikke har ett
   const imageUrl =
     profile.profileImageUrl?.trim() !== ""
       ? profile.profileImageUrl
       : "/default-avatar.png";
 
-      
+  // ✅ NYTT: Handle new message window
+  const handleShowNewMessage = () => {
+    const receiver: UserSummaryDTO = {
+      id: profile.userId,
+      fullName: profile.fullName ?? "",
+      profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
+    };
+    
+    console.log('📝 Opening new message window for:', receiver.fullName);
+    setNewMessageReceiver(receiver);
+    setShowNewMessageWindow(true);
+    newMessageOverlay.open();
+  };
 
-  
+  const handleCloseNewMessage = useCallback(() => {
+    console.log('📝 Closing new message window');
+    setShowNewMessageWindow(false);
+    setNewMessageReceiver(undefined);
+    newMessageOverlay.close();
+  }, [newMessageOverlay]);
 
-  const refetchProfile = useCallback(async () => { // Henter en ny oppdatert versjon av profilen med API etter en ednring
+  const handleMessageSent = (message: MessageDTO) => {
+    console.log("📤 Message sent from profile:", message);
+    handleCloseNewMessage();
+  };
+
+  const handleGroupCreated = (response: SendGroupRequestsResponseDTO) => {
+    console.log("👥 Group created from profile:", response);
+    handleCloseNewMessage();
+  };
+
+  // ✅ NYTT: Sync new message window state
+  useEffect(() => {
+    if (!newMessageOverlay.isOpen && showNewMessageWindow) {
+      console.log('📝 New message overlay closed externally, cleaning up state');
+      setShowNewMessageWindow(false);
+      setNewMessageReceiver(undefined);
+    }
+  }, [newMessageOverlay.isOpen, showNewMessageWindow]);
+
+  const refetchProfile = useCallback(async () => {
     if (!initialProfile?.userId || !token) return;
     try {
       const updated = await getUserProfile(initialProfile.userId, token);
@@ -67,162 +105,168 @@ export default function PublicProfileView({
   const handleRemove = async () => {
     await confirmAndRemove(profile.userId, profile.fullName ?? "this user", async () => {
       await refetchProfile();
-      mutate([`/friends/is-friend-with`, profile.userId]); // 🔁 Ny kontroll på vennestatus etter fjerning
+      mutate([`/friends/is-friend-with`, profile.userId]);
     });
   };
 
   const handleSendInvitation = async () => {
-    if (friendRequestSent) return; // Hindrer dobbelklikking
-  
+    if (friendRequestSent) return;
     await sendInvitation(profile.userId);
-    setFriendRequestSent(true); // Lås knappen og endre tekst
+    setFriendRequestSent(true);
   };
 
-  // Trigge re-fetch automatisk ved endringer
   useEffect(() => {
     if (isEditable) {
       refetchProfile();
     }
   }, [reloadCounter, isEditable, refetchProfile]);
 
-
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
-      <h1 className="text-3xl font-bold mb-6 text-center text-[#145214]">
-        {isActuallyOwner ? "Your Profile" : "User Profile"}
-      </h1>
+    <>
+      <div className="max-w-5xl mx-auto px-6 py-10">
+        <h1 className="text-3xl font-bold mb-6 text-center text-[#145214]">
+          {isActuallyOwner ? "Your Profile" : "User Profile"}
+        </h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
-        <div className="md:col-span-2 space-y-4">
-          <ProfileInfoCard // Her viser vi feltene på venstre side, alt fra PublicProfileDTO. Kan endres slik som på editprofile
-            profile={profile}
-            showEmail={profile.showEmail}
-            isEditable={isEditable}
-            refetchProfile={refetchProfile}
-          />
-        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+          <div className="md:col-span-2 space-y-4">
+            <ProfileInfoCard
+              profile={profile}
+              showEmail={profile.showEmail}
+              isEditable={isEditable}
+              refetchProfile={refetchProfile}
+            />
+          </div>
 
-        <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
-        {friendshipLoading ? (
-            <div className="flex justify-end items-center h-[250px] w-full">
-              <Spinner text="Loading profile" />
-            </div>
-          ) : (
-            <>
-              <ProfileAvatar // Her viser vi profilbilde, kan endres hvis isEditable er true
-                imageUrl={imageUrl ?? "/default-avatar.png"}
-                isEditable={isEditable}
-                refetchProfile={refetchProfile}
-              />
-
-          {isActuallyOwner ? (
-            isEditable ? (
-              <>
-                <ProfileNavButton // Knapper under bilde. Disse knappene kommer hvis vi er på egen editprofil, tilbake til profil
-                  href={`/profile/${profile.userId}`}
-                  text="Back to Profile"
-                  variant="long"
-                />
-                <ProfileNavButton // Til innstillinger
-                  href="/profilesettings"
-                  text="Settings"
-                  variant="long"
-                />
-              </>
+          <div className="flex flex-col items-center md:justify-end mt-12 md:mt-20 space-y-6">
+            {friendshipLoading ? (
+              <div className="flex justify-end items-center h-[250px] w-full">
+                <Spinner text="Loading profile" />
+              </div>
             ) : (
-              <> 
-                <ProfileNavButton // Hvis vi ikke er på editprofile, kun når vi ser på egen profil. Til editprofile
-                  href="/editprofile"
-                  text="Edit Profile"
-                  variant="long"
+              <>
+                <ProfileAvatar
+                  imageUrl={imageUrl ?? "/default-avatar.png"}
+                  isEditable={isEditable}
+                  refetchProfile={refetchProfile}
                 />
-                <ProfileNavButton // Til innstillinger
-                  href="/profilesettings"
-                  text="Settings"
-                  variant="long"
-                />
-              </>
-            )
-          ) : (
-            <>
-             {isFriend ? (
-                  <>
-                    <ProfileNavButton
-                      onClick={() => showModal(<NewMessageModal initialReceiver={{
-                        id: profile.userId,
-                        fullName: profile.fullName ?? "",
-                        profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
-                      }} />, { blurBackground: false })}
-                      text="Send Message"
-                      variant="long"
-                    />
-                    <ProfileNavButton // Følge en bruker MÅ ENDRES SENERE. VED FØLGING
-                      href="#"
-                      text="Follow User"
-                      variant="long"
-                    />
-                  </>
-              ) : (
-                <>
-                   <ProfileNavButton
-                        onClick={handleSendInvitation}
-                        text={
-                          friendRequestSent ||
-                          error === "A friend request is already pending between these users."
-                            ? "Friend Request Sent"
-                            : sending
-                            ? "Sending..."
-                            : "Add as Friend"
-                        }
-                        disabled={
-                          sending ||
-                          friendRequestSent ||
-                          error === "A friend request is already pending between these users."
-                        }
+
+                {isActuallyOwner ? (
+                  isEditable ? (
+                    <>
+                      <ProfileNavButton
+                        href={`/profile/${profile.userId}`}
+                        text="Back to Profile"
                         variant="long"
                       />
-                  <ProfileNavButton
-                      onClick={() => showModal(<NewMessageModal initialReceiver={{
-                        id: profile.userId,
-                        fullName: profile.fullName ?? "",
-                        profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
-                      }} />, { blurBackground: false })}
-                      text="Send Message"
-                      variant="long"
+                      <ProfileNavButton
+                        href="/profilesettings"
+                        text="Settings"
+                        variant="long"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <ProfileNavButton
+                        href="/editprofile"
+                        text="Edit Profile"
+                        variant="long"
+                      />
+                      <ProfileNavButton
+                        href="/profilesettings"
+                        text="Settings"
+                        variant="long"
+                      />
+                    </>
+                  )
+                ) : (
+                  <>
+                    {isFriend ? (
+                      <>
+                        {/* ✅ ENDRE: Bruk handleShowNewMessage i stedet for modal */}
+                        <ProfileNavButton
+                          onClick={handleShowNewMessage}
+                          text="Send Message"
+                          variant="long"
+                        />
+                        <ProfileNavButton
+                          href="#"
+                          text="Follow User"
+                          variant="long"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <ProfileNavButton
+                          onClick={handleSendInvitation}
+                          text={
+                            friendRequestSent ||
+                            error === "A friend request is already pending between these users."
+                              ? "Friend Request Sent"
+                              : sending
+                              ? "Sending..."
+                              : "Add as Friend"
+                          }
+                          disabled={
+                            sending ||
+                            friendRequestSent ||
+                            error === "A friend request is already pending between these users."
+                          }
+                          variant="long"
+                        />
+                        {/* ✅ ENDRE: Bruk handleShowNewMessage i stedet for modal */}
+                        <ProfileNavButton
+                          onClick={handleShowNewMessage}
+                          text="Send Message"
+                          variant="long"
+                        />
+                        <ProfileNavButton
+                          href="#"
+                          text="Follow User"
+                          variant="long"
+                        />
+                      </>
+                    )}
+                    <ProfileActionMenu
+                      isFriend={isFriend ?? false}
+                      onRemoveFriend={handleRemove}
                     />
-                  <ProfileNavButton // Følge bruker, MÅ ENDRES SENERE. VED FØLGING
-                    href="#"
-                    text="Follow User"
-                    variant="long"
-                  />
-                </>
-              )} {/* Dropdownmeny med ekstra valg */}
-              <ProfileActionMenu
-                isFriend={isFriend ?? false}
-                onRemoveFriend={handleRemove}
-              />
+                  </>
+                )}
               </>
-              )}
-            </>
-          )}
+            )}
+          </div>
         </div>
-        
-      </div>
-      {isActuallyOwner && !isEditable && (
+
+        {isActuallyOwner && !isEditable && (
           <div className="w-full">
             <h2 className="text-xl text-center font-semibold text-[#145214]">Your Friends</h2>
             <SimpleFriendList />
           </div>
-          )}
-          {!isActuallyOwner && !isEditable && (
+        )}
+
+        {!isActuallyOwner && !isEditable && (
           <div className="w-full mt-10">
-              <h2 className="text-xl text-center font-semibold text-[#145214]">
-                Their Friends
-              </h2>
-              <PublicSimpleFriendList userId={profile.userId} />
-            </div>
-          )}
-    </div>
-    
+            <h2 className="text-xl text-center font-semibold text-[#145214]">
+              Their Friends
+            </h2>
+            <PublicSimpleFriendList userId={profile.userId} />
+          </div>
+        )}
+      </div>
+
+      {/* ✅ NYTT: New Message Window med overlay system */}
+      {newMessageOverlay.isOpen && showNewMessageWindow && (
+        <div ref={newMessageOverlay.ref} style={{ zIndex: newMessageOverlay.zIndex }}>
+          <NewMessageWindow
+            initialReceiver={newMessageReceiver}
+            initialPosition={{ x: 400, y: 200 }}
+            onClose={handleCloseNewMessage}
+            onMessageSent={handleMessageSent}
+            onGroupCreated={handleGroupCreated}
+          />
+        </div>
+      )}
+    </>
   );
 }
