@@ -35,7 +35,7 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
   const componentLevelMap = useRef<Map<RefObject<HTMLElement | null>, OverlayLevel>>(new Map());
 
   const register = useCallback((ref: RefObject<HTMLElement | null>) => {
-    // ✅ FIKSET: Sjekk om denne ref-en allerede er registrert
+    // Sjekk om denne ref-en allerede er registrert
     const existingLevel = componentLevelMap.current.get(ref);
     if (existingLevel !== undefined) {
       console.log('OVERLAY ♻️ Reusing existing level for ref:', existingLevel);
@@ -47,7 +47,7 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     componentLevelMap.current.set(ref, newLevel);
     setLevel(newLevel);
     
-    console.log('OVERLAY 📝 Registered level:', newLevel);
+    console.log('OVERLAY 📝 Registered level:', newLevel, 'Total overlays:', refMap.current.size, 'Next counter:', nextLevelRef.current);
     return newLevel;
   }, []);
 
@@ -59,15 +59,21 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     if (ref) {
       componentLevelMap.current.delete(ref);
     }
-    console.log('OVERLAY ❌ Unregistered level:', lvl);
+    console.log('OVERLAY ❌ Unregistered level:', lvl, 'Remaining levels:', Array.from(refMap.current.keys()));
     
     if (refMap.current.size === 0) {
       setLevel(0);
-      nextLevelRef.current = 1; // Reset counter
+      nextLevelRef.current = 1; // Reset counter when no overlays left
+      console.log('OVERLAY 🔄 Reset level counter to 1 - no overlays remaining');
     } else {
       const levels = Array.from(refMap.current.keys());
       const newLevel = Math.max(...levels);
       setLevel(newLevel);
+      
+      // ALWAYS reset counter to highest + 1 for better optimization
+      const highestLevel = Math.max(...levels);
+      nextLevelRef.current = highestLevel + 1;
+      console.log('OVERLAY 🔄 Set level counter to:', nextLevelRef.current, 'based on highest level:', highestLevel);
     }
   }, []);
 
@@ -85,33 +91,44 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     componentLevelMap.current.clear();
     setLevel(0);
     nextLevelRef.current = 1;
-    console.log('OVERLAY 🧹 Closed all levels');
+    console.log('OVERLAY 🧹 Closed all levels and reset counter');
   }, []);
 
-  // Handle outside clicks - close highest level
+  // Handle clicks on lower-level components - close higher levels
   useEffect(() => {
     if (level === 0) return;
 
     const handleClick = (e: MouseEvent) => {
-      // Check from highest to lowest level
-      const levels = Array.from(refMap.current.keys()).sort((a, b) => b - a);
+      // Check from lowest to highest level to find which level was clicked
+      const levels = Array.from(refMap.current.keys()).sort((a, b) => a - b);
+      let clickedLevel: number | null = null;
       
       for (const lvl of levels) {
         const ref = refMap.current.get(lvl);
         if (ref?.current?.contains(e.target as Node)) {
-          return; // Click was inside an overlay
+          clickedLevel = lvl;
+          break; // Found the lowest level that contains the click
         }
       }
       
-      // Click was outside all overlays - close highest level
-      const highestLevel = Math.max(...levels);
-      console.log('OVERLAY 🖱️ Outside click, closing level:', highestLevel);
-      closeLevel(highestLevel);
+      if (clickedLevel !== null) {
+        // Close all levels higher than the clicked level
+        const levelsToClose = levels.filter(lvl => lvl > clickedLevel!);
+        if (levelsToClose.length > 0) {
+          console.log('OVERLAY 🎯 Click on lower level', clickedLevel, 'closing higher levels:', levelsToClose);
+          levelsToClose.forEach(lvl => unregister(lvl));
+        }
+      } else {
+        // Click was outside all overlays - close highest level (existing behavior)
+        const highestLevel = Math.max(...levels);
+        console.log('OVERLAY 🖱️ Outside click, closing level:', highestLevel);
+        closeLevel(highestLevel);
+      }
     };
 
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [level, closeLevel]);
+  }, [level, closeLevel, unregister]);
 
   // Handle escape key - close highest level
   useEffect(() => {
@@ -161,7 +178,7 @@ export const useOverlay = () => {
   const open = useCallback(() => {
     if (isOpen || hasRegisteredRef.current) return;
     
-    // ✅ FIKSET: Kun registrer hvis vi ikke allerede har gjort det
+    // Kun registrer hvis vi ikke allerede har gjort det
     const level = register(ref);
     setMyLevel(level);
     setIsOpen(true);
@@ -221,4 +238,35 @@ export const useOverlayAutoClose = (onClose: () => void, myLevel?: number) => {
     }
     lastLevelRef.current = level;
   }, [level, onClose, myLevel]);
+};
+
+// Simple hook for existing components that manage their own state
+export const useOverlayAutoRegister = (
+  ref: React.RefObject<HTMLElement | null>, 
+  isOpen: boolean
+) => {
+  const { register, unregister } = useOverlayLayer();
+  const myLevel = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isOpen && ref.current && myLevel.current === null) {
+      myLevel.current = register(ref);
+    } else if (!isOpen && myLevel.current !== null) {
+      unregister(myLevel.current);
+      myLevel.current = null;
+    }
+  }, [isOpen, register, unregister, ref]);
+
+  useEffect(() => {
+    return () => {
+      if (myLevel.current !== null) {
+        unregister(myLevel.current);
+      }
+    };
+  }, [unregister]);
+
+  return {
+    level: myLevel.current,
+    zIndex: myLevel.current ? 1000 + myLevel.current : undefined,
+  };
 };
