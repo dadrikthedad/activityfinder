@@ -3,75 +3,62 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
-import { useOverlay } from "@/context/OverlayProvider"; // NY IMPORT
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import UserActionPopover from "./UserActionPopover";
-
 
 export default function UserActionPopoverPortal() {
   const { data, hide } = useUserActionPopoverStore();
-    const overlay = useOverlay();
+  const overlay = useOverlay();
 
-    // ✅ FIKSET: Sync overlay state med store data
+  // ✅ FORENKLING: Bare sync data med overlay åpning/lukking
   React.useEffect(() => {
-    console.log('🌐 UserActionPopoverPortal data effect:', { 
-      hasData: !!data, 
-      overlayOpen: overlay.isOpen, 
-      userId: data?.user.id 
+    console.log('🌐 OVERLAY UserActionPopoverPortal data effect:', {
+      hasData: !!data,
+      overlayOpen: overlay.isOpen,
+      userId: data?.user.id
     });
-
+    
     if (data && !overlay.isOpen) {
-      console.log('🌐 Opening portal overlay for:', data.user.fullName);
+      console.log('🌐 OVERLAY Opening portal overlay for:', data.user.fullName);
       overlay.open();
     } else if (!data && overlay.isOpen) {
-      console.log('🌐 Closing portal overlay - no data');
+      console.log('🌐 OVERLAY Closing portal overlay - no data');
       overlay.close();
     }
-  }, [data]); // ✅ Kun data dependency for å unngå loops
+  }, [data]); // Kun data dependency
 
-  // ✅ FIKSET: Auto-close når overlay lukkes eksternt - med delay for å unngå race condition
-  React.useEffect(() => {
-    // Kun reagér på overlay lukking hvis vi har data
-    if (!overlay.isOpen && data) {
-      console.log('🌐 Overlay closed externally detected');
-      
-      // Kort delay for å la åpning fullføres først
-      const timer = setTimeout(() => {
-        // Dobbelsjekk at overlay fortsatt er lukket og vi fortsatt har data
-        if (!overlay.isOpen && useUserActionPopoverStore.getState().data) {
-          console.log('🌐 Confirmed: Overlay closed externally, hiding store data');
-          hide();
-        }
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [overlay.isOpen]);
+  // ✅ Bruk useOverlayAutoClose hook som finnes i OverlayProvider
+    useOverlayAutoClose(() => {
+    console.log('🌐 OVERLAY Auto-close triggered, hiding store data');
+    hide();
+  }, overlay.level ?? undefined);
 
-  // ✅ Don't render if no data OR overlay is not open
-  if (!data || !overlay.isOpen) {
+  // Don't render if no data
+  if (!data) {
     return null;
   }
 
-  console.log('🌐 UserActionPopoverPortal rendering:', {
+  console.log('🌐 OVERLAY UserActionPopoverPortal rendering:', {
     position: data.position,
-    zIndex: overlay.zIndex
+    zIndex: overlay.zIndex,
+    level: overlay.level
   });
-
 
   return createPortal(
     <UserActionPopover
-        key={`global-${data.user.id}`}
-        user={data.user}
-        onCloseDropdown={hide}
-        position={data.position}
-        isGroup={data.isGroup}
-        participants={data.participants || []}
-        onLeaveGroup={data.onLeaveGroup}
-        isPendingRequest={data.isPendingRequest}
-        conversationId={data.conversationId}
-        overlayRef={overlay.ref}
-        zIndex={overlay.zIndex}
+      key={`global-${data.user.id}`}
+      user={data.user}
+      onCloseDropdown={hide}
+      position={data.position}
+      isGroup={data.isGroup}
+      participants={data.participants || []}
+      onLeaveGroup={data.onLeaveGroup}
+      isPendingRequest={data.isPendingRequest}
+      conversationId={data.conversationId}
+      zIndex={overlay.zIndex}
+      // ✅ Pass the overlay ref to UserActionPopover
+      overlayRef={overlay.ref}
     />,
     document.body
-    );
+  );
 }

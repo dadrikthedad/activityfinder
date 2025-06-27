@@ -1,4 +1,4 @@
-// Oppdatert UserActionPopover.tsx - fjernet unødvendig overlay registrering
+// UserActionPopover.tsx - Updated to use overlay ref properly
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
@@ -25,8 +25,9 @@ interface UserActionPopoverProps {
   onLeaveGroup?: () => void;
   isPendingRequest?: boolean;
   conversationId?: number;
-  overlayRef?: React.Ref<HTMLDivElement>;
   zIndex?: number;
+  // ✅ NEW: Accept the overlay ref from parent
+  overlayRef?: (element: HTMLElement | null) => void;
 }
 
 export default React.memo(function UserActionPopover(props: UserActionPopoverProps) {
@@ -39,17 +40,17 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     participants = [], 
     onLeaveGroup, 
     isPendingRequest = false,
-    overlayRef,
-    zIndex
+    zIndex,
+    overlayRef // ✅ NEW: Receive overlay ref
   } = props;
   
-  console.log('👤 UserActionPopover rendered:', {
+  console.log('👤 OVERLAY UserActionPopover rendered:', {
     userId: user.id,
     userName: user.fullName,
     position,
   });
 
-  // ✅ FIKSET: Kun 2 overlays - hovedpopover er allerede håndtert av UserActionPopoverPortal
+  // Only need overlays for nested features
   const nestedPopoverOverlay = useOverlay(); // Nested popover  
   const newMessageOverlay = useOverlay(); // New message window
 
@@ -67,8 +68,6 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
   const router = useRouter();
-
-  // ✅ FJERNET: mainOverlay åpning - det håndteres av UserActionPopoverPortal
 
   // Sync states med overlays
   useEffect(() => {
@@ -92,7 +91,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   };
   
   const handleClose = useCallback(() => {
-    console.log('❌ Closing UserActionPopover:', { userId: user.id });
+    console.log('❌ OVERLAY Closing UserActionPopover:', { userId: user.id });
     
     // Close nested features first
     if (nestedPopoverOverlay.isOpen) {
@@ -103,7 +102,6 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
       newMessageOverlay.close();
     }
 
-    // ✅ FIKSET: Ikke lukk mainOverlay her - det håndteres av UserActionPopoverPortal
     // Tell parent to close (UserActionPopoverPortal)
     if (onCloseDropdown) {
       onCloseDropdown();
@@ -182,18 +180,9 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
 
   return (
     <>
-      {/* ✅ FIKSET: Main popover content - ikke wrap i eget overlay */}
+      {/* ✅ FIXED: Attach the overlay ref to the main popover div */}
       <div
-        ref={(el) => {
-          // Støtt eksisterende overlayRef prop fra UserActionPopoverPortal
-          if (overlayRef) {
-            if (typeof overlayRef === 'function') {
-              overlayRef(el);
-            } else {
-              (overlayRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-            }
-          }
-        }}
+        ref={overlayRef} // ✅ This connects the main popover to the overlay system
         style={{
           position: "fixed",
           top: position.y,
@@ -219,7 +208,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
         />
       </div>
 
-      {/* Nested popover - level 3 */}
+      {/* Nested popover */}
       {nestedPopoverOverlay.isOpen && nestedUserPopover && createPortal(
         <div
           ref={nestedPopoverOverlay.ref}
@@ -255,7 +244,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
         document.body
       )}
 
-      {/* New Message Window - level 4 */}
+      {/* New Message Window */}
       {newMessageOverlay.isOpen && showNewMessageWindow && createPortal(
         <div ref={newMessageOverlay.ref} style={{ zIndex: newMessageOverlay.zIndex }}>
           <NewMessageWindow

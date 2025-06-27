@@ -25,13 +25,12 @@ export default function DropdownNavButton({
   actions,
   isFriend = false,
   variant = "long",
-  className = "",
-  level, // Level kan settes eksplisitt hvis nødvendig
+  className = "",// Level kan settes eksplisitt hvis nødvendig
 }: DropdownNavButtonProps) {
   const ref = useRef<HTMLDivElement>(null);
   
   // NY: Bruk den nye overlay hooken
-  const overlay = useOverlay(level); // Auto-level eller eksplisitt level
+  const overlay = useOverlay(); // Auto-level eller eksplisitt level
 
   const handleToggle = () => {
     overlay.toggle();
