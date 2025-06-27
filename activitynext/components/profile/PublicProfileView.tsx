@@ -1,7 +1,8 @@
 // Oppdatert PublicProfileView.tsx med NewMessageWindow og overlay system
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // ✅ LAGT TIL: useRef import
+import { createPortal } from "react-dom"; // ✅ LAGT TIL: createPortal import
 import { useAuth } from "@/context/AuthContext";
 import { getUserProfile } from "@/services/profile";
 import ProfileInfoCard from "@/components/ProfileInfoCard";
@@ -16,7 +17,6 @@ import { useSendFriendInvitation } from "@/hooks/useSendFriendInvitation";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import PublicSimpleFriendList from "@/components/friends/PublicSimpleFriendList";
 import { mutate } from "swr";
-// ✅ ENDRE: Bytt ut modal import med overlay og NewMessageWindow
 import { useOverlay } from "@/context/OverlayProvider";
 import NewMessageWindow from "../messages/NewMessageWindow";
 import { MessageDTO } from "@/types/MessageDTO";
@@ -42,7 +42,7 @@ export default function PublicProfileView({
   const { userId } = useAuth()
   const isActuallyOwner = isOwner || (userId === profile.userId);
 
-  // ✅ NYTT: Overlay system for New Message Window
+  // Overlay system for New Message Window
   const newMessageOverlay = useOverlay();
   const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
   const [newMessageReceiver, setNewMessageReceiver] = useState<UserSummaryDTO | undefined>();
@@ -52,7 +52,7 @@ export default function PublicProfileView({
       ? profile.profileImageUrl
       : "/default-avatar.png";
 
-  // ✅ NYTT: Handle new message window
+  // Handle new message window
   const handleShowNewMessage = () => {
     const receiver: UserSummaryDTO = {
       id: profile.userId,
@@ -63,7 +63,11 @@ export default function PublicProfileView({
     console.log('📝 Opening new message window for:', receiver.fullName);
     setNewMessageReceiver(receiver);
     setShowNewMessageWindow(true);
-    newMessageOverlay.open();
+    
+    // ✅ FIKSET: Force open overlay after state is set
+    setTimeout(() => {
+      newMessageOverlay.open();
+    }, 0);
   };
 
   const handleCloseNewMessage = useCallback(() => {
@@ -83,14 +87,30 @@ export default function PublicProfileView({
     handleCloseNewMessage();
   };
 
-  // ✅ NYTT: Sync new message window state
+  // ✅ FIKSET: Sync new message window state - only cleanup if overlay was previously open
+  const wasOverlayOpenRef = useRef(false);
+  
   useEffect(() => {
-    if (!newMessageOverlay.isOpen && showNewMessageWindow) {
+    if (newMessageOverlay.isOpen) {
+      wasOverlayOpenRef.current = true;
+    } else if (wasOverlayOpenRef.current && !newMessageOverlay.isOpen && showNewMessageWindow) {
+      // Only cleanup if overlay was previously open and is now closed
       console.log('📝 New message overlay closed externally, cleaning up state');
       setShowNewMessageWindow(false);
       setNewMessageReceiver(undefined);
+      wasOverlayOpenRef.current = false;
     }
   }, [newMessageOverlay.isOpen, showNewMessageWindow]);
+
+  // ✅ LAGT TIL: Debug logging for message window state
+  useEffect(() => {
+    console.log('📝 PROFILE Message window state:', {
+      showNewMessageWindow,
+      overlayOpen: newMessageOverlay.isOpen,
+      hasReceiver: !!newMessageReceiver,
+      receiverName: newMessageReceiver?.fullName
+    });
+  }, [showNewMessageWindow, newMessageOverlay.isOpen, newMessageReceiver]);
 
   const refetchProfile = useCallback(async () => {
     if (!initialProfile?.userId || !token) return;
@@ -183,7 +203,6 @@ export default function PublicProfileView({
                   <>
                     {isFriend ? (
                       <>
-                        {/* ✅ ENDRE: Bruk handleShowNewMessage i stedet for modal */}
                         <ProfileNavButton
                           onClick={handleShowNewMessage}
                           text="Send Message"
@@ -214,7 +233,6 @@ export default function PublicProfileView({
                           }
                           variant="long"
                         />
-                        {/* ✅ ENDRE: Bruk handleShowNewMessage i stedet for modal */}
                         <ProfileNavButton
                           onClick={handleShowNewMessage}
                           text="Send Message"
@@ -255,17 +273,43 @@ export default function PublicProfileView({
         )}
       </div>
 
-      {/* ✅ NYTT: New Message Window med overlay system */}
-      {newMessageOverlay.isOpen && showNewMessageWindow && (
-        <div ref={newMessageOverlay.ref} style={{ zIndex: newMessageOverlay.zIndex }}>
-          <NewMessageWindow
-            initialReceiver={newMessageReceiver}
-            initialPosition={{ x: 400, y: 200 }}
-            onClose={handleCloseNewMessage}
-            onMessageSent={handleMessageSent}
-            onGroupCreated={handleGroupCreated}
-          />
-        </div>
+      {/* ✅ FIKSET: New Message Window med createPortal og bedre structure */}
+      {showNewMessageWindow && newMessageReceiver && (
+        <>
+          {newMessageOverlay.isOpen && createPortal(
+            <div 
+              ref={newMessageOverlay.ref} 
+              style={{ 
+                zIndex: newMessageOverlay.zIndex,
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                pointerEvents: 'none' // Allow clicks to pass through to positioned content
+              }}
+            >
+              <div 
+                style={{ 
+                  position: 'absolute',
+                  top: '200px',
+                  left: '400px',
+                  pointerEvents: 'auto' // Re-enable clicks for the actual window
+                }}
+              >
+                <NewMessageWindow
+                  initialReceiver={newMessageReceiver}
+                  initialPosition={{ x: 0, y: 0 }} // Position handled by parent div
+                  onClose={handleCloseNewMessage}
+                  useOverlaySystem={false} // We're managing the overlay ourselves
+                  onMessageSent={handleMessageSent}
+                  onGroupCreated={handleGroupCreated}
+                />
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </>
   );

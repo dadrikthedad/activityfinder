@@ -1,4 +1,4 @@
-// UserActionPopoverContent.tsx - Removed problematic onMouseDown handler
+// UserActionPopoverContent.tsx - Updated to handle nested send message
 import EnlargeableImage from "@/components/common/EnlargeableImage";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ProfileNavButton from "../settings/ProfileNavButton";
@@ -14,13 +14,15 @@ interface Props {
   onSendMessage: () => void;
   onRemoveFriend: () => void;
   onClose: () => void;
-  // ✅ Nye props for grupper
+  // Group props
   isGroup?: boolean;
   participants?: UserSummaryDTO[];
   onLeaveGroup?: () => void;
   onShowUserPopover?: (user: UserSummaryDTO, event: React.MouseEvent) => void;
   isPendingRequest?: boolean; 
   onInviteUsers?: () => void;
+  // ✅ NEW: Handler for send message from nested context
+  onSendMessageFromNested?: (user: UserSummaryDTO) => void;
 }
 
 export default function UserActionPopoverContent({
@@ -38,10 +40,21 @@ export default function UserActionPopoverContent({
   onShowUserPopover,
   isPendingRequest = false,
   onInviteUsers,
+  onSendMessageFromNested, // ✅ NEW prop
 }: Props) {
+  
+  // ✅ FIXED: Handler for showing user popover - should NOT automatically send message
+  const handleShowUserPopover = (targetUser: UserSummaryDTO, event: React.MouseEvent) => {
+    console.log('👥 CONTENT handleShowUserPopover called for:', targetUser.fullName);
+    
+    // This should only show the popover, not send message
+    if (onShowUserPopover) {
+      onShowUserPopover(targetUser, event);
+    }
+  };
+
   return (
     <div className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]">
-      {/* ✅ REMOVED: onMouseDown handler that was stopping propagation and interfering with overlay system */}
       <div className="relative">
         <ProfileNavButton
           onClick={onClose}
@@ -67,14 +80,15 @@ export default function UserActionPopoverContent({
           <div className="flex flex-col justify-center flex-1 items-start space-y-2">
             {isGroup ? (
               <>
-                {/* ✅ ParticipantsDropdownButton - disabled overlay system since we're nested */}
+                {/* ParticipantsDropdownButton - pass both handlers separately */}
                 <ParticipantsDropdownButton
                   participants={participants}
-                  onShowUserPopover={onShowUserPopover}
-                  useOverlaySystem={false} // ✅ Disable overlay system since we're already in an overlay
+                  onShowUserPopover={handleShowUserPopover} // For showing popover
+                  onSendMessageToUser={onSendMessageFromNested} // ✅ NEW: For sending message directly
+                  useOverlaySystem={false} // Disable overlay system since we're already in an overlay
                 />
 
-                {/* Invite Users button - vis kun hvis ikke pending request */}
+                {/* Invite Users button - show only if not pending request */}
                 {onInviteUsers && !isPendingRequest && (
                   <ProfileNavButton
                     text="Invite Users"
@@ -84,19 +98,18 @@ export default function UserActionPopoverContent({
                   />
                 )}
                 
-                
-                 {/* Leave Group knapp - bare vis hvis IKKE pending request */}
-                  {onLeaveGroup && !isPendingRequest && ( // ✅ Legg til !isPendingRequest check
-                    <ProfileNavButton
-                      text="Leave Group"
-                      onClick={onLeaveGroup}
-                      variant="small"
-                      className="bg-gray-500 hover:bg-gray-600 text-white"
-                    />
-                  )}
+                {/* Leave Group button - show only if NOT pending request */}
+                {onLeaveGroup && !isPendingRequest && (
+                  <ProfileNavButton
+                    text="Leave Group"
+                    onClick={onLeaveGroup}
+                    variant="small"
+                    className="bg-gray-500 hover:bg-gray-600 text-white"
+                  />
+                )}
               </>
             ) : (
-              /* Eksisterende individuelle bruker-knapper */
+              /* Individual user buttons */
               <>
                 <ProfileNavButton
                   text="Visit Profile"

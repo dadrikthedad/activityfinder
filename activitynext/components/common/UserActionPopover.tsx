@@ -1,6 +1,6 @@
-// UserActionPopover.tsx - Updated to use overlay ref properly
+// UserActionPopover.tsx - Fixed to handle NewMessageWindow in nested contexts
 "use client";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback} from "react"; // ✅ LAGT TIL: useRef import
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import NewMessageWindow from "../messages/NewMessageWindow";
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
-
 
 interface UserActionPopoverProps {
   user: UserSummaryDTO;
@@ -26,7 +25,7 @@ interface UserActionPopoverProps {
   isPendingRequest?: boolean;
   conversationId?: number;
   zIndex?: number;
-  // ✅ NEW: Accept the overlay ref from parent
+  // Accept the overlay ref from parent
   overlayRef?: (element: HTMLElement | null) => void;
 }
 
@@ -41,7 +40,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     onLeaveGroup, 
     isPendingRequest = false,
     zIndex,
-    overlayRef // ✅ NEW: Receive overlay ref
+    overlayRef
   } = props;
   
   console.log('👤 OVERLAY UserActionPopover rendered:', {
@@ -50,8 +49,8 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     position,
   });
 
-  // Only need overlay for new message window (not nested popover anymore)
-  const newMessageOverlay = useOverlay(); // New message window
+  // Only need overlay for new message window
+  const newMessageOverlay = useOverlay();
 
   // State
   const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
@@ -63,14 +62,6 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
   const router = useRouter();
-
-  // Sync state with overlay
-  useEffect(() => {
-    if (!newMessageOverlay.isOpen && showNewMessageWindow) {
-      setShowNewMessageWindow(false);
-      setNewMessageInitialReceiver(undefined);
-    }
-  }, [newMessageOverlay.isOpen, showNewMessageWindow]);
 
   // Event handlers
   const handleRemove = async () => {
@@ -86,6 +77,10 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     if (newMessageOverlay.isOpen) {
       newMessageOverlay.close();
     }
+
+    // Close any open message window state
+    setShowNewMessageWindow(false);
+    setNewMessageInitialReceiver(undefined);
 
     // Tell parent to close (UserActionPopoverPortal)
     if (onCloseDropdown) {
@@ -103,7 +98,11 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     console.log('📝 Send message clicked for:', user.fullName);
     setNewMessageInitialReceiver(user);
     setShowNewMessageWindow(true);
-    newMessageOverlay.open();
+    
+    // Force open the overlay - this ensures it works even in nested contexts
+    setTimeout(() => {
+      newMessageOverlay.open();
+    }, 0);
   };
 
   const handleCloseNewMessageWindow = useCallback(() => {
@@ -116,19 +115,35 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const handleMessageSent = (message: MessageDTO) => {
     console.log("📤 Message sent from popover:", message);
     handleCloseNewMessageWindow();
-    handleClose();
+    // ✅ FIXED: Don't automatically close the UserActionPopover - let user decide
+    // handleClose(); // Removed automatic close
   };
 
   const handleGroupCreated = (response: SendGroupRequestsResponseDTO) => {
     console.log("👥 Group created from popover:", response);
     handleCloseNewMessageWindow();
-    handleClose();
+    // ✅ FIXED: Don't automatically close the UserActionPopover - let user decide
+    // handleClose(); // Removed automatic close
   };
 
-  // ✅ REMOVED: Old nested popover logic - now handled by ParticipantsDropdownButton
-  const handleShowUserPopover = () => {
-    console.log('👥 UserActionPopover handleShowUserPopover called - but ParticipantsDropdownButton should handle this locally');
-    // This is now handled locally in ParticipantsDropdownButton
+  // Handle sending message from nested popover
+  const handleSendMessageFromNested = useCallback((targetUser: UserSummaryDTO) => {
+    console.log('📝 OVERLAY Send message from nested popover to:', targetUser.fullName);
+    
+    // Set up the message window for the target user
+    setNewMessageInitialReceiver(targetUser);
+    setShowNewMessageWindow(true);
+    
+    // Force open the overlay after a short delay to ensure state is set
+    setTimeout(() => {
+      newMessageOverlay.open();
+    }, 0);
+  }, [newMessageOverlay]);
+
+  const handleShowUserPopover = (targetUser: UserSummaryDTO) => {
+    console.log('👥 UserActionPopover handleShowUserPopover called for:', targetUser.fullName);
+    // This should only show the user popover, NOT send message
+    // The actual send message will be handled by onSendMessageFromNested
   };
 
   const handleLeaveGroup = () => {
@@ -144,11 +159,21 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     handleClose();
   };
 
+  // Debug logging for message window state
+  useEffect(() => {
+    console.log('📝 OVERLAY Message window state:', {
+      showNewMessageWindow,
+      overlayOpen: newMessageOverlay.isOpen,
+      hasReceiver: !!newMessageInitialReceiver,
+      receiverName: newMessageInitialReceiver?.fullName
+    });
+  }, [showNewMessageWindow, newMessageOverlay.isOpen, newMessageInitialReceiver]);
+
   return (
     <>
-      {/* ✅ FIXED: Attach the overlay ref to the main popover div */}
+      {/* Attach the overlay ref to the main popover div */}
       <div
-        ref={overlayRef} // ✅ This connects the main popover to the overlay system
+        ref={overlayRef}
         style={{
           position: "fixed",
           top: position.y,
@@ -171,24 +196,48 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           onShowUserPopover={handleShowUserPopover}
           isPendingRequest={isPendingRequest}
           onInviteUsers={isGroup ? handleInviteUsers : undefined}
+          // ✅ NEW: Pass the nested send message handler
+          onSendMessageFromNested={handleSendMessageFromNested}
         />
       </div>
 
-      {/* ✅ REMOVED: Nested popover - now handled locally in ParticipantsDropdownButton */}
-
-      {/* New Message Window */}
-      {newMessageOverlay.isOpen && showNewMessageWindow && createPortal(
-        <div ref={newMessageOverlay.ref} style={{ zIndex: newMessageOverlay.zIndex }}>
-          <NewMessageWindow
-            initialReceiver={newMessageInitialReceiver}
-            initialPosition={{ x: 500, y: 300 }}
-            onClose={handleCloseNewMessageWindow}
-            useOverlaySystem={false}
-            onMessageSent={handleMessageSent}
-            onGroupCreated={handleGroupCreated}
-          />
-        </div>,
-        document.body
+      {/* New Message Window - Always render when showNewMessageWindow is true */}
+      {showNewMessageWindow && newMessageInitialReceiver && (
+        <>
+          {newMessageOverlay.isOpen && createPortal(
+            <div 
+              ref={newMessageOverlay.ref} 
+              style={{ 
+                zIndex: newMessageOverlay.zIndex,
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                pointerEvents: 'none' // Allow clicks to pass through to positioned content
+              }}
+            >
+              <div 
+                style={{ 
+                  position: 'absolute',
+                  top: '300px',
+                  left: '500px',
+                  pointerEvents: 'auto' // Re-enable clicks for the actual window
+                }}
+              >
+                <NewMessageWindow
+                  initialReceiver={newMessageInitialReceiver}
+                  initialPosition={{ x: 0, y: 0 }} // Position handled by parent div
+                  onClose={handleCloseNewMessageWindow}
+                  useOverlaySystem={false} // We're managing the overlay ourselves
+                  onMessageSent={handleMessageSent}
+                  onGroupCreated={handleGroupCreated}
+                />
+              </div>
+            </div>,
+            document.body
+          )}
+        </>
       )}
     </>
   );

@@ -222,34 +222,3 @@ export const useOverlayAutoClose = (onClose: () => void, myLevel?: number) => {
     lastLevelRef.current = level;
   }, [level, onClose, myLevel]);
 };
-
-// Simple hook for existing components that manage their own state
-export const useOverlayAutoRegister = (
-  ref: React.RefObject<HTMLElement | null>, 
-  isOpen: boolean
-) => {
-  const { register, unregister } = useOverlayLayer();
-  const myLevel = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (isOpen && ref.current && myLevel.current === null) {
-      myLevel.current = register(ref);
-    } else if (!isOpen && myLevel.current !== null) {
-      unregister(myLevel.current);
-      myLevel.current = null;
-    }
-  }, [isOpen, register, unregister, ref]);
-
-  useEffect(() => {
-    return () => {
-      if (myLevel.current !== null) {
-        unregister(myLevel.current);
-      }
-    };
-  }, [unregister]);
-
-  return {
-    level: myLevel.current,
-    zIndex: myLevel.current ? 1000 + myLevel.current : undefined,
-  };
-};

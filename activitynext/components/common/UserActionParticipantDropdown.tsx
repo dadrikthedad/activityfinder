@@ -12,23 +12,30 @@ interface ParticipantsDropdownButtonProps {
   participants: UserSummaryDTO[];
   className?: string;
   onShowUserPopover?: (user: UserSummaryDTO, event: React.MouseEvent) => void;
-  // ✅ NEW: Optional prop to disable overlay system when used as nested component
+  // ✅ NEW: For sending message directly from nested popover
+  onSendMessageToUser?: (user: UserSummaryDTO) => void;
+  // Optional prop to disable overlay system when used as nested component
   useOverlaySystem?: boolean;
 }
 
 export default function ParticipantsDropdownButton({
   participants,
   className = "",
-  onShowUserPopover, // ✅ Keep this but we'll also handle locally
-  useOverlaySystem = true // ✅ Default to true for backwards compatibility
+  onShowUserPopover, // Keep this but we'll also handle locally
+  onSendMessageToUser, // ✅ NEW: For direct message sending
+  useOverlaySystem = true // Default to true for backwards compatibility
 }: ParticipantsDropdownButtonProps) {
-  console.log('👥 OVERLAY ParticipantsDropdownButton props received:', { useOverlaySystem, participantCount: participants.length });
+  console.log('👥 OVERLAY ParticipantsDropdownButton props received:', { 
+    useOverlaySystem, 
+    participantCount: participants.length,
+    hasSendMessageHandler: !!onSendMessageToUser 
+  });
 
-  // ✅ Always start closed - different from NewMessageWindow which should start open when nested
+  // Always start closed - different from NewMessageWindow which should start open when nested
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay(); // Always call useOverlay
 
-  // ✅ SIMPLIFIED: Local nested UserActionPopover state
+  // SIMPLIFIED: Local nested UserActionPopover state
   const [nestedUserPopover, setNestedUserPopover] = useState<{
     user: UserSummaryDTO;
     position: { x: number; y: number };
@@ -41,7 +48,7 @@ export default function ParticipantsDropdownButton({
     return { x: -9999, y: -9999 }; // Off-screen until we get correct position
   });
 
-  // ✅ Only register overlay when actually opening (not on mount)
+  // Only register overlay when actually opening (not on mount)
   useEffect(() => {
     if (!useOverlaySystem && isOpen && !overlay.isOpen) {
       // Register for outside click detection only when opening
@@ -50,7 +57,7 @@ export default function ParticipantsDropdownButton({
     }
   }, [useOverlaySystem, isOpen, overlay]);
 
-  // ✅ Sync overlay state with local state (conditional logic inside)
+  // Sync overlay state with local state (conditional logic inside)
   useEffect(() => {
     if (!useOverlaySystem) return;
     
@@ -63,7 +70,7 @@ export default function ParticipantsDropdownButton({
     }
   }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
 
-  // ✅ Always call useOverlayAutoClose to listen for external closing
+  // Always call useOverlayAutoClose to listen for external closing
   useOverlayAutoClose(() => {
     console.log('👥 OVERLAY ParticipantsDropdownButton auto-close triggered');
     if (useOverlaySystem) {
@@ -73,7 +80,7 @@ export default function ParticipantsDropdownButton({
       console.log('👥 OVERLAY ParticipantsDropdownButton closing directly');
       setIsOpen(false);
     }
-    // ✅ Also close any nested popover when we close
+    // Also close any nested popover when we close
     if (nestedUserPopover) {
       setNestedUserPopover(null);
     }
@@ -112,30 +119,42 @@ export default function ParticipantsDropdownButton({
     
     console.log('👥 OVERLAY Participant clicked:', participant.fullName);
     
-    // ✅ SIMPLIFIED: Calculate position and show reusable nested popover
+    // SIMPLIFIED: Calculate position and show reusable nested popover
     const pos = calculatePopoverPosition(event);
     console.log('👥 OVERLAY Showing reusable nested popover for:', participant.fullName, pos);
     
     setNestedUserPopover({ user: participant, position: pos });
     
-    // ✅ OPTIONAL: Also call parent callback if provided (for backwards compatibility)
+    // OPTIONAL: Also call parent callback if provided (for backwards compatibility)
     if (onShowUserPopover) {
       onShowUserPopover(participant, event);
     }
   }, [onShowUserPopover]);
 
-  // ✅ SIMPLIFIED: Handle nested popover closing
+  // SIMPLIFIED: Handle nested popover closing
   const handleCloseNestedPopover = useCallback(() => {
     console.log('👥 OVERLAY Closing reusable nested popover');
     setNestedUserPopover(null);
   }, []);
 
-  // ✅ Handle send message from nested popover
+  // ✅ FIXED: Handle send message from nested popover
   const handleNestedSendMessage = useCallback((user: UserSummaryDTO) => {
     console.log('📝 OVERLAY Send message from nested popover to:', user.fullName);
-    // You can implement message sending logic here or call a prop
-    setNestedUserPopover(null); // Close the nested popover
-  }, []);
+    
+    // Close the nested popover first
+    setNestedUserPopover(null);
+    
+    // ✅ Use the parent's send message handler if provided
+    if (onSendMessageToUser) {
+      console.log('📝 OVERLAY Using parent send message handler');
+      onSendMessageToUser(user);
+    } else {
+      console.log('📝 OVERLAY No parent send message handler provided');
+      // Fallback: you could implement local message sending logic here
+      // or show an alert/notification
+      alert(`Send message to ${user.fullName} - no handler provided`);
+    }
+  }, [onSendMessageToUser]);
 
   // Helper function for status info
   const getStatusInfo = (participant: UserSummaryDTO) => {
@@ -171,7 +190,7 @@ export default function ParticipantsDropdownButton({
         className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
       />
      
-      {/* ✅ Conditional rendering based on local state */}
+      {/* Conditional rendering based on local state */}
       {isOpen && position.x > -9999 && createPortal(
         <div
           ref={overlay.ref}
@@ -222,7 +241,7 @@ export default function ParticipantsDropdownButton({
         document.body
       )}
 
-      {/* ✅ SIMPLIFIED: Use reusable NestedUserActionPopover component */}
+      {/* SIMPLIFIED: Use reusable NestedUserActionPopover component */}
       {nestedUserPopover && (
         <NestedUserActionPopover
           user={nestedUserPopover.user}
