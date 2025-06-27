@@ -1,4 +1,3 @@
-// ParticipantsDropdownButton.tsx - Updated to use overlay system properly
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -6,6 +5,10 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { UserSummaryDTO, GroupRequestStatus } from "@/types/UserSummaryDTO";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import MiniAvatar from "../common/MiniAvatar";
+import UserActionPopoverContent from "./UserActionPopoverContent"; // ✅ Import content directly
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import { calculatePopoverPosition } from "./PopoverPositioning";
 
 interface ParticipantsDropdownButtonProps {
   participants: UserSummaryDTO[];
@@ -18,7 +21,7 @@ interface ParticipantsDropdownButtonProps {
 export default function ParticipantsDropdownButton({
   participants,
   className = "",
-  onShowUserPopover,
+  onShowUserPopover, // ✅ Keep this but we'll also handle locally
   useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: ParticipantsDropdownButtonProps) {
   console.log('👥 OVERLAY ParticipantsDropdownButton props received:', { useOverlaySystem, participantCount: participants.length });
@@ -26,6 +29,17 @@ export default function ParticipantsDropdownButton({
   // ✅ Always start closed - different from NewMessageWindow which should start open when nested
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay(); // Always call useOverlay
+
+  // ✅ NEW: Local nested UserActionPopover state
+  const [nestedUserPopover, setNestedUserPopover] = useState<{
+    user: UserSummaryDTO;
+    position: { x: number; y: number };
+  } | null>(null);
+  const nestedOverlay = useOverlay(); // For nested popover
+
+  // ✅ NEW: Auth and other hooks for nested popover
+  const { userId: currentUserId } = useAuth();
+  const router = useRouter();
 
   const ref = useRef<HTMLDivElement>(null);
   
@@ -66,7 +80,28 @@ export default function ParticipantsDropdownButton({
       console.log('👥 OVERLAY ParticipantsDropdownButton closing directly');
       setIsOpen(false);
     }
+    // ✅ Also close any nested popover when we close
+    if (nestedUserPopover) {
+      setNestedUserPopover(null);
+    }
   }, overlay.level ?? undefined);
+
+  // ✅ Sync nested overlay with nested popover state
+useEffect(() => {
+  if (nestedUserPopover && !nestedOverlay.isOpen) {
+    console.log('👥 OVERLAY Opening nested popover overlay at level:', nestedOverlay.level);
+    nestedOverlay.open();
+  } else if (!nestedUserPopover && nestedOverlay.isOpen) {
+    console.log('👥 OVERLAY Closing nested popover overlay from level:', nestedOverlay.level);
+    nestedOverlay.close();
+  }
+}, [nestedUserPopover, nestedOverlay]);
+
+// ✅ Auto-close nested popover when its overlay closes
+useOverlayAutoClose(() => {
+  console.log('👥 OVERLAY Nested popover auto-close triggered for level:', nestedOverlay.level);
+  setNestedUserPopover(null);
+}, nestedOverlay.level ?? undefined);
 
   // Update position continuously when ref changes
   useEffect(() => {
@@ -101,10 +136,23 @@ export default function ParticipantsDropdownButton({
     
     console.log('👥 OVERLAY Participant clicked:', participant.fullName);
     
+    // ✅ NEW: Calculate position and show local nested popover
+    const pos = calculatePopoverPosition(event);
+    console.log('👥 OVERLAY Showing local nested popover for:', participant.fullName, pos);
+    
+    setNestedUserPopover({ user: participant, position: pos });
+    
+    // ✅ OPTIONAL: Also call parent callback if provided (for backwards compatibility)
     if (onShowUserPopover) {
       onShowUserPopover(participant, event);
     }
   }, [onShowUserPopover]);
+
+  // ✅ NEW: Handle nested popover closing
+  const handleCloseNestedPopover = useCallback(() => {
+    console.log('👥 OVERLAY Closing local nested popover');
+    setNestedUserPopover(null);
+  }, []);
 
   // Helper function for status info
   const getStatusInfo = (participant: UserSummaryDTO) => {
@@ -187,6 +235,39 @@ export default function ParticipantsDropdownButton({
             })
             )}
           </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ✅ NEW: Local nested UserActionPopover using content directly */}
+      {nestedUserPopover && createPortal(
+        <div
+          ref={nestedOverlay.ref}
+          style={{
+            position: "fixed",
+            top: nestedUserPopover.position.y,
+            left: nestedUserPopover.position.x,
+            zIndex: nestedOverlay.zIndex,
+          }}
+        >
+          <UserActionPopoverContent
+            user={nestedUserPopover.user}
+            isOwner={nestedUserPopover.user.id === currentUserId}
+            isFriend={false} // Simplified for nested usage
+            isFriendLoading={false}
+            onVisitProfile={() => {
+              router.push(`/profile/${nestedUserPopover.user.id}`);
+              handleCloseNestedPopover();
+            }}
+            onSendMessage={() => {
+              // Handle send message
+              console.log('📝 Send message to:', nestedUserPopover.user.fullName);
+              handleCloseNestedPopover();
+            }}
+            onRemoveFriend={() => {}}
+            onClose={handleCloseNestedPopover}
+            isGroup={false}
+          />
         </div>,
         document.body
       )}

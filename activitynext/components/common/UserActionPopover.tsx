@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import NewMessageWindow from "../messages/NewMessageWindow";
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
-import { calculatePopoverPosition } from "./PopoverPositioning";
+
 
 interface UserActionPopoverProps {
   user: UserSummaryDTO;
@@ -50,17 +50,12 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     position,
   });
 
-  // Only need overlays for nested features
-  const nestedPopoverOverlay = useOverlay(); // Nested popover  
+  // Only need overlay for new message window (not nested popover anymore)
   const newMessageOverlay = useOverlay(); // New message window
 
   // State
   const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
   const [newMessageInitialReceiver, setNewMessageInitialReceiver] = useState<UserSummaryDTO | undefined>();
-  const [nestedUserPopover, setNestedUserPopover] = useState<{
-    user: UserSummaryDTO;
-    position: { x: number; y: number };
-  } | null>(null);
 
   // Hooks
   const { confirmAndRemove } = useConfirmRemoveFriend();
@@ -69,19 +64,13 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const isOwner = user.id === currentUserId;
   const router = useRouter();
 
-  // Sync states med overlays
+  // Sync state with overlay
   useEffect(() => {
     if (!newMessageOverlay.isOpen && showNewMessageWindow) {
       setShowNewMessageWindow(false);
       setNewMessageInitialReceiver(undefined);
     }
   }, [newMessageOverlay.isOpen, showNewMessageWindow]);
-
-  useEffect(() => {
-    if (!nestedPopoverOverlay.isOpen && nestedUserPopover) {
-      setNestedUserPopover(null);
-    }
-  }, [nestedPopoverOverlay.isOpen, nestedUserPopover]);
 
   // Event handlers
   const handleRemove = async () => {
@@ -93,11 +82,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const handleClose = useCallback(() => {
     console.log('❌ OVERLAY Closing UserActionPopover:', { userId: user.id });
     
-    // Close nested features first
-    if (nestedPopoverOverlay.isOpen) {
-      nestedPopoverOverlay.close();
-    }
-    
+    // Close new message window if open
     if (newMessageOverlay.isOpen) {
       newMessageOverlay.close();
     }
@@ -106,7 +91,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     if (onCloseDropdown) {
       onCloseDropdown();
     }
-  }, [nestedPopoverOverlay, newMessageOverlay, user.id, onCloseDropdown]);
+  }, [newMessageOverlay, user.id, onCloseDropdown]);
 
   const handleVisitProfile = () => {
     console.log('👤 Visiting profile for:', user.fullName);
@@ -140,30 +125,11 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     handleClose();
   };
 
-  const handleShowUserPopover = (participantUser: UserSummaryDTO, event: React.MouseEvent) => {
-    console.log('👥 Showing nested popover for:', participantUser.fullName);
-    
-    const pos = calculatePopoverPosition(event);
-    
-    console.log('👥 Nested popover position:', {
-      mousePos: { x: event.clientX, y: event.clientY },
-      calculatedPos: pos,
-      currentNestedUser: nestedUserPopover?.user.id,
-      newUser: participantUser.id
-    });
-    
-    if (!nestedPopoverOverlay.isOpen) {
-      nestedPopoverOverlay.open();
-    }
-    
-    setNestedUserPopover({ user: participantUser, position: pos });
+  // ✅ REMOVED: Old nested popover logic - now handled by ParticipantsDropdownButton
+  const handleShowUserPopover = () => {
+    console.log('👥 UserActionPopover handleShowUserPopover called - but ParticipantsDropdownButton should handle this locally');
+    // This is now handled locally in ParticipantsDropdownButton
   };
-
-  const handleCloseNestedPopover = useCallback(() => {
-    console.log('❌ Closing nested popover');
-    nestedPopoverOverlay.close();
-    setNestedUserPopover(null);
-  }, [nestedPopoverOverlay]);
 
   const handleLeaveGroup = () => {
     console.log('🚪 Leaving group');
@@ -208,41 +174,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
         />
       </div>
 
-      {/* Nested popover */}
-      {nestedPopoverOverlay.isOpen && nestedUserPopover && createPortal(
-        <div
-          ref={nestedPopoverOverlay.ref}
-          style={{
-            position: "fixed",
-            top: nestedUserPopover.position.y,
-            left: nestedUserPopover.position.x,
-            zIndex: nestedPopoverOverlay.zIndex,
-          }}
-          className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-4 min-w-[200px]"
-        >
-          <UserActionPopoverContent
-            user={nestedUserPopover.user}
-            isOwner={nestedUserPopover.user.id === currentUserId}
-            isFriend={false}
-            isFriendLoading={false}
-            onVisitProfile={() => {
-              router.push(`/profile/${nestedUserPopover.user.id}`);
-              handleCloseNestedPopover();
-              handleClose();
-            }}
-            onSendMessage={() => {
-              setNewMessageInitialReceiver(nestedUserPopover.user);
-              setShowNewMessageWindow(true);
-              newMessageOverlay.open();
-              handleCloseNestedPopover();
-            }}
-            onRemoveFriend={() => {}}
-            onClose={handleCloseNestedPopover}
-            isGroup={false}
-          />
-        </div>,
-        document.body
-      )}
+      {/* ✅ REMOVED: Nested popover - now handled locally in ParticipantsDropdownButton */}
 
       {/* New Message Window */}
       {newMessageOverlay.isOpen && showNewMessageWindow && createPortal(
