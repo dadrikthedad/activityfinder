@@ -5,9 +5,7 @@ import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { UserSummaryDTO, GroupRequestStatus } from "@/types/UserSummaryDTO";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import MiniAvatar from "../common/MiniAvatar";
-import UserActionPopoverContent from "./UserActionPopoverContent"; // ✅ Import content directly
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import NestedUserActionPopover from "./NestedUserActionPopover";
 import { calculatePopoverPosition } from "./PopoverPositioning";
 
 interface ParticipantsDropdownButtonProps {
@@ -30,16 +28,11 @@ export default function ParticipantsDropdownButton({
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay(); // Always call useOverlay
 
-  // ✅ NEW: Local nested UserActionPopover state
+  // ✅ SIMPLIFIED: Local nested UserActionPopover state
   const [nestedUserPopover, setNestedUserPopover] = useState<{
     user: UserSummaryDTO;
     position: { x: number; y: number };
   } | null>(null);
-  const nestedOverlay = useOverlay(); // For nested popover
-
-  // ✅ NEW: Auth and other hooks for nested popover
-  const { userId: currentUserId } = useAuth();
-  const router = useRouter();
 
   const ref = useRef<HTMLDivElement>(null);
   
@@ -86,23 +79,6 @@ export default function ParticipantsDropdownButton({
     }
   }, overlay.level ?? undefined);
 
-  // ✅ Sync nested overlay with nested popover state
-useEffect(() => {
-  if (nestedUserPopover && !nestedOverlay.isOpen) {
-    console.log('👥 OVERLAY Opening nested popover overlay at level:', nestedOverlay.level);
-    nestedOverlay.open();
-  } else if (!nestedUserPopover && nestedOverlay.isOpen) {
-    console.log('👥 OVERLAY Closing nested popover overlay from level:', nestedOverlay.level);
-    nestedOverlay.close();
-  }
-}, [nestedUserPopover, nestedOverlay]);
-
-// ✅ Auto-close nested popover when its overlay closes
-useOverlayAutoClose(() => {
-  console.log('👥 OVERLAY Nested popover auto-close triggered for level:', nestedOverlay.level);
-  setNestedUserPopover(null);
-}, nestedOverlay.level ?? undefined);
-
   // Update position continuously when ref changes
   useEffect(() => {
     const updatePosition = () => {
@@ -136,9 +112,9 @@ useOverlayAutoClose(() => {
     
     console.log('👥 OVERLAY Participant clicked:', participant.fullName);
     
-    // ✅ NEW: Calculate position and show local nested popover
+    // ✅ SIMPLIFIED: Calculate position and show reusable nested popover
     const pos = calculatePopoverPosition(event);
-    console.log('👥 OVERLAY Showing local nested popover for:', participant.fullName, pos);
+    console.log('👥 OVERLAY Showing reusable nested popover for:', participant.fullName, pos);
     
     setNestedUserPopover({ user: participant, position: pos });
     
@@ -148,10 +124,17 @@ useOverlayAutoClose(() => {
     }
   }, [onShowUserPopover]);
 
-  // ✅ NEW: Handle nested popover closing
+  // ✅ SIMPLIFIED: Handle nested popover closing
   const handleCloseNestedPopover = useCallback(() => {
-    console.log('👥 OVERLAY Closing local nested popover');
+    console.log('👥 OVERLAY Closing reusable nested popover');
     setNestedUserPopover(null);
+  }, []);
+
+  // ✅ Handle send message from nested popover
+  const handleNestedSendMessage = useCallback((user: UserSummaryDTO) => {
+    console.log('📝 OVERLAY Send message from nested popover to:', user.fullName);
+    // You can implement message sending logic here or call a prop
+    setNestedUserPopover(null); // Close the nested popover
   }, []);
 
   // Helper function for status info
@@ -239,37 +222,14 @@ useOverlayAutoClose(() => {
         document.body
       )}
 
-      {/* ✅ NEW: Local nested UserActionPopover using content directly */}
-      {nestedUserPopover && createPortal(
-        <div
-          ref={nestedOverlay.ref}
-          style={{
-            position: "fixed",
-            top: nestedUserPopover.position.y,
-            left: nestedUserPopover.position.x,
-            zIndex: nestedOverlay.zIndex,
-          }}
-        >
-          <UserActionPopoverContent
-            user={nestedUserPopover.user}
-            isOwner={nestedUserPopover.user.id === currentUserId}
-            isFriend={false} // Simplified for nested usage
-            isFriendLoading={false}
-            onVisitProfile={() => {
-              router.push(`/profile/${nestedUserPopover.user.id}`);
-              handleCloseNestedPopover();
-            }}
-            onSendMessage={() => {
-              // Handle send message
-              console.log('📝 Send message to:', nestedUserPopover.user.fullName);
-              handleCloseNestedPopover();
-            }}
-            onRemoveFriend={() => {}}
-            onClose={handleCloseNestedPopover}
-            isGroup={false}
-          />
-        </div>,
-        document.body
+      {/* ✅ SIMPLIFIED: Use reusable NestedUserActionPopover component */}
+      {nestedUserPopover && (
+        <NestedUserActionPopover
+          user={nestedUserPopover.user}
+          position={nestedUserPopover.position}
+          onClose={handleCloseNestedPopover}
+          onSendMessage={handleNestedSendMessage}
+        />
       )}
     </div>
   );
