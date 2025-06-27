@@ -43,7 +43,6 @@ export default function MessageToolbar({
   showSettings = true,
   onShowUserPopover,
   onLeaveGroup,
-  userPopoverRef,
 }: MessageToolbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -57,7 +56,7 @@ export default function MessageToolbar({
             setOpen={setSettingsOpen}
             onShowUserPopover={onShowUserPopover}
             onLeaveGroup={onLeaveGroup}
-            userPopoverRef={userPopoverRef}
+            useOverlaySystem={false} // ✅ Disable overlay system since we're nested in MessageDropdown
           />
         )}
        

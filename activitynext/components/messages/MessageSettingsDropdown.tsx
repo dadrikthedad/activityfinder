@@ -1,11 +1,11 @@
 // Knappen i toolbaren med innstillinger til en chat
-// MessageSettingsDropdown.tsx
+// MessageSettingsDropdown.tsx - Updated to use overlay system properly
 "use client";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { Settings } from "lucide-react";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import MiniAvatar from "../common/MiniAvatar";
-import { useOverlay } from "@/context/OverlayProvider"; // NY IMPORT
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import { useChatStore } from "@/store/useChatStore";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
@@ -26,24 +26,27 @@ interface MessageSettingsDropdownProps {
     }
   ) => void;
   onLeaveGroup?: (conversationId: number) => Promise<void>;
-  userPopoverRef?: React.RefObject<HTMLDivElement | null>;
+  useOverlaySystem?: boolean; // ✅ NEW: Support for nested usage
 }
 
 export default function MessageSettingsDropdown({ 
   open, 
   setOpen, 
   onShowUserPopover,
-  onLeaveGroup
+  onLeaveGroup,
+  useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: MessageSettingsDropdownProps) {
+  console.log('⚙️ OVERLAY MessageSettingsDropdown props received:', { useOverlaySystem, open });
+
   const containerRef = useRef<HTMLDivElement>(null);
   const searchMode = useChatStore((s) => s.searchMode);
   const setSearchMode = useChatStore((s) => s.setSearchMode);
   const { resetSearch } = useSearchMessages();
   const [showParticipants, setShowParticipants] = useState(false);
   
-  // NY: Auto-level overlays
-  const settingsOverlay = useOverlay(); // Auto-level
-  const participantsOverlay = useOverlay(); // Auto-level
+  // ✅ Follow same pattern as other overlay components
+  const settingsOverlay = useOverlay();
+  const participantsOverlay = useOverlay();
   
   // 🎯 Hent conversation data fra store
   const currentConversationId = useChatStore((s) => s.currentConversationId);
@@ -53,36 +56,72 @@ export default function MessageSettingsDropdown({
   const participants = currentConversation?.participants || [];
   const isGroup = currentConversation?.isGroup || false;
 
-  // Sync settings dropdown state
+  // ✅ Sync settings dropdown state with overlay (conditional logic inside)
   useEffect(() => {
+    if (!useOverlaySystem) {
+      // When not using overlay system, register only when opening
+      if (open && !settingsOverlay.isOpen) {
+        console.log('⚙️ OVERLAY MessageSettingsDropdown opening without overlay state management, but registering for outside clicks');
+        settingsOverlay.open();
+      }
+      return;
+    }
+
+    // Normal overlay state management
     if (open && !settingsOverlay.isOpen) {
+      console.log('⚙️ OVERLAY MessageSettingsDropdown opening overlay');
       settingsOverlay.open();
     } else if (!open && settingsOverlay.isOpen) {
+      console.log('⚙️ OVERLAY MessageSettingsDropdown closing overlay');
       settingsOverlay.close();
     }
-  }, [open, settingsOverlay]);
+  }, [open, settingsOverlay, useOverlaySystem]);
 
-  // Sync participants list state
+  // ✅ Sync participants list state with overlay
   useEffect(() => {
     if (showParticipants && !participantsOverlay.isOpen) {
+      console.log('⚙️ OVERLAY MessageSettingsDropdown opening participants overlay');
       participantsOverlay.open();
     } else if (!showParticipants && participantsOverlay.isOpen) {
+      console.log('⚙️ OVERLAY MessageSettingsDropdown closing participants overlay');
       participantsOverlay.close();
     }
   }, [showParticipants, participantsOverlay]);
 
-  const handleShowParticipants = () => {
+  // ✅ Auto-close settings dropdown when overlay closes
+  useOverlayAutoClose(() => {
+    console.log('⚙️ OVERLAY MessageSettingsDropdown auto-close triggered');
+    if (useOverlaySystem) {
+      setOpen(false);
+    } else {
+      setOpen(false);
+    }
+    // Also close participants if open
+    if (showParticipants) {
+      setShowParticipants(false);
+    }
+  }, settingsOverlay.level ?? undefined);
+
+  // ✅ Auto-close participants when its overlay closes
+  useOverlayAutoClose(() => {
+    console.log('⚙️ OVERLAY MessageSettingsDropdown participants auto-close triggered');
+    setShowParticipants(false);
+  }, participantsOverlay.level ?? undefined);
+
+  const handleShowParticipants = useCallback(() => {
+    console.log('⚙️ OVERLAY Showing participants');
     setShowParticipants(true);
     setOpen(false); // Lukk settings dropdown
-  };
+  }, [setOpen]);
 
-  const handleCloseParticipants = () => {
+  const handleCloseParticipants = useCallback(() => {
+    console.log('⚙️ OVERLAY Closing participants');
     setShowParticipants(false);
     setOpen(true); // Åpne settings dropdown igjen
-  };
+  }, [setOpen]);
 
   // ✅ Håndter klikk på deltaker - IKKE send gruppedata for enkeltbrukere
-  const handleParticipantClick = (participant: UserSummaryDTO, event: React.MouseEvent) => {
+  const handleParticipantClick = useCallback((participant: UserSummaryDTO, event: React.MouseEvent) => {
     event.stopPropagation();
     
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -93,10 +132,10 @@ export default function MessageSettingsDropdown({
     
     // ✅ For individuelle deltakere: IKKE send gruppedata, bare brukeren
     onShowUserPopover?.(participant, pos);
-  };
+  }, [onShowUserPopover]);
 
   // ✅ Håndter klikk på gruppe-header
-  const handleGroupHeaderClick = (event: React.MouseEvent) => {
+  const handleGroupHeaderClick = useCallback((event: React.MouseEvent) => {
     if (!isGroup || !currentConversation || !currentConversationId) return;
     
     event.stopPropagation();
@@ -122,7 +161,18 @@ export default function MessageSettingsDropdown({
     };
     
     onShowUserPopover?.(groupUser, pos, groupData);
-  };
+  }, [isGroup, currentConversation, currentConversationId, participants, onLeaveGroup, onShowUserPopover]);
+
+  const handleSearchToggle = useCallback(() => {
+    if (searchMode) {
+      resetSearch();
+      setSearchMode(false);
+      useChatStore.getState().setSearchResults([]);
+    } else {
+      setSearchMode(true);
+    }
+    setOpen(false);
+  }, [searchMode, resetSearch, setSearchMode, setOpen]);
 
   return (
     <div className="relative" ref={containerRef}>
@@ -145,16 +195,7 @@ export default function MessageSettingsDropdown({
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            onClick={() => {
-              if (searchMode) {
-                resetSearch();
-                setSearchMode(false);
-                useChatStore.getState().setSearchResults([]);
-              } else {
-                setSearchMode(true);
-              }
-              setOpen(false);
-            }}
+            onClick={handleSearchToggle}
             className="block w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-[#2a2d2e] border-b border-gray-200 dark:border-gray-600"
           >
             Search messages
