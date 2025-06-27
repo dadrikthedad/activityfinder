@@ -2,14 +2,14 @@ import { useUserSearch } from "@/hooks/useUserSearch";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import NewMessageInput from "./NewMessageInput";
 import Card from "../common/Card";
 import MiniAvatar from "../common/MiniAvatar";
 import { useAuth } from "@/context/AuthContext";
 import OverflowDropdown from "./NewMessageDropdown";
 import { useKeyboardNavigableList } from "@/hooks/mouseAndKeyboard/useKeyboardForDropdown";
-import { useOverlay } from "@/context/OverlayProvider";
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import { createPortal } from "react-dom";
 
 interface NewMessageWindowProps {
@@ -18,6 +18,8 @@ interface NewMessageWindowProps {
   onMessageSent?: (message: MessageDTO) => void;
   onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void;
   initialPosition?: { x: number; y: number };
+  // ✅ NEW: Optional prop to disable overlay system when used as nested component
+  useOverlaySystem?: boolean;
 }
 
 export default function NewMessageWindow({ 
@@ -25,14 +27,20 @@ export default function NewMessageWindow({
   onClose, 
   onMessageSent, 
   onGroupCreated,
-  initialPosition
+  initialPosition,
+  useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: NewMessageWindowProps) {
+  console.log('💬 OVERLAY NewMessageWindow props received:', { useOverlaySystem, hasInitialReceiver: !!initialReceiver });
   const { query, setQuery, results, loading } = useUserSearch();
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
   const { userId } = useAuth();
   
-  // NY: Bruk auto-level - blir automatisk riktig level basert på context
-  const overlay = useOverlay(); // Fjernet hardkodet level 2
+  // ✅ Always call hooks - simplified approach
+  const [isOpen, setIsOpen] = useState(() => {
+    console.log('💬 OVERLAY NewMessageWindow initial state:', { useOverlaySystem, willBeOpen: !useOverlaySystem });
+    return !useOverlaySystem; // If not using overlay, start open
+  });
+  const overlay = useOverlay(); // Always call useOverlay - we'll always register for outside click detection
   
   const [groupName, setGroupName] = useState("");
 
@@ -94,10 +102,42 @@ export default function NewMessageWindow({
     }, 200);
   };
 
-  // NY: Auto-åpne overlay når komponenten mountes
+  // ✅ Auto-open when component mounts (only if using overlay system)
   useEffect(() => {
-    overlay.open();
-  }, []);
+    if (useOverlaySystem) {
+      console.log('💬 OVERLAY NewMessageWindow mounting, opening overlay');
+      setIsOpen(true);
+    } else {
+      // Always register for outside click detection, even when not using overlay state management
+      console.log('💬 OVERLAY NewMessageWindow mounting without overlay state management, but registering for outside clicks');
+      overlay.open(); // Register as level 2, but don't use state management
+    }
+  }, [useOverlaySystem, overlay]);
+
+  // ✅ Sync overlay state with local state (conditional logic inside)
+  useEffect(() => {
+    if (!useOverlaySystem) return;
+    
+    if (isOpen && !overlay.isOpen) {
+      console.log('💬 OVERLAY NewMessageWindow opening overlay');
+      overlay.open();
+    } else if (!isOpen && overlay.isOpen) {
+      console.log('💬 OVERLAY NewMessageWindow closing overlay');
+      overlay.close();
+    }
+  }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
+
+  // ✅ Always call useOverlayAutoClose to listen for external closing
+  useOverlayAutoClose(() => {
+    console.log('💬 OVERLAY NewMessageWindow auto-close triggered');
+    if (useOverlaySystem) {
+      setIsOpen(false);
+    } else {
+      // If not using overlay system, call onClose directly
+      console.log('💬 OVERLAY NewMessageWindow calling onClose directly');
+      onClose();
+    }
+  }, overlay.level ?? undefined);
 
   // Drag and drop functionality
   useEffect(() => {
@@ -137,26 +177,40 @@ export default function NewMessageWindow({
     }
   }, [initialReceiver, selectedUsers, setQuery]);
 
-  // NY: Enklere close handling
-  const handleClose = () => {
-    overlay.close();
-    onClose();
-  };
+  // ✅ Handle close consistently
+  const handleClose = useCallback(() => {
+    console.log('💬 OVERLAY NewMessageWindow manual close', { useOverlaySystem });
+    if (useOverlaySystem) {
+      setIsOpen(false);
+    } else {
+      // If not using overlay system, call onClose directly
+      onClose();
+    }
+  }, [useOverlaySystem, onClose]);
 
-  const handleMessageSent = (message: MessageDTO) => {
-    console.log("Message sent!", message);
+  // Auto-close on action completion (only if using overlay system)
+  useEffect(() => {
+    console.log('💬 OVERLAY NewMessageWindow effect check:', { useOverlaySystem, isOpen, shouldTriggerClose: useOverlaySystem && !isOpen });
+    if (useOverlaySystem && !isOpen) {
+      console.log('💬 OVERLAY NewMessageWindow closed via overlay system, calling onClose');
+      onClose();
+    }
+  }, [isOpen, onClose, useOverlaySystem]);
+
+  const handleMessageSent = useCallback((message: MessageDTO) => {
+    console.log("💬 OVERLAY Message sent!", message);
     onMessageSent?.(message);
     handleClose();
-  };
+  }, [onMessageSent, handleClose]);
 
-  const handleGroupCreated = (response: SendGroupRequestsResponseDTO) => {
-    console.log("Group created!", response);
+  const handleGroupCreated = useCallback((response: SendGroupRequestsResponseDTO) => {
+    console.log("💬 OVERLAY Group created!", response);
     onGroupCreated?.(response);
     handleClose();
-  };
+  }, [onGroupCreated, handleClose]);
 
-  // NY: Vis kun hvis overlay er åpen
-  if (!overlay.isOpen) {
+  // ✅ Conditional rendering based on local state (or always render if not using overlay)
+  if (useOverlaySystem && !isOpen) {
     return null;
   }
 
@@ -164,9 +218,11 @@ export default function NewMessageWindow({
     <Card
       ref={(el) => {
         windowRef.current = el;
-        overlay.ref(el); // NY: Registrer med overlay system
+        // ✅ Always register for outside click detection
+        overlay.ref(el);
       }}
       data-new-message-window
+      data-overlay-id="new-message-window" // ✅ Give it an overlay ID so outside click detection works
       className="fixed max-w-[100vw] w-full min-w-[300px] min-h-[200px] border-2 border-[#1C6B1C] bg-white dark:bg-[#1e2122] text-black dark:text-white shadow-lg rounded-xl resize overflow-hidden flex flex-col"
       style={{
         left: position.x,
@@ -177,7 +233,7 @@ export default function NewMessageWindow({
         minHeight: 300,
         maxWidth: window.innerWidth - 40,
         maxHeight: window.innerHeight - 40,
-        zIndex: overlay.zIndex, // NY: Bruk z-index fra overlay system
+        zIndex: overlay.zIndex, // ✅ Always use overlay z-index (will be level 2)
       }}
     >
       {/* Drag handle - header */}

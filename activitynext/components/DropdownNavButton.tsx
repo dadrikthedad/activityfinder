@@ -1,9 +1,8 @@
 // Dropdown til ved besøk av en bruker, gir en meny med feks block, ignore osv. Brukes i profile/[id]
 // DropdownNavButton.tsx
 "use client";
-
-import { useRef } from "react";
-import { useOverlay } from "@/context/OverlayProvider"; // NY IMPORT
+import { useState, useEffect, useCallback } from "react";
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 
 interface Action {
@@ -17,7 +16,6 @@ interface DropdownNavButtonProps {
   isFriend?: boolean;
   variant?: "default" | "small" | "large" | "long" | "normal" | "iconOnly" | "usual";
   className?: string;
-  level?: number; // Ny: explicit level control
 }
 
 export default function DropdownNavButton({
@@ -25,25 +23,43 @@ export default function DropdownNavButton({
   actions,
   isFriend = false,
   variant = "long",
-  className = "",// Level kan settes eksplisitt hvis nødvendig
+  className = "",
 }: DropdownNavButtonProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  
-  // NY: Bruk den nye overlay hooken
-  const overlay = useOverlay(); // Auto-level eller eksplisitt level
+  const [isOpen, setIsOpen] = useState(false);
+  const overlay = useOverlay();
 
-  const handleToggle = () => {
-    overlay.toggle();
-  };
+  // ✅ Sync overlay state with local state
+  useEffect(() => {
+    if (isOpen && !overlay.isOpen) {
+      console.log('🔽 OVERLAY DropdownNavButton opening:', { text });
+      overlay.open();
+    } else if (!isOpen && overlay.isOpen) {
+      console.log('❌ OVERLAY DropdownNavButton closing:', { text });
+      overlay.close();
+    }
+  }, [isOpen, overlay, text]);
 
-  const handleClose = () => {
-    overlay.close();
-  };
+  // ✅ Auto-close when overlay system closes us externally
+  useOverlayAutoClose(() => {
+    console.log('🔽 OVERLAY DropdownNavButton auto-close triggered:', { text });
+    setIsOpen(false);
+  }, overlay.level ?? undefined);
 
-  const handleActionClick = (action: Action) => {
+  const handleToggle = useCallback(() => {
+    console.log('🔽 OVERLAY DropdownNavButton toggle:', { text, currentlyOpen: isOpen });
+    setIsOpen(prev => !prev);
+  }, [isOpen, text]);
+
+  const handleClose = useCallback(() => {
+    console.log('❌ OVERLAY DropdownNavButton manual close:', { text });
+    setIsOpen(false);
+  }, [text]);
+
+  const handleActionClick = useCallback((action: Action) => {
+    console.log('🎯 OVERLAY DropdownNavButton action clicked:', { text, action: action.label });
     action.onClick();
     handleClose();
-  };
+  }, [handleClose, text]);
 
   const combinedActions: Action[] = [
     ...actions,
@@ -53,7 +69,7 @@ export default function DropdownNavButton({
   ];
 
   return (
-    <div ref={ref} className={`relative w-auto flex flex-col items-center ${className}`}>
+    <div className={`relative w-auto flex flex-col items-center ${className}`}>
       <ProfileNavButton
         text={text}
         onClick={handleToggle}
@@ -61,7 +77,7 @@ export default function DropdownNavButton({
         className={className || "bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"}
       />
      
-      {overlay.isOpen && (
+      {isOpen && (
         <div
           ref={overlay.ref}
           style={{ zIndex: overlay.zIndex }}
