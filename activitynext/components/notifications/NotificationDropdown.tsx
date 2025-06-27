@@ -1,23 +1,28 @@
 // Dropdownen til notificaitons i navbaren. Henter både friendrequests og notificaitons til å vise de hver for seg i navbaren
+// NotificationDropdown.tsx - Updated to use overlay system properly
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import { useOverlayAutoRegister  } from "@/context/OverlayProvider"; // NY IMPORT
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import FriendRequestButtons from "../friends/FriendRequestButtons";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import type { NotificationDTO } from "@/types/NotificationEventDTO";
 import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 
 interface NotificationDropdownProps {
   onClose: () => void;
+  useOverlaySystem?: boolean; // ✅ NEW: Support for nested usage
 }
 
 export default function NotificationDropdown({ 
-  onClose
+  onClose,
+  useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: NotificationDropdownProps) {
+  console.log('🔔 OVERLAY NotificationDropdown props received:', { useOverlaySystem });
+
   /* ---------- data fra store ---------- */
   const invitations = useNotificationStore((s) => s.friendRequests);
   const notifications = useNotificationStore((s) => s.notifications);
@@ -25,20 +30,43 @@ export default function NotificationDropdown({
   const totalFriendRequests = useNotificationStore((s) => s.friendRequestTotalCount);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  // NY: Auto-register med overlay system
-  const { zIndex } = useOverlayAutoRegister(containerRef, true);
+  const overlay = useOverlay();
+
+  // ✅ Auto-open overlay when component mounts (only if using overlay system)
+  useEffect(() => {
+    if (useOverlaySystem) {
+      console.log('🔔 OVERLAY NotificationDropdown opening overlay');
+      overlay.open();
+    } else {
+      // Register for outside click detection when not using overlay state management
+      console.log('🔔 OVERLAY NotificationDropdown opening without overlay state management, but registering for outside clicks');
+      overlay.open();
+    }
+  }, [useOverlaySystem, overlay]);
+
+  // ✅ Auto-close when overlay system closes us externally
+  useOverlayAutoClose(() => {
+    console.log('🔔 OVERLAY NotificationDropdown auto-close triggered');
+    handleClose();
+  }, overlay.level ?? undefined);
 
   // Handle close
   const handleClose = () => {
+    console.log('🔔 OVERLAY NotificationDropdown manual close');
+    if (useOverlaySystem) {
+      overlay.close();
+    }
     onClose();
   };
 
   /* ---------- RENDER ---------- */
   return (
     <div
-      ref={containerRef}
-      style={{ zIndex }}
+      ref={(el) => {
+        containerRef.current = el;
+        overlay.ref(el);
+      }}
+      style={{ zIndex: overlay.zIndex }}
       className="absolute right-0 top-12 bg-white dark:bg-[#1e2122] text-black dark:text-white rounded-lg shadow-md p-4 w-120 max-h-[480px] overflow-y-auto border-2 border-[#1C6B1C] custom-scrollbar"
     >
       <h4 className="text-lg font-semibold mb-2 text-center">
@@ -101,6 +129,7 @@ export default function NotificationDropdown({
                   href="/friends"
                   variant="small"
                   className="bg-[#1C6B1C] hover:bg-[#145214] text-white"
+                  onClick={handleClose}
                 />
               </li>
             </>
@@ -147,6 +176,7 @@ export default function NotificationDropdown({
           href="/notifications"
           variant="small"
           className="bg-[#1C6B1C] hover:bg-[#145214] text-white"
+          onClick={handleClose}
         />
       </div>
     </div>

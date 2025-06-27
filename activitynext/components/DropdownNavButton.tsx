@@ -16,6 +16,7 @@ interface DropdownNavButtonProps {
   isFriend?: boolean;
   variant?: "default" | "small" | "large" | "long" | "normal" | "iconOnly" | "usual";
   className?: string;
+  useOverlaySystem?: boolean; // ✅ NEW: Support for nested usage
 }
 
 export default function DropdownNavButton({
@@ -24,12 +25,25 @@ export default function DropdownNavButton({
   isFriend = false,
   variant = "long",
   className = "",
+  useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: DropdownNavButtonProps) {
+  console.log('🔽 OVERLAY DropdownNavButton props received:', { useOverlaySystem, text });
+
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay();
 
-  // ✅ Sync overlay state with local state
+  // ✅ Sync overlay state with local state (conditional logic inside)
   useEffect(() => {
+    if (!useOverlaySystem) {
+      // When not using overlay system, register only when opening
+      if (isOpen && !overlay.isOpen) {
+        console.log('🔽 OVERLAY DropdownNavButton opening without overlay state management, but registering for outside clicks:', { text });
+        overlay.open();
+      }
+      return;
+    }
+
+    // Normal overlay state management
     if (isOpen && !overlay.isOpen) {
       console.log('🔽 OVERLAY DropdownNavButton opening:', { text });
       overlay.open();
@@ -37,12 +51,16 @@ export default function DropdownNavButton({
       console.log('❌ OVERLAY DropdownNavButton closing:', { text });
       overlay.close();
     }
-  }, [isOpen, overlay, text]);
+  }, [isOpen, overlay, text, useOverlaySystem]);
 
   // ✅ Auto-close when overlay system closes us externally
   useOverlayAutoClose(() => {
     console.log('🔽 OVERLAY DropdownNavButton auto-close triggered:', { text });
-    setIsOpen(false);
+    if (useOverlaySystem) {
+      setIsOpen(false);
+    } else {
+      setIsOpen(false);
+    }
   }, overlay.level ?? undefined);
 
   const handleToggle = useCallback(() => {
