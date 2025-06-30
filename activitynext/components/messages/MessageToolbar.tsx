@@ -56,7 +56,7 @@ export default function MessageToolbar({
             setOpen={setSettingsOpen}
             onShowUserPopover={onShowUserPopover}
             onLeaveGroup={onLeaveGroup}
-            useOverlaySystem={false} // ✅ Disable overlay system since we're nested in MessageDropdown
+            useOverlaySystem={true} // ✅ Disable overlay system since we're nested in MessageDropdown
           />
         )}
        

@@ -112,23 +112,24 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
       }
       
       if (clickedLevel !== null) {
-        // Close all levels higher than the clicked level
-        const levelsToClose = levels.filter(lvl => lvl > clickedLevel!);
-        if (levelsToClose.length > 0) {
-          console.log('OVERLAY 🎯 Click on lower level', clickedLevel, 'closing higher levels:', levelsToClose);
-          levelsToClose.forEach(lvl => unregister(lvl));
+        // Close only the highest level if there are levels higher than the clicked level
+        const levelsAbove = levels.filter(lvl => lvl > clickedLevel!);
+        if (levelsAbove.length > 0) {
+          const highestLevel = Math.max(...levelsAbove);
+          console.log('OVERLAY 🎯 Click on lower level', clickedLevel, 'closing highest level above:', highestLevel);
+          unregister(highestLevel);
         }
       } else {
-        // Click was outside all overlays - close highest level (existing behavior)
+        // Click was outside all overlays - close only the highest level (like escape)
         const highestLevel = Math.max(...levels);
-        console.log('OVERLAY 🖱️ Outside click, closing level:', highestLevel);
-        closeLevel(highestLevel);
+        console.log('OVERLAY 🖱️ Outside click, closing highest level:', highestLevel);
+        unregister(highestLevel); // Changed from closeLevel to unregister
       }
     };
 
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [level, closeLevel, unregister]);
+  }, [level, unregister]); // Changed dependency from closeLevel to unregister
 
   // Handle escape key - close highest level
   useEffect(() => {
@@ -142,13 +143,13 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
         const levels = Array.from(refMap.current.keys());
         const highestLevel = Math.max(...levels);
         console.log('OVERLAY ⌨️ Escape pressed, closing level:', highestLevel);
-        closeLevel(highestLevel);
+        unregister(highestLevel); // Changed from closeLevel to unregister
       }
     };
 
     document.addEventListener("keydown", handleEsc);
     return () => document.removeEventListener("keydown", handleEsc);
-  }, [level, closeLevel]);
+  }, [level, unregister]); // Changed dependency from closeLevel to unregister
 
   return (
     <OverlayLayerContext.Provider value={{

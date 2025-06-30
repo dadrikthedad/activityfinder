@@ -13,7 +13,6 @@ interface NavbarSettingsDropdownProps {
 export default function NavbarSettingsDropdown({
   useOverlaySystem = true // ✅ Default to true for standalone usage
 }: NavbarSettingsDropdownProps) {
-  console.log('⚙️ OVERLAY NavbarSettingsDropdown props received:', { useOverlaySystem });
 
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay();
@@ -25,7 +24,6 @@ export default function NavbarSettingsDropdown({
     if (!useOverlaySystem) {
       // When not using overlay system, register only when opening
       if (isOpen && !overlay.isOpen) {
-        console.log('⚙️ OVERLAY NavbarSettingsDropdown opening without overlay state management, but registering for outside clicks');
         overlay.open();
       }
       return;
@@ -33,44 +31,36 @@ export default function NavbarSettingsDropdown({
 
     // Normal overlay state management
     if (isOpen && !overlay.isOpen) {
-      console.log('⚙️ OVERLAY NavbarSettingsDropdown opening overlay');
       overlay.open();
     } else if (!isOpen && overlay.isOpen) {
-      console.log('⚙️ OVERLAY NavbarSettingsDropdown closing overlay');
       overlay.close();
     }
   }, [isOpen, overlay, useOverlaySystem]);
 
   // ✅ Auto-close when overlay system closes us externally
   useOverlayAutoClose(() => {
-    console.log('⚙️ OVERLAY NavbarSettingsDropdown auto-close triggered');
     setIsOpen(false);
   }, overlay.level ?? undefined);
 
   const handleToggle = useCallback(() => {
-    console.log('⚙️ OVERLAY NavbarSettingsDropdown toggle:', { currentlyOpen: isOpen });
     setIsOpen(prev => !prev);
   }, [isOpen]);
 
   const handleClose = useCallback(() => {
-    console.log('⚙️ OVERLAY NavbarSettingsDropdown manual close');
     setIsOpen(false);
   }, []);
 
   const handleEditProfile = useCallback(() => {
-    console.log('⚙️ OVERLAY NavbarSettingsDropdown edit profile clicked');
     handleClose();
     router.push("/editprofile");
   }, [handleClose, router]);
 
   const handleSettings = useCallback(() => {
-    console.log('⚙️ OVERLAY NavbarSettingsDropdown settings clicked');
     handleClose();
     router.push("/profilesettings");
   }, [handleClose, router]);
 
   const handleLogout = useCallback(() => {
-    console.log('⚙️ OVERLAY NavbarSettingsDropdown logout clicked');
     handleClose();
     logout();
   }, [handleClose, logout]);

@@ -61,7 +61,6 @@ export default function MessageSettingsDropdown({
     if (!useOverlaySystem) {
       // When not using overlay system, register only when opening
       if (open && !settingsOverlay.isOpen) {
-        console.log('⚙️ OVERLAY MessageSettingsDropdown opening without overlay state management, but registering for outside clicks');
         settingsOverlay.open();
       }
       return;
@@ -69,10 +68,8 @@ export default function MessageSettingsDropdown({
 
     // Normal overlay state management
     if (open && !settingsOverlay.isOpen) {
-      console.log('⚙️ OVERLAY MessageSettingsDropdown opening overlay');
       settingsOverlay.open();
     } else if (!open && settingsOverlay.isOpen) {
-      console.log('⚙️ OVERLAY MessageSettingsDropdown closing overlay');
       settingsOverlay.close();
     }
   }, [open, settingsOverlay, useOverlaySystem]);
@@ -80,17 +77,14 @@ export default function MessageSettingsDropdown({
   // ✅ Sync participants list state with overlay
   useEffect(() => {
     if (showParticipants && !participantsOverlay.isOpen) {
-      console.log('⚙️ OVERLAY MessageSettingsDropdown opening participants overlay');
       participantsOverlay.open();
     } else if (!showParticipants && participantsOverlay.isOpen) {
-      console.log('⚙️ OVERLAY MessageSettingsDropdown closing participants overlay');
       participantsOverlay.close();
     }
   }, [showParticipants, participantsOverlay]);
 
   // ✅ Auto-close settings dropdown when overlay closes
   useOverlayAutoClose(() => {
-    console.log('⚙️ OVERLAY MessageSettingsDropdown auto-close triggered');
     if (useOverlaySystem) {
       setOpen(false);
     } else {
@@ -104,18 +98,16 @@ export default function MessageSettingsDropdown({
 
   // ✅ Auto-close participants when its overlay closes
   useOverlayAutoClose(() => {
-    console.log('⚙️ OVERLAY MessageSettingsDropdown participants auto-close triggered');
     setShowParticipants(false);
   }, participantsOverlay.level ?? undefined);
 
   const handleShowParticipants = useCallback(() => {
-    console.log('⚙️ OVERLAY Showing participants');
     setShowParticipants(true);
     setOpen(false); // Lukk settings dropdown
   }, [setOpen]);
 
   const handleCloseParticipants = useCallback(() => {
-    console.log('⚙️ OVERLAY Closing participants');
+
     setShowParticipants(false);
     setOpen(true); // Åpne settings dropdown igjen
   }, [setOpen]);

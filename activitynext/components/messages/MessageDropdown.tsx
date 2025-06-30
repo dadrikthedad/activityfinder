@@ -164,7 +164,6 @@ export default function MessageDropdown({
 
   // ✅ Separér store logic
   useEffect(() => {
-    console.log('🔥 OVERLAY MessageDropdown store setup');
     setShowMessages(true);
     
     return () => {
@@ -212,7 +211,6 @@ export default function MessageDropdown({
       
       el.style.width = `${validWidth}px`;
       el.style.height = `${validHeight}px`;
-      console.log('📏 OVERLAY Applied dropdown size:', { width: validWidth, height: validHeight });
     } catch (e) {
       console.warn("❌ OVERLAY Kunne ikke laste lagret størrelse:", e);
       const el = dropdownRef.current;
@@ -230,7 +228,6 @@ export default function MessageDropdown({
 
     const rawHandleResize = (width: number, height: number) => {
       localStorage.setItem(DROPDOWN_SIZE_KEY, JSON.stringify({ width, height }));
-      console.log('📏 OVERLAY Saved new dropdown size:', { width, height });
     };
 
     const handleResize = debounce(rawHandleResize, 300);
