@@ -5,7 +5,7 @@ import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
 import { useFriendWith } from "@/hooks/useFriendWith";
 import { useAuth } from "@/context/AuthContext";
-import { useOverlay } from "@/context/OverlayProvider";
+import { useOverlay, useOverlayLayer } from "@/context/OverlayProvider";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import NewMessageWindow from "../messages/NewMessageWindow";
@@ -67,6 +67,8 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const isOwner = user.id === currentUserId;
   const router = useRouter();
 
+  const { closeAllLevels } = useOverlayLayer()
+
   // Event handlers
   const handleRemove = async () => {
     console.log('🗑️ Removing friend:', user.fullName);
@@ -100,8 +102,8 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
 
   const handleVisitProfile = () => {
     console.log('👤 Visiting profile for:', user.fullName);
+    closeAllLevels();
     router.push(`/profile/${user.id}`);
-    handleClose();
   };
 
   const handleSendMessage = () => {

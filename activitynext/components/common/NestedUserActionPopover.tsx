@@ -3,7 +3,7 @@
 import { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
+import { useOverlay, useOverlayAutoClose, useOverlayLayer } from "@/context/OverlayProvider";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import UserActionPopoverContent from "./UserActionPopoverContent";
@@ -24,6 +24,7 @@ export default function NestedUserActionPopover({
   console.log('🔗 OVERLAY NestedUserActionPopover rendered for:', user.fullName);
 
   const overlay = useOverlay();
+  const { closeAllLevels } = useOverlayLayer(); 
   const { userId: currentUserId } = useAuth();
   const router = useRouter();
 
@@ -40,10 +41,10 @@ export default function NestedUserActionPopover({
   }, overlay.level ?? undefined);
 
   const handleVisitProfile = useCallback(() => {
-    console.log('🔗 OVERLAY Visiting profile for:', user.fullName);
     router.push(`/profile/${user.id}`);
-    onClose();
-  }, [user, router, onClose]);
+    closeAllLevels();
+
+  }, [user, router, closeAllLevels]);
 
   const handleSendMessage = useCallback(() => {
     console.log('🔗 OVERLAY Send message to:', user.fullName);
