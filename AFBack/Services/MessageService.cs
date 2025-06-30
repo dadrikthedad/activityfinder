@@ -256,12 +256,12 @@ public class MessageService : IMessageService
         {
             Id = message.Id,
             SenderId = message.SenderId,
-            Sender = new UserSummaryDTO
+            Sender = message.Sender != null ? new UserSummaryDTO
             {
                 Id = message.Sender.Id,
                 FullName = message.Sender.FullName,
                 ProfileImageUrl = message.Sender.Profile?.ProfileImageUrl
-            },
+            } : null,
             Text = message.Text,
             SentAt = message.SentAt,
             ConversationId = message.ConversationId,
