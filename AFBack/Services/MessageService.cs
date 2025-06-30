@@ -265,6 +265,7 @@ public class MessageService : IMessageService
             Text = message.Text,
             SentAt = message.SentAt,
             ConversationId = message.ConversationId,
+            IsSystemMessage = message.IsSystemMessage,
             Attachments = message.Attachments
                 .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
                 .Select(a => new AttachmentDto
