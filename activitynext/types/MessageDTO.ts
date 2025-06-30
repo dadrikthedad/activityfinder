@@ -18,7 +18,7 @@ export interface ReactionDTO {
 
 export interface MessageDTO {
   id: number;
-  senderId: number;
+  senderId: number | null;
   text: string | null;
   sentAt: string; // ISO-dato som kommer fra backend
   conversationId: number;
@@ -27,9 +27,10 @@ export interface MessageDTO {
   parentMessageId?: number | null;
   parentMessageText?: string | null;
   isRejectedRequest?: boolean;
-  sender?: UserSummaryDTO;
+  sender?: UserSummaryDTO | null;
   isNowApproved?: boolean;
   isSilent?: boolean;
+  isSystemMessage: boolean;
 }
 
 export interface SendMessageRequestDTO {

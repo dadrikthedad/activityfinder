@@ -124,13 +124,16 @@ export default function ChatHubClient() {
       addMessage(message);
       updateConversationTimestamp(message.conversationId, message.sentAt);
       
-      if (!message.isSilent) {
+      if (!message.isSilent && !message.isSystemMessage) {
         handleIncomingMessage(message, userId ?? null);
       }
+  
 
       if (
         message.senderId !== userId &&
-        (!showMessages || message.conversationId !== currentConversationId) && !message.isSilent
+        (!showMessages || message.conversationId !== currentConversationId) && 
+        !message.isSilent &&
+        !message.isSystemMessage // 🆕 Ingen toast for systemmeldinger
       ) {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
