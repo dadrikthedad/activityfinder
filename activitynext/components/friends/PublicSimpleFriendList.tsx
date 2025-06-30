@@ -1,22 +1,18 @@
 // Denne vennelisten er synlig på en brukers profil hvis man er venn med brukeren enn så lenge. Brukes i profile/[id]. 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useFriendsOfUser } from "@/hooks/useFriendsOfUser";
 import FriendListItem from "@/components/friends/FriendListItem";
 
 export default function PublicSimpleFriendList({ userId }: { userId: number }) {
   const { friends, loading } = useFriendsOfUser(userId);
-  const [friendList, setFriendList] = useState(friends);
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    setFriendList(friends);
-  }, [friends]);
-
-  const filteredFriends = friendList.filter((friend) =>
+    const filteredFriends = friends.filter((friend) =>
     friend.friend.fullName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
 
   if (loading) return <p>Loading friends...</p>;
   if (friends.length === 0) return <p className="text-center">No friends found</p>;

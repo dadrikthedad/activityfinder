@@ -1,25 +1,21 @@
 // En simpel utgave av venne listen for å se alle vennene, brukes på egen profil side. Skal implimentere en egen for å se en annens venneliste
 "use client";
 import { useFriends } from "@/hooks/useFriends";
-import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar"; // NY IMPORT
+import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function SimpleFriendList() {
   const { friends, loading } = useFriends();
-  const [friendList, setFriendList] = useState(friends);
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    setFriendList(friends);
-  }, [friends]);
-
-  const filteredFriends = friendList.filter((friend) =>
+  // Fjernet lokal state og useEffect - bruker friends direkte fra hook
+  const filteredFriends = friends.filter((friend) =>
     friend.friend.fullName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) return <p>Loading friends...</p>;
-  if (friends.length === 0) return <p className="text-center" >No friends found</p>;
+  if (friends.length === 0) return <p className="text-center">No friends found</p>;
 
   return (
     <div className="relative bg-white dark:bg-[#1e2122] rounded-lg shadow-md p-4 max-h-[400px] overflow-y-auto border-2 border-[#1C6B1C] space-y-4">
@@ -33,7 +29,6 @@ export default function SimpleFriendList() {
       <ul className="space-y-4">
         {filteredFriends.map((friend) => (
           <li key={friend.friend.id} className="flex items-center gap-4">
-            {/* NY: Bruk ClickableAvatar i stedet for UserActionPopover */}
             <ClickableAvatar
               user={friend.friend}
               size={60}
@@ -51,7 +46,6 @@ export default function SimpleFriendList() {
           className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
         />
       </div>
-     
     </div>
   );
 }

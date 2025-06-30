@@ -1,5 +1,5 @@
 // Her henter vi alle vennene våre som skal brukes i friends/page.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { FriendDTO } from "@/types/FriendDTO";
 import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
@@ -33,7 +33,6 @@ export function useFriends(pageSize = 30) {
 
   useEffect(() => {
     if (!token) return;
-
     const load = async () => {
       setLoading(true);
       const res = await fetchFriends(1);
@@ -44,27 +43,60 @@ export function useFriends(pageSize = 30) {
       }
       setLoading(false);
     };
-
     load();
   }, [token]);
 
   const loadMore = async () => {
     if (!token || loadingMore) return;
-
     const nextPage = pageNumber + 1;
     setLoadingMore(true);
-
     const res = await fetchFriends(nextPage);
     if (res) {
       setFriends((prev) => [...prev, ...res.data]);
       setTotalCount(res.totalCount);
       setPageNumber(nextPage);
     }
-
     setLoadingMore(false);
   };
 
+  // NY: Funksjon for å fjerne en venn fra listen
+  const removeFriend = useCallback((friendId: number) => {
+    setFriends(prevFriends => 
+      prevFriends.filter(friend => friend.friend.id !== friendId)
+    );
+    // Oppdater også totalCount
+    setTotalCount(prevCount => Math.max(0, prevCount - 1));
+  }, []);
+
+  // NY: Funksjon for å legge til en venn (for fremtidig bruk)
+  const addFriend = useCallback((newFriend: FriendDTO) => {
+    setFriends(prevFriends => [newFriend, ...prevFriends]);
+    setTotalCount(prevCount => prevCount + 1);
+  }, []);
+
+  // NY: Funksjon for å refresh hele listen
+  const refreshFriends = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    const res = await fetchFriends(1);
+    if (res) {
+      setFriends(res.data);
+      setTotalCount(res.totalCount);
+      setPageNumber(1);
+    }
+    setLoading(false);
+  }, [token, pageSize]);
+
   const hasMore = friends.length < totalCount;
 
-  return { friends, loading, loadingMore, loadMore, hasMore };
+  return { 
+    friends, 
+    loading, 
+    loadingMore, 
+    loadMore, 
+    hasMore,
+    removeFriend,
+    addFriend,
+    refreshFriends
+  };
 }

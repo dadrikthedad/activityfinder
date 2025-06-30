@@ -1,8 +1,8 @@
 // Oppdatert PublicProfileView.tsx med NewMessageWindow og overlay system
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react"; // ✅ LAGT TIL: useRef import
-import { createPortal } from "react-dom"; // ✅ LAGT TIL: createPortal import
+import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "@/context/AuthContext";
 import { getUserProfile } from "@/services/profile";
 import ProfileInfoCard from "@/components/ProfileInfoCard";
@@ -37,7 +37,7 @@ export default function PublicProfileView({
   const { token } = useAuth();
   const { isFriend, loading: friendshipLoading } = useFriendWith(profile.userId);
   const { sendInvitation, sending, error } = useSendFriendInvitation();
-  const { confirmAndRemove } = useConfirmRemoveFriend();
+  const { confirmAndRemove, ConfirmDialog } = useConfirmRemoveFriend(); // ✅ FIKSET: Destruktur ConfirmDialog
   const [friendRequestSent, setFriendRequestSent] = useState(false);
   const { userId } = useAuth()
   const isActuallyOwner = isOwner || (userId === profile.userId);
@@ -311,6 +311,9 @@ export default function PublicProfileView({
           )}
         </>
       )}
+
+      {/* ✅ FIKSET: Viktig - Render ConfirmDialog komponenten */}
+      <ConfirmDialog />
     </>
   );
 }

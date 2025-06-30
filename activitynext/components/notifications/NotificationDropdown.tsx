@@ -34,15 +34,11 @@ export default function NotificationDropdown({
 
   // ✅ Auto-open overlay when component mounts (only if using overlay system)
   useEffect(() => {
-    if (useOverlaySystem) {
-      console.log('🔔 OVERLAY NotificationDropdown opening overlay');
-      overlay.open();
-    } else {
-      // Register for outside click detection when not using overlay state management
-      console.log('🔔 OVERLAY NotificationDropdown opening without overlay state management, but registering for outside clicks');
-      overlay.open();
-    }
-  }, [useOverlaySystem, overlay]);
+  if (useOverlaySystem && !overlay.isOpen) {
+    console.log("🔔 OVERLAY NotificationDropdown opening overlay");
+    overlay.open();
+  }
+}, [useOverlaySystem, overlay]);
 
   // ✅ Auto-close when overlay system closes us externally
   useOverlayAutoClose(() => {
