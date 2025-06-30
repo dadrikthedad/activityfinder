@@ -4,7 +4,7 @@
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useDeleteAllNotifications } from "@/hooks/notifications/useDeleteAllNotifications";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
-import ClickableAvatar from "@/components/common/ClickableAvatar";
+import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar";
 import ProfileNavButton    from "@/components/settings/ProfileNavButton";
 import { useRouter }       from "next/navigation";
 

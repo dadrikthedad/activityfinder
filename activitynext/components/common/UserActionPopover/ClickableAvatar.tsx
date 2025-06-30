@@ -1,10 +1,10 @@
 // components/common/ClickableAvatar.tsx
 "use client";
 import React from "react";
-import MiniAvatar from "./MiniAvatar";
+import MiniAvatar from "../MiniAvatar";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
-import { calculatePopoverPosition } from "./PopoverPositioning";
+import { calculatePopoverPosition } from "../PopoverPositioning";
 
 interface ClickableAvatarProps {
   user: UserSummaryDTO;

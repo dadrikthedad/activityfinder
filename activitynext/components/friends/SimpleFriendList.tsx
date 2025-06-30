@@ -1,7 +1,7 @@
 // En simpel utgave av venne listen for å se alle vennene, brukes på egen profil side. Skal implimentere en egen for å se en annens venneliste
 "use client";
 import { useFriends } from "@/hooks/useFriends";
-import ClickableAvatar from "@/components/common/ClickableAvatar"; // NY IMPORT
+import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar"; // NY IMPORT
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useState, useEffect } from "react";
 

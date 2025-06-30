@@ -1,7 +1,7 @@
 // Her representere vi en venn i iterasjonen av vennelista. Den tar inn et venneobjekt FriendDTO og viser vennens navn og profilbilde gjennom UserActionPopover. Med useFriendWith
 // så kan vi sjekke om vår innloggede bruker er venn med brukeren fra en annens venneliste.
 "use client";
-import ClickableAvatar from "@/components/common/ClickableAvatar"; // NY IMPORT
+import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar"; // NY IMPORT
 import { FriendDTO } from "@/types/FriendDTO";
 import { useFriendWith } from "@/hooks/useFriendWith";
 

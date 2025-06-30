@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import UserActionPopoverContent from "./UserActionPopoverContent";
-import { useUserActionPopover } from "./UserActionPopover/useUserActionPopover";
+import { useUserActionPopover } from "./useUserActionPopover";
 
 interface NestedUserActionPopoverProps {
   user: UserSummaryDTO;

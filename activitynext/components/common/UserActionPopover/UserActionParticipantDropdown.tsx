@@ -4,9 +4,9 @@ import { createPortal } from "react-dom";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { UserSummaryDTO, GroupRequestStatus } from "@/types/UserSummaryDTO";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
-import MiniAvatar from "../common/MiniAvatar";
+import MiniAvatar from "../MiniAvatar";
 import NestedUserActionPopover from "./NestedUserActionPopover";
-import { calculatePopoverPosition } from "./PopoverPositioning";
+import { calculatePopoverPosition } from "../PopoverPositioning";
 
 interface ParticipantsDropdownButtonProps {
   participants: UserSummaryDTO[];

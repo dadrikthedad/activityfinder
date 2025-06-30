@@ -3,9 +3,9 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import UserActionPopoverContent from "./UserActionPopoverContent";
-import NewMessageWindow from "../messages/NewMessageWindow";
-import InviteUsersWindow from "../messages/InviteUsersWindow";
-import { useUserActionPopover } from "./UserActionPopover/useUserActionPopover";
+import NewMessageWindow from "../../messages/NewMessageWindow";
+import InviteUsersWindow from "../../messages/InviteUsersWindow";
+import { useUserActionPopover } from "./useUserActionPopover";
 
 interface UserActionPopoverProps {
   user: UserSummaryDTO;

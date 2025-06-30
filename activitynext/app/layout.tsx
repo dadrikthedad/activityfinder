@@ -8,7 +8,7 @@ import Navbar from "@/components/Navbar";
 import CacheCleanup from "@/components/common/CacheCleanup";
 import { Toaster } from "sonner";
 import { OverlayLayerProvider } from "@/context/OverlayProvider";
-import UserActionPopoverPortal from "@/components/common/UserActionPopoverPortal";
+import UserActionPopoverPortal from "@/components/common/UserActionPopover/UserActionPopoverPortal";
 
 
 

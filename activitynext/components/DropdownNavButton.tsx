@@ -27,7 +27,6 @@ export default function DropdownNavButton({
   className = "",
   useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: DropdownNavButtonProps) {
-  console.log('🔽 OVERLAY DropdownNavButton props received:', { useOverlaySystem, text });
 
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay();
@@ -37,7 +36,6 @@ export default function DropdownNavButton({
     if (!useOverlaySystem) {
       // When not using overlay system, register only when opening
       if (isOpen && !overlay.isOpen) {
-        console.log('🔽 OVERLAY DropdownNavButton opening without overlay state management, but registering for outside clicks:', { text });
         overlay.open();
       }
       return;
@@ -45,17 +43,14 @@ export default function DropdownNavButton({
 
     // Normal overlay state management
     if (isOpen && !overlay.isOpen) {
-      console.log('🔽 OVERLAY DropdownNavButton opening:', { text });
       overlay.open();
     } else if (!isOpen && overlay.isOpen) {
-      console.log('❌ OVERLAY DropdownNavButton closing:', { text });
       overlay.close();
     }
   }, [isOpen, overlay, text, useOverlaySystem]);
 
   // ✅ Auto-close when overlay system closes us externally
   useOverlayAutoClose(() => {
-    console.log('🔽 OVERLAY DropdownNavButton auto-close triggered:', { text });
     if (useOverlaySystem) {
       setIsOpen(false);
     } else {
@@ -64,17 +59,14 @@ export default function DropdownNavButton({
   }, overlay.level ?? undefined);
 
   const handleToggle = useCallback(() => {
-    console.log('🔽 OVERLAY DropdownNavButton toggle:', { text, currentlyOpen: isOpen });
     setIsOpen(prev => !prev);
   }, [isOpen, text]);
 
   const handleClose = useCallback(() => {
-    console.log('❌ OVERLAY DropdownNavButton manual close:', { text });
     setIsOpen(false);
   }, [text]);
 
   const handleActionClick = useCallback((action: Action) => {
-    console.log('🎯 OVERLAY DropdownNavButton action clicked:', { text, action: action.label });
     action.onClick();
     handleClose();
   }, [handleClose, text]);

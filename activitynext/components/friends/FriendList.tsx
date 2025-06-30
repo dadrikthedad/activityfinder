@@ -1,7 +1,7 @@
 "use client";
 // Vennelisten på friends siden, sjekker først antall venner samt at den viser antall dager vedkommende har vært venner. Vi har også dropdownen med flrer options
 import { useFriends } from "@/hooks/useFriends";
-import ClickableAvatar from "@/components/common/ClickableAvatar"; // NY IMPORT
+import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar"; // NY IMPORT
 import Card from "@/components/common/Card";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import DropdownProfileNavButton from "@/components/DropdownNavButton";
