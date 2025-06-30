@@ -8,8 +8,10 @@ import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequ
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useRejectMessageRequest } from "@/hooks/messages/useRejectMessageRequest";
 import { ConversationDTO } from "@/types/ConversationDTO";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO"; // ✅ LEGG TIL import
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
 
 interface PendingRequestsListProps {
   limit?: number;
@@ -27,7 +29,8 @@ const PendingRequestsList = ({
   const { requests, loading, error } = usePendingMessageRequests();
   const { approve, loading: approving } = useApproveMessageRequest();
   const { reject, loading: rejecting } = useRejectMessageRequest();
-  const [rejectedStatus, setRejectedStatus] = useState<Record<number, { name: string }>>({});
+  const { confirm, ConfirmDialog } = useConfirmDialog(); // ✅ NEW: Add confirm dialog
+  
   const [fadingOut, setFadingOut] = useState<Record<number, boolean>>({});
   const [removedConversations, setRemovedConversations] = useState<Set<number>>(new Set());
 
@@ -51,6 +54,37 @@ const PendingRequestsList = ({
     }
   }, [requests, conversations]);
 
+  // ✅ NEW: Handle reject with confirmation - properly typed
+  const handleReject = async (r: MessageRequestDTO) => {
+    if (r.conversationId == null) return;
+
+    const confirmed = await confirm({
+      title: "Reject Message Request",
+      message: (
+        <span>
+          Are you sure you want to reject the message request from{" "}
+          <span className="font-semibold italic text-base md:text-lg">
+            {r.senderName}
+          </span>
+          ?
+        </span>
+      ),
+    });
+
+       if (!confirmed) return;
+
+    const id = r.conversationId!;
+    
+    // Start fade out animation
+    setFadingOut(prev => ({ ...prev, [id]: true }));
+
+    // Execute reject and remove after animation
+    setTimeout(async () => {
+      await reject(r.senderId, id);
+      setRemovedConversations(prev => new Set(prev).add(id));
+    }, 700); // Match the fade duration
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-4">
@@ -69,6 +103,9 @@ const PendingRequestsList = ({
 
   return (
     <div className="px-2">
+      {/* ✅ NEW: Add ConfirmDialog component */}
+      <ConfirmDialog />
+      
       <ul className="space-y-4">
         {visibleRequests.map((r) => {
           // Hent conversation fra store for å få participants
@@ -118,62 +155,32 @@ const PendingRequestsList = ({
                 participants={participants}
               />
               <div className="mt-1 flex gap-2 pl-12">
-                  <ProfileNavButton
-                      text="✔"
-                      onClick={async () => {
-                          if (r.conversationId !== null && r.conversationId !== undefined) {
-                          await approve(r.conversationId);
-                          console.log("✔ Approved conversation:", r.conversationId);
-                          }
-                      }}
-                      disabled={approving || rejecting}
-                      variant="smallx"
-                      className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white text-lg font-bold flex items-center justify-center"
-                  />
-                  <ProfileNavButton
-                      text="✖"
-                     onClick={async () => {
-                        if (r.conversationId != null) {
-                          const id = r.conversationId!;
-                          
-                          setRejectedStatus(prev => ({
-                            ...prev,
-                            [r.conversationId!]: { name: r.senderName }
-                          }));
-                                                  
-                          setTimeout(() => {
-                            setFadingOut(prev => ({ ...prev, [id]: true }));
-                          }, 800);
-
-                          setTimeout(async () => {
-                            await reject(r.senderId, id);
-                            setRemovedConversations(prev => new Set(prev).add(id));
-                          }, 1500);
-
-                          setTimeout(() => {
-                            setRejectedStatus(prev => {
-                              const updated = { ...prev };
-                              delete updated[id];
-                              return updated;
-                            });
-                          }, 4000);
-                        }
-                      }}
-                      disabled={approving || rejecting}
-                      variant="smallx"
-                      className="bg-gray-500 hover:bg-gray-600 text-white text-lg font-bold flex items-center justify-center"
-                  /> 
-                  </div>
+                <ProfileNavButton
+                  text="✔"
+                  onClick={async () => {
+                    if (r.conversationId !== null && r.conversationId !== undefined) {
+                      await approve(r.conversationId);
+                      console.log("✔ Approved conversation:", r.conversationId);
+                    }
+                  }}
+                  disabled={approving || rejecting}
+                  variant="smallx"
+                  className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white text-lg font-bold flex items-center justify-center"
+                />
+                {/* ✅ UPDATED: Use confirm dialog for reject */}
+                <ProfileNavButton
+                  text="✖"
+                  onClick={() => handleReject(r)}
+                  disabled={approving || rejecting}
+                  variant="smallx"
+                  className="bg-gray-500 hover:bg-gray-600 text-white text-lg font-bold flex items-center justify-center"
+                /> 
+              </div>
             </li>
           );
         })}
       </ul>
-      {Object.entries(rejectedStatus).map(([id, info]) => (
-        <p key={id} className="text-sm text-yellow-300 mt-1 ml-4 animate-fade-out-slow">
-          You rejected the message request from <span className="font-medium">{info.name}</span>
-        </p>
-      ))}
-
+      
       {showMoreLink && requests.length > (limit ?? 0) && (
         <div className="mt-2 text-sm flex justify-end pr-2">
           <ProfileNavButton
