@@ -1,5 +1,8 @@
 using AFBack.Data;
+using AFBack.DTOs;
+using AFBack.Hubs;
 using AFBack.Models;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
@@ -7,10 +10,66 @@ namespace AFBack.Services;
 public class MessageNotificationService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IHubContext<ChatHub> _hubContext; 
 
-    public MessageNotificationService(ApplicationDbContext context)
+    public MessageNotificationService(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
     {
         _context = context;
+        _hubContext = hubContext;
+    }
+    
+    public async Task<Message> CreateSystemMessageAsync(int conversationId, string messageText)
+    {
+        var systemMessage = new Message
+        {
+            ConversationId = conversationId,
+            SenderId = null,
+            Text = messageText,
+            IsSystemMessage = true,
+            SentAt = DateTime.UtcNow,
+            IsApproved = true
+        };
+
+        _context.Messages.Add(systemMessage);
+
+        // Oppdater samtalen
+        var conversation = await _context.Conversations
+            .Include(c => c.Participants) // 🆕 Include participants for SignalR
+            .FirstOrDefaultAsync(c => c.Id == conversationId);
+            
+        if (conversation != null)
+        {
+            conversation.LastMessageSentAt = systemMessage.SentAt;
+        }
+
+        // 🆕 Lagre først så vi får message.Id
+        await _context.SaveChangesAsync();
+
+        // 🆕 Send SystemMessage over SignalR til alle deltakere
+        if (conversation != null)
+        {
+            var response = new MessageResponseDTO
+            {
+                Id = systemMessage.Id,
+                SenderId = null,
+                Sender = null,
+                Text = systemMessage.Text,
+                SentAt = systemMessage.SentAt,
+                ConversationId = systemMessage.ConversationId,
+                IsSystemMessage = true,
+                IsSilent = false, // Systemmeldinger vises, men ingen toast
+                // Attachments = new List<AttachmentDto>(),
+                Reactions = new List<ReactionDTO>()
+            };
+
+            var participantIds = conversation.Participants.Select(p => p.UserId.ToString());
+            
+            // Send til alle deltakere
+            await _hubContext.Clients.Users(participantIds)
+                .SendAsync("ReceiveMessage", response);
+        }
+
+        return systemMessage;
     }
     
     public async Task CreateMessageNotificationAsync(int recipientUserId, int senderUserId, int conversationId, int messageId)

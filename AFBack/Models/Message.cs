@@ -5,9 +5,9 @@ public class Message
     // Id til gruppen
     public int Id { get; set; } // Primærnøkkel
     // Avsender ID
-    public int SenderId { get; set; } // Bruker som sender
+    public int? SenderId { get; set; } // Bruker som sender
     
-    public User Sender { get; set; } = null!; 
+    public User? Sender { get; set; } = null!; 
     
     // Selve meldingsteksten (kan være tom hvis kun fil f.eks.)
     public string? Text { get; set; } 
@@ -27,7 +27,8 @@ public class Message
     
     public int? ParentMessageId { get; set; } // Valgfri referanse til en annen melding
     public Message? ParentMessage { get; set; } // Navigasjonsfelt
-
     
     public List<Reaction> Reactions { get; set; } = new();
+
+    public bool IsSystemMessage { get; set; } = false;
 }

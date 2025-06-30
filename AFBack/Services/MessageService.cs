@@ -433,19 +433,7 @@ public class MessageService : IMessageService
             ? $"{approver.FullName} has joined the group."
             : $"{approver.FullName} has accepted the conversation.";
 
-        var systemMessage = new SendMessageRequestDTO
-        {
-            ConversationId = conversationId,
-            Text = systemMessageText,
-        };
-
-        var sysEntity = CreateMessage(receiverId, conversationId, systemMessage, isApproved: true);
-        _context.Messages.Add(sysEntity);
-
-        // ✅ Oppdater LastMessageSentAt
-        conversation.LastMessageSentAt = sysEntity.SentAt;
-
-        await _context.SaveChangesAsync();
+        await _messageNotificationService.CreateSystemMessageAsync(conversationId, systemMessageText);
 
         if (isGroupRequest)
         {

@@ -39,6 +39,14 @@ public class ReactionService : IReactionService
         if (message == null)
             throw new KeyNotFoundException($"Melding med ID {messageId} eksisterer ikke.");
         
+        // 🆕 Sjekk om det er en systemmelding
+        if (message.IsSystemMessage)
+            throw new InvalidOperationException("Du kan ikke reagere på systemmeldinger.");
+    
+        // 🆕 Ekstra sikkerhet: Sjekk om meldingen har avsender
+        if (!message.SenderId.HasValue)
+            throw new InvalidOperationException("Kan ikke reagere på meldinger uten avsender.");
+        
         // ✅ TILGANGSKONTROLL: Sjekk om brukeren har tilgang til samtalen
         var conversation = message.Conversation;
         var isParticipant = conversation.Participants.Any(p => p.UserId == userId);
@@ -143,7 +151,7 @@ public class ReactionService : IReactionService
         {
             notificationDto = await _messageNotificationService.CreateMessageReactionNotificationAsync(
                 reactingUserId: userId,
-                receiverUserId: message.SenderId,
+                receiverUserId: message.SenderId.Value,
                 messageId: message.Id,
                 conversationId: message.ConversationId,
                 emoji: emoji

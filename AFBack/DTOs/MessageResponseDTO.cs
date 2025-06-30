@@ -3,7 +3,7 @@
 public class MessageResponseDTO
 {
     public int Id { get; set; }
-    public int SenderId { get; set; }
+    public int? SenderId { get; set; }
     public UserSummaryDTO Sender { get; set; } = null!;
     public string? Text { get; set; }
     public DateTime SentAt { get; set; }
@@ -19,4 +19,6 @@ public class MessageResponseDTO
     public bool? IsNowApproved { get; set; }
     // Da viser ikke frontend toast/notifikasjon
     public bool IsSilent { get; set; }
+    
+    public bool IsSystemMessage { get; set; }
 }
