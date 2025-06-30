@@ -19,15 +19,18 @@ public class GroupConversationController : BaseController
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<ChatHub> _hubContext;
+    private readonly MessageNotificationService _messageNotificationService;
 
 
-    public GroupConversationController(ApplicationDbContext context, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<ChatHub> hubContext)
+
+    public GroupConversationController(ApplicationDbContext context, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService)
     {
         _context = context;
         _msgCache = msgCache;
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
         _hubContext = hubContext;
+        _messageNotificationService = messageNotificationService;
     }
 
     [HttpPost("send-requests")]
@@ -171,7 +174,7 @@ public class GroupConversationController : BaseController
     }
 
     private async Task<(Conversation conversation, bool isNewConversation)> GetOrCreateGroupConversationAsync(
-        int senderId, SendGroupRequestsDTO request)
+    int senderId, SendGroupRequestsDTO request)
     {
         // Hvis ConversationId er oppgitt, bruk eksisterende
         if (request.ConversationId.HasValue)
@@ -247,25 +250,17 @@ public class GroupConversationController : BaseController
         _context.ConversationParticipants.Add(creatorParticipant);
         await _context.SaveChangesAsync();
         
-        // 1️⃣ Hent avsender (creator)
+        // 1️⃣ Hent creator navn
         var creator = await _context.Users.FindAsync(senderId);
         var senderName = creator?.FullName ?? "En bruker";
 
-        // 2️⃣ Lag systemmelding
-        var introMessage = new Message
-        {
-            ConversationId = newConversation.Id,
-            SenderId = senderId,
-            Text = $"{senderName} created the group '{groupName}'",
-            SentAt = DateTime.UtcNow,
-            IsApproved = true // Så meldingen vises for alle
-        };
-        _context.Messages.Add(introMessage);
-
-        // 3️⃣ Oppdater LastMessageSentAt
-        newConversation.LastMessageSentAt = introMessage.SentAt;
+        // 2️⃣ Lag systemmelding med hjelpefunksjon (inkluderer automatisk SignalR)
+        await _messageNotificationService.CreateSystemMessageAsync(
+            newConversation.Id,
+            $"{senderName} has created the group"
+        );
         
-        // 4️⃣ (NY) Legg til creator's melding hvis den finnes
+        // 3️⃣ Legg til creator's melding hvis den finnes
         if (!string.IsNullOrWhiteSpace(request.InitialMessage))
         {
             var creatorMessage = new Message
@@ -273,17 +268,16 @@ public class GroupConversationController : BaseController
                 ConversationId = newConversation.Id,
                 SenderId = senderId,
                 Text = request.InitialMessage.Trim(),
-                SentAt = DateTime.UtcNow.AddMilliseconds(1), // Sørg for riktig rekkefølge
+                SentAt = DateTime.UtcNow,
                 IsApproved = true,
-                // Ikke legg på systemflag eller trigger SignalR
+                IsSystemMessage = false // 🆕 Eksplisitt vanlig melding
             };
             _context.Messages.Add(creatorMessage);
 
-            // Oppdater LastMessageSentAt om ønskelig
+            // Oppdater LastMessageSentAt til creator's message
             newConversation.LastMessageSentAt = creatorMessage.SentAt;
+            await _context.SaveChangesAsync();
         }
-
-        await _context.SaveChangesAsync(); // Lagre både melding og oppdatert conversation
 
         return (newConversation, true);
     }
