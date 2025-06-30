@@ -296,6 +296,43 @@ public class GroupConversationController : BaseController
 
         if (conversation == null) return;
 
+        // 🆕 Lag systemmelding for invitasjoner til eksisterende gruppe
+        if (isExistingGroup && groupRequests.Any())
+        {
+            // Hent inviter navn
+            var inviter = await context.Users
+                .Where(u => u.Id == senderId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync();
+
+            // Hent inviterte brukere navn
+            var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
+            var invitedUsers = await context.Users
+                .Where(u => invitedUserIds.Contains(u.Id))
+                .Select(u => u.FullName)
+                .ToListAsync();
+
+            // Generer systemmelding-tekst
+            string systemMessageText;
+            if (invitedUsers.Count == 1)
+            {
+                systemMessageText = $"{inviter} has invited {invitedUsers[0]}";
+            }
+            else if (invitedUsers.Count == 2)
+            {
+                systemMessageText = $"{inviter} has invited {invitedUsers[0]} and {invitedUsers[1]}";
+            }
+            else
+            {
+                var lastUser = invitedUsers.Last();
+                var otherUsers = string.Join(", ", invitedUsers.Take(invitedUsers.Count - 1));
+                systemMessageText = $"{inviter} has invited {otherUsers} and {lastUser}";
+            }
+
+            // Lag systemmelding (inkluderer automatisk SignalR)
+            await notifSvc.CreateSystemMessageAsync(conversationId, systemMessageText);
+        }
+
         // 1️⃣ Opprett GroupEvent for invitasjoner (til godkjente medlemmer)
         if (isExistingGroup)
         {
@@ -307,7 +344,7 @@ public class GroupConversationController : BaseController
                 invitedUserIds);
         }
 
-        // 2️⃣ Send individuelle GroupRequest notifikasjoner til nye inviterte (EKSISTERENDE KODE)
+        // 2️⃣ Send individuelle GroupRequest notifikasjoner til nye inviterte
         foreach (var groupRequest in groupRequests)
         {
             try
