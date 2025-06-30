@@ -1,6 +1,6 @@
-// Viser kortene til en bruker i Conv og Pending listene
+// ConversationListUserCard.tsx - Fixed version som faktisk sender participants videre
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import ClickableAvatar from "../common/ClickableAvatar"; // ✅ Bytt ut MiniAvatar import
+import ClickableAvatar from "../common/ClickableAvatar";
 import { useChatStore } from "@/store/useChatStore";
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
   hasUnread?: boolean;
   isGroup?: boolean;
   memberCount?: number;
+  // ✅ LEGG TIL: Eksplisitt participants prop for pending requests
+  participants?: UserSummaryDTO[];
 }
 
 export const ConversationListItem = ({
@@ -25,18 +27,30 @@ export const ConversationListItem = ({
   hasUnread,
   isGroup = false,
   memberCount,
+  participants: explicitParticipants, // ✅ NYTT: Eksplisitt participants fra parent
 }: Props) => {
  
   // Hent participants fra conversation store hvis det er en gruppe
   const conversations = useChatStore((s) => s.conversations);
   const conversation = isGroup ? conversations.find(c => c.id === user.id) : null;
-  const participants = conversation?.participants || [];
+  const storeParticipants = conversation?.participants || [];
+  
+  // ✅ PRIORITER: Bruk eksplisitt participants hvis gitt, ellers fall tilbake til store
+  const finalParticipants = explicitParticipants || storeParticipants;
    
   const borderClass = selected
     ? "border-2 border-[#166016]"
     : isPendingApproval
     ? "border-2 border-yellow-300"
     : "border border-transparent";
+
+  console.log(`🔍 ConversationListItem ${user.fullName}:`, {
+    isGroup,
+    explicitParticipants: explicitParticipants?.length || 0,
+    storeParticipants: storeParticipants.length,
+    finalParticipants: finalParticipants.length,
+    isPendingApproval
+  });
    
   return (
     <div
@@ -51,19 +65,19 @@ export const ConversationListItem = ({
           : "bg-gray-50 dark:bg-[#2b2f2f]"
       }`}
     >
-      {/* ✅ Bruk ClickableAvatar i stedet for button + MiniAvatar */}
+      {/* ✅ SEND RIKTIGE PARTICIPANTS TIL ClickableAvatar */}
       <div className="relative">
         <ClickableAvatar
           user={user}
           size={40}
           isGroup={isGroup}
-          participants={participants}
+          participants={finalParticipants} // ✅ BRUK finalParticipants, ikke storeParticipants
           isPendingRequest={isPendingApproval}
           conversationId={typeof user.id === 'number' ? user.id : undefined}
           className="flex-shrink-0"
         />
-        
-        {/* ✅ Gruppeindikator - flytt til egen div for bedre kontroll */}
+       
+        {/* Gruppeindikator */}
         {isGroup && (
           <span className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
             👥
