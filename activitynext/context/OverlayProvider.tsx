@@ -96,40 +96,46 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
 
   // Handle clicks on lower-level components - close higher levels
   useEffect(() => {
-    if (level === 0) return;
+  if (level === 0) return;
 
-    const handleClick = (e: MouseEvent) => {
-      // Check from lowest to highest level to find which level was clicked
-      const levels = Array.from(refMap.current.keys()).sort((a, b) => a - b);
-      let clickedLevel: number | null = null;
-      
-      for (const lvl of levels) {
-        const ref = refMap.current.get(lvl);
-        if (ref?.current?.contains(e.target as Node)) {
-          clickedLevel = lvl;
-          break; // Found the lowest level that contains the click
-        }
+  const handleClick = (e: MouseEvent) => {
+    const levels = Array.from(refMap.current.entries()); // [level, ref]
+    const sorted = levels.sort(([a], [b]) => b - a); // ✅ Sorter fra høyest til lavest
+    
+    // ✅ Finn det høyeste nivået som inneholder klikket
+    let clickedLevel: number | null = null;
+    for (const [lvl, ref] of sorted) {
+      if (ref?.current?.contains(e.target as Node)) {
+        clickedLevel = lvl;
+        console.log('OVERLAY 🎯 Click detected at highest containing level:', clickedLevel);
+        break; // Stopp ved første (høyeste) treff
       }
+    }
+    
+    if (clickedLevel !== null) {
+      // ✅ Klikk inne i et overlay - lukk kun høyere nivåer
+      const allLevels = levels.map(([lvl]) => lvl);
+      const levelsAbove = allLevels.filter(lvl => lvl > clickedLevel!);
       
-      if (clickedLevel !== null) {
-        // Close only the highest level if there are levels higher than the clicked level
-        const levelsAbove = levels.filter(lvl => lvl > clickedLevel!);
-        if (levelsAbove.length > 0) {
-          const highestLevel = Math.max(...levelsAbove);
-          console.log('OVERLAY 🎯 Click on lower level', clickedLevel, 'closing highest level above:', highestLevel);
-          unregister(highestLevel);
-        }
+      if (levelsAbove.length > 0) {
+        const highestLevel = Math.max(...levelsAbove);
+        console.log('OVERLAY 🎯 Click at level', clickedLevel, 'closing highest level above:', highestLevel);
+        unregister(highestLevel);
       } else {
-        // Click was outside all overlays - close only the highest level (like escape)
-        const highestLevel = Math.max(...levels);
-        console.log('OVERLAY 🖱️ Outside click, closing highest level:', highestLevel);
-        unregister(highestLevel); // Changed from closeLevel to unregister
+        console.log('OVERLAY ✅ Click at highest level, no action taken');
       }
-    };
+    } else {
+      // ✅ Klikk utenfor alle overlays - lukk høyeste nivå
+      const allLevels = levels.map(([lvl]) => lvl);
+      const highestLevel = Math.max(...allLevels);
+      console.log('OVERLAY 🖱️ Outside click, closing highest level:', highestLevel);
+      unregister(highestLevel);
+    }
+  };
 
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [level, unregister]); // Changed dependency from closeLevel to unregister
+  document.addEventListener("mousedown", handleClick);
+  return () => document.removeEventListener("mousedown", handleClick);
+}, [level, unregister]);
 
   // Handle escape key - close highest level
   useEffect(() => {
