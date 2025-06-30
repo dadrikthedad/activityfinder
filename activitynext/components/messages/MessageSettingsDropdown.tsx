@@ -10,6 +10,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ParticipantsList from "./ParticipantsListProps";
+import { calculatePopoverPosition } from "../common/PopoverPositioning";
 
 interface MessageSettingsDropdownProps {
   open: boolean;
@@ -73,6 +74,7 @@ export default function MessageSettingsDropdown({
       settingsOverlay.close();
     }
   }, [open, settingsOverlay, useOverlaySystem]);
+  
 
   // ✅ Sync participants list state with overlay
   useEffect(() => {
@@ -116,11 +118,7 @@ export default function MessageSettingsDropdown({
   const handleParticipantClick = useCallback((participant: UserSummaryDTO, event: React.MouseEvent) => {
     event.stopPropagation();
     
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const pos = {
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY + 8,
-    };
+    const pos = calculatePopoverPosition(event);
     
     // ✅ For individuelle deltakere: IKKE send gruppedata, bare brukeren
     onShowUserPopover?.(participant, pos);
@@ -129,14 +127,9 @@ export default function MessageSettingsDropdown({
   // ✅ Håndter klikk på gruppe-header
   const handleGroupHeaderClick = useCallback((event: React.MouseEvent) => {
     if (!isGroup || !currentConversation || !currentConversationId) return;
-    
     event.stopPropagation();
     
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    const pos = {
-      x: rect.left + window.scrollX,
-      y: rect.bottom + window.scrollY + 8,
-    };
+    const pos = calculatePopoverPosition(event);
     
     const groupUser: UserSummaryDTO = {
       id: currentConversation.id,

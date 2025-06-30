@@ -43,14 +43,6 @@ export const ConversationListItem = ({
     : isPendingApproval
     ? "border-2 border-yellow-300"
     : "border border-transparent";
-
-  console.log(`🔍 ConversationListItem ${user.fullName}:`, {
-    isGroup,
-    explicitParticipants: explicitParticipants?.length || 0,
-    storeParticipants: storeParticipants.length,
-    finalParticipants: finalParticipants.length,
-    isPendingApproval
-  });
    
   return (
     <div

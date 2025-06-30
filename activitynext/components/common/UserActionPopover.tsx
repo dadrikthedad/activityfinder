@@ -39,7 +39,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     participants = [], 
     onLeaveGroup, 
     isPendingRequest = false,
-    conversationId, // ✅ Extract conversationId
+    conversationId,
     zIndex,
     overlayRef
   } = props;
@@ -52,16 +52,16 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
 
   // Only need overlay for new message window and invite users window
   const newMessageOverlay = useOverlay();
-  const inviteUsersOverlay = useOverlay(); // ✅ NEW overlay for invite users
+  const inviteUsersOverlay = useOverlay(); //overlay for invite users
 
   // State
   const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
   const [newMessageInitialReceiver, setNewMessageInitialReceiver] = useState<UserSummaryDTO | undefined>();
-  // ✅ NEW: Invite users window state
+  // Invite users window state
   const [showInviteUsersWindow, setShowInviteUsersWindow] = useState(false);
 
   // Hooks
-  const { confirmAndRemove } = useConfirmRemoveFriend();
+  const { confirmAndRemove, ConfirmDialog } = useConfirmRemoveFriend();
   const { isFriend, loading: isFriendLoading } = useFriendWith(user.id);
   const { userId: currentUserId } = useAuth();
   const isOwner = user.id === currentUserId;
@@ -82,7 +82,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
       newMessageOverlay.close();
     }
 
-    // ✅ NEW: Close invite users window if open
+    // Close invite users window if open
     if (inviteUsersOverlay.isOpen) {
       inviteUsersOverlay.close();
     }
@@ -90,7 +90,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     // Close any open window state
     setShowNewMessageWindow(false);
     setNewMessageInitialReceiver(undefined);
-    setShowInviteUsersWindow(false); // ✅ NEW
+    setShowInviteUsersWindow(false); 
 
     // Tell parent to close (UserActionPopoverPortal)
     if (onCloseDropdown) {
@@ -125,15 +125,14 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
   const handleMessageSent = (message: MessageDTO) => {
     console.log("📤 Message sent from popover:", message);
     handleCloseNewMessageWindow();
-    // ✅ FIXED: Don't automatically close the UserActionPopover - let user decide
-    // handleClose(); // Removed automatic close
+    // Don't automatically close the UserActionPopover - let user decide
   };
 
   const handleGroupCreated = (response: SendGroupRequestsResponseDTO) => {
     console.log("👥 Group created from popover:", response);
     handleCloseNewMessageWindow();
-    // ✅ FIXED: Don't automatically close the UserActionPopover - let user decide
-    // handleClose(); // Removed automatic close
+    // Don't automatically close the UserActionPopover - let user decide
+
   };
 
   // Handle sending message from nested popover
@@ -164,7 +163,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     handleClose();
   };
 
-  // ✅ NEW: Handle opening invite users window
+  // Handle opening invite users window
   const handleOpenInviteWindow = useCallback(() => {
     console.log('👥 Opening invite users window for group:', user.fullName);
     setShowInviteUsersWindow(true);
@@ -237,6 +236,8 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           onSendMessageFromNested={handleSendMessageFromNested}
         />
       </div>
+
+       <ConfirmDialog />
 
       {/* New Message Window - Always render when showNewMessageWindow is true */}
       {showNewMessageWindow && newMessageInitialReceiver && (

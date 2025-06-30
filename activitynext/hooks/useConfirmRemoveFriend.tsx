@@ -3,7 +3,7 @@ import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useRemoveFriend } from "@/hooks/useRemoveFriend";
 
 export function useConfirmRemoveFriend() {
-  const { confirm } = useConfirmDialog();
+  const { confirm, ConfirmDialog } = useConfirmDialog(); // ✅ Add ConfirmDialog
   const { handleRemoveFriend } = useRemoveFriend();
 
   const confirmAndRemove = async (
@@ -23,11 +23,11 @@ export function useConfirmRemoveFriend() {
         </span>
       ),
     });
-
+    
     if (confirmed) {
       await handleRemoveFriend(friendId, onSuccess);
     }
   };
-
-  return { confirmAndRemove };
+  
+  return { confirmAndRemove, ConfirmDialog }; // ✅ Return ConfirmDialog
 }
