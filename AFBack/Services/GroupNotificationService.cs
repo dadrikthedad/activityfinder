@@ -130,16 +130,21 @@ public class GroupNotificationService
         await _context.SaveChangesAsync();
 
         // 2️⃣ Oppdater GroupNotifications for relevante brukere
-        await UpdateGroupNotificationsAsync(conversationId, groupEvent.Id);
+        await UpdateGroupNotificationsAsync(conversationId, groupEvent.Id, new List<int> { actorUserId });
         
         // 3️⃣ Send automatisk GroupNotificationUpdates til alle godkjente medlemmer
         await SendGroupNotificationUpdatesAsync(conversationId, new List<int> { actorUserId }, eventType, affectedUserIds);
     }
 
-    private async Task UpdateGroupNotificationsAsync(int conversationId, int newEventId)
+    private async Task UpdateGroupNotificationsAsync(int conversationId, int newEventId, List<int>? excludeUserIds = null)
     {
         // Finn alle godkjente medlemmer i gruppen (ikke pending)
         var approvedMemberIds = await GetApprovedMembersAsync(conversationId);
+        
+        if (excludeUserIds?.Any() == true)
+        {
+            approvedMemberIds = approvedMemberIds.Where(id => !excludeUserIds.Contains(id)).ToList();
+        }
 
         foreach (var memberId in approvedMemberIds)
         {
