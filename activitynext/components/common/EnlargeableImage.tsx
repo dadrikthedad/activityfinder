@@ -25,20 +25,16 @@ export default function EnlargeableImage({
   
   // Always call hooks - simplified approach
   const [isOpen, setIsOpen] = useState(() => {
-    console.log('🖼️ OVERLAY EnlargeableImage initial state:', { useOverlaySystem, willBeOpen: !useOverlaySystem });
     return !useOverlaySystem; // If not using overlay, start open (though this won't be used much)
   });
   const overlay = useOverlay(); // Always call useOverlay - we'll always register for outside click detection
-  console.log('🖼️ OVERLAY EnlargeableImage props received:', { useOverlaySystem, src: src.substring(0, 30) + '...', isOpen });
 
   // Auto-open when component mounts (only if using overlay system)
   useEffect(() => {
     if (useOverlaySystem) {
-      console.log('🖼️ OVERLAY EnlargeableImage mounting, will use full overlay state management');
       // Component starts with isOpen: false normally, overlay will be opened manually
     } else {
       // Always register for outside click detection, even when not using overlay state management
-      console.log('🖼️ OVERLAY EnlargeableImage mounting without overlay state management, but registering for outside clicks');
       overlay.open(); // Register as level, but don't use state management
     }
   }, [useOverlaySystem, overlay]);
@@ -48,28 +44,23 @@ export default function EnlargeableImage({
     if (!useOverlaySystem) return;
     
     if (isOpen && !overlay.isOpen) {
-      console.log('🖼️ OVERLAY EnlargeableImage opening overlay');
       overlay.open();
     } else if (!isOpen && overlay.isOpen) {
-      console.log('🖼️ OVERLAY EnlargeableImage closing overlay');
       overlay.close();
     }
   }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
 
   // Always call useOverlayAutoClose to listen for external closing
   useOverlayAutoClose(() => {
-    console.log('🖼️ OVERLAY EnlargeableImage auto-close triggered');
     if (useOverlaySystem) {
       setIsOpen(false);
     } else {
       // If not using overlay system, just close directly
-      console.log('🖼️ OVERLAY EnlargeableImage closing directly');
       setIsOpen(false);
     }
   }, overlay.level ?? undefined);
 
   const handleOpen = useCallback(() => {
-    console.log('🖼️ OVERLAY EnlargeableImage opening');
     setIsOpen(true);
     
     // Force open overlay after state is set
@@ -81,7 +72,6 @@ export default function EnlargeableImage({
   }, [useOverlaySystem, overlay]);
 
   const handleClose = useCallback(() => {
-    console.log('🖼️ OVERLAY EnlargeableImage manual close', { useOverlaySystem });
     if (useOverlaySystem) {
       setIsOpen(false);
     } else {
@@ -91,11 +81,9 @@ export default function EnlargeableImage({
 
   // Auto-close on action completion (only if using overlay system)
   useEffect(() => {
-    console.log('🖼️ OVERLAY EnlargeableImage effect check:', { useOverlaySystem, isOpen, shouldTriggerClose: useOverlaySystem && !isOpen });
     
     // Only when overlay system is used AND isOpen becomes false AFTER being true
     if (useOverlaySystem && !isOpen && overlay.level !== null) {
-      console.log('🖼️ OVERLAY EnlargeableImage closed via overlay system');
       overlay.close();
     }
   }, [isOpen, useOverlaySystem, overlay]);
