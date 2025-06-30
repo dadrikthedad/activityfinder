@@ -1,12 +1,11 @@
-// NestedUserActionPopover.tsx - Reusable nested UserActionPopover component
+// NestedUserActionPopover.tsx - Using useUserActionPopover hook
 "use client";
-import { useEffect, useCallback } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import { useOverlay, useOverlayAutoClose, useOverlayLayer } from "@/context/OverlayProvider";
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import UserActionPopoverContent from "./UserActionPopoverContent";
+import { useUserActionPopover } from "./UserActionPopover/useUserActionPopover";
 
 interface NestedUserActionPopoverProps {
   user: UserSummaryDTO;
@@ -22,43 +21,39 @@ export default function NestedUserActionPopover({
   onSendMessage
 }: NestedUserActionPopoverProps) {
   console.log('🔗 OVERLAY NestedUserActionPopover rendered for:', user.fullName);
-
+ 
   const overlay = useOverlay();
-  const { closeAllLevels } = useOverlayLayer(); 
-  const { userId: currentUserId } = useAuth();
-  const router = useRouter();
+  
+  // ✅ Use comprehensive hook with legacy API support
+  const {
+    isOwner,
+    handleVisitProfile,
+    handleSendMessage,
+    handleRemoveFriend,
+    handleClose
+  } = useUserActionPopover({
+    user,
+    onClose, // ✅ Legacy API support
+    onSendMessageToUser: onSendMessage, // ✅ Legacy API support
+    isNested: true // ✅ Mark as nested for different behavior
+  });
 
-  // Auto-open overlay when component mounts
+  // Rest of component stays the same...
   useEffect(() => {
     console.log('🔗 OVERLAY NestedUserActionPopover opening overlay');
     overlay.open();
   }, [overlay]);
 
-  // Auto-close when overlay system closes us externally
   useOverlayAutoClose(() => {
     console.log('🔗 OVERLAY NestedUserActionPopover auto-close triggered');
     onClose();
   }, overlay.level ?? undefined);
 
-  const handleVisitProfile = useCallback(() => {
-    router.push(`/profile/${user.id}`);
-    closeAllLevels();
-
-  }, [user, router, closeAllLevels]);
-
-  const handleSendMessage = useCallback(() => {
-    console.log('🔗 OVERLAY Send message to:', user.fullName);
-    if (onSendMessage) {
-      onSendMessage(user);
-    }
-    onClose();
-  }, [user, onSendMessage, onClose]);
-
-  const handleClose = useCallback(() => {
+  const handleOverlayClose = () => {
     console.log('🔗 OVERLAY Closing nested UserActionPopover');
     overlay.close();
-    onClose();
-  }, [overlay, onClose]);
+    handleClose();
+  };
 
   return createPortal(
     <div
@@ -72,13 +67,13 @@ export default function NestedUserActionPopover({
     >
       <UserActionPopoverContent
         user={user}
-        isOwner={user.id === currentUserId}
-        isFriend={false} // Simplified for nested usage
+        isOwner={isOwner}
+        isFriend={false}
         isFriendLoading={false}
-        onVisitProfile={handleVisitProfile}
+        onVisitProfile={handleVisitProfile} // ✅ Includes closeAllLevels
         onSendMessage={handleSendMessage}
-        onRemoveFriend={() => {}} // Not available in nested context
-        onClose={handleClose}
+        onRemoveFriend={handleRemoveFriend} // ✅ No-op for nested
+        onClose={handleOverlayClose}
         isGroup={false}
       />
     </div>,
