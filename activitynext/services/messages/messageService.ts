@@ -2,6 +2,7 @@ import { postRequest, getRequest } from "@/services/baseService";
 import { API_BASE_URL } from "@/constants/routes";
 import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
+import { RejectRequestDTO } from "@/types/RejectRequestDTO";
 
 // Sende meldinger til bruker eller grupper
 export async function sendMessage(
@@ -40,7 +41,7 @@ export async function getPendingMessageRequestById(conversationId: number): Prom
 }
 
 // Avslår en meldingsforespørsel
-export async function rejectMessageRequest(senderId: number): Promise<void> {
+export async function rejectRequest(dto: RejectRequestDTO): Promise<void> {
   const url = `${API_BASE_URL}/api/messages/reject-request`;
-  await postRequest<void, number>(url, senderId);
+  await postRequest<void, RejectRequestDTO>(url, dto);
 }

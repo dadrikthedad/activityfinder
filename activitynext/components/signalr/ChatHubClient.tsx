@@ -272,7 +272,6 @@ export default function ChatHubClient() {
         
         if (notification) {
           
-          // 🆕 Fikset: Cast til any eller bruk type assertion
           const enhancedNotification: MessageNotificationDTO = {
             ...notification,
             latestGroupEventType: typeof groupEventType === 'string' ? groupEventType : String(groupEventType),

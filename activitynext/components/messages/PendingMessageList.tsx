@@ -2,7 +2,7 @@
 "use client"
 
 import { ConversationListItem } from "./ConversationListUserCard";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageRequests";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import ProfileNavButton from "../settings/ProfileNavButton";
@@ -37,41 +37,37 @@ const PendingRequestsList = ({
   // Hent conversations fra chat store
   const conversations = useChatStore((s) => s.conversations);
 
-  useEffect(() => {
-    if (requests && requests.length > 0) {
-      console.log("🔍 DEBUG Pending requests:", requests);
-      console.log("🔍 DEBUG Store conversations:", conversations);
-      
-      // Debug hver request
-      requests.forEach(r => {
-        console.log(`🔍 DEBUG Request ${r.conversationId}:`, {
-          isGroup: r.isGroup,
-          participants: r.participants,
-          conversationId: r.conversationId,
-          foundInStore: conversations.find(c => c.id === r.conversationId)
-        });
-      });
-    }
-  }, [requests, conversations]);
+
 
   // ✅ NEW: Handle reject with confirmation - properly typed
   const handleReject = async (r: MessageRequestDTO) => {
     if (r.conversationId == null) return;
 
+    const requestType = r.isGroup ? "group invitation" : "message request";
+    const actionText = r.isGroup ? "decline" : "reject";
+
     const confirmed = await confirm({
-      title: "Reject Message Request",
+      title: r.isGroup ? "Decline Group Invitation" : "Reject Message Request",
       message: (
         <span>
-          Are you sure you want to reject the message request from{" "}
+          Are you sure you want to {actionText} the {requestType} from{" "}
           <span className="font-semibold italic text-base md:text-lg">
             {r.senderName}
           </span>
+          {r.isGroup && r.groupName && (
+            <>
+              {" "}to join{" "}
+              <span className="font-semibold italic text-base md:text-lg">
+                {r.groupName}
+              </span>
+            </>
+          )}
           ?
         </span>
       ),
     });
 
-       if (!confirmed) return;
+    if (!confirmed) return;
 
     const id = r.conversationId!;
     
@@ -80,10 +76,12 @@ const PendingRequestsList = ({
 
     // Execute reject and remove after animation
     setTimeout(async () => {
-      await reject(r.senderId, id);
+      // 🆕 Pass isGroup parameter to distinguish request types
+      await reject(r.senderId, id, r.isGroup || false);
       setRemovedConversations(prev => new Set(prev).add(id));
     }, 700); // Match the fade duration
   };
+
 
   if (loading) {
     return (
@@ -123,14 +121,6 @@ const PendingRequestsList = ({
           // Beregn memberCount
           const memberCount = r.isGroup ? (participants.length > 0 ? participants.length : 2) : undefined;
 
-          console.log(`🔍 DEBUG Request ${r.conversationId} final participants:`, {
-            fromRequest: r.participants?.length || 0,
-            fromStore: storeParticipants.length,
-            finalCount: participants.length,
-            memberCount,
-            willSendToConversationListItem: participants
-          });
-          
           return (
             <li key={`${r.senderId}-${r.conversationId ?? "privat"}`} className={fadingOut[r.conversationId ?? -1] ? "opacity-0 transition-opacity duration-700" : ""}>
               <ConversationListItem
