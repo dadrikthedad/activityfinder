@@ -49,14 +49,7 @@ export default function MessageDropdown({
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
 
   // Chat store state
-  const showMessages = useChatStore((s) => s.showMessages);
   const setShowMessages = useChatStore((s) => s.setShowMessages);
-
-  console.log('🔥 OVERLAY MessageDropdown render:', { 
-    hasCurrentUser: !!currentUser, 
-    hasInitialPosition: !!initialPosition,
-    showMessages
-  });
 
   const mainOverlay = useOverlay();
   // ✅ REMOVED: newMessageOverlay - vi skal ikke bruke overlay for nested NewMessageWindow
@@ -93,7 +86,6 @@ export default function MessageDropdown({
 
   // Åpne samtale fra notifikasjon
   const openConversationFromNotification = (id: number) => {
-    console.log('📬 OVERLAY Opening conversation from notification:', id);
     setCurrentConversationId(id);
     setConversationVisible(true);
   };
@@ -124,14 +116,12 @@ export default function MessageDropdown({
 
   // ✅ SIMPLIFIED: Handle new message dialog without overlay system
   const handleShowNewMessageDialog = (user?: UserSummaryDTO) => {
-    console.log('📝 OVERLAY Opening new message dialog for:', user?.fullName || 'no specific user');
     setNewMessageInitialReceiver(user);
     setShowNewMessageDialog(true);
   };
 
   // ✅ SIMPLIFIED: Close new message dialog without overlay system
   const handleCloseNewMessageDialog = useCallback(() => {
-    console.log('📝 OVERLAY Closing new message dialog');
     setShowNewMessageDialog(false);
     setNewMessageInitialReceiver(undefined);
   }, []);
@@ -139,7 +129,6 @@ export default function MessageDropdown({
   // Handle leave group
   const handleLeaveGroup = async (conversationId: number) => {
     try {
-      console.log("🚪 OVERLAY Leave group clicked for conversation:", conversationId);
       alert(`Leave group functionality will be implemented soon!\nConversation ID: ${conversationId}`);
     } catch (error) {
       console.error("❌ OVERLAY Failed to leave group:", error);
@@ -147,17 +136,14 @@ export default function MessageDropdown({
   };
 
   useOverlayAutoClose(() => {
-    console.log('📉 OVERLAY Level dropped below 1, closing MessageDropdown');
     setShowMessages(false);
     onCloseDropdown();
   }, 1);
 
   useEffect(() => {
-    console.log('📝 OVERLAY Opening main overlay');
     mainOverlay.open();
     
     return () => {
-      console.log('🧹 OVERLAY Closing main overlay');
       mainOverlay.close();
     };
   }, []); // Tom array - kun mount/unmount
@@ -167,7 +153,6 @@ export default function MessageDropdown({
     setShowMessages(true);
     
     return () => {
-      console.log('🧹 OVERLAY MessageDropdown store cleanup');
       setShowMessages(false);
       
       // Cleanup chat state
@@ -180,13 +165,6 @@ export default function MessageDropdown({
           ...cached,
           ...live.filter(m => !cached.some(c => c.id === m.id))
         ];
-
-        console.log("💾 OVERLAY Caching messages before unmount", {
-          conversationId: currentConversationId,
-          cachedCount: cached.length,
-          liveCount: live.length,
-          newTotal: combined.length
-        });
 
         state.setCachedMessages(currentConversationId, combined);
         state.clearLiveMessages(currentConversationId);
@@ -245,7 +223,6 @@ export default function MessageDropdown({
 
   // Drag functionality
   const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    console.log('🖱️ OVERLAY Starting drag');
     setIsDragging(true);
     offsetRef.current = {
       x: e.clientX - positionRef.current.x,
@@ -278,7 +255,6 @@ export default function MessageDropdown({
 
     const handleMouseUp = () => {
       if (isDragging) {
-        console.log('🖱️ OVERLAY Ending drag at position:', positionRef.current);
         setIsDragging(false);
         localStorage.setItem(DROPDOWN_POSITION_KEY, JSON.stringify(positionRef.current));
       }
@@ -304,7 +280,6 @@ export default function MessageDropdown({
       positionRef.current = pos;
       el.style.left = `${pos.x}px`;
       el.style.top = `${pos.y}px`;
-      console.log('📍 OVERLAY Set initial dropdown position:', pos);
     } catch (e) {
       console.warn("❌ OVERLAY Kunne ikke laste lagret posisjon:", e);
     }
@@ -312,11 +287,9 @@ export default function MessageDropdown({
 
   // Handle conversation selection
   const handleSelect = (id: number) => {
-    console.log('💬 OVERLAY Conversation selected:', id);
     const isSame = id === currentConversationId;
 
     if (isSame) {
-      console.log('💬 OVERLAY Same conversation clicked, toggling visibility');
       setCurrentConversationId(null);
       setConversationVisible((prev) => !prev);
       return;
@@ -325,7 +298,6 @@ export default function MessageDropdown({
     const state = useChatStore.getState();
     const isPending = state.pendingMessageRequests.some((r) => r.conversationId === id);
 
-    console.log('💬 OVERLAY Setting new conversation:', { id, isPending });
     state.setPendingLockedConversationId(isPending ? id : null);
     state.setCurrentConversationId(id);
     setConversationVisible(true);
@@ -358,7 +330,6 @@ export default function MessageDropdown({
           <button
             className="text-white hover:text-gray-200"
             onClick={() => {
-              console.log('⟳ OVERLAY Resetting dropdown position and size');
               localStorage.removeItem("messageDropdownSize");
               localStorage.removeItem("messageDropdownPosition");
               window.location.reload();
@@ -370,7 +341,6 @@ export default function MessageDropdown({
           <button
             className="text-white hover:text-gray-200"
             onClick={() => {
-              console.log('✕ OVERLAY Closing message dropdown via X button');
               setShowMessages(false);
               onCloseDropdown();
             }}

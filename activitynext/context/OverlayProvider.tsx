@@ -38,7 +38,6 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     // Sjekk om denne ref-en allerede er registrert
     const existingLevel = componentLevelMap.current.get(ref);
     if (existingLevel !== undefined) {
-      console.log('OVERLAY ♻️ Reusing existing level for ref:', existingLevel);
       return existingLevel;
     }
     
@@ -47,7 +46,6 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     componentLevelMap.current.set(ref, newLevel);
     setLevel(newLevel);
     
-    console.log('OVERLAY 📝 Registered level:', newLevel, 'Total overlays:', refMap.current.size, 'Next counter:', nextLevelRef.current);
     return newLevel;
   }, []);
 
@@ -59,12 +57,10 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     if (ref) {
       componentLevelMap.current.delete(ref);
     }
-    console.log('OVERLAY ❌ Unregistered level:', lvl, 'Remaining levels:', Array.from(refMap.current.keys()));
     
     if (refMap.current.size === 0) {
       setLevel(0);
       nextLevelRef.current = 1; // Reset counter when no overlays left
-      console.log('OVERLAY 🔄 Reset level counter to 1 - no overlays remaining');
     } else {
       const levels = Array.from(refMap.current.keys());
       const newLevel = Math.max(...levels);
@@ -73,7 +69,6 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
       // ALWAYS reset counter to highest + 1 for better optimization
       const highestLevel = Math.max(...levels);
       nextLevelRef.current = highestLevel + 1;
-      console.log('OVERLAY 🔄 Set level counter to:', nextLevelRef.current, 'based on highest level:', highestLevel);
     }
   }, []);
 
@@ -91,7 +86,6 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     componentLevelMap.current.clear();
     setLevel(0);
     nextLevelRef.current = 1;
-    console.log('OVERLAY 🧹 Closed all levels and reset counter');
   }, []);
 
   // Handle clicks on lower-level components - close higher levels
@@ -107,7 +101,6 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
     for (const [lvl, ref] of sorted) {
       if (ref?.current?.contains(e.target as Node)) {
         clickedLevel = lvl;
-        console.log('OVERLAY 🎯 Click detected at highest containing level:', clickedLevel);
         break; // Stopp ved første (høyeste) treff
       }
     }
@@ -119,16 +112,13 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
       
       if (levelsAbove.length > 0) {
         const highestLevel = Math.max(...levelsAbove);
-        console.log('OVERLAY 🎯 Click at level', clickedLevel, 'closing highest level above:', highestLevel);
         unregister(highestLevel);
       } else {
-        console.log('OVERLAY ✅ Click at highest level, no action taken');
       }
     } else {
       // ✅ Klikk utenfor alle overlays - lukk høyeste nivå
       const allLevels = levels.map(([lvl]) => lvl);
       const highestLevel = Math.max(...allLevels);
-      console.log('OVERLAY 🖱️ Outside click, closing highest level:', highestLevel);
       unregister(highestLevel);
     }
   };
@@ -148,7 +138,6 @@ export const OverlayLayerProvider = ({ children }: { children: React.ReactNode }
         
         const levels = Array.from(refMap.current.keys());
         const highestLevel = Math.max(...levels);
-        console.log('OVERLAY ⌨️ Escape pressed, closing level:', highestLevel);
         unregister(highestLevel); // Changed from closeLevel to unregister
       }
     };

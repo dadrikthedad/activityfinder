@@ -11,25 +11,16 @@ export default function UserActionPopoverPortal() {
   const overlay = useOverlay();
 
   // ✅ FORENKLING: Bare sync data med overlay åpning/lukking
-  React.useEffect(() => {
-    console.log('🌐 OVERLAY UserActionPopoverPortal data effect:', {
-      hasData: !!data,
-      overlayOpen: overlay.isOpen,
-      userId: data?.user.id
-    });
-    
+  React.useEffect(() => {   
     if (data && !overlay.isOpen) {
-      console.log('🌐 OVERLAY Opening portal overlay for:', data.user.fullName);
       overlay.open();
     } else if (!data && overlay.isOpen) {
-      console.log('🌐 OVERLAY Closing portal overlay - no data');
       overlay.close();
     }
   }, [data]); // Kun data dependency
 
   // ✅ Bruk useOverlayAutoClose hook som finnes i OverlayProvider
     useOverlayAutoClose(() => {
-    console.log('🌐 OVERLAY Auto-close triggered, hiding store data');
     hide();
   }, overlay.level ?? undefined);
 
@@ -38,11 +29,6 @@ export default function UserActionPopoverPortal() {
     return null;
   }
 
-  console.log('🌐 OVERLAY UserActionPopoverPortal rendering:', {
-    position: data.position,
-    zIndex: overlay.zIndex,
-    level: overlay.level
-  });
 
   return createPortal(
     <UserActionPopover

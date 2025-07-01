@@ -1,5 +1,5 @@
 // hooks/useUserActionPopover.ts - Comprehensive hook with all UserActionPopover logic
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useOverlay, useOverlayLayer } from "@/context/OverlayProvider";
@@ -73,13 +73,11 @@ export function useUserActionPopover({
 
   //  Core handlers - used by both modes
   const handleVisitProfile = useCallback(() => {
-    console.log('👤 Visiting profile for:', user.fullName);
     closeAllLevels();
     router.push(`/profile/${user.id}`);
-  }, [user.id, user.fullName, router, closeAllLevels]);
+  }, [user.id, router, closeAllLevels]);
 
   const handleClose = useCallback(() => {
-    console.log('❌ Closing UserActionPopover:', { userId: user.id, isSimplified, isNested });
     
     if (!isSimplified && !isNested) {
       // Full cleanup for main popover
@@ -101,7 +99,6 @@ export function useUserActionPopover({
       onCloseDropdown(); // New API
     }
   }, [
-    user.id, 
     isSimplified,
     isNested,
     newMessageOverlay, 
@@ -193,7 +190,6 @@ export function useUserActionPopover({
   }, [user, isSimplified, isNested, onSendMessageToUser, newMessageOverlay, handleClose]);
 
   const handleSendMessageToUserWrapper = useCallback((targetUser: UserSummaryDTO, onSendCallback?: (user: UserSummaryDTO) => void) => {
-    console.log('📝 OVERLAY Send message from nested context to:', targetUser.fullName);
     
     if (onSendCallback) {
       onSendCallback(targetUser);
@@ -217,7 +213,6 @@ export function useUserActionPopover({
   const handleCloseNewMessageWindow = useCallback(() => {
     if (isSimplified || isNested) return;
     
-    console.log('📝 Closing new message window');
     setShowNewMessageWindow(false);
     setNewMessageInitialReceiver(undefined);
     newMessageOverlay.close();
@@ -237,18 +232,16 @@ export function useUserActionPopover({
   const handleOpenInviteWindow = useCallback(() => {
     if (isSimplified || isNested) return;
     
-    console.log('👥 Opening invite users window for group:', user.fullName);
     setShowInviteUsersWindow(true);
     
     setTimeout(() => {
       inviteUsersOverlay.open();
     }, 0);
-  }, [user.fullName, inviteUsersOverlay, isSimplified, isNested]);
+  }, [inviteUsersOverlay, isSimplified, isNested]);
 
   const handleCloseInviteWindow = useCallback(() => {
     if (isSimplified || isNested) return;
     
-    console.log('👥 Closing invite users window');
     setShowInviteUsersWindow(false);
     inviteUsersOverlay.close();
   }, [inviteUsersOverlay, isSimplified, isNested]);
@@ -263,28 +256,6 @@ export function useUserActionPopover({
     console.log('👥 UserActionPopover handleShowUserPopover called for:', targetUser.fullName);
     // This should be handled by the parent component
   }, []);
-
-  // Debug logging (only for full mode)
-  useEffect(() => {
-    if (isSimplified || isNested) return;
-    
-    console.log('📝 OVERLAY Message window state:', {
-      showNewMessageWindow,
-      overlayOpen: newMessageOverlay.isOpen,
-      hasReceiver: !!newMessageInitialReceiver,
-      receiverName: newMessageInitialReceiver?.fullName
-    });
-  }, [showNewMessageWindow, newMessageOverlay.isOpen, newMessageInitialReceiver, isSimplified, isNested]);
-
-  useEffect(() => {
-    if (isSimplified || isNested) return;
-    
-    console.log('👥 OVERLAY Invite users window state:', {
-      showInviteUsersWindow,
-      overlayOpen: inviteUsersOverlay.isOpen,
-      groupName: user.fullName
-    });
-  }, [showInviteUsersWindow, inviteUsersOverlay.isOpen, user.fullName, isSimplified, isNested]);
 
    const CombinedConfirmDialogs = useCallback(() => (
     <>

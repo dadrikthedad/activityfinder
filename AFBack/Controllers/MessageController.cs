@@ -132,25 +132,26 @@ public class MessagesController : BaseController
         if (!int.TryParse(receiverIdClaim, out var receiverId))
             return Unauthorized("Ugyldig bruker-ID.");
 
-        // ✅ Sjekk først hvilken type samtale det er
-        var conversation = await _context.Conversations
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == conversationId);
+        // ✅ Prøv å hente GroupRequest først
+        var groupRequest = await _context.GroupRequests
+            .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending && gr.ConversationId == conversationId)
+            .Include(gr => gr.Sender).ThenInclude(u => u.Profile)
+            .Include(gr => gr.Conversation)
+                .ThenInclude(c => c.Participants)
+                    .ThenInclude(cp => cp.User)
+                        .ThenInclude(u => u.Profile)
+            .FirstOrDefaultAsync();
 
-        if (conversation == null)
-            return NotFound("Samtalen finnes ikke.");
-
-        if (conversation.IsGroup)
+        if (groupRequest != null)
         {
-            // ✅ Hent pending GroupRequest
-            var groupRequest = await _context.GroupRequests
-                .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending && gr.ConversationId == conversationId)
-                .Include(gr => gr.Sender).ThenInclude(u => u.Profile)
-                .Include(gr => gr.Conversation)
-                .FirstOrDefaultAsync();
-
-            if (groupRequest == null)
-                return NotFound("Ingen pending gruppe-invitasjon funnet.");
+            var participants = groupRequest.Conversation?.Participants
+                .Select(cp => new UserSummaryDTO
+                {
+                    Id = cp.UserId,
+                    FullName = cp.User.FullName,
+                    ProfileImageUrl = cp.User.Profile?.ProfileImageUrl
+                })
+                .ToList() ?? new List<UserSummaryDTO>();
 
             return Ok(new MessageRequestDTO
             {
@@ -163,21 +164,20 @@ public class MessagesController : BaseController
                 IsGroup = true,
                 GroupImageUrl = groupRequest.Conversation?.GroupImageUrl,
                 LimitReached = false,
-                IsPendingApproval = true
+                IsPendingApproval = true,
+                Participants = participants
             });
         }
-        else
+
+        // ✅ Hvis ikke gruppe, prøv å hente vanlig MessageRequest
+        var messageRequest = await _context.MessageRequests
+            .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected && r.ConversationId == conversationId)
+            .Include(r => r.Sender).ThenInclude(u => u.Profile)
+            .Include(r => r.Conversation)
+            .FirstOrDefaultAsync();
+
+        if (messageRequest != null)
         {
-            // ✅ Hent pending MessageRequest
-            var messageRequest = await _context.MessageRequests
-                .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected && r.ConversationId == conversationId)
-                .Include(r => r.Sender).ThenInclude(u => u.Profile)
-                .Include(r => r.Conversation)
-                .FirstOrDefaultAsync();
-
-            if (messageRequest == null)
-                return NotFound("Ingen pending message request funnet.");
-
             return Ok(new MessageRequestDTO
             {
                 SenderId = messageRequest.SenderId,
@@ -192,6 +192,8 @@ public class MessagesController : BaseController
                 IsPendingApproval = messageRequest.Conversation?.IsApproved == false
             });
         }
+
+        return NotFound("Ingen pending samtale eller gruppeforespørsel funnet.");
     }
     
     // Her henter vi meldinger etter vi har godtatt meldingsforespørsel

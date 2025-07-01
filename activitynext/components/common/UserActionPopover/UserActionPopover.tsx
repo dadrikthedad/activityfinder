@@ -37,12 +37,6 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     overlayRef
   } = props;
   
-  console.log('👤 OVERLAY UserActionPopover rendered:', {
-    userId: user.id,
-    userName: user.fullName,
-    position,
-  });
-
   // ✅ Use comprehensive hook with full functionality
   const {
     isOwner,

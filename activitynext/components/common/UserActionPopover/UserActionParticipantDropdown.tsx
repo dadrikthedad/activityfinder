@@ -25,12 +25,6 @@ export default function ParticipantsDropdownButton({
   onSendMessageToUser, // ✅ NEW: For direct message sending
   useOverlaySystem = true // Default to true for backwards compatibility
 }: ParticipantsDropdownButtonProps) {
-  console.log('👥 OVERLAY ParticipantsDropdownButton props received:', { 
-    useOverlaySystem, 
-    participantCount: participants.length,
-    hasSendMessageHandler: !!onSendMessageToUser 
-  });
-
   // Always start closed - different from NewMessageWindow which should start open when nested
   const [isOpen, setIsOpen] = useState(false);
   const overlay = useOverlay(); // Always call useOverlay
@@ -52,7 +46,6 @@ export default function ParticipantsDropdownButton({
   useEffect(() => {
     if (!useOverlaySystem && isOpen && !overlay.isOpen) {
       // Register for outside click detection only when opening
-      console.log('👥 OVERLAY ParticipantsDropdownButton opening without overlay state management, but registering for outside clicks');
       overlay.open();
     }
   }, [useOverlaySystem, isOpen, overlay]);
@@ -62,22 +55,18 @@ export default function ParticipantsDropdownButton({
     if (!useOverlaySystem) return;
     
     if (isOpen && !overlay.isOpen) {
-      console.log('👥 OVERLAY ParticipantsDropdownButton opening overlay');
       overlay.open();
     } else if (!isOpen && overlay.isOpen) {
-      console.log('👥 OVERLAY ParticipantsDropdownButton closing overlay');
       overlay.close();
     }
   }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
 
   // Always call useOverlayAutoClose to listen for external closing
   useOverlayAutoClose(() => {
-    console.log('👥 OVERLAY ParticipantsDropdownButton auto-close triggered');
     if (useOverlaySystem) {
       setIsOpen(false);
     } else {
       // If not using overlay system, just close dropdown directly
-      console.log('👥 OVERLAY ParticipantsDropdownButton closing directly');
       setIsOpen(false);
     }
     // Also close any nested popover when we close
@@ -109,7 +98,6 @@ export default function ParticipantsDropdownButton({
   }, []);
 
   const handleToggle = useCallback(() => {
-    console.log('👥 OVERLAY ParticipantsDropdownButton toggle:', { currentlyOpen: isOpen });
     setIsOpen(prev => !prev);
   }, [isOpen]);
 
@@ -117,11 +105,9 @@ export default function ParticipantsDropdownButton({
     event.preventDefault();
     event.stopPropagation();
     
-    console.log('👥 OVERLAY Participant clicked:', participant.fullName);
     
     // SIMPLIFIED: Calculate position and show reusable nested popover
     const pos = calculatePopoverPosition(event);
-    console.log('👥 OVERLAY Showing reusable nested popover for:', participant.fullName, pos);
     
     setNestedUserPopover({ user: participant, position: pos });
     
@@ -133,23 +119,19 @@ export default function ParticipantsDropdownButton({
 
   // SIMPLIFIED: Handle nested popover closing
   const handleCloseNestedPopover = useCallback(() => {
-    console.log('👥 OVERLAY Closing reusable nested popover');
     setNestedUserPopover(null);
   }, []);
 
   // ✅ FIXED: Handle send message from nested popover
   const handleNestedSendMessage = useCallback((user: UserSummaryDTO) => {
-    console.log('📝 OVERLAY Send message from nested popover to:', user.fullName);
     
     // Close the nested popover first
     setNestedUserPopover(null);
     
     // ✅ Use the parent's send message handler if provided
     if (onSendMessageToUser) {
-      console.log('📝 OVERLAY Using parent send message handler');
       onSendMessageToUser(user);
     } else {
-      console.log('📝 OVERLAY No parent send message handler provided');
       // Fallback: you could implement local message sending logic here
       // or show an alert/notification
       alert(`Send message to ${user.fullName} - no handler provided`);

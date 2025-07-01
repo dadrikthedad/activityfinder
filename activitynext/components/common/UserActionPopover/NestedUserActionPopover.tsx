@@ -20,8 +20,6 @@ export default function NestedUserActionPopover({
   onClose,
   onSendMessage
 }: NestedUserActionPopoverProps) {
-  console.log('🔗 OVERLAY NestedUserActionPopover rendered for:', user.fullName);
- 
   const overlay = useOverlay();
   
   // ✅ Use comprehensive hook with legacy API support
@@ -40,17 +38,14 @@ export default function NestedUserActionPopover({
 
   // Rest of component stays the same...
   useEffect(() => {
-    console.log('🔗 OVERLAY NestedUserActionPopover opening overlay');
     overlay.open();
   }, [overlay]);
 
   useOverlayAutoClose(() => {
-    console.log('🔗 OVERLAY NestedUserActionPopover auto-close triggered');
     onClose();
   }, overlay.level ?? undefined);
 
   const handleOverlayClose = () => {
-    console.log('🔗 OVERLAY Closing nested UserActionPopover');
     overlay.close();
     handleClose();
   };

@@ -21,7 +21,6 @@ export default function NotificationDropdown({
   onClose,
   useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: NotificationDropdownProps) {
-  console.log('🔔 OVERLAY NotificationDropdown props received:', { useOverlaySystem });
 
   /* ---------- data fra store ---------- */
   const invitations = useNotificationStore((s) => s.friendRequests);
@@ -35,20 +34,17 @@ export default function NotificationDropdown({
   // ✅ Auto-open overlay when component mounts (only if using overlay system)
   useEffect(() => {
   if (useOverlaySystem && !overlay.isOpen) {
-    console.log("🔔 OVERLAY NotificationDropdown opening overlay");
     overlay.open();
   }
 }, [useOverlaySystem, overlay]);
 
   // ✅ Auto-close when overlay system closes us externally
   useOverlayAutoClose(() => {
-    console.log('🔔 OVERLAY NotificationDropdown auto-close triggered');
     handleClose();
   }, overlay.level ?? undefined);
 
   // Handle close
   const handleClose = () => {
-    console.log('🔔 OVERLAY NotificationDropdown manual close');
     if (useOverlaySystem) {
       overlay.close();
     }

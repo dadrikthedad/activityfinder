@@ -60,7 +60,6 @@ export default function PublicProfileView({
       profileImageUrl: profile.profileImageUrl ?? "/default-avatar.png"
     };
     
-    console.log('📝 Opening new message window for:', receiver.fullName);
     setNewMessageReceiver(receiver);
     setShowNewMessageWindow(true);
     
@@ -71,7 +70,6 @@ export default function PublicProfileView({
   };
 
   const handleCloseNewMessage = useCallback(() => {
-    console.log('📝 Closing new message window');
     setShowNewMessageWindow(false);
     setNewMessageReceiver(undefined);
     newMessageOverlay.close();
@@ -95,22 +93,11 @@ export default function PublicProfileView({
       wasOverlayOpenRef.current = true;
     } else if (wasOverlayOpenRef.current && !newMessageOverlay.isOpen && showNewMessageWindow) {
       // Only cleanup if overlay was previously open and is now closed
-      console.log('📝 New message overlay closed externally, cleaning up state');
       setShowNewMessageWindow(false);
       setNewMessageReceiver(undefined);
       wasOverlayOpenRef.current = false;
     }
   }, [newMessageOverlay.isOpen, showNewMessageWindow]);
-
-  // ✅ LAGT TIL: Debug logging for message window state
-  useEffect(() => {
-    console.log('📝 PROFILE Message window state:', {
-      showNewMessageWindow,
-      overlayOpen: newMessageOverlay.isOpen,
-      hasReceiver: !!newMessageReceiver,
-      receiverName: newMessageReceiver?.fullName
-    });
-  }, [showNewMessageWindow, newMessageOverlay.isOpen, newMessageReceiver]);
 
   const refetchProfile = useCallback(async () => {
     if (!initialProfile?.userId || !token) return;

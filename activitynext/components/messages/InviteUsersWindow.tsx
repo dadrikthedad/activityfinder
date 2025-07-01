@@ -40,17 +40,9 @@ export default function InviteUsersWindow({
   
   // Always call hooks - simplified approach
   const [isOpen, setIsOpen] = useState(() => {
-    console.log('👥 OVERLAY InviteUsersWindow initial state:', { useOverlaySystem, willBeOpen: !useOverlaySystem });
     return !useOverlaySystem; // If not using overlay, start open
   });
   const overlay = useOverlay(); // Always call useOverlay - we'll always register for outside click detection
-  console.log('👥 OVERLAY InviteUsersWindow props received:', { 
-    useOverlaySystem, 
-    conversationId, 
-    groupName, 
-    existingParticipantCount: existingParticipants.length,
-    isOpen 
-  });
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -106,11 +98,9 @@ export default function InviteUsersWindow({
   // Auto-open when component mounts (only if using overlay system)
   useEffect(() => {
     if (useOverlaySystem) {
-      console.log('👥 OVERLAY InviteUsersWindow mounting, will use full overlay state management');
       // Component starts with isOpen: true, so overlay.open() will be called in sync effect
     } else {
       // Always register for outside click detection, even when not using overlay state management
-      console.log('👥 OVERLAY InviteUsersWindow mounting without overlay state management, but registering for outside clicks');
       overlay.open(); // Register as level, but don't use state management
     }
   }, [useOverlaySystem, overlay]);
@@ -120,22 +110,18 @@ export default function InviteUsersWindow({
     if (!useOverlaySystem) return;
     
     if (isOpen && !overlay.isOpen) {
-      console.log('👥 OVERLAY InviteUsersWindow opening overlay');
       overlay.open();
     } else if (!isOpen && overlay.isOpen) {
-      console.log('👥 OVERLAY InviteUsersWindow closing overlay');
       overlay.close();
     }
   }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
 
   // Always call useOverlayAutoClose to listen for external closing
   useOverlayAutoClose(() => {
-    console.log('👥 OVERLAY InviteUsersWindow auto-close triggered');
     if (useOverlaySystem) {
       setIsOpen(false);
     } else {
       // If not using overlay system, call onClose directly
-      console.log('👥 OVERLAY InviteUsersWindow calling onClose directly');
       onClose();
     }
   }, overlay.level ?? undefined);
@@ -173,7 +159,6 @@ export default function InviteUsersWindow({
 
   // Handle close consistently
   const handleClose = useCallback(() => {
-    console.log('👥 OVERLAY InviteUsersWindow manual close', { useOverlaySystem });
     if (useOverlaySystem) {
       setIsOpen(false);
     } else {
@@ -184,11 +169,8 @@ export default function InviteUsersWindow({
 
   // Auto-close on action completion (only if using overlay system)
   useEffect(() => {
-    console.log('👥 OVERLAY InviteUsersWindow effect check:', { useOverlaySystem, isOpen, shouldTriggerClose: useOverlaySystem && !isOpen });
-    
     // Only trigger onClose when overlay system is used AND isOpen becomes false AFTER being true
     if (useOverlaySystem && !isOpen && overlay.level !== null) {
-      console.log('👥 OVERLAY InviteUsersWindow closed via overlay system, calling onClose');
       onClose();
     }
   }, [isOpen, onClose, useOverlaySystem, overlay.level]);
@@ -197,7 +179,6 @@ export default function InviteUsersWindow({
     if (selectedUsers.length === 0) return;
 
     try {
-      console.log('👥 OVERLAY Sending invitations to:', selectedUsers.map(u => u.fullName));
       const response = await sendGroupInvitations({
         conversationId,
         invitedUserIds: selectedUsers.map(u => u.id)
@@ -215,7 +196,6 @@ export default function InviteUsersWindow({
 
   // Conditional rendering based on local state (or always render if not using overlay)
   if (useOverlaySystem && !isOpen) {
-    console.log('👥 OVERLAY InviteUsersWindow not rendering due to isOpen=false');
     return null;
   }
 
