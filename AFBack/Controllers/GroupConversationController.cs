@@ -553,12 +553,6 @@ public class GroupConversationController : BaseController
     {
         try
         {
-            // Lag systemmelding (for historikk før sletting)
-            await _messageNotificationService.CreateSystemMessageAsync(
-                conversation.Id,
-                $"Group '{conversation.GroupName}' has been disbanded - all members left"
-            );
-
             // Send disbanded notifikasjoner til alle pending brukere
             foreach (var userId in pendingUserIds)
             {
