@@ -9,6 +9,7 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
 import { useLeaveGroup } from "@/hooks/messages/useLeaveGroup";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 interface UseUserActionPopoverProps {
   user: UserSummaryDTO;
@@ -42,25 +43,28 @@ export function useUserActionPopover({
   const { userId: currentUserId } = useAuth();
   const { closeAllLevels } = useOverlayLayer();
 
-  // ✅ Always call hooks - React requires consistent hook order
+  // Always call hooks - React requires consistent hook order
   const confirmRemoveResult = useConfirmRemoveFriend();
   const friendResult = useFriendWith(user.id);
   const { leaveGroupMutation, isLeavingGroup, error: leaveGroupError } = useLeaveGroup()
   
-  // ✅ Use results conditionally, not the hooks themselves
-  const { confirmAndRemove, ConfirmDialog } = (isSimplified || isNested)
+  // Use results conditionally, not the hooks themselves
+  const { confirmAndRemove, ConfirmDialog: RemoveFriendConfirmDialog } = (isSimplified || isNested)
     ? { confirmAndRemove: () => Promise.resolve(), ConfirmDialog: () => null }
     : confirmRemoveResult;
+
+  const { confirm, ConfirmDialog: LeaveGroupConfirmDialog } = useConfirmDialog();
+  
   
   const { isFriend, loading: isFriendLoading } = (isSimplified || isNested)
     ? { isFriend: false, loading: false }
     : friendResult;
 
-  // ✅ Overlay hooks for additional windows (only in full mode)
+  // Overlay hooks for additional windows (only in full mode)
   const newMessageOverlay = useOverlay();
   const inviteUsersOverlay = useOverlay();
 
-  // ✅ State for additional windows
+  // State for additional windows
   const [showNewMessageWindow, setShowNewMessageWindow] = useState(false);
   const [newMessageInitialReceiver, setNewMessageInitialReceiver] = useState<UserSummaryDTO | undefined>();
   const [showInviteUsersWindow, setShowInviteUsersWindow] = useState(false);
@@ -107,14 +111,36 @@ export function useUserActionPopover({
   ]);
 
   const handleLeaveGroup = useCallback(async () => {
-    console.log('🚪 Leaving group:', conversationId);
+    console.log('🚪 Attempting to leave group:', conversationId);
     
     if (!conversationId) {
       console.error('❌ Cannot leave group: No conversationId provided');
       return;
     }
 
+    // Show confirmation dialog
+    const displayGroupName = user.fullName || "this group";
+    const confirmed = await confirm({
+      title: "Leave Group",
+      message: (
+        <span>
+          Are you sure you want to leave{" "}
+          <span className="font-semibold italic text-base md:text-lg">
+            {displayGroupName}
+          </span>
+          ? You will no longer receive messages from this group.
+        </span>
+      ),
+    });
+
+    if (!confirmed) {
+      console.log('🚪 Leave group cancelled by user');
+      return;
+    }
+
     try {
+      console.log('🚪 Proceeding to leave group:', conversationId);
+      
       // Call the leave group API
       await leaveGroupMutation(conversationId);
       
@@ -131,7 +157,7 @@ export function useUserActionPopover({
       console.error('❌ Failed to leave group:', error);
       // Error is already handled by useLeaveGroup hook (toast notification)
     }
-  }, [conversationId, leaveGroupMutation, onLeaveGroup, handleClose]);
+  }, [conversationId, user.fullName, confirm, leaveGroupMutation, onLeaveGroup, handleClose]);
 
   //  Friend-related handlers (only for non-simplified mode)
   const handleRemoveFriend = useCallback(async () => {
@@ -187,7 +213,7 @@ export function useUserActionPopover({
     }
   }, [isSimplified, newMessageOverlay, handleClose]);
 
-  // ✅ New message window handlers (only for full mode)
+  // New message window handlers (only for full mode)
   const handleCloseNewMessageWindow = useCallback(() => {
     if (isSimplified || isNested) return;
     
@@ -207,7 +233,7 @@ export function useUserActionPopover({
     handleCloseNewMessageWindow();
   }, [handleCloseNewMessageWindow]);
 
-  // ✅ Invite users handlers (only for full mode)
+  // Invite users handlers (only for full mode)
   const handleOpenInviteWindow = useCallback(() => {
     if (isSimplified || isNested) return;
     
@@ -232,13 +258,13 @@ export function useUserActionPopover({
     handleCloseInviteWindow();
   }, [handleCloseInviteWindow]);
 
-  // ✅ Placeholder for nested popover handling
+  // Placeholder for nested popover handling
   const handleShowUserPopover = useCallback((targetUser: UserSummaryDTO) => {
     console.log('👥 UserActionPopover handleShowUserPopover called for:', targetUser.fullName);
     // This should be handled by the parent component
   }, []);
 
-  // ✅ Debug logging (only for full mode)
+  // Debug logging (only for full mode)
   useEffect(() => {
     if (isSimplified || isNested) return;
     
@@ -260,7 +286,13 @@ export function useUserActionPopover({
     });
   }, [showInviteUsersWindow, inviteUsersOverlay.isOpen, user.fullName, isSimplified, isNested]);
 
-  // ✅ Return everything - components can pick what they need
+   const CombinedConfirmDialogs = useCallback(() => (
+    <>
+      {!isSimplified && !isNested && <RemoveFriendConfirmDialog />}
+      <LeaveGroupConfirmDialog />
+    </>
+  ), [isSimplified, isNested, RemoveFriendConfirmDialog, LeaveGroupConfirmDialog]);
+
   return {
     // Core properties
     isOwner,
@@ -295,7 +327,7 @@ export function useUserActionPopover({
     handleInvitesSent,
 
     // Components
-    ConfirmDialog,
+    ConfirmDialog: CombinedConfirmDialogs,
 
     // Nested handling
     handleSendMessageFromNested: handleSendMessageToUserWrapper
