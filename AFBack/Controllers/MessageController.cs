@@ -17,12 +17,18 @@ public class MessagesController : BaseController
     private readonly IMessageService _messageService;
     private readonly IFileService _fileService;
     private readonly ApplicationDbContext _context;
+    private readonly MessageNotificationService _messageNotificationService;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public MessagesController(ApplicationDbContext context, IMessageService messageService, IFileService fileService)
+    public MessagesController(ApplicationDbContext context, IMessageService messageService, IFileService fileService, MessageNotificationService messageNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _messageService = messageService;
+        _taskQueue = taskQueue;
         _fileService = fileService;
+        _messageNotificationService = messageNotificationService;
+        _scopeFactory = scopeFactory;
     }
 
     [HttpPost]
@@ -207,9 +213,8 @@ public class MessagesController : BaseController
         }
     }
     
-    // Avslå venneforespørsel
     [HttpPost("reject-request")]
-    public async Task<IActionResult> RejectMessageRequest([FromBody] int senderId)
+    public async Task<IActionResult> RejectRequest([FromBody] RejectRequestDTO request)
     {
         var receiverId = GetUserId();
         if (receiverId == null)
@@ -217,25 +222,91 @@ public class MessagesController : BaseController
 
         try
         {
-            var request = await _context.MessageRequests
-                .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && r.SenderId == senderId);
-
-            if (request == null)
-                return NotFound(new { message = "Forespørselen finnes ikke." });
-
-            if (request.IsAccepted)
-                return BadRequest(new { message = "Forespørselen er allerede godkjent." });
-
-            request.IsRejected = true;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Forespørsel avslått." });
+            // 🆕 Sjekk om det er en GroupRequest
+            if (request.ConversationId.HasValue)
+            {
+                return await RejectGroupRequestAsync(receiverId.Value, request.SenderId, request.ConversationId.Value);
+            }
+            return await RejectMessageRequestAsync(receiverId.Value, request.SenderId);
         }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    // 🆕 Ny metode for å avslå GroupRequest
+    private async Task<IActionResult> RejectGroupRequestAsync(int receiverId, int senderId, int conversationId)
+    {
+        var groupRequest = await _context.GroupRequests
+            .FirstOrDefaultAsync(gr => gr.ReceiverId == receiverId && 
+                                       gr.SenderId == senderId && 
+                                       gr.ConversationId == conversationId &&
+                                       gr.Status == GroupRequestStatus.Pending);
+
+        if (groupRequest == null)
+            return NotFound(new { message = "Gruppeforespørselen finnes ikke eller er allerede behandlet." });
+
+        // 1️⃣ Endre status til Rejected
+        groupRequest.Status = GroupRequestStatus.Rejected;
+
+        // 2️⃣ Fjern bruker fra participants 
+        var participant = await _context.ConversationParticipants
+            .FirstOrDefaultAsync(cp => cp.ConversationId == conversationId && cp.UserId == receiverId);
+
+        if (participant != null)
+        {
+            _context.ConversationParticipants.Remove(participant);
+        }
+
+        await _context.SaveChangesAsync();
+
+        // 3️⃣ Lag systemmelding for avslåing (valgfritt)
+        var user = await _context.Users
+            .Where(u => u.Id == receiverId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync();
+
+        if (!string.IsNullOrEmpty(user))
+        {
+            await _messageNotificationService.CreateSystemMessageAsync(conversationId,
+            $"{user} has left the conversation"
+                );
+        }
+        
+        _taskQueue.QueueAsync(async () =>
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
+    
+            await groupNotifSvc.CreateGroupEventAsync(
+                GroupEventType.MemberLeft,
+                conversationId,
+                receiverId, // ActorUserId - den som forlot
+                new List<int> { receiverId } // AffectedUsers - den som forlot
+            );
+        });
+
+        return Ok(new { message = "Gruppeforespørsel avslått." });
+    }
+
+    // 🔄 Eksisterende metode for MessageRequest (uten endringer)
+    private async Task<IActionResult> RejectMessageRequestAsync(int receiverId, int senderId)
+    {
+        var request = await _context.MessageRequests
+            .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && r.SenderId == senderId);
+
+        if (request == null)
+            return NotFound(new { message = "Forespørselen finnes ikke." });
+
+        if (request.IsAccepted)
+            return BadRequest(new { message = "Forespørselen er allerede godkjent." });
+
+        request.IsRejected = true;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new { message = "Forespørsel avslått." });
     }
     
     [HttpDelete("{messageId}")]
