@@ -420,7 +420,9 @@ public class GroupConversationController : BaseController
 
             if (participant == null)
                 return BadRequest(new { message = "Du er ikke medlem av denne gruppen." });
-
+            
+            bool wasCreator = conversation.CreatorId == userId.Value;
+            
             // 3️⃣ Håndter creator som forlater (tildel ny creator)
             if (conversation.CreatorId == userId.Value)
             {
@@ -463,10 +465,13 @@ public class GroupConversationController : BaseController
                 .FirstOrDefaultAsync();
 
             // 8️⃣ Lag systemmelding
-            await _messageNotificationService.CreateSystemMessageAsync(
-                conversationId,
-                $"{user} has left the conversation"
-            );
+            if (!wasCreator)
+            {
+                await _messageNotificationService.CreateSystemMessageAsync(
+                    conversationId,
+                    $"{user} has left the conversation"
+                );
+            }
 
             // 9️⃣ Opprett GroupEvent for å notifisere gjenværende medlemmer
             _taskQueue.QueueAsync(async () =>
@@ -493,6 +498,12 @@ public class GroupConversationController : BaseController
     // 🆕 Oppdatert hjelpemetode for creator-overføring
     private async Task HandleCreatorLeavingAsync(Conversation conversation, int creatorId)
     {
+        // Hent creator navn først
+        var creatorUser = await _context.Users
+            .Where(u => u.Id == creatorId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync();
+        
         // Finn en ny creator blant gjenværende godkjente medlemmer
         var approvedMemberIds = await _context.ConversationParticipants
             .Where(cp => cp.ConversationId == conversation.Id && cp.UserId != creatorId)
@@ -521,7 +532,7 @@ public class GroupConversationController : BaseController
 
             await _messageNotificationService.CreateSystemMessageAsync(
                 conversation.Id,
-                $"{newCreatorUser} is now the group admin"
+                $"{creatorUser} has left the conversation\n{newCreatorUser} is now the group admin"
             );
         }
         else
