@@ -18,6 +18,9 @@ public class ConversationDTO
 
     private bool HasUnreadMessages { get; set; } // For å se om vi har uleste meldinger her
     
-    public bool IsPendingApproval { get; set; } 
+    public bool IsPendingApproval { get; set; }
 
+    public bool Disbanded { get; set; } = false;
+    
+    public DateTime? DisbandedAt { get; set; }
 }

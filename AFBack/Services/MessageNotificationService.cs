@@ -515,6 +515,10 @@ public class MessageNotificationService
             case NotificationType.GroupRequest: 
                 preview = $"invited you to join \"{n.Conversation?.GroupName}\"";
                 break;
+            
+            case NotificationType.GroupDisbanded:
+                preview = $"Group \"{n.Conversation?.GroupName}\" has been disbanded";
+                break;
 
             case NotificationType.MessageReaction:
                 preview = n.Message?.Text?.Length > 40

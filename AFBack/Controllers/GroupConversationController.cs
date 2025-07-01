@@ -246,8 +246,20 @@ public class GroupConversationController : BaseController
             ConversationId = newConversation.Id,
             UserId = senderId,
         };
-
         _context.ConversationParticipants.Add(creatorParticipant);
+        
+        var creatorRequest = new GroupRequest
+        {
+            SenderId = senderId,
+            ReceiverId = senderId,
+            ConversationId = newConversation.Id,
+            Status = GroupRequestStatus.Creator,
+            RequestedAt = DateTime.UtcNow,
+            IsRead = true
+        };
+        _context.GroupRequests.Add(creatorRequest);
+
+       
         await _context.SaveChangesAsync();
         
         // 1️⃣ Hent creator navn
@@ -384,6 +396,340 @@ public class GroupConversationController : BaseController
             }
         }
     }
+    
+    [HttpPost("leave-group")]
+    public async Task<IActionResult> LeaveGroupAsync([FromBody] int conversationId)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        try
+        {
+            // 1️⃣ Valider at gruppen finnes
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
+
+            if (conversation == null)
+                return NotFound(new { message = "Gruppen finnes ikke." });
+
+            // 2️⃣ Sjekk at brukeren er medlem av gruppen
+            var participant = conversation.Participants
+                .FirstOrDefault(p => p.UserId == userId.Value);
+
+            if (participant == null)
+                return BadRequest(new { message = "Du er ikke medlem av denne gruppen." });
+
+            // 3️⃣ Håndter creator som forlater (tildel ny creator)
+            if (conversation.CreatorId == userId.Value)
+            {
+                await HandleCreatorLeavingAsync(conversation, userId.Value);
+            }
+
+            // 4️⃣ Fjern bruker fra participants
+            _context.ConversationParticipants.Remove(participant);
+
+            // 5️⃣ Sett brukerens GroupRequest til Rejected
+            var userGroupRequest = await _context.GroupRequests
+                .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId.Value);
+
+            if (userGroupRequest != null)
+            {
+                userGroupRequest.Status = GroupRequestStatus.Rejected;
+                userGroupRequest.IsRead = true; // 🆕 Marker som lest
+            }
+
+            // 🆕 6️⃣ Marker relaterte MessageNotifications som lest
+            var relatedNotifications = await _context.MessageNotifications
+                .Where(n => n.UserId == userId.Value && 
+                            n.ConversationId == conversationId && 
+                            (n.Type == NotificationType.GroupRequest || n.Type == NotificationType.GroupEvent) &&
+                            !n.IsRead)
+                .ToListAsync();
+
+            foreach (var notification in relatedNotifications)
+            {
+                notification.IsRead = true;
+                notification.ReadAt = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+
+            // 7️⃣ Hent bruker-navn for systemmelding
+            var user = await _context.Users
+                .Where(u => u.Id == userId.Value)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync();
+
+            // 8️⃣ Lag systemmelding
+            await _messageNotificationService.CreateSystemMessageAsync(
+                conversationId,
+                $"{user} has left the conversation"
+            );
+
+            // 9️⃣ Opprett GroupEvent for å notifisere gjenværende medlemmer
+            _taskQueue.QueueAsync(async () =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
+                
+                await groupNotifSvc.CreateGroupEventAsync(
+                    GroupEventType.MemberLeft,
+                    conversationId,
+                    userId.Value, // ActorUserId - den som forlot
+                    new List<int> { userId.Value } // AffectedUsers - den som forlot
+                );
+            });
+
+            return Ok(new { message = "Du har forlatt gruppen." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+    
+    // 🆕 Oppdatert hjelpemetode for creator-overføring
+    private async Task HandleCreatorLeavingAsync(Conversation conversation, int creatorId)
+    {
+        // Finn en ny creator blant gjenværende godkjente medlemmer
+        var approvedMemberIds = await _context.ConversationParticipants
+            .Where(cp => cp.ConversationId == conversation.Id && cp.UserId != creatorId)
+            .Select(cp => cp.UserId)
+            .ToListAsync();
+
+        // Filtrer bort pending medlemmer
+        var pendingUserIds = await _context.GroupRequests
+            .Where(gr => gr.ConversationId == conversation.Id && gr.Status == GroupRequestStatus.Pending)
+            .Select(gr => gr.ReceiverId)
+            .ToListAsync();
+
+        var eligibleMembers = approvedMemberIds.Where(id => !pendingUserIds.Contains(id)).ToList();
+
+        if (eligibleMembers.Any())
+        {
+            // Velg den første godkjente medlemmet som ny creator
+            var newCreatorId = eligibleMembers.First();
+            conversation.CreatorId = newCreatorId;
+
+            // Lag systemmelding om ny creator
+            var newCreatorUser = await _context.Users
+                .Where(u => u.Id == newCreatorId)
+                .Select(u => u.FullName)
+                .FirstOrDefaultAsync();
+
+            await _messageNotificationService.CreateSystemMessageAsync(
+                conversation.Id,
+                $"{newCreatorUser} is now the group admin"
+            );
+        }
+        else
+        {
+            // 🆕 Sjekk om det finnes pending invitasjoner
+            var hasPendingInvites = pendingUserIds.Any();
+            
+            if (hasPendingInvites)
+            {
+                // 🆕 Disbanded gruppe - notifiser pending brukere først
+                Console.WriteLine($"💥 Disbanding gruppe {conversation.Id} '{conversation.GroupName}' - {pendingUserIds.Count} pending invitasjoner kanselleres");
+                
+                // Send disbanded notifikasjoner til alle pending brukere
+                await NotifyGroupDisbandedAsync(conversation, pendingUserIds);
+                
+                // Slett gruppen etter notifikasjoner er sendt
+                await MarkGroupAsDisbandedAsync(conversation);
+            }
+            else
+            {
+                // Ingen medlemmer og ingen pending invitasjoner - slett stille
+                await MarkGroupAsDisbandedAsync(conversation);
+            }
+        }
+    }
+
+    // 🆕 Ny metode for å notifisere om disbanded gruppe
+    private async Task NotifyGroupDisbandedAsync(Conversation conversation, List<int> pendingUserIds)
+    {
+        try
+        {
+            // Lag systemmelding (for historikk før sletting)
+            await _messageNotificationService.CreateSystemMessageAsync(
+                conversation.Id,
+                $"Group '{conversation.GroupName}' has been disbanded - all members left"
+            );
+
+            // Send disbanded notifikasjoner til alle pending brukere
+            foreach (var userId in pendingUserIds)
+            {
+                try
+                {
+                    // Opprett disbanded notifikasjon
+                    var notification = new MessageNotification
+                    {
+                        UserId = userId,
+                        ConversationId = conversation.Id,
+                        Type = NotificationType.GroupDisbanded,
+                        CreatedAt = DateTime.UtcNow,
+                        IsRead = false,
+                        MessageCount = 1
+                    };
+
+                    _context.MessageNotifications.Add(notification);
+                    await _context.SaveChangesAsync(); // Lagre for å få ID
+
+                    // 🆕 Send SignalR om disbanded gruppe
+                    await _hubContext.Clients.User(userId.ToString())
+                        .SendAsync("GroupDisbanded", new GroupDisbandedDto
+                        {
+                            ConversationId = conversation.Id,
+                            GroupName = conversation.GroupName,
+                            GroupImageUrl = conversation.GroupImageUrl,
+                            DisbandedAt = DateTime.UtcNow,
+                            Notification = new MessageNotificationDTO
+                            {
+                                Id = notification.Id,
+                                Type = NotificationType.GroupDisbanded,
+                                ConversationId = conversation.Id,
+                                GroupName = conversation.GroupName,
+                                GroupImageUrl = conversation.GroupImageUrl,
+                                MessagePreview = $"Group '{conversation.GroupName}' has been disbanded",
+                                CreatedAt = notification.CreatedAt,
+                                IsRead = false,
+                                IsConversationRejected = true // 🆕 Marker som rejected/disbanded
+                            }
+                        });
+
+                    Console.WriteLine($"📨 Sent disbanded notification to user {userId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ Failed to notify user {userId} about disbanded group: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Feil ved disbanded notifikasjoner for gruppe {conversation.Id}: {ex.Message}");
+        }
+    }
+    
+    private async Task MarkGroupAsDisbandedAsync(Conversation conversation)
+    {
+        try
+        {
+            Console.WriteLine($"💥 Markerer gruppe {conversation.Id} '{conversation.GroupName}' som disbanded");
+
+            // Marker conversation som disbanded
+            conversation.IsDisbanded = true;
+            conversation.DisbandedAt = DateTime.UtcNow;
+
+            // Sett alle GroupRequests til Rejected
+            var groupRequests = await _context.GroupRequests
+                .Where(gr => gr.ConversationId == conversation.Id)
+                .ToListAsync();
+
+            foreach (var request in groupRequests)
+            {
+                request.Status = GroupRequestStatus.Rejected;
+            }
+
+            // Fjern alle participants (de har allerede forlatt)
+            var participants = await _context.ConversationParticipants
+                .Where(cp => cp.ConversationId == conversation.Id)
+                .ToListAsync();
+            _context.ConversationParticipants.RemoveRange(participants);
+
+            Console.WriteLine($"✅ Gruppe {conversation.Id} markert som disbanded - bevares i 30 dager");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Feil ved markering av disbanded gruppe {conversation.Id}: {ex.Message}");
+            throw;
+        }
+    }
+    
+    // Sletting av en gruppesamtale ikke i bruk atm
+    private async Task DeleteEmptyGroupAsync(Conversation conversation)
+    {
+        try
+        {
+            Console.WriteLine($"🗑️ Sletter tom gruppe {conversation.Id} '{conversation.GroupName}'");
+
+            // 1️⃣ Slett i riktig rekkefølge (foreign keys)
+            
+            // Slett GroupEventAffectedUsers først
+            var affectedUsers = await _context.GroupEventAffectedUsers
+                .Where(geau => _context.GroupEvents
+                    .Where(ge => ge.ConversationId == conversation.Id)
+                    .Select(ge => ge.Id)
+                    .Contains(geau.GroupEventId))
+                .ToListAsync();
+            _context.GroupEventAffectedUsers.RemoveRange(affectedUsers);
+
+            // Slett MessageNotificationGroupEvents
+            var notificationGroupEvents = await _context.MessageNotificationGroupEvents
+                .Where(mnge => _context.GroupEvents
+                    .Where(ge => ge.ConversationId == conversation.Id)
+                    .Select(ge => ge.Id)
+                    .Contains(mnge.GroupEventId))
+                .ToListAsync();
+            _context.MessageNotificationGroupEvents.RemoveRange(notificationGroupEvents);
+
+            // Slett GroupEvents
+            var groupEvents = await _context.GroupEvents
+                .Where(ge => ge.ConversationId == conversation.Id)
+                .ToListAsync();
+            _context.GroupEvents.RemoveRange(groupEvents);
+
+            // Slett Reactions (foreign key til Messages)
+            var reactions = await _context.Reactions
+                .Where(r => _context.Messages
+                    .Where(m => m.ConversationId == conversation.Id)
+                    .Select(m => m.Id)
+                    .Contains(r.MessageId))
+                .ToListAsync();
+            _context.Reactions.RemoveRange(reactions);
+
+            // Slett MessageAttachments
+            var attachments = await _context.MessageAttachments
+                .Where(ma => _context.Messages
+                    .Where(m => m.ConversationId == conversation.Id)
+                    .Select(m => m.Id)
+                    .Contains(ma.MessageId))
+                .ToListAsync();
+            _context.MessageAttachments.RemoveRange(attachments);
+
+            // Slett Messages
+            var messages = await _context.Messages
+                .Where(m => m.ConversationId == conversation.Id)
+                .ToListAsync();
+            _context.Messages.RemoveRange(messages);
+
+            // Slett GroupRequests
+            var groupRequests = await _context.GroupRequests
+                .Where(gr => gr.ConversationId == conversation.Id)
+                .ToListAsync();
+            _context.GroupRequests.RemoveRange(groupRequests);
+
+            // Slett ConversationParticipants
+            var participants = await _context.ConversationParticipants
+                .Where(cp => cp.ConversationId == conversation.Id)
+                .ToListAsync();
+            _context.ConversationParticipants.RemoveRange(participants);
+
+            // Slett Conversation sist
+            _context.Conversations.Remove(conversation);
+
+            // Log statistikk
+            Console.WriteLine($"✅ Slettet gruppe {conversation.Id}: {messages.Count} meldinger, {groupRequests.Count} forespørsler");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Feil ved sletting av gruppe {conversation.Id}: {ex.Message}");
+            throw; // Re-throw for å stoppe transaksjonen
+        }
+    }
         
 }
 
@@ -412,18 +758,4 @@ public class SendGroupRequestsResponseDTO
     public bool IsNewConversation { get; set; }
     public int InvitationsSent { get; set; }
     public int TotalRequestedUsers { get; set; }
-}
-
-// 🆕 Ny DTO for å varsle eksisterende gruppemedlemmer
-public class GroupMemberInvitedDto
-{
-    public int ConversationId { get; set; }
-    public int InviterUserId { get; set; }
-    public string InviterName { get; set; } = string.Empty;
-    public List<int> InvitedUserIds { get; set; } = new();
-    public List<string> InvitedUserNames { get; set; } = new();
-    public DateTime InvitedAt { get; set; }
-    public MessageNotificationDTO? Notification { get; set; }
-    
-    public bool? IsSilent { get; set; }
 }
