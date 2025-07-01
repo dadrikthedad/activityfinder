@@ -1,12 +1,11 @@
 // InviteUsersWindow.tsx - Overlay-based window for inviting users to groups
 "use client";
 
-import { useUserSearch } from "@/hooks/useUserSearch";
+import { useUserSearchForGroupInvite } from "@/hooks/search/useUserSearchForGroupInvite";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Card from "../common/Card";
 import MiniAvatar from "../common/MiniAvatar";
-import { useAuth } from "@/context/AuthContext";
 import OverflowDropdown from "./NewMessageDropdown";
 import { useKeyboardNavigableList } from "@/hooks/mouseAndKeyboard/useKeyboardForDropdown";
 import ProfileNavButton from "../settings/ProfileNavButton";
@@ -35,9 +34,8 @@ export default function InviteUsersWindow({
   useOverlaySystem = true // Default to true for backwards compatibility
 }: InviteUsersWindowProps) {
   
-  const { query, setQuery, results, loading } = useUserSearch();
+  const { query, setQuery, results, loading } = useUserSearchForGroupInvite(conversationId);
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
-  const { userId } = useAuth();
   const { sendGroupInvitations, isLoading, error } = useGroupRequests();
   
   // Always call hooks - simplified approach
@@ -71,18 +69,13 @@ export default function InviteUsersWindow({
     y: initialPosition?.y ?? (window.innerHeight - defaultHeight) / 2,
   }));
 
-  // Filtrer bort current user og eksisterende deltakere
-  const existingParticipantIds = existingParticipants.map(p => p.id);
-  const filteredResults = results.filter(
-    (user) =>
-      user.id !== userId &&
-      !existingParticipantIds.includes(user.id) &&
-      !selectedUsers.some((u) => u.id === user.id)
-  );
-
   const MAX_VISIBLE = 5;
   const visibleUsers = selectedUsers.slice(0, MAX_VISIBLE - 1);
   const overflowUsers = selectedUsers.slice(MAX_VISIBLE - 1);
+
+  const filteredResults = results.filter(
+    (user) => !selectedUsers.some((u) => u.id === user.id)
+  );
   
   const keyboardNav = useKeyboardNavigableList(
     filteredResults,

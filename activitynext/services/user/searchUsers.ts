@@ -14,3 +14,19 @@ export async function searchUsers(query: string): Promise<UserSummaryDTO[]> {
     return [];
   }
 }
+
+export async function searchUsersForGroupInvite(query: string, conversationId: number): Promise<UserSummaryDTO[]> {
+  const url = `${API_BASE_URL}/api/user/search/group-invite/${conversationId}?query=${encodeURIComponent(query)}`;
+  try {
+    const data = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`, // Trengs for tilgangssjekk
+      },
+    });
+    if (!data.ok) throw new Error("Failed to fetch users for group invite");
+    return await data.json();
+  } catch (error) {
+    console.error("❌ Error searching users for group invite:", error);
+    return [];
+  }
+}
