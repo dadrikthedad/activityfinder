@@ -249,6 +249,22 @@ public class GroupNotificationService
 
         var groupName = notification.Conversation?.GroupName ?? "Unknown Group";
         
+        // 🆕 Generer riktig MessagePreview basert på status
+        string messagePreview;
+    
+        if (isRejected)
+        {
+            // For rejected conversations, vis beskrivende tekst
+            messagePreview = $"You left \"{groupName}\"";
+        }
+        else
+        {
+            // Normal preview for aktive conversations
+            messagePreview = (notification.EventCount ?? 0) > 1 
+                ? $"There are {notification.EventCount} new activities in \"{groupName}\""
+                : $"New activity in \"{groupName}\"";
+        }
+        
         return new MessageNotificationDTO
         {
             Id = notification.Id,
@@ -263,9 +279,7 @@ public class GroupNotificationService
             SenderProfileImageUrl = lastEvent?.ActorUser?.Profile?.ProfileImageUrl,
             GroupName = groupName,
             GroupImageUrl = notification.Conversation?.GroupImageUrl,
-            MessagePreview = (notification.EventCount ?? 0) > 1 
-                ? $"There are {notification.EventCount} new activities in \"{groupName}\""
-                : $"New activity in \"{groupName}\"",
+            MessagePreview = messagePreview,
             ReactionEmoji = null,
             MessageCount = notification.EventCount,
             IsConversationRejected = isRejected,
