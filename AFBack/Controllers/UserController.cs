@@ -605,4 +605,48 @@ public class UserController : BaseController
         return Ok(results);
     }
     
+    [HttpGet("search/group-invite/{conversationId}")]
+    public async Task<ActionResult<List<UserSummaryDTO>>> SearchUsersForGroupInvite(
+        [FromRoute] int conversationId,
+        [FromQuery] string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return BadRequest("Query cannot be empty.");
+        }
+
+        var currentUserId = GetUserId();
+    
+        var normalizedQuery = string.Join(" ", query
+            .ToLower()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        var results = await _context.Users
+            .Where(u => 
+                u.FullName.ToLower().Contains(normalizedQuery) &&
+                u.Id != currentUserId &&
+                // Ikke eksisterende deltaker
+                !_context.ConversationParticipants
+                    .Any(cp => cp.ConversationId == conversationId && cp.UserId == u.Id) &&
+                // Ikke rejected eller pending gruppeforespørsel
+                !_context.GroupRequests
+                    .Any(gr => gr.ConversationId == conversationId && 
+                               gr.ReceiverId == u.Id &&
+                               (gr.Status == GroupRequestStatus.Rejected || 
+                                gr.Status == GroupRequestStatus.Pending)) &&
+                // Sjekk at current user har tilgang (sikkerhet)
+                _context.ConversationParticipants
+                    .Any(cp => cp.ConversationId == conversationId && cp.UserId == currentUserId))
+            .Select(u => new UserSummaryDTO
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
+            })
+            .Take(20)
+            .ToListAsync();
+
+        return Ok(results);
+    }
+    
 }

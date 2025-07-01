@@ -364,19 +364,19 @@ export default function MessageList({
 
         // 🆕 Systemmelding - spesiell rendering
         if (msg.isSystemMessage) {
-            return (
-              <div key={msg.id} id={`message-${msg.id}`} className="flex justify-center my-2">
-                <div className="system-message text-center">
-                  <div className="text-gray-600 dark:text-gray-400 text-sm italic">
-                    {msg.text}
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {formatSentDate(msg.sentAt)}
-                  </div>
+          return (
+            <div key={msg.id} id={`message-${msg.id}`} className="flex justify-center my-2">
+              <div className="system-message text-center">
+                <div className="text-gray-600 dark:text-gray-400 text-sm italic whitespace-pre-line">
+                  {msg.text}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {formatSentDate(msg.sentAt)}
                 </div>
               </div>
-            );
-          }
+            </div>
+          );
+      }
   
         return (
             <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
