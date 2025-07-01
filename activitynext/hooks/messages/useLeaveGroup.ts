@@ -14,6 +14,7 @@ export function useLeaveGroup(): UseLeaveGroupReturn {
   const [error, setError] = useState<string | null>(null);
 
   // 🆕 Store actions - samme som useRejectMessageRequest
+  const removeRequest = useChatStore((state) => state.removePendingRequest); 
   const removeConversation = useChatStore((state) => state.removeConversation);
   const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
   const currentConversationId = useChatStore((state) => state.currentConversationId);
@@ -38,6 +39,7 @@ export function useLeaveGroup(): UseLeaveGroupReturn {
       if (result) {
         // 🆕 Oppdater store - samme pattern som reject
         removeConversation(conversationId);
+        removeRequest(conversationId); 
         
         
         

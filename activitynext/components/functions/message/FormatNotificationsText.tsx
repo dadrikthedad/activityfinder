@@ -27,6 +27,14 @@ export function formatNotificationText(n: MessageNotificationDTO): JSX.Element {
             You have left <HighlightedText>{grpName}</HighlightedText>
           </span>
         );
+        case "GroupDisbanded": // 🆕 Ny case
+        case 9:
+          const disbandedGroupName = n.groupName || "a group";
+          return (
+            <span>
+              <HighlightedText>{disbandedGroupName}</HighlightedText> was disbanded
+            </span>
+          );
       case "MessageRequest":
       case 2:
         return plainText("message request (declined)");

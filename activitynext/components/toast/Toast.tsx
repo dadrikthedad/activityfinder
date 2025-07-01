@@ -209,7 +209,7 @@ function NotificationToast({
       case NotificationType.GroupDisbanded: // 🆕 Ny case
       return (
         <>
-          Group {styledGroupName} has been disbanded
+          {styledGroupName} has been disbanded
         </>
       );
       case LocalToastType.FriendInvAccepted:

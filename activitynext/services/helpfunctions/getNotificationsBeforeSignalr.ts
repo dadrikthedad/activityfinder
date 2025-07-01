@@ -3,6 +3,7 @@
 import { getMessageNotifications } from "../messages/messageNotificationService";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { useChatStore } from "@/store/useChatStore";
 
 export async function fetchAndSetMessageNotifications(page = 1, pageSize = 20) {
   const data = await getMessageNotifications(page, pageSize);
@@ -34,9 +35,9 @@ export async function handleIncomingNotification(
   ): Promise<boolean> {
     // 🚫 Ikke håndter reaksjonsnotifikasjoner her – de håndteres i ChatHubClient
     if (notification.type === "MessageReaction") return false;
-    
+  
     let store = useMessageNotificationStore.getState();
-    
+  
     // 🚨 Må hente på nytt etter fetch
     const hasFetchedNewMessageNotifs = store.notifications.some(
       (n) => n.type === "NewMessage"
@@ -46,21 +47,26 @@ export async function handleIncomingNotification(
       // 🧠 Viktig! oppdater snapshot etter async
       store = useMessageNotificationStore.getState();
     }
-    
+  
     const existing = store.notifications.find(
       (n) =>
         n.conversationId === notification.conversationId &&
         n.type === notification.type &&
         !n.isRead
     );
-    
+  
     // Blokker hvis kun nye er tillatt
     if (options?.onlyIfNew && existing) return false;
-    
+  
+    // 🆕 Sjekk om brukeren er i den relevante samtalen for auto-read
+    const { currentConversationId } = useChatStore.getState();
+    const shouldAutoRead = notification.conversationId && 
+                          currentConversationId === notification.conversationId;
+
     // 🆕 Håndter GroupEvent notifikasjoner
     if (notification.type === "GroupEvent" && existing) {
       const eventCount = notification.messageCount ?? notification.eventCount ?? 1;
-      
+    
       // Generer ny messagePreview basert på eventCount
       let newMessagePreview: string;
       if (eventCount > 1) {
@@ -68,31 +74,34 @@ export async function handleIncomingNotification(
       } else {
         newMessagePreview = `New activity in "${notification.groupName}"`;
       }
-      
+    
       const updated: MessageNotificationDTO = {
         ...existing,
-        eventCount: eventCount, // Oppdater eventCount
-        messageCount: eventCount, // Sync med eventCount for konsistens
-        createdAt: notification.lastUpdatedAt || notification.createdAt, // Bruk lastUpdatedAt
+        eventCount: eventCount,
+        messageCount: eventCount,
+        createdAt: notification.lastUpdatedAt || notification.createdAt,
         lastUpdatedAt: notification.lastUpdatedAt,
         messagePreview: newMessagePreview,
-        senderId: notification.senderId, // Oppdater til siste actor
-        senderName: notification.senderName, // Oppdater til siste actor
+        senderId: notification.senderId,
+        senderName: notification.senderName,
         senderProfileImageUrl: notification.senderProfileImageUrl,
-        eventSummaries: notification.eventSummaries, // Oppdater event summaries
+        eventSummaries: notification.eventSummaries,
         latestGroupEventType: notification.latestGroupEventType,
         latestAffectedUsers: notification.latestAffectedUsers,
         isTemporary: existing.isTemporary ?? false,
+        // 🆕 Auto-read hvis brukeren er i samtalen
+        isRead: shouldAutoRead ? true : existing.isRead,
+        readAt: shouldAutoRead && !existing.isRead ? new Date().toISOString() : existing.readAt,
       };
-      
+    
       store.upsertNotification(updated);
       return false;
     }
-    
+  
     // Håndter NewMessage notifikasjoner (eksisterende logikk)
     if (notification.type === "NewMessage" && existing) {
       const count = (existing.messageCount ?? 1) + 1;
-     
+    
       // Generer ny messagePreview basert på count (som backend gjør)
       let newMessagePreview: string;
       if (existing.groupName) {
@@ -102,7 +111,7 @@ export async function handleIncomingNotification(
         // For private: "has sent you X messages"
         newMessagePreview = `has sent you ${count} messages`;
       }
-      
+    
       const updated: MessageNotificationDTO = {
         ...existing,
         messageCount: count,
@@ -112,16 +121,25 @@ export async function handleIncomingNotification(
         senderName: notification.senderName,
         senderProfileImageUrl: notification.senderProfileImageUrl,
         isTemporary: existing.isTemporary ?? false,
+        // 🆕 Auto-read hvis brukeren er i samtalen
+        isRead: shouldAutoRead ? true : existing.isRead,
+        readAt: shouldAutoRead && !existing.isRead ? new Date().toISOString() : existing.readAt,
       };
-     
+    
       store.upsertNotification(updated);
       return false;
     }
+  
+    // 🆕 Ny notification – marker som lest hvis brukeren er i samtalen
+    const finalNotification: MessageNotificationDTO = {
+      ...notification,
+      isRead: shouldAutoRead ? true : notification.isRead,
+      readAt: shouldAutoRead && !notification.isRead ? new Date().toISOString() : notification.readAt,
+    };
     
-    // Ny notification – legg til som ny
-    store.upsertNotification(notification);
+    store.upsertNotification(finalNotification);
     return true;
-}
+  }
 
 export async function handleIncomingReactionNotification(
   notification: MessageNotificationDTO,

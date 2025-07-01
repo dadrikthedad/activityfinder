@@ -22,6 +22,7 @@ import { updateConversationParticipants } from "@/services/helpfunctions/convers
 import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotificationUpdateDTO";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -39,6 +40,10 @@ export default function ChatHubClient() {
     const showMessages = useChatStore.getState().showMessages;
     const removeConversation = useChatStore((state) => state.removeConversation);
     const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
+    const removePendingRequest = useChatStore((state) => state.removePendingRequest);
+    const updateNotificationsForRejectedConversation = useMessageNotificationStore(
+      (state) => state.updateNotificationsForRejectedConversation
+    )
 
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
       const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
@@ -319,11 +324,14 @@ export default function ChatHubClient() {
         
         // Fjern samtalen fra store
         removeConversation(conversationId);
+        removePendingRequest(conversationId); 
         
         // Hvis brukeren er i den disbanded samtalen, naviger bort
         if (currentConversationId === conversationId) {
           setCurrentConversationId(null);
         }
+
+        updateNotificationsForRejectedConversation(conversationId);
         
         // Oppdater notification hvis den finnes
         if (notification) {
