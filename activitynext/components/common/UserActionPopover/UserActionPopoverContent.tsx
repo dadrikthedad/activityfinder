@@ -25,6 +25,7 @@ interface Props {
   onSendMessageFromNested?: (user: UserSummaryDTO) => void;
   // ✅ NEW: Handler for opening invite users window
   onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
+  isLeavingGroup?: boolean;
 }
 
 export default function UserActionPopoverContent({
@@ -41,8 +42,9 @@ export default function UserActionPopoverContent({
   onLeaveGroup,
   onShowUserPopover,
   isPendingRequest = false,
-  onSendMessageFromNested, // ✅ NEW prop
-  onOpenInviteWindow, // ✅ NEW prop
+  onSendMessageFromNested,
+  onOpenInviteWindow,
+  isLeavingGroup,
 }: Props) {
   
   // ✅ FIXED: Handler for showing user popover - should NOT automatically send message
@@ -103,10 +105,15 @@ export default function UserActionPopoverContent({
                 {/* Leave Group button - show only if NOT pending request */}
                 {onLeaveGroup && !isPendingRequest && (
                   <ProfileNavButton
-                    text="Leave Group"
+                    text={isLeavingGroup ? "Leaving..." : "Leave Group"} // 🆕 Dynamic text
                     onClick={onLeaveGroup}
                     variant="small"
-                    className="bg-gray-500 hover:bg-gray-600 text-white"
+                    className={`text-white ${
+                      isLeavingGroup 
+                        ? 'bg-gray-400 cursor-not-allowed' // 🆕 Disabled state
+                        : 'bg-gray-500 hover:bg-gray-600' // Normal state
+                    }`}
+                    disabled={isLeavingGroup} // 🆕 Disable when loading
                   />
                 )}
               </>

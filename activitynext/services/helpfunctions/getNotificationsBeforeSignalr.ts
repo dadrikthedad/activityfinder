@@ -118,9 +118,6 @@ export async function handleIncomingNotification(
       return false;
     }
     
-    // ❌ Fjernet: Håndtering av GroupRequestApproved og GroupRequestInvited
-    // Disse håndteres nå av GroupEvent notifikasjoner
-    
     // Ny notification – legg til som ny
     store.upsertNotification(notification);
     return true;

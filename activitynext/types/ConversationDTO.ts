@@ -7,9 +7,12 @@ import { UserSummaryDTO } from "./UserSummaryDTO";
     isGroup: boolean;
     groupImageUrl?: string;
     lastMessageSentAt?: string;
+    creatorId?: number;
     participants: UserSummaryDTO[];
     isPendingApproval: boolean;
     isApproved?: boolean;
+    disbanded?: boolean;
+    disbandedAt?: string;
   }
   
   export interface PagedConversationsResponseDTO {

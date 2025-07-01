@@ -9,6 +9,7 @@ import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO } from "@/types/GroupNotificationUpdateDTO";
+import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 
 
 
@@ -18,7 +19,8 @@ export function useChatHub(
   onRequestApproved?: (notification: MessageNotificationDTO) => void,
   onRequestCreated?: (data: MessageRequestCreatedDto) => void,
   onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void,
-  onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void
+  onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void,
+  onGroupDisbanded?: (data: GroupDisbandedDto) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -28,6 +30,7 @@ export function useChatHub(
   const createdRef = useRef(onRequestCreated);
   const groupRequestCreatedRef = useRef(onGroupRequestCreated);
   const groupNotificationUpdatedRef = useRef(onGroupNotificationUpdated);
+  const groupDisbandedRef = useRef(onGroupDisbanded);
 
    // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
@@ -38,6 +41,7 @@ export function useChatHub(
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
   useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
   useEffect(() => { groupNotificationUpdatedRef.current = onGroupNotificationUpdated }, [onGroupNotificationUpdated]);
+  useEffect(() => { groupDisbandedRef.current = onGroupDisbanded }, [onGroupDisbanded]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -124,6 +128,14 @@ export function useChatHub(
             // Send videre til frontend-logikk
             groupNotificationUpdatedRef.current?.(data);
           });
+
+           conn.on("GroupDisbanded", (data: GroupDisbandedDto) => { // 🆕
+              console.log("💥 Group disbanded via SignalR:", data);
+              groupDisbandedRef.current?.(data);
+            });
+            
+
+          
 
         } catch (err) {
           console.error("❌ SignalR Connection Error:", err);

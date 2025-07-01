@@ -20,3 +20,16 @@ export async function sendGroupRequests(
   });
 }
 
+export async function leaveGroup(conversationId: number): Promise<{ message: string } | null> {
+  const url = `${API_BASE_URL}/api/groupconversation/leave-group`;
+ 
+  console.log("🔴 Forlater gruppe:", url, { conversationId });
+ 
+  return await fetchWithAuth<{ message: string }>(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(conversationId), // Backend forventer bare int som body
+  });
+}

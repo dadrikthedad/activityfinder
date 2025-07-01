@@ -21,6 +21,7 @@ import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 import { updateConversationParticipants } from "@/services/helpfunctions/conversationUpdateSerivce";
 import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotificationUpdateDTO";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -36,6 +37,8 @@ export default function ChatHubClient() {
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const { syncPendingConversation } = usePendingConversationSync();
     const showMessages = useChatStore.getState().showMessages;
+    const removeConversation = useChatStore((state) => state.removeConversation);
+    const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
 
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
       const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
@@ -309,12 +312,38 @@ export default function ChatHubClient() {
             });
           }
         }
+      },
+        async (data: GroupDisbandedDto) => {
+        console.log("💥 Gruppe disbanded via SignalR:", data);
+        const { conversationId, groupName, notification } = data;
+        
+        // Fjern samtalen fra store
+        removeConversation(conversationId);
+        
+        // Hvis brukeren er i den disbanded samtalen, naviger bort
+        if (currentConversationId === conversationId) {
+          setCurrentConversationId(null);
+        }
+        
+        // Oppdater notification hvis den finnes
+        if (notification) {
+          await handleIncomingNotification(notification);
+          
+          // Vis toast om disbanded gruppe
+          showNotificationToast({
+            senderName: "System",
+            messagePreview: `Group "${groupName}" has been disbanded`,
+            type: NotificationType.GroupDisbanded,
+            conversationId,
+            groupName: groupName,
+          });
+        }
+        
+        console.log(`✅ Fjernet disbanded gruppe ${conversationId} fra store`);
       }
+    );
 
-
-
-
-  );
+  
 
   return null; // Kun sideeffekter
 }

@@ -18,6 +18,15 @@ export function formatNotificationText(n: MessageNotificationDTO): JSX.Element {
             invited you to <HighlightedText>{groupName}</HighlightedText> (conversation declined)
           </span>
         );
+      case "GroupEvent":
+      case 8:
+        // 🆕 Spesiell handling for gruppeforespørsel
+        const grpName = n.groupName || "a group";
+        return (
+          <span>
+            You have left <HighlightedText>{grpName}</HighlightedText>
+          </span>
+        );
       case "MessageRequest":
       case 2:
         return plainText("message request (declined)");

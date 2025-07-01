@@ -48,6 +48,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     isOwner,
     isFriend,
     isFriendLoading,
+    isLeavingGroup,
     handleVisitProfile,
     handleClose,
     handleLeaveGroup,
@@ -95,6 +96,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           isOwner={isOwner}
           isFriend={!!isFriend}
           isFriendLoading={isFriendLoading}
+          isLeavingGroup={isLeavingGroup}
           onVisitProfile={handleVisitProfile}
           onSendMessage={handleSendMessage}
           onRemoveFriend={handleRemove}

@@ -8,6 +8,7 @@ import { useFriendWith } from "@/hooks/useFriendWith";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
+import { useLeaveGroup } from "@/hooks/messages/useLeaveGroup";
 
 interface UseUserActionPopoverProps {
   user: UserSummaryDTO;
@@ -34,6 +35,7 @@ export function useUserActionPopover({
   // Legacy API support
   onClose,
   onSendMessageToUser,
+  conversationId,
   isNested = false
 }: UseUserActionPopoverProps) {
   const router = useRouter();
@@ -43,6 +45,7 @@ export function useUserActionPopover({
   // ✅ Always call hooks - React requires consistent hook order
   const confirmRemoveResult = useConfirmRemoveFriend();
   const friendResult = useFriendWith(user.id);
+  const { leaveGroupMutation, isLeavingGroup, error: leaveGroupError } = useLeaveGroup()
   
   // ✅ Use results conditionally, not the hooks themselves
   const { confirmAndRemove, ConfirmDialog } = (isSimplified || isNested)
@@ -64,7 +67,7 @@ export function useUserActionPopover({
 
   const isOwner = user.id === currentUserId;
 
-  // ✅ Core handlers - used by both modes
+  //  Core handlers - used by both modes
   const handleVisitProfile = useCallback(() => {
     console.log('👤 Visiting profile for:', user.fullName);
     closeAllLevels();
@@ -103,15 +106,34 @@ export function useUserActionPopover({
     onCloseDropdown
   ]);
 
-  const handleLeaveGroup = useCallback(() => {
-    console.log('🚪 Leaving group');
-    if (onLeaveGroup) {
-      onLeaveGroup();
+  const handleLeaveGroup = useCallback(async () => {
+    console.log('🚪 Leaving group:', conversationId);
+    
+    if (!conversationId) {
+      console.error('❌ Cannot leave group: No conversationId provided');
+      return;
     }
-    handleClose();
-  }, [onLeaveGroup, handleClose]);
 
-  // ✅ Friend-related handlers (only for non-simplified mode)
+    try {
+      // Call the leave group API
+      await leaveGroupMutation(conversationId);
+      
+      // Call the parent callback if provided
+      if (onLeaveGroup) {
+        onLeaveGroup();
+      }
+      
+      // Close the popover
+      handleClose();
+      
+      console.log('✅ Successfully left group');
+    } catch (error) {
+      console.error('❌ Failed to leave group:', error);
+      // Error is already handled by useLeaveGroup hook (toast notification)
+    }
+  }, [conversationId, leaveGroupMutation, onLeaveGroup, handleClose]);
+
+  //  Friend-related handlers (only for non-simplified mode)
   const handleRemoveFriend = useCallback(async () => {
     if (isSimplified || isNested) return;
     
@@ -120,7 +142,7 @@ export function useUserActionPopover({
     handleClose();
   }, [user, confirmAndRemove, onRemoveSuccess, handleClose, isSimplified, isNested]);
 
-  // ✅ Send message handlers
+  //  Send message handlers
   const handleSendMessage = useCallback(() => {
     console.log('📝 Send message clicked for:', user.fullName);
     
@@ -244,6 +266,8 @@ export function useUserActionPopover({
     isOwner,
     isFriend,
     isFriendLoading,
+    isLeavingGroup,
+    leaveGroupError,
 
     // Core handlers
     handleVisitProfile,

@@ -37,5 +37,6 @@ export enum NotificationType {
   GroupRequest = 5,
   GroupRequestApproved = 6,
   GroupRequestInvited = 7,
-  GroupEvent = 8
+  GroupEvent = 8,
+  GroupDisbanded = 9,
 }

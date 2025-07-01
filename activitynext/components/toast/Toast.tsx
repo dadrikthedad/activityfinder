@@ -104,14 +104,15 @@ function NotificationToast({
       case NotificationType.MessageReaction:
       case NotificationType.MessageRequest:
       case NotificationType.GroupRequest:
-      case NotificationType.GroupRequestApproved:
-      case NotificationType.GroupRequestInvited:
       case NotificationType.GroupEvent:
         if (conversationId != null) {
           if (!showMessages) setShowMessages(true);
           openConversation(conversationId);
           setTimeout(() => setScrollToMessageId(messageId ?? null), 200);
         }
+        break;
+      case NotificationType.GroupDisbanded:
+        if (!showMessages) setShowMessages(true);
         break;
       case LocalToastType.FriendRequestReceived:
         setShowNotificationDropdown(true);
@@ -203,12 +204,14 @@ function NotificationToast({
         return <>{name} reacted with {reactionEmoji ?? "👍"} on your message</>;
       case NotificationType.GroupRequest:
         return <>{name} invited you to join {styledGroupName}</>;
-      case NotificationType.GroupRequestApproved:
-        return <>{name} has accepted to join {styledGroupName}</>;
-      case NotificationType.GroupRequestInvited:
-        return <>{name} has invited user1 and 4 more to to join {styledGroupName}</>;
       case LocalToastType.MessageReactionChanged:
         return <>{name} changed their reaction to {reactionEmoji ?? "👍"} on message:</>;
+      case NotificationType.GroupDisbanded: // 🆕 Ny case
+      return (
+        <>
+          Group {styledGroupName} has been disbanded
+        </>
+      );
       case LocalToastType.FriendInvAccepted:
         return <>{name} accepted your friend request</>;
       case LocalToastType.FriendRequestReceived:
@@ -236,7 +239,8 @@ function NotificationToast({
   };
 
   // 🆕 Vis gruppe-relaterte bilder for GroupRequest
-  const showGroupImages = type === NotificationType.GroupRequest || type === NotificationType.GroupRequestApproved || type === NotificationType.GroupEvent;
+  const showGroupImages = type === NotificationType.GroupRequest || type === NotificationType.GroupRequestApproved || type === NotificationType.GroupEvent ||
+                       type === NotificationType.GroupDisbanded;
 
   return (
     <div className="bg-white dark:bg-[#1e2122] border-1 border-[#1C6B1C] shadow-lg rounded-xl p-4 max-w-sm w-full">
