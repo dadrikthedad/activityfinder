@@ -9,6 +9,15 @@ export function formatNotificationText(n: MessageNotificationDTO): JSX.Element {
   // Hvis samtalen er avslått, vis spesifikk tekst
   if (n.isConversationRejected) {
     switch (n.type) {
+      case "GroupRequest":
+      case 5:
+        // 🆕 Spesiell handling for gruppeforespørsel
+        const groupName = n.groupName || "a group";
+        return (
+          <span>
+            invited you to <HighlightedText>{groupName}</HighlightedText> (conversation declined)
+          </span>
+        );
       case "MessageRequest":
       case 2:
         return plainText("message request (declined)");

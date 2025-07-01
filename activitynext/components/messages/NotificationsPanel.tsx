@@ -153,13 +153,17 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
               onMouseLeave={shouldShowTooltip(n) ? handleMouseLeave : undefined}
               title={n.isConversationRejected ? "This conversation has been declined" : undefined}
             >
-              {!n.isRead && (
+              {/* 🛡️ TRYGG: Rejected sjekkes først - beholder originale farger */}
+              {!n.isConversationRejected && !n.isRead && (
                 <span className="inline-block w-2 h-2 bg-green-600 rounded-full mr-2" />
               )}
+              
               <strong>{shouldShowSenderName(n) ? n.senderName : ""}</strong> {formatNotificationText(n)}
+              
               {shouldShowTooltip(n) && n.messageCount && n.messageCount > 1 && (
                 <span className="ml-1"></span>
               )}
+              
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(n.createdAt).toLocaleString(undefined, {
                   dateStyle: "short",

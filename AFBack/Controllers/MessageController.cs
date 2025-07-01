@@ -249,6 +249,7 @@ public class MessagesController : BaseController
 
         // 1️⃣ Endre status til Rejected
         groupRequest.Status = GroupRequestStatus.Rejected;
+        groupRequest.IsRead = true;
 
         // 2️⃣ Fjern bruker fra participants 
         var participant = await _context.ConversationParticipants
@@ -257,6 +258,18 @@ public class MessagesController : BaseController
         if (participant != null)
         {
             _context.ConversationParticipants.Remove(participant);
+        }
+        
+        var notification = await _context.MessageNotifications
+            .FirstOrDefaultAsync(n => n.UserId == receiverId && 
+                                      n.ConversationId == conversationId && 
+                                      n.Type == NotificationType.GroupRequest &&
+                                      !n.IsRead);
+
+        if (notification != null)
+        {
+            notification.IsRead = true;
+            notification.ReadAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync();
@@ -303,7 +316,20 @@ public class MessagesController : BaseController
             return BadRequest(new { message = "Forespørselen er allerede godkjent." });
 
         request.IsRejected = true;
+        
+        var notification = await _context.MessageNotifications
+            .FirstOrDefaultAsync(n => n.UserId == receiverId && 
+                                      n.FromUserId == senderId && 
+                                      n.Type == NotificationType.MessageRequest &&
+                                      !n.IsRead);
+        
+        if (notification != null)
+        {
+            notification.IsRead = true;
+            notification.ReadAt = DateTime.UtcNow;
+        }
 
+        
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Forespørsel avslått." });
