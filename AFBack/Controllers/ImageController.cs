@@ -5,12 +5,16 @@ using AFBack.Models;
 using AFBack.Services;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Controllers;
 
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
 public class ImageController : BaseController
 {
     private readonly ApplicationDbContext _context;
