@@ -1,6 +1,6 @@
 // Dette er en generisk funksjon som henter token, gjør API-kallet, og håndterer feil hvis det oppstår. Brukes til alt hvor vi trenger auth
 
-type LogLevel = "none" | "basic" | "verbose"; // For å bestemme hvor mye som skal vises i loggen
+type LogLevel = "none" | "basic" | "verbose";
 
 export async function fetchWithAuth<T>(
   url: string,
@@ -8,9 +8,7 @@ export async function fetchWithAuth<T>(
   token?: string,
   logLevel: LogLevel = "verbose"
 ): Promise<T | null> {
-  const authToken = token || localStorage.getItem("token"); // henter token
-
-
+  const authToken = token || localStorage.getItem("token");
   if (!authToken) {
     throw new Error("No auth token found.");
   }
@@ -20,29 +18,44 @@ export async function fetchWithAuth<T>(
     console.log("🟢 Token (first 20 chars):", authToken?.slice(0, 20));
   }
 
-  const res = await fetch(url, { // Her gjør vi fetch-kallet
+  // 🆕 Bygg headers som Record<string, string> for å unngå TypeScript feil
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${authToken}`,
+  };
+
+  // Legg til eksisterende headers fra options
+  if (options.headers) {
+    const existingHeaders = new Headers(options.headers);
+    existingHeaders.forEach((value, key) => {
+      headers[key] = value;
+    });
+  }
+
+  // 🆕 Kun legg til Content-Type hvis body IKKE er FormData
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+  // FormData setter sin egen Content-Type med boundary automatisk
+
+  const res = await fetch(url, {
     ...options,
-    headers: {
-      ...options.headers,
-      Authorization: `Bearer ${authToken}`,
-      "Content-Type": "application/json",
-    },
+    headers,
   });
 
-  const text = await res.text(); // les alltid som tekst først
-
+  const text = await res.text();
+  
   if (!res.ok) {
     if (logLevel !== "none") {
       console.error(`🔴 API error (${res.status}) from ${url}:`, text);
     }
-  
+
     try {
       const json = JSON.parse(text);
-  
+
       if (typeof json === "object" && json !== null && "message" in json) {
         throw new Error(json.message);
       }
-  
+
       throw new Error("Something went wrong.");
     } catch {
       throw new Error(text || "Something went wrong.");

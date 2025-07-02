@@ -11,6 +11,9 @@ import OverflowDropdown from "./NewMessageDropdown";
 import { useKeyboardNavigableList } from "@/hooks/mouseAndKeyboard/useKeyboardForDropdown";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import { createPortal } from "react-dom";
+import { useUploadGroupImage } from "@/hooks/image/useUploadGroupImage";
+import ProfileNavButton from "../settings/ProfileNavButton";
+import EnlargeableImage from "../common/EnlargeableImage";
 
 interface NewMessageWindowProps {
   initialReceiver?: UserSummaryDTO;
@@ -28,20 +31,23 @@ export default function NewMessageWindow({
   onMessageSent, 
   onGroupCreated,
   initialPosition,
-  useOverlaySystem = true // ✅ Default to true for backwards compatibility
+  useOverlaySystem = true // Default to true for backwards compatibility
 }: NewMessageWindowProps) {
   
   const { query, setQuery, results, loading } = useUserSearch();
   const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
   const { userId } = useAuth();
   
-  // ✅ Always call hooks - simplified approach
+  // Always call hooks - simplified approach
   const [isOpen, setIsOpen] = useState(() => {
     return !useOverlaySystem; // If not using overlay, start open
   });
   const overlay = useOverlay(); // Always call useOverlay - we'll always register for outside click detection
   
   const [groupName, setGroupName] = useState("");
+  const [groupImageUrl, setGroupImageUrl] = useState<string | null>(null);
+  const { upload: uploadGroupImage, uploading: uploadingImage, error: uploadError } = useUploadGroupImage();
+  
 
   const hasInitialReceiver = !!initialReceiver;
   const isMultipleUsers = selectedUsers.length > 1;
@@ -100,8 +106,32 @@ export default function NewMessageWindow({
       setShowDropdown(false);
     }, 200);
   };
+  
+  // Last opp gruppebilde
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  // ✅ Auto-open when component mounts (only if using overlay system)
+    try {
+      console.log("🔄 Uploading file:", file.name);
+      const imageUrl = await uploadGroupImage(file);
+      console.log("✅ Got imageUrl:", imageUrl);
+      if (imageUrl) {
+        setGroupImageUrl(imageUrl);
+        console.log("📝 Set groupImageUrl to:", imageUrl);
+      }
+    } catch (err) {
+      console.error("Failed to upload group image:", err);
+    }
+  };
+
+  // Fjern bilde
+  const removeGroupImage = () => {
+    setGroupImageUrl(null);
+  };
+
+
+  // Auto-open when component mounts (only if using overlay system)
   useEffect(() => {
     if (useOverlaySystem) {
       // Component starts with isOpen: true, so overlay.open() will be called in sync effect
@@ -111,7 +141,7 @@ export default function NewMessageWindow({
     }
   }, [useOverlaySystem, overlay]);
 
-  // ✅ Sync overlay state with local state (conditional logic inside)
+  // Sync overlay state with local state (conditional logic inside)
   useEffect(() => {
     if (!useOverlaySystem) return;
     
@@ -122,7 +152,7 @@ export default function NewMessageWindow({
     }
   }, [isOpen, overlay.isOpen, overlay.open, overlay.close, useOverlaySystem]);
 
-  // ✅ Always call useOverlayAutoClose to listen for external closing
+  // Always call useOverlayAutoClose to listen for external closing
   useOverlayAutoClose(() => {
     if (useOverlaySystem) {
       setIsOpen(false);
@@ -379,25 +409,73 @@ export default function NewMessageWindow({
 
             {/* Group name input for multiple users */}
             {isMultipleUsers && (
-              <div className="mb-3">
+              <div className="mb-6">
+                {/* Gruppe navn input */}
                 <input
                   type="text"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
                   placeholder="Group name (optional)"
                   maxLength={100}
-                  className="w-full p-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm text-center"
+                  className="w-full p-3 border-1 rounded-lg dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm text-center mb-4"
                 />
+                
+                {/* Gruppe bilde seksjon */}
+                <div className="flex flex-col items-center space-y-4">
+                  {groupImageUrl ? (
+                    <div className="relative mb-2">
+                      <EnlargeableImage
+                        src={groupImageUrl}
+                        alt="Group"
+                        size={80}
+                        className="border-2 border-[#1C6B1C]"
+                      />
+                      
+                      <button
+                        onClick={removeGroupImage}
+                        className="absolute -top-1 -right-1 bg-gray-500 hover:bg-gray-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition-colors"
+                        title="Remove image"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-full border-2 border-dashed border-[#1C6B1C] flex items-center justify-center bg-gray-50 dark:bg-[#2a2e31] mb-2">
+                    </div>
+                  )}
+                  
+                  {/* Bilde upload knapp */}
+                  <input
+                    id="group-image-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    disabled={uploadingImage}
+                  />
+                  <ProfileNavButton
+                    text={uploadingImage ? "Uploading..." : groupImageUrl ? "Change Image" : "Add Image"}
+                    variant="small"
+                    onClick={() => document.getElementById('group-image-upload')?.click()}
+                    disabled={uploadingImage}
+                  />
+                                    
+                  {/* Feilmelding */}
+                  {uploadError && (
+                    <p className="text-red-500 text-xs mt-2">{uploadError}</p>
+                  )}
+                </div>
               </div>
             )}
-          </div>
+                      </div>
 
-          {selectedUsers.length > 0 && (
+                      {selectedUsers.length > 0 && (
             <div className="shrink-0 mt-4">
               <NewMessageInput
                 receiverId={isMultipleUsers ? undefined : selectedUsers[0].id}
                 selectedUsers={isMultipleUsers ? selectedUsers : undefined}
                 groupName={isMultipleUsers ? groupName : undefined}
+                groupImageUrl={isMultipleUsers ? groupImageUrl : undefined}
                 shouldFocus={shouldFocusMessageInput}
                 onMessageSent={handleMessageSent}
                 onGroupCreated={handleGroupCreated}

@@ -15,6 +15,7 @@ interface NewMessageInputProps {
   receiverId?: number; // Optional for group mode
   selectedUsers?: UserSummaryDTO[]; // For group mode
   groupName?: string; // Optional group name
+  groupImageUrl?: string | null;
   shouldFocus?: boolean;
   onMessageSent?: (message: MessageDTO) => void;
   onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void; // Callback when group is created
@@ -28,6 +29,7 @@ export default function NewMessageInput({
   shouldFocus = false,
   onMessageSent,
   onGroupCreated,
+  groupImageUrl,
 }: NewMessageInputProps) {
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -93,6 +95,7 @@ export default function NewMessageInput({
     const response = await sendGroupInvitations({
       groupName: groupName?.trim() || undefined,
       invitedUserIds,
+      groupImageUrl: groupImageUrl || undefined,
       initialMessage: trimmed || undefined, // Send undefined hvis tom
     });
 
@@ -154,6 +157,7 @@ export default function NewMessageInput({
         <div className="text-sm text-gray-600 dark:text-gray-400 px-2 text-center">
           Creating group with {selectedUsers.length} members
           {groupName && `: "${groupName}"`}
+          {groupImageUrl && " 📷"}
         </div>
       )}
 

@@ -24,3 +24,11 @@ export async function getRequest<T>(url: string): Promise<T | null> {
       method: "DELETE",
     });
   }
+
+  // Bilder
+  export async function postFormDataRequest<T>(url: string, formData: FormData): Promise<T | null> {
+    return await fetchWithAuth<T>(url, {
+      method: "POST",
+      body: formData,
+    });
+  }
