@@ -25,17 +25,17 @@ export async function handleIncomingMessage(message: MessageDTO, currentUserId: 
     return;
   }
 
-  // 🆕 Finn conversation for å sjekke om det er en gruppe
+  // Finn conversation for å sjekke om det er en gruppe
   const conversation = conversations.find(c => c.id === message.conversationId);
   const isGroup = conversation?.isGroup ?? false;
 
-  // 🆕 Generer riktig messagePreview basert på type
+  // Generer riktig messagePreview basert på type
   const getTruncatedText = (text: string | null | undefined): string => {
   if (!text) return "";
   return text.length > 40 ? text.substring(0, 40) + "..." : text;
   };
 
-  // 🆕 Generer riktig messagePreview basert på type
+  // Generer riktig messagePreview basert på type
   let messagePreview: string;
   if (isGroup) {
     const groupName = conversation?.groupName ?? "a group";
@@ -59,7 +59,7 @@ export async function handleIncomingMessage(message: MessageDTO, currentUserId: 
     isRead: false,
     createdAt: message.sentAt,
     reactionEmoji: null,
-    messagePreview: messagePreview, // 🆕 Riktig formatert preview
+    messagePreview: messagePreview, // Riktig formatert preview
     messageCount: 1,
     isTemporary: true,
   };

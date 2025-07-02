@@ -11,7 +11,7 @@ import { handleIncomingReaction } from "./handleIncomingReactions";
 import { showNotificationToast } from "../toast/Toast";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { getConversationById } from "@/services/messages/conversationService";
-import { getMessagesForConversation } from "@/services/messages/conversationService"; // 🆕 Bruk din eksisterende service
+import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useStore } from "zustand";
 import { usePendingConversationSync } from "@/hooks/messages/getPendingConversationById";
 import { NotificationType } from "@/types/MessageNotificationDTO";
@@ -34,7 +34,7 @@ export default function ChatHubClient() {
     const searchMode = useChatStore((state) => state.searchMode);
     const { userId } = useAuth();
     const addConversation = useChatStore(s => s.addConversation);
-    const setCachedMessages = useChatStore(s => s.setCachedMessages); // 🆕 For å cache meldinger
+    const setCachedMessages = useChatStore(s => s.setCachedMessages); // For å cache meldinger
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const { syncPendingConversation } = usePendingConversationSync();
     const showMessages = useChatStore.getState().showMessages;
@@ -50,7 +50,7 @@ export default function ChatHubClient() {
 
       // Sjekk om samtalen allerede finnes
       if (conversationIds.has(conversationId)) {
-        // 🆕 Proaktiv caching av meldinger hvis vi ikke har dem allerede
+        // Proaktiv caching av meldinger hvis vi ikke har dem allerede
         if (shouldCacheMessages && !cachedMessages[conversationId]) {
           console.log(`💾 Proaktiv caching av meldinger for samtale ${conversationId}...`);
           try {
@@ -89,7 +89,7 @@ export default function ChatHubClient() {
           addConversation(conversation);
           console.log(`✅ Samtale ${conversationId} lagt til i listen`);
 
-          // 🆕 Cache meldinger hvis vi fikk dem
+          // Cache meldinger hvis vi fikk dem
           if (messages && messages.length > 0 && shouldCacheMessages) {
             setCachedMessages(conversationId, messages);
             console.log(`✅ Cachet ${messages.length} meldinger for samtale ${conversationId}`);
@@ -126,7 +126,7 @@ export default function ChatHubClient() {
     useChatHub(async (message) => {
       console.log("💬 Mottatt melding via SignalR:", message);
 
-      // 🆕 Sørg for at samtalen finnes og cache meldinger proaktivt
+      // Sørg for at samtalen finnes og cache meldinger proaktivt
       await ensureConversationExists(message.conversationId, true);
  
       addMessage(message);
@@ -141,7 +141,7 @@ export default function ChatHubClient() {
         message.senderId !== userId &&
         (!showMessages || message.conversationId !== currentConversationId) && 
         !message.isSilent &&
-        !message.isSystemMessage // 🆕 Ingen toast for systemmeldinger
+        !message.isSystemMessage // Ingen toast for systemmeldinger
       ) {
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
@@ -158,7 +158,7 @@ export default function ChatHubClient() {
       console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
       console.log("🔔 Mottatt notification via SignalR:", notification);
 
-      // 🆕 Preload meldinger for reakcsjonssamtalen
+      // Preload meldinger for reakcsjonssamtalen
       if (notification?.conversationId) {
         await preloadMessagesForConversation(notification.conversationId);
       }
@@ -267,7 +267,7 @@ export default function ChatHubClient() {
         }
       },
 
-      // 🆕 Ny GroupNotificationUpdated callback
+      // Ny GroupNotificationUpdated callback
       async (data: GroupNotificationUpdateDTO) => {
         console.log("🔔 GroupNotification oppdatert i ChatHubClient:", data);
         const { userId: targetUserId, notification, groupEventType, affectedUsers } = data;
@@ -305,7 +305,7 @@ export default function ChatHubClient() {
               eventTypeEnum = groupEventType;
             }
 
-            // 🆕 Vis toast for alle hendelser (ikke bare nye notifikasjoner)
+            // Vis toast for alle hendelser (ikke bare nye notifikasjoner)
             showNotificationToast({
               senderName: notification.senderName ?? "Someone",
               type: NotificationType.GroupEvent,
@@ -313,12 +313,12 @@ export default function ChatHubClient() {
               groupName: notification.groupName,
               groupImage: notification.groupImageUrl,
               groupEventType: eventTypeEnum,
-              affectedUsers: affectedUsers, // 🆕 Send også hele user-objektene
+              affectedUsers: affectedUsers, // Send også hele user-objektene
             });
           }
         }
       },
-        async (data: GroupDisbandedDto) => {
+      async (data: GroupDisbandedDto) => {
         console.log("💥 Gruppe disbanded via SignalR:", data);
         const { conversationId, groupName, notification } = data;
         
@@ -348,6 +348,14 @@ export default function ChatHubClient() {
         }
         
         console.log(`✅ Fjernet disbanded gruppe ${conversationId} fra store`);
+      },
+
+      // Oppdaterer en gruppeforespørsel med riktig participants ved nylig inviterte brukere
+      async (conversationId: number) => {
+        console.log("🔁 Group participants updated via SignalR for conversation:", conversationId);
+        
+        // 🆕 Bruk syncPendingConversation med forceUpdate for å oppdatere participants
+        await syncPendingConversation(conversationId, true);
       }
     );
 

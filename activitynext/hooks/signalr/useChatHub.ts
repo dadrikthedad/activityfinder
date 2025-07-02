@@ -20,7 +20,8 @@ export function useChatHub(
   onRequestCreated?: (data: MessageRequestCreatedDto) => void,
   onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void,
   onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void,
-  onGroupDisbanded?: (data: GroupDisbandedDto) => void
+  onGroupDisbanded?: (data: GroupDisbandedDto) => void,
+  onGroupParticipantsUpdated?: (conversationId: number) => void 
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -31,6 +32,7 @@ export function useChatHub(
   const groupRequestCreatedRef = useRef(onGroupRequestCreated);
   const groupNotificationUpdatedRef = useRef(onGroupNotificationUpdated);
   const groupDisbandedRef = useRef(onGroupDisbanded);
+  const groupParticipantsUpdatedRef = useRef(onGroupParticipantsUpdated);
 
    // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
@@ -42,6 +44,7 @@ export function useChatHub(
   useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
   useEffect(() => { groupNotificationUpdatedRef.current = onGroupNotificationUpdated }, [onGroupNotificationUpdated]);
   useEffect(() => { groupDisbandedRef.current = onGroupDisbanded }, [onGroupDisbanded]);
+  useEffect(() => { groupParticipantsUpdatedRef.current = onGroupParticipantsUpdated }, [onGroupParticipantsUpdated]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -129,10 +132,16 @@ export function useChatHub(
             groupNotificationUpdatedRef.current?.(data);
           });
 
-           conn.on("GroupDisbanded", (data: GroupDisbandedDto) => { // 🆕
-              console.log("💥 Group disbanded via SignalR:", data);
-              groupDisbandedRef.current?.(data);
-            });
+          conn.on("GroupDisbanded", (data: GroupDisbandedDto) => { // 🆕
+            console.log("💥 Group disbanded via SignalR:", data);
+            groupDisbandedRef.current?.(data);
+          });
+
+          conn.on("GroupParticipantsUpdated", (data: { conversationId: number }) => {
+            console.log("🔁 Group participants updated via SignalR:", data);
+            groupParticipantsUpdatedRef.current?.(data.conversationId);
+          });
+          
             
 
           
