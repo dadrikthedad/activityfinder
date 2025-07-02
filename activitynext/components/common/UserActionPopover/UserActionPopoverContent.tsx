@@ -4,6 +4,7 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ProfileNavButton from "../../settings/ProfileNavButton";
 import DropdownNavButton from "../../DropdownNavButton";
 import ParticipantsDropdownButton from "./UserActionParticipantDropdown";
+import { useChatStore } from "@/store/useChatStore";
 
 interface Props {
   user: UserSummaryDTO;
@@ -21,9 +22,10 @@ interface Props {
   onShowUserPopover?: (user: UserSummaryDTO, event: React.MouseEvent) => void;
   isPendingRequest?: boolean; 
   onInviteUsers?: () => void;
-  // NEW: Handler for send message from nested context
+  conversationId?: number;
+  //Handler for send message from nested context
   onSendMessageFromNested?: (user: UserSummaryDTO) => void;
-  // NEW: Handler for opening invite users window
+  // Handler for opening invite users window
   onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
   isLeavingGroup?: boolean;
   groupImageUrl?: string | null;
@@ -59,6 +61,7 @@ export default function UserActionPopoverContent({
   onSendMessageFromNested,
   onOpenInviteWindow,
   isLeavingGroup,
+  conversationId, 
   // New group image props
   groupImageUrl,
   uploadingImage,
@@ -74,8 +77,20 @@ export default function UserActionPopoverContent({
   onSetTempGroupName,
   groupNameError,
 }: Props) {
+
+  // Get current group name from store for groups
+  const currentConversation = useChatStore((state) => 
+    isGroup && conversationId 
+      ? state.conversations.find(conv => conv.id === conversationId)
+      : null
+  );
   
-  // ✅ FIXED: Handler for showing user popover - should NOT automatically send message
+  // Use group name from store if available, otherwise fallback to user.fullName
+  const displayName = isGroup && currentConversation?.groupName 
+    ? currentConversation.groupName 
+    : user.fullName;
+  
+  // Handler for showing user popover - should NOT automatically send message
   const handleShowUserPopover = (targetUser: UserSummaryDTO, event: React.MouseEvent) => {
     // This should only show the popover, not send message
     if (onShowUserPopover) {
@@ -100,7 +115,7 @@ export default function UserActionPopoverContent({
               size={120} 
             />
             <div className="w-full mt-2 text-center break-words max-w-[120px]">
-              <p className="text-lg font-semibold">{user.fullName}</p>
+              <p className="text-lg font-semibold">{displayName}</p>
               {isGroup && (
                 <p className="text-sm text-gray-500">{participants.length} medlemmer</p>
               )}
@@ -114,7 +129,7 @@ export default function UserActionPopoverContent({
                 <ParticipantsDropdownButton
                   participants={participants}
                   onShowUserPopover={handleShowUserPopover} // For showing popover
-                  onSendMessageToUser={onSendMessageFromNested} // ✅ NEW: For sending message directly
+                  onSendMessageToUser={onSendMessageFromNested} // For sending message directly
                   useOverlaySystem={false} // Disable overlay system since we're already in an overlay
                 />
 
@@ -198,15 +213,15 @@ export default function UserActionPopoverContent({
                 {/* Leave Group button - show only if NOT pending request */}
                 {onLeaveGroup && !isPendingRequest && (
                   <ProfileNavButton
-                    text={isLeavingGroup ? "Leaving..." : "Leave Group"} // 🆕 Dynamic text
+                    text={isLeavingGroup ? "Leaving..." : "Leave Group"} // Dynamic text
                     onClick={onLeaveGroup}
                     variant="small"
                     className={`text-white ${
                       isLeavingGroup 
-                        ? 'bg-gray-400 cursor-not-allowed' // 🆕 Disabled state
+                        ? 'bg-gray-400 cursor-not-allowed' // Disabled state
                         : 'bg-gray-500 hover:bg-gray-600' // Normal state
                     }`}
-                    disabled={isLeavingGroup} // 🆕 Disable when loading
+                    disabled={isLeavingGroup} // Disable when loading
                   />
                 )}
               </>

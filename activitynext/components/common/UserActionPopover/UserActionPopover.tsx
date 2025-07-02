@@ -115,6 +115,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           isPendingRequest={isPendingRequest}
           onOpenInviteWindow={isGroup ? handleOpenInviteWindow : undefined}
           onSendMessageFromNested={handleSendMessageFromNested}
+          conversationId={conversationId}
           groupImageUrl={groupImageUrl}
           uploadingImage={uploadingImage}
           uploadError={uploadError}
