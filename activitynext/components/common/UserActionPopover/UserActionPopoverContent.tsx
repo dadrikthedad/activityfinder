@@ -97,7 +97,7 @@ export default function UserActionPopoverContent({
       onShowUserPopover(targetUser, event);
     }
   };
-
+  
   return (
     <div className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]">
       <div className="relative">
@@ -143,72 +143,79 @@ export default function UserActionPopoverContent({
                   />
                 )}
 
-                                {/* Hidden file input for image upload */}
-                <input
-                  id="group-image-upload-popover"
-                  type="file"
-                  accept="image/*"
-                  onChange={onImageUpload}
-                  className="hidden"
-                  disabled={uploadingImage}
-                />
+                {/* Hidden file input for image upload - only show if NOT pending */}
+                {!isPendingRequest && (
+                  <input
+                    id="group-image-upload-popover"
+                    type="file"
+                    accept="image/*"
+                    onChange={onImageUpload}
+                    className="hidden"
+                    disabled={uploadingImage}
+                  />
+                )}
 
-                {/* Change Image button */}
-                <ProfileNavButton
-                  text={uploadingImage ? "Uploading..." : "Change Image"}
-                  onClick={onTriggerImageUpload || (() => {})}
-                  variant="small"
-                  className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                  disabled={uploadingImage}
-                />
+                {/* Change Image button - only show if NOT pending */}
+                {!isPendingRequest && (
+                  <ProfileNavButton
+                    text={uploadingImage ? "Uploading..." : "Change Image"}
+                    onClick={onTriggerImageUpload || (() => {})}
+                    variant="small"
+                    className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+                    disabled={uploadingImage}
+                  />
+                )}
 
-                {uploadError && (
+                {uploadError && !isPendingRequest && (
                     <p className="text-red-500 text-xs mt-2">{uploadError}</p>
                   )}
 
 
-                  {isEditingGroupName ? (
-                    <div className="space-y-2 w-full">
-                      <input
-                        type="text"
-                        value={tempGroupName}
-                        onChange={(e) => onSetTempGroupName?.(e.target.value)}
-                        placeholder="Enter group name"
-                        maxLength={100}
-                        className="w-full p-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm"
-                        disabled={updatingGroupName}
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
+                  {/* Group name editing */}
+                  {!isPendingRequest && (
+                    <>
+                      {isEditingGroupName ? (
+                        <div className="space-y-2 w-full">
+                          <input
+                            type="text"
+                            value={tempGroupName}
+                            onChange={(e) => onSetTempGroupName?.(e.target.value)}
+                            placeholder="Enter group name"
+                            maxLength={100}
+                            className="w-full p-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm"
+                            disabled={updatingGroupName}
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <ProfileNavButton
+                              text={updatingGroupName ? "Saving..." : "Save"}
+                              onClick={onSaveGroupName || (() => {})}
+                              variant="small"
+                              className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white flex-1"
+                              disabled={updatingGroupName || !tempGroupName?.trim()}
+                            />
+                            <ProfileNavButton
+                              text="Cancel"
+                              onClick={onCancelEditGroupName || (() => {})}
+                              variant="small"
+                              className="bg-gray-500 hover:bg-gray-600 text-white flex-1"
+                              disabled={updatingGroupName}
+                            />
+                          </div>
+                          {groupNameError && (
+                            <p className="text-red-500 text-xs mt-2">{groupNameError}</p>
+                          )}
+                        </div>
+                      ) : (
                         <ProfileNavButton
-                          text={updatingGroupName ? "Saving..." : "Save"}
-                          onClick={onSaveGroupName || (() => {})}
+                          text="Change Name"
+                          onClick={onStartEditGroupName || (() => {})}
                           variant="small"
-                          className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white flex-1"
-                          disabled={updatingGroupName || !tempGroupName?.trim()}
+                          className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
                         />
-                        <ProfileNavButton
-                          text="Cancel"
-                          onClick={onCancelEditGroupName || (() => {})}
-                          variant="small"
-                          className="bg-gray-500 hover:bg-gray-600 text-white flex-1"
-                          disabled={updatingGroupName}
-                        />
-                      </div>
-                      {groupNameError && (
-                        <p className="text-red-500 text-xs mt-2">{groupNameError}</p>
                       )}
-                    </div>
-                  ) : (
-                    <ProfileNavButton
-                      text="Change Name"
-                      onClick={onStartEditGroupName || (() => {})}
-                      variant="small"
-                      className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    />
+                    </>
                   )}
-
-
                 
                 {/* Leave Group button - show only if NOT pending request */}
                 {onLeaveGroup && !isPendingRequest && (
