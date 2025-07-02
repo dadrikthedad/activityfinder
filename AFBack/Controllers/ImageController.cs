@@ -77,12 +77,10 @@ public class ImageController : BaseController
         if (GetUserId() is not int userId)
             return Unauthorized();
 
-        // 🆕 Bruk hjelpefunksjon for validering
         var (isValid, errorMessage) = ValidateImage(file);
         if (!isValid)
             return BadRequest(errorMessage);
 
-        // Valider gruppetilgang
         Conversation? group = null;
         if (groupId.HasValue)
         {
@@ -106,7 +104,6 @@ public class ImageController : BaseController
                 ? $"group_{groupId}_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}"
                 : $"temp_group_{userId}_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
             
-            // 🆕 Bruk hjelpefunksjon for upload
             var imageUrl = await UploadImageToBlobAsync("group-pictures", fileName, file);
 
             // Oppdater gruppe hvis det er eksisterende
@@ -120,19 +117,18 @@ public class ImageController : BaseController
                     .Select(u => u.FullName)
                     .FirstOrDefaultAsync() ?? "En bruker";
 
-                var systemMessageTask = _messageNotificationService.CreateSystemMessageAsync(
+                // 🔧 FIX: Kjør sekvensielt i stedet for parallelt
+                await _messageNotificationService.CreateSystemMessageAsync(
                     groupId.Value,
                     $"{userName} has changed the group image"
                 );
 
-                var groupEventTask = _groupNotificationService.CreateGroupEventAsync(
+                await _groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupImageChanged,
                     groupId.Value,
                     userId,
                     new List<int> { userId }
                 );
-
-                await Task.WhenAll(systemMessageTask, groupEventTask);
             }
 
             _logger.LogInformation("User {UserId} uploaded group image: {FileName}", userId, fileName);
