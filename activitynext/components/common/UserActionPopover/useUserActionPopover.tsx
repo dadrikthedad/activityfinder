@@ -12,6 +12,7 @@ import { useLeaveGroup } from "@/hooks/messages/useLeaveGroup";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useUploadGroupImage } from "@/hooks/image/useUploadGroupImage";
 import { useChatStore } from "@/store/useChatStore";
+import { useUpdateGroupName } from "@/components/messages/useUpdateGroupName";
 
 interface UseUserActionPopoverProps {
   user: UserSummaryDTO;
@@ -39,7 +40,7 @@ export function useUserActionPopover({
   onClose,
   onSendMessageToUser,
   conversationId,
-  isNested = false
+  isNested = false,
 }: UseUserActionPopoverProps) {
   const router = useRouter();
   const { userId: currentUserId } = useAuth();
@@ -55,6 +56,11 @@ export function useUserActionPopover({
   // Group image upload hook
   const { upload: uploadGroupImage, uploading: uploadingImage, error: uploadError } = useUploadGroupImage();
   const [groupImageUrl, setGroupImageUrl] = useState<string | null>(user.profileImageUrl);
+
+  const { update: updateGroupNameAPI, updating: updatingGroupName, error: groupNameError } = useUpdateGroupName();
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [tempGroupName, setTempGroupName] = useState(user.fullName || "");
+  
 
   // Group image handlers
   const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,14 +86,40 @@ export function useUserActionPopover({
     }
   }, [uploadGroupImage, conversationId, updateConversation]);
 
-  const removeGroupImage = useCallback(() => {
-    setGroupImageUrl(null);
-  }, []);
 
   const triggerImageUpload = useCallback(() => {
-    const input = document.getElementById('group-image-upload-popover') as HTMLInputElement;
-    input?.click();
-  }, []);
+      const input = document.getElementById('group-image-upload-popover') as HTMLInputElement;
+      input?.click();
+    }, []);
+
+    const handleStartEditGroupName = useCallback(() => {
+    setTempGroupName(user.fullName || "");
+    setIsEditingGroupName(true);
+  }, [user.fullName]);
+
+  const handleCancelEditGroupName = useCallback(() => {
+    setIsEditingGroupName(false);
+    setTempGroupName(user.fullName || "");
+  }, [user.fullName]);
+
+   const handleSaveGroupName = useCallback(async () => {
+    if (!conversationId || !tempGroupName.trim()) return;
+    
+    try {
+      console.log("🔄 Updating group name to:", tempGroupName);
+      
+      const success = await updateGroupNameAPI(conversationId, tempGroupName.trim());
+      
+      if (success) {
+        // Oppdater store
+        updateConversation(conversationId, { groupName: tempGroupName.trim() });
+        setIsEditingGroupName(false);
+        console.log("✅ Group name updated successfully");
+      }
+    } catch (err) {
+      console.error("Failed to update group name:", err);
+    }
+  }, [conversationId, tempGroupName, updateGroupNameAPI, updateConversation]);
 
   
   // Use results conditionally, not the hooks themselves
@@ -329,8 +361,17 @@ export function useUserActionPopover({
     uploadingImage,
     uploadError,
     handleImageUpload,
-    removeGroupImage,
     triggerImageUpload,
+
+    // GroupName functionality
+    isEditingGroupName,
+    tempGroupName,
+    updatingGroupName,
+    handleStartEditGroupName,
+    handleCancelEditGroupName,
+    handleSaveGroupName,
+    setTempGroupName,
+    groupNameError,
 
     // New message window
     showNewMessageWindow,

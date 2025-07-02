@@ -66,8 +66,15 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     uploadingImage,
     uploadError,
     handleImageUpload,
-    removeGroupImage,
     triggerImageUpload,
+    isEditingGroupName,
+    tempGroupName,
+    updatingGroupName,
+    handleStartEditGroupName,
+    handleCancelEditGroupName,
+    handleSaveGroupName,
+    setTempGroupName,
+    groupNameError
   } = useUserActionPopover({
     user,
     onRemoveSuccess,
@@ -112,9 +119,16 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           uploadingImage={uploadingImage}
           uploadError={uploadError}
           onImageUpload={handleImageUpload}
-          onRemoveGroupImage={removeGroupImage}
           onTriggerImageUpload={triggerImageUpload}
-        />
+          isEditingGroupName={isEditingGroupName}
+          tempGroupName={tempGroupName}
+          updatingGroupName={updatingGroupName}
+          onStartEditGroupName={handleStartEditGroupName}
+          onCancelEditGroupName={handleCancelEditGroupName}
+          onSaveGroupName={handleSaveGroupName}
+          onSetTempGroupName={setTempGroupName}
+          groupNameError={groupNameError}
+                />
       </div>
 
       <ConfirmDialog />

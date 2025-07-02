@@ -33,3 +33,16 @@ export async function leaveGroup(conversationId: number): Promise<{ message: str
     body: JSON.stringify(conversationId), // Backend forventer bare int som body
   });
 }
+
+export async function updateGroupName(
+  groupId: number,
+  newName: string
+): Promise<{ success: boolean } | null> {
+  const url = `${API_BASE_URL}/api/groupconversation/update-group-name?groupId=${groupId}&newName=${encodeURIComponent(newName)}`;
+  
+  console.log("📝 Oppdaterer gruppenavn:", url, { groupId, newName });
+  
+  return await fetchWithAuth<{ success: boolean }>(url, {
+    method: 'PUT',
+  });
+}

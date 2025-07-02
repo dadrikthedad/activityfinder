@@ -21,17 +21,25 @@ interface Props {
   onShowUserPopover?: (user: UserSummaryDTO, event: React.MouseEvent) => void;
   isPendingRequest?: boolean; 
   onInviteUsers?: () => void;
-  // ✅ NEW: Handler for send message from nested context
+  // NEW: Handler for send message from nested context
   onSendMessageFromNested?: (user: UserSummaryDTO) => void;
-  // ✅ NEW: Handler for opening invite users window
+  // NEW: Handler for opening invite users window
   onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
   isLeavingGroup?: boolean;
   groupImageUrl?: string | null;
   uploadingImage?: boolean;
   uploadError?: string | null;
   onImageUpload?: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onRemoveGroupImage?: () => void;
   onTriggerImageUpload?: () => void;
+    // Group name props
+  isEditingGroupName?: boolean;
+  tempGroupName?: string;
+  updatingGroupName?: boolean;
+  onStartEditGroupName?: () => void;
+  onCancelEditGroupName?: () => void;
+  onSaveGroupName?: () => void;
+  onSetTempGroupName?: (name: string) => void;
+  groupNameError?: string | null;
 }
 
 export default function UserActionPopoverContent({
@@ -56,8 +64,15 @@ export default function UserActionPopoverContent({
   uploadingImage,
   uploadError,
   onImageUpload,
-  onRemoveGroupImage,
   onTriggerImageUpload,
+  isEditingGroupName,
+  tempGroupName,
+  updatingGroupName,
+  onStartEditGroupName,
+  onCancelEditGroupName,
+  onSaveGroupName,
+  onSetTempGroupName,
+  groupNameError,
 }: Props) {
   
   // ✅ FIXED: Handler for showing user popover - should NOT automatically send message
@@ -135,6 +150,49 @@ export default function UserActionPopoverContent({
                 {uploadError && (
                     <p className="text-red-500 text-xs mt-2">{uploadError}</p>
                   )}
+
+
+                  {isEditingGroupName ? (
+                    <div className="space-y-2 w-full">
+                      <input
+                        type="text"
+                        value={tempGroupName}
+                        onChange={(e) => onSetTempGroupName?.(e.target.value)}
+                        placeholder="Enter group name"
+                        maxLength={100}
+                        className="w-full p-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm"
+                        disabled={updatingGroupName}
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <ProfileNavButton
+                          text={updatingGroupName ? "Saving..." : "Save"}
+                          onClick={onSaveGroupName || (() => {})}
+                          variant="small"
+                          className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white flex-1"
+                          disabled={updatingGroupName || !tempGroupName?.trim()}
+                        />
+                        <ProfileNavButton
+                          text="Cancel"
+                          onClick={onCancelEditGroupName || (() => {})}
+                          variant="small"
+                          className="bg-gray-500 hover:bg-gray-600 text-white flex-1"
+                          disabled={updatingGroupName}
+                        />
+                      </div>
+                      {groupNameError && (
+                        <p className="text-red-500 text-xs mt-2">{groupNameError}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <ProfileNavButton
+                      text="Change Name"
+                      onClick={onStartEditGroupName || (() => {})}
+                      variant="small"
+                      className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+                    />
+                  )}
+
 
                 
                 {/* Leave Group button - show only if NOT pending request */}

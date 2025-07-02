@@ -107,8 +107,22 @@ export default function MessageDropdown({
       event.stopPropagation();
     }
 
+    // 🎯 Hent fersk data fra store for grupper
+    const conversation = groupData?.isGroup && groupData?.conversationId 
+      ? useChatStore.getState().conversations.find(c => c.id === groupData.conversationId)
+      : undefined;
+
+    // 🎯 Send oppdatert user-objekt
+    const updatedUser = groupData?.isGroup && conversation 
+      ? {
+          ...user,
+          fullName: conversation.groupName || user.fullName,
+          profileImageUrl: conversation.groupImageUrl || user.profileImageUrl
+        }
+      : user;
+
     useUserActionPopoverStore.getState().show({
-      user,
+      user: updatedUser, // 🎯 Fersk data
       position: pos,
       ...groupData,
     });

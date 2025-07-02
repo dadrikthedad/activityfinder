@@ -23,6 +23,8 @@ import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotific
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
+
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -44,6 +46,7 @@ export default function ChatHubClient() {
     const updateNotificationsForRejectedConversation = useMessageNotificationStore(
       (state) => state.updateNotificationsForRejectedConversation
     )
+    const { refreshConversation } = useConversationUpdate();
 
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
       const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
@@ -271,41 +274,51 @@ export default function ChatHubClient() {
       async (data: GroupNotificationUpdateDTO) => {
         console.log("🔔 GroupNotification oppdatert i ChatHubClient:", data);
         const { userId: targetUserId, notification, groupEventType, affectedUsers } = data;
-        
+      
         // Sjekk at notifikasjonen er for den innloggede brukeren
         if (targetUserId !== userId) {
           console.log("⚠️ GroupNotification ikke for denne brukeren, hopper over");
           return;
         }
-        
+      
         if (notification) {
-          
+        
           const enhancedNotification: MessageNotificationDTO = {
             ...notification,
             latestGroupEventType: typeof groupEventType === 'string' ? groupEventType : String(groupEventType),
             latestAffectedUsers: affectedUsers
           };
-      
+
+          // Konverter string til enum verdi
+          let eventTypeEnum: GroupEventType;
+
+          // Håndter både string og nummer fra backend
+          if (typeof groupEventType === 'string') {
+            eventTypeEnum = GroupEventType[groupEventType as keyof typeof GroupEventType];
+          } else {
+            eventTypeEnum = groupEventType;
+          }
+
+          // 🆕 Håndter forskjellige group events
+          if (notification.conversationId != null) {
+            if (eventTypeEnum === GroupEventType.GroupNameChanged || 
+                eventTypeEnum === GroupEventType.GroupImageChanged) {
+              // 🎯 For navn/bilde endringer - hent ferske data fra backend
+              console.log(`🔄 Group ${eventTypeEnum === GroupEventType.GroupNameChanged ? 'name' : 'image'} changed, refreshing conversation ${notification.conversationId}`);
+              await refreshConversation(notification.conversationId, { 
+                logPrefix: eventTypeEnum === GroupEventType.GroupNameChanged ? "🏷️" : "🖼️" 
+              });
+            } else {
+              // 🔄 For andre events (invites, members, etc.) - oppdater participants som før
+              await updateConversationParticipants(notification.conversationId, "Group updated");
+            }
+          }
+
           // Oppdater notification-panelet med enhanced data
           await handleIncomingNotification(enhancedNotification);
-        
-          if (notification.conversationId != null) {
-            await updateConversationParticipants(notification.conversationId, "New members invited to group");
-          }
-      
-          // Vis toast for alle nye hendelser, ikke bare nye notifikasjoner
-          if (notification.conversationId != null) {
-            // Konverter string til enum verdi
-            let eventTypeEnum: GroupEventType;
-      
-            // Håndter både string og nummer fra backend
-            if (typeof groupEventType === 'string') {
-              eventTypeEnum = GroupEventType[groupEventType as keyof typeof GroupEventType];
-            } else {
-              eventTypeEnum = groupEventType;
-            }
 
-            // Vis toast for alle hendelser (ikke bare nye notifikasjoner)
+          // Vis toast for alle hendelser
+          if (notification.conversationId != null) {
             showNotificationToast({
               senderName: notification.senderName ?? "Someone",
               type: NotificationType.GroupEvent,
@@ -313,7 +326,7 @@ export default function ChatHubClient() {
               groupName: notification.groupName,
               groupImage: notification.groupImageUrl,
               groupEventType: eventTypeEnum,
-              affectedUsers: affectedUsers, // Send også hele user-objektene
+              affectedUsers: affectedUsers,
             });
           }
         }
