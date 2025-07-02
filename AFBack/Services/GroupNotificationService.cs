@@ -344,7 +344,7 @@ public class GroupNotificationService
                 GroupEventType.MemberRemoved => 
                     $"{actorName} removed: {string.Join(", ", allAffectedUsers.Distinct())}",
                 GroupEventType.GroupNameChanged => 
-                    $"{actorName} changed the group name",
+                    BuildGroupNameChangedSummary(actorName, currentEvent.Metadata),
                 GroupEventType.GroupImageChanged => 
                     $"{actorName} changed the group image",
                 GroupEventType.GroupCreated => 
@@ -374,6 +374,38 @@ public class GroupNotificationService
         }
 
         return "Users have accepted the invite";
+    }
+    
+    // Hjelpemetode for å hente gammelt og nytt navn
+    private string BuildGroupNameChangedSummary(string actorName, string? metadata)
+    {
+        if (string.IsNullOrEmpty(metadata))
+        {
+            return $"{actorName} changed the group name";
+        }
+
+        try
+        {
+            var data = JsonSerializer.Deserialize<Dictionary<string, object>>(metadata);
+            if (data != null && data.ContainsKey("oldName") && data.ContainsKey("newName"))
+            {
+                var oldName = data["oldName"]?.ToString() ?? "";
+                var newName = data["newName"]?.ToString() ?? "";
+            
+                if (string.IsNullOrEmpty(oldName))
+                {
+                    return $"{actorName} set the group name to \"{newName}\"";
+                }
+            
+                return $"{actorName} changed the group name to \"{newName}\" from \"{oldName}\"";
+            }
+        }
+        catch (JsonException)
+        {
+            // Fallback hvis JSON parsing feiler
+        }
+    
+        return $"{actorName} changed the group name";
     }
     
 }

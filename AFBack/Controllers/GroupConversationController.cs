@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
@@ -802,11 +803,19 @@ public class GroupConversationController : BaseController
             $"{userName} changed the group name from \"{oldName}\" to \"{newName}\""
         );
         
+        // Send metadata med gamle og nye navn for å lage det oversiktelig i eventen
+        var metadata = JsonSerializer.Serialize(new
+        {
+            oldName = oldName ?? "",
+            newName = newName.Trim()
+        });
+        
         await _groupNotificationService.CreateGroupEventAsync(
             GroupEventType.GroupNameChanged,
             groupId,
             userId,
-            new List<int> { userId }
+            new List<int> { userId },
+            metadata
         );
 
         _logger.LogInformation("User {UserId} updated group {GroupId} name to: {NewName}", userId, groupId, newName);
