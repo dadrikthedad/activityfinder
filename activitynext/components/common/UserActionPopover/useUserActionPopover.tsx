@@ -10,6 +10,8 @@ import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
 import { useLeaveGroup } from "@/hooks/messages/useLeaveGroup";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useUploadGroupImage } from "@/hooks/image/useUploadGroupImage";
+import { useChatStore } from "@/store/useChatStore";
 
 interface UseUserActionPopoverProps {
   user: UserSummaryDTO;
@@ -47,6 +49,46 @@ export function useUserActionPopover({
   const confirmRemoveResult = useConfirmRemoveFriend();
   const friendResult = useFriendWith(user.id);
   const { leaveGroupMutation, isLeavingGroup, error: leaveGroupError } = useLeaveGroup()
+
+  // Oppdatere samtaler i store ved bytte av bilde
+  const updateConversation = useChatStore((state) => state.updateConversation);
+  // Group image upload hook
+  const { upload: uploadGroupImage, uploading: uploadingImage, error: uploadError } = useUploadGroupImage();
+  const [groupImageUrl, setGroupImageUrl] = useState<string | null>(user.profileImageUrl);
+
+  // Group image handlers
+  const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      console.log("🔄 Uploading group image:", file.name);
+      const imageUrl = await uploadGroupImage(file, conversationId);
+      console.log("✅ Got imageUrl from API:", imageUrl);
+      if (imageUrl) {
+        setGroupImageUrl(imageUrl);
+        console.log("📝 Set groupImageUrl to:", imageUrl);
+        
+        // 🆕 Oppdater store umiddelbart
+        if (conversationId) {
+          updateConversation(conversationId, { groupImageUrl: imageUrl });
+          console.log("🏪 Updated conversation in store:", conversationId);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to upload group image:", err);
+    }
+  }, [uploadGroupImage, conversationId, updateConversation]);
+
+  const removeGroupImage = useCallback(() => {
+    setGroupImageUrl(null);
+  }, []);
+
+  const triggerImageUpload = useCallback(() => {
+    const input = document.getElementById('group-image-upload-popover') as HTMLInputElement;
+    input?.click();
+  }, []);
+
   
   // Use results conditionally, not the hooks themselves
   const { confirmAndRemove, ConfirmDialog: RemoveFriendConfirmDialog } = (isSimplified || isNested)
@@ -281,6 +323,14 @@ export function useUserActionPopover({
     handleRemove: handleRemoveFriend, // New name
     handleSendMessageToUser: handleSendMessageToUserWrapper,
     handleShowUserPopover,
+
+    // GroupImage functionality
+    groupImageUrl,
+    uploadingImage,
+    uploadError,
+    handleImageUpload,
+    removeGroupImage,
+    triggerImageUpload,
 
     // New message window
     showNewMessageWindow,

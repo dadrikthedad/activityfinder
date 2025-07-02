@@ -24,12 +24,24 @@ export async function uploadGroupImage(
 ): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
+
+console.log("🔍 SERVICE: uploadGroupImage called with groupId:", groupId);
   
-  if (groupId) {
+    if (groupId) {
     formData.append("groupId", groupId.toString());
+    console.log("🔍 SERVICE: Added groupId to FormData:", groupId.toString()); // 🆕 Legg til denne
+  } else {
+    console.log("🔍 SERVICE: No groupId provided, creating temp file"); // 🆕 Legg til denne
   }
+ 
   
-  const url = `${API_BASE_URL}/api/image/upload-group-image`;
+    // 🔧 Test: Send groupId som query parameter i stedet
+  const url = groupId 
+    ? `${API_BASE_URL}/api/image/upload-group-image?groupId=${groupId}`
+    : `${API_BASE_URL}/api/image/upload-group-image`;
+  
+  console.log("🔍 SERVICE: Final URL:", url);
+  
   const response = await postFormDataRequest<{ imageUrl: string }>(url, formData);
   
   if (!response) {

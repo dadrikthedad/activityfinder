@@ -26,6 +26,12 @@ interface Props {
   // ✅ NEW: Handler for opening invite users window
   onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
   isLeavingGroup?: boolean;
+  groupImageUrl?: string | null;
+  uploadingImage?: boolean;
+  uploadError?: string | null;
+  onImageUpload?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemoveGroupImage?: () => void;
+  onTriggerImageUpload?: () => void;
 }
 
 export default function UserActionPopoverContent({
@@ -45,12 +51,17 @@ export default function UserActionPopoverContent({
   onSendMessageFromNested,
   onOpenInviteWindow,
   isLeavingGroup,
+  // New group image props
+  groupImageUrl,
+  uploadingImage,
+  uploadError,
+  onImageUpload,
+  onRemoveGroupImage,
+  onTriggerImageUpload,
 }: Props) {
   
   // ✅ FIXED: Handler for showing user popover - should NOT automatically send message
   const handleShowUserPopover = (targetUser: UserSummaryDTO, event: React.MouseEvent) => {
-    console.log('👥 CONTENT handleShowUserPopover called for:', targetUser.fullName);
-    
     // This should only show the popover, not send message
     if (onShowUserPopover) {
       onShowUserPopover(targetUser, event);
@@ -70,7 +81,7 @@ export default function UserActionPopoverContent({
         <div className="flex gap-12 mt-4 items-start">
           <div className="flex-shrink-0">
             <EnlargeableImage 
-              src={user.profileImageUrl ?? (isGroup ? "/default-group.png" : "/default-avatar.png")} 
+              src={groupImageUrl || user.profileImageUrl || (isGroup ? "/default-group.png" : "/default-avatar.png")}
               size={120} 
             />
             <div className="w-full mt-2 text-center break-words max-w-[120px]">
@@ -101,6 +112,30 @@ export default function UserActionPopoverContent({
                     className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
                   />
                 )}
+
+                                {/* Hidden file input for image upload */}
+                <input
+                  id="group-image-upload-popover"
+                  type="file"
+                  accept="image/*"
+                  onChange={onImageUpload}
+                  className="hidden"
+                  disabled={uploadingImage}
+                />
+
+                {/* Change Image button */}
+                <ProfileNavButton
+                  text={uploadingImage ? "Uploading..." : "Change Image"}
+                  onClick={onTriggerImageUpload || (() => {})}
+                  variant="small"
+                  className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+                  disabled={uploadingImage}
+                />
+
+                {uploadError && (
+                    <p className="text-red-500 text-xs mt-2">{uploadError}</p>
+                  )}
+
                 
                 {/* Leave Group button - show only if NOT pending request */}
                 {onLeaveGroup && !isPendingRequest && (
