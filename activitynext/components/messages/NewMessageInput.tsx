@@ -2,23 +2,22 @@
 import { useState, useRef, useEffect } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useSendMessage } from "@/hooks/messages/useSendMessage";
-import { useGroupRequests } from "@/hooks/messages/useGroupRequests"; // ✅ Import group requests hook
+import { useGroupRequests } from "@/hooks/messages/useGroupRequests";
 import { MessageDTO } from "@/types/MessageDTO";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageToolbar from "./MessageToolbar";
-import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";// ✅ Import response type
-import { useConversationSyncOnMessage } from "@/hooks/messages/getConversationById";
+import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
+import { useConversationUpdate } from "@/hooks/common/useConversationUpdate"; // ✅ Ny import
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 
 interface NewMessageInputProps {
-  // ✅ Support both single user and multiple users
-  receiverId?: number; // Optional for group mode
-  selectedUsers?: UserSummaryDTO[]; // For group mode
-  groupName?: string; // Optional group name
+  receiverId?: number;
+  selectedUsers?: UserSummaryDTO[];
+  groupName?: string;
   groupImageUrl?: string | null;
   shouldFocus?: boolean;
   onMessageSent?: (message: MessageDTO) => void;
-  onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void; // Callback when group is created
+  onGroupCreated?: (response: SendGroupRequestsResponseDTO) => void;
   parentOverlayId?: string; 
 }
 
@@ -37,77 +36,78 @@ export default function NewMessageInput({
   // Hooks for both scenarios
   const { send, error: messageError } = useSendMessage(onMessageSent);
   const { sendGroupInvitations, isLoading: groupRequestLoading, error: groupRequestError, clearError: clearGroupError } = useGroupRequests();
-  const { syncConversation } = useConversationSyncOnMessage();
+  const { refreshConversation } = useConversationUpdate(); // ✅ Bruk den nye hooken
+  const { approveLocally } = useApproveMessageRequest();
 
   // Determine if we're in group mode
   const isGroupMode = selectedUsers.length > 1;
   const isDisabled = isGroupMode
-  ? groupRequestLoading  // For grupper: kun disabled når loading
-  : !text.trim() || !receiverId; 
-
-  const { approveLocally } = useApproveMessageRequest();
+    ? groupRequestLoading
+    : !text.trim() || !receiverId; 
 
   const handleSend = async () => {
-  // For 1-til-1 samtaler: krev tekst
-  if (!isGroupMode) {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    
-    if (!receiverId) {
-      console.error("❌ No receiverId provided for 1-to-1 message");
+    // For 1-til-1 samtaler: krev tekst
+    if (!isGroupMode) {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      
+      if (!receiverId) {
+        console.error("❌ No receiverId provided for 1-to-1 message");
+        return;
+      }
+
+      const sendingText = trimmed;
+      setText("");
+      inputRef.current?.focus();
+
+      const payload = {
+        text: sendingText,
+        receiverId: receiverId.toString(),
+      };
+
+      console.log("📤 Sender melding med payload:", payload);
+
+      send(payload)
+        .then(async (result) => {
+          if (!result) return;
+
+          if (result.isNowApproved) {
+            approveLocally(result.conversationId);
+          }
+          
+          // Bruk refreshConversation
+          if (!result.isRejectedRequest) {
+            await refreshConversation(result.conversationId, {
+              logPrefix: "📨" // Egen prefix for melding-syncing
+            });
+          }
+          onMessageSent?.(result);
+        });
+      
       return;
     }
 
-    const sendingText = trimmed;
-    setText("");
-    inputRef.current?.focus();
-
-    const payload = {
-      text: sendingText,
-      receiverId: receiverId.toString(),
-    };
-
-    console.log("📤 Sender melding med payload:", payload);
-
-    send(payload)
-      .then(async (result) => {
-        if (!result) return;
-
-        if (result.isNowApproved) {
-            approveLocally(result.conversationId);
-        }
-        
-        // 🚨 SJEKK isRejectedRequest FØR syncing
-        if (!result.isRejectedRequest) {
-          await syncConversation(result);
-        }
-        onMessageSent?.(result);
+    // For gruppesamtaler: tekst er optional
+    try {
+      const trimmed = text.trim();
+      const invitedUserIds = selectedUsers.map(user => user.id);
+      
+      const response = await sendGroupInvitations({
+        groupName: groupName?.trim() || undefined,
+        invitedUserIds,
+        groupImageUrl: groupImageUrl || undefined,
+        initialMessage: trimmed || undefined,
       });
-    
-    return;
-  }
 
-  // ✅ For gruppesamtaler: tekst er optional
-  try {
-    const trimmed = text.trim();
-    const invitedUserIds = selectedUsers.map(user => user.id);
-    
-    const response = await sendGroupInvitations({
-      groupName: groupName?.trim() || undefined,
-      invitedUserIds,
-      groupImageUrl: groupImageUrl || undefined,
-      initialMessage: trimmed || undefined, // Send undefined hvis tom
-    });
-
-    if (response) {
-      console.log("✅ Group created successfully:", response);
-      setText(""); // Clear the input
-      onGroupCreated?.(response);
+      if (response) {
+        console.log("✅ Group created successfully:", response);
+        setText("");
+        onGroupCreated?.(response);
+      }
+    } catch (error) {
+      console.error("❌ Failed to create group:", error);
     }
-  } catch (error) {
-    console.error("❌ Failed to create group:", error);
-  }
-};
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -116,13 +116,12 @@ export default function NewMessageInput({
     }
   };
 
-    useEffect(() => {
+  useEffect(() => {
     if (shouldFocus) {
       inputRef.current?.focus();
     }
   }, [shouldFocus]);
 
-  // ✅ Show error from either message sending or group creation
   const currentError = messageError || groupRequestError;
 
   if (currentError) {
@@ -152,7 +151,6 @@ export default function NewMessageInput({
 
   return (
     <div className="flex flex-col gap-2 mt-4 h-full">
-      {/* ✅ Show group info above toolbar if in group mode */}
       {isGroupMode && (
         <div className="text-sm text-gray-600 dark:text-gray-400 px-2 text-center">
           Creating group with {selectedUsers.length} members

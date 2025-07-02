@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from '@/types/SendGroupRequestsDTO';
 import { sendGroupRequests } from '@/services/messages/groupService';
-import { useConversationSyncOnMessage } from './getConversationById';
+import { useConversationUpdate } from '../common/useConversationUpdate';
 import { useChatStore } from '@/store/useChatStore';
-import { updateConversationParticipants } from '@/services/helpfunctions/conversationUpdateSerivce';
 
 interface UseGroupRequestsResult {
   sendGroupInvitations: (request: SendGroupRequestsDTO) => Promise<SendGroupRequestsResponseDTO | null>;
@@ -15,7 +14,7 @@ interface UseGroupRequestsResult {
 export function useGroupRequests(): UseGroupRequestsResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { syncConversation } = useConversationSyncOnMessage();
+  const { refreshConversation } = useConversationUpdate();
   const { setCurrentConversationId } = useChatStore();
 
   const sendGroupInvitations = async (request: SendGroupRequestsDTO): Promise<SendGroupRequestsResponseDTO | null> => {
@@ -37,17 +36,19 @@ export function useGroupRequests(): UseGroupRequestsResult {
         console.log("🔄 Synkroniserer ny gruppesamtale til store:", response.conversationId);
         
         try {
-          const syncedConversation = await syncConversation({ conversationId: response.conversationId });
+          const syncResult = await refreshConversation(response.conversationId, {
+            logPrefix: "👥" // Egen prefix for gruppe-syncing
+          });
           
-          if (syncedConversation) {
-            console.log("✅ Gruppesamtale synkronisert til store:", syncedConversation);
+         
+        if (syncResult?.data) {
+          console.log("✅ Gruppesamtale synkronisert til store:", syncResult.data);
+           
             
             // 🎯 SETT DEN NYE GRUPPESAMTALEN SOM AKTIV
             setCurrentConversationId(response.conversationId);
             console.log("🔄 Satt aktiv samtale til:", response.conversationId);
           }
-
-          await updateConversationParticipants(response.conversationId, "After inviting users");
           
         } catch (syncError) {
           console.error("❌ Feil ved synkronisering av gruppesamtale:", syncError);

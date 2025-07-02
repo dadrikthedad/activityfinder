@@ -18,12 +18,12 @@ import { NotificationType } from "@/types/MessageNotificationDTO";
 import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
-import { updateConversationParticipants } from "@/services/helpfunctions/conversationUpdateSerivce";
 import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotificationUpdateDTO";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
+
 
 
 export default function ChatHubClient() {
@@ -301,17 +301,9 @@ export default function ChatHubClient() {
 
           // 🆕 Håndter forskjellige group events
           if (notification.conversationId != null) {
-            if (eventTypeEnum === GroupEventType.GroupNameChanged || 
-                eventTypeEnum === GroupEventType.GroupImageChanged) {
-              // 🎯 For navn/bilde endringer - hent ferske data fra backend
-              console.log(`🔄 Group ${eventTypeEnum === GroupEventType.GroupNameChanged ? 'name' : 'image'} changed, refreshing conversation ${notification.conversationId}`);
-              await refreshConversation(notification.conversationId, { 
-                logPrefix: eventTypeEnum === GroupEventType.GroupNameChanged ? "🏷️" : "🖼️" 
-              });
-            } else {
-              // 🔄 For andre events (invites, members, etc.) - oppdater participants som før
-              await updateConversationParticipants(notification.conversationId, "Group updated");
-            }
+            await refreshConversation(notification.conversationId, {
+              logPrefix: "👥" // Samme prefix for alle group events
+            });
           }
 
           // Oppdater notification-panelet med enhanced data
@@ -367,7 +359,7 @@ export default function ChatHubClient() {
       async (conversationId: number) => {
         console.log("🔁 Group participants updated via SignalR for conversation:", conversationId);
         
-        // 🆕 Bruk syncPendingConversation med forceUpdate for å oppdatere participants
+        // Bruk med forceUpdate for å oppdatere participants
         await syncPendingConversation(conversationId, true);
       }
     );
