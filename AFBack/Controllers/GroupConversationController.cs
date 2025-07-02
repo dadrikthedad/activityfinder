@@ -323,6 +323,7 @@ public class GroupConversationController : BaseController
                 .Where(u => invitedUserIds.Contains(u.Id))
                 .Select(u => u.FullName)
                 .ToListAsync();
+            
 
             // Generer systemmelding-tekst
             string systemMessageText;
@@ -394,6 +395,27 @@ public class GroupConversationController : BaseController
             {
                 Console.WriteLine($"Failed to notify user {groupRequest.ReceiverId} about group invitation: {ex.Message}");
             }
+        }
+        
+        // 3️⃣ Send GroupParticipantsUpdated til eksisterende inviterte medlemmer som ikke har akseptert
+        var newlyInvitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
+
+        var existingPendingUserIds = await context.GroupRequests
+            .Where(gr => gr.ConversationId == conversationId && 
+                         gr.Status == GroupRequestStatus.Pending &&
+                         !newlyInvitedUserIds.Contains(gr.ReceiverId))
+            .Select(gr => gr.ReceiverId.ToString())
+            .ToListAsync();
+
+        if (existingPendingUserIds.Any())
+        {
+            await _hubContext.Clients.Users(existingPendingUserIds)
+                .SendAsync("GroupParticipantsUpdated", new
+                {
+                    ConversationId = conversationId
+                });
+
+            Console.WriteLine($"🔁 Sent GroupParticipantsUpdated to existing pending members: {string.Join(", ", existingPendingUserIds)}");
         }
     }
     
