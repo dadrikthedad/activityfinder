@@ -62,19 +62,6 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     handleCloseInviteWindow,
     handleInvitesSent,
     ConfirmDialog,
-    groupImageUrl,
-    uploadingImage,
-    uploadError,
-    handleImageUpload,
-    triggerImageUpload,
-    isEditingGroupName,
-    tempGroupName,
-    updatingGroupName,
-    handleStartEditGroupName,
-    handleCancelEditGroupName,
-    handleSaveGroupName,
-    setTempGroupName,
-    groupNameError
   } = useUserActionPopover({
     user,
     onRemoveSuccess,
@@ -116,19 +103,6 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           onOpenInviteWindow={isGroup ? handleOpenInviteWindow : undefined}
           onSendMessageFromNested={handleSendMessageFromNested}
           conversationId={conversationId}
-          groupImageUrl={groupImageUrl}
-          uploadingImage={uploadingImage}
-          uploadError={uploadError}
-          onImageUpload={handleImageUpload}
-          onTriggerImageUpload={triggerImageUpload}
-          isEditingGroupName={isEditingGroupName}
-          tempGroupName={tempGroupName}
-          updatingGroupName={updatingGroupName}
-          onStartEditGroupName={handleStartEditGroupName}
-          onCancelEditGroupName={handleCancelEditGroupName}
-          onSaveGroupName={handleSaveGroupName}
-          onSetTempGroupName={setTempGroupName}
-          groupNameError={groupNameError}
                 />
       </div>
 

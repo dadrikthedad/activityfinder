@@ -5,6 +5,9 @@ import ProfileNavButton from "../../settings/ProfileNavButton";
 import DropdownNavButton from "../../DropdownNavButton";
 import ParticipantsDropdownButton from "./UserActionParticipantDropdown";
 import { useChatStore } from "@/store/useChatStore";
+import { useGroupSettingsStore } from "@/components/groupmessages/useGroupSettingsStore";
+import { calculatePopoverPosition } from "../PopoverPositioning"; 
+import { useCallback } from "react";
 
 interface Props {
   user: UserSummaryDTO;
@@ -28,20 +31,6 @@ interface Props {
   // Handler for opening invite users window
   onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
   isLeavingGroup?: boolean;
-  groupImageUrl?: string | null;
-  uploadingImage?: boolean;
-  uploadError?: string | null;
-  onImageUpload?: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onTriggerImageUpload?: () => void;
-    // Group name props
-  isEditingGroupName?: boolean;
-  tempGroupName?: string;
-  updatingGroupName?: boolean;
-  onStartEditGroupName?: () => void;
-  onCancelEditGroupName?: () => void;
-  onSaveGroupName?: () => void;
-  onSetTempGroupName?: (name: string) => void;
-  groupNameError?: string | null;
 }
 
 export default function UserActionPopoverContent({
@@ -62,20 +51,6 @@ export default function UserActionPopoverContent({
   onOpenInviteWindow,
   isLeavingGroup,
   conversationId, 
-  // New group image props
-  groupImageUrl,
-  uploadingImage,
-  uploadError,
-  onImageUpload,
-  onTriggerImageUpload,
-  isEditingGroupName,
-  tempGroupName,
-  updatingGroupName,
-  onStartEditGroupName,
-  onCancelEditGroupName,
-  onSaveGroupName,
-  onSetTempGroupName,
-  groupNameError,
 }: Props) {
 
   // Get current group name from store for groups
@@ -89,6 +64,11 @@ export default function UserActionPopoverContent({
   const displayName = isGroup && currentConversation?.groupName 
     ? currentConversation.groupName 
     : user.fullName;
+
+// Dynamisk bilde som hentes fra store
+  const displayImage = isGroup && currentConversation?.groupImageUrl 
+  ? currentConversation.groupImageUrl 
+  : (user.profileImageUrl || (isGroup ? "/default-group.png" : "/default-avatar.png"));
   
   // Handler for showing user popover - should NOT automatically send message
   const handleShowUserPopover = (targetUser: UserSummaryDTO, event: React.MouseEvent) => {
@@ -97,6 +77,18 @@ export default function UserActionPopoverContent({
       onShowUserPopover(targetUser, event);
     }
   };
+
+  // Handler for opening group settings
+  const handleOpenGroupSettings = useCallback((event: React.MouseEvent) => {
+    if (!conversationId) return;
+    
+    const position = calculatePopoverPosition(event);
+    useGroupSettingsStore.getState().show({
+      user,
+      conversationId,
+      position
+    });
+  }, [user, conversationId]);
   
   return (
     <div className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]">
@@ -111,7 +103,7 @@ export default function UserActionPopoverContent({
         <div className="flex gap-12 mt-4 items-start">
           <div className="flex-shrink-0">
             <EnlargeableImage 
-              src={groupImageUrl || user.profileImageUrl || (isGroup ? "/default-group.png" : "/default-avatar.png")}
+              src={displayImage}
               size={120} 
             />
             <div className="w-full mt-2 text-center break-words max-w-[120px]">
@@ -143,79 +135,16 @@ export default function UserActionPopoverContent({
                   />
                 )}
 
-                {/* Hidden file input for image upload - only show if NOT pending */}
-                {!isPendingRequest && (
-                  <input
-                    id="group-image-upload-popover"
-                    type="file"
-                    accept="image/*"
-                    onChange={onImageUpload}
-                    className="hidden"
-                    disabled={uploadingImage}
-                  />
-                )}
-
-                {/* Change Image button - only show if NOT pending */}
+                 {/* Group Settings button - only show if NOT pending */}
                 {!isPendingRequest && (
                   <ProfileNavButton
-                    text={uploadingImage ? "Uploading..." : "Change Image"}
-                    onClick={onTriggerImageUpload || (() => {})}
+                    text="Group Settings"
+                    onClick={handleOpenGroupSettings}
                     variant="small"
                     className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    disabled={uploadingImage}
                   />
                 )}
 
-                {uploadError && !isPendingRequest && (
-                    <p className="text-red-500 text-xs mt-2">{uploadError}</p>
-                  )}
-
-
-                  {/* Group name editing */}
-                  {!isPendingRequest && (
-                    <>
-                      {isEditingGroupName ? (
-                        <div className="space-y-2 w-full">
-                          <input
-                            type="text"
-                            value={tempGroupName}
-                            onChange={(e) => onSetTempGroupName?.(e.target.value)}
-                            placeholder="Enter group name"
-                            maxLength={100}
-                            className="w-full p-2 border-1 rounded dark:bg-[#1e2122] dark:border-[#1C6B1C] focus:outline-none text-sm"
-                            disabled={updatingGroupName}
-                            autoFocus
-                          />
-                          <div className="flex gap-2">
-                            <ProfileNavButton
-                              text={updatingGroupName ? "Saving..." : "Save"}
-                              onClick={onSaveGroupName || (() => {})}
-                              variant="small"
-                              className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white flex-1"
-                              disabled={updatingGroupName || !tempGroupName?.trim()}
-                            />
-                            <ProfileNavButton
-                              text="Cancel"
-                              onClick={onCancelEditGroupName || (() => {})}
-                              variant="small"
-                              className="bg-gray-500 hover:bg-gray-600 text-white flex-1"
-                              disabled={updatingGroupName}
-                            />
-                          </div>
-                          {groupNameError && (
-                            <p className="text-red-500 text-xs mt-2">{groupNameError}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <ProfileNavButton
-                          text="Change Name"
-                          onClick={onStartEditGroupName || (() => {})}
-                          variant="small"
-                          className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                        />
-                      )}
-                    </>
-                  )}
                 
                 {/* Leave Group button - show only if NOT pending request */}
                 {onLeaveGroup && !isPendingRequest && (

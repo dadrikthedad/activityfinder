@@ -9,6 +9,7 @@ import CacheCleanup from "@/components/common/CacheCleanup";
 import { Toaster } from "sonner";
 import { OverlayLayerProvider } from "@/context/OverlayProvider";
 import UserActionPopoverPortal from "@/components/common/UserActionPopover/UserActionPopoverPortal";
+import GroupSettingsPortal from "@/components/groupmessages/GroupSettingsPortal";
 
 
 
@@ -46,6 +47,7 @@ export default function RootLayout({
                   <ChatHubClient />
                     <Navbar /> {/* 👈 LEGG TIL DENNE */}
                       <UserActionPopoverPortal />
+                      <GroupSettingsPortal />
                       <main>{children}</main>
                       <Toaster position="bottom-right" richColors />
                 </CacheCleanup>
