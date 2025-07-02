@@ -20,17 +20,21 @@ public class GroupConversationController : BaseController
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IHubContext<ChatHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
+    private readonly ILogger<GroupConversationController> _logger;
+    private readonly GroupNotificationService _groupNotificationService;
 
 
 
-    public GroupConversationController(ApplicationDbContext context, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService)
+    public GroupConversationController(ApplicationDbContext context, ILogger<GroupConversationController> logger, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService)
     {
+        _logger = logger;
         _context = context;
         _msgCache = msgCache;
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
         _hubContext = hubContext;
         _messageNotificationService = messageNotificationService;
+        _groupNotificationService = groupNotificationService;
     }
 
     [HttpPost("send-requests")]
@@ -756,6 +760,58 @@ public class GroupConversationController : BaseController
             Console.WriteLine($"❌ Feil ved sletting av gruppe {conversation.Id}: {ex.Message}");
             throw; // Re-throw for å stoppe transaksjonen
         }
+    }
+    
+    [HttpPut("update-group-name")]
+    public async Task<IActionResult> UpdateGroupName(int groupId, string newName)
+    {
+        if (GetUserId() is not int userId)
+            return Unauthorized();
+
+        if (string.IsNullOrWhiteSpace(newName) || newName.Length > 100)
+            return BadRequest("Group name must be between 1 and 100 characters");
+
+        var group = await _context.Conversations
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
+    
+        if (group == null)
+            return NotFound("Group not found");
+
+        var isParticipant = group.Participants.Any(p => p.UserId == userId);
+        var isCreator = group.CreatorId == userId;
+    
+        if (!isParticipant && !isCreator)
+            return Forbid("You don't have permission to update this group");
+        
+        if (group.GroupName?.Trim() == newName.Trim())
+            return BadRequest("Group name is already set to this value");
+        
+        var oldName = group.GroupName;
+        group.GroupName = newName.Trim();
+        await _context.SaveChangesAsync();
+
+        var userName = await _context.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync() ?? "En bruker";
+
+        // Send system message
+        await _messageNotificationService.CreateSystemMessageAsync(
+            groupId,
+            $"{userName} changed the group name from \"{oldName}\" to \"{newName}\""
+        );
+        
+        await _groupNotificationService.CreateGroupEventAsync(
+            GroupEventType.GroupNameChanged,
+            groupId,
+            userId,
+            new List<int> { userId }
+        );
+
+        _logger.LogInformation("User {UserId} updated group {GroupId} name to: {NewName}", userId, groupId, newName);
+    
+        return Ok(new { success = true });
     }
         
 }
