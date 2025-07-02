@@ -8,25 +8,8 @@ import { useState, useRef } from 'react';
 import GroupEventTooltip from "./GroupEventTooltip";
 import React from 'react'; 
 import { formatNotificationText } from "../functions/message/FormatNotificationsText";
-
-
-function shouldShowSenderName(n: MessageNotificationDTO): boolean {
-
-    if (n.type === "GroupEvent" || n.type === 8) {
-      return false;
-    }
-
-  if (n.type === "NewMessage" || n.type === 1) {
-    // For grupper: kun vis sender-navn hvis det er 1 melding
-    if (n.groupName) {
-      return (n.messageCount ?? 1) === 1;
-    }
-    // For private: alltid vis sender-navn
-    return true;
-  }
-  // For andre typer: alltid vis sender-navn
-  return true;
-}
+import { shouldShowSenderName } from "../functions/message/shouldShowSenderName";
+import { calculatePopoverPosition } from "../common/PopoverPositioning";
 
 interface NotificationsPanelProps {
   onOpenConversation: (conversationId: number) => void;
@@ -39,14 +22,15 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
   const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
 
   const totalNotifications = useMessageNotificationStore((s) => s.notifications.length);
-
   const canGoToChat = totalNotifications >= 20;
 
-   // 🆕 Forbedret tooltip state med timeout
-  const [activeTooltip, setActiveTooltip] = useState<number | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+  // 🆕 Forbedret tooltip state med calculatePopoverPosition
+  const [activeTooltip, setActiveTooltip] = useState<{
+    notificationId: number;
+    position: { x: number; y: number };
+  } | null>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
 
   const handleNotificationClick = (n: MessageNotificationDTO) => {
     // Hvis samtalen er avslått, ikke gjør noe
@@ -55,7 +39,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     }
 
     if (!n.isRead) {
-       markOneAsRead(n.id);
+      markOneAsRead(n.id);
       if (n.conversationId) {
         setScrollToMessageId(n.messageId ?? null);
         onOpenConversation(n.conversationId);
@@ -68,7 +52,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     }
   };
 
-  // Handler for å vise tooltip
+  // 🔄 Oppdatert handler for å vise tooltip med calculatePopoverPosition
   const handleMouseEnter = (notificationId: number, event: React.MouseEvent) => {
     // Kanseller eventuell pending hide timeout
     if (hideTimeoutRef.current) {
@@ -76,21 +60,29 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
       hideTimeoutRef.current = null;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    setTooltipPosition({
-      x: rect.right + 5, // Mindre gap - 5px istedenfor 10px
-      y: rect.top
+    // Bruk calculatePopoverPosition for bedre plassering
+    const position = calculatePopoverPosition(event);
+    
+    setActiveTooltip({
+      notificationId,
+      position
     });
-    setActiveTooltip(notificationId);
   };
 
-  const handleMouseLeave = () => {
-    // Ikke skjul umiddelbart - gi tid til å bevege musen til tooltip
+  const handleMouseLeave = (notificationId: number) => {
+    // Gi tid til å bevege musen til tooltip før den skjules
     hideTimeoutRef.current = setTimeout(() => {
-      setActiveTooltip(null);
-    }, 150); // 150ms delay
+      // Dobbeltsjekk at vi fortsatt skal skjule denne tooltipet
+      setActiveTooltip(prev => {
+        if (prev?.notificationId === notificationId) {
+          return null;
+        }
+        return prev;
+      });
+    }, 200); // Økt til 200ms for bedre UX
   };
 
+  // 🆕 Handler for når musen er over tooltip-området
   const handleTooltipMouseEnter = () => {
     // Kanseller hide timeout når musen er over tooltip
     if (hideTimeoutRef.current) {
@@ -99,8 +91,9 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     }
   };
 
+  // 🆕 Handler for når musen forlater tooltip-området
   const handleTooltipMouseLeave = () => {
-    // Skjul tooltip når musen forlater tooltip
+    // Skjul tooltip umiddelbart når musen forlater tooltip
     setActiveTooltip(null);
   };
 
@@ -116,28 +109,25 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
     };
   }, []);
 
-
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pt-10 gap-4 text-sm custom-scrollbar">
-
       {notifications.length > 0 && (
-    <div className="w-full text-center">
-       <ProfileNavButton
-        onClick={() => markAllAsRead()}
-        text={markAllLoading ? "Marking..." : "Mark all as read"}
-        variant="small"
-        disabled={markAllLoading}
-      />
-    </div>
-    )}
+        <div className="w-full text-center">
+          <ProfileNavButton
+            onClick={() => markAllAsRead()}
+            text={markAllLoading ? "Marking..." : "Mark all as read"}
+            variant="small"
+            disabled={markAllLoading}
+          />
+        </div>
+      )}
 
       {!hasLoaded ? (
-          <p className="text-gray-500 text-xs">Loading notifications...</p>
-        ) : notifications.length === 0 ? (
-          <p className="text-gray-500 text-xs">No recent notifications</p>
-        ) : (
-      <ul className="space-y-2 overflow-auto w-full flex-1 min-h-0 pb-4 px-32
-      ">
+        <p className="text-gray-500 text-xs">Loading notifications...</p>
+      ) : notifications.length === 0 ? (
+        <p className="text-gray-500 text-xs">No recent notifications</p>
+      ) : (
+        <ul className="space-y-2 overflow-auto w-full flex-1 min-h-0 pb-4 px-32">
           {notifications.map((n) => (
             <li
               key={n.id}
@@ -150,7 +140,7 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                 }`}
               onClick={() => handleNotificationClick(n)}
               onMouseEnter={shouldShowTooltip(n) ? (e) => handleMouseEnter(n.id, e) : undefined}
-              onMouseLeave={shouldShowTooltip(n) ? handleMouseLeave : undefined}
+              onMouseLeave={shouldShowTooltip(n) ? () => handleMouseLeave(n.id) : undefined}
               title={n.isConversationRejected ? "This conversation has been declined" : undefined}
             >
               {/* 🛡️ TRYGG: Rejected sjekkes først - beholder originale farger */}
@@ -170,47 +160,48 @@ export default function NotificationsPanel({ onOpenConversation }: Notifications
                   timeStyle: "short"
                 })}
               </div>
-              {/* 🆕 Tooltip */}
-               {activeTooltip !== null && (
-                  (() => {
-                    const notification = notifications.find(n => n.id === activeTooltip);
-                    return notification && shouldShowTooltip(notification) && notification.conversationId ? (
-                      <div 
-                        className="fixed z-50"
-                        style={{
-                          left: tooltipPosition.x,
-                          top: tooltipPosition.y
-                        }}
-                        onMouseEnter={handleTooltipMouseEnter}
-                        onMouseLeave={handleTooltipMouseLeave}
-                      >
-                        <GroupEventTooltip
-                          eventSummaries={notification.eventSummaries || []}
-                          groupName={notification.groupName || "Unknown Group"}
-                          eventCount={notification.messageCount || 0}
-                          isVisible={true}
-                        />
-                      </div>
-                    ) : null;
-                  })()
-                )}
             </li>
           ))}
-            <li className="w-full text-center pt-2">
-              <ProfileNavButton
-                onClick={() => {
-                  if (canGoToChat) Router.push("/page/chat");
-                }}
-                text="See more..."
-                variant="small"
-                disabled={!canGoToChat}
-              />
-            </li>
-              <li className="py-1" /> {/* Litt ekstra luft under knappen */}
+          
+          <li className="w-full text-center pt-2">
+            <ProfileNavButton
+              onClick={() => {
+                if (canGoToChat) Router.push("/page/chat");
+              }}
+              text="See more..."
+              variant="small"
+              disabled={!canGoToChat}
+            />
+          </li>
+          <li className="py-1" /> {/* Litt ekstra luft under knappen */}
         </ul>
-        
       )}
-     
+
+      {/* 🆕 Tooltip med fast posisjonering - ikke lenger inni li-elementet */}
+      {activeTooltip && (
+        (() => {
+          const notification = notifications.find(n => n.id === activeTooltip.notificationId);
+          return notification && shouldShowTooltip(notification) && notification.conversationId ? (
+            <div 
+              ref={tooltipRef}
+              className="fixed z-50"
+              style={{
+                left: activeTooltip.position.x,
+                top: activeTooltip.position.y
+              }}
+              onMouseEnter={handleTooltipMouseEnter}
+              onMouseLeave={handleTooltipMouseLeave}
+            >
+              <GroupEventTooltip
+                eventSummaries={notification.eventSummaries || []}
+                groupName={notification.groupName || "Unknown Group"}
+                eventCount={notification.messageCount || 0}
+                isVisible={true}
+              />
+            </div>
+          ) : null;
+        })()
+      )}
     </div>
   );
 }
