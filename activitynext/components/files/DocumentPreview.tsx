@@ -4,6 +4,13 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
+import { 
+  getFileTypeInfo, 
+  getFileIcon, 
+  getSyntaxClass, 
+  canPreviewAsText,
+  formatFileSize 
+} from "./PreviewHelperFunctions";
 
 interface GalleryItem {
   file: File;
@@ -22,75 +29,6 @@ interface DocumentPreviewProps {
   initialIndex?: number;
   onNavigate?: (index: number) => void;
 }
-
-// File type info function
-const getFileTypeInfo = (fileType: string, fileName?: string) => {
-  const type = fileType.toLowerCase();
-  const name = fileName?.toLowerCase() || '';
-  
-  if (type.startsWith('image/')) {
-    return { category: 'image', icon: '🖼️', color: 'text-blue-600' };
-  }
-  if (type.startsWith('video/')) {
-    return { category: 'video', icon: '🎥', color: 'text-purple-600' };
-  }
-  if (type === 'application/pdf') {
-    return { category: 'pdf', icon: '📄', color: 'text-red-600' };
-  }
-  
-  // Enhanced file type detection
-  if (name.endsWith('.js') || name.endsWith('.jsx')) {
-    return { category: 'code', icon: '🟨', color: 'text-yellow-600' };
-  }
-  if (name.endsWith('.ts') || name.endsWith('.tsx')) {
-    return { category: 'code', icon: '🔷', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.json')) {
-    return { category: 'data', icon: '📋', color: 'text-orange-600' };
-  }
-  if (name.endsWith('.html')) {
-    return { category: 'web', icon: '🌐', color: 'text-orange-600' };
-  }
-  if (name.endsWith('.css') || name.endsWith('.scss')) {
-    return { category: 'style', icon: '🎨', color: 'text-pink-600' };
-  }
-  if (name.endsWith('.py')) {
-    return { category: 'code', icon: '🐍', color: 'text-green-600' };
-  }
-  if (name.endsWith('.java')) {
-    return { category: 'code', icon: '☕', color: 'text-red-600' };
-  }
-  if (name.endsWith('.md')) {
-    return { category: 'document', icon: '📝', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.sql')) {
-    return { category: 'database', icon: '🗃️', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.log')) {
-    return { category: 'log', icon: '📊', color: 'text-gray-600' };
-  }
-  if (name.endsWith('.env')) {
-    return { category: 'config', icon: '🔐', color: 'text-green-600' };
-  }
-  if (name.endsWith('.dockerfile')) {
-    return { category: 'config', icon: '🐳', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.docx') || name.endsWith('.doc')) {
-    return { category: 'document', icon: '📝', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    return { category: 'spreadsheet', icon: '📊', color: 'text-green-600' };
-  }
-  if (name.endsWith('.pptx') || name.endsWith('.ppt')) {
-    return { category: 'presentation', icon: '📊', color: 'text-orange-600' };
-  }
-  
-  if (type.includes('document') || type.includes('word') || type.includes('text')) {
-    return { category: 'document', icon: '📝', color: 'text-green-600' };
-  }
-  
-  return { category: 'other', icon: '📎', color: 'text-gray-600' };
-};
 
 export const DocumentPreview = ({ 
   file, 
@@ -131,113 +69,6 @@ export const DocumentPreview = ({
       setCurrentIndex(index);
       onNavigate?.(index);
     }
-  };
-
-  // Get syntax highlighting class based on file extension
-  const getSyntaxClass = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'js':
-      case 'jsx':
-      case 'ts':
-      case 'tsx':
-        return 'language-javascript';
-      case 'json':
-        return 'language-json';
-      case 'html':
-        return 'language-html';
-      case 'css':
-      case 'scss':
-        return 'language-css';
-      case 'py':
-        return 'language-python';
-      case 'java':
-        return 'language-java';
-      case 'cpp':
-      case 'c':
-        return 'language-cpp';
-      case 'php':
-        return 'language-php';
-      case 'sql':
-        return 'language-sql';
-      case 'xml':
-        return 'language-xml';
-      case 'yaml':
-      case 'yml':
-        return 'language-yaml';
-      case 'md':
-        return 'language-markdown';
-      default:
-        return 'language-text';
-    }
-  };
-
-  // Get appropriate file icon
-  const getFileIcon = (fileName: string, fileType: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-    
-    if (fileType.startsWith('image/')) return '🖼️';
-    if (fileType.includes('pdf')) return '📄';
-    if (fileType.includes('word')) return '📝';
-    
-    switch (ext) {
-      case 'js':
-      case 'jsx': return '🟨';
-      case 'ts':
-      case 'tsx': return '🔷';
-      case 'json': return '📋';
-      case 'html': return '🌐';
-      case 'css':
-      case 'scss': return '🎨';
-      case 'py': return '🐍';
-      case 'java': return '☕';
-      case 'cpp':
-      case 'c': return '⚙️';
-      case 'php': return '🐘';
-      case 'sql': return '🗃️';
-      case 'xml': return '📰';
-      case 'yaml':
-      case 'yml': return '⚙️';
-      case 'md': return '📝';
-      case 'log': return '📊';
-      case 'env': return '🔐';
-      case 'gitignore': return '🚫';
-      case 'dockerfile': return '🐳';
-      default: return '📄';
-    }
-  };
-
-  // Check if file can be previewed as text
-  const canPreviewAsText = (file: File) => {
-    const fileName = file.name.toLowerCase();
-    const fileType = file.type.toLowerCase();
-    
-    // Text files that can be read directly
-    return fileType === 'text/plain' || 
-           fileName.endsWith('.txt') ||
-           fileName.endsWith('.md') ||
-           fileName.endsWith('.json') ||
-           fileName.endsWith('.csv') ||
-           fileName.endsWith('.xml') ||
-           fileName.endsWith('.js') ||
-           fileName.endsWith('.jsx') ||
-           fileName.endsWith('.ts') ||
-           fileName.endsWith('.tsx') ||
-           fileName.endsWith('.css') ||
-           fileName.endsWith('.scss') ||
-           fileName.endsWith('.html') ||
-           fileName.endsWith('.py') ||
-           fileName.endsWith('.java') ||
-           fileName.endsWith('.cpp') ||
-           fileName.endsWith('.c') ||
-           fileName.endsWith('.php') ||
-           fileName.endsWith('.sql') ||
-           fileName.endsWith('.log') ||
-           fileName.endsWith('.yaml') ||
-           fileName.endsWith('.yml') ||
-           fileName.endsWith('.env') ||
-           fileName.endsWith('.gitignore') ||
-           fileName.endsWith('.dockerfile');
   };
 
   // Read file content - now using currentFile
@@ -400,20 +231,47 @@ export const DocumentPreview = ({
   }, [isOpen, isGalleryMode, gallery.length, goToPrevious, goToNext, goToIndex, onClose]);
 
   const handleDownload = () => {
-    const url = URL.createObjectURL(currentFile);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = currentFile.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Check if this is an attachment file
+    const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
+    const isAttachmentFile = currentGalleryItem?.attachment;
+
+    if (isAttachmentFile) {
+      // For attachment files, create download link from URL
+      const attachment = currentGalleryItem.attachment!;
+      const a = document.createElement('a');
+      a.href = attachment.fileUrl;
+      a.download = attachment.fileName || 'download';
+      a.target = '_blank'; // Open in new tab as fallback
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      // For regular File objects, use blob URL
+      const url = URL.createObjectURL(currentFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = currentFile.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handleOpenInNewTab = () => {
-    const url = URL.createObjectURL(currentFile);
-    window.open(url, '_blank');
-    // Note: URL will be cleaned up when the tab is closed
+    // Check if this is an attachment file
+    const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
+    const isAttachmentFile = currentGalleryItem?.attachment;
+
+    if (isAttachmentFile) {
+      // For attachment files, open URL directly
+      window.open(currentGalleryItem.attachment!.fileUrl, '_blank');
+    } else {
+      // For regular File objects, use blob URL
+      const url = URL.createObjectURL(currentFile);
+      window.open(url, '_blank');
+      // Note: URL will be cleaned up when the tab is closed
+    }
   };
 
   if (!isOpen) return null;
@@ -493,7 +351,7 @@ export const DocumentPreview = ({
                   )}
                 </h3>
                 <p className="text-sm text-gray-500">
-                  {currentFile.type || 'Unknown type'} • {(currentFile.size / 1024).toFixed(1)} KB
+                  {currentFile.type || 'Unknown type'} • {formatFileSize(currentFile.size)}
                 </p>
               </div>
             </div>
@@ -582,22 +440,34 @@ export const DocumentPreview = ({
             ) : getFileTypeInfo(currentFile.type, currentFile.name).category === 'image' ? (
               // Image viewer
               <div className="p-4 flex items-center justify-center">
-                <img
-                  src={URL.createObjectURL(currentFile)}
-                  alt={currentFile.name}
-                  className="max-w-full max-h-[70vh] object-contain rounded"
-                  onLoad={(e) => {
-                    // Clean up the blob URL after image loads
-                    setTimeout(() => {
-                      URL.revokeObjectURL((e.target as HTMLImageElement).src);
-                    }, 100);
-                  }}
-                />
+                {(() => {
+                  const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
+                  const isAttachmentFile = currentGalleryItem?.attachment;
+                  const imageSrc = isAttachmentFile 
+                    ? currentGalleryItem.attachment!.fileUrl 
+                    : URL.createObjectURL(currentFile);
+
+                  return (
+                    <img
+                      src={imageSrc}
+                      alt={currentFile.name}
+                      className="max-w-full max-h-[70vh] object-contain rounded"
+                      onLoad={(e) => {
+                        // Only clean up blob URLs for File objects
+                        if (!isAttachmentFile) {
+                          setTimeout(() => {
+                            URL.revokeObjectURL((e.target as HTMLImageElement).src);
+                          }, 100);
+                        }
+                      }}
+                    />
+                  );
+                })()}
               </div>
             ) : null}
           </div>
 
-          {/* Gallery thumbnails for images */}
+          {/* Gallery thumbnails */}
           {isGalleryMode && gallery.length <= 10 && gallery.some(item => getFileTypeInfo(item.file.type, item.file.name).category === 'image') && (
             <div className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex justify-center gap-2 flex-wrap">

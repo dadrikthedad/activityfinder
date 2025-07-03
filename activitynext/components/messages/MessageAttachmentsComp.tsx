@@ -2,108 +2,12 @@
 import { useState } from "react";
 import { AttachmentDto } from "@/types/MessageDTO";
 import { DocumentPreview } from "../files/DocumentPreview";
+import { getFileTypeInfo, createFileFromUrl } from "../files/PreviewHelperFunctions";
 
 interface MessageAttachmentsProps {
   attachments: AttachmentDto[];
   className?: string;
 }
-
-// ===================================
-// 🎨 FILE TYPE UTILITIES
-// ===================================
-
-const getFileTypeInfo = (fileType: string, fileName?: string) => {
-  const type = fileType.toLowerCase();
-  const name = fileName?.toLowerCase() || '';
-  
-  if (type.startsWith('image/')) {
-    return { category: 'image', icon: '🖼️', color: 'text-blue-600' };
-  }
-  if (type.startsWith('video/')) {
-    return { category: 'video', icon: '🎥', color: 'text-purple-600' };
-  }
-  if (type === 'application/pdf') {
-    return { category: 'pdf', icon: '📄', color: 'text-red-600' };
-  }
-  
-  // Enhanced file type detection
-  if (name.endsWith('.js') || name.endsWith('.jsx')) {
-    return { category: 'code', icon: '🟨', color: 'text-yellow-600' };
-  }
-  if (name.endsWith('.ts') || name.endsWith('.tsx')) {
-    return { category: 'code', icon: '🔷', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.json')) {
-    return { category: 'data', icon: '📋', color: 'text-orange-600' };
-  }
-  if (name.endsWith('.html')) {
-    return { category: 'web', icon: '🌐', color: 'text-orange-600' };
-  }
-  if (name.endsWith('.css') || name.endsWith('.scss')) {
-    return { category: 'style', icon: '🎨', color: 'text-pink-600' };
-  }
-  if (name.endsWith('.py')) {
-    return { category: 'code', icon: '🐍', color: 'text-green-600' };
-  }
-  if (name.endsWith('.java')) {
-    return { category: 'code', icon: '☕', color: 'text-red-600' };
-  }
-  if (name.endsWith('.md')) {
-    return { category: 'document', icon: '📝', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.sql')) {
-    return { category: 'database', icon: '🗃️', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.log')) {
-    return { category: 'log', icon: '📊', color: 'text-gray-600' };
-  }
-  if (name.endsWith('.env')) {
-    return { category: 'config', icon: '🔐', color: 'text-green-600' };
-  }
-  if (name.endsWith('.dockerfile')) {
-    return { category: 'config', icon: '🐳', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.docx') || name.endsWith('.doc')) {
-    return { category: 'document', icon: '📝', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    return { category: 'spreadsheet', icon: '📊', color: 'text-green-600' };
-  }
-  if (name.endsWith('.pptx') || name.endsWith('.ppt')) {
-    return { category: 'presentation', icon: '📊', color: 'text-orange-600' };
-  }
-  
-  if (type.includes('document') || type.includes('word') || type.includes('text')) {
-    return { category: 'document', icon: '📝', color: 'text-green-600' };
-  }
-  
-  return { category: 'other', icon: '📎', color: 'text-gray-600' };
-};
-
-// Helper function to create File objects from AttachmentDto
-const createFileFromAttachment = async (attachment: AttachmentDto): Promise<File> => {
-  try {
-    const response = await fetch(attachment.fileUrl);
-    const blob = await response.blob();
-    
-    // Ensure correct MIME type - use attachment.fileType if blob.type is empty
-    const mimeType = blob.type || attachment.fileType;
-    
-    return new File([blob], attachment.fileName || 'unknown-file', {
-      type: mimeType
-    });
-  } catch (error) {
-    console.error('Error creating file from attachment:', error);
-    // Create a dummy file as fallback but with correct type
-    return new File([''], attachment.fileName || 'unknown-file', {
-      type: attachment.fileType
-    });
-  }
-};
-
-// ===================================
-// 📎 SINGLE ATTACHMENT COMPONENT
-// ===================================
 
 interface AttachmentItemProps {
   attachment: AttachmentDto;
@@ -208,13 +112,15 @@ export const MessageAttachments = ({ attachments, className = "" }: MessageAttac
   }));
 
   const handlePreview = async (attachment: AttachmentDto) => {
-    try {
-      // Create file from attachment
-      
+    try {  
       // Always create gallery with all files for navigation
       const allAttachments = attachments;
       const galleryPromises = allAttachments.map(async (att) => {
-        const attFile = await createFileFromAttachment(att);
+        const attFile = await createFileFromUrl(
+          att.fileUrl, 
+          att.fileName || 'unknown-file', 
+          att.fileType
+        );
         return { attachment: att, file: attFile };
       });
       

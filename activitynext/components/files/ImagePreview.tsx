@@ -1,118 +1,14 @@
 import { useState, useEffect } from "react";
-import { formatFileSize } from "@/services/files/fileServiceHelperFunctions";
 import EnlargeableImage from "../common/EnlargeableImage";
 import { DocumentPreview } from "./DocumentPreview";
-
-// ===================================
-// 🎨 FILE TYPE UTILITIES
-// ===================================
-
-export const getFileTypeInfo = (file: File) => {
-  const type = file.type.toLowerCase();
-  const name = file.name.toLowerCase();
-  
-  if (type.startsWith('image/')) {
-    return { category: 'image', icon: '🖼️', color: 'text-blue-600' };
-  }
-  if (type.startsWith('video/')) {
-    return { category: 'video', icon: '🎥', color: 'text-purple-600' };
-  }
-  if (type === 'application/pdf') {
-    return { category: 'pdf', icon: '📄', color: 'text-red-600' };
-  }
-  
-  // Enhanced file type detection
-  if (name.endsWith('.js') || name.endsWith('.jsx')) {
-    return { category: 'code', icon: '🟨', color: 'text-yellow-600' };
-  }
-  if (name.endsWith('.ts') || name.endsWith('.tsx')) {
-    return { category: 'code', icon: '🔷', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.json')) {
-    return { category: 'data', icon: '📋', color: 'text-orange-600' };
-  }
-  if (name.endsWith('.html')) {
-    return { category: 'web', icon: '🌐', color: 'text-orange-600' };
-  }
-  if (name.endsWith('.css') || name.endsWith('.scss')) {
-    return { category: 'style', icon: '🎨', color: 'text-pink-600' };
-  }
-  if (name.endsWith('.py')) {
-    return { category: 'code', icon: '🐍', color: 'text-green-600' };
-  }
-  if (name.endsWith('.java')) {
-    return { category: 'code', icon: '☕', color: 'text-red-600' };
-  }
-  if (name.endsWith('.md')) {
-    return { category: 'document', icon: '📝', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.sql')) {
-    return { category: 'database', icon: '🗃️', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.log')) {
-    return { category: 'log', icon: '📊', color: 'text-gray-600' };
-  }
-  if (name.endsWith('.env')) {
-    return { category: 'config', icon: '🔐', color: 'text-green-600' };
-  }
-  if (name.endsWith('.dockerfile')) {
-    return { category: 'config', icon: '🐳', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.docx') || name.endsWith('.doc')) {
-    return { category: 'document', icon: '📝', color: 'text-blue-600' };
-  }
-  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-    return { category: 'spreadsheet', icon: '📊', color: 'text-green-600' };
-  }
-  if (name.endsWith('.pptx') || name.endsWith('.ppt')) {
-    return { category: 'presentation', icon: '📊', color: 'text-orange-600' };
-  }
-  
-  if (type.includes('document') || type.includes('word') || type.includes('text')) {
-    return { category: 'document', icon: '📝', color: 'text-green-600' };
-  }
-  
-  return { category: 'other', icon: '📎', color: 'text-gray-600' };
-};
-
-// ===================================
-// 🖼️ IMAGE PREVIEW HOOK
-// ===================================
-
-const useImagePreview = (file: File) => {
-  const [imageUrl, setImageUrl] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    if (!file.type.startsWith('image/')) {
-      setIsLoading(false);
-      return;
-    }
-
-    const url = URL.createObjectURL(file);
-    setImageUrl(url);
-    
-    // Test if image loads successfully
-    const img = new Image();
-    img.onload = () => setIsLoading(false);
-    img.onerror = () => {
-      setError(true);
-      setIsLoading(false);
-    };
-    img.src = url;
-
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [file]);
-
-  return { imageUrl, isLoading, error };
-};
-
-// ===================================
-// 📎 FILE PREVIEW ITEM COMPONENT
-// ===================================
+import { 
+  getFileTypeInfo, 
+  useImagePreview, 
+  canPreviewFile, 
+  formatFileSize,
+  getFileTypesSummary,
+  createFileGallery
+} from "./PreviewHelperFunctions";
 
 interface FilePreviewItemProps {
   file: File;
@@ -123,67 +19,14 @@ interface FilePreviewItemProps {
 
 const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItemProps) => {
   const { imageUrl, isLoading, error } = useImagePreview(file);
-  const fileInfo = getFileTypeInfo(file);
+  const fileInfo = getFileTypeInfo(file.type, file.name);
   const isImage = fileInfo.category === 'image';
   
   // State for document preview
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
-  
-  // Check if file can be previewed (expanded support)
-  const canPreview = () => {
-    const fileName = file.name.toLowerCase();
-    const fileType = file.type.toLowerCase();
-    
-    // PDF files
-    if (fileType === 'application/pdf') return true;
-    
-    // Text-based files
-    if (fileType === 'text/plain' || 
-        fileName.endsWith('.txt') ||
-        fileName.endsWith('.md') ||
-        fileName.endsWith('.json') ||
-        fileName.endsWith('.csv') ||
-        fileName.endsWith('.xml') ||
-        fileName.endsWith('.js') ||
-        fileName.endsWith('.jsx') ||
-        fileName.endsWith('.ts') ||
-        fileName.endsWith('.tsx') ||
-        fileName.endsWith('.css') ||
-        fileName.endsWith('.scss') ||
-        fileName.endsWith('.html') ||
-        fileName.endsWith('.py') ||
-        fileName.endsWith('.java') ||
-        fileName.endsWith('.cpp') ||
-        fileName.endsWith('.c') ||
-        fileName.endsWith('.php') ||
-        fileName.endsWith('.sql') ||
-        fileName.endsWith('.log') ||
-        fileName.endsWith('.yaml') ||
-        fileName.endsWith('.yml') ||
-        fileName.endsWith('.env') ||
-        fileName.endsWith('.gitignore') ||
-        fileName.endsWith('.dockerfile')) {
-      return true;
-    }
-    
-    // Office documents (limited preview)
-    if (fileType.includes('word') || 
-        fileType.includes('excel') ||
-        fileType.includes('powerpoint') ||
-        fileName.endsWith('.docx') ||
-        fileName.endsWith('.doc') ||
-        fileName.endsWith('.xlsx') ||
-        fileName.endsWith('.xls') ||
-        fileName.endsWith('.pptx') ||
-        fileName.endsWith('.ppt')) {
-      return true;
-    }
-    
-    return false;
-  };
 
   const handleFileClick = () => {
-    if (canPreview()) {
+    if (canPreviewFile(file)) {
       setShowDocumentPreview(true);
     }
   };
@@ -239,7 +82,7 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
           // Non-image files
           <div 
             className={`w-24 h-24 rounded-lg bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-2 ${
-              canPreview() ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
+              canPreviewFile(file) ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
             } transition-colors`}
             onClick={handleFileClick}
           >
@@ -256,7 +99,7 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
             </div>
             
             {/* Preview indicator */}
-            {canPreview() && (
+            {canPreviewFile(file) && (
               <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
                 👁️
               </div>
@@ -286,7 +129,7 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
       </div>
       
       {/* Document Preview Modal */}
-      {canPreview() && (
+      {canPreviewFile(file) && (
         <DocumentPreview
           file={file}
           isOpen={showDocumentPreview}
@@ -316,26 +159,17 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
     f.name.toLowerCase().endsWith('.docx') || 
     f.name.toLowerCase().endsWith('.doc')
   ).length;
-  const otherCount = files.length - imageCount - pdfCount - docCount;
 
   // Create gallery data for File objects with blob URLs
   const [imageGallery, setImageGallery] = useState<Array<{ file: File; src: string; alt?: string; fileName?: string }>>([]);
 
   useEffect(() => {
-    const images = files.filter(f => f.type.startsWith('image/'));
-    
-    // Create blob URLs for gallery
-    const galleryPromises = images.map(async (file) => {
-      const src = URL.createObjectURL(file);
-      return {
-        file,
-        src,
-        alt: file.name,
-        fileName: file.name
-      };
-    });
+    const setupGallery = async () => {
+      const gallery = await createFileGallery(files);
+      setImageGallery(gallery);
+    };
 
-    Promise.all(galleryPromises).then(setImageGallery);
+    setupGallery();
 
     // Cleanup blob URLs when component unmounts or files change
     return () => {
@@ -344,16 +178,6 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
       });
     };
   }, [files]);
-
-  const getFileTypesSummary = () => {
-    const parts = [];
-    if (imageCount > 0) parts.push(`${imageCount} bilde${imageCount !== 1 ? 'r' : ''}`);
-    if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 'er' : ''}`);
-    if (docCount > 0) parts.push(`${docCount} dokument${docCount !== 1 ? 'er' : ''}`);
-    if (otherCount > 0) parts.push(`${otherCount} andre`);
-    
-    return parts.length > 0 ? `(${parts.join(', ')})` : '';
-  };
 
   return (
     <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -365,7 +189,7 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
           </span>
           {files.length > 1 && (
             <span className="text-xs text-gray-500">
-              {getFileTypesSummary()}
+              {getFileTypesSummary(files)}
             </span>
           )}
         </div>

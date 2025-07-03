@@ -8,7 +8,7 @@ import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
 import MessageToolbar from "./MessageToolbar";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import { validateFiles } from "@/services/files/fileServiceHelperFunctions";
+import { validateFiles } from "@/components/files/PreviewHelperFunctions";
 import { FilePreview } from "../files/ImagePreview";
 
 
