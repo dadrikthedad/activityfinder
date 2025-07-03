@@ -15,6 +15,7 @@ import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 import { debounce } from "lodash";
 import Spinner from "../common/Spinner";
 import { useMarkConversationNotificationsAsRead } from "@/hooks/messages/useMarkConversationNotificationAsRead";
+import { MessageAttachments } from "./MessageAttachmentsComp";
 
 
 
@@ -457,9 +458,12 @@ export default function MessageList({
               )}
           
               {/* Vedlegg og tidspunkt */}
-              {msg.attachments?.length > 0 && (
-                <div className="text-xs text-gray-400 mb-1">📎 {msg.attachments.length} attachment(s)</div>
-              )}
+              {msg.attachments && msg.attachments.length > 0 && (
+                  <MessageAttachments 
+                    attachments={msg.attachments}
+                    className="mb-2"
+                  />
+                )}
             </div>
             </ReactionHandler>
           </div>

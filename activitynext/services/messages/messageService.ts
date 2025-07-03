@@ -5,7 +5,7 @@ import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
 import { RejectRequestDTO } from "@/types/RejectRequestDTO";
 
 // Sende meldinger til bruker eller grupper
-export async function sendMessage(
+export async function sendTextMessage(
   payload: SendMessageRequestDTO
 ): Promise<MessageDTO | null> {
   const url = `${API_BASE_URL}/api/messages`;

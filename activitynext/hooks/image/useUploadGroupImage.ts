@@ -1,7 +1,7 @@
 // hooks/useUploadGroupImage.ts
 "use client";
 import { useState } from "react";
-import { uploadGroupImage } from "@/services/common/imageService";
+import { uploadGroupImage } from "@/services/files/fileService";
 
 export function useUploadGroupImage() {
   const [uploading, setUploading] = useState(false);

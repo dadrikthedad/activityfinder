@@ -35,12 +35,25 @@ export interface MessageDTO {
 
 export interface SendMessageRequestDTO {
   text?: string;
-  attachments?: {
-    fileUrl: string;
-    fileType: string;
-    fileName: string;
-  }[];
+  attachments?: AttachmentDto[];
   conversationId?: number;
+  receiverId?: string;
+  parentMessageId?: number | null;
+}
+
+export interface UploadAttachmentsRequestDTO {
+  text?: string;
+  files: File[];
+  conversationId: number;
+  receiverId?: string;
+  parentMessageId?: number | null;
+}
+
+// Hjelpetype for å bygge FormData
+export interface MessageWithFilesData {
+  text?: string;
+  files?: File[];
+  conversationId: number;
   receiverId?: string;
   parentMessageId?: number | null;
 }

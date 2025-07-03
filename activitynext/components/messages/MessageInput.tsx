@@ -8,6 +8,8 @@ import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
 import MessageToolbar from "./MessageToolbar";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { validateFiles } from "@/services/files/fileServiceHelperFunctions";
+import { FilePreview } from "../files/useImagePreview";
 
 
 interface MessageInputProps {
@@ -38,8 +40,10 @@ export default function MessageInput({
   userPopoverRef,
 }: MessageInputProps) {
   const [text, setText] = useState("");
-  const { send } = useSendMessage(onMessageSent);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]); // File state
+  const { send, loading, error } = useSendMessage(onMessageSent); // Destructure loading & error
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
 
@@ -73,41 +77,71 @@ export default function MessageInput({
   
   const handleSend = () => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    const hasFiles = selectedFiles.length > 0;
+    
+    // Må ha enten tekst eller filer
+    if (!trimmed && !hasFiles) return;
 
-    // 1) Ta vare på teksten i en egen variabel
-    const tekstSomSendes = trimmed;
-
-    // 2) Tøm input-feltet og sett fokus umiddelbart
-    setText("");
-    inputRef.current?.focus();
-
-    // 3) Kall send(...) asynkront i bakgrunnen. 
-    //Hvis du vil håndtere respons (f.eks. oppdatere conversationId), gjør det i .then()/.catch().
-    send({
-      text: tekstSomSendes,
+    // 1) Ta vare på data
+    const messageData = {
+      text: trimmed || undefined,
+      files: hasFiles ? selectedFiles : undefined,
       conversationId: conversationId ?? undefined,
       receiverId: receiverId?.toString()
-    })
+    };
+
+    // 2) Tøm input-feltet og filer umiddelbart
+    setText("");
+    setSelectedFiles([]);
+    inputRef.current?.focus();
+
+    // 3) Send asynkront
+    send(messageData)
       .then((result) => {
         if (!result) return;
-        //–– Her kan du evt. oppdatere conversationId hvis det er ny samtale:
+        
         if (!conversationId && result.conversationId) {
           useChatStore.getState().setCurrentConversationId(result.conversationId);
         }
-        //–– Firkløver: Slett draft for samtalen:
+        
         if (conversationId) {
           clearDraftFor(conversationId);
         }
-        // (Eventuelt: sett en “sent status” på meldingen i chat-store eller vis feilmelding hvis send feiler)
       })
       .catch((err) => {
         console.error("Feil ved sending av melding:", err);
-        // Du kan her vise “Kunne ikke sende”-feilmelding, 
-        // eller legge meldingen tilbake i input slik at brukeren kan prøve igjen, f.eks. setText(tekstSomSendes).
-        setText(tekstSomSendes);
+        // Restore data on error
+        setText(trimmed);
+        setSelectedFiles(messageData.files || []);
         inputRef.current?.focus();
       });
+  };
+
+   // Handle file selection
+  const handleFileSelect = (files: File[]) => {
+    // Validate before adding
+    const validation = validateFiles(files);
+    if (!validation.isValid) {
+      console.error("File validation failed:", validation.error);
+      return;
+    }
+    
+    setSelectedFiles(prev => [...prev, ...files]);
+  };
+
+  // Remove file
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Open file picker
+  const handlePickFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Open image picker (same as file picker for now)
+  const handlePickImage = () => {
+    fileInputRef.current?.click();
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -136,6 +170,11 @@ export default function MessageInput({
     }
   }, [text]);
 
+  // Fjerner filer ve samtalebytte
+  useEffect(() => {
+    setSelectedFiles([]);
+  }, [conversationId]);
+
   // Scroll til bunn ved trykk på knapp
   const scrollToBottom = () => {
     const list = document.querySelector("[data-message-scroll-container]") as HTMLElement;
@@ -145,11 +184,27 @@ export default function MessageInput({
 
   return (
       <div className="flex flex-col gap-2 mt-4">
+        {/* 🆕 Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            if (files.length > 0) {
+              handleFileSelect(files);
+            }
+            e.target.value = ''; // Reset input
+          }}
+          className="hidden"
+        />
+
         <MessageToolbar
           atBottom={Boolean(atBottom)}
           onScrollToBottom={scrollToBottom}
-          onPickImage={() => console.log("Bilde")}
-          onPickFile={() => console.log("Fil")}
+          onPickImage={handlePickImage} // 🆕 Use new handler
+          onPickFile={handlePickFile} 
           onPickEmoji={() => console.log("Emoji")}
           showFile={!isBlocked}
           showEmoji={!isBlocked}
@@ -158,6 +213,22 @@ export default function MessageInput({
           onLeaveGroup={onLeaveGroup}
           userPopoverRef={userPopoverRef}
         />
+
+        {/* 🆕 File preview */}
+        {selectedFiles.length > 0 && (
+          <FilePreview
+            files={selectedFiles}
+            onRemoveFile={handleRemoveFile}
+            onClearAll={() => setSelectedFiles([])}
+          />
+        )}
+
+        {/* 🆕 Error display */}
+        {error && (
+          <div className="text-red-500 text-sm p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+            {error}
+          </div>
+        )}
 
       {/* Inputfelt + send-knapp */}
       <div className="flex gap-2 items-end">
@@ -184,7 +255,7 @@ export default function MessageInput({
           />
         <button
           onClick={handleSend}
-          disabled={!text.trim() || isBlocked}
+          disabled={(!text.trim() && selectedFiles.length === 0) || isBlocked || loading}
           className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
         >
           Send

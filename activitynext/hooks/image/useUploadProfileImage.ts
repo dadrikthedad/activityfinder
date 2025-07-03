@@ -2,7 +2,7 @@
 // sjekker autentisering, setter loading-state, kaller uploadProfileImage (fra services/profile.ts), lagrer bilde-URL og returnerer den. fanger og viser feil og stopper uploading til slutt
 "use client";
 import { useState } from "react";
-import { uploadProfileImage } from "@/services/common/imageService";
+import { uploadProfileImage } from "@/services/files/fileService";
 
 export function useUploadProfileImage() {
   const [uploading, setUploading] = useState(false);
