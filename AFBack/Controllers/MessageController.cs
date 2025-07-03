@@ -82,29 +82,6 @@ public class MessagesController : BaseController
     
     
     
-    // Endepunkt for å laste opp filer til en melding
-    [HttpPost("upload-attachment")]
-    public async Task<IActionResult> UploadAttachment([FromForm] UploadAttachmentRequest request)
-    {
-        
-        var file = request.File;
-
-        if (file == null || file.Length == 0)
-            return BadRequest("Filen kan ikke være tom.");
-
-        try
-        {
-            var fileUrl = await _fileService.UploadFileAsync(file, "messageattachments"); // Bruker container "messageattachments"
-            return Ok(new { fileUrl });
-        }
-        catch (Exception ex)
-        {
-            // Eventuelt logge feilen her med Serilog hvis du ønsker
-            return StatusCode(500, $"Opplasting feilet: {ex.Message}");
-        }
-    }
-    
-    
     // Henter alle meldingsforespørsler
     [HttpGet("pending")]
     public async Task<IActionResult> GetPendingMessageRequests()

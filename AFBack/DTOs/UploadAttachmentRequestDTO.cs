@@ -1,6 +1,10 @@
 ﻿namespace AFBack.DTOs;
 
-public class UploadAttachmentRequest
+public class UploadAttachmentsRequestDTO
 {
-    public IFormFile? File { get; set; } = null!;
+    public string? Text { get; set; }
+    public List<IFormFile> Files { get; set; } = new();
+    public int ConversationId { get; set; }
+    public string? ReceiverId { get; set; }
+    public int? ParentMessageId { get; set; }
 }
