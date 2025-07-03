@@ -186,54 +186,53 @@ export default function EnlargeableImage({
             aria-hidden="true" 
           />
           
-          {/* Gallery navigation arrows */}
-          {hasMultiple && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToPrevious();
-                }}
-                className="fixed left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-colors z-10 pointer-events-auto"
-                aria-label="Previous image"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goToNext();
-                }}
-                className="fixed right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full transition-colors z-10 pointer-events-auto"
-                aria-label="Next image"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </>
-          )}
-          
           {/* Centered modal content */}
           <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
             <div
               ref={overlay.ref}
-              className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto pointer-events-auto shadow-2xl"
+              className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto pointer-events-auto shadow-2xl relative"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
-                // 🆕 Handle keyboard events directly on the modal
                 if (e.key === 'Escape') {
                   e.preventDefault();
                   e.stopPropagation();
                   handleClose();
                 }
               }}
-              tabIndex={-1} // 🆕 Make focusable
-              style={{ outline: 'none' }} // 🆕 Remove focus outline
+              tabIndex={-1}
+              style={{ outline: 'none' }}
             >
+              {/* 🆕 Gallery navigation arrows - inside modal */}
+              {hasMultiple && (
+                <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToPrevious();
+                    }}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-10"
+                    aria-label="Previous image"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      goToNext();
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-10"
+                    aria-label="Next image"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </>
+              )}
+
               {/* Gallery counter */}
               {hasMultiple && (
                 <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">

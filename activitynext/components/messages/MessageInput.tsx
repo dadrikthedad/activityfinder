@@ -9,7 +9,7 @@ import { useChatStore } from "@/store/useChatStore";
 import MessageToolbar from "./MessageToolbar";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { validateFiles } from "@/services/files/fileServiceHelperFunctions";
-import { FilePreview } from "../files/useImagePreview";
+import { FilePreview } from "../files/ImagePreview";
 
 
 interface MessageInputProps {
