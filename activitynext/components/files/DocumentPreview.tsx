@@ -1,8 +1,9 @@
 // components/common/DocumentPreview.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import Image from "next/image";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import { 
   getFileTypeInfo, 
@@ -50,26 +51,26 @@ export const DocumentPreview = ({
   const currentFile = isGalleryMode ? gallery[currentIndex]?.file || file : file;
   
   // Navigation functions
-  const goToNext = () => {
+  const goToNext = useCallback(() => {
     if (!isGalleryMode) return;
     const newIndex = (currentIndex + 1) % gallery.length;
     setCurrentIndex(newIndex);
     onNavigate?.(newIndex);
-  };
+  }, [isGalleryMode, currentIndex, gallery.length, onNavigate]);
 
-  const goToPrevious = () => {
+  const goToPrevious = useCallback(() => {
     if (!isGalleryMode) return;
     const newIndex = (currentIndex - 1 + gallery.length) % gallery.length;
     setCurrentIndex(newIndex);
     onNavigate?.(newIndex);
-  };
+  }, [isGalleryMode, currentIndex, gallery.length, onNavigate]);
 
-  const goToIndex = (index: number) => {
+  const goToIndex = useCallback((index: number) => {
     if (index >= 0 && index < gallery.length) {
       setCurrentIndex(index);
       onNavigate?.(index);
     }
-  };
+  }, [gallery.length, onNavigate]);
 
   // Read file content - now using currentFile
   useEffect(() => {
@@ -299,7 +300,7 @@ export const DocumentPreview = ({
       <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
         <div
           ref={overlay.ref}
-          className="bg-white dark:bg-zinc-900 rounded-lg max-w-6xl max-h-[95vh] w-full h-auto overflow-hidden pointer-events-auto shadow-2xl relative"
+          className="bg-white dark:bg-[#1e2122] rounded-lg max-w-6xl max-h-[95vh] w-full h-auto overflow-hidden pointer-events-auto shadow-2xl relative border-2 border-[#1C6B1C]"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -337,7 +338,7 @@ export const DocumentPreview = ({
           )}
 
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-3">
               <span className="text-2xl">{getFileIcon(currentFile.name, currentFile.type)}</span>
               <div>
@@ -360,28 +361,28 @@ export const DocumentPreview = ({
               {pdfUrl && (
                 <button
                   onClick={handleOpenInNewTab}
-                  className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
+                  className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
                 >
-                  Åpne i ny fane
+                  Open in new tab
                 </button>
               )}
               <button
                 onClick={handleDownload}
                 className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
               >
-                Last ned
+                Download
               </button>
               <button
                 onClick={onClose}
                 className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
               >
-                Lukk
+                Close
               </button>
             </div>
           </div>
 
           {/* Content */}
-          <div className="overflow-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
+          <div className="overflow-auto custom-scrollbar" style={{ maxHeight: 'calc(95vh - 180px)' }}>
             {isLoading ? (
               <div className="flex items-center justify-center py-16">
                 <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
@@ -439,7 +440,7 @@ export const DocumentPreview = ({
               </div>
             ) : getFileTypeInfo(currentFile.type, currentFile.name).category === 'image' ? (
               // Image viewer
-              <div className="p-4 flex items-center justify-center">
+              <div className="p-4 flex items-center justify-center custom-scrollbar">
                 {(() => {
                   const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
                   const isAttachmentFile = currentGalleryItem?.attachment;
@@ -448,10 +449,13 @@ export const DocumentPreview = ({
                     : URL.createObjectURL(currentFile);
 
                   return (
-                    <img
+                    <Image
                       src={imageSrc}
                       alt={currentFile.name}
+                      width={800}
+                      height={600}
                       className="max-w-full max-h-[70vh] object-contain rounded"
+                      unoptimized
                       onLoad={(e) => {
                         // Only clean up blob URLs for File objects
                         if (!isAttachmentFile) {
@@ -469,7 +473,7 @@ export const DocumentPreview = ({
 
           {/* Gallery thumbnails */}
           {isGalleryMode && gallery.length <= 10 && gallery.some(item => getFileTypeInfo(item.file.type, item.file.name).category === 'image') && (
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="p-4">
               <div className="flex justify-center gap-2 flex-wrap">
                 {gallery.map((item, index) => {
                   const isImage = getFileTypeInfo(item.file.type, item.file.name).category === 'image';
@@ -484,10 +488,13 @@ export const DocumentPreview = ({
                       }`}
                     >
                       {isImage ? (
-                        <img
+                        <Image
                           src={URL.createObjectURL(item.file)}
                           alt={item.file.name}
+                          width={48}
+                          height={48}
                           className="object-cover w-full h-full"
+                          unoptimized
                         />
                       ) : (
                         <span className="text-xs">
@@ -500,15 +507,6 @@ export const DocumentPreview = ({
               </div>
             </div>
           )}
-
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-            <div className="text-xs text-gray-500 text-center">
-              Press ESC to close • Click Download to download file
-              {pdfUrl && ' • PDF opens in browser viewer'}
-              {isGalleryMode && ` • Use ← → arrow keys to navigate • Press 1-9 for quick navigation`}
-            </div>
-          </div>
         </div>
       </div>
     </div>,

@@ -17,9 +17,12 @@ interface EnlargeableImageProps {
   size?: number;
   className?: string;
   useOverlaySystem?: boolean;
-  // 🆕 Gallery props
+  // Gallery props
   gallery?: ImageGalleryItem[];
   initialIndex?: number;
+  // Action buttons control
+  showDownload?: boolean;
+  showOpenInNewTab?: boolean;
 }
 
 export default function EnlargeableImage({
@@ -29,7 +32,9 @@ export default function EnlargeableImage({
   className = "",
   useOverlaySystem = true,
   gallery = [],
-  initialIndex = 0
+  initialIndex = 0,
+  showDownload = false,
+  showOpenInNewTab = false
 }: EnlargeableImageProps) {
   
   const [isOpen, setIsOpen] = useState(false);
@@ -60,27 +65,28 @@ export default function EnlargeableImage({
 
   // Keyboard navigation
   useEffect(() => {
-    if (!isOpen || !hasMultiple) return;
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 🔧 Only handle events when the modal is actually open and focused
-      if (!isOpen) return;
-
       switch (e.key) {
-        case 'ArrowLeft':
-          e.preventDefault();
-          e.stopPropagation(); // 🆕 Prevent bubbling
-          goToPrevious();
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          e.stopPropagation(); // 🆕 Prevent bubbling
-          goToNext();
-          break;
         case 'Escape':
           e.preventDefault();
-          e.stopPropagation(); // 🆕 Prevent bubbling to parent
+          e.stopPropagation();
           handleClose();
+          break;
+        case 'ArrowLeft':
+          if (hasMultiple) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToPrevious();
+          }
+          break;
+        case 'ArrowRight':
+          if (hasMultiple) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToNext();
+          }
           break;
         case '1':
         case '2':
@@ -91,17 +97,18 @@ export default function EnlargeableImage({
         case '7':
         case '8':
         case '9':
-          const index = parseInt(e.key) - 1;
-          if (index < gallery.length) {
-            e.preventDefault();
-            e.stopPropagation(); // 🆕 Prevent bubbling
-            goToIndex(index);
+          if (hasMultiple) {
+            const index = parseInt(e.key) - 1;
+            if (index < gallery.length) {
+              e.preventDefault();
+              e.stopPropagation();
+              goToIndex(index);
+            }
           }
           break;
       }
     };
 
-    // 🔧 Add event listener with capture: true to catch events early
     document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [isOpen, hasMultiple, goToPrevious, goToNext, goToIndex, gallery.length]);
@@ -143,6 +150,20 @@ export default function EnlargeableImage({
     setIsOpen(false);
   }, []);
 
+  const handleOpenInNewTab = () => {
+    window.open(currentImage.src, '_blank');
+  };
+
+  const handleDownload = () => {
+    const a = document.createElement('a');
+    a.href = currentImage.src;
+    a.download = currentImage.fileName || 'image';
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   useEffect(() => {
     if (useOverlaySystem && !isOpen && overlay.level !== null) {
       overlay.close();
@@ -181,16 +202,16 @@ export default function EnlargeableImage({
         >
           {/* Background overlay */}
           <div 
-            className="fixed inset-0 bg-black/90 cursor-pointer"
+            className="fixed inset-0 bg-black/80 cursor-pointer"
             onClick={handleClose}
             aria-hidden="true" 
           />
           
-          {/* Centered modal content */}
+          {/* Modal content */}
           <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
             <div
               ref={overlay.ref}
-              className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto pointer-events-auto shadow-2xl relative"
+              className="bg-white dark:bg-[#1e2122] rounded-lg max-w-6xl max-h-[95vh] w-full h-auto overflow-hidden pointer-events-auto shadow-2xl relative border-2 border-[#1C6B1C]"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
@@ -202,15 +223,12 @@ export default function EnlargeableImage({
               tabIndex={-1}
               style={{ outline: 'none' }}
             >
-              {/* 🆕 Gallery navigation arrows - inside modal */}
+              {/* Gallery navigation arrows - outside content area */}
               {hasMultiple && (
                 <>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToPrevious();
-                    }}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-10"
+                    onClick={goToPrevious}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-20"
                     aria-label="Previous image"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,11 +237,8 @@ export default function EnlargeableImage({
                   </button>
                   
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      goToNext();
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-10"
+                    onClick={goToNext}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-20"
                     aria-label="Next image"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,73 +248,103 @@ export default function EnlargeableImage({
                 </>
               )}
 
-              {/* Gallery counter */}
-              {hasMultiple && (
-                <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                  {currentIndex + 1} of {gallery.length}
+              {/* Header */}
+              <div className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🖼️</span>
+                  <div>
+                    <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                      {currentImage.fileName || currentImage.alt || 'Image'}
+                      {/* Gallery counter */}
+                      {hasMultiple && (
+                        <span className="ml-2 text-sm text-gray-500">
+                          ({currentIndex + 1} of {gallery.length})
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Image
+                    </p>
+                  </div>
                 </div>
-              )}
-
-              <Image
-                src={currentImage.src}
-                alt={currentImage.alt || `Image ${currentIndex + 1}`}
-                width={1000}
-                height={1000}
-                className="rounded-xl mx-auto object-contain max-w-full max-h-[70vh]"
-              />
-              
-              {/* Image filename if available */}
-              {currentImage.fileName && (
-                <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-                  {currentImage.fileName}
-                </div>
-              )}
-
-              {/* Thumbnail navigation for galleries */}
-              {hasMultiple && gallery.length <= 10 && (
-                <div className="mt-4 flex justify-center gap-2 flex-wrap">
-                  {gallery.map((item, index) => (
+                
+                <div className="flex items-center gap-2">
+                  {showOpenInNewTab && (
                     <button
-                      key={index}
-                      onClick={() => goToIndex(index)}
-                      className={`w-12 h-12 rounded border-2 overflow-hidden transition-all ${
-                        index === currentIndex 
-                          ? 'border-blue-500 ring-2 ring-blue-300' 
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
+                      onClick={handleOpenInNewTab}
+                      className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
                     >
-                      <Image
-                        src={item.src}
-                        alt={item.alt || `Thumbnail ${index + 1}`}
-                        width={48}
-                        height={48}
-                        className="object-cover w-full h-full"
-                      />
+                      Open in new tab
                     </button>
-                  ))}
+                  )}
+                  {showDownload && (
+                    <button
+                      onClick={handleDownload}
+                      className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
+                    >
+                      Download
+                    </button>
+                  )}
+                  <button
+                    onClick={handleClose}
+                    className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    Close
+                  </button>
                 </div>
-              )}
-
-              {/* Action buttons */}
-              <div className="mt-6 flex justify-center gap-4">
-                <button
-                  onClick={handleClose}
-                  className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => window.open(currentImage.src, '_blank')}
-                  className="px-6 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors"
-                >
-                  Open in New Tab
-                </button>
               </div>
-              
-              {/* Keyboard shortcuts help */}
-              {hasMultiple && (
-                <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-                  Use ← → arrow keys or click arrows to navigate • Press 1-9 for quick navigation • ESC to close
+
+              {/* Content */}
+              <div 
+                className="overflow-auto custom-scrollbar" 
+                style={{ 
+                  maxHeight: hasMultiple && gallery.length <= 10 
+                    ? 'calc(95vh - 120px)' 
+                    : 'calc(95vh - 80px)' 
+                }}
+              >
+                {/* Image viewer */}
+                <div className={`flex items-center justify-center custom-scrollbar ${
+                  hasMultiple && gallery.length <= 10 ? 'p-4 pb-8' : 'p-4 pb-16'
+                }`}>
+                  <Image
+                    src={currentImage.src}
+                    alt={currentImage.alt || `Image ${currentIndex + 1}`}
+                    width={800}
+                    height={600}
+                    className={`max-w-full object-contain rounded ${
+                      hasMultiple && gallery.length <= 10 ? 'max-h-[75vh]' : 'max-h-[80vh]'
+                    }`}
+                    unoptimized
+                  />
+                </div>
+              </div>
+
+              {/* Gallery thumbnails */}
+              {hasMultiple && gallery.length <= 10 && (
+                <div className="p-4">
+                  <div className="flex justify-center gap-2 flex-wrap">
+                    {gallery.map((item, index) => (
+                      <button
+                        key={index}
+                        onClick={() => goToIndex(index)}
+                        className={`w-12 h-12 rounded border-2 overflow-hidden transition-all ${
+                          index === currentIndex 
+                            ? 'border-blue-500 ring-2 ring-blue-300' 
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <Image
+                          src={item.src}
+                          alt={item.alt || `Thumbnail ${index + 1}`}
+                          width={48}
+                          height={48}
+                          className="object-cover w-full h-full"
+                          unoptimized
+                        />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
