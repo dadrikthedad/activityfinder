@@ -2,9 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import Image from "next/image";
-import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
+import { PreviewModal } from "./PreviewModal";
 import { 
   getFileTypeInfo, 
   getFileIcon, 
@@ -44,7 +43,6 @@ export const DocumentPreview = ({
   const [error, setError] = useState<string>('');
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const overlay = useOverlay();
 
   // Gallery navigation
   const isGalleryMode = gallery.length > 1;
@@ -168,69 +166,6 @@ export const DocumentPreview = ({
     }
   }, [currentFile, isOpen]);
 
-  // Sync overlay state
-  useEffect(() => {
-    if (isOpen && !overlay.isOpen) {
-      overlay.open();
-    } else if (!isOpen && overlay.isOpen) {
-      overlay.close();
-    }
-  }, [isOpen, overlay.isOpen, overlay.open, overlay.close]);
-
-  useOverlayAutoClose(() => {
-    onClose();
-  }, overlay.level ?? undefined);
-
-  // Keyboard handling with gallery navigation
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'Escape':
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-          break;
-        case 'ArrowLeft':
-          if (isGalleryMode) {
-            e.preventDefault();
-            e.stopPropagation();
-            goToPrevious();
-          }
-          break;
-        case 'ArrowRight':
-          if (isGalleryMode) {
-            e.preventDefault();
-            e.stopPropagation();
-            goToNext();
-          }
-          break;
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-          if (isGalleryMode) {
-            const index = parseInt(e.key) - 1;
-            if (index < gallery.length) {
-              e.preventDefault();
-              e.stopPropagation();
-              goToIndex(index);
-            }
-          }
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isOpen, isGalleryMode, gallery.length, goToPrevious, goToNext, goToIndex, onClose]);
-
   const handleDownload = () => {
     // Check if this is an attachment file
     const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
@@ -275,241 +210,175 @@ export const DocumentPreview = ({
     }
   };
 
-  if (!isOpen) return null;
+  // Gallery thumbnails component
+  const thumbnails = isGalleryMode && gallery.length <= 10 && gallery.some(item => getFileTypeInfo(item.file.type, item.file.name).category === 'image') ? (
+    <div className="flex justify-center gap-2 flex-wrap">
+      {gallery.map((item, index) => {
+        const isImage = getFileTypeInfo(item.file.type, item.file.name).category === 'image';
+        return (
+          <button
+            key={index}
+            onClick={() => goToIndex(index)}
+            className={`w-12 h-12 rounded border-2 overflow-hidden transition-all flex items-center justify-center ${
+              index === currentIndex 
+                ? 'border-blue-500 ring-2 ring-blue-300' 
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+          >
+            {isImage ? (
+              <Image
+                src={URL.createObjectURL(item.file)}
+                alt={item.file.name}
+                width={48}
+                height={48}
+                className="object-cover w-full h-full"
+                unoptimized
+              />
+            ) : (
+              <span className="text-xs">
+                {getFileIcon(item.file.name, item.file.type)}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
 
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: overlay.zIndex,
-        pointerEvents: 'auto'
-      }}
-    >
-      {/* Background overlay */}
-      <div 
-        className="fixed inset-0 bg-black/80 cursor-pointer"
-        onClick={onClose}
-        aria-hidden="true" 
-      />
-      
-      {/* Modal content */}
-      <div className="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
-        <div
-          ref={overlay.ref}
-          className="bg-white dark:bg-[#1e2122] rounded-lg max-w-6xl max-h-[95vh] w-full h-auto overflow-hidden pointer-events-auto shadow-2xl relative border-2 border-[#1C6B1C]"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }
-          }}
-          tabIndex={-1}
-          style={{ outline: 'none' }}
-        >
-          {/* Gallery navigation arrows - outside content area */}
-          {isGalleryMode && (
-            <>
-              <button
-                onClick={goToPrevious}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-20"
-                aria-label="Previous file"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              
-              <button
-                onClick={goToNext}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors z-20"
-                aria-label="Next file"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </>
-          )}
-
-          {/* Header */}
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{getFileIcon(currentFile.name, currentFile.type)}</span>
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">
-                  {currentFile.name}
-                  {/* Gallery counter */}
-                  {isGalleryMode && (
-                    <span className="ml-2 text-sm text-gray-500">
-                      ({currentIndex + 1} of {gallery.length})
-                    </span>
-                  )}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {currentFile.type || 'Unknown type'} • {formatFileSize(currentFile.size)}
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {pdfUrl && (
-                <button
-                  onClick={handleOpenInNewTab}
-                  className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
-                >
-                  Open in new tab
-                </button>
-              )}
-              <button
-                onClick={handleDownload}
-                className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
-              >
-                Download
-              </button>
-              <button
-                onClick={onClose}
-                className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="overflow-auto custom-scrollbar" style={{ maxHeight: 'calc(95vh - 180px)' }}>
-            {isLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                <span className="ml-3 text-gray-600 dark:text-gray-400">Laster innhold...</span>
-              </div>
-            ) : error ? (
-              <div className="text-center py-16 px-4">
-                <div className="text-red-500 mb-4 text-4xl">⚠️</div>
-                <p className="text-red-600 dark:text-red-400 mb-6 text-lg">{error}</p>
-                <div className="flex gap-3 justify-center">
-                  <button
-                    onClick={handleDownload}
-                    className="px-6 py-3 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors"
-                  >
-                    Last ned fil
-                  </button>
-                  {currentFile.type === 'application/pdf' && (
-                    <button
-                      onClick={handleOpenInNewTab}
-                      className="px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                    >
-                      Åpne PDF i ny fane
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : pdfUrl ? (
-              // PDF Viewer
-              <div className="w-full h-full min-h-[600px] p-4">
-                <iframe
-                  src={pdfUrl}
-                  className="w-full h-full min-h-[600px] border-0 rounded"
-                  title={`PDF viewer: ${currentFile.name}`}
-                  onError={() => {
-                    setError('PDF kan ikke vises i nettleseren. Klikk "Åpne i ny fane" eller "Last ned".');
-                  }}
-                />
-              </div>
-            ) : content ? (
-              // Text content
-              <div className="p-4">
-                <div className="text-sm text-gray-800 dark:text-gray-200">
-                  <pre className={`whitespace-pre-wrap font-mono text-xs leading-relaxed bg-gray-50 dark:bg-gray-800 p-4 rounded border overflow-x-auto ${getSyntaxClass(currentFile.name)}`}>
-                    {content}
-                  </pre>
-                  
-                  {/* File info */}
-                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">Fil info:</span>
-                      <span>{content.split('\n').length} linjer • {content.length} tegn</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : getFileTypeInfo(currentFile.type, currentFile.name).category === 'image' ? (
-              // Image viewer
-              <div className="p-4 flex items-center justify-center custom-scrollbar">
-                {(() => {
-                  const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
-                  const isAttachmentFile = currentGalleryItem?.attachment;
-                  const imageSrc = isAttachmentFile 
-                    ? currentGalleryItem.attachment!.fileUrl 
-                    : URL.createObjectURL(currentFile);
-
-                  return (
-                    <Image
-                      src={imageSrc}
-                      alt={currentFile.name}
-                      width={800}
-                      height={600}
-                      className="max-w-full max-h-[70vh] object-contain rounded"
-                      unoptimized
-                      onLoad={(e) => {
-                        // Only clean up blob URLs for File objects
-                        if (!isAttachmentFile) {
-                          setTimeout(() => {
-                            URL.revokeObjectURL((e.target as HTMLImageElement).src);
-                          }, 100);
-                        }
-                      }}
-                    />
-                  );
-                })()}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Gallery thumbnails */}
-          {isGalleryMode && gallery.length <= 10 && gallery.some(item => getFileTypeInfo(item.file.type, item.file.name).category === 'image') && (
-            <div className="p-4">
-              <div className="flex justify-center gap-2 flex-wrap">
-                {gallery.map((item, index) => {
-                  const isImage = getFileTypeInfo(item.file.type, item.file.name).category === 'image';
-                  return (
-                    <button
-                      key={index}
-                      onClick={() => goToIndex(index)}
-                      className={`w-12 h-12 rounded border-2 overflow-hidden transition-all flex items-center justify-center ${
-                        index === currentIndex 
-                          ? 'border-blue-500 ring-2 ring-blue-300' 
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      {isImage ? (
-                        <Image
-                          src={URL.createObjectURL(item.file)}
-                          alt={item.file.name}
-                          width={48}
-                          height={48}
-                          className="object-cover w-full h-full"
-                          unoptimized
-                        />
-                      ) : (
-                        <span className="text-xs">
-                          {getFileIcon(item.file.name, item.file.type)}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+  // Content renderer
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+          <span className="ml-3 text-gray-600 dark:text-gray-400">Laster innhold...</span>
         </div>
-      </div>
-    </div>,
-    document.body
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-16 px-4">
+          <div className="text-red-500 mb-4 text-4xl">⚠️</div>
+          <p className="text-red-600 dark:text-red-400 mb-6 text-lg">{error}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={handleDownload}
+              className="px-6 py-3 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors"
+            >
+              Last ned fil
+            </button>
+            {currentFile.type === 'application/pdf' && (
+              <button
+                onClick={handleOpenInNewTab}
+                className="px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+              >
+                Åpne PDF i ny fane
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (pdfUrl) {
+      // PDF Viewer
+      return (
+        <div className="w-full h-full min-h-[600px] p-4">
+          <iframe
+            src={pdfUrl}
+            className="w-full h-full min-h-[600px] border-0 rounded"
+            title={`PDF viewer: ${currentFile.name}`}
+            onError={() => {
+              setError('PDF kan ikke vises i nettleseren. Klikk "Åpne i ny fane" eller "Last ned".');
+            }}
+          />
+        </div>
+      );
+    }
+
+    if (content) {
+      // Text content
+      return (
+        <div className="p-4">
+          <div className="text-sm text-gray-800 dark:text-gray-200">
+            <pre className={`whitespace-pre-wrap font-mono text-xs leading-relaxed bg-gray-50 dark:bg-gray-800 p-4 rounded border overflow-x-auto ${getSyntaxClass(currentFile.name)}`}>
+              {content}
+            </pre>
+            
+            {/* File info */}
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">Fil info:</span>
+                <span>{content.split('\n').length} linjer • {content.length} tegn</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (getFileTypeInfo(currentFile.type, currentFile.name).category === 'image') {
+      // Image viewer
+      return (
+        <div className={`flex items-center justify-center custom-scrollbar ${
+          thumbnails ? 'p-4 pb-8' : 'p-4 pb-16'
+        }`}>
+          {(() => {
+            const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
+            const isAttachmentFile = currentGalleryItem?.attachment;
+            const imageSrc = isAttachmentFile 
+              ? currentGalleryItem.attachment!.fileUrl 
+              : URL.createObjectURL(currentFile);
+
+            return (
+              <Image
+                src={imageSrc}
+                alt={currentFile.name}
+                width={800}
+                height={600}
+                className={`max-w-full object-contain rounded ${
+                  thumbnails ? 'max-h-[75vh]' : 'max-h-[80vh]'
+                }`}
+                unoptimized
+                onLoad={(e) => {
+                  // Only clean up blob URLs for File objects
+                  if (!isAttachmentFile) {
+                    setTimeout(() => {
+                      URL.revokeObjectURL((e.target as HTMLImageElement).src);
+                    }, 100);
+                  }
+                }}
+              />
+            );
+          })()}
+        </div>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <PreviewModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={currentFile.name}
+      subtitle={`${currentFile.type || 'Unknown type'} • ${formatFileSize(currentFile.size)}`}
+      icon={getFileIcon(currentFile.name, currentFile.type)}
+      showDownload={true}
+      showOpenInNewTab={pdfUrl ? true : false}
+      onDownload={handleDownload}
+      onOpenInNewTab={handleOpenInNewTab}
+      hasGallery={isGalleryMode}
+      currentIndex={currentIndex}
+      totalItems={gallery.length}
+      onNext={goToNext}
+      onPrevious={goToPrevious}
+      onGoToIndex={goToIndex}
+      thumbnails={thumbnails}
+    >
+      {renderContent()}
+    </PreviewModal>
   );
 };
