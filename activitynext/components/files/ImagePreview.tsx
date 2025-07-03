@@ -1,14 +1,13 @@
 import { useState, useEffect } from "react";
 import { formatFileSize } from "@/services/files/fileServiceHelperFunctions";
-import EnlargeableImage from "../common/EnlargeableImage";// Adjust path as needed
+import EnlargeableImage from "../common/EnlargeableImage";
 import { DocumentPreview } from "./DocumentPreview";
 
 // ===================================
 // 🎨 FILE TYPE UTILITIES
 // ===================================
 
-
-const getFileTypeInfo = (file: File) => {
+export const getFileTypeInfo = (file: File) => {
   const type = file.type.toLowerCase();
   const name = file.name.toLowerCase();
   
@@ -22,7 +21,7 @@ const getFileTypeInfo = (file: File) => {
     return { category: 'pdf', icon: '📄', color: 'text-red-600' };
   }
   
-  // 🆕 Enhanced file type detection
+  // Enhanced file type detection
   if (name.endsWith('.js') || name.endsWith('.jsx')) {
     return { category: 'code', icon: '🟨', color: 'text-yellow-600' };
   }
@@ -58,6 +57,15 @@ const getFileTypeInfo = (file: File) => {
   }
   if (name.endsWith('.dockerfile')) {
     return { category: 'config', icon: '🐳', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.docx') || name.endsWith('.doc')) {
+    return { category: 'document', icon: '📝', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    return { category: 'spreadsheet', icon: '📊', color: 'text-green-600' };
+  }
+  if (name.endsWith('.pptx') || name.endsWith('.ppt')) {
+    return { category: 'presentation', icon: '📊', color: 'text-orange-600' };
   }
   
   if (type.includes('document') || type.includes('word') || type.includes('text')) {
@@ -110,7 +118,6 @@ interface FilePreviewItemProps {
   file: File;
   index: number;
   onRemove: (index: number) => void;
-  // 🆕 Gallery props for File objects
   fileGallery?: Array<{ file: File; src: string; alt?: string; fileName?: string }>;
 }
 
@@ -119,144 +126,175 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
   const fileInfo = getFileTypeInfo(file);
   const isImage = fileInfo.category === 'image';
   
-  // 🆕 State for document preview
+  // State for document preview
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
   
-  // 🆕 Check if file can be previewed (expanded support)
-  const canPreview = file.type === 'text/plain' || 
-                     file.name.endsWith('.txt') ||
-                     file.name.endsWith('.md') ||      // Markdown
-                     file.name.endsWith('.json') ||    // JSON
-                     file.name.endsWith('.csv') ||     // CSV
-                     file.name.endsWith('.xml') ||     // XML
-                     file.name.endsWith('.js') ||      // JavaScript
-                     file.name.endsWith('.jsx') ||     // React JSX
-                     file.name.endsWith('.ts') ||      // TypeScript
-                     file.name.endsWith('.tsx') ||     // TypeScript React
-                     file.name.endsWith('.css') ||     // CSS
-                     file.name.endsWith('.scss') ||    // SASS
-                     file.name.endsWith('.html') ||    // HTML
-                     file.name.endsWith('.py') ||      // Python
-                     file.name.endsWith('.java') ||    // Java
-                     file.name.endsWith('.cpp') ||     // C++
-                     file.name.endsWith('.c') ||       // C
-                     file.name.endsWith('.php') ||     // PHP
-                     file.name.endsWith('.sql') ||     // SQL
-                     file.name.endsWith('.log') ||     // Log files
-                     file.name.endsWith('.yaml') ||    // YAML
-                     file.name.endsWith('.yml') ||     // YAML
-                     file.name.endsWith('.env') ||     // Environment
-                     file.name.endsWith('.gitignore') || // Git ignore
-                     file.name.endsWith('.dockerfile') || // Docker
-                     file.type.includes('word') || 
-                     file.type === 'application/pdf';
+  // Check if file can be previewed (expanded support)
+  const canPreview = () => {
+    const fileName = file.name.toLowerCase();
+    const fileType = file.type.toLowerCase();
+    
+    // PDF files
+    if (fileType === 'application/pdf') return true;
+    
+    // Text-based files
+    if (fileType === 'text/plain' || 
+        fileName.endsWith('.txt') ||
+        fileName.endsWith('.md') ||
+        fileName.endsWith('.json') ||
+        fileName.endsWith('.csv') ||
+        fileName.endsWith('.xml') ||
+        fileName.endsWith('.js') ||
+        fileName.endsWith('.jsx') ||
+        fileName.endsWith('.ts') ||
+        fileName.endsWith('.tsx') ||
+        fileName.endsWith('.css') ||
+        fileName.endsWith('.scss') ||
+        fileName.endsWith('.html') ||
+        fileName.endsWith('.py') ||
+        fileName.endsWith('.java') ||
+        fileName.endsWith('.cpp') ||
+        fileName.endsWith('.c') ||
+        fileName.endsWith('.php') ||
+        fileName.endsWith('.sql') ||
+        fileName.endsWith('.log') ||
+        fileName.endsWith('.yaml') ||
+        fileName.endsWith('.yml') ||
+        fileName.endsWith('.env') ||
+        fileName.endsWith('.gitignore') ||
+        fileName.endsWith('.dockerfile')) {
+      return true;
+    }
+    
+    // Office documents (limited preview)
+    if (fileType.includes('word') || 
+        fileType.includes('excel') ||
+        fileType.includes('powerpoint') ||
+        fileName.endsWith('.docx') ||
+        fileName.endsWith('.doc') ||
+        fileName.endsWith('.xlsx') ||
+        fileName.endsWith('.xls') ||
+        fileName.endsWith('.pptx') ||
+        fileName.endsWith('.ppt')) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  const handleFileClick = () => {
+    if (canPreview()) {
+      setShowDocumentPreview(true);
+    }
+  };
 
   return (
     <>
       <div className="relative group">
-      {isImage ? (
-        // Image Preview with Gallery
-        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600">
-          {isLoading ? (
-            <div className="w-full h-full flex items-center justify-center">
-              <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+        {isImage ? (
+          // Image Preview with Gallery
+          <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600">
+            {isLoading ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              </div>
+            ) : error ? (
+              <div className="w-full h-full flex items-center justify-center bg-red-50 dark:bg-red-900/20">
+                <span className="text-red-500 text-xs">Error</span>
+              </div>
+            ) : (
+              <EnlargeableImage
+                src={imageUrl}
+                alt={file.name}
+                size={96}
+                className="w-full h-full rounded-none border-none shadow-none"
+                useOverlaySystem={true}
+                gallery={fileGallery?.map(item => ({
+                  src: item.src,
+                  alt: item.alt || item.file.name,
+                  fileName: item.fileName || item.file.name
+                }))}
+                initialIndex={fileGallery?.findIndex(item => item.file === file) || 0}
+              />
+            )}
+            
+            {/* File info overlay */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-2">
+              <div className="truncate font-medium" title={file.name}>
+                {file.name}
+              </div>
+              <div className="text-gray-300">
+                {formatFileSize(file.size)}
+              </div>
             </div>
-          ) : error ? (
-            <div className="w-full h-full flex items-center justify-center bg-red-50 dark:bg-red-900/20">
-              <span className="text-red-500 text-xs">Error</span>
+            
+            {/* Gallery indicator for files */}
+            {fileGallery && fileGallery.length > 1 && (
+              <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                {(fileGallery.findIndex(item => item.file === file) || 0) + 1}/{fileGallery.length}
+              </div>
+            )}
+          </div>
+        ) : (
+          // Non-image files
+          <div 
+            className={`w-24 h-24 rounded-lg bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-2 ${
+              canPreview() ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
+            } transition-colors`}
+            onClick={handleFileClick}
+          >
+            <span className={`text-2xl ${fileInfo.color}`} role="img" aria-label="file icon">
+              {fileInfo.icon}
+            </span>
+            <div className="text-xs text-center mt-1">
+              <div className="truncate max-w-full font-medium" title={file.name}>
+                {file.name.length > 12 ? `${file.name.substring(0, 12)}...` : file.name}
+              </div>
+              <div className="text-gray-500 text-xs">
+                {formatFileSize(file.size)}
+              </div>
             </div>
-          ) : (
-            <EnlargeableImage
-              src={imageUrl}
-              alt={file.name}
-              size={96}
-              className="w-full h-full rounded-none border-none shadow-none"
-              useOverlaySystem={true}
-              // 🆕 Pass gallery data for File objects
-              gallery={fileGallery?.map(item => ({
-                src: item.src,
-                alt: item.alt || item.file.name,
-                fileName: item.fileName || item.file.name
-              }))}
-              initialIndex={fileGallery?.findIndex(item => item.file === file) || 0}
-            />
-          )}
-          
-          {/* File info overlay */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-2">
-            <div className="truncate font-medium" title={file.name}>
-              {file.name}
-            </div>
-            <div className="text-gray-300">
-              {formatFileSize(file.size)}
+            
+            {/* Preview indicator */}
+            {canPreview() && (
+              <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                👁️
+              </div>
+            )}
+            
+            {/* File type badge */}
+            <div className="absolute top-1 right-1 bg-gray-500 text-white text-xs px-1 rounded">
+              {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
             </div>
           </div>
-          
-          {/* 🆕 Gallery indicator for files */}
-          {fileGallery && fileGallery.length > 1 && (
-            <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
-              {(fileGallery.findIndex(item => item.file === file) || 0) + 1}/{fileGallery.length}
-            </div>
-          )}
-        </div>
-      ) : (
-        // Non-image files
-        <div 
-          className={`w-24 h-24 rounded-lg bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-2 ${
-            canPreview ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
-          } transition-colors`}
-          onClick={() => {
-            if (canPreview) {
-              setShowDocumentPreview(true);
-            }
-          }}
+        )}
+
+        {/* Remove button */}
+        <button
+          onClick={() => onRemove(index)}
+          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-lg transition-colors z-10"
+          title="Fjern fil"
+          aria-label={`Fjern ${file.name}`}
         >
-          <span className={`text-2xl ${fileInfo.color}`} role="img" aria-label="file icon">
-            {fileInfo.icon}
-          </span>
-          <div className="text-xs text-center mt-1">
-            <div className="truncate max-w-full font-medium" title={file.name}>
-              {file.name.length > 12 ? `${file.name.substring(0, 12)}...` : file.name}
-            </div>
-            <div className="text-gray-500 text-xs">
-              {formatFileSize(file.size)}
-            </div>
-          </div>
-          
-          {/* 🆕 Preview indicator */}
-          {canPreview && (
-            <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
-              👁️
-            </div>
-          )}
-        </div>
-      )}
+          ×
+        </button>
 
-      {/* Remove button */}
-      <button
-        onClick={() => onRemove(index)}
-        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-lg transition-colors"
-        title="Fjern fil"
-        aria-label={`Fjern ${file.name}`}
-      >
-        ×
-      </button>
-
-      {/* Hover overlay for non-images */}
-      {!isImage && (
-        <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors rounded-lg pointer-events-none"></div>
+        {/* Hover overlay for non-images */}
+        {!isImage && (
+          <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors rounded-lg pointer-events-none"></div>
+        )}
+      </div>
+      
+      {/* Document Preview Modal */}
+      {canPreview() && (
+        <DocumentPreview
+          file={file}
+          isOpen={showDocumentPreview}
+          onClose={() => setShowDocumentPreview(false)}
+        />
       )}
-    </div>
-    
-    {/* 🆕 Document Preview Modal */}
-    {canPreview && (
-      <DocumentPreview
-        file={file}
-        isOpen={showDocumentPreview}
-        onClose={() => setShowDocumentPreview(false)}
-      />
-    )}
-  </>);
+    </>
+  );
 };
 
 // ===================================
@@ -272,9 +310,15 @@ interface FilePreviewProps {
 export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProps) => {
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
   const imageCount = files.filter(f => f.type.startsWith('image/')).length;
-  const otherCount = files.length - imageCount;
+  const pdfCount = files.filter(f => f.type === 'application/pdf').length;
+  const docCount = files.filter(f => 
+    f.type.includes('word') || 
+    f.name.toLowerCase().endsWith('.docx') || 
+    f.name.toLowerCase().endsWith('.doc')
+  ).length;
+  const otherCount = files.length - imageCount - pdfCount - docCount;
 
-  // 🆕 Create gallery data for File objects with blob URLs
+  // Create gallery data for File objects with blob URLs
   const [imageGallery, setImageGallery] = useState<Array<{ file: File; src: string; alt?: string; fileName?: string }>>([]);
 
   useEffect(() => {
@@ -301,6 +345,16 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
     };
   }, [files]);
 
+  const getFileTypesSummary = () => {
+    const parts = [];
+    if (imageCount > 0) parts.push(`${imageCount} bilde${imageCount !== 1 ? 'r' : ''}`);
+    if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 'er' : ''}`);
+    if (docCount > 0) parts.push(`${docCount} dokument${docCount !== 1 ? 'er' : ''}`);
+    if (otherCount > 0) parts.push(`${otherCount} andre`);
+    
+    return parts.length > 0 ? `(${parts.join(', ')})` : '';
+  };
+
   return (
     <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
       {/* Header */}
@@ -309,9 +363,9 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {files.length} fil{files.length !== 1 ? 'er' : ''} valgt
           </span>
-          {imageCount > 0 && otherCount > 0 && (
+          {files.length > 1 && (
             <span className="text-xs text-gray-500">
-              ({imageCount} bilde{imageCount !== 1 ? 'r' : ''}, {otherCount} andre)
+              {getFileTypesSummary()}
             </span>
           )}
         </div>
@@ -332,7 +386,7 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
             file={file}
             index={index}
             onRemove={onRemoveFile}
-            fileGallery={imageGallery} // 🆕 Pass gallery data!
+            fileGallery={imageGallery}
           />
         ))}
       </div>
@@ -340,7 +394,17 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
       {/* Footer */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
         <div className="text-xs text-gray-500">
-          Total størrelse: {formatFileSize(totalSize)} • {imageCount > 1 ? `${imageCount} images can be browsed with arrow keys` : ''}
+          <div>Total størrelse: {formatFileSize(totalSize)}</div>
+          {imageCount > 1 && (
+            <div className="mt-1">
+              📸 {imageCount} bilder kan blas gjennom med piltaster
+            </div>
+          )}
+          {(pdfCount > 0 || docCount > 0) && (
+            <div className="mt-1">
+              👁️ Klikk på filer for forhåndsvisning
+            </div>
+          )}
         </div>
         
         <div className="text-xs text-gray-400">

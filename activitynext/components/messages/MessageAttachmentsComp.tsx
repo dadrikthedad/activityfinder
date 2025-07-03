@@ -1,6 +1,7 @@
 // components/messages/MessageAttachments.tsx
+import { useState } from "react";
 import { AttachmentDto } from "@/types/MessageDTO";
-import EnlargeableImage from "../common/EnlargeableImage"; // Adjust path as needed
+import { DocumentPreview } from "../files/DocumentPreview";
 
 interface MessageAttachmentsProps {
   attachments: AttachmentDto[];
@@ -11,8 +12,9 @@ interface MessageAttachmentsProps {
 // 🎨 FILE TYPE UTILITIES
 // ===================================
 
-const getFileTypeInfo = (fileType: string) => {
+const getFileTypeInfo = (fileType: string, fileName?: string) => {
   const type = fileType.toLowerCase();
+  const name = fileName?.toLowerCase() || '';
   
   if (type.startsWith('image/')) {
     return { category: 'image', icon: '🖼️', color: 'text-blue-600' };
@@ -23,11 +25,80 @@ const getFileTypeInfo = (fileType: string) => {
   if (type === 'application/pdf') {
     return { category: 'pdf', icon: '📄', color: 'text-red-600' };
   }
+  
+  // Enhanced file type detection
+  if (name.endsWith('.js') || name.endsWith('.jsx')) {
+    return { category: 'code', icon: '🟨', color: 'text-yellow-600' };
+  }
+  if (name.endsWith('.ts') || name.endsWith('.tsx')) {
+    return { category: 'code', icon: '🔷', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.json')) {
+    return { category: 'data', icon: '📋', color: 'text-orange-600' };
+  }
+  if (name.endsWith('.html')) {
+    return { category: 'web', icon: '🌐', color: 'text-orange-600' };
+  }
+  if (name.endsWith('.css') || name.endsWith('.scss')) {
+    return { category: 'style', icon: '🎨', color: 'text-pink-600' };
+  }
+  if (name.endsWith('.py')) {
+    return { category: 'code', icon: '🐍', color: 'text-green-600' };
+  }
+  if (name.endsWith('.java')) {
+    return { category: 'code', icon: '☕', color: 'text-red-600' };
+  }
+  if (name.endsWith('.md')) {
+    return { category: 'document', icon: '📝', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.sql')) {
+    return { category: 'database', icon: '🗃️', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.log')) {
+    return { category: 'log', icon: '📊', color: 'text-gray-600' };
+  }
+  if (name.endsWith('.env')) {
+    return { category: 'config', icon: '🔐', color: 'text-green-600' };
+  }
+  if (name.endsWith('.dockerfile')) {
+    return { category: 'config', icon: '🐳', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.docx') || name.endsWith('.doc')) {
+    return { category: 'document', icon: '📝', color: 'text-blue-600' };
+  }
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    return { category: 'spreadsheet', icon: '📊', color: 'text-green-600' };
+  }
+  if (name.endsWith('.pptx') || name.endsWith('.ppt')) {
+    return { category: 'presentation', icon: '📊', color: 'text-orange-600' };
+  }
+  
   if (type.includes('document') || type.includes('word') || type.includes('text')) {
     return { category: 'document', icon: '📝', color: 'text-green-600' };
   }
   
   return { category: 'other', icon: '📎', color: 'text-gray-600' };
+};
+
+// Helper function to create File objects from AttachmentDto
+const createFileFromAttachment = async (attachment: AttachmentDto): Promise<File> => {
+  try {
+    const response = await fetch(attachment.fileUrl);
+    const blob = await response.blob();
+    
+    // Ensure correct MIME type - use attachment.fileType if blob.type is empty
+    const mimeType = blob.type || attachment.fileType;
+    
+    return new File([blob], attachment.fileName || 'unknown-file', {
+      type: mimeType
+    });
+  } catch (error) {
+    console.error('Error creating file from attachment:', error);
+    // Create a dummy file as fallback but with correct type
+    return new File([''], attachment.fileName || 'unknown-file', {
+      type: attachment.fileType
+    });
+  }
 };
 
 // ===================================
@@ -38,27 +109,23 @@ interface AttachmentItemProps {
   attachment: AttachmentDto;
   index: number;
   totalCount: number;
-  // 🆕 Gallery props
+  onPreview: (attachment: AttachmentDto) => void;
   imageGallery?: Array<{ src: string; alt?: string; fileName?: string }>;
 }
 
-const AttachmentItem = ({ attachment, index, imageGallery }: AttachmentItemProps) => {
-  const fileInfo = getFileTypeInfo(attachment.fileType);
+const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: AttachmentItemProps) => {
+  const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
   const isImage = fileInfo.category === 'image';
 
   if (isImage) {
     return (
-      <div className="relative group">
+      <div className="relative group cursor-pointer" onClick={() => onPreview(attachment)}>
         <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
-          <EnlargeableImage
+          <img
             src={attachment.fileUrl}
             alt={attachment.fileName || `Image ${index + 1}`}
-            size={96}
-            className="w-full h-full rounded-none border-none shadow-none"
-            useOverlaySystem={true}
-            // 🆕 Pass gallery data for navigation
-            gallery={imageGallery}
-            initialIndex={imageGallery?.findIndex(img => img.src === attachment.fileUrl) || 0}
+            className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+            loading="lazy"
           />
         </div>
         
@@ -71,12 +138,17 @@ const AttachmentItem = ({ attachment, index, imageGallery }: AttachmentItemProps
           </div>
         )}
         
-        {/* 🆕 Gallery indicator */}
+        {/* Gallery indicator */}
         {imageGallery && imageGallery.length > 1 && (
           <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
             {(imageGallery.findIndex(img => img.src === attachment.fileUrl) || 0) + 1}/{imageGallery.length}
           </div>
         )}
+
+        {/* Preview indicator */}
+        <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+          👁️
+        </div>
       </div>
     );
   }
@@ -84,8 +156,8 @@ const AttachmentItem = ({ attachment, index, imageGallery }: AttachmentItemProps
   // Non-image files
   return (
     <div 
-      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-      onClick={() => window.open(attachment.fileUrl, '_blank')}
+      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
+      onClick={() => onPreview(attachment)}
     >
       <span className={`text-2xl ${fileInfo.color}`} role="img" aria-label="file icon">
         {fileInfo.icon}
@@ -98,8 +170,14 @@ const AttachmentItem = ({ attachment, index, imageGallery }: AttachmentItemProps
           {attachment.fileType}
         </div>
       </div>
-      <div className="text-xs text-gray-400">
-        📎
+      <div className="flex items-center gap-2">
+        {/* Preview indicator */}
+        <div className="text-blue-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+          👁️
+        </div>
+        <div className="text-xs text-gray-400">
+          📎
+        </div>
       </div>
     </div>
   );
@@ -110,77 +188,158 @@ const AttachmentItem = ({ attachment, index, imageGallery }: AttachmentItemProps
 // ===================================
 
 export const MessageAttachments = ({ attachments, className = "" }: MessageAttachmentsProps) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewGallery, setPreviewGallery] = useState<Array<{ file: File; attachment: AttachmentDto }>>([]);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
+
   if (!attachments || attachments.length === 0) {
     return null;
   }
 
-  const images = attachments.filter(att => getFileTypeInfo(att.fileType).category === 'image');
-  const nonImages = attachments.filter(att => getFileTypeInfo(att.fileType).category !== 'image');
+  const images = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category === 'image');
+  const nonImages = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category !== 'image');
 
-  // 🆕 Create gallery data for image navigation
+  // Create gallery data for image navigation
   const imageGallery = images.map(img => ({
     src: img.fileUrl,
     alt: img.fileName || 'Image',
     fileName: img.fileName
   }));
 
+  const handlePreview = async (attachment: AttachmentDto) => {
+    try {
+      // Create file from attachment
+      
+      // Always create gallery with all files for navigation
+      const allAttachments = attachments;
+      const galleryPromises = allAttachments.map(async (att) => {
+        const attFile = await createFileFromAttachment(att);
+        return { attachment: att, file: attFile };
+      });
+      
+      const gallery = await Promise.all(galleryPromises);
+      setPreviewGallery(gallery);
+      
+      // Find current attachment index in all attachments
+      const currentIndex = attachments.findIndex(att => att.fileUrl === attachment.fileUrl);
+      setCurrentPreviewIndex(currentIndex >= 0 ? currentIndex : 0);
+      setSelectedFile(gallery[currentIndex >= 0 ? currentIndex : 0].file);
+      
+      setShowPreview(true);
+    } catch (error) {
+      console.error('Error creating file for preview:', error);
+      // Fallback: open in new tab
+      window.open(attachment.fileUrl, '_blank');
+    }
+  };
+
+  const handleNavigate = (index: number) => {
+    if (index >= 0 && index < previewGallery.length) {
+      setCurrentPreviewIndex(index);
+      setSelectedFile(previewGallery[index].file);
+    }
+  };
+
+  const handleClosePreview = () => {
+    setShowPreview(false);
+    setSelectedFile(null);
+    setPreviewGallery([]);
+    setCurrentPreviewIndex(0);
+  };
+
+  const getFileTypesSummary = () => {
+    const imageCount = images.length;
+    const pdfCount = attachments.filter(att => att.fileType === 'application/pdf').length;
+    const docCount = attachments.filter(att => 
+      att.fileType.includes('word') || 
+      att.fileName?.toLowerCase().endsWith('.docx') || 
+      att.fileName?.toLowerCase().endsWith('.doc')
+    ).length;
+    const otherCount = attachments.length - imageCount - pdfCount - docCount;
+
+    const parts = [];
+    if (imageCount > 0) parts.push(`${imageCount} bilde${imageCount !== 1 ? 'r' : ''}`);
+    if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 'er' : ''}`);
+    if (docCount > 0) parts.push(`${docCount} dokument${docCount !== 1 ? 'er' : ''}`);
+    if (otherCount > 0) parts.push(`${otherCount} andre`);
+    
+    return parts.length > 0 ? `(${parts.join(', ')})` : '';
+  };
+
   return (
-    <div className={`mt-2 ${className}`}>
-      {/* Images Grid */}
-      {images.length > 0 && (
-        <div className="mb-2">
-          <div className={`grid gap-2 ${
-            images.length === 1 ? 'grid-cols-1 max-w-[200px]' :
-            images.length === 2 ? 'grid-cols-2 max-w-[200px]' :
-            images.length === 3 ? 'grid-cols-2 max-w-[200px]' :
-            'grid-cols-2 max-w-[200px]'
-          }`}>
-            {images.slice(0, 4).map((attachment, index) => (
+    <>
+      <div className={`mt-2 ${className}`}>
+        {/* Images Grid */}
+        {images.length > 0 && (
+          <div className="mb-2">
+            <div className={`grid gap-2 ${
+              images.length === 1 ? 'grid-cols-1 max-w-[200px]' :
+              images.length === 2 ? 'grid-cols-2 max-w-[200px]' :
+              images.length === 3 ? 'grid-cols-2 max-w-[200px]' :
+              'grid-cols-2 max-w-[200px]'
+            }`}>
+              {images.slice(0, 4).map((attachment, index) => (
+                <AttachmentItem
+                  key={`${attachment.fileUrl}-${index}`}
+                  attachment={attachment}
+                  index={index}
+                  totalCount={images.length}
+                  onPreview={handlePreview}
+                  imageGallery={imageGallery}
+                />
+              ))}
+              
+              {/* Show +X more overlay for extra images */}
+              {images.length > 4 && (
+                <div 
+                  className="w-24 h-24 rounded-lg bg-black/60 flex items-center justify-center text-white text-sm font-medium cursor-pointer hover:bg-black/70 transition-colors"
+                  onClick={() => handlePreview(images[4])} // Open gallery starting from 5th image
+                >
+                  +{images.length - 4} more
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Non-image files */}
+        {nonImages.length > 0 && (
+          <div className="space-y-2">
+            {nonImages.map((attachment, index) => (
               <AttachmentItem
                 key={`${attachment.fileUrl}-${index}`}
                 attachment={attachment}
                 index={index}
-                totalCount={images.length}
-                imageGallery={imageGallery} // 🆕 Pass gallery to each image
+                totalCount={nonImages.length}
+                onPreview={handlePreview}
               />
             ))}
-            
-            {/* Show +X more overlay for extra images */}
-            {images.length > 4 && (
-              <div 
-                className="w-24 h-24 rounded-lg bg-black/60 flex items-center justify-center text-white text-sm font-medium cursor-pointer hover:bg-black/70 transition-colors"
-                onClick={() => {
-                  // Open gallery starting from the 5th image
-                  // You could create a separate EnlargeableImage for this overlay
-                }}
-              >
-                +{images.length - 4} more
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Non-image files */}
-      {nonImages.length > 0 && (
-        <div className="space-y-2">
-          {nonImages.map((attachment, index) => (
-            <AttachmentItem
-              key={`${attachment.fileUrl}-${index}`}
-              attachment={attachment}
-              index={index}
-              totalCount={nonImages.length}
-            />
-          ))}
-        </div>
-      )}
+        {/* Summary for many files */}
+        {attachments.length > 5 && (
+          <div className="mt-2 text-xs text-gray-500">
+            {attachments.length} files total {getFileTypesSummary()}
+            <br />
+            Click any file to preview or download
+            {images.length > 1 && ` • ${images.length} images can be browsed with arrow keys`}
+          </div>
+        )}
+      </div>
 
-      {/* Summary for many files */}
-      {attachments.length > 5 && (
-        <div className="mt-2 text-xs text-gray-500">
-          {attachments.length} files total • {images.length > 1 ? `${images.length} images can be browsed with arrow keys` : ''}
-        </div>
+      {/* Document Preview Modal with Gallery Support */}
+      {selectedFile && (
+        <DocumentPreview
+          file={selectedFile}
+          isOpen={showPreview}
+          onClose={handleClosePreview}
+          gallery={previewGallery}
+          initialIndex={currentPreviewIndex}
+          onNavigate={handleNavigate}
+        />
       )}
-    </div>
+    </>
   );
 };
