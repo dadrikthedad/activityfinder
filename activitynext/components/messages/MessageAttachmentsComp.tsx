@@ -1,4 +1,3 @@
-// components/messages/MessageAttachments.tsx
 import { useState } from "react";
 import { AttachmentDto } from "@/types/MessageDTO";
 import { DocumentPreview } from "../files/DocumentPreview";
@@ -8,6 +7,7 @@ import Image from "next/image";
 interface MessageAttachmentsProps {
   attachments: AttachmentDto[];
   className?: string;
+  isLocked?: boolean; // NY: Om samtalen er låst
 }
 
 interface AttachmentItemProps {
@@ -16,27 +16,59 @@ interface AttachmentItemProps {
   totalCount: number;
   onPreview: (attachment: AttachmentDto) => void;
   imageGallery?: Array<{ src: string; alt?: string; fileName?: string }>;
+  isLocked?: boolean;
+  isBlurred?: boolean;
+  onToggleBlur?: () => void;
 }
 
-const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: AttachmentItemProps) => {
+const AttachmentItem = ({ 
+  attachment, 
+  index, 
+  onPreview, 
+  imageGallery, 
+  isLocked = false,
+  isBlurred = false,
+  onToggleBlur
+}: AttachmentItemProps) => {
   const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
   const isImage = fileInfo.category === 'image';
   const isVideo = fileInfo.category === 'video';
 
+  const handleClick = () => {
+    if (isBlurred) {
+      onToggleBlur?.();
+    } else {
+      onPreview(attachment);
+    }
+  };
+
   if (isImage) {
     return (
-      <div className="relative group cursor-pointer" onClick={() => onPreview(attachment)}>
+      <div className="relative group cursor-pointer" onClick={handleClick}>
         <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-[#1C6B1C]">
-            <Image
-              src={attachment.fileUrl}
-              alt={attachment.fileName || `Image ${index + 1}`}
-              fill
-              className="object-cover hover:scale-105 transition-transform duration-200"
-            />
+          <Image
+            src={attachment.fileUrl}
+            alt={attachment.fileName || `Image ${index + 1}`}
+            fill
+            className={`object-cover transition-all duration-300 ${
+              isBlurred 
+                ? 'blur-xl' 
+                : 'hover:scale-105 transition-transform duration-200'
+            }`}
+          />
         </div>
         
+        {/* Blur overlay med "Click to view" */}
+        {isBlurred && (
+          <div className="absolute inset-0 bg-black/20 flex items-center justify-center rounded-lg">
+            <div className="text-white text-center p-2">
+              <div className="text-xs font-medium">Click to view</div>
+            </div>
+          </div>
+        )}
+
         {/* File info overlay on hover */}
-        {attachment.fileName && (
+        {attachment.fileName && !isBlurred && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
             <div className="truncate" title={attachment.fileName}>
               {attachment.fileName}
@@ -45,10 +77,24 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
         )}
         
         {/* Gallery indicator */}
-        {imageGallery && imageGallery.length > 1 && (
+        {imageGallery && imageGallery.length > 1 && !isBlurred && (
           <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-2 py-1 rounded">
             {(imageGallery.findIndex(img => img.src === attachment.fileUrl) || 0) + 1}/{imageGallery.length}
           </div>
+        )}
+
+        {/* Unblur knapp når bildet er vist */}
+        {isLocked && !isBlurred && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleBlur?.();
+            }}
+            className="absolute top-1 left-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded text-xs transition-all opacity-0 group-hover:opacity-100"
+            title="Blur image"
+          >
+            🙈
+          </button>
         )}
       </div>
     );
@@ -56,11 +102,13 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
 
   if (isVideo) {
     return (
-      <div className="relative group cursor-pointer" onClick={() => onPreview(attachment)}>
+      <div className="relative group cursor-pointer" onClick={handleClick}>
         <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-[#1C6B1C] relative">
           <video
             src={attachment.fileUrl}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover transition-all duration-300 ${
+              isBlurred ? 'blur-xl' : ''
+            }`}
             muted
             preload="metadata"
             onError={() => {
@@ -76,23 +124,51 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
             }}
           />
           
-          {/* Video play overlay */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-colors">
-            <div className="bg-white/90 rounded-full p-2">
-              <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
+          {/* Blur overlay for videos */}
+          {isBlurred && (
+            <div className="absolute inset-0 bg-black/20 flex items-center justify-center rounded-lg">
+              <div className="text-white text-center p-2">
+                <div className="text-lg mb-1">🎥</div>
+                <div className="text-xs font-medium">Click to view</div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Video play overlay */}
+          {!isBlurred && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-colors">
+              <div className="bg-white/90 rounded-full p-2">
+                <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
+          )}
           
           {/* Video duration overlay (if we can get it) */}
-          <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
-            🎬
-          </div>
+          {!isBlurred && (
+            <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
+              🎬
+            </div>
+          )}
+
+          {/* Unblur knapp for video */}
+          {isLocked && !isBlurred && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleBlur?.();
+              }}
+              className="absolute top-1 left-1 bg-black/60 hover:bg-black/80 text-white p-1 rounded text-xs transition-all opacity-0 group-hover:opacity-100"
+              title="Blur video"
+            >
+              🙈
+            </button>
+          )}
         </div>
         
         {/* File info overlay on hover */}
-        {attachment.fileName && (
+        {attachment.fileName && !isBlurred && (
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
             <div className="truncate" title={attachment.fileName}>
               {attachment.fileName}
@@ -133,15 +209,33 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
 // 📁 MAIN ATTACHMENTS COMPONENT
 // ===================================
 
-export const MessageAttachments = ({ attachments, className = "" }: MessageAttachmentsProps) => {
+export const MessageAttachments = ({ 
+  attachments, 
+  className = "",
+  isLocked = false 
+}: MessageAttachmentsProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewGallery, setPreviewGallery] = useState<Array<{ file: File; attachment: AttachmentDto }>>([]);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
+  const [blurredAttachments, setBlurredAttachments] = useState<Set<string>>(new Set()); // Track hvilke filer som er blurret
 
   if (!attachments || attachments.length === 0) {
     return null;
   }
+
+  // Toggle blur for et spesifikt attachment
+  const toggleBlur = (fileUrl: string) => {
+    setBlurredAttachments(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileUrl)) {
+        newSet.delete(fileUrl); // Fjern blur
+      } else {
+        newSet.add(fileUrl); // Legg til blur
+      }
+      return newSet;
+    });
+  };
 
   const images = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category === 'image');
   const videos = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category === 'video');
@@ -233,16 +327,25 @@ export const MessageAttachments = ({ attachments, className = "" }: MessageAttac
               images.length === 3 ? 'grid-cols-2 max-w-[200px]' :
               'grid-cols-2 max-w-[200px]'
             }`}>
-              {images.slice(0, 4).map((attachment, index) => (
-                <AttachmentItem
-                  key={`${attachment.fileUrl}-${index}`}
-                  attachment={attachment}
-                  index={index}
-                  totalCount={images.length}
-                  onPreview={handlePreview}
-                  imageGallery={imageGallery}
-                />
-              ))}
+              {images.slice(0, 4).map((attachment, index) => {
+                // For låste samtaler: Start med blur på bilder
+                const shouldBlur = isLocked;
+                const isCurrentlyBlurred = shouldBlur && !blurredAttachments.has(attachment.fileUrl);
+
+                return (
+                  <AttachmentItem
+                    key={`${attachment.fileUrl}-${index}`}
+                    attachment={attachment}
+                    index={index}
+                    totalCount={images.length}
+                    onPreview={handlePreview}
+                    imageGallery={imageGallery}
+                    isLocked={isLocked}
+                    isBlurred={isCurrentlyBlurred}
+                    onToggleBlur={() => toggleBlur(attachment.fileUrl)}
+                  />
+                );
+              })}
               
               {/* Show +X more overlay for extra images */}
               {images.length > 4 && (
@@ -265,15 +368,24 @@ export const MessageAttachments = ({ attachments, className = "" }: MessageAttac
               videos.length === 2 ? 'grid-cols-2 max-w-[200px]' :
               'grid-cols-2 max-w-[200px]'
             }`}>
-              {videos.map((attachment, index) => (
-                <AttachmentItem
-                  key={`${attachment.fileUrl}-video-${index}`}
-                  attachment={attachment}
-                  index={index}
-                  totalCount={videos.length}
-                  onPreview={handlePreview}
-                />
-              ))}
+              {videos.map((attachment, index) => {
+                // For låste samtaler: Start med blur på videoer
+                const shouldBlur = isLocked;
+                const isCurrentlyBlurred = shouldBlur && !blurredAttachments.has(attachment.fileUrl);
+
+                return (
+                  <AttachmentItem
+                    key={`${attachment.fileUrl}-video-${index}`}
+                    attachment={attachment}
+                    index={index}
+                    totalCount={videos.length}
+                    onPreview={handlePreview}
+                    isLocked={isLocked}
+                    isBlurred={isCurrentlyBlurred}
+                    onToggleBlur={() => toggleBlur(attachment.fileUrl)}
+                  />
+                );
+              })}
             </div>
           </div>
         )}

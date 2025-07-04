@@ -11,6 +11,8 @@ import MiniAvatar from "../common/MiniAvatar";// 🆕 Importer MiniAvatar
 import { GroupEventType } from "@/types/GroupNotificationUpdateDTO";
 import React from 'react';
 import { formatUserList } from "../functions/message/NotificationsUserListFormatter";
+import { AttachmentDto } from "@/types/MessageDTO";
+import { getAttachmentSummary } from "./ToastFunctions";
 
 export enum LocalToastType {
   MessageReactionChanged = "MessageReactionChanged",
@@ -37,6 +39,7 @@ interface NotificationToastProps {
   groupEventType?: GroupEventType | string;
   affectedUserNames?: string[];
   affectedUsers?: UserSummaryDTO[];
+  attachments?: AttachmentDto[];
 }
 
 export function showNotificationToast({
@@ -53,6 +56,7 @@ export function showNotificationToast({
   groupEventType,
   affectedUserNames,
   affectedUsers,
+  attachments,
 }: NotificationToastProps) {
   toast.custom((tId) => (
     <NotificationToast
@@ -69,7 +73,8 @@ export function showNotificationToast({
       groupImage={groupImage}
       groupEventType={groupEventType}
       affectedUserNames={affectedUserNames}
-      affectedUsers={affectedUsers} 
+      affectedUsers={affectedUsers}
+      attachments={attachments}
     />
   ), { duration: Infinity });
 }
@@ -89,6 +94,7 @@ function NotificationToast({
   groupEventType,
   affectedUserNames,
   affectedUsers,
+  attachments
 }: NotificationToastProps & { t: { id: string | number } }) {
   const router = useRouter();
   const setShowMessages = useChatStore((s) => s.setShowMessages);
@@ -218,24 +224,79 @@ function NotificationToast({
         return <>{name} sent you a friend request</>;
       case LocalToastType.MsgRequestAcceptedLocally:
         return <>Message request from {name} is approved</>
-      case NotificationType.NewMessage:
-        return <>{name} says:</>;
+       case NotificationType.NewMessage:
+        // Style group name samme som sender name
+        const styledGroupNameForMessage = groupName ? (
+          <span className="font-semibold text-black dark:text-white">
+            {groupName}
+          </span>
+        ) : null;
+        
+        // Hvis messagePreview er null/tom men det finnes attachments, vis "sent:" i stedet for "says:"
+        if ((!messagePreview || messagePreview.trim() === "") && attachments && attachments.length > 0) {
+          return styledGroupNameForMessage ? (
+            <>{name} sent in {styledGroupNameForMessage}:</>
+          ) : (
+            <>{name} sent:</>
+          );
+        }
+        
+        return styledGroupNameForMessage ? (
+          <>{name} says in {styledGroupNameForMessage}:</>
+        ) : (
+          <>{name} says:</>
+        );
       
       default:
-        return;  
+        return;
     }
   };
 
   const getBody = () => {
+    let mainMessage = "";
+    let attachmentInfo = "";
+
+    // Få hovedmeldingen
     switch (type) {
       case NotificationType.MessageReaction:
       case LocalToastType.MessageReactionChanged:
-        return messagePreview ? `"${messagePreview}"` : null;
+        mainMessage = messagePreview ? `"${messagePreview}"` : "";
+        break;
       case NotificationType.NewMessage:
-        return messagePreview ?? null;
+        mainMessage = messagePreview ?? "";
+        break;
       default:
         return null;
     }
+
+    // Få attachment-informasjon hvis det finnes
+    if (attachments && attachments.length > 0) {
+      attachmentInfo = getAttachmentSummary(attachments);
+    }
+
+    // Kombiner melding og attachment-info
+    if (mainMessage && attachmentInfo) {
+      return (
+        <>
+          {mainMessage}
+          <br />
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {attachmentInfo}
+          </span>
+        </>
+      );
+    } else if (attachmentInfo && !mainMessage) {
+      // Kun attachments, ingen tekst
+      return (
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {attachmentInfo}
+        </span>
+      );
+    } else if (mainMessage) {
+      return mainMessage;
+    }
+
+    return null;
   };
 
   // 🆕 Vis gruppe-relaterte bilder for GroupRequest

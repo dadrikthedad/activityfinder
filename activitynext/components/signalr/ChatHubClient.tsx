@@ -138,6 +138,9 @@ export default function ChatHubClient() {
       if (!message.isSilent && !message.isSystemMessage) {
         handleIncomingMessage(message, userId ?? null);
       }
+
+      const { conversations } = useChatStore.getState();
+      const conversation = conversations.find(c => c.id === message.conversationId);
   
 
       if (
@@ -146,12 +149,16 @@ export default function ChatHubClient() {
         !message.isSilent &&
         !message.isSystemMessage // Ingen toast for systemmeldinger
       ) {
+
         showNotificationToast({
           senderName: message.sender?.fullName ?? "ukjent",
-          messagePreview: truncateText(message.text ?? "Du har fått en melding"),
+          messagePreview: truncateText(message.text),
           senderProfileImage: message.sender?.profileImageUrl,
           conversationId: message.conversationId,
           type: NotificationType.NewMessage,
+          attachments: message.attachments,
+          groupName: conversation?.isGroup ? conversation?.groupName : null,
+          groupImage: conversation?.isGroup ? conversation?.groupImageUrl : null,
         });
       }
     },

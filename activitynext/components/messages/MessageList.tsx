@@ -432,6 +432,14 @@ export default function MessageList({
               {msg.text?.trim() && (
                 <div className="text-sm mb-2 break-words break-all whitespace-pre-line">{msg.text}</div>
               )}
+              {/* Vedlegg og tidspunkt */}
+              {msg.attachments && msg.attachments.length > 0 && (
+                  <MessageAttachments 
+                    attachments={msg.attachments}
+                    className="mb-2"
+                    isLocked={isLocked}
+                  />
+                )}
 
               {msg.reactions?.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-1 text-sm">
@@ -457,13 +465,7 @@ export default function MessageList({
                 </div>
               )}
           
-              {/* Vedlegg og tidspunkt */}
-              {msg.attachments && msg.attachments.length > 0 && (
-                  <MessageAttachments 
-                    attachments={msg.attachments}
-                    className="mb-2"
-                  />
-                )}
+              
             </div>
             </ReactionHandler>
           </div>
