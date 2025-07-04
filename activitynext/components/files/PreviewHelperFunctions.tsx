@@ -489,23 +489,24 @@ export const createFileGallery = async (files: File[]): Promise<Array<{ file: Fi
  */
 export const getFileTypesSummary = (files: File[]): string => {
   const imageCount = files.filter(f => f.type.startsWith('image/')).length;
+  const videoCount = files.filter(f => f.type.startsWith('video/')).length;
   const pdfCount = files.filter(f => f.type === 'application/pdf').length;
   const docCount = files.filter(f => 
     f.type.includes('word') || 
     f.name.toLowerCase().endsWith('.docx') || 
     f.name.toLowerCase().endsWith('.doc')
   ).length;
-  const otherCount = files.length - imageCount - pdfCount - docCount;
+  const otherCount = files.length - imageCount - videoCount - pdfCount - docCount;
 
   const parts = [];
   if (imageCount > 0) parts.push(`${imageCount} bilde${imageCount !== 1 ? 'r' : ''}`);
+  if (videoCount > 0) parts.push(`${videoCount} video${videoCount !== 1 ? 'er' : ''}`);
   if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 'er' : ''}`);
   if (docCount > 0) parts.push(`${docCount} dokument${docCount !== 1 ? 'er' : ''}`);
   if (otherCount > 0) parts.push(`${otherCount} andre`);
   
   return parts.length > 0 ? `(${parts.join(', ')})` : '';
 };
-
 /**
  * Get comprehensive file statistics
  */

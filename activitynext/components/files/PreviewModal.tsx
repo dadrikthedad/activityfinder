@@ -36,6 +36,9 @@ interface PreviewModalProps {
   
   // Custom keyboard handling
   onKeyDown?: (e: KeyboardEvent) => void;
+  
+  // Video-specific props
+  isVideo?: boolean;
 }
 
 export const PreviewModal = ({
@@ -56,7 +59,8 @@ export const PreviewModal = ({
   onGoToIndex,
   children,
   thumbnails,
-  onKeyDown
+  onKeyDown,
+  isVideo = false
 }: PreviewModalProps) => {
   const overlay = useOverlay();
 
@@ -73,7 +77,7 @@ export const PreviewModal = ({
     onClose();
   }, overlay.level ?? undefined);
 
-  // Keyboard handling
+  // Enhanced keyboard handling for video support
   useEffect(() => {
     if (!isOpen) return;
 
@@ -82,6 +86,45 @@ export const PreviewModal = ({
       if (onKeyDown) {
         onKeyDown(e);
         return;
+      }
+
+      // Special handling for video controls
+      if (isVideo) {
+        const videoElement = document.querySelector('video') as HTMLVideoElement;
+        
+        switch (e.key) {
+          case ' ': // Spacebar for play/pause
+            if (videoElement && document.activeElement !== videoElement) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (videoElement.paused) {
+                videoElement.play();
+              } else {
+                videoElement.pause();
+              }
+            }
+            return;
+          case 'm':
+          case 'M':
+            if (videoElement) {
+              e.preventDefault();
+              e.stopPropagation();
+              videoElement.muted = !videoElement.muted;
+            }
+            return;
+          case 'f':
+          case 'F':
+            if (videoElement) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (document.fullscreenElement) {
+                document.exitFullscreen();
+              } else {
+                videoElement.requestFullscreen();
+              }
+            }
+            return;
+        }
       }
 
       // Default keyboard handling
@@ -128,7 +171,7 @@ export const PreviewModal = ({
 
     document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isOpen, hasGallery, onNext, onPrevious, onGoToIndex, totalItems, onClose, onKeyDown]);
+  }, [isOpen, hasGallery, onNext, onPrevious, onGoToIndex, totalItems, onClose, onKeyDown, isVideo]);
 
   if (!isOpen) return null;
 
@@ -211,6 +254,12 @@ export const PreviewModal = ({
                     {subtitle}
                   </p>
                 )}
+                {/* Video keyboard shortcuts hint */}
+                {isVideo && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Snarveier: Mellomrom = play/pause, M = lyd av/på, F = fullskjerm
+                  </p>
+                )}
               </div>
             </div>
             
@@ -219,23 +268,26 @@ export const PreviewModal = ({
                 <button
                   onClick={onOpenInNewTab}
                   className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
+                  title={isVideo ? "Åpne video i ny fane" : "Åpne i ny fane"}
                 >
-                  Open in new tab
+                  {isVideo ? "🎬 Ny fane" : "Åpne i ny fane"}
                 </button>
               )}
               {showDownload && onDownload && (
                 <button
                   onClick={onDownload}
                   className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
+                  title="Last ned fil"
                 >
-                  Download
+                  📥 Last ned
                 </button>
               )}
               <button
                 onClick={onClose}
                 className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                title="Lukk (ESC)"
               >
-                Close
+                ✕ Lukk
               </button>
             </div>
           </div>
@@ -254,8 +306,16 @@ export const PreviewModal = ({
 
           {/* Thumbnails */}
           {thumbnails && (
-            <div className="p-4">
+            <div className="p-4 border-t border-gray-200 dark:border-gray-600">
               {thumbnails}
+              {/* Keyboard navigation hint for gallery */}
+              {hasGallery && totalItems > 1 && (
+                <div className="text-center mt-2">
+                  <p className="text-xs text-gray-500">
+                    Bruk piltaster eller tallene 1-{Math.min(totalItems, 9)} for navigasjon
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 // components/common/DocumentPreview.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
 import { PreviewModal } from "./PreviewModal";
 import { 
@@ -42,6 +42,7 @@ export const DocumentPreview = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [pdfUrl, setPdfUrl] = useState<string>('');
+  const [videoUrl, setVideoUrl] = useState<string>('');
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   // Gallery navigation
@@ -85,6 +86,8 @@ export const DocumentPreview = ({
     setError('');
     setContent('');
     setPdfUrl('');
+    setVideoUrl('');
+    setVideoInitialized(false);
 
     const fileName = currentFile.name.toLowerCase();
     const fileType = currentFile.type.toLowerCase();
@@ -95,6 +98,15 @@ export const DocumentPreview = ({
       console.log('DocumentPreview: Handling as image');
       setIsLoading(false);
       return;
+    }
+
+    // Handle video files
+    if (fileCategory === 'video' || fileType.startsWith('video/')) {
+      console.log('DocumentPreview: Handling as video');
+      const url = URL.createObjectURL(currentFile);
+      setVideoUrl(url);
+      setIsLoading(false);
+      return () => URL.revokeObjectURL(url);
     }
 
     // Handle PDF files
@@ -210,16 +222,81 @@ export const DocumentPreview = ({
     }
   };
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoInitialized, setVideoInitialized] = useState(false);
+
+  const initializeVideo = useCallback(() => {
+    if (videoRef.current && !videoInitialized) {
+      const video = videoRef.current;
+      console.log('Initializing video...');
+      
+      // Trick: Temporarily mute and seek to force browser to "wake up"
+      const wasMuted = video.muted;
+      video.muted = true;
+      video.currentTime = 0.01;
+      
+      setTimeout(() => {
+        video.currentTime = 0;
+        video.muted = wasMuted;
+        setVideoInitialized(true);
+        console.log('Video initialized successfully');
+      }, 50);
+    }
+  }, [videoInitialized]);
+
+  // 🆕 Enhanced play function
+  const playVideo = useCallback(async () => {
+    if (!videoRef.current) return;
+    
+    const video = videoRef.current;
+    console.log('Attempting to play video...');
+    
+    try {
+      // Ensure video is initialized
+      if (!videoInitialized) {
+        console.log('Video not initialized, initializing first...');
+        initializeVideo();
+        // Wait a bit for initialization
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Try to play
+      await video.play();
+      console.log('Video playing successfully');
+    } catch (err) {
+      console.error('Failed to play video:', err);
+      
+      // Fallback: Force seek and try again
+      console.log('Trying fallback method...');
+      video.currentTime = 0.1;
+      setTimeout(async () => {
+        try {
+          video.currentTime = 0;
+          await video.play();
+          console.log('Video playing after fallback');
+        } catch (err2) {
+          console.error('Fallback also failed:', err2);
+        }
+      }, 100);
+    }
+  }, [videoInitialized, initializeVideo]);
+
   // Gallery thumbnails component
-  const thumbnails = isGalleryMode && gallery.length <= 10 && gallery.some(item => getFileTypeInfo(item.file.type, item.file.name).category === 'image') ? (
+  const thumbnails = isGalleryMode && gallery.length <= 10 && gallery.some(item => {
+    const itemCategory = getFileTypeInfo(item.file.type, item.file.name).category;
+    return itemCategory === 'image' || itemCategory === 'video';
+  }) ? (
     <div className="flex justify-center gap-2 flex-wrap">
       {gallery.map((item, index) => {
-        const isImage = getFileTypeInfo(item.file.type, item.file.name).category === 'image';
+        const itemCategory = getFileTypeInfo(item.file.type, item.file.name).category;
+        const isImage = itemCategory === 'image';
+        const isVideo = itemCategory === 'video';
+        
         return (
           <button
             key={index}
             onClick={() => goToIndex(index)}
-            className={`w-12 h-12 rounded border-2 overflow-hidden transition-all flex items-center justify-center ${
+            className={`w-12 h-12 rounded border-2 overflow-hidden transition-all flex items-center justify-center relative ${
               index === currentIndex 
                 ? 'border-blue-500 ring-2 ring-blue-300' 
                 : 'border-gray-300 hover:border-gray-400'
@@ -234,6 +311,17 @@ export const DocumentPreview = ({
                 className="object-cover w-full h-full"
                 unoptimized
               />
+            ) : isVideo ? (
+              <>
+                <video
+                  src={URL.createObjectURL(item.file)}
+                  className="object-cover w-full h-full"
+                  muted
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <span className="text-white text-xs">▶️</span>
+                </div>
+              </>
             ) : (
               <span className="text-xs">
                 {getFileIcon(item.file.name, item.file.type)}
@@ -268,18 +356,68 @@ export const DocumentPreview = ({
             >
               Last ned fil
             </button>
-            {currentFile.type === 'application/pdf' && (
+            {(currentFile.type === 'application/pdf' || videoUrl) && (
               <button
                 onClick={handleOpenInNewTab}
                 className="px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
               >
-                Åpne PDF i ny fane
+                {currentFile.type === 'application/pdf' ? 'Åpne PDF i ny fane' : 'Åpne video i ny fane'}
               </button>
             )}
           </div>
         </div>
       );
     }
+
+    // Enkel løsning - fjern den problematiske event handling:
+
+// Video rendering med hack:
+if (videoUrl) {
+  return (
+    <div className="w-full h-full min-h-[400px] p-4 flex items-center justify-center">
+      <video
+        ref={videoRef}
+        src={videoUrl}
+        controls
+        className="max-w-full max-h-[70vh] rounded"
+        preload="auto"
+        playsInline
+        onLoadedMetadata={() => {
+          console.log('Video metadata loaded, duration:', videoRef.current?.duration);
+          // Initialize video when metadata is ready
+          setTimeout(() => {
+            initializeVideo();
+          }, 100);
+        }}
+        onCanPlay={() => {
+          console.log('Video can play event');
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          const video = e.target as HTMLVideoElement;
+          
+          if (video.paused) {
+            playVideo(); // Use our enhanced play function
+          } else {
+            video.pause();
+            console.log('Video paused');
+          }
+        }}
+        onPlay={() => {
+          console.log('Video play event fired');
+        }}
+        onPlaying={() => {
+          console.log('Video is actually playing now');
+        }}
+        onError={() => {
+          setError('Video kan ikke avspilles i nettleseren. Klikk "Åpne i ny fane" eller "Last ned".');
+        }}
+      >
+        <p>Din nettleser støtter ikke video-elementet. <a href={videoUrl} download={currentFile.name}>Last ned videoen</a> i stedet.</p>
+      </video>
+    </div>
+  );
+}
 
     if (pdfUrl) {
       // PDF Viewer
@@ -367,7 +505,7 @@ export const DocumentPreview = ({
       subtitle={`${currentFile.type || 'Unknown type'} • ${formatFileSize(currentFile.size)}`}
       icon={getFileIcon(currentFile.name, currentFile.type)}
       showDownload={true}
-      showOpenInNewTab={pdfUrl ? true : false}
+      showOpenInNewTab={pdfUrl || videoUrl ? true : false}
       onDownload={handleDownload}
       onOpenInNewTab={handleOpenInNewTab}
       hasGallery={isGalleryMode}

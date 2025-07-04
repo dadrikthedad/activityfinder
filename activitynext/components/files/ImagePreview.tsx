@@ -21,9 +21,42 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
   const { imageUrl, isLoading, error } = useImagePreview(file);
   const fileInfo = getFileTypeInfo(file.type, file.name);
   const isImage = fileInfo.category === 'image';
+  const isVideo = fileInfo.category === 'video' || file.type.startsWith('video/');
   
   // State for document preview
   const [showDocumentPreview, setShowDocumentPreview] = useState(false);
+  const [videoThumbnail, setVideoThumbnail] = useState<string>('');
+
+  // Generate video thumbnail
+  useEffect(() => {
+    if (!isVideo) return;
+
+    const generateThumbnail = () => {
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      video.onloadedmetadata = () => {
+        canvas.width = 96;
+        canvas.height = 96;
+        video.currentTime = Math.min(video.duration * 0.1, 1); // 10% into video or 1 second
+      };
+      
+      video.onseeked = () => {
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, 96, 96);
+          const thumbnailUrl = canvas.toDataURL();
+          setVideoThumbnail(thumbnailUrl);
+        }
+        URL.revokeObjectURL(video.src);
+      };
+      
+      video.src = URL.createObjectURL(file);
+      video.load();
+    };
+
+    generateThumbnail();
+  }, [file, isVideo]);
 
   const handleFileClick = () => {
     if (canPreviewFile(file)) {
@@ -78,8 +111,48 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
               </div>
             )}
           </div>
+        ) : isVideo ? (
+          // Video Preview
+          <div 
+            className="w-24 h-24 rounded-lg bg-black border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-1 cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative overflow-hidden"
+            onClick={handleFileClick}
+          >
+            {videoThumbnail ? (
+              <img 
+                src={videoThumbnail} 
+                alt={file.name}
+                className="w-full h-full object-cover rounded"
+              />
+            ) : (
+              <span className="text-2xl text-purple-600" role="img" aria-label="video icon">
+                {fileInfo.icon}
+              </span>
+            )}
+            
+            {/* Play button overlay */}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="bg-white/90 rounded-full p-2">
+                <span className="text-black text-lg">▶️</span>
+              </div>
+            </div>
+            
+            {/* File info overlay */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-2">
+              <div className="truncate font-medium" title={file.name}>
+                {file.name.length > 12 ? `${file.name.substring(0, 12)}...` : file.name}
+              </div>
+              <div className="text-gray-300">
+                {formatFileSize(file.size)}
+              </div>
+            </div>
+            
+            {/* File type badge */}
+            <div className="absolute top-1 right-1 bg-purple-500 text-white text-xs px-1 rounded">
+              {file.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
+            </div>
+          </div>
         ) : (
-          // Non-image files
+          // Non-image, non-video files
           <div 
             className={`w-24 h-24 rounded-lg bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-2 ${
               canPreviewFile(file) ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
@@ -123,7 +196,7 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
         </button>
 
         {/* Hover overlay for non-images */}
-        {!isImage && (
+        {!isImage && !isVideo && (
           <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors rounded-lg pointer-events-none"></div>
         )}
       </div>
@@ -153,6 +226,7 @@ interface FilePreviewProps {
 export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProps) => {
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
   const imageCount = files.filter(f => f.type.startsWith('image/')).length;
+  const videoCount = files.filter(f => f.type.startsWith('video/')).length;
   const pdfCount = files.filter(f => f.type === 'application/pdf').length;
   const docCount = files.filter(f => 
     f.type.includes('word') || 
@@ -222,6 +296,11 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
           {imageCount > 1 && (
             <div className="mt-1">
               📸 {imageCount} bilder kan blas gjennom med piltaster
+            </div>
+          )}
+          {videoCount > 0 && (
+            <div className="mt-1">
+              🎥 {videoCount} video{videoCount !== 1 ? 'er' : ''} - klikk for avspilling
             </div>
           )}
           {(pdfCount > 0 || docCount > 0) && (
