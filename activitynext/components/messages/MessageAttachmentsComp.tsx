@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { AttachmentDto } from "@/types/MessageDTO";
 import { DocumentPreview } from "../files/DocumentPreview";
-import { getFileTypeInfo, createFileFromUrl } from "../files/PreviewHelperFunctions";
+import { getFileTypeInfo, createFileFromUrl } from "../files/FileFunctions";
+import Image from "next/image";
 
 interface MessageAttachmentsProps {
   attachments: AttachmentDto[];
@@ -20,17 +21,18 @@ interface AttachmentItemProps {
 const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: AttachmentItemProps) => {
   const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
   const isImage = fileInfo.category === 'image';
+  const isVideo = fileInfo.category === 'video';
 
   if (isImage) {
     return (
       <div className="relative group cursor-pointer" onClick={() => onPreview(attachment)}>
         <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-[#1C6B1C]">
-          <img
-            src={attachment.fileUrl}
-            alt={attachment.fileName || `Image ${index + 1}`}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
-            loading="lazy"
-          />
+            <Image
+              src={attachment.fileUrl}
+              alt={attachment.fileName || `Image ${index + 1}`}
+              fill
+              className="object-cover hover:scale-105 transition-transform duration-200"
+            />
         </div>
         
         {/* File info overlay on hover */}
@@ -48,20 +50,67 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
             {(imageGallery.findIndex(img => img.src === attachment.fileUrl) || 0) + 1}/{imageGallery.length}
           </div>
         )}
-
       </div>
     );
   }
 
-  // Non-image files
+  if (isVideo) {
+    return (
+      <div className="relative group cursor-pointer" onClick={() => onPreview(attachment)}>
+        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-[#1C6B1C] relative">
+          <video
+            src={attachment.fileUrl}
+            className="w-full h-full object-cover"
+            muted
+            preload="metadata"
+            onError={() => {
+              // Fallback til ikon hvis video ikke kan lastes
+              const container = document.querySelector(`[data-video-thumb="${attachment.fileUrl}"]`);
+              if (container) {
+                container.innerHTML = `
+                  <div class="w-full h-full flex items-center justify-center text-2xl">
+                    🎬
+                  </div>
+                `;
+              }
+            }}
+          />
+          
+          {/* Video play overlay */}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-colors">
+            <div className="bg-white/90 rounded-full p-2">
+              <svg className="w-4 h-4 text-gray-800" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            </div>
+          </div>
+          
+          {/* Video duration overlay (if we can get it) */}
+          <div className="absolute bottom-1 right-1 bg-black/60 text-white text-xs px-1 rounded">
+            🎬
+          </div>
+        </div>
+        
+        {/* File info overlay on hover */}
+        {attachment.fileName && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="truncate" title={attachment.fileName}>
+              {attachment.fileName}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Non-image, non-video files - use PreviewModal inspired styling
   return (
     <div 
-      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-500 p-3 rounded-lg border border-gray-200 dark:border-[#1C6B1C] hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
+      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-600 p-3 rounded-lg border border-gray-200 dark:border-[#1C6B1C] hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
       onClick={() => onPreview(attachment)}
     >
-      <span className={`text-2xl ${fileInfo.color}`} role="img" aria-label="file icon">
-        {fileInfo.icon}
-      </span>
+      {fileInfo.icon}
+      
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm truncate" title={attachment.fileName}>
           {attachment.fileName || 'Unnamed file'}
@@ -70,9 +119,9 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
           {attachment.fileType}
         </div>
       </div>
+      
       <div className="flex items-center gap-2">
-
-        <div className="text-xs text-gray-400">
+        <div className="text-xs text-gray-400 group-hover:text-[#1C6B1C] transition-colors">
           📎
         </div>
       </div>
@@ -95,7 +144,11 @@ export const MessageAttachments = ({ attachments, className = "" }: MessageAttac
   }
 
   const images = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category === 'image');
-  const nonImages = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category !== 'image');
+  const videos = attachments.filter(att => getFileTypeInfo(att.fileType, att.fileName).category === 'video');
+  const nonMediaFiles = attachments.filter(att => {
+    const category = getFileTypeInfo(att.fileType, att.fileName).category;
+    return category !== 'image' && category !== 'video';
+  });
 
   // Create gallery data for image navigation
   const imageGallery = images.map(img => ({
@@ -149,16 +202,18 @@ export const MessageAttachments = ({ attachments, className = "" }: MessageAttac
 
   const getFileTypesSummary = () => {
     const imageCount = images.length;
+    const videoCount = videos.length;
     const pdfCount = attachments.filter(att => att.fileType === 'application/pdf').length;
     const docCount = attachments.filter(att => 
       att.fileType.includes('word') || 
       att.fileName?.toLowerCase().endsWith('.docx') || 
       att.fileName?.toLowerCase().endsWith('.doc')
     ).length;
-    const otherCount = attachments.length - imageCount - pdfCount - docCount;
+    const otherCount = attachments.length - imageCount - videoCount - pdfCount - docCount;
 
     const parts = [];
     if (imageCount > 0) parts.push(`${imageCount} bilde${imageCount !== 1 ? 'r' : ''}`);
+    if (videoCount > 0) parts.push(`${videoCount} video${videoCount !== 1 ? 'er' : ''}`);
     if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 'er' : ''}`);
     if (docCount > 0) parts.push(`${docCount} dokument${docCount !== 1 ? 'er' : ''}`);
     if (otherCount > 0) parts.push(`${otherCount} andre`);
@@ -202,15 +257,36 @@ export const MessageAttachments = ({ attachments, className = "" }: MessageAttac
           </div>
         )}
 
-        {/* Non-image files */}
-        {nonImages.length > 0 && (
+        {/* Videos Grid */}
+        {videos.length > 0 && (
+          <div className="mb-2">
+            <div className={`grid gap-2 ${
+              videos.length === 1 ? 'grid-cols-1 max-w-[200px]' :
+              videos.length === 2 ? 'grid-cols-2 max-w-[200px]' :
+              'grid-cols-2 max-w-[200px]'
+            }`}>
+              {videos.map((attachment, index) => (
+                <AttachmentItem
+                  key={`${attachment.fileUrl}-video-${index}`}
+                  attachment={attachment}
+                  index={index}
+                  totalCount={videos.length}
+                  onPreview={handlePreview}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Non-media files */}
+        {nonMediaFiles.length > 0 && (
           <div className="space-y-2">
-            {nonImages.map((attachment, index) => (
+            {nonMediaFiles.map((attachment, index) => (
               <AttachmentItem
-                key={`${attachment.fileUrl}-${index}`}
+                key={`${attachment.fileUrl}-file-${index}`}
                 attachment={attachment}
                 index={index}
-                totalCount={nonImages.length}
+                totalCount={nonMediaFiles.length}
                 onPreview={handlePreview}
               />
             ))}

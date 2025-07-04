@@ -10,7 +10,7 @@ import {
   getSyntaxClass, 
   canPreviewAsText,
   formatFileSize 
-} from "./PreviewHelperFunctions";
+} from "./FileFunctions";
 
 interface GalleryItem {
   file: File;

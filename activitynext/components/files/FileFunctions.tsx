@@ -1,4 +1,3 @@
-// utils/fileUtils.ts
 import { useState, useEffect } from "react";
 
 // ===================================
@@ -26,8 +25,9 @@ export const ALL_ALLOWED_TYPES = [
 // Konstanter for begrensninger
 export const FILE_LIMITS = {
   MAX_FILES: 10,
-  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
-  MAX_TOTAL_SIZE: 20 * 1024 * 1024, // 20MB
+  MAX_FILE_SIZE: 20 * 1024 * 1024, // 20MB per fil (OPPDATERT)
+  MAX_VIDEO_SIZE: 50 * 1024 * 1024, // 50MB for videoer
+  MAX_TOTAL_SIZE: 100 * 1024 * 1024, // 100MB total (OPPDATERT)
   PREVIEW_SIZE_LIMIT: 5 * 1024 * 1024, // 5MB for preview
 } as const;
 
@@ -284,10 +284,15 @@ export function validateFiles(files: File[]): { isValid: boolean; error?: string
   }
 
   for (const file of files) {
-    if (file.size > FILE_LIMITS.MAX_FILE_SIZE) {
+    // Forskjellige størrelsesbegrensninger for videoer vs andre filer
+    const isVideo = file.type.startsWith('video/');
+    const maxFileSize = isVideo ? FILE_LIMITS.MAX_VIDEO_SIZE : FILE_LIMITS.MAX_FILE_SIZE;
+    
+    if (file.size > maxFileSize) {
+      const fileType = isVideo ? 'Video' : 'Fil';
       return {
         isValid: false,
-        error: `${file.name} (${formatFileSize(file.size)}) er større enn ${formatFileSize(FILE_LIMITS.MAX_FILE_SIZE)}`
+        error: `${fileType} "${file.name}" (${formatFileSize(file.size)}) er større enn ${formatFileSize(maxFileSize)}`
       };
     }
 

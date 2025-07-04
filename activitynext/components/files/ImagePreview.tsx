@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DocumentPreview } from "./DocumentPreview";
 import { 
   getFileTypeInfo, 
@@ -7,7 +7,7 @@ import {
   formatFileSize,
   getFileTypesSummary,
   createFileGallery
-} from "./PreviewHelperFunctions";
+} from "./FileFunctions";
 import Image from "next/image";
 
 interface FilePreviewItemProps {
@@ -221,23 +221,36 @@ interface FilePreviewProps {
 
 export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProps) => {
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-
+  
   // Create gallery data for File objects with blob URLs
   const [imageGallery, setImageGallery] = useState<Array<{ file: File; src: string; alt?: string; fileName?: string }>>([]);
-
+  
+  // Use ref to track current URLs for cleanup
+  const currentUrlsRef = useRef<string[]>([]);
+  
   useEffect(() => {
     const setupGallery = async () => {
+      // Cleanup previous URLs
+      currentUrlsRef.current.forEach(url => {
+        URL.revokeObjectURL(url);
+      });
+      currentUrlsRef.current = [];
+      
       const gallery = await createFileGallery(files);
+      
+      // Track new URLs
+      currentUrlsRef.current = gallery.map(item => item.src);
       setImageGallery(gallery);
     };
-
+    
     setupGallery();
-
-    // Cleanup blob URLs when component unmounts or files change
+    
+    // Cleanup function
     return () => {
-      imageGallery.forEach(item => {
-        URL.revokeObjectURL(item.src);
+      currentUrlsRef.current.forEach(url => {
+        URL.revokeObjectURL(url);
       });
+      currentUrlsRef.current = [];
     };
   }, [files]);
 

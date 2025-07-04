@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { sendTextMessage } from "@/services/messages/messageService";
 import { uploadMessageAttachments } from "@/services/files/fileService";
-import { validateFiles } from "@/components/files/PreviewHelperFunctions";
+import { validateFiles } from "@/components/files/FileFunctions";
 import {
   SendMessageRequestDTO,
   MessageDTO,
