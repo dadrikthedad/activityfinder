@@ -25,9 +25,10 @@ public class FileService : IFileService
         "image/jpeg", "image/png", "image/webp", "image/gif"
     };
 
-    // Maks filstørrelse (10MB)
-    private const long MaxFileSizeInBytes = 10 * 1024 * 1024;
-    private const long MaxVideoSizeInBytes = 50 * 1024 * 1024;
+    // OPPDATERTE filstørrelsesbegrensninger
+    private const long MaxFileSizeInBytes = 20 * 1024 * 1024; // 10MB per fil
+    private const long MaxVideoSizeInBytes = 50 * 1024 * 1024; // 50MB for videoer
+    private const long MaxTotalSizeInBytes = 100 * 1024 * 1024; // 100MB total (NY)
 
     public FileService(BlobServiceClient blobServiceClient, ILogger<FileService> logger)
     {
@@ -73,9 +74,44 @@ public class FileService : IFileService
         }
     }
 
+    // NY METODE: Valider flere filer samtidig med total størrelse
+    public (bool IsValid, string? ErrorMessage) ValidateFiles(IEnumerable<IFormFile> files)
+    {
+        var fileList = files.ToList();
+        
+        if (!fileList.Any())
+            return (false, "Ingen filer oppgitt");
+
+        // Sjekk total størrelse
+        var totalSize = fileList.Sum(f => f.Length);
+        if (totalSize > MaxTotalSizeInBytes)
+        {
+            var maxSizeMB = MaxTotalSizeInBytes / (1024 * 1024);
+            var totalSizeMB = totalSize / (1024.0 * 1024.0);
+            return (false, $"Total størrelse ({totalSizeMB:F1}MB) overstiger maksimal tillatt størrelse ({maxSizeMB}MB)");
+        }
+
+        // Valider hver enkelt fil
+        foreach (var file in fileList)
+        {
+            var (isValid, errorMessage) = ValidateFile(file);
+            if (!isValid)
+                return (false, errorMessage);
+        }
+
+        return (true, null);
+    }
+
     public async Task<List<string>> UploadFilesAsync(IEnumerable<IFormFile> files, string containerName)
     {
-        var uploadTasks = files.Select(file => UploadFileAsync(file, containerName));
+        var fileList = files.ToList();
+        
+        // NY: Valider alle filer inkludert total størrelse før opplasting
+        var (isValid, errorMessage) = ValidateFiles(fileList);
+        if (!isValid)
+            throw new ValidationException(errorMessage);
+
+        var uploadTasks = fileList.Select(file => UploadFileAsync(file, containerName));
         var results = await Task.WhenAll(uploadTasks);
         return results.ToList();
     }
@@ -120,7 +156,7 @@ public class FileService : IFileService
         if (string.IsNullOrWhiteSpace(file.FileName))
             return (false, "Filnavn er påkrevd");
 
-        // 🆕 Forskjellige størrelsesbegrensninger for videoer
+        // Forskjellige størrelsesbegrensninger for videoer
         var isVideo = file.ContentType.StartsWith("video/");
         var maxSize = isVideo ? MaxVideoSizeInBytes : MaxFileSizeInBytes;
         

@@ -13,6 +13,9 @@ public class MessageResponseDTO
     
     public int? ParentMessageId { get; set; } // 👈 referanse til svaret
     public string? ParentMessageText { get; set; } // valgfritt for visning
+    
+    // Må jo med avsender
+    public UserSummaryDTO? ParentSender { get; set; }
     // Hvis brukeren har avslått meldingsforespørsel så må vi ikke legge samtalen inn i store
     public bool IsRejectedRequest { get; set; } = false;
     

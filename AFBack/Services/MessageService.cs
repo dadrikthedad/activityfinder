@@ -39,6 +39,16 @@ public class MessageService : IMessageService
         if (dto.ReceiverId != null && int.TryParse(dto.ReceiverId, out var rid) && rid == senderId) 
             throw new("Du kan ikke sende en melding til deg selv.");
         
+        if (dto.ParentMessageId.HasValue)
+        {
+            var parentExists = await _context.Messages
+                .AsNoTracking()
+                .AnyAsync(m => m.Id == dto.ParentMessageId.Value);
+        
+            if (!parentExists)
+                throw new Exception("Parent message ikke funnet.");
+        }
+        
         // 1️  Finn eller lag samtalen (1 query, ingen commit hvis den finnes)
         var (conversation, receiverId) = await GetOrCreateConversationFast(senderId, dto);
         
@@ -221,6 +231,8 @@ public class MessageService : IMessageService
                     .Include(m => m.Reactions)
                     .Include(m => m.Sender).ThenInclude(u => u.Profile)
                     .Include(m => m.ParentMessage)
+                    .ThenInclude(pm => pm.Sender)    
+                    .ThenInclude(s => s.Profile)
                     .OrderByDescending(m => m.SentAt)
                     .ToListAsync();
 
@@ -242,16 +254,32 @@ public class MessageService : IMessageService
             .Include(m => m.Reactions)
             .Include(m => m.Sender).ThenInclude(u => u.Profile)
             .Include(m => m.ParentMessage)
+            .ThenInclude(pm => pm.Sender)    
+            .ThenInclude(s => s.Profile)
             .OrderByDescending(m => m.SentAt)
             .Skip(skip)
             .Take(take)
             .ToListAsync();
 
-        return messages.Select(MapToResponseForMessagesToConv).ToList();
+        return messages
+            .OrderBy(m => m.SentAt)
+            .Select(MapToResponseForMessagesToConv)
+            .ToList();
     }
 
     private MessageResponseDTO MapToResponseForMessagesToConv(Message message)
     {
+        UserSummaryDTO? parentSender = null;
+        if (message.ParentMessage?.Sender != null)
+        {
+            parentSender = new UserSummaryDTO
+            {
+                Id = message.ParentMessage.Sender.Id,
+                FullName = message.ParentMessage.Sender.FullName,
+                ProfileImageUrl = message.ParentMessage.Sender.Profile?.ProfileImageUrl
+            };
+        }
+        
         return new MessageResponseDTO
         {
             Id = message.Id,
@@ -281,7 +309,8 @@ public class MessageService : IMessageService
                 UserId = r.UserId
             }).ToList(),
             ParentMessageId = message.ParentMessageId,
-            ParentMessageText = message.ParentMessage?.Text
+            ParentMessageText = message.ParentMessage?.Text,
+            ParentSender = parentSender,
         };
     }
 
@@ -749,6 +778,17 @@ public class MessageService : IMessageService
                 ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
             })
             .FirstOrDefaultAsync();
+        
+        UserSummaryDTO? parentSender = null;
+        if (message.ParentMessage?.Sender != null)
+        {
+            parentSender = new UserSummaryDTO
+            {
+                Id = message.ParentMessage.Sender.Id,
+                FullName = message.ParentMessage.Sender.FullName,
+                ProfileImageUrl = message.ParentMessage.Sender.Profile?.ProfileImageUrl
+            };
+        }
 
         return new MessageResponseDTO
         {
@@ -771,7 +811,8 @@ public class MessageService : IMessageService
                 UserId = r.UserId
             }).ToList() ?? new List<ReactionDTO>(),
             ParentMessageId = message.ParentMessageId,
-            ParentMessageText = message.ParentMessage?.Text // valgfritt
+            ParentMessageText = message.ParentMessage?.Text,
+            ParentSender = parentSender
         };
     }
 
@@ -846,7 +887,8 @@ public class MessageService : IMessageService
                         ParentMessageId = response.ParentMessageId,
                         ParentMessageText = response.ParentMessageText,
                         IsNowApproved = response.IsNowApproved,
-                        IsRejectedRequest = response.IsRejectedRequest
+                        IsRejectedRequest = response.IsRejectedRequest,
+                        ParentSender = response.ParentSender
                     };
 
                     await _hubContext.Clients.User(uid.ToString())
