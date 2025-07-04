@@ -26,6 +26,7 @@ export interface MessageDTO {
   reactions: ReactionDTO[];
   parentMessageId?: number | null;
   parentMessageText?: string | null;
+  parentSender?: UserSummaryDTO | null;
   isRejectedRequest?: boolean;
   sender?: UserSummaryDTO | null;
   isNowApproved?: boolean;

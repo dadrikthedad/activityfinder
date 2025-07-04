@@ -45,6 +45,7 @@ export async function handleIncomingMessage(message: MessageDTO, currentUserId: 
     const msgText = getTruncatedText(message.text);
     messagePreview = `said: ${msgText}`;
   }
+  
 
   // Lag ny notification eller oppdater eksisterende
   const newNotif: MessageNotificationDTO = {

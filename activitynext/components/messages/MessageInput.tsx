@@ -10,6 +10,7 @@ import MessageToolbar from "./MessageToolbar";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { validateFiles } from "../files/FileFunctions";
 import { FilePreview } from "../files/ImagePreview";
+import { ReplyPreview } from "./ReplyPreview";
 
 interface MessageInputProps {
   receiverId?: number;
@@ -28,6 +29,8 @@ interface MessageInputProps {
   ) => void;
   onLeaveGroup: (conversationId: number) => Promise<void>;
   userPopoverRef?: React.RefObject<HTMLDivElement | null>;
+  replyingTo?: MessageDTO | null; // 🆕 Reply data
+  onClearReply?: () => void;
 }
 
 export default function MessageInput({
@@ -37,6 +40,8 @@ export default function MessageInput({
   onShowUserPopover,
   onLeaveGroup,
   userPopoverRef,
+  replyingTo,
+  onClearReply,
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -101,7 +106,8 @@ export default function MessageInput({
       text: trimmed || undefined,
       files: hasFiles ? selectedFiles : undefined,
       conversationId: conversationId ?? undefined,
-      receiverId: receiverId?.toString()
+      receiverId: receiverId?.toString(),
+      parentMessageId: replyingTo?.id 
     };
 
     // 2) Kun tøm tekst umiddelbart (behold filer til vi vet at sendingen lykkes)
@@ -116,6 +122,7 @@ export default function MessageInput({
         // Kun tøm filer når sendingen lykkes
         setSelectedFiles([]);
         setFileValidationError(null);
+        onClearReply?.();
         
         if (!conversationId && result.conversationId) {
           useChatStore.getState().setCurrentConversationId(result.conversationId);
@@ -218,6 +225,14 @@ export default function MessageInput({
 
   return (
     <div className="flex flex-col gap-2 mt-4">
+      {/* Reply preview */}
+      {replyingTo && (
+        <ReplyPreview 
+          message={replyingTo} 
+          onClear={onClearReply || (() => {})} 
+        />
+      )}
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}

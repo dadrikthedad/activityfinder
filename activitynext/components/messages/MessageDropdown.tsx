@@ -149,6 +149,14 @@ export default function MessageDropdown({
     }
   };
 
+  const [replyingTo, setReplyingTo] = useState<MessageDTO | null>(null);
+
+  const handleReply = (message: MessageDTO) => {
+    setReplyingTo(message);
+    // Scroll ned til input eller fokuser på det
+    // Du kan legge til smooth scroll logic her
+  };
+
   useOverlayAutoClose(() => {
     setShowMessages(false);
     onCloseDropdown();
@@ -446,6 +454,7 @@ export default function MessageDropdown({
                   onShowUserPopover={showUserPopover}
                   conversationVisible={conversationVisible}
                   onScrollPositionChange={setAtBottom}
+                  onReply={handleReply}
                 />
               </div>
 
@@ -455,10 +464,13 @@ export default function MessageDropdown({
                   receiverId={undefined}
                   onMessageSent={(message) => {
                     console.log("📤 OVERLAY Ny melding sendt:", message);
+                    setReplyingTo(null);
                   }}
                   atBottom={atBottom}
                   onShowUserPopover={showUserPopover}
                   onLeaveGroup={handleLeaveGroup}
+                  replyingTo={replyingTo}
+                  onClearReply={() => setReplyingTo(null)}
                 />
               </div>
             </div>

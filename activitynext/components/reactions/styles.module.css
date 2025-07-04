@@ -29,3 +29,28 @@
   transform: scale(1.2);
 }
 
+.replyButton {
+  background: #2c2f30; /* 🆕 Match popup bakgrunn */
+  border: 1px solid #1C6B1C; /* 🆕 Match popup border */
+  border-radius: 4px; /* 🆕 Litt avrundede hjørner */
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px; /* 🆕 Litt mindre for å passe bedre */
+  height: 28px;
+  transition: all 0.1s ease-in-out; /* 🆕 Smooth transitions */
+}
+
+.replyButton:hover {
+  background-color: #1C6B1C; /* 🆕 Match din grønne farge */
+  transform: scale(1.1); /* 🆕 Litt hover-effekt som emojiene */
+}
+
+/* 🆕 Style for separator */
+.separator {
+  width: 1px;
+  height: 20px;
+  background-color: #1C6B1C;
+  margin: 0 4px;
+}

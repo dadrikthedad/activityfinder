@@ -182,7 +182,7 @@ const AttachmentItem = ({
   // Non-image, non-video files - use PreviewModal inspired styling
   return (
     <div 
-      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-600 p-3 rounded-lg border border-gray-200 dark:border-[#1C6B1C] hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
+      className="flex items-center gap-3 bg-gray-50 dark:bg-[#2E2E2E] p-3 rounded-lg border border-gray-200 dark:border-[#1C6B1C] hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
       onClick={() => onPreview(attachment)}
     >
       {fileInfo.icon}

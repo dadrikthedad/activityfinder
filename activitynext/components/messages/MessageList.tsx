@@ -16,6 +16,8 @@ import { debounce } from "lodash";
 import Spinner from "../common/Spinner";
 import { useMarkConversationNotificationsAsRead } from "@/hooks/messages/useMarkConversationNotificationAsRead";
 import { MessageAttachments } from "./MessageAttachmentsComp";
+import { MessageDTO } from "@/types/MessageDTO";
+
 
 
 
@@ -25,7 +27,7 @@ interface MessageListProps {
     onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
     conversationVisible: boolean;
     onScrollPositionChange?: (atBottom: boolean) => void; // Sier ifra når vi ikke er i bunn
-
+    onReply?: (message: MessageDTO) => void; 
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
 export default function MessageList({ 
@@ -33,6 +35,7 @@ export default function MessageList({
   onShowUserPopover,
   conversationVisible,
   onScrollPositionChange,
+  onReply
 }: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
@@ -81,6 +84,10 @@ export default function MessageList({
     // Huske om vi er i bunn
     const setIsAtBottom = useChatStore(state => state.setIsAtBottom);
 
+    const handleReply = (message: MessageDTO) => {
+      // Send til parent så MessageInput kan vise reply preview
+      onReply?.(message);
+    };
     
 
     useEffect(() => {
@@ -381,7 +388,13 @@ export default function MessageList({
   
         return (
             <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-              <ReactionHandler targetId={msg.id} userId={currentUser?.id ?? -1}  existingReactions={msg.reactions} disabled={isLocked}>
+              <ReactionHandler 
+                targetId={msg.id} 
+                userId={currentUser?.id ?? -1}  
+                existingReactions={msg.reactions} 
+                disabled={isLocked}
+                message={msg} // 🆕 Send hele meldingen
+                onReply={handleReply}>
             <div
                 className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${
                     isMine ? "text-right ml-auto" : "text-left"
@@ -426,8 +439,50 @@ export default function MessageList({
                 </div>
           
               {/* Innhold */}
-              {msg.parentMessageText && (
-                <div className="text-xs italic text-gray-500 mb-2">↳ {msg.parentMessageText}</div>
+              {(msg.parentMessageId && (msg.parentMessageText || msg.parentSender)) && (
+                <div 
+                  className={`mb-2 border-l border-[#1C6B1C] pl-3 py-2 bg-gray-50 dark:bg-[#2E2E2E] rounded-r-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                    isMine ? "border-1 pr-3 pl-0 rounded-l-md rounded-r-none" : ""
+                  }`}
+                  onClick={() => {
+                    if (msg.parentMessageId) {
+                      setScrollToMessageId(msg.parentMessageId);
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg 
+                      className="w-3 h-3 text-gray-400 flex-shrink-0" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" 
+                      />
+                    </svg>
+                    {msg.parentSender && (
+                      <MiniAvatar 
+                        imageUrl={msg.parentSender.profileImageUrl ?? "/default-avatar.png"} 
+                        size={16} 
+                      />
+                    )}
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                      {msg.parentSender?.fullName ?? "Someone"}
+                    </span>
+                  </div>
+                  {msg.parentMessageText && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 break-words">
+                      {msg.parentMessageText.length > 100 
+                        ? `${msg.parentMessageText.substring(0, 100)}...` 
+                        : msg.parentMessageText
+                      }
+                    </div>
+                  )}
+                </div>
               )}
               {msg.text?.trim() && (
                 <div className="text-sm mb-2 break-words break-all whitespace-pre-line">{msg.text}</div>
