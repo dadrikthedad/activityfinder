@@ -15,7 +15,8 @@ public class FileService : IFileService
         "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
         "application/pdf", "text/plain", 
         "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo"
+        "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo",
+        "video/webm", "video/ogg", "video/3gpp", "video/x-ms-wmv"
     };
 
     // Tillatte bildetyper (strengere for profilbilder osv)
@@ -26,6 +27,7 @@ public class FileService : IFileService
 
     // Maks filstørrelse (10MB)
     private const long MaxFileSizeInBytes = 10 * 1024 * 1024;
+    private const long MaxVideoSizeInBytes = 50 * 1024 * 1024;
 
     public FileService(BlobServiceClient blobServiceClient, ILogger<FileService> logger)
     {
@@ -112,14 +114,22 @@ public class FileService : IFileService
         if (file == null || file.Length == 0)
             return (false, "Ingen fil oppgitt");
 
-        if (file.Length > MaxFileSizeInBytes)
-            return (false, $"Filen er for stor. Maksimal størrelse er {MaxFileSizeInBytes / (1024 * 1024)}MB");
-
         if (!_allowedAttachmentTypes.Contains(file.ContentType))
             return (false, $"Filtypen '{file.ContentType}' er ikke tillatt");
 
         if (string.IsNullOrWhiteSpace(file.FileName))
             return (false, "Filnavn er påkrevd");
+
+        // 🆕 Forskjellige størrelsesbegrensninger for videoer
+        var isVideo = file.ContentType.StartsWith("video/");
+        var maxSize = isVideo ? MaxVideoSizeInBytes : MaxFileSizeInBytes;
+        
+        if (file.Length > maxSize)
+        {
+            var maxSizeMB = maxSize / (1024 * 1024);
+            var fileType = isVideo ? "Video" : "Fil";
+            return (false, $"{fileType} er for stor. Maksimal størrelse er {maxSizeMB}MB");
+        }
 
         return (true, null);
     }

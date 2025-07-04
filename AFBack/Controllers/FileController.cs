@@ -150,8 +150,9 @@ public class FileController : BaseController
 
         if (request.Files.Count > 10)
             return BadRequest(new { message = "Maksimalt 10 filer per melding" });
-        // ✅ Total size limit (f.eks. 20 MB)
-        const long maxTotalSize = 20 * 1024 * 1024; // 20MB
+        
+        // 🆕 Økt total størrelse for å støtte videoer
+        const long maxTotalSize = 100 * 1024 * 1024; // 100MB (økt fra 20MB)
         var totalSize = request.Files.Sum(f => f.Length);
         if (totalSize > maxTotalSize)
         {
@@ -160,6 +161,7 @@ public class FileController : BaseController
                 message = $"Total størrelse for alle filer overstiger {maxTotalSize / (1024 * 1024)} MB"
             });
         }
+
         // ✅ Valider alle filer først
         foreach (var file in request.Files)
         {
@@ -167,22 +169,29 @@ public class FileController : BaseController
             if (!isValid)
                 return BadRequest(new { message = $"Feil med fil '{file.FileName}': {errorMessage}" });
         }
+        
         var uploadedFileUrls = new List<string>();
         try
         {
-            // Parallell opplasting for bedre ytelse
+            // 🔧 FIKSET: Process filer i samme rekkefølge som de kom inn
             var uploadTasks = request.Files.Select(file => 
-                _fileService.UploadFileAsync(file, "message-attachments"));
-    
+            {
+                var containerName = file.ContentType.StartsWith("video/") 
+                    ? "message-videos" 
+                    : "message-attachments";
+                return _fileService.UploadFileAsync(file, containerName);
+            });
+
             uploadedFileUrls = (await Task.WhenAll(uploadTasks).ConfigureAwait(false)).ToList();
 
-            // ✅ Bygg attachments
+            // ✅ Bygg attachments - nå matcher indeksene
             var attachments = request.Files.Select((file, index) => new AttachmentDto
             {
                 FileUrl = uploadedFileUrls[index],
                 FileType = file.ContentType,
                 FileName = file.FileName
             }).ToList();
+            
             // ✅ Send melding
             var sendMessageRequest = new SendMessageRequestDTO
             {
@@ -192,25 +201,24 @@ public class FileController : BaseController
                 ReceiverId = request.ReceiverId,
                 ParentMessageId = request.ParentMessageId
             };
+            
             var response = await _messageService.SendMessageAsync(senderId.Value, sendMessageRequest)
                 .ConfigureAwait(false);
+                
             return Ok(response);
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning("Validation error when sending message for user {UserId}: {Error}", senderId,
-                ex.Message);
+            _logger.LogWarning("Validation error when sending message for user {UserId}: {Error}", senderId, ex.Message);
             await _fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return BadRequest(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning("Business logic error when sending message for user {UserId}: {Error}", senderId,
-                ex.Message);
+            _logger.LogWarning("Business logic error when sending message for user {UserId}: {Error}", senderId, ex.Message);
             await _fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return BadRequest(new { message = ex.Message });
         }
-
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error when sending message for user {UserId}", senderId);
