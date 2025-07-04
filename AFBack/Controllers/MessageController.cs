@@ -322,8 +322,8 @@ public class MessagesController : BaseController
 
         try
         {
-            await _messageService.SoftDeleteMessageAsync(messageId, userId.Value);
-            return Ok(new { message = "Melding er merket som slettet." });
+            var deletedMessage = await _messageService.SoftDeleteMessageAsync(messageId, userId.Value);
+            return Ok(deletedMessage); // 🆕 Returner den slettede meldingen
         }
         catch (KeyNotFoundException ex)
         {
@@ -332,6 +332,10 @@ public class MessagesController : BaseController
         catch (UnauthorizedAccessException ex)
         {
             return Forbid(ex.Message);
+        }
+        catch (ArgumentException ex) // 🆕 For tidsgrense feil
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {

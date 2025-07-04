@@ -24,4 +24,6 @@ public class MessageResponseDTO
     public bool IsSilent { get; set; }
     
     public bool IsSystemMessage { get; set; }
+    
+    public bool IsDeleted { get; set; } = false;
 }

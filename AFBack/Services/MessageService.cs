@@ -573,17 +573,75 @@ public class MessageService : IMessageService
     
     
     // Slette meldinger
-    public async Task SoftDeleteMessageAsync(int messageId, int userId)
+    public async Task<MessageResponseDTO> SoftDeleteMessageAsync(int messageId, int userId)
     {
-        var message = await _context.Messages.FindAsync(messageId);
+        var message = await _context.Messages
+            .Include(m => m.Conversation)
+            .ThenInclude(c => c.Participants)
+            .FirstOrDefaultAsync(m => m.Id == messageId);
+
         if (message == null)
-            throw new KeyNotFoundException("Meldingen finnes ikke.");
-    
+            throw new Exception("Message not found.");
+
+        // 🔒 Autorisation: Kun avsender kan slette sin egen melding
         if (message.SenderId != userId)
-            throw new UnauthorizedAccessException("Du kan bare slette dine egne meldinger.");
-    
+            throw new UnauthorizedAccessException("You can only delete your own messages.");
+
+        // 🕒 Tidsgrense: Kun meldinger nyere enn X timer kan slettes
+        var timeLimitHours = 24; // Konfigurerbar
+        if (DateTime.UtcNow.Subtract(message.SentAt).TotalHours > timeLimitHours)
+            throw new Exception($"Messages older than {timeLimitHours} hours cannot be deleted.");
+
+        // ✅ Soft delete
         message.IsDeleted = true;
+        message.Text = null; // Fjern tekst
+    
+        // 🗂️ Fjern vedlegg 
+        message.Attachments.Clear();
+    
         await _context.SaveChangesAsync();
+
+        // 📤 Hent oppdatert melding via optimalisert metode
+        var response = await MapToResponseDtoOptimized(messageId); // 🆕 Pass messageId, ikke message objekt
+    
+        // Hent participants for SignalR broadcast
+        var participantIds = message.Conversation.Participants
+            .Select(p => p.UserId)
+            .ToArray();
+
+        // Send til alle deltakere
+        _taskQueue.QueueAsync(() => NotifyMessageDeleted(
+            conversationId: message.ConversationId,
+            participantIds: participantIds,
+            deletedMessage: response
+        ));
+
+        return response;
+    }
+
+    // 3. SignalR notification metode
+    private async Task NotifyMessageDeleted(
+        int conversationId,
+        int[] participantIds,
+        MessageResponseDTO deletedMessage)
+    {
+        var signalrTasks = participantIds.Select(async uid =>
+        {
+            try
+            {
+                await _hubContext.Clients.User(uid.ToString())
+                    .SendAsync("MessageDeleted", new { 
+                        conversationId = conversationId,
+                        message = deletedMessage 
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send deleted message notification to user {UserId}", uid);
+            }
+        });
+
+        await Task.WhenAll(signalrTasks);
     }
     
     
@@ -777,11 +835,13 @@ public class MessageService : IMessageService
             {
                 Id = m.Id,
                 SenderId = m.SenderId,
-                Text = m.Text,
+                Text = m.IsDeleted ? null : m.Text,
                 SentAt = m.SentAt,
                 ConversationId = m.ConversationId,
-                ParentMessageId = m.ParentMessageId,
-                ParentMessageText = m.ParentMessage != null ? m.ParentMessage.Text : null,
+                IsDeleted = m.IsDeleted, 
+                ParentMessageId = m.IsDeleted ? null : m.ParentMessageId, 
+                ParentMessageText = m.IsDeleted ? null : 
+                    (m.ParentMessage != null ? m.ParentMessage.Text : null),
 
                 Sender = m.Sender != null ? new UserSummaryDTO
                 {
@@ -792,33 +852,36 @@ public class MessageService : IMessageService
                         : null
                 } : null,
 
-                ParentSender = m.ParentMessage != null && m.ParentMessage.Sender != null
-                    ? new UserSummaryDTO
-                    {
-                        Id = m.ParentMessage.Sender.Id,
-                        FullName = m.ParentMessage.Sender.FullName,
-                        ProfileImageUrl = m.ParentMessage.Sender.Profile != null
-                            ? m.ParentMessage.Sender.Profile.ProfileImageUrl
-                            : null
-                    }
-                    : null,
+                ParentSender = m.IsDeleted ? null : 
+                    (m.ParentMessage != null && m.ParentMessage.Sender != null
+                        ? new UserSummaryDTO
+                        {
+                            Id = m.ParentMessage.Sender.Id,
+                            FullName = m.ParentMessage.Sender.FullName,
+                            ProfileImageUrl = m.ParentMessage.Sender.Profile != null
+                                ? m.ParentMessage.Sender.Profile.ProfileImageUrl
+                                : null
+                        }
+                        : null),
 
-                Attachments = m.Attachments
-                    .Select(a => new AttachmentDto
-                    {
-                        FileUrl = a.FileUrl,
-                        FileType = a.FileType,
-                        FileName = a.FileName
-                    })
-                    .ToList(), // materialiser listen her
+                Attachments = m.IsDeleted ? new List<AttachmentDto>() :
+                    m.Attachments
+                        .Select(a => new AttachmentDto
+                        {
+                            FileUrl = a.FileUrl,
+                            FileType = a.FileType,
+                            FileName = a.FileName
+                        })
+                        .ToList(),
 
-                Reactions = m.Reactions
-                    .Select(r => new ReactionDTO
-                    {
-                        MessageId = r.MessageId,
-                        Emoji = r.Emoji,
-                        UserId = r.UserId
-                    })
+                Reactions = m.IsDeleted ? new List<ReactionDTO>() :
+                    m.Reactions
+                        .Select(r => new ReactionDTO
+                        {
+                            MessageId = r.MessageId,
+                            Emoji = r.Emoji,
+                            UserId = r.UserId
+                        })
                     .ToList()
             })
             .SingleOrDefaultAsync();
