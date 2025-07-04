@@ -153,9 +153,9 @@ public class MessageService : IMessageService
 
         // 6 ÉN lagring av alt ovenfor
         await _context.SaveChangesAsync();
-
-        // 7  Map DTO (5. query – henter avsender)
-        var response = await MapToResponseDto(message);
+        
+        // 🆕 Hent meldingen på nytt med full parent data
+        var response = await MapToResponseDtoOptimized(message.Id);
 
         if (nowApproved)
         {
@@ -767,53 +767,66 @@ public class MessageService : IMessageService
         };
     }
 
-    private async Task<MessageResponseDTO> MapToResponseDto(Message message)
+    private async Task<MessageResponseDTO> MapToResponseDtoOptimized(int messageId)
     {
-        var sender = await _context.Users
-            .Where(u => u.Id == message.SenderId)
-            .Select(u => new UserSummaryDTO
+        var dto = await _context.Messages
+            .AsNoTracking()
+            .AsSplitQuery() // unngår tunge join-operasjoner som kan gi dårlig ytelse
+            .Where(m => m.Id == messageId)
+            .Select(m => new MessageResponseDTO
             {
-                Id = u.Id,
-                FullName = u.FullName,
-                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
-            })
-            .FirstOrDefaultAsync();
-        
-        UserSummaryDTO? parentSender = null;
-        if (message.ParentMessage?.Sender != null)
-        {
-            parentSender = new UserSummaryDTO
-            {
-                Id = message.ParentMessage.Sender.Id,
-                FullName = message.ParentMessage.Sender.FullName,
-                ProfileImageUrl = message.ParentMessage.Sender.Profile?.ProfileImageUrl
-            };
-        }
+                Id = m.Id,
+                SenderId = m.SenderId,
+                Text = m.Text,
+                SentAt = m.SentAt,
+                ConversationId = m.ConversationId,
+                ParentMessageId = m.ParentMessageId,
+                ParentMessageText = m.ParentMessage != null ? m.ParentMessage.Text : null,
 
-        return new MessageResponseDTO
-        {
-            Id = message.Id,
-            SenderId = message.SenderId,
-            Sender = sender!,
-            Text = message.Text,
-            SentAt = message.SentAt,
-            ConversationId = message.ConversationId,
-            Attachments = message.Attachments?.Select(a => new AttachmentDto
-            {
-                FileUrl = a.FileUrl,
-                FileType = a.FileType,
-                FileName = a.FileName
-            }).ToList() ?? new List<AttachmentDto>(), 
-            Reactions = message.Reactions?.Select(r => new ReactionDTO
-            {
-                MessageId = r.MessageId,
-                Emoji = r.Emoji,
-                UserId = r.UserId
-            }).ToList() ?? new List<ReactionDTO>(),
-            ParentMessageId = message.ParentMessageId,
-            ParentMessageText = message.ParentMessage?.Text,
-            ParentSender = parentSender
-        };
+                Sender = m.Sender != null ? new UserSummaryDTO
+                {
+                    Id = m.Sender.Id,
+                    FullName = m.Sender.FullName,
+                    ProfileImageUrl = m.Sender.Profile != null
+                        ? m.Sender.Profile.ProfileImageUrl
+                        : null
+                } : null,
+
+                ParentSender = m.ParentMessage != null && m.ParentMessage.Sender != null
+                    ? new UserSummaryDTO
+                    {
+                        Id = m.ParentMessage.Sender.Id,
+                        FullName = m.ParentMessage.Sender.FullName,
+                        ProfileImageUrl = m.ParentMessage.Sender.Profile != null
+                            ? m.ParentMessage.Sender.Profile.ProfileImageUrl
+                            : null
+                    }
+                    : null,
+
+                Attachments = m.Attachments
+                    .Select(a => new AttachmentDto
+                    {
+                        FileUrl = a.FileUrl,
+                        FileType = a.FileType,
+                        FileName = a.FileName
+                    })
+                    .ToList(), // materialiser listen her
+
+                Reactions = m.Reactions
+                    .Select(r => new ReactionDTO
+                    {
+                        MessageId = r.MessageId,
+                        Emoji = r.Emoji,
+                        UserId = r.UserId
+                    })
+                    .ToList()
+            })
+            .SingleOrDefaultAsync();
+
+        if (dto is null)
+            throw new Exception("Message not found");
+
+        return dto;
     }
 
    private async Task NotifyAndBroadcastAsync(
