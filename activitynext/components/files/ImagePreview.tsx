@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import EnlargeableImage from "../common/EnlargeableImage";
 import { DocumentPreview } from "./DocumentPreview";
 import { 
   getFileTypeInfo, 
@@ -9,6 +8,7 @@ import {
   getFileTypesSummary,
   createFileGallery
 } from "./PreviewHelperFunctions";
+import Image from "next/image";
 
 interface FilePreviewItemProps {
   file: File;
@@ -58,18 +58,22 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
     generateThumbnail();
   }, [file, isVideo]);
 
+  // 🆕 Handle preview (både for bilder, videoer og andre filer)
   const handleFileClick = () => {
-    if (canPreviewFile(file)) {
+    if (isImage || isVideo || canPreviewFile(file)) {
       setShowDocumentPreview(true);
     }
   };
 
   return (
     <>
-      <div className="relative group">
+      <div className="relative group w-24 h-24">
         {isImage ? (
           // Image Preview with Gallery
-          <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600">
+          <div 
+            className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 cursor-pointer"
+            onClick={handleFileClick} // 🆕 Legg til click handler
+          >
             {isLoading ? (
               <div className="w-full h-full flex items-center justify-center">
                 <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full"></div>
@@ -79,19 +83,12 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
                 <span className="text-red-500 text-xs">Error</span>
               </div>
             ) : (
-              <EnlargeableImage
-                src={imageUrl}
-                alt={file.name}
-                size={96}
-                className="w-full h-full rounded-none border-none shadow-none"
-                useOverlaySystem={true}
-                gallery={fileGallery?.map(item => ({
-                  src: item.src,
-                  alt: item.alt || item.file.name,
-                  fileName: item.fileName || item.file.name
-                }))}
-                initialIndex={fileGallery?.findIndex(item => item.file === file) || 0}
-              />
+               <Image
+                  src={imageUrl}
+                  alt={file.name}
+                  fill
+                  className="object-cover hover:scale-105 transition-transform duration-200"
+                />
             )}
             
             {/* File info overlay */}
@@ -112,16 +109,19 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
             )}
           </div>
         ) : isVideo ? (
-          // Video Preview
+          // Video Preview - 🆕 Med click handler
           <div 
-            className="w-24 h-24 rounded-lg bg-black border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-1 cursor-pointer hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative overflow-hidden"
-            onClick={handleFileClick}
+            className="w-24 h-24 rounded-lg bg-black border-2 border-gray-200 dark:border-gray-500 flex flex-col items-center justify-center p-1 cursor-pointer hover:border-[#1C6B1C] hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors relative overflow-hidden"
+            onClick={handleFileClick} // 🆕 Legg til click handler
           >
             {videoThumbnail ? (
-              <img 
-                src={videoThumbnail} 
+              <Image
+                src={videoThumbnail}
                 alt={file.name}
+                width={500} // legg til ønsket bredde
+                height={300} // legg til ønsket høyde
                 className="w-full h-full object-cover rounded"
+                layout="responsive" // eller "fill" hvis du vil fylle containeren
               />
             ) : (
               <span className="text-2xl text-purple-600" role="img" aria-label="video icon">
@@ -131,8 +131,8 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
             
             {/* Play button overlay */}
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="bg-white/90 rounded-full p-2">
-                <span className="text-black text-lg">▶️</span>
+              <div className="bg-[#1C6B1C] rounded-full p-2">
+                <span className="text-white text-lg">Play</span>
               </div>
             </div>
             
@@ -147,15 +147,15 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
             </div>
             
             {/* File type badge */}
-            <div className="absolute top-1 right-1 bg-purple-500 text-white text-xs px-1 rounded">
+            <div className="absolute top-1 right-1 bg-[#1C6B1C] text-white text-xs px-1 rounded">
               {file.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
             </div>
           </div>
         ) : (
           // Non-image, non-video files
           <div 
-            className={`w-24 h-24 rounded-lg bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-2 ${
-              canPreviewFile(file) ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
+            className={`w-24 h-24 rounded-lg border-2 border-gray-200 dark:border-gray-600 flex flex-col items-center justify-center p-2 ${
+              canPreviewFile(file) ? 'cursor-pointer hover:border-[#1C6B1C] hover:bg-gray-50 dark:hover:bg-gray-500/20' : ''
             } transition-colors`}
             onClick={handleFileClick}
           >
@@ -171,13 +171,6 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
               </div>
             </div>
             
-            {/* Preview indicator */}
-            {canPreviewFile(file) && (
-              <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
-                👁️
-              </div>
-            )}
-            
             {/* File type badge */}
             <div className="absolute top-1 right-1 bg-gray-500 text-white text-xs px-1 rounded">
               {file.name.split('.').pop()?.toUpperCase() || 'FILE'}
@@ -187,10 +180,13 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
 
         {/* Remove button */}
         <button
-          onClick={() => onRemove(index)}
-          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-lg transition-colors z-10"
-          title="Fjern fil"
-          aria-label={`Fjern ${file.name}`}
+          onClick={(e) => {
+            e.stopPropagation(); // 🆕 Forhindre at preview åpnes når man fjerner
+            onRemove(index);
+          }}
+          className="absolute inset-y-0 inset-x-0 bg-gray-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-lg transition-colors z-10"
+          title="Remove"
+          aria-label={`Remove ${file.name}`}
         >
           ×
         </button>
@@ -201,14 +197,14 @@ const FilePreviewItem = ({ file, index, onRemove, fileGallery }: FilePreviewItem
         )}
       </div>
       
-      {/* Document Preview Modal */}
-      {canPreviewFile(file) && (
-        <DocumentPreview
-          file={file}
-          isOpen={showDocumentPreview}
-          onClose={() => setShowDocumentPreview(false)}
-        />
-      )}
+      {/* 🆕 Document Preview Modal - støtter nå alle filtyper inkludert video */}
+      <DocumentPreview
+        file={file}
+        isOpen={showDocumentPreview}
+        onClose={() => setShowDocumentPreview(false)}
+        gallery={fileGallery?.map(item => ({ file: item.file }))} // 🆕 Konverter til riktig format
+        initialIndex={fileGallery?.findIndex(item => item.file === file) || 0}
+      />
     </>
   );
 };
@@ -225,14 +221,6 @@ interface FilePreviewProps {
 
 export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProps) => {
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-  const imageCount = files.filter(f => f.type.startsWith('image/')).length;
-  const videoCount = files.filter(f => f.type.startsWith('video/')).length;
-  const pdfCount = files.filter(f => f.type === 'application/pdf').length;
-  const docCount = files.filter(f => 
-    f.type.includes('word') || 
-    f.name.toLowerCase().endsWith('.docx') || 
-    f.name.toLowerCase().endsWith('.doc')
-  ).length;
 
   // Create gallery data for File objects with blob URLs
   const [imageGallery, setImageGallery] = useState<Array<{ file: File; src: string; alt?: string; fileName?: string }>>([]);
@@ -254,12 +242,12 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
   }, [files]);
 
   return (
-    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+    <div className="p-4 rounded-lg border border-bg-[#1C6B1C] dark:border-[#1C6B1C]">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {files.length} fil{files.length !== 1 ? 'er' : ''} valgt
+            {files.length} file{files.length !== 1 ? 's' : ''} chosen
           </span>
           {files.length > 1 && (
             <span className="text-xs text-gray-500">
@@ -270,9 +258,9 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
         
         <button
           onClick={onClearAll}
-          className="text-xs text-red-500 hover:text-red-700 font-medium hover:underline transition-colors"
+          className="text-xs text-gray-500 hover:text-gray-700 font-medium hover:underline transition-colors"
         >
-          Fjern alle
+         Remove all
         </button>
       </div>
       
@@ -292,26 +280,11 @@ export const FilePreview = ({ files, onRemoveFile, onClearAll }: FilePreviewProp
       {/* Footer */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
         <div className="text-xs text-gray-500">
-          <div>Total størrelse: {formatFileSize(totalSize)}</div>
-          {imageCount > 1 && (
-            <div className="mt-1">
-              📸 {imageCount} bilder kan blas gjennom med piltaster
-            </div>
-          )}
-          {videoCount > 0 && (
-            <div className="mt-1">
-              🎥 {videoCount} video{videoCount !== 1 ? 'er' : ''} - klikk for avspilling
-            </div>
-          )}
-          {(pdfCount > 0 || docCount > 0) && (
-            <div className="mt-1">
-              👁️ Klikk på filer for forhåndsvisning
-            </div>
-          )}
+          <div>Total size: {formatFileSize(totalSize)}</div>
         </div>
         
         <div className="text-xs text-gray-400">
-          Maks 10 filer, 20MB totalt
+          Max 10 files, 20MB total or 100MB for videos
         </div>
       </div>
     </div>

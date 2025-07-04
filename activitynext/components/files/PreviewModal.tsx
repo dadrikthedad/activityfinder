@@ -254,12 +254,6 @@ export const PreviewModal = ({
                     {subtitle}
                   </p>
                 )}
-                {/* Video keyboard shortcuts hint */}
-                {isVideo && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    Snarveier: Mellomrom = play/pause, M = lyd av/på, F = fullskjerm
-                  </p>
-                )}
               </div>
             </div>
             
@@ -268,26 +262,26 @@ export const PreviewModal = ({
                 <button
                   onClick={onOpenInNewTab}
                   className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
-                  title={isVideo ? "Åpne video i ny fane" : "Åpne i ny fane"}
+                  title={isVideo ? "Open in new tab" : "Open in new tab"}
                 >
-                  {isVideo ? "🎬 Ny fane" : "Åpne i ny fane"}
+                  {isVideo ? "🎬 New tab" : "Open in new tab"}
                 </button>
               )}
               {showDownload && onDownload && (
                 <button
                   onClick={onDownload}
                   className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
-                  title="Last ned fil"
+                  title="Download"
                 >
-                  📥 Last ned
+                  Download
                 </button>
               )}
               <button
                 onClick={onClose}
                 className="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
-                title="Lukk (ESC)"
+                title="Close (ESC)"
               >
-                ✕ Lukk
+                ✕ Close
               </button>
             </div>
           </div>
@@ -306,16 +300,9 @@ export const PreviewModal = ({
 
           {/* Thumbnails */}
           {thumbnails && (
-            <div className="p-4 border-t border-gray-200 dark:border-gray-600">
+            <div className="p-4">
               {thumbnails}
               {/* Keyboard navigation hint for gallery */}
-              {hasGallery && totalItems > 1 && (
-                <div className="text-center mt-2">
-                  <p className="text-xs text-gray-500">
-                    Bruk piltaster eller tallene 1-{Math.min(totalItems, 9)} for navigasjon
-                  </p>
-                </div>
-              )}
             </div>
           )}
         </div>

@@ -119,30 +119,30 @@ export const DocumentPreview = ({
     }
 
     // Handle Word documents
-    if (fileType.includes('word') || fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
-      setError('Word-filer kan ikke forhåndsvises i nettleseren. Word-dokumenter krever Microsoft Word eller kompatibel programvare for å vises korrekt.');
+   if (fileType.includes('word') || fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+      setError('Word files cannot be previewed in the browser. Word documents require Microsoft Word or compatible software to display correctly.');
       setIsLoading(false);
       return;
     }
 
     // Handle Excel files
-    if (fileType.includes('excel') || fileType.includes('spreadsheet') || 
+    if (fileType.includes('excel') || fileType.includes('spreadsheet') ||
         fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-      setError('Excel-filer kan ikke forhåndsvises i nettleseren. Regneark krever Microsoft Excel eller kompatibel programvare for å vises korrekt.');
+      setError('Excel files cannot be previewed in the browser. Spreadsheets require Microsoft Excel or compatible software to display correctly.');
       setIsLoading(false);
       return;
     }
 
     // Handle PowerPoint files
     if (fileType.includes('powerpoint') || fileName.endsWith('.pptx') || fileName.endsWith('.ppt')) {
-      setError('PowerPoint-filer kan ikke forhåndsvises i nettleseren. Presentasjoner krever Microsoft PowerPoint eller kompatibel programvare for å vises korrekt.');
+      setError('PowerPoint files cannot be previewed in the browser. Presentations require Microsoft PowerPoint or compatible software to display correctly.');
       setIsLoading(false);
       return;
     }
 
     // Check file size limit (5MB for better performance)
     if (currentFile.size > 5 * 1024 * 1024) {
-      setError('Filen er for stor for forhåndsvisning (maks 5MB). Klikk "Last ned" for å åpne filen.');
+      setError('File is too large for preview (max 5MB). Click "Download" to open the file.');
       setIsLoading(false);
       return;
     }
@@ -151,29 +151,29 @@ export const DocumentPreview = ({
     if (canPreviewAsText(currentFile)) {
       console.log('DocumentPreview: Handling as text file');
       const reader = new FileReader();
-
+      
       reader.onload = (e) => {
         const result = e.target?.result as string;
         setContent(result);
         setIsLoading(false);
       };
-
+      
       reader.onerror = () => {
-        setError('Kunne ikke lese filen. Klikk "Last ned" for å åpne filen.');
+        setError('Could not read the file. Click "Download" to open the file.');
         setIsLoading(false);
       };
-
+      
       // Try UTF-8 first
       try {
         reader.readAsText(currentFile, 'UTF-8');
       } catch (err) {
         console.error('Error reading file:', err);
-        setError('Filen kan ikke forhåndsvises. Klikk "Last ned" for å åpne filen.');
+        setError('File cannot be previewed. Click "Download" to open the file.');
         setIsLoading(false);
       }
     } else {
       console.log('DocumentPreview: File type not supported for preview');
-      setError('Denne filtypen støttes ikke for forhåndsvisning. Klikk "Last ned" for å åpne filen.');
+      setError('This file type is not supported for preview. Click "Download" to open the file.');
       setIsLoading(false);
     }
   }, [currentFile, isOpen]);
@@ -339,7 +339,7 @@ export const DocumentPreview = ({
       return (
         <div className="flex items-center justify-center py-16">
           <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-          <span className="ml-3 text-gray-600 dark:text-gray-400">Laster innhold...</span>
+          <span className="ml-3 text-gray-600 dark:text-gray-400">Downloading content...</span>
         </div>
       );
     }
@@ -354,7 +354,7 @@ export const DocumentPreview = ({
               onClick={handleDownload}
               className="px-6 py-3 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors"
             >
-              Last ned fil
+              Download
             </button>
             {(currentFile.type === 'application/pdf' || videoUrl) && (
               <button
@@ -374,27 +374,43 @@ export const DocumentPreview = ({
 // Video rendering med hack:
 if (videoUrl) {
   return (
-    <div className="w-full h-full min-h-[400px] p-4 flex items-center justify-center">
+    <div className={`flex items-center justify-center custom-scrollbar ${
+      thumbnails ? 'p-4 pb-8' : 'p-4 pb-16'
+    }`}>
       <video
         ref={videoRef}
         src={videoUrl}
         controls
-        className="max-w-full max-h-[70vh] rounded"
+        className="max-w-full max-h-[70vh] rounded focus:outline-none focus:ring-2 focus:ring-[#1C6B1C]"
         preload="auto"
         playsInline
+        tabIndex={0} // 🆕 Sørg for at video kan få fokus
         onLoadedMetadata={() => {
           console.log('Video metadata loaded, duration:', videoRef.current?.duration);
           // Initialize video when metadata is ready
           setTimeout(() => {
             initializeVideo();
-          }, 100);
+            // 🆕 Sett fokus på video etter initialisering
+            if (videoRef.current) {
+              videoRef.current.focus();
+              console.log('Video focused');
+            }
+          }, 150); // Litt lengre delay for å sikre at alt er klart
         }}
         onCanPlay={() => {
           console.log('Video can play event');
+          // 🆕 Sett fokus når video er klar til avspilling
+          if (videoRef.current && document.activeElement !== videoRef.current) {
+            videoRef.current.focus();
+            console.log('Video focused on canPlay');
+          }
         }}
         onClick={(e) => {
           e.stopPropagation();
           const video = e.target as HTMLVideoElement;
+          
+          // 🆕 Sørg for fokus ved click
+          video.focus();
           
           if (video.paused) {
             playVideo(); // Use our enhanced play function
@@ -412,8 +428,24 @@ if (videoUrl) {
         onError={() => {
           setError('Video kan ikke avspilles i nettleseren. Klikk "Åpne i ny fane" eller "Last ned".');
         }}
+        // 🆕 Eksplisitt keyboard handling på video-elementet
+        onKeyDown={(e) => {
+          console.log('Video keydown:', e.key);
+          if (e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            e.stopPropagation();
+            const video = e.target as HTMLVideoElement;
+            
+            if (video.paused) {
+              playVideo();
+            } else {
+              video.pause();
+              console.log('Video paused via keyboard');
+            }
+          }
+        }}
       >
-        <p>Din nettleser støtter ikke video-elementet. <a href={videoUrl} download={currentFile.name}>Last ned videoen</a> i stedet.</p>
+        <p>Your browser does not support this content. <a href={videoUrl} download={currentFile.name}>Download</a> instead.</p>
       </video>
     </div>
   );

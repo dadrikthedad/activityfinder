@@ -24,7 +24,7 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
   if (isImage) {
     return (
       <div className="relative group cursor-pointer" onClick={() => onPreview(attachment)}>
-        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+        <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-[#1C6B1C]">
           <img
             src={attachment.fileUrl}
             alt={attachment.fileName || `Image ${index + 1}`}
@@ -49,10 +49,6 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
           </div>
         )}
 
-        {/* Preview indicator */}
-        <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-          👁️
-        </div>
       </div>
     );
   }
@@ -60,7 +56,7 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
   // Non-image files
   return (
     <div 
-      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
+      className="flex items-center gap-3 bg-gray-50 dark:bg-gray-500 p-3 rounded-lg border border-gray-200 dark:border-[#1C6B1C] hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer group"
       onClick={() => onPreview(attachment)}
     >
       <span className={`text-2xl ${fileInfo.color}`} role="img" aria-label="file icon">
@@ -75,10 +71,7 @@ const AttachmentItem = ({ attachment, index, onPreview, imageGallery }: Attachme
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {/* Preview indicator */}
-        <div className="text-blue-500 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-          👁️
-        </div>
+
         <div className="text-xs text-gray-400">
           📎
         </div>

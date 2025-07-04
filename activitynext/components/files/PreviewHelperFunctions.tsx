@@ -499,13 +499,13 @@ export const getFileTypesSummary = (files: File[]): string => {
   const otherCount = files.length - imageCount - videoCount - pdfCount - docCount;
 
   const parts = [];
-  if (imageCount > 0) parts.push(`${imageCount} bilde${imageCount !== 1 ? 'r' : ''}`);
-  if (videoCount > 0) parts.push(`${videoCount} video${videoCount !== 1 ? 'er' : ''}`);
-  if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 'er' : ''}`);
-  if (docCount > 0) parts.push(`${docCount} dokument${docCount !== 1 ? 'er' : ''}`);
-  if (otherCount > 0) parts.push(`${otherCount} andre`);
-  
-  return parts.length > 0 ? `(${parts.join(', ')})` : '';
+    if (imageCount > 0) parts.push(`${imageCount} image${imageCount !== 1 ? 's' : ''}`);
+    if (videoCount > 0) parts.push(`${videoCount} video${videoCount !== 1 ? 's' : ''}`);
+    if (pdfCount > 0) parts.push(`${pdfCount} PDF${pdfCount !== 1 ? 's' : ''}`);
+    if (docCount > 0) parts.push(`${docCount} document${docCount !== 1 ? 's' : ''}`);
+    if (otherCount > 0) parts.push(`${otherCount} other${otherCount !== 1 ? 's' : ''}`);
+
+    return parts.length > 0 ? `(${parts.join(', ')})` : '';
 };
 /**
  * Get comprehensive file statistics
