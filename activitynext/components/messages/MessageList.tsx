@@ -17,6 +17,8 @@ import Spinner from "../common/Spinner";
 import { useMarkConversationNotificationsAsRead } from "@/hooks/messages/useMarkConversationNotificationAsRead";
 import { MessageAttachments } from "./MessageAttachmentsComp";
 import { MessageDTO } from "@/types/MessageDTO";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useDeleteMessage } from "@/hooks/messages/useSoftDelete";
 
 
 
@@ -50,6 +52,47 @@ export default function MessageList({
       hasMore,
     } = usePaginatedMessages(conversationId, conversationVisible);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
 
+
+    const { confirm, ConfirmDialog } = useConfirmDialog();
+    const { deleteMessage, isDeleting } = useDeleteMessage({
+      onSuccess: (deletedMessage) => {
+        console.log('Message deleted successfully from hook:', deletedMessage.id);
+      },
+      onError: (error) => {
+        console.error('Delete failed:', error);
+      }
+    });
+
+      const handleDeleteMessage = async (message: MessageDTO) => {
+      const messagePreview = message.text 
+        ? message.text.length > 50 
+          ? `${message.text.slice(0, 50)}...` 
+          : message.text
+        : message.attachments?.length 
+          ? `Message with ${message.attachments.length} attachment(s)`
+          : "this message";
+
+      const confirmed = await confirm({
+        title: "Delete Message",
+        message: (
+          <span>
+            Are you sure you want to delete{" "}
+            <span className="font-semibold italic">
+              {messagePreview}
+            </span>
+            ?
+            <br />
+            <span className="text-xs text-gray-500 mt-2 block">
+              This action cannot be undone.
+            </span>
+          </span>
+        ),
+      });
+
+      if (confirmed) {
+        await deleteMessage(message); // 🆕 Kall hook function
+      }
+    };
 
     const scrollPosition = useRef<number>(0); // Lagre midltertid
     const { scrollPositions } = useChatStore(); // hentet ved ny mount
@@ -392,9 +435,13 @@ export default function MessageList({
                 targetId={msg.id} 
                 userId={currentUser?.id ?? -1}  
                 existingReactions={msg.reactions} 
-                disabled={isLocked}
+                disabled={isLocked || isDeleting} 
                 message={msg} // 🆕 Send hele meldingen
-                onReply={handleReply}>
+                onReply={handleReply}
+                currentUserId={currentUser?.id}
+                onDelete={handleDeleteMessage}
+                >
+                  
             <div
                 className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${
                     isMine ? "text-right ml-auto" : "text-left"
@@ -528,6 +575,7 @@ export default function MessageList({
       })}
         <div ref={topRef} />
           </div>
+          <ConfirmDialog />
   
       
     </div>

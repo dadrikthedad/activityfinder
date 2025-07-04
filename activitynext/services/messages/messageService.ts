@@ -1,4 +1,4 @@
-import { postRequest, getRequest } from "@/services/baseService";
+import { postRequest, getRequest, deleteRequest } from "@/services/baseService";
 import { API_BASE_URL } from "@/constants/routes";
 import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
@@ -44,4 +44,9 @@ export async function getPendingMessageRequestById(conversationId: number): Prom
 export async function rejectRequest(dto: RejectRequestDTO): Promise<void> {
   const url = `${API_BASE_URL}/api/messages/reject-request`;
   await postRequest<void, RejectRequestDTO>(url, dto);
+}
+
+export async function deleteMessage(messageId: number): Promise<MessageDTO | null> {
+  const url = `${API_BASE_URL}/api/messages/${messageId}`;
+  return await deleteRequest<MessageDTO>(url);
 }

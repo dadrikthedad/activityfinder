@@ -54,3 +54,21 @@
   background-color: #1C6B1C;
   margin: 0 4px;
 }
+
+.deleteButton {
+  background: #2c2f30;
+  border: 1px solid #6b7280; /* gray-500 border */
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  transition: all 0.1s ease-in-out;
+}
+
+.deleteButton:hover {
+  background-color: #6b7280; /* gray-500 bakgrunn på hover */
+  transform: scale(1.1);
+}

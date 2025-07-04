@@ -32,6 +32,7 @@ export interface MessageDTO {
   isNowApproved?: boolean;
   isSilent?: boolean;
   isSystemMessage: boolean;
+  isDeleted?: boolean;
 }
 
 export interface SendMessageRequestDTO {

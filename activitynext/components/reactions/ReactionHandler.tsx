@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useRef } from "react";
 import { useReactions } from "@/hooks/reactions/useReactions";
 import { ReactionPopup } from "./ReactionPopup";
@@ -10,19 +11,22 @@ interface ReactionHandlerProps {
   existingReactions: ReactionDTO[];
   children: React.ReactNode;
   disabled?: boolean;
-  // 🆕 Legg til props for reply funksjonalitet
   message?: MessageDTO;
   onReply?: (message: MessageDTO) => void;
+  currentUserId?: number;
+  onDelete?: (message: MessageDTO) => void; // 🆕 Delete callback
 }
 
-export const ReactionHandler: React.FC<ReactionHandlerProps> = ({ 
-  targetId, 
-  userId, 
-  existingReactions, 
-  children, 
+export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
+  targetId,
+  userId,
+  existingReactions,
+  children,
   disabled,
   message,
-  onReply 
+  onReply,
+  currentUserId,
+  onDelete, // 🆕 Receive delete callback
 }) => {
   const { addReaction } = useReactions();
   const [visible, setVisible] = useState(false);
@@ -54,9 +58,10 @@ export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
           position={position}
           userId={userId}
           existingReactions={existingReactions}
-          // 🆕 Pass reply props
           message={message}
           onReply={onReply}
+          currentUserId={currentUserId}
+          onDelete={onDelete} // 🆕 Pass delete callback til popup
         />
       )}
     </div>
