@@ -11,6 +11,8 @@ import {
   canPreviewAsText,
   formatFileSize 
 } from "./FileFunctions";
+import { downloadFile } from "./DownloadFunction";
+import { downloadViaFetch } from "./DownloadFunction";
 
 interface GalleryItem {
   file: File;
@@ -30,6 +32,7 @@ interface DocumentPreviewProps {
   onNavigate?: (index: number) => void;
 }
 
+
 export const DocumentPreview = ({ 
   file, 
   isOpen, 
@@ -44,6 +47,7 @@ export const DocumentPreview = ({
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Gallery navigation
   const isGalleryMode = gallery.length > 1;
@@ -178,31 +182,59 @@ export const DocumentPreview = ({
     }
   }, [currentFile, isOpen]);
 
-  const handleDownload = () => {
-    // Check if this is an attachment file
-    const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
-    const isAttachmentFile = currentGalleryItem?.attachment;
+  // OPPDATERT ROBUST DOWNLOAD FUNCTION
+  const handleDownload = async () => {
+    if (isDownloading) return; // Prevent double-clicks
+    
+    setIsDownloading(true);
+    
+    try {
+      // Check if this is an attachment file
+      const currentGalleryItem = isGalleryMode ? gallery[currentIndex] : null;
+      const isAttachmentFile = currentGalleryItem?.attachment;
 
-    if (isAttachmentFile) {
-      // For attachment files, create download link from URL
-      const attachment = currentGalleryItem.attachment!;
-      const a = document.createElement('a');
-      a.href = attachment.fileUrl;
-      a.download = attachment.fileName || 'download';
-      a.target = '_blank'; // Open in new tab as fallback
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } else {
-      // For regular File objects, use blob URL
-      const url = URL.createObjectURL(currentFile);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = currentFile.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      if (isAttachmentFile) {
+        // For attachment files, download from URL
+        const attachment = currentGalleryItem.attachment!;
+        const filename = attachment.fileName || currentFile.name || 'download';
+        
+        console.log('Downloading attachment:', filename, 'from:', attachment.fileUrl);
+        
+        try {
+          // For remote files, always use fetch to ensure proper download
+          await downloadViaFetch(attachment.fileUrl, filename);
+          console.log('Download completed via fetch');
+        } catch (fetchError) {
+          console.warn('Fetch download failed, trying direct link:', fetchError);
+          // Fallback to direct link download
+          await downloadFile(attachment.fileUrl, filename);
+          console.log('Download completed via direct link');
+        }
+      } else {
+        // For regular File objects (local files), use blob URL
+        const blobUrl = URL.createObjectURL(currentFile);
+        const filename = currentFile.name || 'download';
+        
+        console.log('Downloading local file blob:', filename);
+        
+        // Force download for all file types including PDFs
+        await downloadFile(blobUrl, filename);
+        console.log('Download completed via blob URL');
+      }
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      
+      // Show user-friendly error and offer fallback
+      const shouldRetry = confirm(
+        'Download failed. Would you like to open the file in a new tab instead?'
+      );
+      
+      if (shouldRetry) {
+        handleOpenInNewTab();
+      }
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -244,7 +276,7 @@ export const DocumentPreview = ({
     }
   }, [videoInitialized]);
 
-  // 🆕 Enhanced play function
+  // Enhanced play function
   const playVideo = useCallback(async () => {
     if (!videoRef.current) return;
     
@@ -352,9 +384,10 @@ export const DocumentPreview = ({
           <div className="flex gap-3 justify-center">
             <button
               onClick={handleDownload}
-              className="px-6 py-3 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors"
+              disabled={isDownloading}
+              className="px-6 py-3 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Download
+              {isDownloading ? 'Downloading...' : 'Download'}
             </button>
             {(currentFile.type === 'application/pdf' || videoUrl) && (
               <button
@@ -369,87 +402,85 @@ export const DocumentPreview = ({
       );
     }
 
-    // Enkel løsning - fjern den problematiske event handling:
-
-// Video rendering med hack:
-if (videoUrl) {
-  return (
-    <div className={`flex items-center justify-center custom-scrollbar ${
-      thumbnails ? 'p-4 pb-8' : 'p-4 pb-16'
-    }`}>
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        controls
-        className="max-w-full max-h-[70vh] rounded focus:outline-none focus:ring-2 focus:ring-[#1C6B1C]"
-        preload="auto"
-        playsInline
-        tabIndex={0} // 🆕 Sørg for at video kan få fokus
-        onLoadedMetadata={() => {
-          console.log('Video metadata loaded, duration:', videoRef.current?.duration);
-          // Initialize video when metadata is ready
-          setTimeout(() => {
-            initializeVideo();
-            // 🆕 Sett fokus på video etter initialisering
-            if (videoRef.current) {
-              videoRef.current.focus();
-              console.log('Video focused');
-            }
-          }, 150); // Litt lengre delay for å sikre at alt er klart
-        }}
-        onCanPlay={() => {
-          console.log('Video can play event');
-          // 🆕 Sett fokus når video er klar til avspilling
-          if (videoRef.current && document.activeElement !== videoRef.current) {
-            videoRef.current.focus();
-            console.log('Video focused on canPlay');
-          }
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          const video = e.target as HTMLVideoElement;
-          
-          // 🆕 Sørg for fokus ved click
-          video.focus();
-          
-          if (video.paused) {
-            playVideo(); // Use our enhanced play function
-          } else {
-            video.pause();
-            console.log('Video paused');
-          }
-        }}
-        onPlay={() => {
-          console.log('Video play event fired');
-        }}
-        onPlaying={() => {
-          console.log('Video is actually playing now');
-        }}
-        onError={() => {
-          setError('Video kan ikke avspilles i nettleseren. Klikk "Åpne i ny fane" eller "Last ned".');
-        }}
-        // 🆕 Eksplisitt keyboard handling på video-elementet
-        onKeyDown={(e) => {
-          console.log('Video keydown:', e.key);
-          if (e.key === ' ' || e.key === 'Spacebar') {
-            e.preventDefault();
-            e.stopPropagation();
-            const video = e.target as HTMLVideoElement;
-            
-            if (video.paused) {
-              playVideo();
-            } else {
-              video.pause();
-              console.log('Video paused via keyboard');
-            }
-          }
-        }}
-      >
-        <p>Your browser does not support this content. <a href={videoUrl} download={currentFile.name}>Download</a> instead.</p>
-      </video>
-    </div>
-  );
-}
+    // Video rendering med hack:
+    if (videoUrl) {
+      return (
+        <div className={`flex items-center justify-center custom-scrollbar ${
+          thumbnails ? 'p-4 pb-8' : 'p-4 pb-16'
+        }`}>
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            controls
+            className="max-w-full max-h-[70vh] rounded focus:outline-none focus:ring-2 focus:ring-[#1C6B1C]"
+            preload="auto"
+            playsInline
+            tabIndex={0}
+            onLoadedMetadata={() => {
+              console.log('Video metadata loaded, duration:', videoRef.current?.duration);
+              // Initialize video when metadata is ready
+              setTimeout(() => {
+                initializeVideo();
+                // Set fokus på video etter initialisering
+                if (videoRef.current) {
+                  videoRef.current.focus();
+                  console.log('Video focused');
+                }
+              }, 150);
+            }}
+            onCanPlay={() => {
+              console.log('Video can play event');
+              // Set fokus når video er klar til avspilling
+              if (videoRef.current && document.activeElement !== videoRef.current) {
+                videoRef.current.focus();
+                console.log('Video focused on canPlay');
+              }
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const video = e.target as HTMLVideoElement;
+              
+              // Sørg for fokus ved click
+              video.focus();
+              
+              if (video.paused) {
+                playVideo(); // Use our enhanced play function
+              } else {
+                video.pause();
+                console.log('Video paused');
+              }
+            }}
+            onPlay={() => {
+              console.log('Video play event fired');
+            }}
+            onPlaying={() => {
+              console.log('Video is actually playing now');
+            }}
+            onError={() => {
+              setError('Video kan ikke avspilles i nettleseren. Klikk "Åpne i ny fane" eller "Last ned".');
+            }}
+            // Eksplisitt keyboard handling på video-elementet
+            onKeyDown={(e) => {
+              console.log('Video keydown:', e.key);
+              if (e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                e.stopPropagation();
+                const video = e.target as HTMLVideoElement;
+                
+                if (video.paused) {
+                  playVideo();
+                } else {
+                  video.pause();
+                  console.log('Video paused via keyboard');
+                }
+              }
+            }}
+          >
+            <p>Your browser does not support this content. <a href={videoUrl} download={currentFile.name}>Download</a> instead.</p>
+          </video>
+        </div>
+      );
+    }
 
     if (pdfUrl) {
       // PDF Viewer
@@ -547,6 +578,7 @@ if (videoUrl) {
       onPrevious={goToPrevious}
       onGoToIndex={goToIndex}
       thumbnails={thumbnails}
+      isDownloading={isDownloading} // Pass loading state to modal
     >
       {renderContent()}
     </PreviewModal>

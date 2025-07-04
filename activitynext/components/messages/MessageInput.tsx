@@ -173,11 +173,6 @@ export default function MessageInput({
     fileInputRef.current?.click();
   };
 
-  // Open image picker (same as file picker for now)
-  const handlePickImage = () => {
-    fileInputRef.current?.click();
-  };
-  
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -242,7 +237,6 @@ export default function MessageInput({
       <MessageToolbar
         atBottom={Boolean(atBottom)}
         onScrollToBottom={scrollToBottom}
-        onPickImage={handlePickImage}
         onPickFile={handlePickFile} 
         onPickEmoji={() => console.log("Emoji")}
         showFile={!isBlocked}

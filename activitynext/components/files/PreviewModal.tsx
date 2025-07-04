@@ -39,6 +39,7 @@ interface PreviewModalProps {
   
   // Video-specific props
   isVideo?: boolean;
+  isDownloading?: boolean;
 }
 
 export const PreviewModal = ({
@@ -60,7 +61,8 @@ export const PreviewModal = ({
   children,
   thumbnails,
   onKeyDown,
-  isVideo = false
+  isVideo = false,
+  isDownloading
 }: PreviewModalProps) => {
   const overlay = useOverlay();
 
@@ -270,10 +272,11 @@ export const PreviewModal = ({
               {showDownload && onDownload && (
                 <button
                   onClick={onDownload}
+                  disabled={isDownloading}
                   className="px-3 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#0F3D0F] transition-colors text-sm"
                   title="Download"
                 >
-                  Download
+                  {isDownloading ? 'Downloading...' : 'Download'}
                 </button>
               )}
               <button

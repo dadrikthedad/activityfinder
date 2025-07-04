@@ -130,7 +130,6 @@ export default function NewMessageInput({
         <MessageToolbar
           showEmoji={false}
           showFile={false}
-          showImage={true}
           showScrollToBottom={false}
           showSettings={false}
         />
@@ -162,7 +161,6 @@ export default function NewMessageInput({
       <MessageToolbar
         showEmoji={false}
         showFile={false}
-        showImage={true}
         showScrollToBottom={false}
         showSettings={false}
       />

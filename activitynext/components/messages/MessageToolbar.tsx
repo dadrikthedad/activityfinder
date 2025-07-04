@@ -1,4 +1,4 @@
-import { ImageIcon, Paperclip, Smile, ArrowDown } from "lucide-react";
+import { Paperclip, Smile, ArrowDown } from "lucide-react";
 import MessageSettingsDropdown from "./MessageSettingsDropdown";
 import TooltipButton from "../common/TooltipButton";
 import { useState } from "react";
@@ -7,11 +7,9 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 interface MessageToolbarProps {
   atBottom?: boolean;
   onScrollToBottom?: () => void;
-  onPickImage?: () => void;
-  onPickFile?: () => void;
+  onPickFile?: () => void; // Kombinert funksjon for alle filer
   onPickEmoji?: () => void;
   showScrollToBottom?: boolean;
-  showImage?: boolean;
   showFile?: boolean;
   showEmoji?: boolean;
   showSettings?: boolean;
@@ -33,11 +31,9 @@ interface MessageToolbarProps {
 export default function MessageToolbar({
   atBottom,
   onScrollToBottom,
-  onPickImage,
   onPickFile,
   onPickEmoji,
   showScrollToBottom = true,
-  showImage = true,
   showFile = true,
   showEmoji = true,
   showSettings = true,
@@ -56,7 +52,7 @@ export default function MessageToolbar({
             setOpen={setSettingsOpen}
             onShowUserPopover={onShowUserPopover}
             onLeaveGroup={onLeaveGroup}
-            useOverlaySystem={true} // ✅ Disable overlay system since we're nested in MessageDropdown
+            useOverlaySystem={true}
           />
         )}
        
@@ -69,19 +65,12 @@ export default function MessageToolbar({
         )}
       </div>
 
-      {/* Emoji/fil/bilde-knapper til høyre */}
+      {/* Fil/emoji-knapper til høyre */}
       <div className="flex items-center gap-2">
-        {showImage && (
-          <TooltipButton
-            icon={<ImageIcon size={18} />}
-            tooltip="Add picture"
-            onClick={onPickImage}
-          />
-        )}
         {showFile && onPickFile && (
           <TooltipButton
             icon={<Paperclip size={18} />}
-            tooltip="Add file"
+            tooltip="Add files (images, videos, documents)"
             onClick={onPickFile}
           />
         )}
