@@ -23,6 +23,7 @@ import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
+import { MessageDTO } from "@/types/MessageDTO";
 
 
 
@@ -47,6 +48,7 @@ export default function ChatHubClient() {
       (state) => state.updateNotificationsForRejectedConversation
     )
     const { refreshConversation } = useConversationUpdate();
+    const updateMessage = useChatStore((state) => state.updateMessage);
 
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
       const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
@@ -368,8 +370,26 @@ export default function ChatHubClient() {
         
         // Bruk med forceUpdate for å oppdatere participants
         await syncPendingConversation(conversationId, true);
-      }
+      },
+
+      async (data: { conversationId: number; message: MessageDTO }) => {
+        console.log("🗑️ Mottatt slettet melding via SignalR:", data);
+        
+        const { conversationId, message } = data;
+        const { conversationIds } = useChatStore.getState();
+        
+        // Sjekk om vi har denne samtalen i store
+        if (conversationIds.has(conversationId)) {
+            console.log(`✅ Oppdaterer slettet melding ${message.id} i samtale ${conversationId}`);
+            updateMessage(conversationId, message.id, message);
+            console.log(`🔄 Melding ${message.id} oppdatert med isDeleted: ${message.isDeleted}`);
+        } else {
+            console.log(`⚠️ Samtale ${conversationId} finnes ikke i store, hopper over oppdatering`);
+        }
+    }
     );
+
+    
 
   
 

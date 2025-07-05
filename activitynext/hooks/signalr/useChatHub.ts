@@ -21,7 +21,8 @@ export function useChatHub(
   onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void,
   onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void,
   onGroupDisbanded?: (data: GroupDisbandedDto) => void,
-  onGroupParticipantsUpdated?: (conversationId: number) => void 
+  onGroupParticipantsUpdated?: (conversationId: number) => void,
+  onMessageDeleted?: (data: { conversationId: number; message: MessageDTO }) => void
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -33,6 +34,7 @@ export function useChatHub(
   const groupNotificationUpdatedRef = useRef(onGroupNotificationUpdated);
   const groupDisbandedRef = useRef(onGroupDisbanded);
   const groupParticipantsUpdatedRef = useRef(onGroupParticipantsUpdated);
+  const messageDeletedRef = useRef(onMessageDeleted);
 
    // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
@@ -45,6 +47,7 @@ export function useChatHub(
   useEffect(() => { groupNotificationUpdatedRef.current = onGroupNotificationUpdated }, [onGroupNotificationUpdated]);
   useEffect(() => { groupDisbandedRef.current = onGroupDisbanded }, [onGroupDisbanded]);
   useEffect(() => { groupParticipantsUpdatedRef.current = onGroupParticipantsUpdated }, [onGroupParticipantsUpdated]);
+  useEffect(() => { messageDeletedRef.current = onMessageDeleted }, [onMessageDeleted]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -70,6 +73,7 @@ export function useChatHub(
           conn.off("MessageRequestCreated");
           conn.off("GroupRequestCreated");
           conn.off("GroupNotificationUpdated");
+          conn.off("MessageDeleted");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             console.log("📩 Received:", message);
@@ -140,6 +144,11 @@ export function useChatHub(
           conn.on("GroupParticipantsUpdated", (data: { conversationId: number }) => {
             console.log("🔁 Group participants updated via SignalR:", data);
             groupParticipantsUpdatedRef.current?.(data.conversationId);
+          });
+
+          conn.on("MessageDeleted", (data: { conversationId: number; message: MessageDTO }) => {
+            console.log("🗑️ Message deleted via SignalR:", data);
+            messageDeletedRef.current?.(data);
           });
           
             

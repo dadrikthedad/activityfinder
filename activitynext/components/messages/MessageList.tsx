@@ -531,8 +531,12 @@ export default function MessageList({
                   )}
                 </div>
               )}
-              {msg.text?.trim() && (
-                <div className="text-sm mb-2 break-words break-all whitespace-pre-line">{msg.text}</div>
+              {(msg.text?.trim() || msg.isDeleted) && (
+                <div className={`text-sm mb-2 break-words break-all whitespace-pre-line ${
+                  msg.isDeleted ? "italic text-gray-500 dark:text-gray-400" : ""
+                }`}>
+                  {msg.isDeleted ? "This message has been deleted" : msg.text}
+                </div>
               )}
               {/* Vedlegg og tidspunkt */}
               {msg.attachments && msg.attachments.length > 0 && (

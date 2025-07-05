@@ -23,7 +23,7 @@ type ChatStore = {
   cacheTimestamps: Record<number, number>;
   searchMode: boolean;
   setSearchMode: (value: boolean) => void;
-
+  updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) => void; 
   updateMessageReactions: (reaction: ReactionDTO) => void;
   cleanupOldCache: () => void;
   pendingMessageRequests: MessageRequestDTO[];
@@ -221,6 +221,40 @@ export const useChatStore = create<ChatStore>()(
 
           return { searchResults: updatedMessages };
         }),
+
+        updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) =>
+          set((state) => {
+            console.log(`🔄 Oppdaterer melding ${messageId} i samtale ${conversationId}:`, updatedMessage);
+            
+            const updateMessages = (messages: MessageDTO[]) =>
+              messages.map((m) => m.id === messageId ? updatedMessage : m);
+
+            const liveMessages = { ...state.liveMessages };
+            const cachedMessages = { ...state.cachedMessages };
+
+            // Oppdater i liveMessages hvis meldingen finnes der
+            if (state.liveMessages[conversationId]) {
+              const hasMessage = state.liveMessages[conversationId].some(m => m.id === messageId);
+              if (hasMessage) {
+                liveMessages[conversationId] = updateMessages(state.liveMessages[conversationId]);
+                console.log(`✅ Oppdatert melding ${messageId} i liveMessages`);
+              }
+            }
+
+            // Oppdater i cachedMessages hvis meldingen finnes der
+            if (state.cachedMessages[conversationId]) {
+              const hasMessage = state.cachedMessages[conversationId].some(m => m.id === messageId);
+              if (hasMessage) {
+                cachedMessages[conversationId] = updateMessages(state.cachedMessages[conversationId]);
+                console.log(`✅ Oppdatert melding ${messageId} i cachedMessages`);
+              }
+            }
+
+            return {
+              liveMessages,
+              cachedMessages,
+            };
+          }),
 
       updateMessageReactions: (reaction: ReactionDTO) =>
         set((state) => {
