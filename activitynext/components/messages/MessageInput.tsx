@@ -11,7 +11,10 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { validateFiles } from "../files/FileFunctions";
 import { FilePreview } from "../files/ImagePreview";
 import { ReplyPreview } from "./ReplyPreview";
-import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
+import { useEmojiInput } from "@/hooks/useEmojiPinput";
+import { EmojiPickerWrapper } from "./EmojiPickerWrapper";
+import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
+
 
 interface MessageInputProps {
   receiverId?: number;
@@ -45,15 +48,17 @@ export default function MessageInput({
   onClearReply,
 }: MessageInputProps) {
   const [text, setText] = useState("");
+  const [rawText, setRawText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileValidationError, setFileValidationError] = useState<string | null>(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const { send, loading, error } = useSendMessage(onMessageSent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const emojiPickerRef = useRef<HTMLDivElement>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
+
+  // Bruk gjenbrukbar emoji hook
+  const { showEmojiPicker, toggleEmojiPicker, closeEmojiPicker, insertEmoji } = useEmojiInput();
 
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === conversationId)
@@ -81,46 +86,24 @@ export default function MessageInput({
     (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
     isLocked;
 
-  // Handle emoji click
-  const handleEmojiClick = (emojiData: EmojiClickData) => {
-    const emoji = emojiData.emoji;
-    const textArea = inputRef.current;
-    
-    if (textArea) {
-      const start = textArea.selectionStart;
-      const end = textArea.selectionEnd;
-      const newText = text.slice(0, start) + emoji + text.slice(end);
-      setText(newText);
-      
-      // Restore cursor position after emoji
-      setTimeout(() => {
-        textArea.selectionStart = textArea.selectionEnd = start + emoji.length;
-        textArea.focus();
-      }, 0);
-    } else {
-      setText(prev => prev + emoji);
-    }
-    
-    setShowEmojiPicker(false);
+  // Gjenbrukbar emoji handler
+  const handleEmojiSelect = (emoji: string) => {
+    insertEmoji(emoji, text, setText, inputRef as React.RefObject<HTMLTextAreaElement>);
   };
 
-  // Close emoji picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
-        setShowEmojiPicker(false);
-      }
-    };
-
-    if (showEmojiPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+   // Håndter tekst-endringer med emoji-konvertering
+  const handleTextChange = (newText: string) => {
+    setRawText(newText);
+    setText(convertTextToEmojisPreserveFormat(newText));
+    
+    if (conversationId) {
+      saveDraftFor(conversationId, newText); // Lagre rå tekst som draft
     }
-  }, [showEmojiPicker]);
+  };
 
   // Sjekk om vi kan sende meldingen
   const canSendMessage = () => {
-    const hasText = text.trim().length > 0;
+    const hasText = rawText.trim().length > 0;
     const hasFiles = selectedFiles.length > 0;
     const hasValidFiles = hasFiles && !fileValidationError;
     
@@ -128,7 +111,7 @@ export default function MessageInput({
   };
 
   const handleSend = () => {
-    const trimmed = text.trim();
+    const trimmed = rawText.trim();
     const hasFiles = selectedFiles.length > 0;
     
     if (!trimmed && !hasFiles) return;
@@ -146,6 +129,7 @@ export default function MessageInput({
       parentMessageId: replyingTo?.id 
     };
 
+    setRawText("");
     setText("");
     inputRef.current?.focus();
 
@@ -167,10 +151,24 @@ export default function MessageInput({
       })
       .catch((err) => {
         console.error("Feil ved sending av melding:", err);
-        setText(trimmed);
+        setRawText(trimmed);
+        setText(convertTextToEmojisPreserveFormat(trimmed));
         inputRef.current?.focus();
       });
   };
+
+   useEffect(() => {
+    if (!conversationId) return;
+    const existingDraft = getDraftFor(conversationId);
+    setRawText(existingDraft); // 🆕 Sett rå tekst
+    setText(convertTextToEmojisPreserveFormat(existingDraft)); // 🆕 Konverter og sett display tekst
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (rawText === "") { // 🆕 Sjekk rawText
+      inputRef.current?.focus();
+    }
+  }, [rawText]); 
 
   const validateSelectedFiles = (files: File[]) => {
     if (files.length === 0) {
@@ -207,32 +205,12 @@ export default function MessageInput({
     fileInputRef.current?.click();
   };
 
-  const handlePickEmoji = () => {
-    setShowEmojiPicker(!showEmojiPicker);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [conversationId]);
-
-  useEffect(() => {
-    if (!conversationId) return;
-    const existingDraft = getDraftFor(conversationId);
-    setText(existingDraft);
-  }, [conversationId]);
-
-  useEffect(() => {
-    if (text === "") {
-      inputRef.current?.focus();
-    }
-  }, [text]);
 
   useEffect(() => {
     setSelectedFiles([]);
@@ -278,7 +256,7 @@ export default function MessageInput({
         atBottom={Boolean(atBottom)}
         onScrollToBottom={scrollToBottom}
         onPickFile={handlePickFile} 
-        onPickEmoji={handlePickEmoji}
+        onPickEmoji={toggleEmojiPicker}
         showFile={!isBlocked}
         showEmoji={!isBlocked}
         showSettings={!isBlocked}
@@ -287,46 +265,13 @@ export default function MessageInput({
         userPopoverRef={userPopoverRef}
       />
 
-      {/* EmojiPicker */}
-      {showEmojiPicker && (
-        <div
-          ref={emojiPickerRef}
-          style={{
-            position: 'absolute',
-            bottom: '100%',
-            right: '0',
-            zIndex: 1000,
-            marginBottom: '8px'
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <EmojiPicker
-            onEmojiClick={handleEmojiClick}
-            width={350}
-            height={400}
-            previewConfig={{ showPreview: false }}
-            searchDisabled={false}
-            skinTonesDisabled={false}
-            lazyLoadEmojis={true}
-            theme={Theme.AUTO}
-            style={{
-              '--epr-bg-color': '#1e2122',
-              '--epr-category-label-bg-color': '#334155',
-              '--epr-search-input-bg-color': '#334155',
-              '--epr-search-input-color': '#ffffff',
-              '--epr-highlight-color': '#1C6B1C',
-              '--epr-hover-bg-color': '#1C6B1C',
-              '--epr-focus-bg-color': '#1C6B1C',
-              '--epr-text-color': '#ffffff',
-              '--epr-category-navigation-button-color': '#94a3b8',
-              '--epr-category-navigation-button-color-active': '#1C6B1C',
-              '--epr-category-navigation-button-color-hover': '#1C6B1C',
-              border: '2px solid #1C6B1C',
-              borderRadius: '12px',
-            } as React.CSSProperties}
-          />
-        </div>
-      )}
+      {/* Gjenbrukbar EmojiPicker */}
+      <EmojiPickerWrapper
+        isOpen={showEmojiPicker}
+        onClose={closeEmojiPicker}
+        onEmojiSelect={handleEmojiSelect}
+        position="bottom-right"
+      />
 
       {/* File preview */}
       {selectedFiles.length > 0 && (
@@ -362,13 +307,7 @@ export default function MessageInput({
         <TextareaAutosize
           ref={inputRef}
           value={text}
-          onChange={(e) => {
-            const newText = e.target.value;
-            setText(newText);
-            if (conversationId) {
-              saveDraftFor(conversationId, newText);
-            }
-          }}
+          onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
             isBlocked

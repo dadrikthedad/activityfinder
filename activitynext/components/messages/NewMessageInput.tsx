@@ -7,8 +7,11 @@ import { MessageDTO } from "@/types/MessageDTO";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import MessageToolbar from "./MessageToolbar";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
-import { useConversationUpdate } from "@/hooks/common/useConversationUpdate"; // ✅ Ny import
+import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
+import { useEmojiInput } from "@/hooks/useEmojiPinput";
+import { EmojiPickerWrapper } from "./EmojiPickerWrapper";
+import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
 
 interface NewMessageInputProps {
   receiverId?: number;
@@ -31,24 +34,32 @@ export default function NewMessageInput({
   groupImageUrl,
 }: NewMessageInputProps) {
   const [text, setText] = useState("");
+  const [rawText, setRawText] = useState("");
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Emoji hook
+  const { showEmojiPicker, toggleEmojiPicker, closeEmojiPicker, insertEmoji } = useEmojiInput();
   
   // Hooks for both scenarios
   const { send, error: messageError } = useSendMessage(onMessageSent);
   const { sendGroupInvitations, isLoading: groupRequestLoading, error: groupRequestError, clearError: clearGroupError } = useGroupRequests();
-  const { refreshConversation } = useConversationUpdate(); // ✅ Bruk den nye hooken
+  const { refreshConversation } = useConversationUpdate();
   const { approveLocally } = useApproveMessageRequest();
 
   // Determine if we're in group mode
   const isGroupMode = selectedUsers.length > 1;
   const isDisabled = isGroupMode
     ? groupRequestLoading
-    : !text.trim() || !receiverId; 
+    : !rawText.trim() || !receiverId;
 
-  const handleSend = async () => {
+  const handleEmojiSelect = (emoji: string) => {
+    insertEmoji(emoji, text, setText, inputRef as React.RefObject<HTMLTextAreaElement>);
+  };
+
+   const handleSend = async () => {
     // For 1-til-1 samtaler: krev tekst
     if (!isGroupMode) {
-      const trimmed = text.trim();
+      const trimmed = rawText.trim(); // 🆕 Bruk rawText
       if (!trimmed) return;
       
       if (!receiverId) {
@@ -57,7 +68,8 @@ export default function NewMessageInput({
       }
 
       const sendingText = trimmed;
-      setText("");
+      setRawText(""); // 🆕 Tøm rawText
+      setText(""); // 🆕 Tøm text
       inputRef.current?.focus();
 
       const payload = {
@@ -75,10 +87,9 @@ export default function NewMessageInput({
             approveLocally(result.conversationId);
           }
           
-          // Bruk refreshConversation
           if (!result.isRejectedRequest) {
             await refreshConversation(result.conversationId, {
-              logPrefix: "📨" // Egen prefix for melding-syncing
+              logPrefix: "📨"
             });
           }
           onMessageSent?.(result);
@@ -89,7 +100,7 @@ export default function NewMessageInput({
 
     // For gruppesamtaler: tekst er optional
     try {
-      const trimmed = text.trim();
+      const trimmed = rawText.trim(); // 🆕 Bruk rawText
       const invitedUserIds = selectedUsers.map(user => user.id);
       
       const response = await sendGroupInvitations({
@@ -101,7 +112,8 @@ export default function NewMessageInput({
 
       if (response) {
         console.log("✅ Group created successfully:", response);
-        setText("");
+        setRawText(""); // 🆕 Tøm rawText
+        setText(""); // 🆕 Tøm text
         onGroupCreated?.(response);
       }
     } catch (error) {
@@ -114,6 +126,11 @@ export default function NewMessageInput({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleTextChange = (newText: string) => {
+    setRawText(newText);
+    setText(convertTextToEmojisPreserveFormat(newText));
   };
 
   useEffect(() => {
@@ -149,7 +166,7 @@ export default function NewMessageInput({
   }
 
   return (
-    <div className="flex flex-col gap-2 mt-4 h-full">
+    <div className="flex flex-col gap-2 mt-4 h-full relative">
       {isGroupMode && (
         <div className="text-sm text-gray-600 dark:text-gray-400 px-2 text-center">
           Creating group with {selectedUsers.length} members
@@ -159,17 +176,26 @@ export default function NewMessageInput({
       )}
 
       <MessageToolbar
-        showEmoji={false}
+        showEmoji={true}
         showFile={false}
         showScrollToBottom={false}
         showSettings={false}
+        onPickEmoji={toggleEmojiPicker}
+      />
+
+      {/* EmojiPicker */}
+      <EmojiPickerWrapper
+        isOpen={showEmojiPicker}
+        onClose={closeEmojiPicker}
+        onEmojiSelect={handleEmojiSelect}
+        position="bottom-right"
       />
 
       <div className="flex gap-2 items-end">
         <TextareaAutosize
           ref={inputRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={isGroupMode 
             ? "Write an initial message for the group (optional)..." 
