@@ -270,7 +270,7 @@ public class MessageService : IMessageService
     private MessageResponseDTO MapToResponseForMessagesToConv(Message message)
     {
         UserSummaryDTO? parentSender = null;
-        if (message.ParentMessage?.Sender != null)
+        if (!message.IsDeleted && message.ParentMessage?.Sender != null)
         {
             parentSender = new UserSummaryDTO
             {
@@ -279,7 +279,7 @@ public class MessageService : IMessageService
                 ProfileImageUrl = message.ParentMessage.Sender.Profile?.ProfileImageUrl
             };
         }
-        
+    
         return new MessageResponseDTO
         {
             Id = message.Id,
@@ -290,26 +290,29 @@ public class MessageService : IMessageService
                 FullName = message.Sender.FullName,
                 ProfileImageUrl = message.Sender.Profile?.ProfileImageUrl
             } : null,
-            Text = message.Text,
+            Text = message.IsDeleted ? null : message.Text,
             SentAt = message.SentAt,
             ConversationId = message.ConversationId,
             IsSystemMessage = message.IsSystemMessage,
-            Attachments = message.Attachments
-                .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
-                .Select(a => new AttachmentDto
+            IsDeleted = message.IsDeleted,
+            Attachments = message.IsDeleted ? new List<AttachmentDto>() : 
+                message.Attachments
+                    .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
+                    .Select(a => new AttachmentDto
+                    {
+                        FileUrl = a.FileUrl,
+                        FileType = a.FileType,
+                        FileName = a.FileName
+                    }).ToList(),
+            Reactions = message.IsDeleted ? new List<ReactionDTO>() :
+                message.Reactions.Select(r => new ReactionDTO
                 {
-                    FileUrl = a.FileUrl,
-                    FileType = a.FileType,
-                    FileName = a.FileName
+                    MessageId = r.MessageId,
+                    Emoji = r.Emoji,
+                    UserId = r.UserId
                 }).ToList(),
-            Reactions = message.Reactions.Select(r => new ReactionDTO
-            {
-                MessageId = r.MessageId,
-                Emoji = r.Emoji,
-                UserId = r.UserId
-            }).ToList(),
-            ParentMessageId = message.ParentMessageId,
-            ParentMessageText = message.ParentMessage?.Text,
+            ParentMessageId = message.IsDeleted ? null : message.ParentMessageId,
+            ParentMessageText = message.IsDeleted ? null : message.ParentMessage?.Text,
             ParentSender = parentSender,
         };
     }
