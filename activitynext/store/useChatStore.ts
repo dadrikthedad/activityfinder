@@ -416,7 +416,6 @@ export const useChatStore = create<ChatStore>()(
 
       addMessage: (message) =>
         set((state) => {
-          console.log("🔔 addMessage called with:", message);
           const current = state.liveMessages[message.conversationId] ?? [];
           const alreadyExists = current.some((m) => m.id === message.id);
           if (alreadyExists) {

@@ -486,7 +486,7 @@ export default function MessageList({
                 </div>
           
               {/* Innhold */}
-              {(msg.parentMessageId && (msg.parentMessageText || msg.parentSender)) && (
+               {!msg.isDeleted && (msg.parentMessageId && (msg.parentMessageText || msg.parentSender)) && (
                 <div 
                   className={`mb-2 border-l border-[#1C6B1C] pl-3 py-2 bg-gray-50 dark:bg-[#2E2E2E] rounded-r-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
                     isMine ? "border-1 pr-3 pl-0 rounded-l-md rounded-r-none" : ""

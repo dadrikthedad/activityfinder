@@ -37,8 +37,6 @@ export default function MessageSettingsDropdown({
   onLeaveGroup,
   useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: MessageSettingsDropdownProps) {
-  console.log('⚙️ OVERLAY MessageSettingsDropdown props received:', { useOverlaySystem, open });
-
   const containerRef = useRef<HTMLDivElement>(null);
   const searchMode = useChatStore((s) => s.searchMode);
   const setSearchMode = useChatStore((s) => s.setSearchMode);

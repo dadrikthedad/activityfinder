@@ -76,7 +76,6 @@ export function useChatHub(
           conn.off("MessageDeleted");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
-            console.log("📩 Received:", message);
             messageRef.current?.(message);
           });
 

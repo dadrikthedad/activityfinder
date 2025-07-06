@@ -34,7 +34,10 @@ export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
   const hideTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const handleMouseEnter = (e: React.MouseEvent) => {
-    if (disabled) return;
+    if (disabled || message?.isDeleted) {
+      return;
+    }
+
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setPosition({ x: rect.left, y: rect.bottom });
     if (hideTimeout.current) clearTimeout(hideTimeout.current);
@@ -48,7 +51,7 @@ export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
   return (
     <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="relative inline-block">
       {children}
-      {visible && !disabled && (
+      {visible && !disabled && !message?.isDeleted && (
         <ReactionPopup
           onSelect={(emoji) => {
             addReaction({ messageId: targetId, emoji });
