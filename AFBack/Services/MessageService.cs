@@ -590,7 +590,6 @@ public class MessageService : IMessageService
 
         // ✅ Soft delete
         message.IsDeleted = true;
-        message.Text = null; // Fjern tekst
     
         // 🗂️ Fjern vedlegg 
         message.Attachments.Clear();
