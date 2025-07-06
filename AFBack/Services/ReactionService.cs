@@ -1,7 +1,6 @@
 ﻿using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.DTOs;
-using AFBack.Helpers;
 using AFBack.Hubs;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
@@ -26,10 +25,6 @@ public class ReactionService : IReactionService
 
     public async Task AddReactionAsync(int messageId, int userId, string emoji)
     {
-        // ✅ Valider emoji
-        if (!AllowedReactions.Emojis.Contains(emoji))
-            throw new Exception("Ugyldig emoji. Denne reaksjonen er ikke tillatt.");
-
         // ✅ Hent meldingen og samtaledeltakere
         var message = await _context.Messages
             .Include(m => m.Conversation)

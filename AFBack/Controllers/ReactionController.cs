@@ -1,6 +1,5 @@
 ﻿using System.Security.Claims;
 using AFBack.DTOs;
-using AFBack.Helpers;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -38,12 +37,6 @@ public class ReactionController : ControllerBase
         {
             return StatusCode(500, new { message = "Noe gikk galt ved lagring av reaksjon.", details = ex.Message });
         }
-    }
-    // Henter alle tilgjengelig emojier
-    [HttpGet("available-reactions")]
-    public IActionResult GetAvailableReactions()
-    {
-        return Ok(AllowedReactions.Emojis);
     }
     
 }

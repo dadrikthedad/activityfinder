@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "@microsoft/signalr": "^8.0.7",
+    "emoji-picker-react": "^4.12.3",
     "swr": "^2.3.3",
     "zustand": "^5.0.4"
   }
