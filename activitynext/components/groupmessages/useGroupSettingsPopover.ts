@@ -3,7 +3,7 @@ import { useState, useCallback } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useUploadGroupImage } from "@/hooks/image/useUploadGroupImage";
 import { useChatStore } from "@/store/useChatStore";
-import { useUpdateGroupName } from "@/components/messages/useUpdateGroupName";
+import { useUpdateGroupName } from "@/hooks/messages/useUpdateGroupName";
 
 interface UseGroupSettingsPopoverProps {
   user: UserSummaryDTO;

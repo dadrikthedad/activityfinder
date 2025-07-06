@@ -19,6 +19,7 @@ import { MessageAttachments } from "./MessageAttachmentsComp";
 import { MessageDTO } from "@/types/MessageDTO";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useDeleteMessage } from "@/hooks/messages/useSoftDelete";
+import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
 
 
 
@@ -524,8 +525,8 @@ export default function MessageList({
                   {msg.parentMessageText && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 break-words">
                       {msg.parentMessageText.length > 100 
-                        ? `${msg.parentMessageText.substring(0, 100)}...` 
-                        : msg.parentMessageText
+                        ? `${convertTextToEmojisPreserveFormat(msg.parentMessageText.substring(0, 100))}...` 
+                        : convertTextToEmojisPreserveFormat(msg.parentMessageText)
                       }
                     </div>
                   )}
@@ -535,7 +536,10 @@ export default function MessageList({
                 <div className={`text-sm mb-2 break-words break-all whitespace-pre-line ${
                   msg.isDeleted ? "italic text-gray-500 dark:text-gray-400" : ""
                 }`}>
-                  {msg.isDeleted ? "This message has been deleted" : msg.text}
+                  {msg.isDeleted 
+                    ? "This message has been deleted" 
+                    : convertTextToEmojisPreserveFormat(msg.text || "")
+                  }
                 </div>
               )}
               {/* Vedlegg og tidspunkt */}
