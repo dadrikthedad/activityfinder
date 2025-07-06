@@ -586,11 +586,7 @@ public class MessageService : IMessageService
         // 🔒 Autorisation: Kun avsender kan slette sin egen melding
         if (message.SenderId != userId)
             throw new UnauthorizedAccessException("You can only delete your own messages.");
-
-        // 🕒 Tidsgrense: Kun meldinger nyere enn X timer kan slettes
-        var timeLimitHours = 24; // Konfigurerbar
-        if (DateTime.UtcNow.Subtract(message.SentAt).TotalHours > timeLimitHours)
-            throw new Exception($"Messages older than {timeLimitHours} hours cannot be deleted.");
+        
 
         // ✅ Soft delete
         message.IsDeleted = true;
