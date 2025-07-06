@@ -58,8 +58,13 @@ public class MessageService : IMessageService
         // 2️  Blokkeringssjekk  (treffer cache først)
         if (!conversation.IsGroup)
         {
+            // Sjekk om mottaker har blokkert avsenderen
             if (await _msgCache.IsBlockedAsync(receiverId.Value, senderId))
-                throw new Exception("Du har ikke tilgang til å sende melding til denne brukeren.");
+                throw new Exception("You can't send messages to this user.");
+    
+            // Sjekk om avsenderen har blokkert mottakeren
+            if (await _msgCache.IsBlockedAsync(senderId, receiverId.Value))
+                throw new Exception("You can't send messages to an user you have blocked.");
         }
 
         // 3️  Må meldingen godkjennes? (3. og evt. 4. query)

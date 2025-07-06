@@ -33,7 +33,7 @@ public class SendMessageCache
                 entry.SlidingExpiration            = TimeSpan.FromSeconds(30);
                 entry.AbsoluteExpirationRelativeToNow ??= TimeSpan.FromMinutes(10);
 
-                return await _ctx.MessageBlocks
+                return await _ctx.UserBlock
                     .AsNoTracking()
                     .AnyAsync(b => b.BlockerId == blockerId &&
                                    b.BlockedUserId == blockedId);

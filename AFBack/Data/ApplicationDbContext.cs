@@ -24,8 +24,6 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<MessageRequest> MessageRequests { get; set; } // Lagre meldings requester
     
-    public DbSet<MessageBlock> MessageBlocks { get; set; } // Blokkere meldinger/avise meldingsforespørsel
-    
     public DbSet<GroupRequest> GroupRequests { get; set; }
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
     public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
@@ -34,6 +32,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<MessageNotificationGroupEvent> MessageNotificationGroupEvents { get; set; }
     
     public DbSet<GroupEventAffectedUser> GroupEventAffectedUsers { get; set; }
+    
+    public DbSet<UserBlocks> UserBlock { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -176,13 +176,6 @@ public class ApplicationDbContext : DbContext
             .WithMany() // eller .WithMany(u => u.Conversations) hvis du har det i User.cs
             .HasForeignKey(cp => cp.UserId)
             .OnDelete(DeleteBehavior.Cascade);
-        
-        // Blokkerte brukere (Funker kun for meldinger i øyeblikket)
-        modelBuilder.Entity<MessageBlock>()
-            .HasOne(mb => mb.BlockedUser)
-            .WithMany()
-            .HasForeignKey(mb => mb.BlockedUserId)
-            .OnDelete(DeleteBehavior.Restrict);
         
         // For å sjekke om en bruker har lest samtalene sine
         modelBuilder.Entity<ConversationReadState>()
@@ -389,6 +382,39 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere når events slettes
+        });
+        
+        // UserBlock konfigurasjon
+        modelBuilder.Entity<UserBlocks>(entity =>
+        {
+            entity.HasKey(ub => ub.Id);
+    
+            // Blocker relationship
+            entity.HasOne(ub => ub.Blocker)
+                .WithMany()
+                .HasForeignKey(ub => ub.BlockerId)
+                .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere hvis de har blokkert noen
+    
+            // BlockedUser relationship
+            entity.HasOne(ub => ub.BlockedUser)
+                .WithMany()
+                .HasForeignKey(ub => ub.BlockedUserId)
+                .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere hvis de er blokkert
+    
+            // Unique constraint - en bruker kan kun blokkere en annen bruker én gang
+            entity.HasIndex(ub => new { ub.BlockerId, ub.BlockedUserId })
+                .IsUnique()
+                .HasDatabaseName("IX_UserBlock_BlockerId_BlockedUserId");
+    
+            // Separate indekser for ytelse
+            entity.HasIndex(ub => ub.BlockerId)
+                .HasDatabaseName("IX_UserBlock_BlockerId");
+        
+            entity.HasIndex(ub => ub.BlockedUserId)
+                .HasDatabaseName("IX_UserBlock_BlockedUserId");
+    
+            // Sørg for at en bruker ikke kan blokkere seg selv
+            entity.HasCheckConstraint("CK_UserBlock_NoSelfBlock", "\"BlockerId\" <> \"BlockedUserId\"");
         });
 
         
