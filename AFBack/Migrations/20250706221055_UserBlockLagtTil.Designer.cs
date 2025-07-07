@@ -3,6 +3,7 @@ using System;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250706221055_UserBlockLagtTil")]
+    partial class UserBlockLagtTil
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -33,60 +36,6 @@ namespace AFBack.Migrations
                     b.HasKey("ActivityId");
 
                     b.ToTable("Activity");
-                });
-
-            modelBuilder.Entity("AFBack.Models.CanSend", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("ApprovedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("ConversationId1")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("LastUpdated")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<int>("Reason")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("UserId1")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId")
-                        .HasDatabaseName("IX_CanSend_ConversationId");
-
-                    b.HasIndex("ConversationId1");
-
-                    b.HasIndex("LastUpdated")
-                        .HasDatabaseName("IX_CanSend_LastUpdated");
-
-                    b.HasIndex("UserId1");
-
-                    b.HasIndex("UserId", "ConversationId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_CanSend_UserId_ConversationId");
-
-                    b.ToTable("CanSend", (string)null);
                 });
 
             modelBuilder.Entity("AFBack.Models.Community", b =>
@@ -898,33 +847,6 @@ namespace AFBack.Migrations
                     b.ToTable("GroupEventAffectedUsers");
                 });
 
-            modelBuilder.Entity("AFBack.Models.CanSend", b =>
-                {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
-                        .WithMany()
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.Conversation", null)
-                        .WithMany("ApprovedSenders")
-                        .HasForeignKey("ConversationId1");
-
-                    b.HasOne("AFBack.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.User", null)
-                        .WithMany("CanSendTo")
-                        .HasForeignKey("UserId1");
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("AFBack.Models.Community", b =>
                 {
                     b.HasOne("AFBack.Models.Profile", null)
@@ -1282,8 +1204,6 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.Conversation", b =>
                 {
-                    b.Navigation("ApprovedSenders");
-
                     b.Navigation("Messages");
 
                     b.Navigation("Participants");
@@ -1315,8 +1235,6 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.User", b =>
                 {
-                    b.Navigation("CanSendTo");
-
                     b.Navigation("Profile");
 
                     b.Navigation("Settings");

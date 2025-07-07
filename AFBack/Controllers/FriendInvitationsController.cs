@@ -189,8 +189,6 @@ public class FriendInvitationsController : ControllerBase
 
         _context.Friends.Add(newFriend);
         
-        // 🆕   FJERN eventuelle “false” fra cachen før vi committer
-        _msgCache.InvalidateFriend(invitation.SenderId, invitation.ReceiverId);
         
         // Sjekk om det allerede finnes en meldingsforespørsel
         var existingMessageRequest = await _context.MessageRequests

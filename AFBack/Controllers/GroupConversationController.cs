@@ -55,7 +55,7 @@ public class GroupConversationController : BaseController
         var (conversation, isNewConversation) = await GetOrCreateGroupConversationAsync(senderId, request);
 
         // 3️⃣ Sjekk blokkeringer for alle mottakere
-        var blockedUsers = await CheckBlockedUsersAsync(senderId, request.InvitedUserIds);
+        var blockedUsers = await CheckBlockedUsersAsyncOptimized(senderId, request.InvitedUserIds);
         if (blockedUsers.Any())
         {
             var blockedNames = string.Join(", ", blockedUsers);
@@ -136,25 +136,19 @@ public class GroupConversationController : BaseController
             throw new Exception($"Følgende brukere finnes ikke: {string.Join(", ", missingUsers)}");
     }
     
-    private async Task<List<string>> CheckBlockedUsersAsync(int senderId, List<int> recipientIds)
+    private async Task<List<string>> CheckBlockedUsersAsyncOptimized(int senderId, List<int> recipientIds)
     {
-        var blockedUsers = new List<string>();
+        var blockedUserNames = await _context.UserBlock
+            .AsNoTracking()
+            .Where(ub => recipientIds.Contains(ub.BlockerId) && 
+                         ub.BlockedUserId == senderId)
+            .Join(_context.Users,
+                ub => ub.BlockerId,
+                u => u.Id,
+                (ub, u) => u.FullName)
+            .ToListAsync();
 
-        foreach (var recipientId in recipientIds)
-        {
-            if (await _msgCache.IsBlockedAsync(recipientId, senderId))
-            {
-                var user = await _context.Users
-                    .Where(u => u.Id == recipientId)
-                    .Select(u => u.FullName)
-                    .FirstOrDefaultAsync();
-
-                if (!string.IsNullOrEmpty(user))
-                    blockedUsers.Add(user);
-            }
-        }
-
-        return blockedUsers;
+        return blockedUserNames;
     }
 
     private async Task<List<int>> FilterValidRecipientsAsync(int conversationId, List<int> userIds)

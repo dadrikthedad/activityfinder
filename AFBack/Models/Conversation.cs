@@ -20,10 +20,13 @@ public class Conversation
     public DateTime? LastMessageSentAt { get; set; } // For å gjøre det lett å sortere
 
     public bool HasUnreadMessages { get; set; } // For å se om vi har uleste meldinger her
-    public ICollection<ConversationParticipant> Participants { get; set; } = new List<ConversationParticipant>();
-    public ICollection<Message> Messages { get; set; } = new List<Message>();
+    
     
     public bool IsDisbanded { get; set; } = false;
     
     public DateTime? DisbandedAt { get; set; }
+    
+    public ICollection<CanSend> ApprovedSenders { get; set; } = new List<CanSend>();
+    public ICollection<ConversationParticipant> Participants { get; set; } = new List<ConversationParticipant>();
+    public ICollection<Message> Messages { get; set; } = new List<Message>();
 }

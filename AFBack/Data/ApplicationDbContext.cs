@@ -34,6 +34,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<GroupEventAffectedUser> GroupEventAffectedUsers { get; set; }
     
     public DbSet<UserBlocks> UserBlock { get; set; }
+    
+    public DbSet<CanSend> CanSend { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -415,6 +417,53 @@ public class ApplicationDbContext : DbContext
     
             // Sørg for at en bruker ikke kan blokkere seg selv
             entity.HasCheckConstraint("CK_UserBlock_NoSelfBlock", "\"BlockerId\" <> \"BlockedUserId\"");
+        });
+        
+        // CanSend
+        modelBuilder.Entity<CanSend>(entity =>
+        {
+            // Primary key
+            entity.HasKey(cs => cs.Id);
+        
+            // Unique constraint på UserId + ConversationId (en bruker kan kun ha én CanSend per samtale)
+            entity.HasIndex(cs => new { cs.UserId, cs.ConversationId })
+                .IsUnique()
+                .HasDatabaseName("IX_CanSend_UserId_ConversationId");
+        
+            // Index for rask lookup basert på ConversationId
+            entity.HasIndex(cs => cs.ConversationId)
+                .HasDatabaseName("IX_CanSend_ConversationId");
+              
+            // Index for cleanup/maintenance queries basert på LastUpdated
+            entity.HasIndex(cs => cs.LastUpdated)
+                .HasDatabaseName("IX_CanSend_LastUpdated");
+
+            // Foreign key relationships
+            entity.HasOne(cs => cs.User)
+                .WithMany() // Anta at User ikke har navigation property tilbake
+                .HasForeignKey(cs => cs.UserId)
+                .OnDelete(DeleteBehavior.Cascade); // Slett CanSend hvis bruker slettes
+              
+            entity.HasOne(cs => cs.Conversation)
+                .WithMany() // Anta at Conversation ikke har navigation property tilbake
+                .HasForeignKey(cs => cs.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade); // Slett CanSend hvis samtale slettes
+
+            // Property konfigurasjoner for PostgreSQL
+            entity.Property(cs => cs.ApprovedAt)
+                .IsRequired()
+                .HasDefaultValueSql("NOW()"); // PostgreSQL
+              
+            entity.Property(cs => cs.LastUpdated)
+                .IsRequired()
+                .HasDefaultValueSql("NOW()"); // PostgreSQL
+              
+            entity.Property(cs => cs.Reason)
+                .IsRequired()
+                .HasDefaultValue(CanSendReason.MessageRequest);
+
+            // Table name (valgfri hvis du vil overstyre EF sin konvensjon)
+            entity.ToTable("CanSend");
         });
 
         

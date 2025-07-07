@@ -49,155 +49,204 @@ public class MessageService : IMessageService
                 throw new Exception("Parent message ikke funnet.");
         }
         
+        if (dto.ConversationId > 0)
+        {
+            var fastValidation = await ValidateExistingConversationFast(senderId, dto.ConversationId);
+            if (fastValidation.CanSend)
+            {
+                // 🎯 HYPER-RASK BANE: Hopp direkte til meldingsopprettelse
+                return await CreateAndSaveMessageFast(senderId, dto, fastValidation.Conversation);
+            }
+        
+            // Hvis ikke kan sende, fall tilbake til full validering
+        }
+        
         // 1️  Finn eller lag samtalen (1 query, ingen commit hvis den finnes)
-        var (conversation, receiverId) = await GetOrCreateConversationFast(senderId, dto);
+        var (conversation, receiverId) = dto.ConversationId > 0 
+            ? await GetExistingConversation(senderId, dto.ConversationId)
+            : await GetOrCreateConversationFast(senderId, dto);
         
         if (!conversation.IsGroup && !receiverId.HasValue)
             throw new InvalidOperationException("receiverId skal være satt i 1–1 samtale.");
-
-        // 2️  Blokkeringssjekk  (treffer cache først)
-        if (!conversation.IsGroup)
-        {
-            // Sjekk om mottaker har blokkert avsenderen
-            if (await _msgCache.IsBlockedAsync(receiverId.Value, senderId))
-                throw new Exception("You can't send messages to this user.");
-    
-            // Sjekk om avsenderen har blokkert mottakeren
-            if (await _msgCache.IsBlockedAsync(senderId, receiverId.Value))
-                throw new Exception("You can't send messages to an user you have blocked.");
-        }
-
-        // 3️  Må meldingen godkjennes? (3. og evt. 4. query)
-        bool requiresApproval = false;
-        bool isRejected = false;
-        bool requestSent = false;
-
-        if (conversation.IsGroup)
-        {
-            // For gruppesamtaler: sjekk GroupRequest eller om bruker er creator
-            bool hasApprovedGroupRequest = await _context.GroupRequests.AsNoTracking()
-                .AnyAsync(gr => gr.ConversationId == conversation.Id &&
-                                gr.ReceiverId == senderId &&
-                                gr.Status == GroupRequestStatus.Approved);
-    
-            bool isCreator = conversation.CreatorId == senderId;
         
-            requiresApproval = !(hasApprovedGroupRequest || isCreator);
-        
-            if (requiresApproval)
-                throw new Exception("Du må godkjenne gruppesamtalen før du kan sende meldinger.");
-        }
-        else
-        {
-            // For 1-1 samtaler: bruk den eksisterende metoden
-            (requiresApproval, isRejected, requestSent) = await ShouldRequireApprovalFast(
-                senderId, receiverId.Value, conversation);
+        // Sjekk cahcen om vi kan sende
+        bool canSend = await _msgCache.CanUserSendAsync(senderId, conversation.Id);
 
-            if (requiresApproval)
+        MessageResponseDTO response;
+        
+        if (!canSend)
+        {
+            // 2️  Blokkeringssjekk  (treffer cache først)
+            if (!conversation.IsGroup)
             {
-                if (isRejected && !requestSent) 
+                // Sjekk om mottaker har blokkert avsenderen
+                bool isBlockedByReceiver = await _context.UserBlock
+                    .AsNoTracking()
+                    .AnyAsync(ub => ub.BlockerId == receiverId.Value && ub.BlockedUserId == senderId);
+    
+                if (isBlockedByReceiver)
+                    throw new Exception("This user has been deleted or is no longer visible, or you lack the required permission to send messages.");
+
+                // Sjekk om avsenderen har blokkert mottakeren
+                bool hasBlockedReceiver = await _context.UserBlock
+                    .AsNoTracking()
+                    .AnyAsync(ub => ub.BlockerId == senderId && ub.BlockedUserId == receiverId.Value);
+    
+                if (hasBlockedReceiver)
+                    throw new Exception("You can't send messages to an user you have blocked.");
+            }
+
+            // 3️  Må meldingen godkjennes? (3. og evt. 4. query)
+            bool requiresApproval = false;
+            bool isRejected = false;
+            bool requestSent = false;
+
+            if (conversation.IsGroup)
+            {
+                // For gruppesamtaler: sjekk GroupRequest eller om bruker er creator
+                bool hasApprovedGroupRequest = await _context.GroupRequests.AsNoTracking()
+                    .AnyAsync(gr => gr.ConversationId == conversation.Id &&
+                                    gr.ReceiverId == senderId &&
+                                    gr.Status == GroupRequestStatus.Approved);
+
+                bool isCreator = conversation.CreatorId == senderId;
+
+                requiresApproval = !(hasApprovedGroupRequest || isCreator);
+
+                if (requiresApproval)
+                    throw new Exception("Du må godkjenne gruppesamtalen før du kan sende meldinger.");
+            }
+            else
+            {
+                // For 1-1 samtaler: bruk den eksisterende metoden
+                (requiresApproval, isRejected, requestSent) = await ShouldRequireApprovalFast(
+                    senderId, receiverId.Value, conversation);
+
+                if (requiresApproval)
                 {
-                    throw new Exception("You have rejected this message request. Accept it from /Chat to send a message to this user.");
+                    if (isRejected && !requestSent)
+                    {
+                        throw new Exception(
+                            "You have rejected this message request. Accept it from /Chat to send a message to this user.");
+                    }
                 }
             }
-        }
 
-        int messageCount = 0;
-        bool needsMessageRequestNotification = false; // Flagg for å huske notification
+            int messageCount = 0;
+            bool needsMessageRequestNotification = false; // Flagg for å huske notification
 
-        if (!conversation.IsGroup && requiresApproval)
-        {
-            //  Teller meldinger **bare** når det trengs
-            messageCount = await _context.Messages.AsNoTracking()
-                .CountAsync(m => m.ConversationId == conversation.Id &&
-                                 m.SenderId == senderId);
-
-            if (messageCount >= 5)
+            if (!conversation.IsGroup && requiresApproval)
             {
-                MarkLimitReached(senderId, receiverId, conversation.Id);
-                await _context.SaveChangesAsync();
-                throw new Exception("You have reached the limit of messages you can send while waiting for the receiver to accept your request.");
+                //  Teller meldinger **bare** når det trengs
+                messageCount = await _context.Messages.AsNoTracking()
+                    .CountAsync(m => m.ConversationId == conversation.Id &&
+                                     m.SenderId == senderId);
+
+                if (messageCount >= 5)
+                {
+                    MarkLimitReached(senderId, receiverId, conversation.Id);
+                    await _context.SaveChangesAsync();
+                    throw new Exception(
+                        "You have reached the limit of messages you can send while waiting for the receiver to accept your request.");
+                }
+
+                // Sjekk om vi trenger å lage ny MessageRequest
+                needsMessageRequestNotification = AddMessageRequestEntityIfMissing(senderId, receiverId, conversation);
+            }
+            else if (!conversation.IsGroup && !conversation.IsApproved)
+            {
+                conversation.IsApproved = true;
             }
 
-            // Sjekk om vi trenger å lage ny MessageRequest
-            needsMessageRequestNotification = AddMessageRequestEntityIfMissing(senderId, receiverId, conversation);
-        }
-        else if (!conversation.IsGroup && !conversation.IsApproved)
-        {
-            conversation.IsApproved = true;
-        }
-        
-        // Brukeren svarer på en åpen meldingsforespørsel som de ikke selv har sendt.
-        // Dette tolkes som en godkjenning – men bare dersom det faktisk finnes en ubehandlet forespørsel.
-        bool nowApproved = false;
-        if (!conversation.IsGroup && requiresApproval && !isRejected && !requestSent)
-        {
-            var existingRequest = await _context.MessageRequests
-                .AsNoTracking()
-                .AnyAsync(r => r.ConversationId == conversation.Id && 
-                               r.ReceiverId == senderId &&
-                               !r.IsAccepted && !r.IsRejected);
-
-            if (existingRequest)
+            // Brukeren svarer på en åpen meldingsforespørsel som de ikke selv har sendt.
+            // Dette tolkes som en godkjenning – men bare dersom det faktisk finnes en ubehandlet forespørsel.
+            bool nowApproved = false;
+            if (!conversation.IsGroup && requiresApproval && !isRejected && !requestSent)
             {
-                await ApproveMessageRequestAsync(senderId, conversation.Id);
-                nowApproved = true;
+                var existingRequest = await _context.MessageRequests
+                    .AsNoTracking()
+                    .AnyAsync(r => r.ConversationId == conversation.Id &&
+                                   r.ReceiverId == senderId &&
+                                   !r.IsAccepted && !r.IsRejected);
+
+                if (existingRequest)
+                {
+                    await ApproveMessageRequestAsync(senderId, conversation.Id);
+                    await AddBothUsersToCanSendAsync(senderId, receiverId.Value, conversation.Id);
+                    nowApproved = true;
+                }
             }
+            else if (!requiresApproval)
+            {
+                // 🚨 BACKUP: Dette burde ikke skje ofte
+                _logger.LogWarning("CanSend backup triggered for user {SenderId} in conversation {ConversationId}. " +
+                                   "Consider adding CanSend at the proper time.", senderId, conversation.Id);
+    
+                await AddUserToCanSendAsync(senderId, conversation.Id, 
+                    conversation.IsGroup ? CanSendReason.GroupRequest : CanSendReason.Friendship);
+            }
+
+            // 5  Lag selve meldingen
+            var message = CreateMessage(senderId, conversation.Id, dto, !requiresApproval);
+
+            if (conversation.Id == 0) // samtalen er ny
+                message.Conversation = conversation;
+            else
+                message.ConversationId = conversation.Id;
+
+            _context.Messages.Add(message);
+            conversation.LastMessageSentAt = message.SentAt;
+
+            // 6 ÉN lagring av alt ovenfor
+            await _context.SaveChangesAsync();
+
+            // 🆕 Hent meldingen på nytt med full parent data
+            response = await MapToResponseDtoOptimized(message.Id);
+
+            if (nowApproved)
+            {
+                response.IsNowApproved = true;
+            }
+            
+            if (isRejected && requestSent)
+            {
+                response.IsRejectedRequest = true;
+            }
+
+            var participantIds = conversation.Participants
+                .Select(p => p.UserId)
+                .ToArray();
+
+            // Rett før køing
+            var shouldNotify = !requiresApproval || (messageCount > 0 && !isRejected);
+            var isRejectedSender = isRejected && requestSent;
+
+            // NotifyAndBroadcastAsync
+            if (shouldNotify || needsMessageRequestNotification || isRejectedSender)
+            {
+                _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
+                    conversationId: conversation.Id,
+                    isGroup: conversation.IsGroup,
+                    groupName: conversation.GroupName,
+                    groupImageUrl: conversation.GroupImageUrl,
+                    participantIds: participantIds,
+                    senderId: senderId,
+                    receiverId: receiverId,
+                    response: response,
+                    shouldSendSignalR: shouldNotify,
+                    shouldCreateNotifications: shouldNotify,
+                    needsMessageRequestNotification: needsMessageRequestNotification,
+                    isRejectedSender: isRejectedSender));
+            }
+            // 🆕 Marker type så frontend vet hva den skal gjøre
+
+            
         }
-
-        // 5  Lag selve meldingen
-        var message = CreateMessage(senderId, conversation.Id, dto, !requiresApproval);
-
-        if (conversation.Id == 0)          // samtalen er ny
-            message.Conversation = conversation;
         else
-            message.ConversationId = conversation.Id;
-
-        _context.Messages.Add(message);
-        conversation.LastMessageSentAt = message.SentAt;
-
-        // 6 ÉN lagring av alt ovenfor
-        await _context.SaveChangesAsync();
-        
-        // 🆕 Hent meldingen på nytt med full parent data
-        var response = await MapToResponseDtoOptimized(message.Id);
-
-        if (nowApproved)
         {
-            response.IsNowApproved = true;
+            response = await CreateAndSaveMessageFast(senderId, dto, conversation);
         }
-        
-        var participantIds = conversation.Participants
-            .Select(p => p.UserId)
-            .ToArray();
-        
-        // Rett før køing
-        var shouldNotify = !requiresApproval || (messageCount > 0 && !isRejected);
-        var isRejectedSender = isRejected && requestSent;
-        
-        // NotifyAndBroadcastAsync
-        if (shouldNotify || needsMessageRequestNotification || isRejectedSender)
-        {
-            _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
-                conversationId : conversation.Id,
-                isGroup        : conversation.IsGroup,
-                groupName      : conversation.GroupName,
-                groupImageUrl : conversation.GroupImageUrl,
-                participantIds : participantIds,
-                senderId       : senderId,
-                receiverId     : receiverId,
-                response       : response,
-                shouldNotify   : shouldNotify,
-                needsMessageRequestNotification : needsMessageRequestNotification,
-                isRejectedSender: isRejectedSender));
-        }
-        // 🆕 Marker type så frontend vet hva den skal gjøre
-        
-        if (isRejected && requestSent)
-        {
-            response.IsRejectedRequest = true;
-        }
-        
+
         return response;
     }
 
@@ -751,7 +800,9 @@ public class MessageService : IMessageService
         if (conv.IsApproved) return (false, false, false);
 
         // 🆕  Bruk cache
-        bool isFriend = await _msgCache.IsFriendAsync(senderId, receiverId);
+        bool isFriend = await _context.Friends.AsNoTracking()
+            .AnyAsync(f => (f.UserId == senderId && f.FriendId == receiverId) ||
+                           (f.UserId == receiverId && f.FriendId == senderId));
 
         // Om de ikke er venner må vi fortsatt sjekke tidligere MessageRequest
         var req = await _context.MessageRequests.AsNoTracking()
@@ -904,9 +955,10 @@ public class MessageService : IMessageService
     int senderId,
     int? receiverId,
     MessageResponseDTO response,
-    bool shouldNotify,
-    bool needsMessageRequestNotification,
-    bool isRejectedSender)
+    bool shouldSendSignalR = true,
+    bool shouldCreateNotifications = true,
+    bool needsMessageRequestNotification = false,
+    bool isRejectedSender = false)
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -916,7 +968,7 @@ public class MessageService : IMessageService
         var approvedUsers = new HashSet<int>();
         int? creatorId = null;
         
-        if (shouldNotify)
+        if (shouldSendSignalR)
         {
             if (isGroup)
             {
@@ -1009,7 +1061,7 @@ public class MessageService : IMessageService
         }
 
         /* 3. Lag notifications kun for approved users i grupper */
-        if (!shouldNotify || isRejectedSender) return;
+        if (!shouldCreateNotifications || isRejectedSender) return;
         
         foreach (var uid in participantIds)
         {
@@ -1036,6 +1088,147 @@ public class MessageService : IMessageService
             }
         }
     }
+   
+    // 🚀 RASK VALIDERING for eksisterende samtaler
+    private async Task<(bool CanSend, Conversation Conversation)> ValidateExistingConversationFast(int senderId, int conversationId)
+    {
+        // 1. Sjekk cache først (lynraskt) - dette garanterer membership!
+        bool canSend = await _msgCache.CanUserSendAsync(senderId, conversationId);
+    
+        if (canSend)
+        {
+            // 2. Hent minimal conversation data (kun det vi trenger)
+            var conversation = await _context.Conversations
+                .AsNoTracking()
+                .Select(c => new Conversation
+                {
+                    Id = c.Id,
+                    IsGroup = c.IsGroup,
+                    IsApproved = c.IsApproved,
+                    CreatorId = c.CreatorId,
+                    GroupName = c.GroupName,
+                    GroupImageUrl = c.GroupImageUrl,
+                    LastMessageSentAt = c.LastMessageSentAt,
+                    IsDisbanded = c.IsDisbanded
+                })
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+            if (conversation == null || conversation.IsDisbanded)
+                return (false, null!);
+
+            // ✅ Ingen membership-sjekk nødvendig - CanSend garanterer dette!
+            return (true, conversation);
+        }
+
+        return (false, null!);
+    }
+    
+    // 🎯 HYPER-RASK meldingsopprettelse (hopper over det meste)
+    private async Task<MessageResponseDTO> CreateAndSaveMessageFast(int senderId, SendMessageRequestDTO dto, Conversation conversation)
+    {
+        // Opprett melding direkte - vi vet brukeren kan sende
+        var message = CreateMessage(senderId, conversation.Id, dto, isApproved: true);
+    
+        _context.Messages.Add(message);
+    
+        // 🎯 Intelligent conversation oppdatering
+        var existingEntry = _context.Entry(conversation);
+        if (existingEntry.State == EntityState.Detached)
+        {
+            // Conversation er ikke tracked - attach og marker som modified
+            _context.Conversations.Attach(conversation);
+            conversation.LastMessageSentAt = message.SentAt;
+            
+        }
+        else
+        {
+            // Conversation er allerede tracked - bare oppdater
+            conversation.LastMessageSentAt = message.SentAt;
+        }
+
+        // Lagre alt i én transaksjon
+        await _context.SaveChangesAsync();
+    
+        // Hent respons
+        var response = await MapToResponseDtoOptimized(message.Id);
+    
+        // Hent participants for notifikasjoner
+        var participantIds = await _context.ConversationParticipants
+            .AsNoTracking()
+            .Where(cp => cp.ConversationId == conversation.Id)
+            .Select(cp => cp.UserId)
+            .ToArrayAsync();
+    
+        // Send notifikasjoner
+        _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
+            conversationId: conversation.Id,
+            isGroup: conversation.IsGroup,
+            groupName: conversation.GroupName,
+            groupImageUrl: conversation.GroupImageUrl,
+            participantIds: participantIds,
+            senderId: senderId,
+            receiverId: null,
+            response: response));
+    
+        return response;
+    }
+
+    // Hjelpemetode for å hente eksisterende samtale
+    private async Task<(Conversation conv, int? receiverId)> GetExistingConversation(int senderId, int conversationId)
+    {
+        var conv = await _context.Conversations
+            .Include(c => c.Participants)
+            .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+        if (conv == null)
+            throw new Exception("Samtalen finnes ikke.");
+
+        if (conv.Participants.All(p => p.UserId != senderId))
+            throw new Exception("Du er ikke medlem av denne samtalen.");
+
+        if (conv.IsGroup)
+            return (conv, null);
+
+        int receiverId = conv.Participants.First(p => p.UserId != senderId).UserId;
+        return (conv, receiverId);
+    }
+    
+    // Legger brukerne til godkjent ved godkjent meldingsforespørsel
+    private async Task AddUserToCanSendAsync(int userId, int conversationId, CanSendReason reason)
+    {
+        var canSend = new CanSend
+        {
+            UserId = userId,
+            ConversationId = conversationId,
+            Reason = reason
+        };
+    
+        _context.CanSend.Add(canSend);
+        await _msgCache.OnCanSendAddedAsync(userId, conversationId, canSend);
+    }
+    
+    // Legger begge brukerne til ved godkjent meldingsforespørsel
+    private async Task AddBothUsersToCanSendAsync(int senderId, int receiverId, int conversationId)
+    {
+        var senderCanSend = new CanSend
+        {
+            UserId = senderId,
+            ConversationId = conversationId,
+            Reason = CanSendReason.MessageRequest
+        };
+    
+        var receiverCanSend = new CanSend
+        {
+            UserId = receiverId,
+            ConversationId = conversationId,
+            Reason = CanSendReason.MessageRequest
+        };
+    
+        _context.CanSend.AddRange(senderCanSend, receiverCanSend);
+        await _msgCache.OnCanSendAddedAsync(senderId, conversationId, senderCanSend);
+        await _msgCache.OnCanSendAddedAsync(receiverId, conversationId, receiverCanSend);
+    }
+
 
        
 }

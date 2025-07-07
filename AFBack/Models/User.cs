@@ -121,6 +121,8 @@ public class User
     // Metode for å verifisere passord laget 11.03. Sjekker om passordet er korrekt når brukeren taster den inn.
     public bool VerifyPassword(string password) => BCrypt.Net.BCrypt.Verify(password, PasswordHash);
     
+    public ICollection<CanSend> CanSendTo { get; set; } = new List<CanSend>();
+    
     
     
 }
