@@ -416,10 +416,10 @@ public class MessageService : IMessageService
     // Hente alle meldingsforespørsler til en bruker
     public async Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId)
     {
-        // ✅ Optimalisert: Select projection i stedet for hele entiteter
-        var messageRequestsTask = _context.MessageRequests
+        // ✅ Kjør queries sekvensielt for å unngå threading-konflikter
+        var messageRequests = await _context.MessageRequests
             .AsNoTracking()
-            .AsSplitQuery() // Unngå cartesian product
+            .AsSplitQuery()
             .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
             .Select(r => new MessageRequestDTO
             {
@@ -428,16 +428,16 @@ public class MessageService : IMessageService
                 ProfileImageUrl = r.Sender.Profile != null ? r.Sender.Profile.ProfileImageUrl : null,
                 RequestedAt = r.RequestedAt,
                 ConversationId = r.ConversationId,
-                GroupName = null, // 1-till-1 har aldri gruppenavn
+                GroupName = null,
                 GroupImageUrl = null,
                 IsGroup = false,
                 LimitReached = r.LimitReached,
                 IsPendingApproval = !r.Conversation.IsApproved,
-                Participants = null // 1-till-1 trenger ikke participants
+                Participants = null
             })
             .ToListAsync();
 
-        var groupRequestsTask = _context.GroupRequests
+        var groupRequests = await _context.GroupRequests
             .AsNoTracking()
             .AsSplitQuery()
             .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
@@ -462,12 +462,9 @@ public class MessageService : IMessageService
             })
             .ToListAsync();
 
-        // 🎯 Parallelt
-        var results = await Task.WhenAll(messageRequestsTask, groupRequestsTask);
-        
         // 🔗 Kombiner og sorter
-        return results[0]
-            .Concat(results[1])
+        return messageRequests
+            .Concat(groupRequests)
             .OrderByDescending(r => r.RequestedAt)
             .ToList();
     }
@@ -489,7 +486,7 @@ public class MessageService : IMessageService
 
         if (isGroupRequest)
         {
-            // ✅ Håndter GroupRequest
+            //  Håndter GroupRequest
             var groupRequest = await _context.GroupRequests
                 .FirstOrDefaultAsync(gr => gr.ReceiverId == receiverId && 
                                           gr.ConversationId == conversationId && 
@@ -499,9 +496,9 @@ public class MessageService : IMessageService
                 throw new Exception("Gruppeforespørselen finnes ikke eller er allerede behandlet.");
 
             groupRequest.Status = GroupRequestStatus.Approved;
-            senderId = groupRequest.SenderId; // ✅ Lagre senderId
+            senderId = groupRequest.SenderId; // Lagre senderId
 
-            // ✅ Legg til brukeren som participant i gruppen
+            // Legg til brukeren som participant i gruppen
             var existingParticipant = await _context.ConversationParticipants
                 .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == receiverId);
 
@@ -513,6 +510,9 @@ public class MessageService : IMessageService
                     UserId = receiverId
                 });
             }
+            
+            await _context.AddCanSendAsync(receiverId, conversationId, _msgCache, CanSendReason.GroupRequest);
+            
         }
         else
         {
@@ -531,16 +531,20 @@ public class MessageService : IMessageService
 
             // ✅ Marker samtalen som godkjent
             conversation.IsApproved = true;
+            
+            // Legg til CanSend
+            await _context.AddCanSendAsync(receiverId, conversationId, _msgCache, CanSendReason.MessageRequest);
+            await _context.AddCanSendAsync(senderId, conversationId, _msgCache, CanSendReason.MessageRequest);
         }
         
         await _context.SaveChangesAsync();
         
-        // ✅ Hent brukeren som godkjenner
+        // Hent brukeren som godkjenner
         var approver = await _context.Users
                            .FirstOrDefaultAsync(u => u.Id == receiverId)
                        ?? throw new Exception("Godkjenneren ble ikke funnet.");
 
-        // ✅ Send automatisk melding
+        // Send automatisk melding
         var systemMessageText = isGroupRequest
             ? $"{approver.FullName} has joined the group."
             : $"{approver.FullName} has accepted the conversation.";
@@ -552,7 +556,7 @@ public class MessageService : IMessageService
             using var scope = _scopeFactory.CreateScope();
             var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
         
-            // 🆕 Opprett GroupEvent for MemberAccepted - dette vil automatisk:
+            //  Opprett GroupEvent for MemberAccepted - dette vil automatisk:
             // - Opprette GroupEvent
             // - Oppdatere GroupNotifications for alle godkjente medlemmer
             // - Sende SendGroupNotificationUpdatesAsync til alle godkjente medlemmer
