@@ -253,8 +253,27 @@ public class ConversationsController : BaseController
                 IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId.Value
             })
             .ToListAsync();
+        
+        var sortedConversations = conversations
+            .OrderBy(c => c.IsGroup ? 1 : 0)  // 1-1 samtaler først
+            .ThenBy(c => {
+                // Prioriter eksakte navn-match
+                if (!c.IsGroup)
+                {
+                    var exactMatch = c.Participants.Any(p => 
+                        p.FullName.Equals(searchQuery, StringComparison.OrdinalIgnoreCase));
+                    return exactMatch ? 0 : 1;
+                }
+                else
+                {
+                    var exactMatch = c.GroupName?.Equals(searchQuery, StringComparison.OrdinalIgnoreCase) == true;
+                    return exactMatch ? 0 : 1;
+                }
+            })
+            .ThenByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)  // Så etter aktivitet
+            .ToList();
 
-        return Ok(conversations);
+        return Ok(sortedConversations);
     }
     
     // totalt uleste meldinger pr bruker
