@@ -76,14 +76,26 @@ public class ConversationsController : BaseController
 
     // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
     [HttpGet("conversation/{conversationId}")]
+    [HttpGet("conversation/{conversationId}")]
     public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
         var userId = GetUserId();
         if (userId == null)
             return Unauthorized(new { message = "Ugyldig eller manglende bruker-ID i token." });
 
-        var messages = await _messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
-        return Ok(messages);
+        try
+        {
+            var messages = await _messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
+            return Ok(messages);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return BadRequest(new { message = ex.Message }); // 400 with proper error message
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Det oppstod en feil ved henting av meldinger.", details = ex.Message });
+        }
     }
     
     // Hente kun en samtale
