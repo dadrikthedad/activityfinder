@@ -542,7 +542,7 @@ public class MessageService : IMessageService
             var messageRequest = await _context.MessageRequests
                 .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && 
                                           r.ConversationId == conversationId &&
-                                          !r.IsAccepted && !r.IsRejected);
+                                          !r.IsAccepted); 
 
             if (messageRequest == null)
                 throw new Exception("Meldingsforespørselen finnes ikke eller er allerede behandlet.");
