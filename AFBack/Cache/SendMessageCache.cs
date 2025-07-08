@@ -75,4 +75,16 @@ public class SendMessageCache
         _cache.Remove($"cansend:user:{userId}");
         _cache.Remove($"cansend:conv:{conversationId}");
     }
+    
+    /// <summary>
+    /// Invaliderer all cache for en bruker og samtale
+    /// </summary>
+    public void InvalidateUserConversationCache(int userId, int conversationId)
+    {
+        _cache.Remove($"cansend:{userId}:{conversationId}");
+        _cache.Remove($"cansend:details:{userId}:{conversationId}");
+        _cache.Remove($"cansend:user:{userId}");
+        _cache.Remove($"cansend:conv:{conversationId}");
+    }
+    
 }

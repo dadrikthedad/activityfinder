@@ -36,7 +36,7 @@ public static class CanSendFunctions
     {
         var existing = await context.Set<CanSend>()
             .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
-            
+        
         if (existing == null)
         {
             var canSend = new CanSend
@@ -47,11 +47,11 @@ public static class CanSendFunctions
                 ApprovedAt = DateTime.UtcNow,
                 LastUpdated = DateTime.UtcNow
             };
-            
+        
             context.Set<CanSend>().Add(canSend);
-            
-            // Oppdater cache umiddelbart
-            await cache.OnCanSendAddedAsync(userId, conversationId, canSend);
+        
+            // 🆕 Invalidere cache i stedet for å oppdatere den
+            cache.InvalidateUserConversationCache(userId, conversationId);
         }
     }
     
@@ -104,11 +104,13 @@ public static class CanSendFunctions
     {
         var existing = await context.Set<CanSend>()
             .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
-            
+        
         if (existing != null)
         {
             context.Set<CanSend>().Remove(existing);
-            cache.OnCanSendRemoved(userId, conversationId);
+        
+            // 🆕 Invalidere cache
+            cache.InvalidateUserConversationCache(userId, conversationId);
         }
     }
 }

@@ -307,7 +307,7 @@ public class MessageService : IMessageService
         
         if (userParticipant.HasDeleted)
         {
-            throw new UnauthorizedAccessException("Du har slettet denne samtalen. Gjenopprett den for å se meldinger.");
+            throw new UnauthorizedAccessException("You have deleted this conversation. Restore it to regain access.");
         }
 
         // 🔒 MEMBER MEN PENDING: Vis begrenset preview

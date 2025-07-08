@@ -121,10 +121,10 @@ public class ConversationsController : BaseController
         
         var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
         if (userParticipant == null)
-            return Forbid("Du har ikke tilgang til denne samtalen.");
+            return Forbid("You do not have permission to view this conversation.");
         
         if (userParticipant.HasDeleted)
-            return BadRequest("Du har slettet denne samtalen. Gjenopprett den for å få tilgang.");
+            return BadRequest("You have deleted this conversation. Restore it to regain access.");
 
         var lastMessage = conversation.Messages
             .OrderByDescending(m => m.SentAt)
