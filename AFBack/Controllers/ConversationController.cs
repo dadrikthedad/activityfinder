@@ -344,7 +344,7 @@ public class ConversationsController : BaseController
         return Ok(filtered);
     }
     
-    [HttpDelete("conversations/{conversationId}/delete")]
+    [HttpDelete("{conversationId}/delete")]
     public async Task<IActionResult> DeleteConversation(int conversationId)
     {
         var userId = GetUserId();
@@ -362,7 +362,7 @@ public class ConversationsController : BaseController
         }
     }
     
-    [HttpPost("conversations/{conversationId}/restore")]
+    [HttpPost("{conversationId}/restore")]
     public async Task<IActionResult> RestoreConversation(int conversationId)
     {
         var userId = GetUserId();
