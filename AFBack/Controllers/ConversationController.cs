@@ -200,7 +200,7 @@ public class ConversationsController : BaseController
         return Ok(dto);
     }
     
-   [HttpGet("search-conversations-optimized")]
+   [HttpGet("search-conversations")]
     public async Task<IActionResult> SearchConversationsOptimized([FromQuery] string query)
     {
         var userId = GetUserId();
