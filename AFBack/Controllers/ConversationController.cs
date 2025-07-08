@@ -200,9 +200,8 @@ public class ConversationsController : BaseController
         return Ok(dto);
     }
     
-    // Søke i samtaler
-    [HttpGet("search-conversations")]
-    public async Task<IActionResult> SearchConversations([FromQuery] string query)
+   [HttpGet("search-conversations-optimized")]
+    public async Task<IActionResult> SearchConversationsOptimized([FromQuery] string query)
     {
         var userId = GetUserId();
         if (userId == null)
@@ -211,36 +210,51 @@ public class ConversationsController : BaseController
         if (string.IsNullOrWhiteSpace(query))
             return BadRequest("Søketekst må oppgis.");
 
-        var searchQuery = query.Trim().ToLower();
+        var searchQuery = query.Trim();
 
-        // Hent samtaler
-        var conversationResults = await _conversationService.GetUserConversationsSortedAsync(userId.Value);
+        // Hent tillatte samtaler
+        var canSendConversationIds = await _msgCache.GetUserCanSendConversationsAsync(userId.Value);
 
-        // Filtrer basert på søk
-        var filtered = conversationResults
-            .Where(c =>
-                (!string.IsNullOrEmpty(c.Conversation.GroupName) &&
-                 c.Conversation.GroupName.ToLower().Contains(searchQuery)) ||
-                c.Conversation.Participants.Any(p =>
-                    p.User.FullName.ToLower().Contains(searchQuery)))
+        var pendingMessageRequestConvIds = await _context.MessageRequests
+            .AsNoTracking()
+            .Where(r => r.SenderId == userId.Value && !r.IsAccepted && !r.IsRejected && r.ConversationId.HasValue)
+            .Select(r => r.ConversationId!.Value)
+            .ToListAsync();
+
+        var allowedConversationIds = canSendConversationIds
+            .Concat(pendingMessageRequestConvIds)
+            .ToHashSet();
+
+        // 🎯 PROJECTION: Direkte til DTO i database
+        var conversations = await _context.Conversations
+            .AsNoTracking()
+            .Where(c => c.Participants.Any(p => p.UserId == userId.Value) &&
+                       (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId.Value) &&
+                       (
+                           (!string.IsNullOrEmpty(c.GroupName) && EF.Functions.ILike(c.GroupName, $"%{searchQuery}%")) ||
+                           c.Participants.Any(p => EF.Functions.ILike(p.User.FullName, $"%{searchQuery}%"))
+                       ))
+            .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
             .Select(c => new ConversationDTO
             {
-                Id = c.Conversation.Id,
-                GroupName = c.Conversation.GroupName,
-                IsGroup = c.Conversation.IsGroup,
-                GroupImageUrl = c.Conversation.GroupImageUrl,
-                LastMessageSentAt = c.Conversation.LastMessageSentAt,
-                Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
+                Id = c.Id,
+                GroupName = c.GroupName,
+                IsGroup = c.IsGroup,
+                GroupImageUrl = c.GroupImageUrl,
+                LastMessageSentAt = c.LastMessageSentAt,
+                Participants = c.Participants.Select(p => new UserSummaryDTO
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                    ProfileImageUrl = p.User.Profile != null ? p.User.Profile.ProfileImageUrl : null,
+                    GroupRequestStatus = !c.IsGroup ? null :
+                        p.User.Id == c.CreatorId ? GroupRequestStatus.Creator : null
                 }).ToList(),
-                IsPendingApproval = c.IsPendingApproval 
+                IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId.Value
             })
-            .ToList();
+            .ToListAsync();
 
-        return Ok(filtered);
+        return Ok(conversations);
     }
     
     // totalt uleste meldinger pr bruker
