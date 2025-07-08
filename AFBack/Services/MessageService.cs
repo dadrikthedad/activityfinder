@@ -581,61 +581,23 @@ public class MessageService : IMessageService
     // Søke etter meldinger til en samtale
     public async Task<List<MessageResponseDTO>> SearchMessagesInConversationAsync(int conversationId, int userId,
         string query, int skip = 0, int take = 50)
-    {
-        var conversation = await _context.Conversations
-            .Include(c => c.Participants)
-            .FirstOrDefaultAsync(c => c.Id == conversationId);
-
-        if (conversation == null)
-            throw new Exception("Samtalen finnes ikke.");
-
-        if (conversation.Participants.All(p => p.UserId != userId))
-            throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
-        
-        // ✅ GRUPPE: sjekk GroupRequest for brukeren
-        if (conversation.IsGroup)
         {
-            // Sjekk om brukeren er creator eller har godkjent GroupRequest
-            bool isCreator = conversation.CreatorId == userId;
-            bool hasApprovedGroupRequest = false;
+        // Samme tilgangssjekk som over...
+        bool canSend = await _msgCache.CanUserSendAsync(userId, conversationId);
+        bool isCreator = await _context.Conversations
+            .AsNoTracking()
+            .AnyAsync(c => c.Id == conversationId && c.CreatorId == userId);
 
-            if (!isCreator)
-            {
-                hasApprovedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
-                    gr.ReceiverId == userId &&
-                    gr.ConversationId == conversationId &&
-                    gr.Status == GroupRequestStatus.Approved);
-            }
-
-            // Hvis verken creator eller godkjent member, ingen tilgang
-            if (!isCreator && !hasApprovedGroupRequest)
-            {
-                throw new UnauthorizedAccessException("Du har ikke godkjent invitasjonen til denne gruppen.");
-            }
+        if (!canSend && !isCreator)
+        {
+            // Samme fallback-logikk...
+            // (kan forenkles hvis ønskelig)
+            throw new UnauthorizedAccessException("Du har ikke tilgang til å søke i denne samtalen.");
         }
 
-        // ✅ PRIVAT: Sjekk tilgang for 1-til-1 samtaler
-        if (!conversation.IsGroup && !conversation.IsApproved)
-        {
-            var creatorId = conversation.CreatorId;
-            bool isCreator = userId == creatorId;
-
-            if (!isCreator)
-            {
-                // Sjekk om brukeren har godkjent MessageRequest
-                var hasApprovedMessageRequest = await _context.MessageRequests.AnyAsync(mr =>
-                    mr.ReceiverId == userId &&
-                    mr.ConversationId == conversationId &&
-                    mr.IsAccepted);
-
-                if (!hasApprovedMessageRequest)
-                {
-                    throw new UnauthorizedAccessException("Du må godkjenne samtalen før du kan søke i meldinger.");
-                }
-            }
-        }
-
+        // 🎯 PROJECTION: Hent kun nødvendig data
         var messages = await _context.Messages
+            .AsNoTracking()
             .Where(m => m.ConversationId == conversationId &&
                         !m.IsDeleted &&
                         (
@@ -645,16 +607,54 @@ public class MessageService : IMessageService
                                 EF.Functions.ILike(a.FileType, $"%{query}%")
                             )
                         ))
-            .Include(m => m.Attachments)
-            .Include(m => m.Reactions)
-            .Include(m => m.Sender).ThenInclude(u => u.Profile)
-            .Include(m => m.ParentMessage)
             .OrderByDescending(m => m.SentAt)
-            .Take(take)
             .Skip(skip)
+            .Take(take)
+            .Select(m => new MessageResponseDTO
+            {
+                Id = m.Id,
+                SenderId = m.SenderId,
+                Text = m.Text,
+                SentAt = m.SentAt,
+                ConversationId = m.ConversationId,
+                IsSystemMessage = m.IsSystemMessage,
+                IsDeleted = m.IsDeleted,
+                
+                Sender = m.Sender != null ? new UserSummaryDTO
+                {
+                    Id = m.Sender.Id,
+                    FullName = m.Sender.FullName,
+                    ProfileImageUrl = m.Sender.Profile != null ? m.Sender.Profile.ProfileImageUrl : null
+                } : null,
+                
+                Attachments = m.Attachments
+                    .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
+                    .Select(a => new AttachmentDto
+                    {
+                        FileUrl = a.FileUrl,
+                        FileType = a.FileType,
+                        FileName = a.FileName
+                    }).ToList(),
+                    
+                Reactions = m.Reactions.Select(r => new ReactionDTO
+                {
+                    MessageId = r.MessageId,
+                    Emoji = r.Emoji,
+                    UserId = r.UserId
+                }).ToList(),
+                
+                ParentMessageId = m.ParentMessageId,
+                ParentMessageText = m.ParentMessage != null ? m.ParentMessage.Text : null,
+                ParentSender = m.ParentMessage != null && m.ParentMessage.Sender != null ? new UserSummaryDTO
+                {
+                    Id = m.ParentMessage.Sender.Id,
+                    FullName = m.ParentMessage.Sender.FullName,
+                    ProfileImageUrl = m.ParentMessage.Sender.Profile != null ? m.ParentMessage.Sender.Profile.ProfileImageUrl : null
+                } : null
+            })
             .ToListAsync();
 
-        return messages.Select(MapToResponseForMessagesToConv).ToList();
+        return messages;
     }
     
     
