@@ -221,29 +221,32 @@ public class ConversationService
             participant.HasDeleted = false;
             participant.DeletedAt = null;
 
-            await _context.SaveChangesAsync();
+            // Sjekk om vi skal legge til CanSend for begge
+            // Kun hvis INGEN av brukerne har slettet OG samtalen er godkjent
+            var anyUserStillHasDeleted = conversation.Participants.Any(p => p.HasDeleted && p.UserId != userId);
 
-            // 🆕 Sjekk om vi skal legge til CanSend for begge
-            // Kun hvis INGEN av brukerne har slettet OG forespørselen er godkjent
-            var anyUserHasDeleted = conversation.Participants.Any(p => p.HasDeleted);
-    
-            if (!anyUserHasDeleted && conversation.IsApproved)
+            if (!anyUserStillHasDeleted && conversation.IsApproved)
             {
-                // Sjekk at MessageRequest faktisk er godkjent
+                // 🆕 Alternativ: Sjekk MessageRequest hvis nødvendig
                 var isMessageRequestAccepted = await _context.MessageRequests
                     .AsNoTracking()
                     .AnyAsync(r => r.ConversationId == conversationId && r.IsAccepted);
 
                 if (isMessageRequestAccepted)
                 {
-                    // Legg til CanSend for begge brukerne
-                    var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
-                    foreach (var participantId in allParticipantIds)
+                    // 🆕 Legg til CanSend for begge brukerne (mer effektivt)
+                    var participantIds = conversation.Participants.Select(p => p.UserId).ToList();
+            
+                    foreach (var participantId in participantIds)
                     {
                         await _context.AddCanSendAsync(participantId, conversationId, _msgCache, CanSendReason.MessageRequest);
                     }
+            
+                    Console.WriteLine($"✅ Gjenopprettet CanSend for {participantIds.Count} brukere i samtale {conversationId}");
                 }
             }
+
+            await _context.SaveChangesAsync();
         }
         
     }
