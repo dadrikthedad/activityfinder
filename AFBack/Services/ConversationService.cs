@@ -8,71 +8,71 @@ namespace AFBack.Services;
 public class ConversationService
     {
         private readonly ApplicationDbContext _context;
+        private readonly SendMessageCache _msgCache;
 
-        public ConversationService(ApplicationDbContext context)
+        public ConversationService(ApplicationDbContext context, SendMessageCache msgCache)
         {
             _context = context;
+            _msgCache = msgCache;
         }
         // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
         int userId, bool includeRejected = false)
         {
-            // Hent godkjente 1-til-1 MessageRequests
-            var approvedMessageRequestConvIds = new HashSet<int>(await _context.MessageRequests
-                .Where(r => r.ReceiverId == userId && r.IsAccepted && r.ConversationId != null)
-                .Select(r => r.ConversationId!.Value)
-                .ToListAsync());
-
-            // Hent godkjente GroupRequests for denne brukeren
-            var approvedGroupConvIds = new HashSet<int>(await _context.GroupRequests
-                .Where(gr => gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Approved)
-                .Select(gr => gr.ConversationId)
-                .ToListAsync());
-
-            // Hent alle gruppe-samtale-id-er brukeren er deltaker i
-            var myGroupConversationIds = await _context.Conversations
-                .Where(c => c.IsGroup && c.Participants.Any(p => p.UserId == userId))
-                .Select(c => c.Id)
-                .ToListAsync();
-
-            // Hent alle GroupRequests for disse samtalene
-            var groupRequests = await _context.GroupRequests
-                .Where(gr => myGroupConversationIds.Contains(gr.ConversationId))
-                .ToListAsync();
-
-            // Bygg lookup for å finne status per (ConversationId, UserId)
-            var groupRequestLookup = groupRequests
-                .GroupBy(gr => gr.ConversationId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.ToDictionary(gr => gr.ReceiverId, gr => gr.Status) // <int, GroupRequestStatus>
-                );
+            // 🚀 RASK: Hent alle samtaler brukeren kan sende til via CanSend
+            var allowedConversationIds = new HashSet<int>(
+                (await _msgCache.GetUserCanSendConversationsAsync(userId))
+                .Concat(await _context.MessageRequests
+                    .AsNoTracking()
+                    .Where(r => r.SenderId == userId && !r.IsAccepted && !r.IsRejected && r.ConversationId.HasValue)
+                    .Select(r => r.ConversationId!.Value)
+                    .ToListAsync()));
 
             var query = _context.Conversations
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId) &&
-                    (
-                        (!c.IsGroup && (c.IsApproved || c.CreatorId == userId || approvedMessageRequestConvIds.Contains(c.Id))) ||
-                        (c.IsGroup && (c.CreatorId == userId || approvedGroupConvIds.Contains(c.Id)))
-                    )
+                    (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId)
                 );
 
+            // Filtrer bort rejected hvis nødvendig
             if (!includeRejected)
             {
                 query = query.Where(c =>
+                    // For 1-1: ikke vis hvis bruker har rejected
                     (c.IsGroup || !_context.MessageRequests
-                        .Any(r => r.ConversationId == c.Id && r.IsRejected && r.SenderId != userId)) &&
-                    (!c.IsGroup || c.CreatorId == userId || !_context.GroupRequests
+                        .Any(r => r.ConversationId == c.Id && r.IsRejected && r.ReceiverId == userId)) &&
+                    // For grupper: ikke vis hvis bruker har rejected GroupRequest
+                    (!c.IsGroup || !_context.GroupRequests
                         .Any(gr => gr.ConversationId == c.Id && gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Rejected))
                 );
             }
 
+            // 🎯 OPTIMALISERT: Hent GroupRequests kun for samtaler vi faktisk returnerer
             var conversations = await query
+                .AsNoTracking()
                 .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
                 .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
                 .ToListAsync();
+
+            // Hent GroupRequests kun for de samtalene vi returnerer
+            var conversationIds = conversations.Where(c => c.IsGroup).Select(c => c.Id).ToList();
+            
+            var groupRequests = conversationIds.Any() 
+                ? await _context.GroupRequests
+                    .AsNoTracking()
+                    .Where(gr => conversationIds.Contains(gr.ConversationId))
+                    .ToListAsync()
+                : new List<GroupRequest>();
+
+            // Bygg lookup for GroupRequest status
+            var groupRequestLookup = groupRequests
+                .GroupBy(gr => gr.ConversationId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.ToDictionary(gr => gr.ReceiverId, gr => gr.Status)
+                );
 
             return conversations.Select(c => new ConversationWithApprovalDTO
             {

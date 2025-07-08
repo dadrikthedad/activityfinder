@@ -2,6 +2,7 @@
 using AFBack.Data;
 using AFBack.Models;
 using AFBack.DTOs;
+using AFBack.Functions;
 using AFBack.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -172,7 +173,10 @@ public class MessageService : IMessageService
                 if (existingRequest)
                 {
                     await ApproveMessageRequestAsync(senderId, conversation.Id);
-                    await AddBothUsersToCanSendAsync(senderId, receiverId.Value, conversation.Id);
+                    
+                    await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, CanSendReason.MessageRequest);
+                    await _context.AddCanSendAsync(receiverId.Value, conversation.Id, _msgCache, CanSendReason.MessageRequest);
+                    
                     nowApproved = true;
                 }
             }
@@ -182,7 +186,7 @@ public class MessageService : IMessageService
                 _logger.LogWarning("CanSend backup triggered for user {SenderId} in conversation {ConversationId}. " +
                                    "Consider adding CanSend at the proper time.", senderId, conversation.Id);
     
-                await AddUserToCanSendAsync(senderId, conversation.Id, 
+                await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, 
                     conversation.IsGroup ? CanSendReason.GroupRequest : CanSendReason.Friendship);
             }
 
@@ -1192,43 +1196,5 @@ public class MessageService : IMessageService
         int receiverId = conv.Participants.First(p => p.UserId != senderId).UserId;
         return (conv, receiverId);
     }
-    
-    // Legger brukerne til godkjent ved godkjent meldingsforespørsel
-    private async Task AddUserToCanSendAsync(int userId, int conversationId, CanSendReason reason)
-    {
-        var canSend = new CanSend
-        {
-            UserId = userId,
-            ConversationId = conversationId,
-            Reason = reason
-        };
-    
-        _context.CanSend.Add(canSend);
-        await _msgCache.OnCanSendAddedAsync(userId, conversationId, canSend);
-    }
-    
-    // Legger begge brukerne til ved godkjent meldingsforespørsel
-    private async Task AddBothUsersToCanSendAsync(int senderId, int receiverId, int conversationId)
-    {
-        var senderCanSend = new CanSend
-        {
-            UserId = senderId,
-            ConversationId = conversationId,
-            Reason = CanSendReason.MessageRequest
-        };
-    
-        var receiverCanSend = new CanSend
-        {
-            UserId = receiverId,
-            ConversationId = conversationId,
-            Reason = CanSendReason.MessageRequest
-        };
-    
-        _context.CanSend.AddRange(senderCanSend, receiverCanSend);
-        await _msgCache.OnCanSendAddedAsync(senderId, conversationId, senderCanSend);
-        await _msgCache.OnCanSendAddedAsync(receiverId, conversationId, receiverCanSend);
-    }
-
-
        
 }

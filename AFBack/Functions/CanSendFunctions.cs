@@ -30,6 +30,63 @@ public static class CanSendFunctions
         }
     }
     
+    // 🆕 Overload som også håndterer cache
+    public static async Task AddCanSendAsync(this DbContext context, int userId, int conversationId, 
+        SendMessageCache cache, CanSendReason reason = CanSendReason.MessageRequest)
+    {
+        var existing = await context.Set<CanSend>()
+            .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
+            
+        if (existing == null)
+        {
+            var canSend = new CanSend
+            {
+                UserId = userId,
+                ConversationId = conversationId,
+                Reason = reason,
+                ApprovedAt = DateTime.UtcNow,
+                LastUpdated = DateTime.UtcNow
+            };
+            
+            context.Set<CanSend>().Add(canSend);
+            
+            // Oppdater cache umiddelbart
+            await cache.OnCanSendAddedAsync(userId, conversationId, canSend);
+        }
+    }
+    
+    // 🆕 Bulk add for multiple users med cache
+    public static async Task AddMultipleCanSendAsync(this DbContext context, 
+        List<(int userId, int conversationId, CanSendReason reason)> entries,
+        SendMessageCache cache)
+    {
+        var canSendEntries = new List<CanSend>();
+        
+        foreach (var (userId, conversationId, reason) in entries)
+        {
+            var existing = await context.Set<CanSend>()
+                .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
+                
+            if (existing == null)
+            {
+                var canSend = new CanSend
+                {
+                    UserId = userId,
+                    ConversationId = conversationId,
+                    Reason = reason,
+                    ApprovedAt = DateTime.UtcNow,
+                    LastUpdated = DateTime.UtcNow
+                };
+                
+                context.Set<CanSend>().Add(canSend);
+                canSendEntries.Add(canSend);
+                
+                // Oppdater cache
+                await cache.OnCanSendAddedAsync(userId, conversationId, canSend);
+            }
+        }
+    }
+    
     public static async Task RemoveCanSendAsync(this DbContext context, int userId, int conversationId)
     {
         var existing = await context.Set<CanSend>()
@@ -38,6 +95,20 @@ public static class CanSendFunctions
         if (existing != null)
         {
             context.Set<CanSend>().Remove(existing);
+        }
+    }
+    
+    // 🆕 Overload med cache
+    public static async Task RemoveCanSendAsync(this DbContext context, int userId, int conversationId, 
+        SendMessageCache cache)
+    {
+        var existing = await context.Set<CanSend>()
+            .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
+            
+        if (existing != null)
+        {
+            context.Set<CanSend>().Remove(existing);
+            cache.OnCanSendRemoved(userId, conversationId);
         }
     }
 }
