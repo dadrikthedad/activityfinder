@@ -257,56 +257,94 @@ public class MessageService : IMessageService
 
     // Her henter vi meldinger etter ConversationId
     public async Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId,
-        int skip = 0, int take = 20)
+    int skip = 0, int take = 20)
     {
+        // 🚀 RASK: Sjekk full tilgang først
+        bool canSend = await _msgCache.CanUserSendAsync(userId, conversationId);
+        bool isCreator = await _context.Conversations
+            .AsNoTracking()
+            .AnyAsync(c => c.Id == conversationId && c.CreatorId == userId);
+
+        if (canSend || isCreator)
+        {
+            // ✅ FULL TILGANG: Direkte til meldinger
+            return await GetFullMessagesAsync(conversationId, skip, take);
+        }
+
+        // 🔍 SJEKK MEMBERSHIP: Er brukeren i samtalen i det hele tatt?
         var conversation = await _context.Conversations
+            .AsNoTracking()
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
         if (conversation == null)
             throw new Exception("Samtalen finnes ikke.");
+
+        bool isMember = conversation.Participants.Any(p => p.UserId == userId);
         
-        // ✅ Enkel participant-sjekk for ALLE samtaler (gruppe og private)
-        if (conversation.Participants.All(p => p.UserId != userId))
-            throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
-
-
-
-        // 👤 PRIVAT: Begrens til maks 5 hvis ikke godkjent
-        if (!conversation.IsGroup && !conversation.IsApproved)
+        if (!isMember)
         {
-            var creatorId = conversation.CreatorId;
-            var otherUserId = conversation.Participants.First(p => p.UserId != userId).UserId;
-
-            bool isCreator = userId == creatorId;
-
-            if (!isCreator)
-            {
-                // Bruker er ikke creator, og samtalen er ikke godkjent → begrenset visning
-                var previewMessages = await _context.Messages
-                    .Where(m => m.ConversationId == conversationId)
-                    .Include(m => m.Attachments)
-                    .Include(m => m.Reactions)
-                    .Include(m => m.Sender).ThenInclude(u => u.Profile)
-                    .Include(m => m.ParentMessage)
-                    .ThenInclude(pm => pm.Sender)    
-                    .ThenInclude(s => s.Profile)
-                    .OrderByDescending(m => m.SentAt)
-                    .ToListAsync();
-
-                var ownMessages = previewMessages.Where(m => m.SenderId == userId).Take(take);
-                var otherMessages = previewMessages.Where(m => m.SenderId == otherUserId).Take(5);
-
-                var combined = ownMessages.Concat(otherMessages)
-                    .OrderBy(m => m.SentAt)
-                    .ToList();
-
-                return combined.Select(MapToResponseForMessagesToConv).ToList();
-            }
+            // ❌ IKKE MEMBER: 403 Forbidden
+            throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
         }
 
-        // ✅ Full tilgang – hent meldinger normalt
+        // 🔒 MEMBER MEN PENDING: Vis begrenset preview
+        if (conversation.IsGroup)
+        {
+            return await GetFullMessagesAsync(conversationId, skip, take);
+        }
+
+        // For 1-1 samtaler: vis begrenset preview
+        return await GetLimitedMessagesPreviewFor1v1(conversation, userId, take);
+    }
+
+    // 🔒 Spesialisert metode for 1-1 pending samtaler
+    private async Task<List<MessageResponseDTO>> GetLimitedMessagesPreviewFor1v1(Conversation conversation, int userId, int take)
+    {
+        if (conversation.IsApproved)
+        {
+            // Samtale er godkjent men bruker ikke i CanSend? Rare edge case
+            return await GetFullMessagesAsync(conversation.Id, 0, take);
+        }
+
+        var otherUserId = conversation.Participants.First(p => p.UserId != userId).UserId;
+        bool isCreator = userId == conversation.CreatorId;
+
+        if (isCreator)
+        {
+            // Creator ser alt
+            return await GetFullMessagesAsync(conversation.Id, 0, take);
+        }
+
+        // Ikke-creator: begrenset preview (maks 5 fra sender + egne)
+        var allMessages = await _context.Messages
+            .AsNoTracking()
+            .Where(m => m.ConversationId == conversation.Id && 
+                       (m.SenderId == userId || m.SenderId == otherUserId))
+            .Include(m => m.Attachments)
+            .Include(m => m.Reactions)
+            .Include(m => m.Sender).ThenInclude(u => u.Profile)
+            .Include(m => m.ParentMessage)
+            .ThenInclude(pm => pm.Sender)    
+            .ThenInclude(s => s.Profile)
+            .OrderByDescending(m => m.SentAt)
+            .ToListAsync();
+
+        var ownMessages = allMessages.Where(m => m.SenderId == userId).Take(take);
+        var otherMessages = allMessages.Where(m => m.SenderId == otherUserId).Take(5);
+
+        var combined = ownMessages.Concat(otherMessages)
+            .OrderBy(m => m.SentAt)
+            .ToList();
+
+        return combined.Select(MapToResponseForMessagesToConv).ToList();
+    }
+
+    // 🚀 Hjelpemetode for full tilgang
+    private async Task<List<MessageResponseDTO>> GetFullMessagesAsync(int conversationId, int skip, int take)
+    {
         var messages = await _context.Messages
+            .AsNoTracking()
             .Where(m => m.ConversationId == conversationId)
             .Include(m => m.Attachments)
             .Include(m => m.Reactions)

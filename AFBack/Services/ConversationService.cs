@@ -84,7 +84,7 @@ public class ConversationService
             }).ToList();
         }
         
-        // Henter alle samtelene til en bruker
+        // Henter alle samtelene til en bruker, burkes til SingalR chaatHub
         public async Task<List<Conversation>> GetUserConversationsAsync(int userId, bool isGroup)
         {
             return await _context.Conversations
