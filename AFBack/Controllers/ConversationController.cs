@@ -76,7 +76,6 @@ public class ConversationsController : BaseController
 
     // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
     [HttpGet("conversation/{conversationId}")]
-    [HttpGet("conversation/{conversationId}")]
     public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
     {
         var userId = GetUserId();
