@@ -218,7 +218,7 @@ public class MessageService : IMessageService
                 .ToArray();
 
             // Rett før køing
-            var shouldNotify = !requiresApproval || (messageCount > 0 && !isRejected);
+            var shouldNotify = !requiresApproval || (messageCount > 0 && !isRejected) || nowApproved;
             var isRejectedSender = isRejected && requestSent;
 
             // NotifyAndBroadcastAsync
