@@ -107,9 +107,13 @@ public class ConversationsController : BaseController
 
         if (conversation == null)
             return NotFound("Samtalen finnes ikke.");
-
-        if (!conversation.Participants.Any(p => p.UserId == userId))
+        
+        var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+        if (userParticipant == null)
             return Forbid("Du har ikke tilgang til denne samtalen.");
+        
+        if (userParticipant.HasDeleted)
+            return BadRequest("Du har slettet denne samtalen. Gjenopprett den for å få tilgang.");
 
         var lastMessage = conversation.Messages
             .OrderByDescending(m => m.SentAt)
