@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect} from "react";
 import { sendTextMessage } from "@/services/messages/messageService";
 import { uploadMessageAttachments } from "@/services/files/fileService";
 import { validateFiles } from "@/components/files/FileFunctions";
@@ -9,6 +9,7 @@ import {
   MessageWithFilesData,
 } from "@/types/MessageDTO";
 import { useCurrentUserSummary } from "../user/useCurrentUserSummary";
+import { useChatStore } from "@/store/useChatStore";
 
 // ===================================
 // 🏷️ TYPES & CONSTANTS
@@ -36,10 +37,19 @@ function isFilePayload(payload: SendMessagePayload): payload is MessageWithFiles
 // 🪝 MAIN HOOK
 // ===================================
 
+
 export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useCurrentUserSummary();
+  
+  // 🆕 Get current conversation ID from store
+  const conversationId = useChatStore((state) => state.currentConversationId);
+
+  // 🆕 Reset error when conversation changes
+  useEffect(() => {
+    setError(null);
+  }, [conversationId]);
 
   /**
    * 📤 Send melding (tekst og/eller filer)

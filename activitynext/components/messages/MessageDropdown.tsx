@@ -330,6 +330,8 @@ export default function MessageDropdown({
       return;
     }
 
+    setConversationError(null);
+
     const state = useChatStore.getState();
     const isPending = state.pendingMessageRequests.some((r) => r.conversationId === id);
 
