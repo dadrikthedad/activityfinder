@@ -283,7 +283,7 @@ public class MessageService : IMessageService
 
         if (canSend || isCreator)
         {
-            // ✅ FULL TILGANG: Direkte til meldinger
+            //  FULL TILGANG: Direkte til meldinger
             return await GetFullMessagesAsync(conversationId, skip, take);
         }
 
@@ -295,13 +295,19 @@ public class MessageService : IMessageService
 
         if (conversation == null)
             throw new Exception("Samtalen finnes ikke.");
-
-        bool isMember = conversation.Participants.Any(p => p.UserId == userId);
         
-        if (!isMember)
+        var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+        
+        
+        if (userParticipant == null) 
         {
             // ❌ IKKE MEMBER: 403 Forbidden
             throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
+        }
+        
+        if (userParticipant.HasDeleted)
+        {
+            throw new UnauthorizedAccessException("Du har slettet denne samtalen. Gjenopprett den for å se meldinger.");
         }
 
         // 🔒 MEMBER MEN PENDING: Vis begrenset preview

@@ -384,4 +384,49 @@ public class ConversationsController : BaseController
         }
     }
     
+    [HttpGet("deleted")]
+    public async Task<IActionResult> GetDeletedConversations()
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
+        // Hent samtaler hvor brukeren har slettet (HasDeleted = true)
+        var deletedConversations = await _context.Conversations
+            .AsNoTracking()
+            .Include(c => c.Participants)
+            .ThenInclude(p => p.User)
+            .ThenInclude(u => u.Profile)
+            .Where(c => 
+                // Kun 1-1 samtaler (gruppesamtaler kan ikke slettes på denne måten)
+                !c.IsGroup &&
+                // Brukeren må være participant og ha slettet
+                c.Participants.Any(p => p.UserId == userId && p.HasDeleted))
+            .ToListAsync(); // 🔧 Hent data først, sorter i minnet
+
+        // 🔧 Sorter i minnet etter DeletedAt
+        var sortedConversations = deletedConversations
+            .OrderByDescending(c => c.Participants
+                .Where(p => p.UserId == userId)
+                .FirstOrDefault()?.DeletedAt ?? DateTime.MinValue)
+            .Select(c => new ConversationDTO
+            {
+                Id = c.Id,
+                GroupName = c.GroupName,
+                GroupImageUrl = c.GroupImageUrl,
+                IsGroup = c.IsGroup,
+                LastMessageSentAt = c.LastMessageSentAt,
+                Participants = c.Participants.Select(p => new UserSummaryDTO
+                {
+                    Id = p.User.Id,
+                    FullName = p.User.FullName,
+                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                }).ToList(),
+                IsPendingApproval = false
+            })
+            .ToList();
+
+        return Ok(sortedConversations);
+    }
+    
 }
