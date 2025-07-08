@@ -6,6 +6,7 @@ import { useGetDeletedConversations } from "@/hooks/messages/useGetDeletedConver
 import { useGetRejectedConversations } from "@/hooks/messages/useGetRejectedConversations";
 import { useRestoreConversation } from "@/hooks/messages/useRestoreConversation";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
 export default function ChatPage() {
   const { 
@@ -58,8 +59,22 @@ export default function ChatPage() {
     }
   };
 
-  const getOtherParticipant = (participants: any[], currentUserId?: number) => {
-    return participants.find(p => p.id !== currentUserId) || participants[0];
+  const getOtherParticipant = (participants: UserSummaryDTO[], currentUserId?: number): UserSummaryDTO | null => {
+    // Sjekk at participants er en array og ikke tom
+    if (!participants?.length) {
+      return null;
+    }
+
+    // Hvis vi ikke har currentUserId, returner første participant
+    if (!currentUserId) {
+      return participants[0];
+    }
+
+    // Finn participant som ikke er current user
+    const otherParticipant = participants.find(p => p.id !== currentUserId);
+    
+    // Hvis vi finner en annen participant, returner den, ellers første i lista
+    return otherParticipant || participants[0];
   };
 
   return (

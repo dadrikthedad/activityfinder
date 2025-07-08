@@ -35,6 +35,9 @@ interface MessageInputProps {
   userPopoverRef?: React.RefObject<HTMLDivElement | null>;
   replyingTo?: MessageDTO | null;
   onClearReply?: () => void;
+  isDisabled?: boolean;
+  hideToolbar?: boolean;
+  conversationError?: string | null;
 }
 
 export default function MessageInput({
@@ -46,6 +49,9 @@ export default function MessageInput({
   userPopoverRef,
   replyingTo,
   onClearReply,
+  isDisabled = false,
+  hideToolbar = false,
+  conversationError,
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [rawText, setRawText] = useState("");
@@ -83,6 +89,7 @@ export default function MessageInput({
     currentConversation?.isPendingApproval !== false;
 
   const isBlocked = 
+    isDisabled ||
     (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
     isLocked;
 
@@ -156,6 +163,8 @@ export default function MessageInput({
         inputRef.current?.focus();
       });
   };
+
+  const displayError = conversationError || error;
 
    useEffect(() => {
     if (!conversationId) return;
@@ -251,19 +260,20 @@ export default function MessageInput({
         }}
         className="hidden"
       />
-
-      <MessageToolbar
-        atBottom={Boolean(atBottom)}
-        onScrollToBottom={scrollToBottom}
-        onPickFile={handlePickFile} 
-        onPickEmoji={toggleEmojiPicker}
-        showFile={!isBlocked}
-        showEmoji={!isBlocked}
-        showSettings={!isBlocked}
-        onShowUserPopover={onShowUserPopover}
-        onLeaveGroup={onLeaveGroup}
-        userPopoverRef={userPopoverRef}
-      />
+      {!hideToolbar && (
+        <MessageToolbar
+          atBottom={Boolean(atBottom)}
+          onScrollToBottom={scrollToBottom}
+          onPickFile={handlePickFile} 
+          onPickEmoji={toggleEmojiPicker}
+          showFile={!isBlocked}
+          showEmoji={!isBlocked}
+          showSettings={!isBlocked}
+          onShowUserPopover={onShowUserPopover}
+          onLeaveGroup={onLeaveGroup}
+          userPopoverRef={userPopoverRef}
+        />
+       )}
 
       {/* Gjenbrukbar EmojiPicker */}
       <EmojiPickerWrapper
@@ -293,11 +303,11 @@ export default function MessageInput({
       )}
 
       {/* Send error display */}
-      {error && (
+      {displayError  && (
         <div className="text-red-500 text-sm p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
           <div className="flex items-center gap-2">
             <span>❌</span>
-            <span>{error}</span>
+            <span>{displayError}</span>
           </div>
         </div>
       )}
@@ -310,7 +320,9 @@ export default function MessageInput({
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            isBlocked
+            isDisabled
+              ? "This conversation has been deleted..."
+              : isBlocked
               ? "You can't send messages until the request is accepted..."
               : fileValidationError
               ? "Fix file issues before sending..."

@@ -17,6 +17,7 @@ import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
 import { createPortal } from "react-dom";
+import { clearDraftFor } from "@/utils/draft/draft";
 
 interface MessageDropdownProps {
   currentUser: UserSummaryDTO | null;
@@ -83,6 +84,18 @@ export default function MessageDropdown({
   } = useConversationSearch();
 
   const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
+
+  // Hvis samtalen får en feil så har vi det her
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  // Sjekk om det er en "deleted conversation" error
+  const hasConversationError = conversationError !== null;
+  // I MessageDropdown - clear draft when conversation error occurs
+  useEffect(() => {
+    if (hasConversationError && currentConversationId) {
+      // Clear draft for the problematic conversation
+      clearDraftFor(currentConversationId);
+    }
+  }, [hasConversationError, currentConversationId]);
 
   // Åpne samtale fra notifikasjon
   const openConversationFromNotification = (id: number) => {
@@ -455,6 +468,7 @@ export default function MessageDropdown({
                   conversationVisible={conversationVisible}
                   onScrollPositionChange={setAtBottom}
                   onReply={handleReply}
+                  onConversationError={setConversationError}
                 />
               </div>
 
@@ -471,6 +485,9 @@ export default function MessageDropdown({
                   onLeaveGroup={handleLeaveGroup}
                   replyingTo={replyingTo}
                   onClearReply={() => setReplyingTo(null)}
+                  isDisabled={hasConversationError} // 🆕 Disable for any conversation error
+                  hideToolbar={hasConversationError}
+                  conversationError={conversationError}
                 />
               </div>
             </div>

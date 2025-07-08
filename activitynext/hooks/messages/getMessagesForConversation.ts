@@ -90,12 +90,26 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
       }
       
     } catch (err: unknown) {
-  // 🆕 Handle errors - stop infinite loop
       console.error(`❌ Kunne ikke hente meldinger for samtale ${conversationId}:`, err);
-      const errorMessage = err instanceof Error ? err.message : "Could not load messages";
+      
+      let errorMessage = "Could not load messages";
+      
+      if (err instanceof Error) {
+        // Sjekk om error message er JSON med message property
+        if (err.message.includes('"message"')) {
+          try {
+            const parsed = JSON.parse(err.message);
+            errorMessage = parsed.message;
+          } catch {
+            errorMessage = err.message;
+          }
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       setError(errorMessage);
       setHasMore(false);
-      
     } finally {
       setLoading(false);
       isFetching.current = false;

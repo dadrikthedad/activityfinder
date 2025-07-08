@@ -31,6 +31,7 @@ interface MessageListProps {
     conversationVisible: boolean;
     onScrollPositionChange?: (atBottom: boolean) => void; // Sier ifra når vi ikke er i bunn
     onReply?: (message: MessageDTO) => void; 
+    onConversationError?: (error: string | null) => void;
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
 export default function MessageList({ 
@@ -38,7 +39,8 @@ export default function MessageList({
   onShowUserPopover,
   conversationVisible,
   onScrollPositionChange,
-  onReply
+  onReply,
+  onConversationError
 }: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
@@ -358,40 +360,15 @@ export default function MessageList({
         debouncedSearch(conversationId, query);
       }, [query, conversationId]);
 
+      // Sender til parent hvis vi får en feil
+      useEffect(() => {
+        onConversationError?.(error);
+      }, [error, onConversationError]);
+
       if (rawConversationId === null) {
         return <div className="text-center text-gray-500">No conversation chosen</div>;
       }
 
-      if (error) {
-  return (
-    <div className="flex flex-col items-center justify-center h-full text-center p-8">
-      <div className="text-red-500 text-4xl mb-4">⚠️</div>
-      <div className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-2">
-        Unable to load conversation
-      </div>
-      <div className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md">
-        {error}
-      </div>
-      <div className="flex gap-3">
-        <button 
-          onClick={() => {
-            // Clear current conversation and go back to notifications
-            useChatStore.getState().setCurrentConversationId(null);
-          }}
-          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
-        >
-          Go Back
-        </button>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="px-4 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#155515] transition-colors"
-        >
-          Refresh Page
-        </button>
-      </div>
-    </div>
-  );
-}
 
   return (
           <div className="flex flex-col h-full">

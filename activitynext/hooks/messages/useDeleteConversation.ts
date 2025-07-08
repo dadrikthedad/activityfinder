@@ -11,10 +11,12 @@ interface UseDeleteConversationResult {
 export function useDeleteConversation(): UseDeleteConversationResult {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+ 
   // Store actions
   const removeConversation = useChatStore((state) => state.removeConversation);
   const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
+  const setCachedMessages = useChatStore((state) => state.setCachedMessages);
+  const clearLiveMessages = useChatStore((state) => state.clearLiveMessages);
   const currentConversationId = useChatStore((state) => state.currentConversationId);
 
   const deleteConversationMutation = useCallback(async (conversationId: number) => {
@@ -23,21 +25,25 @@ export function useDeleteConversation(): UseDeleteConversationResult {
 
     try {
       const result = await deleteConversation(conversationId);
-      
+     
       if (!result) {
         throw new Error('Kunne ikke slette samtale');
       }
 
-      // 🆕 Rydd opp i store (samme som reject)
-      removeConversation(conversationId);
+      // 🆕 Eksplisitt rydd opp i alle message caches først
+      setCachedMessages(conversationId, []);
+      clearLiveMessages(conversationId);
       
+      // 🆕 Så fjern conversation (som også rydder opp, men vi er eksplisitte)
+      removeConversation(conversationId);
+     
       // 🆕 Sett currentConversationId til null hvis vi slettet den aktive samtalen
       if (currentConversationId === conversationId) {
         setCurrentConversationId(null);
       }
 
-      console.log('✅ Samtale slettet:', result.message);
-      
+      console.log('✅ Samtale og alle meldinger slettet:', result.message);
+     
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'En feil oppstod ved sletting av samtale';
       setError(errorMessage);
@@ -46,7 +52,13 @@ export function useDeleteConversation(): UseDeleteConversationResult {
     } finally {
       setIsDeleting(false);
     }
-  }, [removeConversation, setCurrentConversationId, currentConversationId]);
+  }, [
+    removeConversation, 
+    setCurrentConversationId, 
+    setCachedMessages, 
+    clearLiveMessages, 
+    currentConversationId
+  ]);
 
   return {
     deleteConversationMutation,
