@@ -80,21 +80,37 @@ public class MessageService : IMessageService
             // 2️  Blokkeringssjekk  (treffer cache først)
             if (!conversation.IsGroup)
             {
-                // Sjekk om mottaker har blokkert avsenderen
-                bool isBlockedByReceiver = await _context.UserBlock
+                // 🚀 Hent participants og blocking-data i separate, effektive queries
+                var participantData = await _context.ConversationParticipants
                     .AsNoTracking()
-                    .AnyAsync(ub => ub.BlockerId == receiverId.Value && ub.BlockedUserId == senderId);
-    
-                if (isBlockedByReceiver)
-                    throw new Exception("This user has been deleted or is no longer visible, or you lack the required permission to send messages.");
+                    .Where(p => p.ConversationId == conversation.Id && 
+                                (p.UserId == senderId || p.UserId == receiverId.Value))
+                    .Select(p => new { p.UserId, p.HasDeleted })
+                    .ToListAsync();
 
-                // Sjekk om avsenderen har blokkert mottakeren
-                bool hasBlockedReceiver = await _context.UserBlock
-                    .AsNoTracking()
-                    .AnyAsync(ub => ub.BlockerId == senderId && ub.BlockedUserId == receiverId.Value);
+                var blockedRelations = await _context.UserBlock
+                    .AsNoTracking() // 🆕 Glem ikke AsNoTracking
+                    .Where(ub =>
+                        (ub.BlockerId == senderId && ub.BlockedUserId == receiverId.Value) ||
+                        (ub.BlockerId == receiverId.Value && ub.BlockedUserId == senderId))
+                    .ToListAsync();
+
+                // Rask in-memory prosessering
+                var senderData = participantData.FirstOrDefault(r => r.UserId == senderId);
+                var receiverData = participantData.FirstOrDefault(r => r.UserId == receiverId.Value);
     
-                if (hasBlockedReceiver)
+                bool senderBlockedReceiver = blockedRelations.Any(ub => ub.BlockerId == senderId);
+                bool receiverBlockedSender = blockedRelations.Any(ub => ub.BlockerId == receiverId.Value);
+
+                // Sjekker i riktig rekkefølge
+                if (receiverData?.HasDeleted == true || receiverBlockedSender)
+                    throw new Exception("This user has been deleted or is no longer visible, or you lack the required permission to send messages.");
+    
+                if (senderBlockedReceiver)
                     throw new Exception("You can't send messages to an user you have blocked.");
+    
+                if (senderData?.HasDeleted == true)
+                    throw new Exception("You cannot send messages to a conversation you have deleted.");
             }
 
             // 3️  Må meldingen godkjennes? (3. og evt. 4. query)
@@ -519,22 +535,34 @@ public class MessageService : IMessageService
             // ✅ Håndter MessageRequest
             var messageRequest = await _context.MessageRequests
                 .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && 
-                                         r.ConversationId == conversationId &&
-                                         !r.IsAccepted && !r.IsRejected);
+                                          r.ConversationId == conversationId &&
+                                          !r.IsAccepted && !r.IsRejected);
 
             if (messageRequest == null)
                 throw new Exception("Meldingsforespørselen finnes ikke eller er allerede behandlet.");
 
+            // ✅ ALLTID godkjenn uansett om avsender har slettet
             messageRequest.IsAccepted = true;
             messageRequest.IsRejected = false;
-            senderId = messageRequest.SenderId; // ✅ Lagre senderId
+            senderId = messageRequest.SenderId;
 
-            // ✅ Marker samtalen som godkjent
+            // ✅ ALLTID marker samtalen som godkjent
             conversation.IsApproved = true;
-            
-            // Legg til CanSend
-            await _context.AddCanSendAsync(receiverId, conversationId, _msgCache, CanSendReason.MessageRequest);
-            await _context.AddCanSendAsync(senderId, conversationId, _msgCache, CanSendReason.MessageRequest);
+        
+            // 🆕 Sjekk om avsender har slettet - kun for CanSend-beslutning
+            var senderHasDeleted = await _context.ConversationParticipants
+                .AsNoTracking()
+                .AnyAsync(p => p.ConversationId == conversationId && 
+                               p.UserId == senderId && 
+                               p.HasDeleted);
+
+            // 🎯 Legg til CanSend kun hvis avsender ikke har slettet
+            if (!senderHasDeleted)
+            {
+                await _context.AddCanSendAsync(receiverId, conversationId, _msgCache, CanSendReason.MessageRequest);
+                await _context.AddCanSendAsync(senderId, conversationId, _msgCache, CanSendReason.MessageRequest);
+            }
+            // Hvis avsender har slettet: godkjenning skjer, men ingen CanSend
         }
         
         await _context.SaveChangesAsync();

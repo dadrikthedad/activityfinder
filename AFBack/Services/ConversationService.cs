@@ -2,6 +2,7 @@
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.DTOs;
+using AFBack.Functions;
 
 namespace AFBack.Services;
 
@@ -30,7 +31,7 @@ public class ConversationService
 
             var query = _context.Conversations
                 .Where(c =>
-                    c.Participants.Any(p => p.UserId == userId) &&
+                    c.Participants.Any(p => p.UserId == userId && !p.HasDeleted) &&
                     (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId)
                 );
 
@@ -160,6 +161,89 @@ public class ConversationService
             return result;
         }
         
+        // Sletting av samtaler
+        public async Task DeleteConversationForUserAsync(int conversationId, int userId)
+        {
+            // Hent conversation med participants
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+            if (conversation == null)
+                throw new Exception("Samtalen finnes ikke.");
+
+            // Kun 1-1 samtaler kan slettes på denne måten
+            if (conversation.IsGroup)
+                throw new Exception("Gruppesamtaler kan ikke slettes. Forlat gruppen i stedet.");
+
+            var participant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+            if (participant == null)
+                throw new Exception("Du er ikke medlem av denne samtalen.");
+
+            if (participant.HasDeleted)
+                throw new Exception("Du har allerede slettet denne samtalen.");
+
+            // Marker som slettet
+            participant.HasDeleted = true;
+            participant.DeletedAt = DateTime.UtcNow;
+
+            // 🆕 Fjern BEGGE brukerne fra CanSend (siden samtalen er "brutt")
+            var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
+            foreach (var participantId in allParticipantIds)
+            {
+                await _context.RemoveCanSendAsync(participantId, conversationId, _msgCache);
+            }
+
+            await _context.SaveChangesAsync();
+        }
         
+        // Gjennoppretting en samtale
+        public async Task RestoreConversationForUserAsync(int conversationId, int userId)
+        {
+            var conversation = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+            if (conversation == null)
+                throw new Exception("Samtalen finnes ikke.");
+
+            if (conversation.IsGroup)
+                throw new Exception("Kan ikke gjenopprette gruppesamtaler.");
+
+            var participant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+            if (participant == null)
+                throw new Exception("Du er ikke medlem av denne samtalen.");
+
+            if (!participant.HasDeleted)
+                throw new Exception("Samtalen er ikke slettet.");
+
+            // Gjenopprett denne brukeren
+            participant.HasDeleted = false;
+            participant.DeletedAt = null;
+
+            await _context.SaveChangesAsync();
+
+            // 🆕 Sjekk om vi skal legge til CanSend for begge
+            // Kun hvis INGEN av brukerne har slettet OG forespørselen er godkjent
+            var anyUserHasDeleted = conversation.Participants.Any(p => p.HasDeleted);
+    
+            if (!anyUserHasDeleted && conversation.IsApproved)
+            {
+                // Sjekk at MessageRequest faktisk er godkjent
+                var isMessageRequestAccepted = await _context.MessageRequests
+                    .AsNoTracking()
+                    .AnyAsync(r => r.ConversationId == conversationId && r.IsAccepted);
+
+                if (isMessageRequestAccepted)
+                {
+                    // Legg til CanSend for begge brukerne
+                    var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
+                    foreach (var participantId in allParticipantIds)
+                    {
+                        await _context.AddCanSendAsync(participantId, conversationId, _msgCache, CanSendReason.MessageRequest);
+                    }
+                }
+            }
+        }
         
     }

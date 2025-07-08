@@ -228,7 +228,7 @@ public class ConversationsController : BaseController
         // 🎯 PROJECTION: Direkte til DTO i database
         var conversations = await _context.Conversations
             .AsNoTracking()
-            .Where(c => c.Participants.Any(p => p.UserId == userId.Value) &&
+            .Where(c => c.Participants.Any(p => p.UserId == userId.Value && !p.HasDeleted) &&
                        (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId.Value) &&
                        (
                            (!string.IsNullOrEmpty(c.GroupName) && EF.Functions.ILike(c.GroupName, $"%{searchQuery}%")) ||
@@ -342,6 +342,42 @@ public class ConversationsController : BaseController
             .ToList();
 
         return Ok(filtered);
+    }
+    
+    [HttpDelete("conversations/{conversationId}/delete")]
+    public async Task<IActionResult> DeleteConversation(int conversationId)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
+        try
+        {
+            await _conversationService.DeleteConversationForUserAsync(conversationId, userId.Value);
+            return Ok(new { message = "Samtalen har blitt slettet." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+    
+    [HttpPost("conversations/{conversationId}/restore")]
+    public async Task<IActionResult> RestoreConversation(int conversationId)
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
+        try
+        {
+            await _conversationService.RestoreConversationForUserAsync(conversationId, userId.Value);
+            return Ok(new { message = "Samtalen har blitt gjenopprettet." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
     
 }
