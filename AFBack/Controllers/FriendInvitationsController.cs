@@ -1,6 +1,7 @@
 ﻿using System.Security.Claims;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Models;
 using AFBack.Services;
@@ -213,6 +214,14 @@ public class FriendInvitationsController : ControllerBase
             {
                 existingMessageRequest.Conversation.IsApproved = true;
             }
+            
+            // Legg til i CanSend hvis de allerede har en samtale gående
+            if (conversationId.HasValue)
+            {
+                await _context.AddCanSendAsync(invitation.SenderId, conversationId.Value, _msgCache, CanSendReason.Friendship);
+                await _context.AddCanSendAsync(invitation.ReceiverId, conversationId.Value, _msgCache, CanSendReason.Friendship);
+            }
+            
         }
         
         await _notificationService.CreateNotificationAsync(

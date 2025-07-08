@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Functions;
 using AFBack.Hubs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -452,6 +453,9 @@ public class GroupConversationController : BaseController
 
             // 4️⃣ Fjern bruker fra participants
             _context.ConversationParticipants.Remove(participant);
+            
+            // Fjernes fra CanSend
+            await _context.RemoveCanSendAsync(userId.Value, conversationId, _msgCache);
 
             // 5️⃣ Sett brukerens GroupRequest til Rejected
             var userGroupRequest = await _context.GroupRequests

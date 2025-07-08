@@ -21,13 +21,15 @@ public class ConversationsController : BaseController
     private readonly IHubContext<ChatHub> _hubContext;
     private readonly IMessageService _messageService;
     private readonly ApplicationDbContext _context;
+    private readonly SendMessageCache _msgCache;
 
-    public ConversationsController(ConversationService conversationService, IHubContext<ChatHub> hubContext, IMessageService messageService, ApplicationDbContext context)
+    public ConversationsController(ConversationService conversationService, IHubContext<ChatHub> hubContext, IMessageService messageService, ApplicationDbContext context, SendMessageCache msgCache)
     {
         _conversationService = conversationService;
         _hubContext = hubContext;
         _messageService = messageService;
         _context = context;
+        _msgCache = msgCache;
     }
     // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat
     [HttpGet("my-conversations")]
@@ -92,7 +94,11 @@ public class ConversationsController : BaseController
         if (userId == null)
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
 
+        // 🚀 LETT OPTIMALISERING: Sjekk CanSend først for rask approval-status
+        bool canSend = await _msgCache.CanUserSendAsync(userId.Value, conversationId);
+
         var conversation = await _context.Conversations
+            .AsNoTracking() // 🆕 ReadOnly siden vi ikke endrer data
             .Include(c => c.Participants)
             .ThenInclude(p => p.User)
             .ThenInclude(u => u.Profile)
@@ -111,71 +117,63 @@ public class ConversationsController : BaseController
         
         bool isApproved;
         bool isPending;
+        bool isCreator = conversation.CreatorId == userId;
         
-        // Hent GroupRequests for denne samtalen hvis det er en gruppe
-        Dictionary<int, GroupRequestStatus> groupRequestLookup = new();
-        if (conversation.IsGroup)
+        // 🎯 FORENKLET LOGIKK med CanSend
+        if (canSend || isCreator)
         {
-            groupRequestLookup = await _context.GroupRequests
-                .Where(gr => gr.ConversationId == conversationId)
-                .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status);
+            // ✅ Bruker kan sende = fullstendig godkjent
+            isApproved = true;
+            isPending = false;
         }
-
-        if (conversation.IsGroup)
+        else
         {
-            bool isCreator = conversation.CreatorId == userId;
-    
-            if (isCreator)
+            // 🔍 Fallback: Sjekk pending status
+            if (conversation.IsGroup)
             {
-                isApproved = true;
-                isPending = false;
+                // For grupper: sjekk GroupRequest status
+                var myGroupRequest = await _context.GroupRequests
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId);
+                
+                isApproved = false; // Ikke i CanSend = ikke godkjent
+                isPending = myGroupRequest?.Status == GroupRequestStatus.Pending;
             }
             else
             {
-                // Bruk groupRequestLookup i stedet for ny database-query
-                if (groupRequestLookup.TryGetValue(userId.Value, out var myStatus))
+                // For 1-1: sjekk MessageRequest status
+                var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
+                
+                if (otherUserId.HasValue)
                 {
-                    isApproved = myStatus == GroupRequestStatus.Approved;
-                    isPending = myStatus == GroupRequestStatus.Pending;
+                    var messageRequest = await _context.MessageRequests
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(r =>
+                            r.ConversationId == conversationId &&
+                            ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
+                             (r.SenderId == otherUserId && r.ReceiverId == userId)));
+
+                    isApproved = false; // Ikke i CanSend = ikke godkjent
+                    isPending = messageRequest?.SenderId == userId && 
+                               !messageRequest.IsAccepted && 
+                               !messageRequest.IsRejected;
                 }
                 else
                 {
                     isApproved = false;
-                    isPending = true; // Ingen request funnet = pending
+                    isPending = false;
                 }
             }
         }
-        else
+        
+        // Hent GroupRequests for participants display (kun hvis gruppe)
+        Dictionary<int, GroupRequestStatus> groupRequestLookup = new();
+        if (conversation.IsGroup)
         {
-            // ✅ 1-TIL-1 LOGIKK (eksisterende)
-            var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
-
-            if (otherUserId == null)
-            {
-                // Sikkerhet: Bør ikke skje, men håndter det
-                isApproved = false;
-                isPending = false;
-            }
-            else
-            {
-                var isFriend = await _context.Friends.AnyAsync(f =>
-                    (f.UserId == userId && f.FriendId == otherUserId) ||
-                    (f.UserId == otherUserId && f.FriendId == userId));
-
-                var messageRequest = await _context.MessageRequests
-                    .FirstOrDefaultAsync(r =>
-                        r.ConversationId == conversationId &&
-                        ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
-                         (r.SenderId == otherUserId && r.ReceiverId == userId)));
-
-                isApproved = conversation.IsApproved || isFriend || messageRequest?.IsAccepted == true;
-            
-                isPending = !isApproved &&
-                            messageRequest != null &&
-                            messageRequest.SenderId == userId &&
-                            !messageRequest.IsAccepted &&
-                            !messageRequest.IsRejected;
-            }
+            groupRequestLookup = await _context.GroupRequests
+                .AsNoTracking()
+                .Where(gr => gr.ConversationId == conversationId)
+                .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status);
         }
 
         var dto = new ConversationDTO
@@ -191,12 +189,12 @@ public class ConversationsController : BaseController
                 FullName = p.User.FullName,
                 ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
                 GroupRequestStatus = !conversation.IsGroup ? null :
-                    p.User.Id == conversation.CreatorId ? GroupRequestStatus.Creator :  // ✅ Bruk Creator enum
+                    p.User.Id == conversation.CreatorId ? GroupRequestStatus.Creator :
                     groupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
                     null
             }).ToList(),
-            IsApproved = isApproved, // Tilpass etter behov
-            IsPendingApproval = isPending // Tilpass etter behov
+            IsApproved = isApproved,
+            IsPendingApproval = isPending
         };
 
         return Ok(dto);
