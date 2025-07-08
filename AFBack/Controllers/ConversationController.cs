@@ -322,41 +322,59 @@ public class ConversationsController : BaseController
         if (userId == null)
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
 
-        var rejectedConversations = await _conversationService.GetUserConversationsSortedAsync(userId.Value, includeRejected: true);
+        // 🆕 Hent avslåtte 1-til-1 samtaler direkte fra database
+        var rejected1to1Conversations = await _context.Conversations
+            .AsNoTracking()
+            .Include(c => c.Participants)
+                .ThenInclude(p => p.User)
+                    .ThenInclude(u => u.Profile)
+            .Where(c => !c.IsGroup && 
+                       c.Participants.Any(p => p.UserId == userId) && // Bruker er participant
+                       _context.MessageRequests.Any(r => 
+                           r.ConversationId == c.Id &&
+                           r.IsRejected &&
+                           r.SenderId != userId && // Ikke bruker selv som sender
+                           r.ReceiverId == userId)) // Bruker er receiver av rejected request
+            .ToListAsync();
 
-        // ✅ Filtrer til samtaler som faktisk er avslått (både 1-til-1 og grupper)
-        var filtered = rejectedConversations
-            .Where(c => 
-                // ✅ Avslåtte 1-til-1 samtaler
-                (!c.Conversation.IsGroup && _context.MessageRequests
-                    .Any(r => r.ConversationId == c.Conversation.Id &&
-                              r.IsRejected &&
-                              r.SenderId != userId)) ||
-            
-                // ✅ Avslåtte gruppesamtaler
-                (c.Conversation.IsGroup && _context.GroupRequests
-                    .Any(gr => gr.ConversationId == c.Conversation.Id &&
-                               gr.ReceiverId == userId &&
-                               gr.Status == GroupRequestStatus.Rejected))
-            )
+        // 🆕 Hent avslåtte gruppesamtaler direkte fra database  
+        var rejectedGroupConversations = await _context.Conversations
+            .AsNoTracking()
+            .Include(c => c.Participants)
+                .ThenInclude(p => p.User)
+                    .ThenInclude(u => u.Profile)
+            .Where(c => c.IsGroup && 
+                       _context.GroupRequests.Any(gr => 
+                           gr.ConversationId == c.Id &&
+                           gr.ReceiverId == userId &&
+                           gr.Status == GroupRequestStatus.Rejected))
+            .ToListAsync();
+
+        // 🆕 Kombiner resultater
+        var allRejectedConversations = rejected1to1Conversations
+            .Concat(rejectedGroupConversations)
+            .Distinct()
+            .OrderByDescending(c => c.LastMessageSentAt)
             .Select(c => new ConversationDTO
             {
-                Id = c.Conversation.Id,
-                GroupName = c.Conversation.GroupName,
-                GroupImageUrl = c.Conversation.GroupImageUrl,
-                IsGroup = c.Conversation.IsGroup,
-                LastMessageSentAt = c.Conversation.LastMessageSentAt,
-                Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
+                Id = c.Id,
+                GroupName = c.GroupName,
+                GroupImageUrl = c.GroupImageUrl,
+                IsGroup = c.IsGroup,
+                LastMessageSentAt = c.LastMessageSentAt,
+                CreatorId = c.CreatorId,
+                Participants = c.Participants.Select(p => new UserSummaryDTO
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
                     ProfileImageUrl = p.User.Profile?.ProfileImageUrl
                 }).ToList(),
-                IsPendingApproval = false // Avslåtte samtaler er ikke "pending"
+                IsPendingApproval = false, // Avslåtte samtaler er ikke "pending"
+                IsApproved = false
             })
             .ToList();
 
-        return Ok(filtered);
+        return Ok(allRejectedConversations);
     }
     
     [HttpDelete("{conversationId}/delete")]
