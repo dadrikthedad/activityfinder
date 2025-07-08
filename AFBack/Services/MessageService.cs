@@ -416,77 +416,60 @@ public class MessageService : IMessageService
     // Hente alle meldingsforespørsler til en bruker
     public async Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId)
     {
-        // ✅ Hent pending 1-til-1 message requests
-        var messageRequests = await _context.MessageRequests
+        // ✅ Optimalisert: Select projection i stedet for hele entiteter
+        var messageRequestsTask = _context.MessageRequests
+            .AsNoTracking()
+            .AsSplitQuery() // Unngå cartesian product
             .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
-            .Include(r => r.Sender).ThenInclude(u => u.Profile)
-            .Include(r => r.Conversation)
-                .ThenInclude(c => c.Participants) // ✅ Legg til participants
-                    .ThenInclude(p => p.User)
-                        .ThenInclude(u => u.Profile)
+            .Select(r => new MessageRequestDTO
+            {
+                SenderId = r.SenderId,
+                SenderName = r.Sender.FullName,
+                ProfileImageUrl = r.Sender.Profile != null ? r.Sender.Profile.ProfileImageUrl : null,
+                RequestedAt = r.RequestedAt,
+                ConversationId = r.ConversationId,
+                GroupName = null, // 1-till-1 har aldri gruppenavn
+                GroupImageUrl = null,
+                IsGroup = false,
+                LimitReached = r.LimitReached,
+                IsPendingApproval = !r.Conversation.IsApproved,
+                Participants = null // 1-till-1 trenger ikke participants
+            })
             .ToListAsync();
 
-        // ✅ Hent pending gruppe requests
-        var groupRequests = await _context.GroupRequests
+        var groupRequestsTask = _context.GroupRequests
+            .AsNoTracking()
+            .AsSplitQuery()
             .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
-            .Include(gr => gr.Sender).ThenInclude(u => u.Profile)
-            .Include(gr => gr.Conversation)
-                .ThenInclude(c => c.Participants) // ✅ Legg til participants
-                    .ThenInclude(p => p.User)
-                        .ThenInclude(u => u.Profile)
-            .ToListAsync();
-
-        // ✅ Kombiner begge typer requests til samme DTO
-        var result = new List<MessageRequestDTO>();
-
-        // Legg til 1-til-1 requests
-        result.AddRange(messageRequests.Select(r => new MessageRequestDTO
-        {
-            SenderId = r.SenderId,
-            SenderName = r.Sender.FullName,
-            ProfileImageUrl = r.Sender.Profile?.ProfileImageUrl,
-            RequestedAt = r.RequestedAt,
-            ConversationId = r.ConversationId,
-            GroupName = r.Conversation?.GroupName,
-            GroupImageUrl = r.Conversation?.GroupImageUrl,
-            IsGroup = r.Conversation?.IsGroup ?? false,
-            LimitReached = r.LimitReached,
-            IsPendingApproval = r.Conversation?.IsApproved == false,
-            // ✅ Rett variabel - bruk r.Conversation
-            Participants = r.Conversation?.IsGroup == true 
-                ? r.Conversation.Participants?.Select(p => new UserSummaryDTO 
+            .Select(gr => new MessageRequestDTO
+            {
+                SenderId = gr.SenderId,
+                SenderName = gr.Sender.FullName,
+                ProfileImageUrl = gr.Sender.Profile != null ? gr.Sender.Profile.ProfileImageUrl : null,
+                RequestedAt = gr.RequestedAt,
+                ConversationId = gr.ConversationId,
+                GroupName = gr.Conversation.GroupName,
+                GroupImageUrl = gr.Conversation.GroupImageUrl,
+                IsGroup = true,
+                LimitReached = false,
+                IsPendingApproval = true,
+                Participants = gr.Conversation.Participants.Select(p => new UserSummaryDTO
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                    ProfileImageUrl = p.User.Profile != null ? p.User.Profile.ProfileImageUrl : null
                 }).ToList()
-                : null
-        }));
+            })
+            .ToListAsync();
 
-        // Legg til gruppe requests
-        result.AddRange(groupRequests.Select(gr => new MessageRequestDTO
-        {
-            SenderId = gr.SenderId,
-            SenderName = gr.Sender.FullName,
-            ProfileImageUrl = gr.Sender.Profile?.ProfileImageUrl,
-            RequestedAt = gr.RequestedAt,
-            ConversationId = gr.ConversationId,
-            GroupName = gr.Conversation?.GroupName,
-            GroupImageUrl = gr.Conversation?.GroupImageUrl,
-            IsGroup = true, // ✅ Alltid true for gruppe requests
-            LimitReached = false, // ✅ Ikke relevant for gruppe requests
-            IsPendingApproval = true, // ✅ Gruppe requests er alltid pending
-            // ✅ Rett variabel - bruk gr.Conversation
-            Participants = gr.Conversation?.Participants?.Select(p => new UserSummaryDTO 
-            {
-                Id = p.User.Id,
-                FullName = p.User.FullName,
-                ProfileImageUrl = p.User.Profile?.ProfileImageUrl
-            }).ToList()
-        }));
-
-        // ✅ Sorter etter dato (nyeste først)
-        return result.OrderByDescending(r => r.RequestedAt).ToList();
+        // 🎯 Parallelt
+        var results = await Task.WhenAll(messageRequestsTask, groupRequestsTask);
+        
+        // 🔗 Kombiner og sorter
+        return results[0]
+            .Concat(results[1])
+            .OrderByDescending(r => r.RequestedAt)
+            .ToList();
     }
 
 
