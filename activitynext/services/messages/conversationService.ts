@@ -61,6 +61,33 @@ export async function getRejectedConversations(): Promise<ConversationDTO[] | nu
   return await fetchWithAuth<ConversationDTO[]>(url);
 }
 
+// Sletter en 1-1 samtale
+export async function deleteConversation(conversationId: number): Promise<{ message: string } | null> {
+  const url = `${API_BASE_URL}/api/conversations/${conversationId}/delete`;
+  console.log("🔴 Sletter samtale:", url);
+  
+  return await fetchWithAuth<{ message: string }>(url, {
+    method: 'DELETE'
+  });
+}
+
+// Gjenoppretter en slettet samtale for brukeren
+export async function restoreConversation(conversationId: number): Promise<{ message: string } | null> {
+  const url = `${API_BASE_URL}/api/conversations/${conversationId}/restore`;
+  console.log("🟢 Gjenoppretter samtale:", url);
+  
+  return await fetchWithAuth<{ message: string }>(url, {
+    method: 'POST'
+  });
+}
+
+// Slettede samtaleliste
+export async function getDeletedConversations(): Promise<ConversationDTO[] | null> {
+  const url = `${API_BASE_URL}/api/conversations/deleted`;
+  console.log("🗑️ Henter slettede samtaler:", url);
+  return await fetchWithAuth<ConversationDTO[]>(url);
+}
+
 
 
 

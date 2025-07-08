@@ -11,6 +11,7 @@ import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ParticipantsList from "./ParticipantsListProps";
 import { calculatePopoverPosition } from "../common/PopoverPositioning";
+import { useDeleteConversation } from "@/hooks/messages/useDeleteConversation";
 
 interface MessageSettingsDropdownProps {
   open: boolean;
@@ -54,6 +55,9 @@ export default function MessageSettingsDropdown({
   );
   const participants = currentConversation?.participants || [];
   const isGroup = currentConversation?.isGroup || false;
+
+  // Sletting av en samtale
+  const { deleteConversationMutation, isDeleting } = useDeleteConversation();
 
   // ✅ Sync settings dropdown state with overlay (conditional logic inside)
   useEffect(() => {
@@ -157,6 +161,22 @@ export default function MessageSettingsDropdown({
     setOpen(false);
   }, [searchMode, resetSearch, setSearchMode, setOpen]);
 
+  //Sletting av en samtale
+  const handleDeleteConversation = useCallback(async () => {
+    if (!currentConversationId || isGroup) return;
+    
+    try {
+      await deleteConversationMutation(currentConversationId);
+      setOpen(false);
+      
+      console.log('✅ Samtale slettet successfully!');
+      
+    } catch (error) {
+      console.error('Kunne ikke slette samtale:', error);
+      // Error håndteres av hook
+    }
+  }, [currentConversationId, isGroup, deleteConversationMutation, setOpen]);
+
   return (
     <div className="relative" ref={containerRef}>
       <ProfileNavButton
@@ -183,6 +203,16 @@ export default function MessageSettingsDropdown({
           >
             Search messages
           </button>
+
+          {!isGroup && currentConversationId && (
+            <button
+              onClick={handleDeleteConversation}
+              disabled={isDeleting}
+              className="block w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 border-b border-gray-200 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete conversation'}
+            </button>
+          )}
           
           {isGroup && (
             <button 
@@ -193,6 +223,8 @@ export default function MessageSettingsDropdown({
               Show participants ({participants.length})
             </button>
           )}
+
+          
         </div>
       )}
       

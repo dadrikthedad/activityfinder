@@ -51,6 +51,7 @@ export default function MessageList({
       loadMore,
       loading,
       hasMore,
+      error
     } = usePaginatedMessages(conversationId, conversationVisible);     // Her her vi kontroll på meldinger som lastes inn og kommer i sanntid over signalr
 
 
@@ -236,7 +237,7 @@ export default function MessageList({
       useEffect(() => {
         const container = scrollRef.current;
         const topEl = topRef.current;
-        if (!container || !topEl || !hasMore || loading || isSearching) return;
+        if (!container || !topEl || !hasMore || loading || isSearching || error) return;
 
         const observer = new IntersectionObserver(
           ([entry]) => {
@@ -256,7 +257,7 @@ export default function MessageList({
 
         observer.observe(topEl);
         return () => observer.disconnect();
-      }, [loadMore, hasMore, loading]);
+      }, [loadMore, hasMore, loading, error]);
 
 
     // Gjør at knappen som viser ny melding hvis man har scrollet opp forsvinner
@@ -360,6 +361,37 @@ export default function MessageList({
       if (rawConversationId === null) {
         return <div className="text-center text-gray-500">No conversation chosen</div>;
       }
+
+      if (error) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+      <div className="text-red-500 text-4xl mb-4">⚠️</div>
+      <div className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-2">
+        Unable to load conversation
+      </div>
+      <div className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-md">
+        {error}
+      </div>
+      <div className="flex gap-3">
+        <button 
+          onClick={() => {
+            // Clear current conversation and go back to notifications
+            useChatStore.getState().setCurrentConversationId(null);
+          }}
+          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+        >
+          Go Back
+        </button>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="px-4 py-2 bg-[#1C6B1C] text-white rounded hover:bg-[#155515] transition-colors"
+        >
+          Refresh Page
+        </button>
+      </div>
+    </div>
+  );
+}
 
   return (
           <div className="flex flex-col h-full">
