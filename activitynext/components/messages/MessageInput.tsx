@@ -94,6 +94,29 @@ export default function MessageInput({
   // Gjenbrukbar emoji handler
   const handleEmojiSelect = (emoji: string) => {
     insertEmoji(emoji, text, setText, inputRef as React.RefObject<HTMLTextAreaElement>);
+    
+    // Oppdater også rawText når emoji blir satt inn
+    const currentRawText = rawText;
+    const textarea = inputRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newRawText = currentRawText.substring(0, start) + emoji + currentRawText.substring(end);
+      setRawText(newRawText);
+      
+      // Oppdater draft også
+      if (conversationId) {
+        saveDraftFor(conversationId, newRawText);
+      }
+    } else {
+      // Fallback hvis vi ikke har cursor position
+      const newRawText = currentRawText + emoji;
+      setRawText(newRawText);
+      
+      if (conversationId) {
+        saveDraftFor(conversationId, newRawText);
+      }
+    }
   };
 
    // Håndter tekst-endringer med emoji-konvertering
