@@ -343,7 +343,7 @@ public class GroupConversationController : BaseController
             }
 
             // Lag systemmelding (inkluderer automatisk SignalR)
-            await notifSvc.CreateSystemMessageAsync(conversationId, systemMessageText);
+            await notifSvc.CreateSystemMessageAsync(conversationId, systemMessageText, excludeUserIds: invitedUserIds);
         }
 
         // 1️⃣ Opprett GroupEvent for invitasjoner (til godkjente medlemmer)

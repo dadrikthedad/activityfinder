@@ -18,7 +18,7 @@ public class MessageNotificationService
         _hubContext = hubContext;
     }
     
-    public async Task<Message> CreateSystemMessageAsync(int conversationId, string messageText)
+    public async Task<Message> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
     {
         var systemMessage = new Message
         {
@@ -62,7 +62,9 @@ public class MessageNotificationService
                 Reactions = new List<ReactionDTO>()
             };
 
-            var participantIds = conversation.Participants.Select(p => p.UserId.ToString());
+            var participantIds = conversation.Participants
+                .Where(p => excludeUserIds == null || !excludeUserIds.Contains(p.UserId))
+                .Select(p => p.UserId.ToString());
             
             // Send til alle deltakere
             await _hubContext.Clients.Users(participantIds)
