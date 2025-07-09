@@ -20,6 +20,7 @@ import { MessageDTO } from "@/types/MessageDTO";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useDeleteMessage } from "@/hooks/messages/useSoftDelete";
 import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
+import ProfileNavButton from "../settings/ProfileNavButton";
 
 
 
@@ -372,6 +373,17 @@ export default function MessageList({
 
   return (
           <div className="flex flex-col h-full">
+
+            {conversationVisible && (
+              <ProfileNavButton
+                onClick={() => useChatStore.getState().setCurrentConversationId(null)}
+                text="←"
+                variant="smallx"
+                className="absolute bg-[#1C6B1C] text-white hover:bg-green-700 w-8 h-8 flex items-center justify-center rounded-full z-10"
+                aria-label="Back"
+              />
+            )}
+
             {isSearching && (
               <div className="flex items-center gap-2 p-2">
                 <input

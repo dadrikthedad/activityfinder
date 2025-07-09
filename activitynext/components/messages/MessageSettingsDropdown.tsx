@@ -12,6 +12,9 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import ParticipantsList from "./ParticipantsListProps";
 import { calculatePopoverPosition } from "../common/PopoverPositioning";
 import { useDeleteConversation } from "@/hooks/messages/useDeleteConversation";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useAuth } from "@/context/AuthContext";
+
 
 interface MessageSettingsDropdownProps {
   open: boolean;
@@ -44,11 +47,11 @@ export default function MessageSettingsDropdown({
   const { resetSearch } = useSearchMessages();
   const [showParticipants, setShowParticipants] = useState(false);
   
-  // ✅ Follow same pattern as other overlay components
+  // Follow same pattern as other overlay components
   const settingsOverlay = useOverlay();
   const participantsOverlay = useOverlay();
   
-  // 🎯 Hent conversation data fra store
+  // Hent conversation data fra store
   const currentConversationId = useChatStore((s) => s.currentConversationId);
   const currentConversation = useChatStore((s) => 
     s.conversations.find((c) => c.id === currentConversationId)
@@ -56,10 +59,15 @@ export default function MessageSettingsDropdown({
   const participants = currentConversation?.participants || [];
   const isGroup = currentConversation?.isGroup || false;
 
+  
+
   // Sletting av en samtale
   const { deleteConversationMutation, isDeleting } = useDeleteConversation();
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
-  // ✅ Sync settings dropdown state with overlay (conditional logic inside)
+  const { userId: currentUserId } = useAuth();
+
+  // Sync settings dropdown state with overlay (conditional logic inside)
   useEffect(() => {
     if (!useOverlaySystem) {
       // When not using overlay system, register only when opening
@@ -78,7 +86,7 @@ export default function MessageSettingsDropdown({
   }, [open, settingsOverlay, useOverlaySystem]);
   
 
-  // ✅ Sync participants list state with overlay
+  // Sync participants list state with overlay
   useEffect(() => {
     if (showParticipants && !participantsOverlay.isOpen) {
       participantsOverlay.open();
@@ -87,7 +95,7 @@ export default function MessageSettingsDropdown({
     }
   }, [showParticipants, participantsOverlay]);
 
-  // ✅ Auto-close settings dropdown when overlay closes
+  // Auto-close settings dropdown when overlay closes
   useOverlayAutoClose(() => {
     if (useOverlaySystem) {
       setOpen(false);
@@ -100,7 +108,7 @@ export default function MessageSettingsDropdown({
     }
   }, settingsOverlay.level ?? undefined);
 
-  // ✅ Auto-close participants when its overlay closes
+  // Auto-close participants when its overlay closes
   useOverlayAutoClose(() => {
     setShowParticipants(false);
   }, participantsOverlay.level ?? undefined);
@@ -116,7 +124,7 @@ export default function MessageSettingsDropdown({
     setOpen(true); // Åpne settings dropdown igjen
   }, [setOpen]);
 
-  // ✅ Håndter klikk på deltaker - IKKE send gruppedata for enkeltbrukere
+  // Håndter klikk på deltaker - IKKE send gruppedata for enkeltbrukere
   const handleParticipantClick = useCallback((participant: UserSummaryDTO, event: React.MouseEvent) => {
     event.stopPropagation();
     
@@ -126,7 +134,7 @@ export default function MessageSettingsDropdown({
     onShowUserPopover?.(participant, pos);
   }, [onShowUserPopover]);
 
-  // ✅ Håndter klikk på gruppe-header
+  // Håndter klikk på gruppe-header
   const handleGroupHeaderClick = useCallback((event: React.MouseEvent) => {
     if (!isGroup || !currentConversation || !currentConversationId) return;
     event.stopPropagation();
@@ -165,19 +173,53 @@ export default function MessageSettingsDropdown({
   const handleDeleteConversation = useCallback(async () => {
     if (!currentConversationId || isGroup) return;
     
+    const otherParticipant = participants.find(p => p.id !== currentUserId);
+    const conversationName = otherParticipant?.fullName || "this conversation";
+    const isPending = currentConversation?.isPendingApproval;
+    
+    // ✅ Different messages for pending vs regular conversations
+    const confirmed = await confirm({
+      title: isPending ? "Remove Pending Request" : "Delete Conversation",
+      message: isPending ? (
+        <div className="space-y-2">
+          <p>Are you sure you want to remove the pending conversation request with <strong>{conversationName}</strong>?</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            You will no longer see this conversation, but you will receive a notification if the receiver accepts your request.  
+            You can restore the conversation later via <strong>TODO</strong>.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p>Are you sure you want to delete the conversation with <strong>{conversationName}</strong>?  
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            You will no longer be able to view, send, or receive messages in this conversation.
+            You can restore this conversation later via <strong>TODO</strong>.
+          </p>
+        </div>
+      )
+    });
+    
+    // ✅ Only proceed if user confirmed
+    if (!confirmed) return;
+    
     try {
       await deleteConversationMutation(currentConversationId);
       setOpen(false);
       
-      console.log('✅ Samtale slettet successfully!');
+      console.log(isPending ? '✅ Pending request removed successfully!' : '✅ Samtale slettet successfully!');
       
     } catch (error) {
-      console.error('Kunne ikke slette samtale:', error);
+      console.error(isPending ? 'Kunne ikke fjerne pending request:' : 'Kunne ikke slette samtale:', error);
       // Error håndteres av hook
     }
-  }, [currentConversationId, isGroup, deleteConversationMutation, setOpen]);
+  }, [currentConversationId, isGroup, deleteConversationMutation, setOpen, confirm, participants, currentUserId, currentConversation?.isPendingApproval]);
 
   return (
+    <>
+      {/* ✅ NEW: Render confirm dialog */}
+      <ConfirmDialog />
+    
     <div className="relative" ref={containerRef}>
       <ProfileNavButton
         variant="smallx"
@@ -285,5 +327,6 @@ export default function MessageSettingsDropdown({
         </div>
       )}
     </div>
+    </>
   );
 }
