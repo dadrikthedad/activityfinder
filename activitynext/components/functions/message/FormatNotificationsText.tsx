@@ -39,8 +39,17 @@ export function formatNotificationText(n: MessageNotificationDTO): JSX.Element {
       case 2:
         return plainText("message request (declined)");
       case "NewMessage":
+      case "NewMessage":
       case 1:
-        return plainText("sent message (conversation declined)");
+        // Sjekk om det er en gruppesamtale
+        if (n.groupName) {
+          return (
+            <span>
+              You have left <HighlightedText>{n.groupName}</HighlightedText>
+            </span>
+          );
+        }
+        return plainText("message request (declined)");
       default:
         return plainText("notification (conversation declined)");
     }
