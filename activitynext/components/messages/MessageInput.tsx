@@ -31,7 +31,6 @@ interface MessageInputProps {
       conversationId?: number;
     }
   ) => void;
-  onLeaveGroup: (conversationId: number) => Promise<void>;
   userPopoverRef?: React.RefObject<HTMLDivElement | null>;
   replyingTo?: MessageDTO | null;
   onClearReply?: () => void;
@@ -45,7 +44,6 @@ export default function MessageInput({
   onMessageSent,
   atBottom,
   onShowUserPopover,
-  onLeaveGroup,
   userPopoverRef,
   replyingTo,
   onClearReply,
@@ -270,7 +268,6 @@ export default function MessageInput({
           showEmoji={!isBlocked}
           showSettings={!isBlocked}
           onShowUserPopover={onShowUserPopover}
-          onLeaveGroup={onLeaveGroup}
           userPopoverRef={userPopoverRef}
         />
        )}

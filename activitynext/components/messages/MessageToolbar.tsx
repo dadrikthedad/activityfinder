@@ -24,7 +24,6 @@ interface MessageToolbarProps {
       conversationId?: number;
     }
   ) => void;
-  onLeaveGroup?: (conversationId: number) => Promise<void>;
   userPopoverRef?: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -38,7 +37,6 @@ export default function MessageToolbar({
   showEmoji = true,
   showSettings = true,
   onShowUserPopover,
-  onLeaveGroup,
 }: MessageToolbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -51,7 +49,6 @@ export default function MessageToolbar({
             open={settingsOpen}
             setOpen={setSettingsOpen}
             onShowUserPopover={onShowUserPopover}
-            onLeaveGroup={onLeaveGroup}
             useOverlaySystem={true}
           />
         )}

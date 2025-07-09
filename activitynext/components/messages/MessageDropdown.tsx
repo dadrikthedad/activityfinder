@@ -153,15 +153,6 @@ export default function MessageDropdown({
     setNewMessageInitialReceiver(undefined);
   }, []);
 
-  // Handle leave group
-  const handleLeaveGroup = async (conversationId: number) => {
-    try {
-      alert(`Leave group functionality will be implemented soon!\nConversation ID: ${conversationId}`);
-    } catch (error) {
-      console.error("❌ OVERLAY Failed to leave group:", error);
-    }
-  };
-
   const [replyingTo, setReplyingTo] = useState<MessageDTO | null>(null);
 
   const handleReply = (message: MessageDTO) => {
@@ -484,7 +475,6 @@ export default function MessageDropdown({
                   }}
                   atBottom={atBottom}
                   onShowUserPopover={showUserPopover}
-                  onLeaveGroup={handleLeaveGroup}
                   replyingTo={replyingTo}
                   onClearReply={() => setReplyingTo(null)}
                   isDisabled={hasConversationError} // 🆕 Disable for any conversation error

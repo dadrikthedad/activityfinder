@@ -30,7 +30,6 @@ interface MessageSettingsDropdownProps {
       conversationId?: number;
     }
   ) => void;
-  onLeaveGroup?: (conversationId: number) => Promise<void>;
   useOverlaySystem?: boolean; // ✅ NEW: Support for nested usage
 }
 
@@ -38,7 +37,6 @@ export default function MessageSettingsDropdown({
   open, 
   setOpen, 
   onShowUserPopover,
-  onLeaveGroup,
   useOverlaySystem = true // ✅ Default to true for backwards compatibility
 }: MessageSettingsDropdownProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -150,13 +148,12 @@ export default function MessageSettingsDropdown({
     const groupData = {
       isGroup: true,
       participants: participants,
-      onLeaveGroup: () => onLeaveGroup?.(currentConversationId),
       isPendingRequest: false,
       conversationId: currentConversationId
     };
     
     onShowUserPopover?.(groupUser, pos, groupData);
-  }, [isGroup, currentConversation, currentConversationId, participants, onLeaveGroup, onShowUserPopover]);
+  }, [isGroup, currentConversation, currentConversationId, participants, onShowUserPopover]);
 
   const handleSearchToggle = useCallback(() => {
     if (searchMode) {
