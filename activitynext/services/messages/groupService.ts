@@ -46,3 +46,14 @@ export async function updateGroupName(
     method: 'PUT',
   });
 }
+
+// Sletter en GroupRequest for å kunne bli invitert igjen
+export async function deleteGroupRequest(conversationId: number): Promise<{ message: string } | null> {
+  const url = `${API_BASE_URL}/api/groupconversation/group-request/${conversationId}`;
+ 
+  console.log("🗑️ Sletter GroupRequest:", url, { conversationId });
+ 
+  return await fetchWithAuth<{ message: string }>(url, {
+    method: 'DELETE',
+  });
+}

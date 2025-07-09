@@ -1,14 +1,17 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { NotificationType } from "@/types/MessageNotificationDTO";
 import { useGetDeletedConversations } from "@/hooks/messages/useGetDeletedConversations";
 import { useGetRejectedConversations } from "@/hooks/messages/useGetRejectedConversations";
 import { useRestoreConversation } from "@/hooks/messages/useRestoreConversation";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
+import { useDeleteGroupRequest } from "@/hooks/messages/useDeleteGroupRequest";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
 export default function ChatPage() {
+  const [deletedGroupRequestMessage, setDeletedGroupRequestMessage] = useState<string | null>(null);
+  
   const { 
     deletedConversations, 
     isLoading: deletedLoading, 
@@ -25,6 +28,7 @@ export default function ChatPage() {
   
   const { restoreConversationMutation, isRestoring } = useRestoreConversation();
   const { approve, loading: isApproving } = useApproveMessageRequest();
+  const { deleteRequest, isLoading: isDeletingGroupRequest, error: deleteError } = useDeleteGroupRequest();
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -56,6 +60,24 @@ export default function ChatPage() {
       console.log('✅ Samtale godkjent!');
     } catch (error) {
       console.error('❌ Kunne ikke godkjenne samtale:', error);
+    }
+  };
+
+  const handleDeleteGroupRequest = async (conversationId: number) => {
+    try {
+      const result = await deleteRequest(conversationId);
+      await refetchRejected();
+      
+      // Vis backend-meldingen
+      if (result?.message) {
+        setDeletedGroupRequestMessage(result.message);
+        // Fjern meldingen etter 5 sekunder
+        setTimeout(() => setDeletedGroupRequestMessage(null), 5000);
+      }
+      
+      console.log('✅ GroupRequest slettet:', result?.message);
+    } catch (error) {
+      console.error('❌ Kunne ikke slette GroupRequest:', error);
     }
   };
 
@@ -146,6 +168,18 @@ export default function ChatPage() {
           ❌ Avslåtte Samtaler ({rejectedConversations.length})
         </h2>
         
+        {/* Success message for deleted group request */}
+        {deletedGroupRequestMessage && (
+          <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-green-800 dark:text-green-200 font-medium">
+                {deletedGroupRequestMessage}
+              </span>
+            </div>
+          </div>
+        )}
+        
         {rejectedLoading && (
           <div className="text-gray-600 dark:text-gray-400">Laster avslåtte samtaler...</div>
         )}
@@ -153,6 +187,12 @@ export default function ChatPage() {
         {rejectedError && (
           <div className="text-red-600 dark:text-red-400 mb-4">
             Feil ved lasting: {rejectedError}
+          </div>
+        )}
+
+        {deleteError && (
+          <div className="text-red-600 dark:text-red-400 mb-4">
+            Feil ved sletting av GroupRequest: {deleteError}
           </div>
         )}
         
@@ -165,6 +205,8 @@ export default function ChatPage() {
         <div className="space-y-3">
           {rejectedConversations.map((conversation) => {
             const otherParticipant = getOtherParticipant(conversation.participants);
+            const isGroup = conversation.isGroup;
+            
             return (
               <div
                 key={conversation.id}
@@ -172,13 +214,24 @@ export default function ChatPage() {
               >
                 <div className="flex items-center gap-3">
                   <img
-                    src={otherParticipant?.profileImageUrl || "/default-avatar.png"}
-                    alt={otherParticipant?.fullName || "Unknown"}
+                    src={
+                      isGroup 
+                        ? conversation.groupImageUrl || "/default-group-avatar.png"
+                        : otherParticipant?.profileImageUrl || "/default-avatar.png"
+                    }
+                    alt={
+                      isGroup 
+                        ? conversation.groupName || "Group"
+                        : otherParticipant?.fullName || "Unknown"
+                    }
                     className="w-12 h-12 rounded-full object-cover"
                   />
                   <div>
                     <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {otherParticipant?.fullName || "Unknown User"}
+                      {isGroup 
+                        ? conversation.groupName || "Unnamed Group"
+                        : otherParticipant?.fullName || "Unknown User"
+                      }
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       {conversation.isGroup ? 'Gruppe' : '1-1'} • ID: {conversation.id}
@@ -186,13 +239,25 @@ export default function ChatPage() {
                   </div>
                 </div>
                 
-                <button
-                  onClick={() => handleApprove(conversation.id)}
-                  disabled={isApproving}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-                >
-                  {isApproving ? 'Godkjenner...' : 'Godkjenn'}
-                </button>
+                <div className="flex gap-2">
+                  {isGroup ? (
+                    <button
+                      onClick={() => handleDeleteGroupRequest(conversation.id)}
+                      disabled={isDeletingGroupRequest}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+                    >
+                      {isDeletingGroupRequest ? 'Sletter...' : 'Slett Request'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleApprove(conversation.id)}
+                      disabled={isApproving}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+                    >
+                      {isApproving ? 'Godkjenner...' : 'Godkjenn'}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

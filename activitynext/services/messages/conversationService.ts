@@ -87,9 +87,5 @@ export async function getDeletedConversations(): Promise<ConversationDTO[] | nul
   console.log("🗑️ Henter slettede samtaler:", url);
   return await fetchWithAuth<ConversationDTO[]>(url);
 }
-
-
-
-
   
 
