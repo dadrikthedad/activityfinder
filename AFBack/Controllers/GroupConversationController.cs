@@ -820,5 +820,65 @@ public class GroupConversationController : BaseController
     
         return Ok(new { success = true });
     }
+    
+    [HttpDelete("group-request/{conversationId}")]
+    public async Task<IActionResult> DeleteGroupRequestAsync(int conversationId)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized();
+        
+        try
+        {
+            // 1️⃣ Finn GroupRequest først
+            var groupRequest = await _context.GroupRequests
+                .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && 
+                                           gr.ReceiverId == userId.Value);
+
+            if (groupRequest == null)
+                return NotFound(new { message = "Ingen grupperequest funnet." });
+
+            // 2️⃣ Sjekk spesielle statuser tidlig
+            if (groupRequest.Status == GroupRequestStatus.Pending)
+                return BadRequest(new { message = "Kan ikke slette en pending request. Avslå den først." });
+
+            if (groupRequest.Status == GroupRequestStatus.Creator)
+                return BadRequest(new { message = "Kan ikke slette creator request." });
+
+            // 3️⃣ Sjekk conversation-status
+            var conversation = await _context.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
+
+            bool conversationExists = conversation != null && !conversation.IsDisbanded;
+
+            // 4️⃣ Hvis gruppen fortsatt eksisterer, valider medlemskap
+            if (conversationExists)
+            {
+                var isStillMember = await _context.ConversationParticipants
+                    .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId.Value);
+
+                if (isStillMember)
+                    return BadRequest(new { message = "Du må først forlate gruppen." });
+            }
+
+            // 5️⃣ Slett requesten
+            _context.GroupRequests.Remove(groupRequest);
+
+            await _context.SaveChangesAsync();
+
+            // 7️⃣ Returner forskjellig melding basert på gruppe-status
+            if (conversationExists)
+            {
+                return Ok(new { message = "Grouprequest deleted. You can now be invited again." });
+            }
+            else
+            {
+                return Ok(new { message = "Grouprequest deleted. The group no longer exists." });
+            }
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
         
 }
