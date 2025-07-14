@@ -18,7 +18,7 @@ public class ConversationService
         }
         // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
-        int userId, bool includeRejected = false)
+        int userId, bool includeRejected = false, int? limit = null)
         {
             // 🚀 RASK: Hent alle samtaler brukeren kan sende til via CanSend
             var allowedConversationIds = new HashSet<int>(
@@ -47,11 +47,20 @@ public class ConversationService
                         .Any(gr => gr.ConversationId == c.Id && gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Rejected))
                 );
             }
+            
+            IQueryable<Conversation> finalQuery = query
+                .AsNoTracking()
+                .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue);
+
+            // Legg til limit hvis spesifisert
+            if (limit.HasValue)
+            {
+                finalQuery = finalQuery.Take(limit.Value);
+            }
+            
 
             // 🎯 OPTIMALISERT: Hent GroupRequests kun for samtaler vi faktisk returnerer
-            var conversations = await query
-                .AsNoTracking()
-                .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
+            var conversations = await finalQuery
                 .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
                 .ThenInclude(u => u.Profile)
