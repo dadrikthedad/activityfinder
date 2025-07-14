@@ -207,16 +207,29 @@ namespace AFBack.Services
         private async Task<List<User>> GetUserFriendsWithContext(int userId, ApplicationDbContext context)
         {
             _logger.LogDebug("🔍 Getting friends for user {UserId} (separate context)", userId);
-
-            var friends = await context.Friends
+    
+            // Hent venner hvor brukeren er UserId (User → Friend)
+            var friendsAsUser = context.Friends
                 .Where(f => f.UserId == userId)
                 .Include(f => f.FriendUser)
                 .ThenInclude(u => u.Profile)
-                .Select(f => f.FriendUser)
+                .Select(f => f.FriendUser);
+
+            // Hent venner hvor brukeren er FriendId (Friend → User)  
+            var friendsAsFriend = context.Friends
+                .Where(f => f.FriendId == userId)
+                .Include(f => f.User)
+                .ThenInclude(u => u.Profile)
+                .Select(f => f.User);
+
+            // Kombiner begge lister og fjern duplikater
+            var allFriends = await friendsAsUser
+                .Union(friendsAsFriend)
+                .Distinct()
                 .ToListAsync();
 
-            _logger.LogDebug("✅ Found {FriendCount} friends", friends.Count);
-            return friends;
+            _logger.LogDebug("✅ Found {FriendCount} friends", allFriends.Count);
+            return allFriends;
         }
 
         private async Task<List<User>> GetBlockedUsersWithContext(int userId, ApplicationDbContext context)
