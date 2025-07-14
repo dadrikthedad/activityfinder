@@ -10,6 +10,7 @@ import { Toaster } from "sonner";
 import { OverlayLayerProvider } from "@/context/OverlayProvider";
 import UserActionPopoverPortal from "@/components/common/UserActionPopover/UserActionPopoverPortal";
 import GroupSettingsPortal from "@/components/groupmessages/GroupSettingsPortal";
+import { AppInitializer } from "@/bootstrap/AppInitializer";
 
 
 
@@ -40,18 +41,19 @@ export default function RootLayout({
         suppressHydrationWarning={true}>
           <OverlayLayerProvider>
              <AuthProvider>
-              <ModalProvider>
-                <CacheCleanup>
-              
-                <NotificationHubClient /> 
-                  <ChatHubClient />
-                    <Navbar /> {/* 👈 LEGG TIL DENNE */}
-                      <UserActionPopoverPortal />
-                      <GroupSettingsPortal />
-                      <main>{children}</main>
-                      <Toaster position="bottom-right" richColors />
-                </CacheCleanup>
-              </ModalProvider>
+              <AppInitializer />
+                <ModalProvider>
+                  <CacheCleanup>
+                
+                  <NotificationHubClient /> 
+                    <ChatHubClient />
+                      <Navbar /> {/* 👈 LEGG TIL DENNE */}
+                        <UserActionPopoverPortal />
+                        <GroupSettingsPortal />
+                        <main>{children}</main>
+                        <Toaster position="bottom-right" richColors />
+                  </CacheCleanup>
+                </ModalProvider>
             </AuthProvider>
           </OverlayLayerProvider>
       </body>
