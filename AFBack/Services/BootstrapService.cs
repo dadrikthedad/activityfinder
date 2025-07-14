@@ -12,27 +12,47 @@ namespace AFBack.Services
         private readonly ApplicationDbContext _context;
         private readonly ILogger<BootstrapService> _logger;
         private readonly ConversationService _conversationService;
+        private readonly IServiceProvider _serviceProvider;
 
-        public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger, ConversationService conversationService)
+        public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
+            ConversationService conversationService, IServiceProvider serviceProvider)
         {
             _context = context;
             _logger = logger;
             _conversationService = conversationService;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<CriticalBootstrapResponseDTO> GetCriticalBootstrapAsync(int userId)
         {
             try
             {
-                // Parallelle kall for bedre performance
-                var userTask = GetCurrentUserAsync(userId);
-                var conversationsTask = GetRecentConversationsForBootstrapAsync(userId, 10);
+                _logger.LogInformation("🚀 Starting parallel critical bootstrap for userId: {UserId}", userId);
 
+                // ✅ PARALLEL: Separate scopes for hver operasjon
+                var userTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    _logger.LogDebug("📋 Starting user lookup with separate context");
+                    return await GetCurrentUserWithContext(userId, context);
+                });
+
+                var conversationsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var conversationService = scope.ServiceProvider.GetRequiredService<ConversationService>();
+                    _logger.LogDebug("📋 Starting conversations lookup with separate service");
+                    return await GetConversationsWithService(userId, 10, conversationService);
+                });
+
+                _logger.LogInformation("📋 Waiting for parallel tasks to complete...");
                 await Task.WhenAll(userTask, conversationsTask);
 
                 var user = await userTask;
                 var conversations = await conversationsTask;
 
+                _logger.LogInformation("📋 Creating response...");
                 var response = new CriticalBootstrapResponseDTO
                 {
                     User = user.ToUserSummaryDTO(),
@@ -40,11 +60,12 @@ namespace AFBack.Services
                     SyncToken = GenerateSimpleSyncToken(userId, user.IsOnline)
                 };
 
+                _logger.LogInformation("✅ Parallel critical bootstrap completed for user: {UserName}", user.FullName);
                 return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to get critical bootstrap for user {UserId}", userId);
+                _logger.LogError(ex, "❌ Failed to get critical bootstrap for user {UserId}", userId);
                 throw;
             }
         }
@@ -53,56 +74,98 @@ namespace AFBack.Services
         {
             try
             {
-                // Hent kun brukerinnstillinger
-                var settingsTask = GetUserSettingsAsync(userId);
-                var friendsTask = GetUserFriendsAsync(userId);
-                var blockedUsersTask = GetBlockedUsersAsync(userId);
+                _logger.LogInformation("📚 Starting parallel secondary bootstrap for userId: {UserId}", userId);
 
+                // ✅ PARALLEL: Separate scopes for hver operasjon
+                var settingsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    _logger.LogDebug("📋 Getting settings with separate context");
+                    return await GetUserSettingsWithContext(userId, context);
+                });
+
+                var friendsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    _logger.LogDebug("📋 Getting friends with separate context");
+                    return await GetUserFriendsWithContext(userId, context);
+                });
+
+                var blockedUsersTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    _logger.LogDebug("📋 Getting blocked users with separate context");
+                    return await GetBlockedUsersWithContext(userId, context);
+                });
+
+                _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
                 await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask);
 
+                var settings = await settingsTask;
+                var friends = await friendsTask;
+                var blockedUsers = await blockedUsersTask;
+
+                _logger.LogInformation("📋 Creating secondary response...");
                 var response = new SecondaryBootstrapResponseDTO
                 {
-                    Settings = (await settingsTask).ToUserSettingsDTO(),
-                    Friends = (await friendsTask).ToUserSummaryDTOsSafe(),
-                    BlockedUsers = (await blockedUsersTask).ToUserSummaryDTOsSafe()
+                    Settings = settings.ToUserSettingsDTO(),
+                    Friends = friends.ToUserSummaryDTOsSafe(),
+                    BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe()
                 };
 
+                _logger.LogInformation(
+                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}",
+                    friends.Count, blockedUsers.Count);
                 return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to get secondary bootstrap for user {UserId}", userId);
+                _logger.LogError(ex, "❌ Failed to get secondary bootstrap for user {UserId}", userId);
                 throw;
             }
         }
-        
-        private async Task<User> GetCurrentUserAsync(int userId)
+
+        // ✅ SEPARATE METHODS MED EGNE CONTEXTS
+
+        private async Task<User> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
         {
-            var user = await _context.Users
+            _logger.LogDebug("🔍 Looking up user with ID: {UserId} (separate context)", userId);
+
+            var user = await context.Users
                 .Include(u => u.Profile)
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
             {
+                _logger.LogWarning("⚠️ User with ID {UserId} not found", userId);
                 throw new KeyNotFoundException($"User with ID {userId} not found");
             }
 
+            _logger.LogDebug("✅ User found: {UserName}", user.FullName);
+
             // Oppdater LastSeen når brukeren starter appen
             user.LastSeen = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             return user;
         }
-        
-        private async Task<List<ConversationDTO>> GetRecentConversationsForBootstrapAsync(int userId, int limit)
+
+        private async Task<List<ConversationDTO>> GetConversationsWithService(int userId, int limit,
+            ConversationService conversationService)
         {
-            // Bruk din eksisterende ConversationService!
-            var conversationResults = await _conversationService.GetUserConversationsSortedAsync(
-                userId, 
-                includeRejected: false, 
+            _logger.LogDebug("🔍 Getting {Limit} recent conversations for user {UserId} (separate service)", limit,
+                userId);
+
+            var conversationResults = await conversationService.GetUserConversationsSortedAsync(
+                userId,
+                includeRejected: false,
                 limit: limit);
 
-            // Konverter til ConversationDTO (limit allerede håndtert i database)
+            _logger.LogDebug("✅ Found {ConversationCount} conversations", conversationResults.Count);
+
             return conversationResults
                 .Select(c => new ConversationDTO
                 {
@@ -123,50 +186,61 @@ namespace AFBack.Services
                         ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
                         GroupRequestStatus = !c.Conversation.IsGroup ? null :
                             p.User.Id == c.Conversation.CreatorId ? GroupRequestStatus.Creator :
-                            c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
+                            c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status :
                             null
                     }).ToList()
                 })
                 .ToList();
         }
 
-        private async Task<UserSettings?> GetUserSettingsAsync(int userId)
+        private async Task<UserSettings?> GetUserSettingsWithContext(int userId, ApplicationDbContext context)
         {
-            return await _context.UserSettings
+            _logger.LogDebug("🔍 Getting settings for user {UserId} (separate context)", userId);
+
+            var settings = await context.UserSettings
                 .FirstOrDefaultAsync(s => s.UserId == userId);
+
+            _logger.LogDebug("✅ Settings found: {HasSettings}", settings != null);
+            return settings;
         }
-        
-        private async Task<List<User>> GetUserFriendsAsync(int userId)
+
+        private async Task<List<User>> GetUserFriendsWithContext(int userId, ApplicationDbContext context)
         {
-            return await _context.Friends
+            _logger.LogDebug("🔍 Getting friends for user {UserId} (separate context)", userId);
+
+            var friends = await context.Friends
                 .Where(f => f.UserId == userId)
                 .Include(f => f.FriendUser)
                 .ThenInclude(u => u.Profile)
                 .Select(f => f.FriendUser)
                 .ToListAsync();
+
+            _logger.LogDebug("✅ Found {FriendCount} friends", friends.Count);
+            return friends;
         }
 
-        private async Task<List<User>> GetBlockedUsersAsync(int userId)
+        private async Task<List<User>> GetBlockedUsersWithContext(int userId, ApplicationDbContext context)
         {
-            // Hent både brukere du har blokkert OG brukere som har blokkert deg
-            var blockedByUser = _context.UserBlock
+            _logger.LogDebug("🔍 Getting blocked users for user {UserId} (separate context)", userId);
+
+            var blockedByUser = context.UserBlock
                 .Where(ub => ub.BlockerId == userId)
                 .Include(ub => ub.BlockedUser)
                 .ThenInclude(u => u.Profile)
                 .Select(ub => ub.BlockedUser);
 
-            var blockedUser = _context.UserBlock
+            var blockedUser = context.UserBlock
                 .Where(ub => ub.BlockedUserId == userId)
                 .Include(ub => ub.Blocker)
                 .ThenInclude(u => u.Profile)
                 .Select(ub => ub.Blocker);
 
-            // Kombiner begge lister og fjern duplikater
             var allBlockedUsers = await blockedByUser
                 .Union(blockedUser)
                 .Distinct()
                 .ToListAsync();
 
+            _logger.LogDebug("✅ Found {BlockedCount} blocked users", allBlockedUsers.Count);
             return allBlockedUsers;
         }
 
@@ -179,7 +253,7 @@ namespace AFBack.Services
                 version = 1,
                 isOnline = isOnline
             };
-            
+
             var json = System.Text.Json.JsonSerializer.Serialize(token);
             return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
         }

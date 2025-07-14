@@ -38,7 +38,11 @@ namespace AFBack.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { error = "Failed to load critical data" });
+                // 👈 ENDRE DENNE - vis faktisk feil
+                return StatusCode(500, new { 
+                    error = ex.Message, 
+                    stackTrace = ex.StackTrace?.Split('\n').Take(5) // First 5 lines
+                });
             }
         }
 
