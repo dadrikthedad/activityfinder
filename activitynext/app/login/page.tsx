@@ -54,11 +54,13 @@ const handleLogin = async (e: React.FormEvent) => { // Håndterer innsending av 
     // Lagrer token i localstorage
     if (data.token) {
       try {
+        console.log("🔑 BOOT: Token mottatt, kaller login()...", data.token.substring(0, 20));
         login(data.token); // f.eks. lagre til localStorage eller context
+        console.log("✅ BOOT: Login() kalt, skal redirecte...");
         return;
       } catch (error) {
-        console.warn("Could not save token in localStorage:", error);
-        setErrorMessage("Could not save login. Try again.");
+        console.warn(" BOOT: Could not save token in localStorage:", error);
+        setErrorMessage(" BOOT: Could not save login. Try again.");
       }
     }
   } catch (error: unknown) {

@@ -1,11 +1,15 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { 
   getCriticalBootstrap, 
   getSecondaryBootstrap,
 } from '@/services/bootstrapService';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
+import { ConversationDTO } from '@/types/ConversationDTO'; // 👈 LEGG TIL
 
 export const useBootstrap = () => {
+  const hasInitialized = useRef(false);
+  const [conversations, setConversations] = useState<ConversationDTO[]>([]);
+
   // Zustand store state
   const {
     // Data
@@ -54,9 +58,11 @@ export const useBootstrap = () => {
       
       if (criticalData) {
         setCriticalData(criticalData);
+        setConversations(criticalData.recentConversations); // 👈 SETT I LOCAL STATE
         
         console.log("✅ Kritisk bootstrap ferdig:", {
           user: criticalData.user.fullName,
+          conversations: criticalData.recentConversations?.length || 0,
         });
         
         return true;
@@ -128,9 +134,23 @@ export const useBootstrap = () => {
   }, [loadSecondaryData]);
 
   // Auto-bootstrap ved mount (kan disable med parameter)
-  useEffect(() => {
-    bootstrap();
-  }, [bootstrap]);
+    useEffect(() => {
+    // 👈 STRICT MODE PROTECTION
+    if (hasInitialized.current) {
+      console.log("✅ BOOT: useBootstrap already initialized, skipping...");
+      return;
+    }
+    hasInitialized.current = true;
+    
+    const shouldBootstrap = !isCriticalCacheValid() || !isSecondaryCacheValid();
+    
+    if (shouldBootstrap) {
+      console.log("🔄 BOOT: Cache expired or missing, starting bootstrap...");
+      bootstrap();
+    } else {
+      console.log("✅ BOOT: Bootstrap cache valid, skipping bootstrap");
+    }
+  }, [isCriticalCacheValid, isSecondaryCacheValid, bootstrap]);
 
   return {
     // Data (direkte fra store)
@@ -139,6 +159,7 @@ export const useBootstrap = () => {
     blockedUsers,
     settings,
     syncToken,
+    conversations, // 👈 CONVERSATIONS FRA STORE
     
     // State
     isBootstrapped,

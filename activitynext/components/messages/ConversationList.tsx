@@ -19,7 +19,7 @@ interface Props {
 
 export default function ConversationList({ selectedId, onSelect, currentUser, conversations }: Props) {
     const { conversations: storeConversations } = useChatStore(); // Her lagrer vi samtaler i store, så vi slipper å loade hver gang
-    const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations MÅ IMPLIMENTERE LOGIKK RUNDT DETTE TODO
+    const { loadMore, loading, hasMore } = usePaginatedConversations(); // Henter samtaler med paginering fra usePaginatedConversations
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     
     const getOtherUser = (conv: ConversationDTO): UserSummaryDTO | undefined => {

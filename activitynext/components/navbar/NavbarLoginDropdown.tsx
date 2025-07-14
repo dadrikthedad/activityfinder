@@ -59,13 +59,19 @@ export default function NavbarLoginDropdown({ onClose }: NavbarLoginDropdownProp
 
       if (data.token) {
         try {
-          // Bestem hvor vi skal redirecte basert på nåværende side
-          const shouldRedirect = pathname === "/login" || pathname === "/signup";
-          const redirectTo = shouldRedirect ? "/" : pathname;
+          console.log("🔑 NAVBAR: Token mottatt, kaller login()...", data.token.substring(0, 20));
           
-          // Kall login med riktig redirect-parameter
-          login(data.token, redirectTo);
-          onClose(); // Lukk dropdown ved vellykket login
+          // 👈 LOGIN MED CURRENT PATH (forblir på samme side)
+          login(data.token, pathname);
+          
+          console.log("✅ NAVBAR: Login() kalt for", pathname);
+          onClose();
+          
+          // 👈 FORCE REFRESH for å trigge AppInitializer
+          setTimeout(() => {
+            window.location.href = pathname; // Gentle refresh til samme side
+          }, 100);
+          
           return;
         } catch (error) {
           console.warn("Could not save token in localStorage:", error);

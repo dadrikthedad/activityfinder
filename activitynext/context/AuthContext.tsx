@@ -14,6 +14,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { indexedDBStorage } from "@/store/indexedNotificationDBStorage";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { useBootstrapStore } from "@/store/useBootstrapStore";
 
 interface AuthContextType {
   isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
@@ -43,24 +44,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
 
   // Login: lagrer token og redirecter
   const login = (token: string, redirectTo = "/") => {
+    console.log("🔑BOOT: AuthContext.login() startet", { token: token.substring(0, 20)});
+    // 👈 OPPDATER STATE FØRST
+    const newUserId = getUserIdFromToken(token);
+    setToken(token);
+    setIsLoggedIn(true);
+    setUserId(newUserId);
+    console.log("✅BOOT: Auth state oppdatert");
+    
     if (typeof window !== "undefined") {
-      const newUserId = getUserIdFromToken(token);
       const previousToken = localStorage.getItem("token");
       const previousUserId = getUserIdFromToken(previousToken);
-  
+
       // 🔐 Fjern gammel samtale-ID hvis bruker har endret seg
       if (newUserId !== previousUserId) {
         localStorage.removeItem("dropdown_convo");
       }
-  
+
       localStorage.setItem("token", token);
       setCookie("token", token);
+      console.log("💾 BOOT: Token lagret i localStorage og cookie");
     }
-  
-    setToken(token);
-    setIsLoggedIn(true);
-    setUserId(getUserIdFromToken(token));
-  
+    console.log("🚀 BOOT: Redirecter til:", redirectTo);
     router.push(redirectTo);
   };
  
@@ -77,6 +82,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
     useChatStore.getState().reset();          // tømmer chat
     useNotificationStore.getState().reset();       // tømmer in-memory  (notifications & friendRequests)
     useMessageNotificationStore.getState().reset(); 
+    useBootstrapStore.getState().reset(); 
 
     /* ---------- Slett IDB-snapshot helt ---------- */
     // 1) Zustand v4+ har .persist.clearStorage()

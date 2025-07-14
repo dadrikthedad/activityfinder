@@ -65,15 +65,6 @@ export function MessageDropdownInitializer() {
       console.log("✅ Pending requests already loaded from IndexedDB:", chatSt.pendingMessageRequests.length);
     }
 
-    // 3) Conversations
-    if (!chatSt.hasLoadedConversations || chatSt.conversations.length === 0) {
-      console.log("💬 Loading conversations...");
-      chatSt.setHasLoadedConversations(true);
-      fetchInitialConversations().catch(console.error);
-    } else {
-      console.log("✅ Conversations already loaded from IndexedDB:", chatSt.conversations.length);
-    }
-
     // 4) Friend Requests
     if (!notifSt.hasLoadedFriendRequests || notifSt.friendRequests.length === 0) {
       console.log("👥 Loading friend requests...");
