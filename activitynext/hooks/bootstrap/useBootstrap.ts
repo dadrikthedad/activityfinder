@@ -1,49 +1,47 @@
-import { useEffect, useCallback, useState, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { 
   getCriticalBootstrap, 
   getSecondaryBootstrap,
 } from '@/services/bootstrapService';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
-import { ConversationDTO } from '@/types/ConversationDTO'; // 👈 LEGG TIL
+import { useChatStore } from '@/store/useChatStore';
+import { useBootstrapDistributor } from './useBootstrapDistributor';
 
 export const useBootstrap = () => {
   const hasInitialized = useRef(false);
-  const [conversations, setConversations] = useState<ConversationDTO[]>([]);
+  const { distributeCriticalData, distributeSecondaryData } = useBootstrapDistributor();
 
-  // Zustand store state
+  // ✅ Bootstrap state fra BootstrapStore
   const {
-    // Data
     user,
     friends,
     blockedUsers,
     settings,
     syncToken,
-    
-    // Loading states
     criticalLoading,
     secondaryLoading,
     isBootstrapped,
-    
-    // Error states
     criticalError,
     secondaryError,
-    
-    // Cache validation
     isCriticalCacheValid,
     isSecondaryCacheValid,
-    
-    // Actions
-    setCriticalData,
     setCriticalLoading,
     setCriticalError,
-    setSecondaryData,
     setSecondaryLoading,
     setSecondaryError,
+    cleanupOldCache,
   } = useBootstrapStore();
 
-  // Hent kritisk data først
+  // ✅ Conversations data fra ChatStore
+  const { conversations } = useChatStore();
+
+  // ✅ Cleanup old cache ved oppstart
+  useEffect(() => {
+    cleanupOldCache();
+  }, [cleanupOldCache]);
+
+  // Load critical data med cache validation
   const loadCriticalData = useCallback(async () => {
-    // Sjekk cache først
     if (isCriticalCacheValid()) {
       console.log("✅ Critical cache er gyldig, hopper over API-kall");
       return true;
@@ -57,14 +55,8 @@ export const useBootstrap = () => {
       const criticalData = await getCriticalBootstrap();
       
       if (criticalData) {
-        setCriticalData(criticalData);
-        setConversations(criticalData.recentConversations); // 👈 SETT I LOCAL STATE
-        
-        console.log("✅ Kritisk bootstrap ferdig:", {
-          user: criticalData.user.fullName,
-          conversations: criticalData.recentConversations?.length || 0,
-        });
-        
+        distributeCriticalData(criticalData);
+        console.log("✅ Kritisk bootstrap ferdig via distributor");
         return true;
       } else {
         throw new Error("Ingen kritisk data mottatt");
@@ -74,11 +66,10 @@ export const useBootstrap = () => {
       setCriticalError(error instanceof Error ? error.message : "Ukjent feil");
       return false;
     }
-  }, [isCriticalCacheValid, setCriticalData, setCriticalLoading, setCriticalError]);
+  }, [isCriticalCacheValid, distributeCriticalData, setCriticalLoading, setCriticalError]);
 
-  // Hent sekundær data i bakgrunnen
+  // Load secondary data med cache validation
   const loadSecondaryData = useCallback(async () => {
-    // Sjekk cache først
     if (isSecondaryCacheValid()) {
       console.log("✅ Secondary cache er gyldig, hopper over API-kall");
       return true;
@@ -92,14 +83,8 @@ export const useBootstrap = () => {
       const secondaryData = await getSecondaryBootstrap();
       
       if (secondaryData) {
-        setSecondaryData(secondaryData);
-        
-        console.log("✅ Sekundær bootstrap ferdig:", {
-          friends: secondaryData.friends.length,
-          blockedUsers: secondaryData.blockedUsers.length,
-          language: secondaryData.settings.language,
-        });
-        
+        distributeSecondaryData(secondaryData);
+        console.log("✅ Sekundær bootstrap ferdig via distributor");
         return true;
       } else {
         throw new Error("Ingen sekundær data mottatt");
@@ -109,57 +94,75 @@ export const useBootstrap = () => {
       setSecondaryError(error instanceof Error ? error.message : "Ukjent feil");
       return false;
     }
-  }, [isSecondaryCacheValid, setSecondaryData, setSecondaryLoading, setSecondaryError]);
+  }, [isSecondaryCacheValid, distributeSecondaryData, setSecondaryLoading, setSecondaryError]);
 
-  // Hovedfunksjon som starter hele bootstrap-prosessen
+  // 🔧 LITT FORBEDRET: Main bootstrap function
   const bootstrap = useCallback(async () => {
     console.log("🔄 Starter full bootstrap...");
     
-    // 1. Hent kritisk data først (blokkerer ikke UI)
+    // Critical data først (blokkerende for app-funksjonalitet)
     const criticalSuccess = await loadCriticalData();
     
     if (criticalSuccess) {
-      // 2. Hent sekundær data i bakgrunnen (ikke-blokkerende)
-      loadSecondaryData(); // Ikke await - kjør i bakgrunnen
+      // Secondary data i bakgrunnen (non-blocking)
+      loadSecondaryData().catch(error => {
+        console.warn("⚠️ Secondary bootstrap failed (non-critical):", error);
+        // Ikke kast error - appen kan fortsatt fungere uten secondary data
+      });
+    } else {
+      console.error("💥 Critical bootstrap failed - appen kan ikke starte riktig");
     }
   }, [loadCriticalData, loadSecondaryData]);
 
-  // Retry-funksjoner
+  // Retry functions
   const retryCritical = useCallback(() => {
+    console.log("🔄 Retrying critical bootstrap...");
     loadCriticalData();
   }, [loadCriticalData]);
 
   const retrySecondary = useCallback(() => {
+    console.log("🔄 Retrying secondary bootstrap...");
     loadSecondaryData();
   }, [loadSecondaryData]);
 
-  // Auto-bootstrap ved mount (kan disable med parameter)
-    useEffect(() => {
-    // 👈 STRICT MODE PROTECTION
+  // 🔧 FORBEDRET: Auto-bootstrap med bedre logikk
+  useEffect(() => {
+    // Strict mode protection
     if (hasInitialized.current) {
-      console.log("✅ BOOT: useBootstrap already initialized, skipping...");
+      console.log("✅ useBootstrap already initialized, skipping...");
       return;
     }
     hasInitialized.current = true;
     
-    const shouldBootstrap = !isCriticalCacheValid() || !isSecondaryCacheValid();
+    const criticalValid = isCriticalCacheValid();
+    const secondaryValid = isSecondaryCacheValid();
     
-    if (shouldBootstrap) {
-      console.log("🔄 BOOT: Cache expired or missing, starting bootstrap...");
+    console.log("🔍 Bootstrap cache status:", { criticalValid, secondaryValid });
+    
+    // 🎯 ENKLERE: Kun bootstrap hvis critical cache er invalid
+    // (secondary kjøres automatisk hvis invalid)
+    if (!criticalValid || !isBootstrapped) {
+      console.log("🔄 Starting bootstrap (critical cache invalid or not bootstrapped)...");
       bootstrap();
     } else {
-      console.log("✅ BOOT: Bootstrap cache valid, skipping bootstrap");
+      console.log("✅ Bootstrap cache valid and app is bootstrapped");
+      
+      // 🔧 BONUS: Kjør kun secondary hvis den trenger oppdatering
+      if (!secondaryValid) {
+        console.log("🔄 Refreshing secondary data in background...");
+        loadSecondaryData();
+      }
     }
-  }, [isCriticalCacheValid, isSecondaryCacheValid, bootstrap]);
+  }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, loadSecondaryData]);
 
   return {
-    // Data (direkte fra store)
-    user,
-    friends,
-    blockedUsers,
-    settings,
-    syncToken,
-    conversations, // 👈 CONVERSATIONS FRA STORE
+    // ✅ Data fra begge stores
+    user,                    // fra BootstrapStore
+    friends,                 // fra BootstrapStore
+    blockedUsers,           // fra BootstrapStore  
+    settings,               // fra BootstrapStore
+    syncToken,              // fra BootstrapStore
+    conversations,          // fra ChatStore
     
     // State
     isBootstrapped,
@@ -175,5 +178,10 @@ export const useBootstrap = () => {
     bootstrap,
     retryCritical,
     retrySecondary,
+    
+    // Cache utilities
+    isCriticalCacheValid,
+    isSecondaryCacheValid,
+    cleanupOldCache,
   };
 };

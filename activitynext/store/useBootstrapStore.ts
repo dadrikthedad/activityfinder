@@ -7,14 +7,16 @@ import { CriticalBootstrapResponseDTO } from "@/types/bootstrap/CriticalBootstra
 import { SecondaryBootstrapResponseDTO } from "@/types/bootstrap/SecondaryBootstrapResponseDTO";
 
 type BootstrapStore = {
-  // Critical data
+  // ✅ Critical data (lagres her)
   user: UserSummaryDTO | null;
   syncToken: string | null;
   
-  // Secondary data
+  // ✅ Secondary data (lagres her)
   friends: UserSummaryDTO[];
   blockedUsers: UserSummaryDTO[];
   settings: UserSettingsDTO | null;
+  
+  // ❌ Conversations/unread IDs flyttet til ChatStore via distributor
   
   // Loading states
   criticalLoading: boolean;
@@ -25,11 +27,11 @@ type BootstrapStore = {
   criticalError: string | null;
   secondaryError: string | null;
   
-  // Cache timestamps
+  // ✅ Cache timestamps (fra eksisterende store)
   criticalCacheTimestamp: number;
   secondaryCacheTimestamp: number;
   
-  // Loading flags
+  // ✅ Loading flags (fra eksisterende store)
   hasLoadedCritical: boolean;
   hasLoadedSecondary: boolean;
   
@@ -40,7 +42,7 @@ type BootstrapStore = {
   setUser: (user: UserSummaryDTO) => void;
   setSyncToken: (token: string) => void;
   
-  // Actions - Secondary data
+  // Actions - Secondary data  
   setSecondaryData: (data: SecondaryBootstrapResponseDTO) => void;
   setSecondaryLoading: (loading: boolean) => void;
   setSecondaryError: (error: string | null) => void;
@@ -48,15 +50,15 @@ type BootstrapStore = {
   setBlockedUsers: (users: UserSummaryDTO[]) => void;
   setSettings: (settings: UserSettingsDTO) => void;
   
-  // Friends management
+  // ✅ Friends management (fra eksisterende store)
   addFriend: (friend: UserSummaryDTO) => void;
   removeFriend: (friendId: number) => void;
   
-  // Blocked users management
+  // ✅ Blocked users management (fra eksisterende store)
   blockUser: (user: UserSummaryDTO) => void;
   unblockUser: (userId: number) => void;
   
-  // Cache management
+  // ✅ Cache management (fra eksisterende store)
   cleanupOldCache: () => void;
   isCriticalCacheValid: () => boolean;
   isSecondaryCacheValid: () => boolean;
@@ -102,7 +104,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
           criticalError: null,
           criticalCacheTimestamp: Date.now(),
           hasLoadedCritical: true,
-          isBootstrapped: true,
         })),
 
       setCriticalLoading: (loading: boolean) =>
@@ -112,7 +113,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
         set(() => ({ 
           criticalError: error, 
           criticalLoading: false,
-          isBootstrapped: false 
         })),
 
       setUser: (user: UserSummaryDTO) =>
@@ -123,7 +123,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
 
       // --- Secondary data actions ---
       setSecondaryData: (data: SecondaryBootstrapResponseDTO) =>
-        set(() => ({
+        set((state) => ({
           friends: data.friends,
           blockedUsers: data.blockedUsers,
           settings: data.settings,
@@ -131,6 +131,8 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryError: null,
           secondaryCacheTimestamp: Date.now(),
           hasLoadedSecondary: true,
+          // ✅ isBootstrapped settes kun når BÅDE critical og secondary er loaded
+          isBootstrapped: state.hasLoadedCritical && true,
         })),
 
       setSecondaryLoading: (loading: boolean) =>
@@ -151,7 +153,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
       setSettings: (settings: UserSettingsDTO) =>
         set(() => ({ settings })),
 
-      // --- Friends management ---
+      // --- ✅ Friends management (fra eksisterende store) ---
       addFriend: (friend: UserSummaryDTO) =>
         set((state) => {
           const exists = state.friends.some(f => f.id === friend.id);
@@ -169,7 +171,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryCacheTimestamp: Date.now(),
         })),
 
-      // --- Blocked users management ---
+      // --- ✅ Blocked users management (fra eksisterende store) ---
       blockUser: (user: UserSummaryDTO) =>
         set((state) => {
           const exists = state.blockedUsers.some(u => u.id === user.id);
@@ -189,7 +191,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryCacheTimestamp: Date.now(),
         })),
 
-      // --- Cache management ---
+      // --- ✅ Cache management (fra eksisterende store) ---
       cleanupOldCache: () =>
         set((state) => {
           console.log("🧹 Cleaning up bootstrap cache at", new Date().toLocaleTimeString());
@@ -234,6 +236,10 @@ export const useBootstrapStore = create<BootstrapStore>()(
             updates.settings = null;
             updates.secondaryCacheTimestamp = 0;
             updates.hasLoadedSecondary = false;
+            // Kun reset isBootstrapped hvis critical også resettes
+            if (!resetCritical) {
+              updates.isBootstrapped = false;
+            }
           }
           
           return updates;
@@ -297,14 +303,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
       storage: createJSONStorage(() => indexedDBStorage),
 
       /**
-       * partialize: Lagre alt som er nyttig for caching
-       * - user, syncToken (critical data)
-       * - friends, blockedUsers, settings (secondary data)
-       * - cache timestamps og loading flags
-       * 
-       * IKKE lagre:
-       * - loading states (criticalLoading, secondaryLoading)
-       * - error states (criticalError, secondaryError)
+       * ✅ partialize fra eksisterende store - lagre alt som er nyttig for caching
        */
       partialize: (state) => ({
         // Critical data
@@ -326,7 +325,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
 
       version: 1,
       migrate: (persisted: unknown) => {
-        // Håndter migrering hvis nødvendig
+        // ✅ Håndter migrering fra eksisterende store
         const state = persisted as Partial<BootstrapStore>;
         return state as BootstrapStore;
       },

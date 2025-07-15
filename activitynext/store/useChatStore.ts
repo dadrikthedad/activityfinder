@@ -508,6 +508,7 @@ export const useChatStore = create<ChatStore>()(
           liveMessages: limitedLiveMessages, // ✅ LAGRES NÅ
           scrollPositions: state.scrollPositions,
           cacheTimestamps: state.cacheTimestamps,
+          pendingMessageRequests: state.pendingMessageRequests,
           pendingRequestsCache: state.pendingRequestsCache,
           pendingRequestsCacheTimestamp: state.pendingRequestsCacheTimestamp,
           unreadConversationIds: state.unreadConversationIds,

@@ -2,11 +2,8 @@
 // Hjelpefunksjon som gjør at vi laster inn alt i MessageDropdown i navbaren ved at vi er innlogget.
 import { useEffect, useRef } from "react";
 import { fetchAndSetMessageNotifications } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
-import { getPendingMessageRequests } from "@/services/messages/messageService";
 import { useAuth } from "@/context/AuthContext";
-import { getMyConversations } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
-import { getUnreadConversationIds } from "@/services/messages/messageNotificationService";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { fetchAndSetFriendRequests } from "@/hooks/friends/useFriendInvitationsInit";
@@ -30,40 +27,11 @@ export function MessageDropdownInitializer() {
     console.log("🚀 Initializer TRIGGERED with userId =", userId);
 
     // --- HENT CURRENT STATE ---
-    const chatSt = useChatStore.getState();
     const notifSt = useNotificationStore.getState();
     const msgNotifSt = useMessageNotificationStore.getState(); // 🆕
 
     // --- CONDITIONAL LOADING BASERT PÅ EXISTING DATA ---
-    
-    // 1) Unread Conversation IDs
-    if (!chatSt.hasLoadedUnreadConversationIds || chatSt.unreadConversationIds.length === 0) {
-      console.log("📬 Loading unread conversation IDs...");
-      chatSt.setHasLoadedUnreadConversationIds(true);
-      getUnreadConversationIds()
-        .then(ids => {
-          console.log("✅ Loaded unread conversation IDs:", ids?.length);
-          chatSt.setUnreadConversationIds(ids ?? []);
-        })
-        .catch(console.error);
-    } else {
-      console.log("✅ Unread conversation IDs already loaded from IndexedDB:", chatSt.unreadConversationIds.length);
-    }
 
-    // 2) Pending Message Requests
-    if (!chatSt.hasLoadedPendingRequests || chatSt.pendingMessageRequests.length === 0) {
-      console.log("📮 Loading pending message requests...");
-      chatSt.setHasLoadedPendingRequests(true);
-      getPendingMessageRequests()
-        .then(req => {
-          console.log("✅ Loaded pending requests:", req?.length);
-          chatSt.setPendingMessageRequests(req ?? []);
-          chatSt.setCachedPendingRequests(req ?? []);
-        })
-        .catch(console.error);
-    } else {
-      console.log("✅ Pending requests already loaded from IndexedDB:", chatSt.pendingMessageRequests.length);
-    }
 
     // 4) Friend Requests
     if (!notifSt.hasLoadedFriendRequests || notifSt.friendRequests.length === 0) {
@@ -97,18 +65,4 @@ export function MessageDropdownInitializer() {
   }, [token, userId]);
 
   return null;
-}
-
-export async function fetchInitialConversations(take = 20) {
-  const skip = 0;
-  const response = await getMyConversations(skip, take);
-  const conversations = response?.conversations ?? [];
-  
-  if (conversations.length > 0) {
-    const addConversation = useChatStore.getState().addConversation;
-    conversations.forEach(addConversation);
-    console.log("✅ Loaded conversations from API:", conversations.length);
-  }
-  
-  return conversations.length < take ? false : true;
 }

@@ -1,10 +1,10 @@
 "use client";
-// Hovedinitializer som håndterer bootstrap ved app-oppstart
+// AppInitializer som håndterer bootstrap ved app-oppstart
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useBootstrap } from "@/hooks/bootstrap/useBootstrap";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
-import { useChatStore } from "@/store/useChatStore"; // 👈 LEGG TIL
+import { useChatStore } from "@/store/useChatStore";
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
@@ -12,126 +12,100 @@ export function AppInitializer() {
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   
-  // Bootstrap hook som håndterer critical + secondary data
   const { 
     isBootstrapped, 
     criticalLoading, 
     criticalError,
-    user,
-    friends,
-    settings,
-    conversations,
     bootstrap,
-    retryCritical 
+    retryCritical,
+    isCriticalCacheValid,
+    isSecondaryCacheValid,
   } = useBootstrap();
-
-  // 👈 LEGG TIL - ChatStore actions
-  const { 
-    setConversations, 
-    setHasLoadedConversations,
-    reset: resetChatStore 
-  } = useChatStore();
 
   // Reset stores ved brukerbytte
   useEffect(() => {
-  console.log("🔍 BOOT: AppInitializer effect triggered:", { 
-    token: token?.substring(0, 20), 
-    userId,
-    tokenExists: !!token,
-    userIdExists: !!userId
-  });
-  
-  const condition = !token || !userId;
-  console.log("🔍 BOOT: Condition details:", {
-    token,                    // 👈 FULL TOKEN
-    userId,                   // 👈 FULL USERID  
-    notToken: !token,
-    notUserId: !userId,
-    condition: condition
-  });
-  
-  console.log("🔍 BOOT: About to check if statement...");
-  
-  if (condition) {
-    console.log("⏸️ BOOT: Condition is TRUE, returning...");
-    return;
-  }
-  
-  console.log("🚀 BOOT: Condition is FALSE, continuing...");
-  
-  /***** Ny bruker i samme sesjon? Reset alle stores *****/
-  if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
-    console.log("🔄 BOOT: Ny bruker detektert, resetter alle stores...");
-    useBootstrapStore.getState().reset();
-    resetChatStore();
+    console.log("🔍 BOOT: AppInitializer effect triggered:", { 
+      token: token?.substring(0, 20), 
+      userId,
+      tokenExists: !!token,
+      userIdExists: !!userId
+    });
     
-    // Reset retry counter for ny bruker
-    retryCountRef.current = 0;
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = undefined;
+    if (!token || !userId) {
+      console.log("⏸️ BOOT: No token or userId, skipping bootstrap");
+      return;
     }
-  }
-  prevUserIdRef.current = userId;
-  
-  console.log("🚀 BOOT: AppInitializer startet for userId =", userId);
-}, [token, userId, resetChatStore]);
-
-  // 👈 SYNC conversations fra bootstrap til ChatStore
-  useEffect(() => {
-  if (isBootstrapped && user) {
-    // 🎯 KUN sync hvis vi faktisk har conversations fra bootstrap
-    if (conversations && conversations.length > 0) {
-      console.log("💬 Synkroniserer conversations fra bootstrap til ChatStore...");
-      console.log(`📊 Fant ${conversations.length} samtaler fra bootstrap`);
+    
+    // ✅ Ny bruker i samme sesjon? Reset alle stores
+    if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
+      console.log("🔄 BOOT: User switch detected, resetting all stores...");
+      useBootstrapStore.getState().reset();
+      useChatStore.getState().reset();
       
-      // Sett conversations i ChatStore
-      setConversations(conversations);
-      setHasLoadedConversations(true);
-      
-      console.log("✅ Conversations synkronisert til ChatStore");
-    } else if (conversations && conversations.length === 0) {
-      // 👈 ENDRE DENNE: Ikke overskrive hvis ChatStore allerede har data
-      const currentConversations = useChatStore.getState().conversations;
-      
-      if (currentConversations.length === 0) {
-        console.log("📭 Ingen conversations fra bootstrap og ChatStore er tom, setter empty state");
-        setConversations([]);
-        setHasLoadedConversations(true);
-      } else {
-        console.log("📭 Ingen conversations fra bootstrap, men ChatStore har allerede data - beholder eksisterende");
+      // Reset retry counter for ny bruker
+      retryCountRef.current = 0;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = undefined;
       }
     }
-  }
-}, [isBootstrapped, user, conversations, setConversations, setHasLoadedConversations]);
+    prevUserIdRef.current = userId;
+    
+    console.log("🚀 BOOT: AppInitializer ready for userId =", userId);
+  }, [token, userId]);
 
-  // Exponential backoff retry logic
+  // 🔧 FORBEDRET: Enklere bootstrap trigger logikk
+  useEffect(() => {
+    if (!token || !userId || criticalLoading) {
+      return;
+    }
+
+    const criticalValid = isCriticalCacheValid();
+    const secondaryValid = isSecondaryCacheValid();
+    
+    console.log("🔍 BOOT: Cache status:", {
+      criticalValid,
+      secondaryValid,
+      isBootstrapped,
+      criticalLoading
+    });
+    
+    // 🎯 ENKLERE LOGIKK: useBootstrap håndterer cache validation internt
+    // Vi kaller bare bootstrap() hvis vi ikke er ferdig ennå
+    if (!isBootstrapped) {
+      console.log("🚀 BOOT: Triggering bootstrap...");
+      bootstrap();
+    } else {
+      console.log("✅ BOOT: Already bootstrapped, skipping");
+    }
+  }, [token, userId, isBootstrapped, criticalLoading, bootstrap, isCriticalCacheValid, isSecondaryCacheValid]);
+
+  // ✅ BEHOLDT: Exponential backoff retry logic
   useEffect(() => {
     const maxRetries = 5;
-    const retryDelays = [1000, 2000, 4000, 8000, 16000]; // 1s, 2s, 4s, 8s, 16s
+    const retryDelays = [1000, 2000, 4000, 8000, 16000];
 
     if (criticalError) {
       if (retryCountRef.current < maxRetries) {
-        const delay = retryDelays[retryCountRef.current] || 16000; // Fallback til 16s
+        const delay = retryDelays[retryCountRef.current] || 16000;
         
         console.log(
-          `❌ Bootstrap feil: ${criticalError}. ` +
+          `❌ BOOT: Bootstrap error: ${criticalError}. ` +
           `Retry ${retryCountRef.current + 1}/${maxRetries} in ${delay}ms`
         );
         
         retryTimeoutRef.current = setTimeout(() => {
-          console.log(`🔄 Executing retry ${retryCountRef.current + 1}`);
+          console.log(`🔄 BOOT: Executing retry ${retryCountRef.current + 1}`);
           retryCountRef.current++;
           retryCritical();
         }, delay);
       } else {
-        console.log("🛑 Max retries reached. Manual intervention required.");
-        console.log("💡 User can manually retry via UI components");
+        console.log("🛑 BOOT: Max retries reached. Manual intervention required.");
       }
     } else if (isBootstrapped) {
       // Reset retry count on successful bootstrap
       if (retryCountRef.current > 0) {
-        console.log("✅ Bootstrap successful, resetting retry counter");
+        console.log("✅ BOOT: Bootstrap successful, resetting retry counter");
         retryCountRef.current = 0;
       }
       
@@ -150,27 +124,113 @@ export function AppInitializer() {
     };
   }, [criticalError, isBootstrapped, retryCritical]);
 
-  // Debug logging for bootstrap status
+  // ✅ FORENKLET: Debug logging
   useEffect(() => {
     if (criticalLoading) {
-      console.log("⏳ Bootstrap: Laster kritisk data...");
+      console.log("⏳ BOOT: Loading critical bootstrap data...");
     } else if (isBootstrapped && !criticalError) {
-      console.log("✅ Bootstrap: Ferdig!", {
-        user: user?.fullName,
-        friends: friends.length,
-        settings: settings?.language,
+      console.log("✅ BOOT: Bootstrap complete!", {
         retryCount: retryCountRef.current > 0 ? retryCountRef.current : "no retries needed"
       });
     }
-  }, [criticalLoading, isBootstrapped, criticalError, user, friends, settings]);
+  }, [criticalLoading, isBootstrapped, criticalError]);
 
-  useEffect(() => {
-  if (token && userId && !isBootstrapped) {
-    console.log("🚀 BOOT: Manually triggering bootstrap...");
-    bootstrap();
-  }
-}, [token, userId, isBootstrapped, bootstrap]);
-
-  // Ikke render noe - dette er kun for side effects
   return null;
+}
+
+// 🔧 FORBEDRET: Debug component med bedre styling og mer info
+export function BootstrapDebugInfo() {
+  const { 
+    isBootstrapped, 
+    criticalLoading, 
+    secondaryLoading,
+    criticalError,
+    secondaryError,
+    user,
+    friends,
+    settings,
+    conversations,
+    isCriticalCacheValid,
+    isSecondaryCacheValid,
+  } = useBootstrap();
+  
+  const { unreadConversationIds } = useChatStore();
+
+  // 🔧 Kun vis i development
+  if (process.env.NODE_ENV !== 'development') {
+    return null;
+  }
+
+  // 🎨 Forbedret styling
+  const debugStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 10,
+    right: 10,
+    background: 'rgba(0, 0, 0, 0.9)',
+    color: 'white',
+    padding: '12px',
+    borderRadius: '8px',
+    fontSize: '11px',
+    fontFamily: 'monospace',
+    zIndex: 9999,
+    maxWidth: '320px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+  };
+
+  const sectionStyle: React.CSSProperties = {
+    marginBottom: '8px',
+    paddingBottom: '6px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  };
+
+  const getStatusIcon = (condition: boolean, loading = false) => {
+    if (loading) return '⏳';
+    return condition ? '✅' : '❌';
+  };
+
+  return (
+    <div style={debugStyle}>
+      <div style={sectionStyle}>
+        <strong>🚀 Bootstrap Status</strong>
+        <div>Bootstrapped: {getStatusIcon(isBootstrapped)}</div>
+        <div>Critical: {getStatusIcon(!criticalError && !criticalLoading, criticalLoading)}</div>
+        <div>Secondary: {getStatusIcon(!secondaryError && !secondaryLoading, secondaryLoading)}</div>
+      </div>
+      
+      <div style={sectionStyle}>
+        <strong>🏪 Cache Status</strong>
+        <div>Critical: {getStatusIcon(isCriticalCacheValid())}</div>
+        <div>Secondary: {getStatusIcon(isSecondaryCacheValid())}</div>
+      </div>
+      
+      {(criticalError || secondaryError) && (
+        <div style={sectionStyle}>
+          <strong>❌ Errors</strong>
+          {criticalError && <div>Critical: {criticalError.substring(0, 30)}...</div>}
+          {secondaryError && <div>Secondary: {secondaryError.substring(0, 30)}...</div>}
+        </div>
+      )}
+      
+      <div>
+        <strong>📊 Data Counts</strong>
+        <div>User: {getStatusIcon(!!user)}</div>
+        <div>Friends: {friends?.length || 0}</div>
+        <div>Settings: {getStatusIcon(!!settings)}</div>
+        <div>Conversations: {conversations?.length || 0}</div>
+        <div>Unread IDs: {unreadConversationIds?.length || 0}</div>
+      </div>
+    </div>
+  );
+}
+
+// 🆕 BONUS: Hook for manuell bootstrap trigger (for debug/testing)
+export function useManualBootstrap() {
+  const { bootstrap, retryCritical, retrySecondary } = useBootstrap();
+  
+  return {
+    triggerFullBootstrap: bootstrap,
+    retryCritical,
+    retrySecondary,
+  };
 }
