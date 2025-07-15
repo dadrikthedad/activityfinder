@@ -13,14 +13,16 @@ namespace AFBack.Services
         private readonly ILogger<BootstrapService> _logger;
         private readonly ConversationService _conversationService;
         private readonly IServiceProvider _serviceProvider;
+        private readonly MessageService _messageService;
 
         public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
-            ConversationService conversationService, IServiceProvider serviceProvider)
+            ConversationService conversationService, IServiceProvider serviceProvider, MessageService messageService)
         {
             _context = context;
             _logger = logger;
             _conversationService = conversationService;
             _serviceProvider = serviceProvider;
+            _messageService = messageService
         }
 
         public async Task<CriticalBootstrapResponseDTO> GetCriticalBootstrapAsync(int userId)
