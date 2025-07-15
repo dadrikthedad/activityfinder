@@ -22,7 +22,7 @@ namespace AFBack.Services
             _logger = logger;
             _conversationService = conversationService;
             _serviceProvider = serviceProvider;
-            _messageService = messageService
+            _messageService = messageService;
         }
 
         public async Task<CriticalBootstrapResponseDTO> GetCriticalBootstrapAsync(int userId)
