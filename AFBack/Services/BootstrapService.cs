@@ -101,7 +101,6 @@ namespace AFBack.Services
                     return await GetBlockedUsersWithContext(userId, context);
                 });
 
-                // 🆕 LEGG TIL UNREAD CONVERSATION IDS TASK
                 var unreadConversationsTask = Task.Run(async () =>
                 {
                     using var scope = _serviceProvider.CreateScope();
@@ -110,13 +109,23 @@ namespace AFBack.Services
                     return await GetUnreadConversationIdsWithContext(userId, context);
                 });
 
+                // 🆕 LEGG TIL PENDING MESSAGE REQUESTS TASK
+                var pendingRequestsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var messageService = scope.ServiceProvider.GetRequiredService<MessageService>();
+                    _logger.LogDebug("📋 Getting pending message requests with separate service");
+                    return await GetPendingMessageRequestsWithService(userId, messageService);
+                });
+
                 _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
-                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask);
+                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask, pendingRequestsTask);
 
                 var settings = await settingsTask;
                 var friends = await friendsTask;
                 var blockedUsers = await blockedUsersTask;
-                var unreadConversationIds = await unreadConversationsTask; // 🆕
+                var unreadConversationIds = await unreadConversationsTask;
+                var pendingRequests = await pendingRequestsTask; // 🆕
 
                 _logger.LogInformation("📋 Creating secondary response...");
                 var response = new SecondaryBootstrapResponseDTO
@@ -124,12 +133,13 @@ namespace AFBack.Services
                     Settings = settings.ToUserSettingsDTO(),
                     Friends = friends.ToUserSummaryDTOsSafe(),
                     BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe(),
-                    UnreadConversationIds = unreadConversationIds // 🆕
+                    UnreadConversationIds = unreadConversationIds,
+                    PendingMessageRequests = pendingRequests // 🆕
                 };
 
                 _logger.LogInformation(
-                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}, Unread: {UnreadCount}",
-                    friends.Count, blockedUsers.Count, unreadConversationIds.Count);
+                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}, Unread: {UnreadCount}, Pending: {PendingCount}",
+                    friends.Count, blockedUsers.Count, unreadConversationIds.Count, pendingRequests.Count);
                 return response;
             }
             catch (Exception ex)
@@ -138,6 +148,9 @@ namespace AFBack.Services
                 throw;
             }
         }
+        
+        // PRIMARY ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         // ✅ SEPARATE METHODS MED EGNE CONTEXTS
 
@@ -203,6 +216,9 @@ namespace AFBack.Services
                 })
                 .ToList();
         }
+        
+        // SECONDARY ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         private async Task<UserSettings?> GetUserSettingsWithContext(int userId, ApplicationDbContext context)
         {
@@ -281,8 +297,27 @@ namespace AFBack.Services
             _logger.LogDebug("✅ Found {UnreadCount} unread conversations", unreadConvIds.Count);
             return unreadConvIds;
         }
+        
+        private async Task<List<MessageRequestDTO>> GetPendingMessageRequestsWithService(int userId, MessageService messageService)
+        {
+            _logger.LogDebug("🔍 Getting pending message requests for user {UserId} (separate service)", userId);
 
+            try
+            {
+                var pendingRequests = await messageService.GetPendingMessageRequestsAsync(userId);
+                _logger.LogDebug("✅ Found {PendingCount} pending message requests", pendingRequests.Count);
+                return pendingRequests;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to get pending message requests for user {UserId}", userId);
+                // Returner tom liste istedenfor å krasje bootstrap
+                return new List<MessageRequestDTO>();
+            }
+        }
 
+        // SYNC ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         private string GenerateSimpleSyncToken(int userId, bool isOnline)
         {
             var token = new

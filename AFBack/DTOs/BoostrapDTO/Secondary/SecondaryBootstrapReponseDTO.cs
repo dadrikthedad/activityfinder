@@ -7,5 +7,6 @@ namespace AFBack.DTOs
         public List<UserSummaryDTO> BlockedUsers { get; set; } = new();
         // Uleste samtaler for at frontend ser hvem samtaler som har notifikasjoner
         public List<int> UnreadConversationIds { get; set; } = new();
+        public List<MessageRequestDTO> PendingMessageRequests { get; set; } = new();
     }
 }
