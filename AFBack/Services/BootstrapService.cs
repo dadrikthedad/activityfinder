@@ -16,7 +16,7 @@ namespace AFBack.Services
         private readonly IMessageService  _messageService;
 
         public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
-            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService  messageService)
+            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService messageService)
         {
             _context = context;
             _logger = logger;
@@ -115,7 +115,7 @@ namespace AFBack.Services
                 var pendingRequestsTask = Task.Run(async () =>
                 {
                     using var scope = _serviceProvider.CreateScope();
-                    var messageService = scope.ServiceProvider.GetRequiredService<MessageService>();
+                    var messageService = scope.ServiceProvider.GetRequiredService<IMessageService>();
                     _logger.LogDebug("📋 Getting pending message requests with separate service");
                     return await GetPendingMessageRequestsWithService(userId, messageService);
                 });
@@ -300,7 +300,7 @@ namespace AFBack.Services
             return unreadConvIds;
         }
         
-        private async Task<List<MessageRequestDTO>> GetPendingMessageRequestsWithService(int userId, MessageService messageService)
+        private async Task<List<MessageRequestDTO>> GetPendingMessageRequestsWithService(int userId, IMessageService messageService)
         {
             _logger.LogDebug("🔍 Getting pending message requests for user {UserId} (separate service)", userId);
 
