@@ -101,24 +101,35 @@ namespace AFBack.Services
                     return await GetBlockedUsersWithContext(userId, context);
                 });
 
+                // 🆕 LEGG TIL UNREAD CONVERSATION IDS TASK
+                var unreadConversationsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    _logger.LogDebug("📋 Getting unread conversation IDs with separate context");
+                    return await GetUnreadConversationIdsWithContext(userId, context);
+                });
+
                 _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
-                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask);
+                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask);
 
                 var settings = await settingsTask;
                 var friends = await friendsTask;
                 var blockedUsers = await blockedUsersTask;
+                var unreadConversationIds = await unreadConversationsTask; // 🆕
 
                 _logger.LogInformation("📋 Creating secondary response...");
                 var response = new SecondaryBootstrapResponseDTO
                 {
                     Settings = settings.ToUserSettingsDTO(),
                     Friends = friends.ToUserSummaryDTOsSafe(),
-                    BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe()
+                    BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe(),
+                    UnreadConversationIds = unreadConversationIds // 🆕
                 };
 
                 _logger.LogInformation(
-                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}",
-                    friends.Count, blockedUsers.Count);
+                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}, Unread: {UnreadCount}",
+                    friends.Count, blockedUsers.Count, unreadConversationIds.Count);
                 return response;
             }
             catch (Exception ex)
@@ -256,6 +267,21 @@ namespace AFBack.Services
             _logger.LogDebug("✅ Found {BlockedCount} blocked users", allBlockedUsers.Count);
             return allBlockedUsers;
         }
+        
+        private async Task<List<int>> GetUnreadConversationIdsWithContext(int userId, ApplicationDbContext context)
+        {
+            _logger.LogDebug("🔍 Getting unread conversation IDs for user {UserId} (separate context)", userId);
+
+            var unreadConvIds = await context.MessageNotifications
+                .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId != null)
+                .Select(n => n.ConversationId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            _logger.LogDebug("✅ Found {UnreadCount} unread conversations", unreadConvIds.Count);
+            return unreadConvIds;
+        }
+
 
         private string GenerateSimpleSyncToken(int userId, bool isOnline)
         {
