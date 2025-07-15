@@ -13,10 +13,10 @@ namespace AFBack.Services
         private readonly ILogger<BootstrapService> _logger;
         private readonly ConversationService _conversationService;
         private readonly IServiceProvider _serviceProvider;
-        private readonly MessageService _messageService;
+        private readonly IMessageService  _messageService;
 
         public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
-            ConversationService conversationService, IServiceProvider serviceProvider, MessageService messageService)
+            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService  messageService)
         {
             _context = context;
             _logger = logger;
