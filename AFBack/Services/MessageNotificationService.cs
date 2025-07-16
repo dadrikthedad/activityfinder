@@ -11,11 +11,16 @@ public class MessageNotificationService
 {
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<ChatHub> _hubContext; 
+    private readonly ILogger<MessageNotificationService> _logger;
+    private readonly GroupNotificationService _groupNotificationService;
+    
 
-    public MessageNotificationService(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
+    public MessageNotificationService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService)
     {
         _context = context;
         _hubContext = hubContext;
+        _logger = logger;
+        _groupNotificationService = groupNotificationService;
     }
     
     public async Task<Message> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
@@ -598,5 +603,103 @@ public class MessageNotificationService
                 ? null // Dette populeres i GroupNotificationService.ConvertToMessageNotificationDTOAsync
                 : null,
         };
+    }
+    
+    // I MessageNotificationService klassen
+    public async Task<(List<MessageNotificationDTO> notifications, int totalCount)> GetUserNotificationsAsync(
+        int userId, 
+        int page = 1, 
+        int pageSize = 20)
+    {
+        try
+        {
+            _logger.LogDebug("🔍 Getting notifications for user {UserId} - Page: {Page}, PageSize: {PageSize}", 
+                userId, page, pageSize);
+
+            // Valider input
+            if (page < 1 || pageSize <= 0)
+            {
+                throw new ArgumentException("Invalid pagination values");
+            }
+
+            // 1️⃣ Tell totale antall notifications (nå kun fra MessageNotifications tabellen)
+            var totalCount = await _context.MessageNotifications
+                .Where(n => n.UserId == userId)
+                .CountAsync();
+
+            // 2️⃣ Hent alle notifications inkludert GroupEvent notifikasjoner
+            var messageNotifications = await _context.MessageNotifications
+                .Where(n => n.UserId == userId)
+                .Include(n => n.FromUser)
+                .ThenInclude(u => u.Profile)
+                .Include(n => n.Message!)
+                .ThenInclude(m => m.Reactions)
+                .Include(n => n.Conversation)
+                .Include(n => n.GroupEvents) // 🆕 LEGG TIL DENNE LINJEN
+                .OrderByDescending(n => n.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            // 3️⃣ Bygg rejected conversation set
+            var conversationIds = messageNotifications
+                .Where(n => n.ConversationId.HasValue)
+                .Select(n => n.ConversationId!.Value)
+                .Distinct()
+                .ToList();
+
+            var rejectedMessageConversations = await _context.MessageRequests
+                .Where(r =>
+                    conversationIds.Contains(r.ConversationId!.Value) &&
+                    r.ReceiverId == userId &&
+                    r.IsRejected)
+                .Select(r => r.ConversationId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            var rejectedGroupConversations = await _context.GroupRequests
+                .Where(gr =>
+                    conversationIds.Contains(gr.ConversationId) &&
+                    gr.ReceiverId == userId &&
+                    gr.Status == GroupRequestStatus.Rejected)
+                .Select(gr => gr.ConversationId)
+                .Distinct()
+                .ToListAsync();
+
+            var rejectedConversationSet = new HashSet<int>(
+                rejectedMessageConversations.Concat(rejectedGroupConversations)
+            );
+
+            // 4️⃣ Konverter alle notifikasjoner til DTO format
+            var allNotificationDTOs = new List<MessageNotificationDTO>();
+
+            foreach (var notification in messageNotifications)
+            {
+                MessageNotificationDTO dto;
+                
+                if (notification.Type == NotificationType.GroupEvent)
+                {
+                    // 🆕 Bruk GroupNotificationService for GroupEvent notifikasjoner
+                    dto = await _groupNotificationService.ConvertToMessageNotificationDTOAsync(notification);
+                }
+                else
+                {
+                    // Vanlige notifikasjoner
+                    dto = MapToDTO(notification, rejectedConversationSet);
+                }
+                
+                allNotificationDTOs.Add(dto);
+            }
+
+            _logger.LogDebug("✅ Retrieved {NotificationCount} notifications out of {TotalCount} total", 
+                allNotificationDTOs.Count, totalCount);
+
+            return (allNotificationDTOs, totalCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to get notifications for user {UserId}", userId);
+            throw; // Re-throw for proper error handling
+        }
     }
 }

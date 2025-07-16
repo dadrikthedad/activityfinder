@@ -14,13 +14,13 @@ namespace AFBack.Controllers;
 public class MessageNotificationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
-    private readonly MessageNotificationService _notificationService;
+    private readonly MessageNotificationService _messageNotificationService;
     private readonly GroupNotificationService _groupNotificationService;
 
     public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService, GroupNotificationService groupNotificationService)
     {
         _context = context;
-        _notificationService = notificationService;
+        _messageNotificationService = notificationService;
         _groupNotificationService = groupNotificationService;
     }
 
@@ -29,108 +29,30 @@ public class MessageNotificationsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetNotifications([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var userId = GetUserId();
-
-        if (page < 1 || pageSize <= 0)
-            return BadRequest("Ugyldig pagineringsverdi.");
-
-        // 1️⃣ Tell totale antall notifications (nå kun fra MessageNotifications tabellen)
-        var totalCount = await _context.MessageNotifications
-            .Where(n => n.UserId == userId)
-            .CountAsync();
-
-        // 2️⃣ Hent alle notifications inkludert GroupEvent notifikasjoner
-        var messageNotifications = await _context.MessageNotifications
-            .Where(n => n.UserId == userId)
-            .Include(n => n.FromUser)
-            .ThenInclude(u => u.Profile)
-            .Include(n => n.Message!)
-            .ThenInclude(m => m.Reactions)
-            .Include(n => n.Conversation)
-            .Include(n => n.GroupEvents) // 🆕 LEGG TIL DENNE LINJEN
-            .OrderByDescending(n => n.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        // 3️⃣ Bygg rejected conversation set
-        var conversationIds = messageNotifications
-            .Where(n => n.ConversationId.HasValue)
-            .Select(n => n.ConversationId!.Value)
-            .Distinct()
-            .ToList();
-
-        var rejectedMessageConversations = await _context.MessageRequests
-            .Where(r =>
-                conversationIds.Contains(r.ConversationId!.Value) &&
-                r.ReceiverId == userId &&
-                r.IsRejected)
-            .Select(r => r.ConversationId!.Value)
-            .Distinct()
-            .ToListAsync();
-
-        var rejectedGroupConversations = await _context.GroupRequests
-            .Where(gr =>
-                conversationIds.Contains(gr.ConversationId) &&
-                gr.ReceiverId == userId &&
-                gr.Status == GroupRequestStatus.Rejected)
-            .Select(gr => gr.ConversationId)
-            .Distinct()
-            .ToListAsync();
-
-        var rejectedConversationSet = new HashSet<int>(
-            rejectedMessageConversations.Concat(rejectedGroupConversations)
-        );
-
-        // 4️⃣ Konverter alle notifikasjoner til DTO format
-        var allNotificationDTOs = new List<MessageNotificationDTO>();
-
-        foreach (var notification in messageNotifications)
+        try
         {
-            MessageNotificationDTO dto;
-            
-            if (notification.Type == NotificationType.GroupEvent)
+            var userId = GetUserId();
+
+            if (page < 1 || pageSize <= 0)
+                return BadRequest("Ugyldig pagineringsverdi.");
+
+            var (notifications, totalCount) = await _messageNotificationService.GetUserNotificationsAsync(
+                userId, page, pageSize);
+
+            return Ok(new
             {
-                // 🆕 Bruk GroupNotificationService for GroupEvent notifikasjoner
-                dto = await _groupNotificationService.ConvertToMessageNotificationDTOAsync(notification);
-            }
-            else
-            {
-                // Vanlige notifikasjoner
-                dto = _notificationService.MapToDTO(notification, rejectedConversationSet);
-            }
-            
-            allNotificationDTOs.Add(dto);
+                page,
+                pageSize,
+                totalCount,
+                totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                notifications
+            });
         }
-
-        return Ok(new
+        catch (Exception ex)
         {
-            page,
-            pageSize,
-            totalCount,
-            totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-            notifications = allNotificationDTOs
-        });
+            return StatusCode(500, "En feil oppstod ved henting av notifikasjoner.");
+        }
     }
-    
-    // Brukes denne?
-    // // Henter alle uleste notifications
-    // [HttpGet("unread")]
-    // public async Task<IActionResult> GetUnreadNotifications()
-    // {
-    //     var userId = GetUserId();
-    //
-    //     var unreadNotifications = await _context.MessageNotifications
-    //         .Where(n => n.UserId == userId && !n.IsRead)
-    //         .Include(n => n.FromUser)
-    //         .Include(n => n.Message)
-    //         .Include(n => n.Conversation)
-    //         .OrderByDescending(n => n.CreatedAt)
-    //         .ToListAsync();
-    //
-    //     var dtoList = unreadNotifications.Select(_notificationService.MapToDTO).ToList();
-    //     return Ok(dtoList);
-    // }
     
     // Henter alle samtaler hvor vi har uleste notifikasjoner
     [HttpGet("unread-conversations")]
@@ -224,7 +146,7 @@ public class MessageNotificationsController : ControllerBase
             await _context.SaveChangesAsync();
         }
 
-        var dto = _notificationService.MapToDTO(notification);
+        var dto = _messageNotificationService.MapToDTO(notification);
         return Ok(dto);
     }
     

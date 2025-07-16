@@ -1,3 +1,5 @@
+using AFBack.Models;
+
 namespace AFBack.DTOs
 {
     public class SecondaryBootstrapResponseDTO
@@ -8,5 +10,8 @@ namespace AFBack.DTOs
         // Uleste samtaler for at frontend ser hvem samtaler som har notifikasjoner
         public List<int> UnreadConversationIds { get; set; } = new();
         public List<MessageRequestDTO> PendingMessageRequests { get; set; } = new();
+        
+        public List<MessageNotificationDTO> RecentNotifications { get; set; } 
+        
     }
 }

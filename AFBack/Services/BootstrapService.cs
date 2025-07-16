@@ -119,15 +119,25 @@ namespace AFBack.Services
                     _logger.LogDebug("📋 Getting pending message requests with separate service");
                     return await GetPendingMessageRequestsWithService(userId, messageService);
                 });
+                
+                // 
+                var messageNotificationsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var messageNotificationService = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+                    _logger.LogDebug("📋 Getting recent notifications with separate service");
+                    return await GetRecentMessageNotificationsWithService(userId, messageNotificationService);
+                });
 
                 _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
-                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask, pendingRequestsTask);
+                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask, pendingRequestsTask, messageNotificationsTask);
 
                 var settings = await settingsTask;
                 var friends = await friendsTask;
                 var blockedUsers = await blockedUsersTask;
                 var unreadConversationIds = await unreadConversationsTask;
-                var pendingRequests = await pendingRequestsTask; // 🆕
+                var pendingRequests = await pendingRequestsTask; 
+                var notifications = await messageNotificationsTask; 
 
                 _logger.LogInformation("📋 Creating secondary response...");
                 var response = new SecondaryBootstrapResponseDTO
@@ -136,7 +146,8 @@ namespace AFBack.Services
                     Friends = friends.ToUserSummaryDTOsSafe(),
                     BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe(),
                     UnreadConversationIds = unreadConversationIds,
-                    PendingMessageRequests = pendingRequests // 🆕
+                    PendingMessageRequests = pendingRequests,
+                    RecentNotifications = notifications
                 };
 
                 _logger.LogInformation(
@@ -314,6 +325,30 @@ namespace AFBack.Services
                 _logger.LogError(ex, "❌ Failed to get pending message requests for user {UserId}", userId);
                 // Returner tom liste istedenfor å krasje bootstrap
                 return new List<MessageRequestDTO>();
+            }
+        }
+        
+        private async Task<List<MessageNotificationDTO>> GetRecentMessageNotificationsWithService(
+            int userId, 
+            MessageNotificationService messageNotificationService)
+        {
+            _logger.LogDebug("🔍 Getting recent notifications for user {UserId} (separate service)", userId);
+
+            try
+            {
+                // Hent kun første side av notifications for bootstrap (20 stk)
+                var (notifications, _) = await messageNotificationService.GetUserNotificationsAsync(
+                    userId, 
+                    page: 1, 
+                    pageSize: 20);
+
+                return notifications; // 🔧 Returner kun notifications
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to get recent notifications for user {UserId}", userId);
+                // Returner tom liste istedenfor å krasje bootstrap
+                return new List<MessageNotificationDTO>();
             }
         }
 
