@@ -1,4 +1,4 @@
-// Oppdatert PendingMessageList som sender participants til ConversationListItem
+// Oppdatert PendingMessageList med paginering
 "use client"
 
 import { ConversationListItem } from "./ConversationListUserCard";
@@ -26,10 +26,17 @@ const PendingRequestsList = ({
   showMoreLink = false,
   onSelectConversation,
 }: PendingRequestsListProps) => {
-  const { requests, loading, error } = usePendingMessageRequests();
+  // ✅ OPPDATERT: Bruk nye property names fra hook
+  const { 
+    requests, 
+    isLoading, 
+    error,
+    removeRequest 
+  } = usePendingMessageRequests();
+  
   const { approve, loading: approving } = useApproveMessageRequest();
   const { reject, loading: rejecting } = useRejectMessageRequest();
-  const { confirm, ConfirmDialog } = useConfirmDialog(); // ✅ NEW: Add confirm dialog
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   
   const [fadingOut, setFadingOut] = useState<Record<number, boolean>>({});
   const [removedConversations, setRemovedConversations] = useState<Set<number>>(new Set());
@@ -37,9 +44,9 @@ const PendingRequestsList = ({
   // Hent conversations fra chat store
   const conversations = useChatStore((s) => s.conversations);
 
+  // ✅ FJERNET: Bootstrap henter første side automatisk
 
-
-  // ✅ NEW: Handle reject with confirmation - properly typed
+  // ✅ OPPDATERT: Handle reject med removeRequest fra hook
   const handleReject = async (r: MessageRequestDTO) => {
     if (r.conversationId == null) return;
 
@@ -76,20 +83,45 @@ const PendingRequestsList = ({
 
     // Execute reject and remove after animation
     setTimeout(async () => {
-      // 🆕 Pass isGroup parameter to distinguish request types
-      await reject(r.senderId, id, r.isGroup || false);
-      setRemovedConversations(prev => new Set(prev).add(id));
+      try {
+        // 🆕 Pass isGroup parameter to distinguish request types
+        await reject(r.senderId, id, r.isGroup || false);
+        
+        // ✅ OPPDATERT: Bruk removeRequest fra hook i stedet for lokal state
+        removeRequest(id);
+        setRemovedConversations(prev => new Set(prev).add(id));
+      } catch (error) {
+        console.error('❌ Error rejecting request:', error);
+        // Reset fade out on error
+        setFadingOut(prev => ({ ...prev, [id]: false }));
+      }
     }, 700); // Match the fade duration
   };
 
+  // ✅ OPPDATERT: Handle approve med removeRequest fra hook
+  const handleApprove = async (r: MessageRequestDTO) => {
+    if (r.conversationId !== null && r.conversationId !== undefined) {
+      try {
+        await approve(r.conversationId);
+        console.log("✔ Approved conversation:", r.conversationId);
+        
+        // ✅ OPPDATERT: Fjern fra hook state også
+        removeRequest(r.conversationId);
+      } catch (error) {
+        console.error('❌ Error approving request:', error);
+      }
+    }
+  };
 
-  if (loading) {
+  // ✅ OPPDATERT: Bruk isLoading i stedet for loading
+  if (isLoading && requests.length === 0) {
     return (
       <div className="flex justify-center py-4">
         <div className="animate-spin rounded-full h-6 w-6 border-2 border-t-green-600 border-gray-200"></div>
       </div>
     );
   }
+
   if (error) return <p className="px-4 py-2 text-sm text-red-500">{error}</p>;
   if (!requests || requests.length === 0)
     return <p className="px-4 py-2 text-sm text-gray-500">No requests.</p>;
@@ -101,7 +133,6 @@ const PendingRequestsList = ({
 
   return (
     <div className="px-2">
-      {/* ✅ NEW: Add ConfirmDialog component */}
       <ConfirmDialog />
       
       <ul className="space-y-4">
@@ -141,23 +172,16 @@ const PendingRequestsList = ({
                 }}
                 isGroup={r.isGroup || false}
                 memberCount={memberCount}
-                // ✅ VIKTIG: Send participants eksplisitt til ConversationListItem
                 participants={participants}
               />
               <div className="mt-1 flex gap-2 pl-12">
                 <ProfileNavButton
                   text="✔"
-                  onClick={async () => {
-                    if (r.conversationId !== null && r.conversationId !== undefined) {
-                      await approve(r.conversationId);
-                      console.log("✔ Approved conversation:", r.conversationId);
-                    }
-                  }}
+                  onClick={() => handleApprove(r)}
                   disabled={approving || rejecting}
                   variant="smallx"
                   className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white text-lg font-bold flex items-center justify-center"
                 />
-                {/* ✅ UPDATED: Use confirm dialog for reject */}
                 <ProfileNavButton
                   text="✖"
                   onClick={() => handleReject(r)}
@@ -171,6 +195,7 @@ const PendingRequestsList = ({
         })}
       </ul>
       
+      {/* ✅ BEHOLDT: Eksisterende "See more" link for begrenset visning */}
       {showMoreLink && requests.length > (limit ?? 0) && (
         <div className="mt-2 text-sm flex justify-end pr-2">
           <ProfileNavButton
