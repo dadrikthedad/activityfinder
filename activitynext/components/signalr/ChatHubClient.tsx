@@ -24,6 +24,7 @@ import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
 import { MessageDTO } from "@/types/MessageDTO";
+import { useSimpleBootstrapCheck } from "./useSimpleBootstrapCheck";
 
 
 
@@ -49,9 +50,13 @@ export default function ChatHubClient() {
     )
     const { refreshConversation } = useConversationUpdate();
     const updateMessage = useChatStore((state) => state.updateMessage);
+    // Sjekker at bootstrappen er ferdig før vi legger inn nye pending
+    const { checkAndExecute } = useSimpleBootstrapCheck();
 
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
-      const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
+    const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
+    
+    
 
       // Sjekk om samtalen allerede finnes
       if (conversationIds.has(conversationId)) {
@@ -202,81 +207,44 @@ export default function ChatHubClient() {
       },
 
       // Lagd en meldingsforespørsel til en annen bruker
-      async ({ senderId, receiverId, conversationId, notification }: MessageRequestCreatedDto) => {
-        if (!conversationId) {
-          console.error("🚨 Mangler conversationId i signalr-data:", {
-            senderId,
-            receiverId,
-            conversationId,
-          });
-          return;
-        }
-
-        console.log("📨 Forespørsel opprettet via SignalR:", {
-          senderId,
-          receiverId,
-          conversationId,
-          notification,
-        });
-
-        if (notification) {
-          // 🔔 Oppdater notification-panelet i sanntid
-          await handleIncomingNotification(notification);
-
-          // 🔄 Hent og legg til pending-samtale (uten å cache meldinger for pending)
-          await syncPendingConversation(conversationId);
-
-          if (notification.senderId !== userId) {
-            showNotificationToast({
-              senderName: notification.senderName,
-              messagePreview: notification.messagePreview,
-              type: NotificationType.MessageRequest,
-              conversationId,
-            });
+      async (data: MessageRequestCreatedDto) => {
+        await checkAndExecute(async () => {
+          if (data.notification) {
+            await handleIncomingNotification(data.notification);
+            await syncPendingConversation(data.conversationId);
+            
+            if (data.notification.senderId !== userId) {
+              showNotificationToast({
+                senderName: data.notification.senderName,
+                messagePreview: data.notification.messagePreview,
+                type: NotificationType.MessageRequest,
+                conversationId: data.conversationId,
+              });
+            }
           }
-        }
+        });
       },
+
        // Gruppeforespørsel opprettet - handle exactly like MessageRequest
-      async ({ senderId, receiverId, conversationId, groupName, notification }: GroupRequestCreatedDto) => {
-        if (!conversationId) {
-          console.error("🚨 Mangler conversationId i gruppe signalr-data:", {
-            senderId,
-            receiverId,
-            conversationId,
-            groupName,
-          });
-          return;
-        }
-
-        console.log("👥 Gruppeforespørsel opprettet via SignalR:", {
-          senderId,
-          receiverId,
-          conversationId,
-          groupName,
-          notification,
-        });
-
-        if (notification) {
-          // 🔔 Oppdater notification-panelet i sanntid
-          await handleIncomingNotification(notification);
-
-          // 🔄 Hent og legg til pending-samtale (uten å cache meldinger for pending)
-          await syncPendingConversation(conversationId);
-
-          // Only show toast if it's not from the current user
-          if (notification.senderId !== userId) {
-            showNotificationToast({
-              messagePreview: notification.messagePreview,
-              type: NotificationType.GroupRequest,
-              conversationId,
-              groupName: groupName,
-              groupImage: notification.groupImageUrl,
-              senderName: notification.senderName || "Someone",
-              senderProfileImage: notification.senderProfileImageUrl || "/default-avatar.png" // Sett default her
-            });
+      async (data: GroupRequestCreatedDto) => {
+        await checkAndExecute(async () => {
+          if (data.notification) {
+            await handleIncomingNotification(data.notification);
+            await syncPendingConversation(data.conversationId);
+            
+            if (data.notification.senderId !== userId) {
+              showNotificationToast({
+                messagePreview: data.notification.messagePreview,
+                type: NotificationType.GroupRequest,
+                conversationId: data.conversationId,
+                groupName: data.groupName,
+                groupImage: data.notification.groupImageUrl,
+                senderName: data.notification.senderName || "Someone",
+                senderProfileImage: data.notification.senderProfileImageUrl || "/default-avatar.png"
+              });
+            }
           }
-          
-        }
+        });
       },
 
       // Ny GroupNotificationUpdated callback

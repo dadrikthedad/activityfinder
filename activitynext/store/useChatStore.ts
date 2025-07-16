@@ -62,6 +62,7 @@ type ChatStore = {
   setShowMessages: (value: boolean) => void;
   updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) => void;
   
+  
   /** Tøm alt ved logout */
   reset: () => void;
 };

@@ -3,6 +3,7 @@ import { API_BASE_URL } from "@/constants/routes";
 import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
 import { RejectRequestDTO } from "@/types/RejectRequestDTO";
+import { PaginatedMessageRequestsDTO } from "@/types/PaginatedMessageRequestsDTO";
 
 // Sende meldinger til bruker eller grupper
 export async function sendTextMessage(
@@ -12,9 +13,12 @@ export async function sendTextMessage(
   return await postRequest<MessageDTO, SendMessageRequestDTO>(url, payload);
 }
 // Henter alle meldingsforespørsler
-export async function getPendingMessageRequests(): Promise<MessageRequestDTO[] | null> {
-  const url = `${API_BASE_URL}/api/messages/pending`;
-  return await getRequest<MessageRequestDTO[]>(url);
+export async function getPendingMessageRequests(
+  page: number = 1, 
+  pageSize: number = 10
+): Promise<PaginatedMessageRequestsDTO | null> {
+  const url = `${API_BASE_URL}/api/messages/pending?page=${page}&pageSize=${pageSize}`;
+  return await getRequest<PaginatedMessageRequestsDTO>(url);
 }
 
 // Godkjenner meldingsforespørsler
