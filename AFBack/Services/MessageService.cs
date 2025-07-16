@@ -436,59 +436,88 @@ public class MessageService : IMessageService
     }
 
     // Hente alle meldingsforespørsler til en bruker
-    public async Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId)
+    public async Task<PaginatedMessageRequestsDTO> GetPendingMessageRequestsAsync(int receiverId, int page = 1,
+        int pageSize = 10)
     {
-        // ✅ Kjør queries sekvensielt for å unngå threading-konflikter
-        var messageRequests = await _context.MessageRequests
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
-            .Select(r => new MessageRequestDTO
-            {
-                SenderId = r.SenderId,
-                SenderName = r.Sender.FullName,
-                ProfileImageUrl = r.Sender.Profile != null ? r.Sender.Profile.ProfileImageUrl : null,
-                RequestedAt = r.RequestedAt,
-                ConversationId = r.ConversationId,
-                GroupName = null,
-                GroupImageUrl = null,
-                IsGroup = false,
-                LimitReached = r.LimitReached,
-                IsPendingApproval = !r.Conversation.IsApproved,
-                Participants = null
-            })
-            .ToListAsync();
-
-        var groupRequests = await _context.GroupRequests
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
-            .Select(gr => new MessageRequestDTO
-            {
-                SenderId = gr.SenderId,
-                SenderName = gr.Sender.FullName,
-                ProfileImageUrl = gr.Sender.Profile != null ? gr.Sender.Profile.ProfileImageUrl : null,
-                RequestedAt = gr.RequestedAt,
-                ConversationId = gr.ConversationId,
-                GroupName = gr.Conversation.GroupName,
-                GroupImageUrl = gr.Conversation.GroupImageUrl,
-                IsGroup = true,
-                LimitReached = false,
-                IsPendingApproval = true,
-                Participants = gr.Conversation.Participants.Select(p => new UserSummaryDTO
+        try
+        {
+            // ✅ SEPARATE QUERIES: Hent message requests
+            var messageRequests = await _context.MessageRequests
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
+                .Select(r => new MessageRequestDTO
                 {
-                    Id = p.User.Id,
-                    FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile != null ? p.User.Profile.ProfileImageUrl : null
-                }).ToList()
-            })
-            .ToListAsync();
+                    SenderId = r.SenderId,
+                    SenderName = r.Sender.FullName,
+                    ProfileImageUrl = r.Sender.Profile != null ? r.Sender.Profile.ProfileImageUrl : null,
+                    RequestedAt = r.RequestedAt,
+                    ConversationId = r.ConversationId,
+                    GroupName = null,
+                    GroupImageUrl = null,
+                    IsGroup = false,
+                    LimitReached = r.LimitReached,
+                    IsPendingApproval = !r.Conversation.IsApproved,
+                    Participants = null
+                })
+                .ToListAsync();
 
-        // 🔗 Kombiner og sorter
-        return messageRequests
-            .Concat(groupRequests)
-            .OrderByDescending(r => r.RequestedAt)
-            .ToList();
+            // ✅ SEPARATE QUERIES: Hent group requests
+            var groupRequests = await _context.GroupRequests
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
+                .Select(gr => new MessageRequestDTO
+                {
+                    SenderId = gr.SenderId,
+                    SenderName = gr.Sender.FullName,
+                    ProfileImageUrl = gr.Sender.Profile != null ? gr.Sender.Profile.ProfileImageUrl : null,
+                    RequestedAt = gr.RequestedAt,
+                    ConversationId = gr.ConversationId,
+                    GroupName = gr.Conversation.GroupName,
+                    GroupImageUrl = gr.Conversation.GroupImageUrl,
+                    IsGroup = true,
+                    LimitReached = false,
+                    IsPendingApproval = true,
+                    Participants = gr.Conversation.Participants.Select(p => new UserSummaryDTO
+                    {
+                        Id = p.User.Id,
+                        FullName = p.User.FullName,
+                        ProfileImageUrl = p.User.Profile != null ? p.User.Profile.ProfileImageUrl : null
+                    }).ToList()
+                })
+                .ToListAsync();
+
+            // ✅ KOMBINER OG SORTER i minnet
+            var allRequests = messageRequests
+                .Concat(groupRequests)
+                .OrderByDescending(r => r.RequestedAt)
+                .ToList();
+
+            // ✅ PAGINERING i minnet
+            var totalCount = allRequests.Count;
+            var pagedRequests = allRequests
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            var totalPages = (int)Math.Ceiling((double)totalCount / pageSize);
+
+            return new PaginatedMessageRequestsDTO
+            {
+                Requests = pagedRequests,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                HasMore = page < totalPages
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to get paginated pending message requests for user {UserId}", receiverId);
+            throw;
+        }
     }
 
 

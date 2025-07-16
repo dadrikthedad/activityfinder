@@ -306,9 +306,8 @@ namespace AFBack.Services
 
             try
             {
-                var pendingRequests = await messageService.GetPendingMessageRequestsAsync(userId);
-                _logger.LogDebug("✅ Found {PendingCount} pending message requests", pendingRequests.Count);
-                return pendingRequests;
+                var paginatedResult = await messageService.GetPendingMessageRequestsAsync(userId, page: 1, pageSize: 10);
+                return paginatedResult.Requests; // ✅ Hent kun Requests fra paginert result
             }
             catch (Exception ex)
             {

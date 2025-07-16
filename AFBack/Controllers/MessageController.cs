@@ -84,16 +84,20 @@ public class MessagesController : BaseController
     
     // Henter alle meldingsforespørsler
     [HttpGet("pending")]
-    public async Task<IActionResult> GetPendingMessageRequests()
+    public async Task<IActionResult> GetPendingMessageRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
         var receiverIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!int.TryParse(receiverIdClaim, out var receiverId))
             return Unauthorized("Ugyldig bruker-ID.");
 
+        // Valider pagination parametere
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 50) pageSize = 10; // Max 50 per side
+
         try
         {
-            var pendingRequests = await _messageService.GetPendingMessageRequestsAsync(receiverId);
-            return Ok(pendingRequests);
+            var result = await _messageService.GetPendingMessageRequestsAsync(receiverId, page, pageSize);
+            return Ok(result);
         }
         catch (Exception ex)
         {

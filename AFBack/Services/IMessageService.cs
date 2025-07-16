@@ -10,7 +10,8 @@ public interface IMessageService
     Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId, int skip = 0,
         int take = 20);
 
-    Task<List<MessageRequestDTO>> GetPendingMessageRequestsAsync(int receiverId);
+    Task<PaginatedMessageRequestsDTO> GetPendingMessageRequestsAsync(int receiverId, int page = 1,
+        int pageSize = 10);
 
     Task ApproveMessageRequestAsync(int receiverId, int conversationId);
 
