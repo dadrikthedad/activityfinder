@@ -51,17 +51,6 @@ export function MessageDropdownInitializer() {
       console.log("✅ General notifications already loaded from IndexedDB:", notifSt.notifications.length);
     }
 
-    // 6) Message Notifications - alltid kjør denne for å få oppdateringer
-    if (!msgNotifSt.hasLoadedNotifications || msgNotifSt.notifications.length === 0) {
-      console.log("📨 Loading message notifications...");
-      msgNotifSt.setHasLoadedNotifications(true);
-      fetchAndSetMessageNotifications().catch(console.error);
-    } else {
-      console.log("✅ Message notifications already loaded from IndexedDB:", msgNotifSt.notifications.length);
-      // Kan fortsatt kjøre for å få nyeste oppdateringer
-      fetchAndSetMessageNotifications().catch(console.error);
-    }
-
   }, [token, userId]);
 
   return null;

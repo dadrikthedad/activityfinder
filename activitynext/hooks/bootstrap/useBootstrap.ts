@@ -5,13 +5,14 @@ import {
 } from '@/services/bootstrapService';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useChatStore } from '@/store/useChatStore';
+import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { useBootstrapDistributor } from './useBootstrapDistributor';
 
 export const useBootstrap = () => {
   const hasInitialized = useRef(false);
   const { distributeCriticalData, distributeSecondaryData } = useBootstrapDistributor();
 
-  // ✅ Bootstrap state fra BootstrapStore
+  // Bootstrap state fra BootstrapStore
   const {
     user,
     friends,
@@ -32,10 +33,13 @@ export const useBootstrap = () => {
     cleanupOldCache,
   } = useBootstrapStore();
 
-  // ✅ Conversations data fra ChatStore
+  // Conversations data fra ChatStore
   const { conversations } = useChatStore();
 
-  // ✅ Cleanup old cache ved oppstart
+  // MessageNotifications data fra MessageNotificationStore
+  const { notifications: messageNotifications } = useMessageNotificationStore();
+
+  // Cleanup old cache ved oppstart
   useEffect(() => {
     cleanupOldCache();
   }, [cleanupOldCache]);
@@ -156,13 +160,14 @@ export const useBootstrap = () => {
   }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, loadSecondaryData]);
 
   return {
-    // ✅ Data fra begge stores
-    user,                    // fra BootstrapStore
-    friends,                 // fra BootstrapStore
-    blockedUsers,           // fra BootstrapStore  
-    settings,               // fra BootstrapStore
-    syncToken,              // fra BootstrapStore
-    conversations,          // fra ChatStore
+    // ✅ Data fra alle stores
+    user,                      // fra BootstrapStore
+    friends,                   // fra BootstrapStore
+    blockedUsers,             // fra BootstrapStore  
+    settings,                 // fra BootstrapStore
+    syncToken,                // fra BootstrapStore
+    conversations,            // fra ChatStore
+    messageNotifications,     // fra MessageNotificationStore
     
     // State
     isBootstrapped,

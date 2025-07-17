@@ -4,27 +4,18 @@ import { getMessageNotifications } from "../messages/messageNotificationService"
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { mergeMessageNotifications, setMessageNotificationsInStore } from '@/functions/messages/MessageNotificationFunctions';
+
 
 export async function fetchAndSetMessageNotifications(page = 1, pageSize = 20) {
   const data = await getMessageNotifications(page, pageSize);
-
-  const store = useMessageNotificationStore.getState();
-
-  // Fjern midlertidige notifikasjoner fra lokal zustand
-  const cleaned = store.notifications.filter(n => !n.isTemporary);
-
-  // Slå sammen og unngå duplikater på ID
-  const combined = [...data.notifications, ...cleaned];
-  const uniqueById = new Map<number, MessageNotificationDTO>();
-  combined.forEach((n) => uniqueById.set(n.id, n));
-
-  const merged = Array.from(uniqueById.values());
-
-  store.setNotifications(merged);
-  store.setHasLoadedNotifications(true);
-
-  console.log(`🔔 Lagrer ${merged.length} unike notifikasjoner i Zustand.`);
-
+  
+  // Bruk hjelpefunksjon for å merge
+  const merged = mergeMessageNotifications(data.notifications);
+  
+  // Bruk hjelpefunksjon for å sette i store
+  setMessageNotificationsInStore(merged, "API fetch");
+  
   return data.notifications;
 }
 

@@ -9,4 +9,5 @@ export interface SecondaryBootstrapResponseDTO {
   blockedUsers: UserSummaryDTO[];
   unreadConversationIds: number[];
   pendingMessageRequests: MessageRequestDTO[];
+  recentNotifications: MessageNotificationDTO[];
 }
