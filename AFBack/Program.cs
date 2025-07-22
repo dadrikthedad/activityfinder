@@ -175,6 +175,7 @@ builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 builder.Services.AddHostedService<QueuedHostedService>();
 builder.Services.AddScoped<GroupNotificationService>();
 builder.Services.AddScoped<BootstrapService>();
+builder.Services.AddScoped<FriendService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

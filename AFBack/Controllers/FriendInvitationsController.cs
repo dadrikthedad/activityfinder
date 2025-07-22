@@ -22,14 +22,16 @@ public class FriendInvitationsController : ControllerBase
     private readonly INotificationService _notificationService;
     private readonly IHubContext<NotificationHub> _hubContext;
     private readonly SendMessageCache       _msgCache;  
+    private readonly FriendService _friendService;
     
 
-    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<NotificationHub> hubContext,  SendMessageCache msgCache)
+    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<NotificationHub> hubContext,  SendMessageCache msgCache, FriendService friendService)
     {
         _context = context;
         _notificationService = notificationService;
         _hubContext = hubContext;
         _msgCache            = msgCache;
+        _friendService = friendService;
     }
 
     // POST: Send venneforespørsel
@@ -114,35 +116,34 @@ public class FriendInvitationsController : ControllerBase
     public async Task<ActionResult<List<FriendInvitationDTO>>> GetReceivedInvitations(
         int pageNumber = 1, int pageSize = 10)
     {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized(new { message = "Invalid user ID in token." });
-
-        if (pageNumber <= 0 || pageSize <= 0)
-            return BadRequest(new { message = "Page number and size must be greater than zero." });
-
-        var query = _context.FriendInvitations
-            .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
-            .Include(i => i.Sender).ThenInclude(u => u.Profile)
-            .OrderByDescending(i => i.SentAt)
-            .AsNoTracking();
-
-        var totalCount = await query.CountAsync();
-        var dbList = await query
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        var dtoList = dbList.Select(ToDto).ToList();
-
-        var response = new
+        try
         {
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize,
-            Data = dtoList
-        };
+            if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
+                return Unauthorized(new { message = "Invalid user ID in token." });
 
-        return Ok(response);
+            // 🎯 Bruk FriendService istedenfor direkte database-logikk
+            var (invitations, totalCount) = await _friendService.GetPendingFriendInvitationsAsync(
+                userId, pageNumber, pageSize);
+
+            var response = new
+            {
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                Data = invitations
+            };
+
+            return Ok(response);
+        }
+        catch (ArgumentException ex)
+        {
+            // FriendService kaster ArgumentException for ugyldig input
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = $"An error occurred while retrieving invitations. Error: {ex}" });
+        }
     }
 
     /* ---------- Felles DTO-mapping ---------- */

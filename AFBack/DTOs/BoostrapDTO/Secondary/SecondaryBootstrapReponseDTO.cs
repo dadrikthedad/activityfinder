@@ -12,6 +12,7 @@ namespace AFBack.DTOs
         public List<MessageRequestDTO> PendingMessageRequests { get; set; } = new();
         
         public List<MessageNotificationDTO> RecentNotifications { get; set; } 
+        public List<FriendInvitationDTO> PendingFriendInvitations { get; set; }
         
     }
 }

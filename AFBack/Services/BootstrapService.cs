@@ -14,15 +14,17 @@ namespace AFBack.Services
         private readonly ConversationService _conversationService;
         private readonly IServiceProvider _serviceProvider;
         private readonly IMessageService  _messageService;
+        private readonly FriendService _friendService;
 
         public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
-            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService messageService)
+            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService messageService, FriendService friendService)
         {
             _context = context;
             _logger = logger;
             _conversationService = conversationService;
             _serviceProvider = serviceProvider;
             _messageService = messageService;
+            _friendService = friendService;
         }
 
         public async Task<CriticalBootstrapResponseDTO> GetCriticalBootstrapAsync(int userId)
@@ -128,16 +130,25 @@ namespace AFBack.Services
                     _logger.LogDebug("📋 Getting recent notifications with separate service");
                     return await GetRecentMessageNotificationsWithService(userId, messageNotificationService);
                 });
+                
+                var friendInvitationsTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var friendService = scope.ServiceProvider.GetRequiredService<FriendService>();
+                    _logger.LogDebug("📋 Getting pending friend invitations with separate service");
+                    return await GetPendingFriendInvitationsWithService(userId, friendService);
+                });
 
                 _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
-                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask, pendingRequestsTask, messageNotificationsTask);
+                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask, pendingRequestsTask, messageNotificationsTask, friendInvitationsTask);
 
                 var settings = await settingsTask;
                 var friends = await friendsTask;
                 var blockedUsers = await blockedUsersTask;
                 var unreadConversationIds = await unreadConversationsTask;
                 var pendingRequests = await pendingRequestsTask; 
-                var notifications = await messageNotificationsTask; 
+                var notifications = await messageNotificationsTask;
+                var friendInvitations = await friendInvitationsTask; 
 
                 _logger.LogInformation("📋 Creating secondary response...");
                 var response = new SecondaryBootstrapResponseDTO
@@ -147,12 +158,13 @@ namespace AFBack.Services
                     BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe(),
                     UnreadConversationIds = unreadConversationIds,
                     PendingMessageRequests = pendingRequests,
-                    RecentNotifications = notifications
+                    RecentNotifications = notifications,
+                    PendingFriendInvitations = friendInvitations
                 };
 
                 _logger.LogInformation(
-                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}, Unread: {UnreadCount}, Pending: {PendingCount}",
-                    friends.Count, blockedUsers.Count, unreadConversationIds.Count, pendingRequests.Count);
+                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}, Unread: {UnreadCount}, Pending: {PendingCount}, Notifications: {NotificationCount}, FriendInvitations: {InvitationCount}",
+                    friends.Count, blockedUsers.Count, unreadConversationIds.Count, pendingRequests.Count, notifications.Count, friendInvitations.Count);
                 return response;
             }
             catch (Exception ex)
@@ -351,6 +363,24 @@ namespace AFBack.Services
                 return new List<MessageNotificationDTO>();
             }
         }
+        
+        private async Task<List<FriendInvitationDTO>> GetPendingFriendInvitationsWithService(
+            int userId, 
+            FriendService friendService)
+        {
+            _logger.LogDebug("🔍 Getting pending friend invitations for user {UserId} (separate service)", userId);
+
+            try
+            {
+                return await friendService.GetPendingFriendInvitationsForBootstrapAsync(userId, limit: 10);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to get pending friend invitations for user {UserId}", userId);
+                return new List<FriendInvitationDTO>(); // Robust: returner tom liste
+            }
+        }
+        
 
         // SYNC ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
