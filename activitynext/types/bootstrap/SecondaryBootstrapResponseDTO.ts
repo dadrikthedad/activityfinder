@@ -1,6 +1,7 @@
 import { UserSummaryDTO } from "../UserSummaryDTO";
 import { UserSettingsDTO } from "../UserSettingsDTO";
 import { MessageRequestDTO } from "../MessageReqeustDTO";
+import { MessageNotificationDTO } from "../MessageNotificationDTO";
 
 
 export interface SecondaryBootstrapResponseDTO {
