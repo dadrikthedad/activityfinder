@@ -5,7 +5,6 @@ import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { UserSettingsDTO } from "@/types/UserSettingsDTO";
 import { CriticalBootstrapResponseDTO } from "@/types/bootstrap/CriticalBootstrapResponseDTO";
 import { SecondaryBootstrapResponseDTO } from "@/types/bootstrap/SecondaryBootstrapResponseDTO";
-import { FriendInvitationDTO } from "@/types/FriendInvitationDTO"; 
 
 type BootstrapStore = {
   // Critical data (lagres her)
@@ -16,7 +15,6 @@ type BootstrapStore = {
   friends: UserSummaryDTO[];
   blockedUsers: UserSummaryDTO[];
   settings: UserSettingsDTO | null;
-  pendingFriendInvitations: FriendInvitationDTO[];
   
   // Loading states
   criticalLoading: boolean;
@@ -49,7 +47,6 @@ type BootstrapStore = {
   setFriends: (friends: UserSummaryDTO[]) => void;
   setBlockedUsers: (users: UserSummaryDTO[]) => void;
   setSettings: (settings: UserSettingsDTO) => void;
-  setPendingFriendInvitations: (invitations: FriendInvitationDTO[]) => void;
   
   // Friends management (fra eksisterende store)
   addFriend: (friend: UserSummaryDTO) => void;
@@ -58,10 +55,6 @@ type BootstrapStore = {
   // Blocked users management (fra eksisterende store)
   blockUser: (user: UserSummaryDTO) => void;
   unblockUser: (userId: number) => void;
-
-  addFriendInvitation: (invitation: FriendInvitationDTO) => void;
-  removeFriendInvitation: (invitationId: number) => void;
-  updateFriendInvitationStatus: (invitationId: number, status: FriendInvitationDTO['status']) => void;
   
   // Cache management (fra eksisterende store)
   cleanupOldCache: () => void;
@@ -86,7 +79,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
       friends: [],
       blockedUsers: [],
       settings: null,
-      pendingFriendInvitations: [],
       
       criticalLoading: false,
       secondaryLoading: false,
@@ -133,7 +125,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
           friends: data.friends,
           blockedUsers: data.blockedUsers,
           settings: data.settings,
-          pendingFriendInvitations: data.pendingFriendInvitations,
           secondaryLoading: false,
           secondaryError: null,
           secondaryCacheTimestamp: Date.now(),
@@ -160,10 +151,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
       setSettings: (settings: UserSettingsDTO) =>
         set(() => ({ settings })),
 
-      setPendingFriendInvitations: (invitations: FriendInvitationDTO[]) => 
-        set(() => ({ pendingFriendInvitations: [...invitations] })),
-
-      //  Friends management (fra eksisterende store) 
+      // --- ✅ Friends management (fra eksisterende store) ---
       addFriend: (friend: UserSummaryDTO) =>
         set((state) => {
           const exists = state.friends.some(f => f.id === friend.id);
@@ -181,7 +169,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryCacheTimestamp: Date.now(),
         })),
 
-      //  Blocked users management (fra eksisterende store) 
+      // --- ✅ Blocked users management (fra eksisterende store) ---
       blockUser: (user: UserSummaryDTO) =>
         set((state) => {
           const exists = state.blockedUsers.some(u => u.id === user.id);
@@ -201,32 +189,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryCacheTimestamp: Date.now(),
         })),
 
-        addFriendInvitation: (invitation: FriendInvitationDTO) =>
-        set((state) => {
-          const exists = state.pendingFriendInvitations.some(i => i.id === invitation.id);
-          if (exists) return {};
-          
-          return {
-            pendingFriendInvitations: [...state.pendingFriendInvitations, invitation],
-            secondaryCacheTimestamp: Date.now(),
-          };
-        }),
-
-      removeFriendInvitation: (invitationId: number) =>
-        set((state) => ({
-          pendingFriendInvitations: state.pendingFriendInvitations.filter(i => i.id !== invitationId),
-          secondaryCacheTimestamp: Date.now(),
-        })),
-
-      updateFriendInvitationStatus: (invitationId: number, status: FriendInvitationDTO['status']) =>
-        set((state) => ({
-          pendingFriendInvitations: state.pendingFriendInvitations.map(i =>
-            i.id === invitationId ? { ...i, status } : i
-          ),
-          secondaryCacheTimestamp: Date.now(),
-        })),
-
-      //  Cache management (fra eksisterende store) 
+      // --- ✅ Cache management (fra eksisterende store) ---
       cleanupOldCache: () =>
         set((state) => {
           console.log("🧹 Cleaning up bootstrap cache at", new Date().toLocaleTimeString());
@@ -269,7 +232,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
             updates.friends = [];
             updates.blockedUsers = [];
             updates.settings = null;
-            updates.pendingFriendInvitations = [];
             updates.secondaryCacheTimestamp = 0;
             updates.hasLoadedSecondary = false;
             // Kun reset isBootstrapped hvis critical også resettes
@@ -319,7 +281,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
           friends: [],
           blockedUsers: [],
           settings: null,
-          pendingFriendInvitations: [],
           
           criticalLoading: false,
           secondaryLoading: false,
@@ -353,7 +314,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
         friends: state.friends,
         blockedUsers: state.blockedUsers,
         settings: state.settings,
-        pendingFriendInvitations: state.pendingFriendInvitations,
         secondaryCacheTimestamp: state.secondaryCacheTimestamp,
         hasLoadedSecondary: state.hasLoadedSecondary,
         

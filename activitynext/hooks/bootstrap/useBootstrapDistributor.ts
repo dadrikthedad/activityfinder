@@ -5,6 +5,7 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { mergeMessageNotifications, setMessageNotificationsInStore } from '@/functions/messages/MessageNotificationFunctions';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export const useBootstrapDistributor = () => {
   const { setCriticalData, setSecondaryData } = useBootstrapStore();
@@ -24,6 +25,11 @@ export const useBootstrapDistributor = () => {
     setHasLoadedNotifications: setHasLoadedMessageNotifications,
   } = useMessageNotificationStore();
 
+  const {
+    setFriendRequests,
+    setHasLoadedFriendRequests,
+  } = useNotificationStore();
+
   const distributeCriticalData = useCallback((data: CriticalBootstrapResponseDTO) => {
     console.log("📦 Distributing critical bootstrap data...");
    
@@ -37,7 +43,7 @@ export const useBootstrapDistributor = () => {
     console.log("✅ Critical data distributed:", {
       user: data.user.fullName,
       conversations: data.recentConversations.length,
-      stores: "BootstrapStore + ChatStore"
+      stores: "BootstrapStore + ChatStore + MessageNotificationStore"
     });
   }, [setCriticalData, setConversations, setHasLoadedConversations]);
 
@@ -66,6 +72,19 @@ export const useBootstrapDistributor = () => {
       setHasLoadedMessageNotifications(true);
       console.log("📨 Ingen message notifications mottatt, men marker som loaded");
     }
+    // 5. Friend invitations til NotificationStore
+    if (data.pendingFriendInvitations && data.pendingFriendInvitations.length > 0) {
+      setFriendRequests(data.pendingFriendInvitations);
+      setHasLoadedFriendRequests(true);
+
+      const { setFriendRequestTotalCount } = useNotificationStore.getState();
+      setFriendRequestTotalCount(data.pendingFriendInvitations.length);
+
+      console.log("👥 Friend requests satt i NotificationStore:", data.pendingFriendInvitations.length);
+    } else {
+      setHasLoadedFriendRequests(true);
+      console.log("👥 Ingen friend requests mottatt, men marker som loaded");
+    }
    
     console.log("✅ Secondary data distributed:", {
       friends: data.friends.length,
@@ -84,7 +103,9 @@ export const useBootstrapDistributor = () => {
     setHasLoadedPendingRequests,
     setCachedPendingRequests,
     setMessageNotifications,
-    setHasLoadedMessageNotifications, 
+    setHasLoadedMessageNotifications,
+    setFriendRequests,
+    setHasLoadedFriendRequests,
   ]);
 
   return {

@@ -7,6 +7,7 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { useBootstrapDistributor } from './useBootstrapDistributor';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export const useBootstrap = () => {
   const hasInitialized = useRef(false);
@@ -18,7 +19,6 @@ export const useBootstrap = () => {
     friends,
     blockedUsers,
     settings,
-    pendingFriendInvitations,
     syncToken,
     criticalLoading,
     secondaryLoading,
@@ -39,6 +39,9 @@ export const useBootstrap = () => {
 
   // MessageNotifications data fra MessageNotificationStore
   const { notifications: messageNotifications } = useMessageNotificationStore();
+
+  // Friend requests fra NotificationStore
+  const { friendRequests: pendingFriendInvitations } = useNotificationStore();
 
   // Cleanup old cache ved oppstart
   useEffect(() => {
@@ -166,8 +169,8 @@ export const useBootstrap = () => {
     friends,                   // fra BootstrapStore
     blockedUsers,             // fra BootstrapStore  
     settings,                 // fra BootstrapStore
+    pendingFriendInvitations, // fra NotificationStore
     syncToken,                // fra BootstrapStore
-    pendingFriendInvitations,
     conversations,            // fra ChatStore
     messageNotifications,     // fra MessageNotificationStore
     

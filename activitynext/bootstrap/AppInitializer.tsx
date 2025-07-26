@@ -5,7 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useBootstrap } from "@/hooks/bootstrap/useBootstrap";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useChatStore } from "@/store/useChatStore";
-import { useMessageNotificationStore } from "@/store/useMessageNotificationStore"; // 🆕 LEGG TIL
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
@@ -43,6 +44,7 @@ export function AppInitializer() {
       useBootstrapStore.getState().reset();
       useChatStore.getState().reset();
       useMessageNotificationStore.getState().reset(); // 🆕 LEGG TIL
+      useNotificationStore.getState().reset();
       
       // Reset retry counter for ny bruker
       retryCountRef.current = 0;

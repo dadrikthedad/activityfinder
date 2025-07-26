@@ -1,12 +1,10 @@
 "use client";
 // Hjelpefunksjon som gjør at vi laster inn alt i MessageDropdown i navbaren ved at vi er innlogget.
 import { useEffect, useRef } from "react";
-import { fetchAndSetMessageNotifications } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { useAuth } from "@/context/AuthContext";
 import { useChatStore } from "@/store/useChatStore";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
-import { fetchAndSetFriendRequests } from "@/hooks/friends/useFriendInvitationsInit";
 import { fetchAndSetNotifications } from "@/hooks/notifications/useGetNotifications";
 
 export function MessageDropdownInitializer() {
@@ -28,19 +26,9 @@ export function MessageDropdownInitializer() {
 
     // --- HENT CURRENT STATE ---
     const notifSt = useNotificationStore.getState();
-    const msgNotifSt = useMessageNotificationStore.getState(); // 🆕
+  
 
     // --- CONDITIONAL LOADING BASERT PÅ EXISTING DATA ---
-
-
-    // 4) Friend Requests
-    if (!notifSt.hasLoadedFriendRequests || notifSt.friendRequests.length === 0) {
-      console.log("👥 Loading friend requests...");
-      notifSt.setHasLoadedFriendRequests(true);
-      fetchAndSetFriendRequests(token);
-    } else {
-      console.log("✅ Friend requests already loaded from IndexedDB:", notifSt.friendRequests.length);
-    }
 
     // 5) General Notifications
     if (!notifSt.hasLoadedNotifications || notifSt.notifications.length === 0) {
