@@ -2,6 +2,7 @@ import { UserSummaryDTO } from "../UserSummaryDTO";
 import { UserSettingsDTO } from "../UserSettingsDTO";
 import { MessageRequestDTO } from "../MessageReqeustDTO";
 import { MessageNotificationDTO } from "../MessageNotificationDTO";
+import { FriendInvitationDTO } from "../FriendInvitationDTO";
 
 
 export interface SecondaryBootstrapResponseDTO {
@@ -11,4 +12,5 @@ export interface SecondaryBootstrapResponseDTO {
   unreadConversationIds: number[];
   pendingMessageRequests: MessageRequestDTO[];
   recentNotifications: MessageNotificationDTO[];
+  pendingFriendInvitations: FriendInvitationDTO[];
 }

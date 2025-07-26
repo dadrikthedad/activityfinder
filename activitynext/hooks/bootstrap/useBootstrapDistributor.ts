@@ -19,7 +19,6 @@ export const useBootstrapDistributor = () => {
     setCachedPendingRequests,
   } = useChatStore();
 
-  // 🆕 LEGG TIL MessageNotificationStore
   const {
     setNotifications: setMessageNotifications,
     setHasLoadedNotifications: setHasLoadedMessageNotifications,
@@ -57,7 +56,7 @@ export const useBootstrapDistributor = () => {
     setHasLoadedPendingRequests(true);
     setCachedPendingRequests(data.pendingMessageRequests);
 
-    // 🆕 4. MessageNotifications til MessageNotificationStore
+    // 4. MessageNotifications til MessageNotificationStore
     if (data.recentNotifications && data.recentNotifications.length > 0) {
       // Gjenbruk hjelpefunksjon for konsistent logikk
       const merged = mergeMessageNotifications(data.recentNotifications);
@@ -73,7 +72,8 @@ export const useBootstrapDistributor = () => {
       settings: data.settings.language,
       unreadConversations: data.unreadConversationIds.length,
       pendingRequests: data.pendingMessageRequests.length,
-      messageNotifications: data.recentNotifications?.length || 0, 
+      messageNotifications: data.recentNotifications?.length || 0,
+      pendingFriendInvitations: data.pendingFriendInvitations.length,
       stores: "BootstrapStore + ChatStore + MessageNotificationStore" 
     });
   }, [

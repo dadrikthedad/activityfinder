@@ -18,6 +18,7 @@ export const useBootstrap = () => {
     friends,
     blockedUsers,
     settings,
+    pendingFriendInvitations,
     syncToken,
     criticalLoading,
     secondaryLoading,
@@ -166,6 +167,7 @@ export const useBootstrap = () => {
     blockedUsers,             // fra BootstrapStore  
     settings,                 // fra BootstrapStore
     syncToken,                // fra BootstrapStore
+    pendingFriendInvitations,
     conversations,            // fra ChatStore
     messageNotifications,     // fra MessageNotificationStore
     
