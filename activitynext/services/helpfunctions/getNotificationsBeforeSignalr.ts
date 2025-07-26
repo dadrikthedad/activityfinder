@@ -30,7 +30,7 @@ export async function handleIncomingNotification(
     let store = useMessageNotificationStore.getState();
   
     // 🚨 Må hente på nytt etter fetch
-    const hasFetchedNewMessageNotifs = store.notifications.some(
+    const hasFetchedNewMessageNotifs = store.messageNotifications.some(
       (n) => n.type === "NewMessage"
     );
     if (!hasFetchedNewMessageNotifs) {
@@ -39,7 +39,7 @@ export async function handleIncomingNotification(
       store = useMessageNotificationStore.getState();
     }
   
-    const existing = store.notifications.find(
+    const existing = store.messageNotifications.find(
       (n) =>
         n.conversationId === notification.conversationId &&
         n.type === notification.type &&
@@ -139,7 +139,7 @@ export async function handleIncomingReactionNotification(
   let store = useMessageNotificationStore.getState();
   
   // Sørg for at vi har lastet notifikasjoner
-  const hasFetchedReactions = store.notifications.some(n => n.type === "MessageReaction");
+  const hasFetchedReactions = store.messageNotifications.some(n => n.type === "MessageReaction");
   if (!hasFetchedReactions) {
     await fetchAndSetMessageNotifications();
     store = useMessageNotificationStore.getState();
@@ -151,7 +151,7 @@ export async function handleIncomingReactionNotification(
   }
 
   // Finn eksisterende notifikasjon
-  const existing = store.notifications.find(
+  const existing = store.messageNotifications.find(
     (n) =>
       n.type === "MessageReaction" &&
       n.messageId === notification.messageId &&

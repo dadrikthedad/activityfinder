@@ -6,8 +6,8 @@ import { showNotificationToast } from "@/components/toast/Toast";
 import { markMessageNotificationAsRead } from "@/services/messages/messageNotificationService";
 
 type MessageNotificationStore = {
-  notifications: MessageNotificationDTO[];
-  setNotifications: (notifications: MessageNotificationDTO[]) => void;
+  messageNotifications: MessageNotificationDTO[];
+  setMessageNotifications: (notifications: MessageNotificationDTO[]) => void;
   addNotificationFromApi: (notifications: MessageNotificationDTO[]) => void;
   upsertNotification: (incoming: MessageNotificationDTO) => boolean;
   markAsRead: (id: number) => Promise<void>;
@@ -28,24 +28,24 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
   persist(
     subscribeWithSelector((set, get) => ({
       // --- initial state ---
-      notifications: [],
+      messageNotifications: [],
       hasLoadedNotifications: false,
 
-      setNotifications: (notifications) => set({ notifications }),
+      setMessageNotifications: (notifications) => set({ messageNotifications: notifications }),
       setHasLoadedNotifications: (v) => set({ hasLoadedNotifications: v }),
 
       addNotificationFromApi: (incoming) => {
         // Duplikatkontroll basert på ID
-        const existing = new Map(get().notifications.map((n) => [n.id, n]));
+        const existing = new Map(get().messageNotifications.map((n) => [n.id, n]));
         incoming.forEach((n) => existing.set(n.id, n));
-        set({ notifications: Array.from(existing.values()).slice(0, 50) });
+        set({ messageNotifications: Array.from(existing.values()).slice(0, 50) });
       },
 
       upsertNotification: (incoming: MessageNotificationDTO) => {
         let wasNew = true;
 
         set((state) => {
-          const existing = state.notifications.find((n) => n.id === incoming.id);
+          const existing = state.messageNotifications.find((n) => n.id === incoming.id);
           wasNew = !existing;
 
           const merged: MessageNotificationDTO = existing
@@ -58,7 +58,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
               }
             : incoming;
 
-          const withoutDupes = state.notifications.filter((n) => n.id !== incoming.id);
+          const withoutDupes = state.messageNotifications.filter((n) => n.id !== incoming.id);
           const finalList = [merged, ...withoutDupes].slice(0, 50);
 
           if (wasNew && incoming.type === NotificationType.MessageRequestApproved) {
@@ -72,7 +72,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
           }
 
           return {
-            notifications: finalList,
+            messageNotifications: finalList,
           };
         });
 
@@ -84,7 +84,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
           await markMessageNotificationAsRead(id);
 
           set((state) => ({
-            notifications: state.notifications.map((n) =>
+            messageNotifications: state.messageNotifications.map((n) =>
               n.id === id
                 ? { ...n, isRead: true, readAt: new Date().toISOString() }
                 : n
@@ -97,25 +97,25 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
 
       markAllAsRead: () =>
         set((state) => ({
-          notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+          messageNotifications: state.messageNotifications.map((n) => ({ ...n, isRead: true })),
         })),
         
 
       markAsReadForConversation: (conversationId: number) => {
         set((state) => {
-          const updated = state.notifications.map((n) =>
+          const updated = state.messageNotifications.map((n) =>
             n.conversationId === conversationId
               ? { ...n, isRead: true, readAt: new Date().toISOString() }
               : n
           );
 
-          return { notifications: updated };
+          return { messageNotifications: updated };
         });
       },
 
       updateNotificationsForRejectedConversation: (conversationId: number) => {
         set((state) => ({
-          notifications: state.notifications.map((notification) =>
+          messageNotifications: state.messageNotifications.map((notification) =>
             notification.conversationId === conversationId
               ? {
                   ...notification,
@@ -149,7 +149,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
       // --- full reset (bruk ved logout) ---
       reset: () =>
         set({
-          notifications: [],
+          messageNotifications: [],
           hasLoadedNotifications: false,
           seenReactions: {},
         }),
@@ -163,7 +163,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
        * - 50 siste notifikasjoner (matcher slice(0, 50) logikken)
        */
       partialize: (state) => ({
-        notifications: state.notifications.slice(0, 50),
+        notifications: state.messageNotifications.slice(0, 50),
         hasLoadedNotifications: state.hasLoadedNotifications,
       }),
 

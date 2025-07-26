@@ -12,7 +12,6 @@ import NavbarNotifications from "@/components/notifications/NavbarNotifications"
 import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllNotificationsAsRead";
 import MessageDropdown from "@/components/messages/MessageDropdown";
 import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
-import { MessageDropdownInitializer } from "@/services/helpfunctions/messageDropdownInitializer";
 import NavbarMessageNotifications from "./messages/NavbarMessageNotificaitons";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import NavbarLoginDropdown from "./navbar/NavbarLoginDropdown";
@@ -104,7 +103,6 @@ export default function Navbar() {
       <ul className="flex gap-6 items-center relative">
         {isLoggedIn ? (
           <>
-            <MessageDropdownInitializer />
             
             {/* Messages - ✅ FORENKLET */}
             <li className="relative">

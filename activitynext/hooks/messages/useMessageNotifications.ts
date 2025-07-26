@@ -16,7 +16,7 @@ export function useMessageNotifications(pageSize = 20) {
 
     const store = useMessageNotificationStore.getState();
     const hasLoaded = store.hasLoadedNotifications;
-    const storeNotifications = store.notifications;
+    const storeNotifications = store.messageNotifications;
 
     if (page === 1 && hasLoaded) {
       setLocalNotifications(storeNotifications);
@@ -35,7 +35,7 @@ export function useMessageNotifications(pageSize = 20) {
       });
 
       if (page === 1) {
-        store.setNotifications(data.notifications);
+        store.setMessageNotifications(data.notifications);
         store.setHasLoadedNotifications(true);
       }
 

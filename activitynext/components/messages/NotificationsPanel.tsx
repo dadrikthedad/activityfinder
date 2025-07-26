@@ -16,12 +16,12 @@ interface NotificationsPanelProps {
 }
 
 export default function NotificationsPanel({ onOpenConversation }: NotificationsPanelProps) {
-  const notifications = useMessageNotificationStore((s) => s.notifications);
+  const notifications = useMessageNotificationStore((s) => s.messageNotifications);
   const { markOneAsRead, markAllAsRead, loading: markAllLoading } = useMessageNotificationActions();
   const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
   const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
 
-  const totalNotifications = useMessageNotificationStore((s) => s.notifications.length);
+  const totalNotifications = useMessageNotificationStore((s) => s.messageNotifications.length);
   const canGoToChat = totalNotifications >= 20;
 
   // 🆕 Forbedret tooltip state med calculatePopoverPosition

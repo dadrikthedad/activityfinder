@@ -9,7 +9,7 @@ export function mergeMessageNotifications(newNotifications: MessageNotificationD
   const store = useMessageNotificationStore.getState();
   
   // Fjern midlertidige notifikasjoner fra lokal zustand
-  const cleaned = store.notifications.filter(n => !n.isTemporary);
+  const cleaned = store.messageNotifications.filter(n => !n.isTemporary);
   
   // Slå sammen og unngå duplikater på ID
   const combined = [...newNotifications, ...cleaned];
@@ -25,7 +25,7 @@ export function mergeMessageNotifications(newNotifications: MessageNotificationD
 export function setMessageNotificationsInStore(notifications: MessageNotificationDTO[], source: string = "unknown") {
   const store = useMessageNotificationStore.getState();
   
-  store.setNotifications(notifications);
+  store.setMessageNotifications(notifications);
   store.setHasLoadedNotifications(true);
   
   console.log(`📨 Lagrer ${notifications.length} unike message notifications i Zustand (via ${source}).`);

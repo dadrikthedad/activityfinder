@@ -21,13 +21,14 @@ export const useBootstrapDistributor = () => {
   } = useChatStore();
 
   const {
-    setNotifications: setMessageNotifications,
     setHasLoadedNotifications: setHasLoadedMessageNotifications,
   } = useMessageNotificationStore();
 
   const {
     setFriendRequests,
     setHasLoadedFriendRequests,
+    setNotifications,   
+    setHasLoadedNotifications
   } = useNotificationStore();
 
   const distributeCriticalData = useCallback((data: CriticalBootstrapResponseDTO) => {
@@ -43,7 +44,7 @@ export const useBootstrapDistributor = () => {
     console.log("✅ Critical data distributed:", {
       user: data.user.fullName,
       conversations: data.recentConversations.length,
-      stores: "BootstrapStore + ChatStore + MessageNotificationStore"
+      stores: "BootstrapStore + ChatStore"
     });
   }, [setCriticalData, setConversations, setHasLoadedConversations]);
 
@@ -63,9 +64,9 @@ export const useBootstrapDistributor = () => {
     setCachedPendingRequests(data.pendingMessageRequests);
 
     // 4. MessageNotifications til MessageNotificationStore
-    if (data.recentNotifications && data.recentNotifications.length > 0) {
+    if (data.recentMessageNotifications && data.recentMessageNotifications.length > 0) {
       // Gjenbruk hjelpefunksjon for konsistent logikk
-      const merged = mergeMessageNotifications(data.recentNotifications);
+      const merged = mergeMessageNotifications(data.recentMessageNotifications);
       setMessageNotificationsInStore(merged, "bootstrap");
     } else {
       // Fortsatt marker som loaded selv om det er tomt
@@ -85,15 +86,26 @@ export const useBootstrapDistributor = () => {
       setHasLoadedFriendRequests(true);
       console.log("👥 Ingen friend requests mottatt, men marker som loaded");
     }
+
+    // 🆕 6. App notifications til NotificationStore
+    if (data.recentNotifications && data.recentNotifications.length > 0) {
+      setNotifications(data.recentNotifications);
+      setHasLoadedNotifications(true);
+      console.log("🔔 App notifications satt i NotificationStore:", data.recentNotifications.length);
+    } else {
+      setHasLoadedNotifications(true);
+      console.log("🔔 Ingen app notifications mottatt, men marker som loaded");
+    }
    
     console.log("✅ Secondary data distributed:", {
       friends: data.friends.length,
       settings: data.settings.language,
       unreadConversations: data.unreadConversationIds.length,
       pendingRequests: data.pendingMessageRequests.length,
-      messageNotifications: data.recentNotifications?.length || 0,
+      messageNotifications: data.recentMessageNotifications?.length || 0,
       pendingFriendInvitations: data.pendingFriendInvitations.length,
-      stores: "BootstrapStore + ChatStore + MessageNotificationStore" 
+      appNotifications: data.recentNotifications?.length || 0,
+      stores: "BootstrapStore + ChatStore + MessageNotificationStore + NotificationStore" 
     });
   }, [
     setSecondaryData,
@@ -102,10 +114,11 @@ export const useBootstrapDistributor = () => {
     setPendingMessageRequests,
     setHasLoadedPendingRequests,
     setCachedPendingRequests,
-    setMessageNotifications,
     setHasLoadedMessageNotifications,
     setFriendRequests,
     setHasLoadedFriendRequests,
+    setNotifications,           
+    setHasLoadedNotifications,
   ]);
 
   return {

@@ -38,10 +38,12 @@ export const useBootstrap = () => {
   const { conversations } = useChatStore();
 
   // MessageNotifications data fra MessageNotificationStore
-  const { notifications: messageNotifications } = useMessageNotificationStore();
+  const { messageNotifications: messageNotifications } = useMessageNotificationStore();
 
   // Friend requests fra NotificationStore
   const { friendRequests: pendingFriendInvitations } = useNotificationStore();
+
+  const { notifications: appNotifications } = useNotificationStore();
 
   // Cleanup old cache ved oppstart
   useEffect(() => {
@@ -173,6 +175,7 @@ export const useBootstrap = () => {
     syncToken,                // fra BootstrapStore
     conversations,            // fra ChatStore
     messageNotifications,     // fra MessageNotificationStore
+    appNotifications,   
     
     // State
     isBootstrapped,

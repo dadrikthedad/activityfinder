@@ -10,7 +10,7 @@ interface Props {
 
 export default function NavbarMessageNotifications({ onClick }: Props) {
   const unreadCount = useMessageNotificationStore(
-    (s) => s.notifications.filter((n) => !n.isRead).length
+    (s) => s.messageNotifications.filter((n) => !n.isRead).length
   );
 
   return (

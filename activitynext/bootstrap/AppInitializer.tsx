@@ -156,6 +156,7 @@ export function BootstrapDebugInfo() {
     conversations,
     messageNotifications,
     pendingFriendInvitations,
+    appNotifications,
     isCriticalCacheValid,
     isSecondaryCacheValid,
   } = useBootstrap();
@@ -227,6 +228,7 @@ export function BootstrapDebugInfo() {
         <div>Unread IDs: {unreadConversationIds?.length || 0}</div>
         <div>Message Notifications: {messageNotifications?.length || 0}</div> {/* 🆕 LEGG TIL */}
         <div>Friend Invitations: {pendingFriendInvitations?.length || 0}</div>
+        <div>Notifications: {appNotifications?.length || 0}</div>
       </div>
     </div>
   );
