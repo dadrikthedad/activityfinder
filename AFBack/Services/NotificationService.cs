@@ -87,5 +87,73 @@ public class NotificationService : INotificationService
                 RelatedUser = relatedUserDto
             });
     }
+    
+    public async Task<List<NotificationDTO>> GetUserNotificationsAsync(int userId, int page = 1, int pageSize = 100)
+    {
+        var notifications = await _context.Notifications
+            .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
+            .Where(n => n.RecipientUserId == userId)
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var result = notifications.Select(ToDto).ToList();
+        
+        
+        return result;
+    }
+
+    // 🆕 SPESIELL METODE FOR BOOTSTRAP (ingen paginering, bare nyeste):
+    public async Task<List<NotificationDTO>> GetRecentNotificationsForBootstrapAsync(int userId, int limit = 20)
+    {
+        try
+        {
+            var notifications = await _context.Notifications
+                .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
+                .Where(n => n.RecipientUserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(limit)
+                .ToListAsync();
+
+            var result = notifications.Select(ToDto).ToList();
+            
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return new List<NotificationDTO>(); // Robust: returner tom liste
+        }
+    }
+
+    // 🆕 FLYTT DENNE HELPER-METODEN HIT (fra controller):
+    private static NotificationDTO ToDto(Notification n)
+    {
+        UserSummaryDTO? related = null;
+
+        if (n.RelatedUser != null)
+        {
+            related = new UserSummaryDTO
+            {
+                Id = n.RelatedUser.Id,
+                FullName = n.RelatedUser.FullName,
+                ProfileImageUrl = n.RelatedUser.Profile?.ProfileImageUrl
+            };
+        }
+
+        return new NotificationDTO
+        {
+            Id = n.Id,
+            Type = n.Type,
+            Message = n.Message,
+            IsRead = n.IsRead,
+            CreatedAt = n.CreatedAt,
+            PostId = n.PostId,
+            CommentId = n.CommentId,
+            FriendInvitationId = n.FriendInvitationId,
+            EventInvitationId = n.EventInvitationId,
+            RelatedUser = related
+        };
+    }
 }
 

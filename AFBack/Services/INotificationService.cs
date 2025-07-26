@@ -1,4 +1,5 @@
-﻿using AFBack.Models;
+﻿using AFBack.DTOs;
+using AFBack.Models;
 
 namespace AFBack.Services;
 
@@ -15,4 +16,7 @@ public interface INotificationService
         int? eventInvitationId = null,
         int? conversationId = null
     );
+    
+    Task<List<NotificationDTO>> GetUserNotificationsAsync(int userId, int page = 1, int pageSize = 100);
+    Task<List<NotificationDTO>> GetRecentNotificationsForBootstrapAsync(int userId, int limit = 20);
 }

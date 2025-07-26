@@ -11,8 +11,10 @@ namespace AFBack.DTOs
         public List<int> UnreadConversationIds { get; set; } = new();
         public List<MessageRequestDTO> PendingMessageRequests { get; set; } = new();
         
-        public List<MessageNotificationDTO> RecentNotifications { get; set; } 
+        public List<MessageNotificationDTO> RecentMessageNotifications { get; set; } 
         public List<FriendInvitationDTO> PendingFriendInvitations { get; set; }
+        
+        public List<NotificationDTO> RecentNotifications { get; set; } 
         
     }
 }

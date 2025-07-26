@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using AFBack.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +16,12 @@ using System.Security.Claims;
 public class NotificationController : BaseController
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public NotificationController(ApplicationDbContext context)
+    public NotificationController(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
     
     /* ---------- HENT ENKELT NOTIFIKASJON ---------- */
@@ -42,24 +45,20 @@ public class NotificationController : BaseController
 
     /* ---------- EKST. PAGINERT LISTE (uendret) ---------- */
     [HttpGet]
+    [HttpGet]
     public async Task<ActionResult<List<NotificationDTO>>> GetNotifications(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100)
     {
-        if (page <= 0 || pageSize <= 0) return BadRequest("Page and pageSize must be positive integers.");
+        if (page <= 0 || pageSize <= 0) 
+            return BadRequest("Page and pageSize must be positive integers.");
+        
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             return Unauthorized();
 
-        var notifications = await _context.Notifications
-            .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
-            .Where(n => n.RecipientUserId == userId)
-            .OrderByDescending(n => n.CreatedAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        var result = notifications.Select(ToDto).ToList();
-        return Ok(result);
+        // 🎯 ENKEL: Bruk service i stedet for direkte database-kall
+        var notifications = await _notificationService.GetUserNotificationsAsync(userId, page, pageSize);
+        return Ok(notifications);
     }
     
     // Setter alle notifications som lest slik at bruker ikke trenger å se varslene i høyre hjørnet
