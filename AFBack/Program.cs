@@ -176,6 +176,8 @@ builder.Services.AddHostedService<QueuedHostedService>();
 builder.Services.AddScoped<GroupNotificationService>();
 builder.Services.AddScoped<BootstrapService>();
 builder.Services.AddScoped<FriendService>();
+builder.Services.AddScoped<UserOnlineService>();
+builder.Services.AddHostedService<OnlineStatusCleanupService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

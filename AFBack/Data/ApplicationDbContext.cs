@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 namespace AFBack.Data;
 // 10.03
@@ -36,6 +37,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserBlocks> UserBlock { get; set; }
     
     public DbSet<CanSend> CanSend { get; set; }
+    
+    public DbSet<UserOnlineStatus> UserOnlineStatuses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -465,6 +468,66 @@ public class ApplicationDbContext : DbContext
             // Table name (valgfri hvis du vil overstyre EF sin konvensjon)
             entity.ToTable("CanSend");
         });
+        
+        modelBuilder.Entity<UserOnlineStatus>(entity =>
+        {
+            // Table name
+            entity.ToTable("UserOnlineStatuses");
+
+            // Primary key
+            entity.HasKey(e => e.Id);
+
+            // 🔧 FIKSER FEILEN: Pek til navigation property
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.OnlineStatuses) // 🔑 ENDRET: Peker til navigation property
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Rest of configuration remains the same...
+            entity.HasIndex(e => new { e.UserId, e.DeviceId })
+                .IsUnique()
+                .HasDatabaseName("IX_UserOnlineStatus_UserId_DeviceId");
+
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_UserOnlineStatus_UserId");
+
+            entity.HasIndex(e => e.IsOnline)
+                .HasDatabaseName("IX_UserOnlineStatus_IsOnline");
+
+            entity.HasIndex(e => e.LastSeen)
+                .HasDatabaseName("IX_UserOnlineStatus_LastSeen");
+
+            // Property configurations...
+            entity.Property(e => e.DeviceId)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnType("varchar(100)");
+
+            entity.Property(e => e.Platform)
+                .HasMaxLength(20)
+                .HasColumnType("varchar(20)");
+
+            entity.Property(e => e.LastSeen)
+                .IsRequired()
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(e => e.LastBootstrapAt)
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(e => e.IsOnline)
+                .IsRequired()
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.Capabilities)
+                .HasConversion(
+                    v => v == null || v.Length == 0 ? "" : string.Join(',', v),
+                    v => string.IsNullOrEmpty(v) 
+                        ? Array.Empty<string>()
+                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                )
+                .HasColumnType("text");
+        });
+
 
         
     }

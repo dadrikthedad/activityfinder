@@ -3,6 +3,7 @@ using System;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250727170322_AddUserOnlineStatus")]
+    partial class AddUserOnlineStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -855,6 +858,9 @@ namespace AFBack.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("UserId1")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IsOnline")
@@ -865,6 +871,8 @@ namespace AFBack.Migrations
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_UserOnlineStatus_UserId");
+
+                    b.HasIndex("UserId1");
 
                     b.HasIndex("UserId", "DeviceId")
                         .IsUnique()
@@ -1313,10 +1321,14 @@ namespace AFBack.Migrations
             modelBuilder.Entity("AFBack.Models.UserOnlineStatus", b =>
                 {
                     b.HasOne("AFBack.Models.User", "User")
-                        .WithMany("OnlineStatuses")
+                        .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("AFBack.Models.User", null)
+                        .WithMany("OnlineStatuses")
+                        .HasForeignKey("UserId1");
 
                     b.Navigation("User");
                 });

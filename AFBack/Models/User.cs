@@ -123,8 +123,7 @@ public class User
     
     public ICollection<CanSend> CanSendTo { get; set; } = new List<CanSend>();
     
-    
-    
+    public ICollection<UserOnlineStatus> OnlineStatuses { get; set; } = new List<UserOnlineStatus>();
 }
 
 public enum Gender
