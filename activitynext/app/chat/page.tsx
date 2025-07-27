@@ -17,8 +17,6 @@ export default function ChatPage() {
   // 🆕 Bootstrap data
   const { 
     user, 
-    friends, 
-    blockedUsers, 
     settings, 
     isBootstrapped, 
     criticalLoading, 
@@ -148,15 +146,6 @@ export default function ChatPage() {
               <span className="font-medium">{user?.fullName || 'Not loaded'}</span>
             </div>
             
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-              <span>👥 Friends:</span>
-              <span className="font-medium">{friends.length}</span>
-            </div>
-            
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-              <span>🚫 Blocked:</span>
-              <span className="font-medium">{blockedUsers.length}</span>
-            </div>
             
             <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
               <span>🌐 Language:</span>
