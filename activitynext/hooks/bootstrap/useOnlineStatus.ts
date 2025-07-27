@@ -5,8 +5,6 @@ import {
   markOfflineWithDefaults, 
   sendHeartbeatSafe,
 } from '@/services/onlineStatusService';
-import { API_BASE_URL } from '@/constants/routes';
-import { markOfflineBeacon } from '@/functions/bootstrap/UserOnlineFunctions';
 
 interface UseOnlineStatusReturn {
   isOnline: boolean;
@@ -17,46 +15,93 @@ interface UseOnlineStatusReturn {
   reconnect: () => Promise<void>;
 }
 
+// @/hooks/useOnlineStatus.ts - Auto-recovery version
 export const useOnlineStatus = (): UseOnlineStatusReturn => {
   const [isOnline, setIsOnline] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recoveryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
+  const shouldBeOnlineRef = useRef(false); // 🔑 Track if we SHOULD be online
+  
+  // 🔑 Use ref to avoid circular dependency
+  const markOnlineRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Start heartbeat interval
-  const startHeartbeat = useCallback((intervalMs: number = 30000) => {
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
-    }
-    
-    heartbeatIntervalRef.current = setInterval(async () => {
-      const success = await sendHeartbeatSafe();
-      if (!success) {
-        console.warn("⚠️ Heartbeat failed - marking as offline");
-        setIsOnline(false);
-        setConnectionError("Heartbeat failed");
-      }
-    }, intervalMs);
-    
-    console.log(`✅ Heartbeat started (${intervalMs}ms interval)`);
-  }, []);
-
-  // Stop heartbeat interval
   const stopHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
       heartbeatIntervalRef.current = null;
       console.log('⏹️ Heartbeat stopped');
     }
+    retryCountRef.current = 0;
   }, []);
 
-  // Mark user as online
+  // 🔑 NOW define scheduleRecovery
+  const scheduleRecovery = useCallback(() => {
+    if (recoveryTimeoutRef.current) {
+      clearTimeout(recoveryTimeoutRef.current);
+    }
+    
+    // Exponential backoff: 10s, 30s, 60s, 120s, max 300s (5min)
+    const delays = [10000, 30000, 60000, 120000, 300000];
+    const delay = delays[Math.min(retryCountRef.current - 3, delays.length - 1)];
+    
+    console.log(`⏰ Scheduling recovery attempt in ${delay}ms`);
+    
+    recoveryTimeoutRef.current = setTimeout(async () => {
+      if (shouldBeOnlineRef.current && !isOnline && !isConnecting && markOnlineRef.current) {
+        console.log("🔄 Attempting auto-recovery...");
+        await markOnlineRef.current();
+      }
+    }, delay);
+  }, [isOnline, isConnecting]);
+
+  // Enhanced heartbeat with auto-recovery
+  const startHeartbeat = useCallback((intervalMs: number = 60000) => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+    }
+    
+    heartbeatIntervalRef.current = setInterval(async () => {
+      const success = await sendHeartbeatSafe();
+      
+      if (!success) {
+        console.warn("⚠️ Heartbeat failed");
+        retryCountRef.current++;
+        
+        // After 3 failed heartbeats, mark as offline but schedule recovery
+        if (retryCountRef.current >= 3) {
+          console.error("❌ Multiple heartbeat failures - marking offline but will auto-recover");
+          setIsOnline(false);
+          setConnectionError("Connection lost");
+          stopHeartbeat();
+          
+          // 🔑 SCHEDULE AUTO-RECOVERY if we should be online
+          if (shouldBeOnlineRef.current) {
+            scheduleRecovery();
+          }
+        }
+      } else {
+        // Reset retry count on successful heartbeat
+        retryCountRef.current = 0;
+        if (connectionError) {
+          setConnectionError(null);
+        }
+      }
+    }, intervalMs);
+    
+    console.log(`✅ Heartbeat started (${intervalMs}ms interval)`);
+  }, [connectionError, scheduleRecovery, stopHeartbeat]);
+
+  // Enhanced markOnline
   const markOnline = useCallback(async () => {
     if (isConnecting) {
       console.log("🔄 Already connecting, skipping...");
       return;
     }
 
+    shouldBeOnlineRef.current = true; // 🔑 Mark that we SHOULD be online
     setIsConnecting(true);
     setConnectionError(null);
 
@@ -68,9 +113,14 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       if (result) {
         console.log("✅ User marked as online successfully");
         setIsOnline(true);
+        startHeartbeat(60000);
+        retryCountRef.current = 0;
         
-        // Start heartbeat to maintain online status
-        startHeartbeat(30000);
+        // Clear any pending recovery
+        if (recoveryTimeoutRef.current) {
+          clearTimeout(recoveryTimeoutRef.current);
+          recoveryTimeoutRef.current = null;
+        }
       } else {
         throw new Error("Failed to mark user online - no response");
       }
@@ -79,16 +129,28 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       console.error("❌ Failed to mark user online:", error);
       setConnectionError(error instanceof Error ? error.message : "Failed to connect");
       setIsOnline(false);
+      
+      // 🔑 Schedule recovery since we should be online
+      if (shouldBeOnlineRef.current) {
+        scheduleRecovery();
+      }
     } finally {
       setIsConnecting(false);
     }
-  }, [isConnecting, startHeartbeat]);
+  }, [isConnecting, startHeartbeat, scheduleRecovery]);
 
-  // Mark user as offline
+  // 🔑 Set the ref after markOnline is defined
+  useEffect(() => {
+    markOnlineRef.current = markOnline;
+    }, [markOnline]);
+
+  // Enhanced markOffline
   const markOffline = useCallback(async () => {
     try {
       console.log("⏹️ Marking user as offline...");
 
+      shouldBeOnlineRef.current = false; // 🔑 We no longer should be online
+      
       await markOfflineWithDefaults();
       stopHeartbeat();
       
@@ -96,9 +158,16 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       setConnectionError(null);
       console.log("✅ User marked as offline successfully");
       
+      // Clear any pending recovery
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
+        recoveryTimeoutRef.current = null;
+      }
+      
     } catch (error) {
       console.warn("⚠️ Failed to mark user offline:", error);
-      // Still mark as offline locally even if API fails
+      // Still mark as offline locally
+      shouldBeOnlineRef.current = false;
       setIsOnline(false);
       stopHeartbeat();
     }
@@ -106,47 +175,63 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
 
   // Reconnect function
   const reconnect = useCallback(async () => {
-    console.log("🔄 Reconnecting online status...");
+    console.log("🔄 Manual reconnect requested...");
     await markOffline();
     await markOnline();
   }, [markOffline, markOnline]);
 
-  // Handle page visibility changes
+  // 🔑 ENHANCED: Page visibility with auto-recovery
   useEffect(() => {
+    let visibilityTimer: NodeJS.Timeout | null = null;
+    
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        markOffline();
-      } else if (document.visibilityState === 'visible' && !isOnline) {
-        markOnline();
+        // Don't immediately mark offline - user might be switching tabs
+        visibilityTimer = setTimeout(() => {
+          markOffline();
+        }, 60000); // 1 minute delay
+      } else if (document.visibilityState === 'visible') {
+        // Clear the offline timer if user comes back
+        if (visibilityTimer) {
+          clearTimeout(visibilityTimer);
+          visibilityTimer = null;
+        }
+        
+        // 🔑 AUTO-RECOVERY: Try to come back online when page becomes visible
+        if (shouldBeOnlineRef.current && !isOnline && !isConnecting) {
+          console.log("👁️ Page visible and should be online - attempting recovery");
+          markOnline();
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isOnline, markOffline, markOnline]);
-
-  // Handle page unload
-  useEffect(() => {
-    const handleBeforeUnload = () => markOfflineBeacon(API_BASE_URL);
     
-    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      markOffline(); // Cleanup on component unmount
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (visibilityTimer) {
+        clearTimeout(visibilityTimer);
+      }
     };
-  }, [markOffline]);
+  }, [isOnline, isConnecting, markOffline, markOnline]);
 
-  // Handle network status changes
+  // Network status changes with auto-recovery
   useEffect(() => {
     const handleOnline = () => {
       console.log("🌐 Network back online");
-      if (!isOnline) markOnline();
+      // 🔑 AUTO-RECOVERY: Try to come back online when network returns
+      if (shouldBeOnlineRef.current && !isOnline && !isConnecting) {
+        console.log("🌐 Network restored and should be online - attempting recovery");
+        markOnline();
+      }
     };
 
     const handleOffline = () => {
       console.log("📡 Network went offline");
       setIsOnline(false);
       stopHeartbeat();
+      setConnectionError("Network offline");
+      // Note: shouldBeOnlineRef stays true - we'll recover when network returns
     };
 
     window.addEventListener('online', handleOnline);
@@ -155,11 +240,16 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [isOnline, markOnline, stopHeartbeat]);
+  }, [isOnline, isConnecting, markOnline, stopHeartbeat]);
 
-  // Cleanup heartbeat on unmount
+  // Cleanup on unmount
   useEffect(() => {
-    return () => stopHeartbeat();
+    return () => {
+      stopHeartbeat();
+      if (recoveryTimeoutRef.current) {
+        clearTimeout(recoveryTimeoutRef.current);
+      }
+    };
   }, [stopHeartbeat]);
 
   return {

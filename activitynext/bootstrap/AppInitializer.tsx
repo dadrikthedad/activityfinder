@@ -15,6 +15,7 @@ export function AppInitializer() {
   const prevUserIdRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const hasInitializedOnlineRef = useRef(false); 
   
   const { 
     isBootstrapped, 
@@ -45,6 +46,7 @@ export function AppInitializer() {
     
     if (!token || !userId) {
       console.log("⏸️ BOOT: No token or userId, skipping bootstrap");
+      hasInitializedOnlineRef.current = false;
 
       // Mark offline when not authenticated
       if (isOnline) {
@@ -65,6 +67,8 @@ export function AppInitializer() {
       
       // Reset retry counter for ny bruker
       retryCountRef.current = 0;
+      hasInitializedOnlineRef.current = false; 
+
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = undefined;
@@ -79,7 +83,9 @@ export function AppInitializer() {
     prevUserIdRef.current = userId;
     
     console.log("🚀 BOOT: AppInitializer ready for userId =", userId);
-  }, [token, userId]);
+  }, [token, userId, isOnline, markOffline]);
+
+  
 
   // Enklere bootstrap trigger logikk
   useEffect(() => {
@@ -109,6 +115,11 @@ export function AppInitializer() {
 
   // Online status orchestration
   useEffect(() => {
+    if (hasInitializedOnlineRef.current) {
+      console.log("✅ BOOT: Already initialized online status, skipping (strict mode protection)");
+      return;
+    }
+
     // Only mark online when all conditions are met
     if (
       token &&                // User is authenticated
@@ -120,6 +131,7 @@ export function AppInitializer() {
       !isConnecting          // Not currently connecting
     ) {
       console.log("✅ BOOT: All conditions met - marking user online");
+      hasInitializedOnlineRef.current = true; 
       markOnline();
     }
   }, [
