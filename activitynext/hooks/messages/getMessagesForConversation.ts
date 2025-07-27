@@ -1,6 +1,4 @@
 // Her henter vi meldinger til en samtale fra backend ved å sende inn en samtaleId. Denne sikrer paginering
-
-// Her henter vi meldinger til en samtale fra backend ved å sende inn en samtaleId. Denne sikrer paginering
 import { useState, useEffect, useRef } from "react";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { MessageDTO } from "@/types/MessageDTO";
@@ -9,7 +7,7 @@ import { useChatStore } from "@/store/useChatStore";
 export function usePaginatedMessages(conversationId: number, isVisible: boolean) {
   const take = 20;
   
-  // ✅ Kall hooks uansett
+  // Kall hooks uansett
   const {
     cachedMessages,
     liveMessages,
@@ -19,17 +17,17 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
   const [messages, setMessages] = useState<MessageDTO[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState<string | null>(null); // 🆕 Error state
+  const [error, setError] = useState<string | null>(null); // Error state
   const isFetching = useRef(false);
   const lastSkipRef = useRef<number>(-1);
   
-  // ✅ Så sjekker vi "ugyldig samtale" og returnerer dummydata
+  // Så sjekker vi "ugyldig samtale" og returnerer dummydata
   const isInvalidConversation = conversationId === -1;
 
   useEffect(() => {
     if (isInvalidConversation || !isVisible) return;
     
-    // 🆕 Reset error when conversation changes
+    // Reset error when conversation changes
     setError(null);
     
     const cached = cachedMessages[conversationId] ?? [];
@@ -48,7 +46,7 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
   }, [conversationId, cachedMessages, liveMessages, isInvalidConversation, isVisible]);
 
   const loadMore = async () => {
-    if (isInvalidConversation || loading || !hasMore || isFetching.current || error) return; // 🆕 Stop if error
+    if (isInvalidConversation || loading || !hasMore || isFetching.current || error) return; // Stop if error
     
     const skipCount = messages.length;
     
@@ -80,7 +78,7 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
       const uniqueNew = newMessages.filter((m) => !existingIds.has(m.id));
 
       if (uniqueNew.length > 0) {
-        const updated = [...messages, ...uniqueNew];
+        const updated = [...uniqueNew, ...messages];
         setMessages(updated);
         setCachedMessages(conversationId, updated);
       }
@@ -121,6 +119,6 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
     loadMore,
     loading: isInvalidConversation ? false : loading,
     hasMore: isInvalidConversation ? false : hasMore,
-    error: isInvalidConversation ? null : error, // 🆕 Return error state
+    error: isInvalidConversation ? null : error, // Return error state
   };
 }

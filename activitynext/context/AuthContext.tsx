@@ -15,6 +15,7 @@ import { useNotificationStore } from "@/store/useNotificationStore";
 import { indexedDBStorage } from "@/store/indexedNotificationDBStorage";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 interface AuthContextType {
   isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
@@ -28,7 +29,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined); //Her
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => { // Her sernder vi auth.data til barna
   const [isLoggedIn, setIsLoggedIn] = useState(false); 
-  const [token, setToken] = useState<string | null>(null); // ✅ Nå riktig plass
+  const [token, setToken] = useState<string | null>(null); // Nå riktig plass
   const router = useRouter();
   const [userId, setUserId] = useState<number | null>(null);
 
@@ -82,18 +83,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
     useChatStore.getState().reset();          // tømmer chat
     useNotificationStore.getState().reset();       // tømmer in-memory  (notifications & friendRequests)
     useMessageNotificationStore.getState().reset(); 
-    useBootstrapStore.getState().reset(); 
+    useBootstrapStore.getState().reset();
+    useUserCacheStore.getState().reset();              
+    
 
     /* ---------- Slett IDB-snapshot helt ---------- */
     // 1) Zustand v4+ har .persist.clearStorage()
     await useChatStore.persist.clearStorage();
     await useNotificationStore.persist.clearStorage();
     await useMessageNotificationStore.persist.clearStorage();
+    await useBootstrapStore.persist.clearStorage();
+    await useUserCacheStore.persist.clearStorage();  
 
     // 2) fallback – slett direkte via idb-keyval (hvis du ønsker helt blank DB)
     await indexedDBStorage.removeItem("chat-cache");
     await indexedDBStorage.removeItem("notif-cache");
     await indexedDBStorage.removeItem("message-notif-cache"); 
+    await indexedDBStorage.removeItem("bootstrap-cache");           
+    await indexedDBStorage.removeItem("user-cache-enhanced"); 
 
     /* ---------- Annet UI-rot ---------- */
     clearAllDrafts();                              // f.eks. editor-drafts o.l.

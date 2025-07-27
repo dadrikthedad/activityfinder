@@ -14,6 +14,7 @@ export const useBootstrapDistributor = () => {
   const {
     setConversations,
     setHasLoadedConversations,
+    setCachedMessages,
     setUnreadConversationIds,
     setHasLoadedUnreadConversationIds,
     setPendingMessageRequests,
@@ -52,15 +53,30 @@ export const useBootstrapDistributor = () => {
     setConversations(data.recentConversations);
     setHasLoadedConversations(true);
 
-    // 4. Cache conversation participants i UserCache
+    // 4. Cache messages for each conversation
+    if (data.conversationMessages) {
+      Object.entries(data.conversationMessages).forEach(([conversationId, messages]) => {
+        const convId = Number(conversationId);
+        if (messages && messages.length > 0) {
+          setCachedMessages(convId, messages);
+          console.log(`💬 Cached ${messages.length} messages for conversation ${convId}`);
+        }
+      });
+      
+      console.log(`✅ Cached messages for ${Object.keys(data.conversationMessages).length} conversations`);
+    }
+
+    // 5. Cache conversation participants i UserCache
     cacheUsersFromCriticalBootstrap(data);
    
     console.log("✅ Critical data distributed:", {
       user: data.user.fullName,
       conversations: data.recentConversations.length,
-      stores: "UserCacheStore (settings) + BootstrapStore (timestamps) + ChatStore + MessageNotificationStore + NotificationStore + UserCache"
+      conversationMessages: Object.keys(data.conversationMessages || {}).length,
+      totalMessages: Object.values(data.conversationMessages || {}).reduce((sum, msgs) => sum + msgs.length, 0),
+      stores: "BootstrapStore (syncToken) + UserCacheStore (currentUser) + ChatStore (conversations + messages) + UserCache"
     });
-  }, [setCriticalData, setCurrentUser, setConversations, setHasLoadedConversations, cacheUsersFromCriticalBootstrap]);
+  }, [setCriticalData, setCurrentUser, setConversations, setHasLoadedConversations, setCachedMessages, cacheUsersFromCriticalBootstrap]);
 
   const distributeSecondaryData = useCallback((data: SecondaryBootstrapResponseDTO) => {
     console.log("📦 Distributing secondary bootstrap data...");
