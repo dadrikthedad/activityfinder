@@ -35,7 +35,7 @@ namespace AFBack.Services
             {
                 _logger.LogInformation("🚀 Starting parallel critical bootstrap for userId: {UserId}", userId);
 
-                // ✅ PARALLEL: Separate scopes for hver operasjon
+                // PARALLEL: Separate scopes for hver operasjon
                 var userTask = Task.Run(async () =>
                 {
                     using var scope = _serviceProvider.CreateScope();
@@ -51,22 +51,33 @@ namespace AFBack.Services
                     _logger.LogDebug("📋 Starting conversations lookup with separate service");
                     return await GetConversationsWithService(userId, 10, conversationService);
                 });
+                
+                var conversationMessagesTask = Task.Run(async () =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var messageService = scope.ServiceProvider.GetRequiredService<IMessageService>();
+                    _logger.LogDebug("📋 Starting conversation messages lookup with separate service");
+                    return await GetConversationMessagesWithService(userId, messageService);
+                });
 
                 _logger.LogInformation("📋 Waiting for parallel tasks to complete...");
-                await Task.WhenAll(userTask, conversationsTask);
+                await Task.WhenAll(userTask, conversationsTask, conversationMessagesTask);
 
                 var user = await userTask;
                 var conversations = await conversationsTask;
+                var conversationMessages = await conversationMessagesTask;
 
                 _logger.LogInformation("📋 Creating response...");
                 var response = new CriticalBootstrapResponseDTO
                 {
                     User = user.ToUserSummaryDTO(),
                     RecentConversations = conversations,
+                    ConversationMessages = conversationMessages,
                     SyncToken = GenerateSimpleSyncToken(userId, user.IsOnline)
                 };
 
-                _logger.LogInformation("✅ Parallel critical bootstrap completed for user: {UserName}", user.FullName);
+                _logger.LogInformation("✅ Parallel critical bootstrap completed for user: {UserName} with {MessageCount} conversation message sets", 
+                    user.FullName, conversationMessages.Count);
                 return response;
             }
             catch (Exception ex)
@@ -242,6 +253,69 @@ namespace AFBack.Services
                     }).ToList()
                 })
                 .ToList();
+        }
+        
+        private async Task<Dictionary<int, List<MessageResponseDTO>>> GetConversationMessagesWithService(
+        int userId, 
+        IMessageService messageService)
+        {
+            _logger.LogDebug("🔍 Getting messages for user's conversations {UserId} (separate service)", userId);
+
+            try
+            {
+                // First get user's recent conversation IDs (using same logic as conversations)
+                using var scope = _serviceProvider.CreateScope();
+                var conversationService = scope.ServiceProvider.GetRequiredService<ConversationService>();
+                
+                var conversationResults = await conversationService.GetUserConversationsSortedAsync(
+                    userId,
+                    includeRejected: false,
+                    limit: 10);
+
+                var conversationMessages = new Dictionary<int, List<MessageResponseDTO>>();
+
+                // Get messages for each conversation in parallel
+                var messageTasks = conversationResults.Select(async conversationResult =>
+                {
+                    try
+                    {
+                        var messages = await messageService.GetMessagesForConversationAsync(
+                            conversationResult.Conversation.Id, 
+                            userId, 
+                            skip: 0, 
+                            take: 20);
+                        
+                        return new { ConversationId = conversationResult.Conversation.Id, Messages = messages };
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "⚠️ Failed to get messages for conversation {ConversationId}", 
+                            conversationResult.Conversation.Id);
+                        // Return empty list for failed conversations instead of crashing
+                        return new { ConversationId = conversationResult.Conversation.Id, Messages = new List<MessageResponseDTO>() };
+                    }
+                });
+
+                var messageResults = await Task.WhenAll(messageTasks);
+
+                // Build dictionary
+                foreach (var result in messageResults)
+                {
+                    conversationMessages[result.ConversationId] = result.Messages;
+                }
+
+                _logger.LogDebug("✅ Found messages for {ConversationCount} conversations with total {MessageCount} messages", 
+                    conversationMessages.Count, 
+                    conversationMessages.Values.Sum(m => m.Count));
+
+                return conversationMessages;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ Failed to get conversation messages for user {UserId}", userId);
+                // Return empty dictionary instead of crashing bootstrap
+                return new Dictionary<int, List<MessageResponseDTO>>();
+            }
         }
         
         // SECONDARY ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
