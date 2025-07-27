@@ -356,7 +356,7 @@ public class MessageService : IMessageService
         var otherMessages = allMessages.Where(m => m.SenderId == otherUserId).Take(5);
 
         var combined = ownMessages.Concat(otherMessages)
-            .OrderBy(m => m.SentAt)
+            .OrderByDescending(m => m.SentAt)
             .ToList();
 
         return combined.Select(MapToResponseForMessagesToConv).ToList();
@@ -380,7 +380,7 @@ public class MessageService : IMessageService
             .ToListAsync();
 
         return messages
-            .OrderBy(m => m.SentAt)
+            .OrderByDescending(m => m.SentAt)
             .Select(MapToResponseForMessagesToConv)
             .ToList();
     }
