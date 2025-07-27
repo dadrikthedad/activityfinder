@@ -20,15 +20,11 @@ public class UserOnlineService
     {
         try
         {
-            Console.WriteLine($"🚀 Starting MarkUserOnlineAsync for UserId: {userId}, DeviceId: {request.DeviceId}");
-
             var existingStatus = await _context.UserOnlineStatuses
                 .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == request.DeviceId);
 
             if (existingStatus != null)
             {
-                Console.WriteLine($"✏️ Updating existing status for UserId: {userId}, DeviceId: {request.DeviceId}");
-                    
                 existingStatus.LastSeen = DateTime.UtcNow;
                 existingStatus.LastBootstrapAt = request.LastBootstrapAt.HasValue 
                     ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).DateTime
@@ -39,14 +35,9 @@ public class UserOnlineService
             }
             else
             {
-                Console.WriteLine($"➕ Creating new status for UserId: {userId}, DeviceId: {request.DeviceId}");
-                    
                 var lastBootstrapDateTime = request.LastBootstrapAt.HasValue 
                     ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime
                     : (DateTime?)null;
-                    
-                Console.WriteLine($"📝 Values: UserId={userId}, DeviceId={request.DeviceId}, Platform={request.Platform}");
-                Console.WriteLine($"📝 LastBootstrapAt={lastBootstrapDateTime}, Capabilities=[{string.Join(",", request.Capabilities ?? Array.Empty<string>())}]");
 
                 var newStatus = new UserOnlineStatus
                 {
@@ -59,38 +50,18 @@ public class UserOnlineService
                     Capabilities = request.Capabilities ?? Array.Empty<string>()
                 };
 
-                Console.WriteLine($"📦 Created UserOnlineStatus object: UserId={newStatus.UserId}, DeviceId={newStatus.DeviceId}");
                 _context.UserOnlineStatuses.Add(newStatus);
             }
 
-            Console.WriteLine("💾 Attempting to save changes to database...");
             await _context.SaveChangesAsync();
-            
-            Console.WriteLine($"✅ Successfully marked User {userId} as online on device {request.DeviceId}");
             return (true, null);
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
-            Console.WriteLine($"❌ DATABASE UPDATE EXCEPTION for user {userId} on device {request.DeviceId}");
-            Console.WriteLine($"❌ DbUpdateException Message: {dbEx.Message}");
-            Console.WriteLine($"❌ InnerException: {dbEx.InnerException?.Message}");
-            Console.WriteLine($"❌ InnerException Type: {dbEx.InnerException?.GetType().Name}");
-            
             string errorMessage = "Database update failed - constraint violation or connection issue";
             
-            // PostgreSQL specific error
             if (dbEx.InnerException is Npgsql.PostgresException pgEx)
             {
-                Console.WriteLine($"🐘 PostgreSQL Error Details:");
-                Console.WriteLine($"   - ErrorCode: {pgEx.ErrorCode}");
-                Console.WriteLine($"   - SqlState: {pgEx.SqlState}");
-                Console.WriteLine($"   - Severity: {pgEx.Severity}");
-                Console.WriteLine($"   - Detail: {pgEx.Detail}");
-                Console.WriteLine($"   - Hint: {pgEx.Hint}");
-                Console.WriteLine($"   - Position: {pgEx.Position}");
-                Console.WriteLine($"   - Where: {pgEx.Where}");
-                
-                // Mer spesifikke feilmeldinger basert på PostgreSQL feilkoder
                 errorMessage = pgEx.SqlState switch
                 {
                     "23505" => "Device is already registered for this user",
@@ -102,16 +73,10 @@ public class UserOnlineService
                 };
             }
             
-            Console.WriteLine($"❌ Full Exception: {dbEx}");
             return (false, errorMessage);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"❌ GENERAL EXCEPTION for user {userId} on device {request.DeviceId}");
-            Console.WriteLine($"❌ Exception Type: {ex.GetType().Name}");
-            Console.WriteLine($"❌ Message: {ex.Message}");
-            Console.WriteLine($"❌ StackTrace: {ex.StackTrace}");
-            
             return (false, "Unexpected error occurred while updating online status");
         }
     }
