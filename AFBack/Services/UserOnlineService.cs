@@ -23,22 +23,22 @@ public class UserOnlineService
             var existingStatus = await _context.UserOnlineStatuses
                 .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == request.DeviceId);
 
+            var lastBootstrapDateTime = request.LastBootstrapAt.HasValue 
+                ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime
+                : (DateTime?)null;
+
             if (existingStatus != null)
             {
+                // Oppdater eksisterende record
                 existingStatus.LastSeen = DateTime.UtcNow;
-                existingStatus.LastBootstrapAt = request.LastBootstrapAt.HasValue 
-                    ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).DateTime
-                    : null;
+                existingStatus.LastBootstrapAt = lastBootstrapDateTime;
                 existingStatus.Platform = request.Platform;
                 existingStatus.IsOnline = true;
-                existingStatus.Capabilities = request.Capabilities;
+                existingStatus.Capabilities = request.Capabilities ?? Array.Empty<string>();
             }
             else
             {
-                var lastBootstrapDateTime = request.LastBootstrapAt.HasValue 
-                    ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime
-                    : (DateTime?)null;
-
+                // Opprett ny record
                 var newStatus = new UserOnlineStatus
                 {
                     UserId = userId,
@@ -58,32 +58,61 @@ public class UserOnlineService
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
-            // Start med den innerste feilen
-            var innerMsg = dbEx.InnerException?.Message ?? "No inner exception";
-            var innerType = dbEx.InnerException?.GetType().Name ?? "Unknown";
-            
-            if (dbEx.InnerException is Npgsql.PostgresException pgEx)
+            // Hvis det fortsatt er en duplicate key error til tross for vår check
+            if (dbEx.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
             {
-                var errorMessage = pgEx.SqlState switch
+                // Race condition - prøv å oppdatere i stedet
+                try
                 {
-                    "23505" => $"Duplicate entry: {pgEx.Detail ?? pgEx.MessageText}",
-                    "23503" => $"Foreign key violation: {pgEx.Detail ?? pgEx.MessageText}", 
-                    "23502" => $"Required field missing: {pgEx.Detail ?? pgEx.MessageText}",
-                    "22001" => $"Data too long: {pgEx.Detail ?? pgEx.MessageText}",
+                    var existingStatus = await _context.UserOnlineStatuses
+                        .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == request.DeviceId);
+                    
+                    if (existingStatus != null)
+                    {
+                        existingStatus.LastSeen = DateTime.UtcNow;
+                        existingStatus.LastBootstrapAt = request.LastBootstrapAt.HasValue 
+                            ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime
+                            : (DateTime?)null;
+                        existingStatus.Platform = request.Platform;
+                        existingStatus.IsOnline = true;
+                        existingStatus.Capabilities = request.Capabilities ?? Array.Empty<string>();
+                        
+                        await _context.SaveChangesAsync();
+                        return (true, null);
+                    }
+                }
+                catch
+                {
+                    // Hvis retry feiler, returner feil
+                }
+            }
+
+            // Andre database feil
+            var innerException = dbEx.InnerException;
+            var innerType = innerException?.GetType().Name ?? "No inner exception";
+            var innerMessage = innerException?.Message ?? "No inner message";
+            
+            if (dbEx.InnerException is Npgsql.PostgresException pgEx2)
+            {
+                var errorMessage = pgEx2.SqlState switch
+                {
+                    "23505" => $"Duplicate entry: {pgEx2.Detail ?? pgEx2.MessageText}",
+                    "23503" => $"Foreign key violation: {pgEx2.Detail ?? pgEx2.MessageText}", 
+                    "23502" => $"Required field missing: {pgEx2.Detail ?? pgEx2.MessageText}",
+                    "22001" => $"Data too long: {pgEx2.Detail ?? pgEx2.MessageText}",
                     "08006" => "Database connection failed",
-                    _ => $"PostgreSQL error ({pgEx.SqlState}): {pgEx.MessageText}"
+                    _ => $"PostgreSQL error ({pgEx2.SqlState}): {pgEx2.MessageText}"
                 };
                 return (false, errorMessage);
             }
             else
             {
-                // Ikke PostgreSQL - gi alle detaljer vi kan få
-                return (false, $"Database error ({innerType}): {innerMsg}");
+                return (false, $"Database error - Type: {innerType}, Message: {innerMessage}");
             }
         }
         catch (Exception ex)
         {
-            return (false, "Unexpected error occurred while updating online status");
+            return (false, $"Unexpected error: {ex.Message}");
         }
     }
     
