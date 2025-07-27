@@ -74,7 +74,7 @@ namespace AFBack.Controllers
             }
         }
         
-         [HttpPost("online")]
+        [HttpPost("online")]
         public async Task<IActionResult> MarkOnline([FromBody] OnlineStatusRequest request)
         {
             try
@@ -91,20 +91,29 @@ namespace AFBack.Controllers
                     return BadRequest(new { error = "DeviceId and Platform are required" });
                 }
 
-                var success = await _userOnlineService.MarkUserOnlineAsync(userId.Value, request);
-                
+                var (success, errorMessage) = await _userOnlineService.MarkUserOnlineAsync(userId.Value, request);
+        
                 if (success)
                 {
                     return Ok(new OnlineStatusResponse());
                 }
 
-                return StatusCode(500, new { error = "Failed to mark user as online" });
+                // 🔧 ENDRING: Bruk spesifikk feilmelding fra service
+                return StatusCode(500, new { 
+                    error = !string.IsNullOrEmpty(errorMessage) 
+                        ? errorMessage 
+                        : "Failed to update online status - unknown database error",
+                    userId = userId.Value,
+                    deviceId = request.DeviceId 
+                });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { 
-                    error = "Internal server error", 
-                    details = ex.Message 
+                    error = "Internal server error while marking user online", 
+                    details = ex.Message,
+                    userId = GetUserId(),
+                    deviceId = request?.DeviceId
                 });
             }
         }

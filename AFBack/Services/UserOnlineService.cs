@@ -16,7 +16,7 @@ public class UserOnlineService
         _logger = logger;
     }
 
-    public async Task<bool> MarkUserOnlineAsync(int userId, OnlineStatusRequest request)
+    public async Task<(bool success, string errorMessage)> MarkUserOnlineAsync(int userId, OnlineStatusRequest request)
     {
         try
         {
@@ -42,7 +42,7 @@ public class UserOnlineService
                 Console.WriteLine($"➕ Creating new status for UserId: {userId}, DeviceId: {request.DeviceId}");
                     
                 var lastBootstrapDateTime = request.LastBootstrapAt.HasValue 
-                    ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime  // 🔧 ENDRET: .UtcDateTime i stedet for .DateTime
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime
                     : (DateTime?)null;
                     
                 Console.WriteLine($"📝 Values: UserId={userId}, DeviceId={request.DeviceId}, Platform={request.Platform}");
@@ -67,7 +67,7 @@ public class UserOnlineService
             await _context.SaveChangesAsync();
             
             Console.WriteLine($"✅ Successfully marked User {userId} as online on device {request.DeviceId}");
-            return true;
+            return (true, null);
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
@@ -75,6 +75,8 @@ public class UserOnlineService
             Console.WriteLine($"❌ DbUpdateException Message: {dbEx.Message}");
             Console.WriteLine($"❌ InnerException: {dbEx.InnerException?.Message}");
             Console.WriteLine($"❌ InnerException Type: {dbEx.InnerException?.GetType().Name}");
+            
+            string errorMessage = "Database update failed - constraint violation or connection issue";
             
             // PostgreSQL specific error
             if (dbEx.InnerException is Npgsql.PostgresException pgEx)
@@ -87,12 +89,21 @@ public class UserOnlineService
                 Console.WriteLine($"   - Hint: {pgEx.Hint}");
                 Console.WriteLine($"   - Position: {pgEx.Position}");
                 Console.WriteLine($"   - Where: {pgEx.Where}");
+                
+                // Mer spesifikke feilmeldinger basert på PostgreSQL feilkoder
+                errorMessage = pgEx.SqlState switch
+                {
+                    "23505" => "Device is already registered for this user",
+                    "23503" => "Invalid user reference - user may not exist", 
+                    "23502" => "Required field is missing",
+                    "22001" => "Data too long for database field",
+                    "08006" => "Database connection failed",
+                    _ => $"Database constraint error: {pgEx.MessageText}"
+                };
             }
             
-            // Print full stack trace for debugging
             Console.WriteLine($"❌ Full Exception: {dbEx}");
-            
-            return false;
+            return (false, errorMessage);
         }
         catch (Exception ex)
         {
@@ -100,10 +111,11 @@ public class UserOnlineService
             Console.WriteLine($"❌ Exception Type: {ex.GetType().Name}");
             Console.WriteLine($"❌ Message: {ex.Message}");
             Console.WriteLine($"❌ StackTrace: {ex.StackTrace}");
-            return false;
+            
+            return (false, "Unexpected error occurred while updating online status");
         }
     }
-
+    
     public async Task<bool> MarkUserOfflineAsync(int userId, string deviceId)
     {
         try
