@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useBootstrap } from "@/hooks/bootstrap/useBootstrap";
+import { useOnlineStatus } from "@/hooks/bootstrap/useOnlineStatus";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
@@ -23,7 +24,15 @@ export function AppInitializer() {
     retryCritical,
     isCriticalCacheValid,
     isSecondaryCacheValid,
+    user
   } = useBootstrap();
+
+  const { 
+    isOnline, 
+    isConnecting, 
+    markOnline,
+    markOffline 
+  } = useOnlineStatus();
 
   // Reset stores ved brukerbytte
   useEffect(() => {
@@ -36,6 +45,12 @@ export function AppInitializer() {
     
     if (!token || !userId) {
       console.log("⏸️ BOOT: No token or userId, skipping bootstrap");
+
+      // Mark offline when not authenticated
+      if (isOnline) {
+        console.log("📡 BOOT: Not authenticated - marking offline");
+        markOffline();
+      }
       return;
     }
     
@@ -54,13 +69,19 @@ export function AppInitializer() {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = undefined;
       }
+
+      // Mark offline when switching users
+      if (isOnline) {
+        console.log("📡 BOOT: User switch - marking offline");
+        markOffline();
+      }
     }
     prevUserIdRef.current = userId;
     
     console.log("🚀 BOOT: AppInitializer ready for userId =", userId);
   }, [token, userId]);
 
-  // 🔧 FORBEDRET: Enklere bootstrap trigger logikk
+  // Enklere bootstrap trigger logikk
   useEffect(() => {
     if (!token || !userId || criticalLoading) {
       return;
@@ -85,6 +106,32 @@ export function AppInitializer() {
       console.log("✅ BOOT: Already bootstrapped, skipping");
     }
   }, [token, userId, isBootstrapped, criticalLoading, bootstrap, isCriticalCacheValid, isSecondaryCacheValid]);
+
+  // Online status orchestration
+  useEffect(() => {
+    // Only mark online when all conditions are met
+    if (
+      token &&                // User is authenticated
+      userId &&               // User ID exists
+      isBootstrapped &&       // Bootstrap is complete
+      user &&                 // User data is loaded
+      !criticalError &&       // No critical errors
+      !isOnline &&           // Not already online
+      !isConnecting          // Not currently connecting
+    ) {
+      console.log("✅ BOOT: All conditions met - marking user online");
+      markOnline();
+    }
+  }, [
+    token,
+    userId,
+    isBootstrapped, 
+    user, 
+    criticalError,
+    isOnline, 
+    isConnecting,
+    markOnline
+  ]);
 
   //  Exponential backoff retry logic
   useEffect(() => {
@@ -161,6 +208,12 @@ export function BootstrapDebugInfo() {
     isCriticalCacheValid,
     isSecondaryCacheValid,
   } = useBootstrap();
+
+  const { 
+    isOnline, 
+    isConnecting, 
+    connectionError 
+  } = useOnlineStatus();
   
   const { unreadConversationIds } = useChatStore();
 
@@ -209,6 +262,14 @@ export function BootstrapDebugInfo() {
         <div>Critical: {getStatusIcon(!criticalError && !criticalLoading, criticalLoading)}</div>
         <div>Secondary: {getStatusIcon(!secondaryError && !secondaryLoading, secondaryLoading)}</div>
       </div>
+
+      {/* Online Status Section */}
+      <div style={sectionStyle}>
+        <strong>🌐 Online Status</strong>
+        <div>Online: {getStatusIcon(isOnline, isConnecting)}</div>
+        <div>Connecting: {getStatusIcon(isConnecting)}</div>
+        {connectionError && <div>Error: {connectionError.substring(0, 20)}...</div>}
+      </div>
       
       <div style={sectionStyle}>
         <strong>🏪 Cache Status</strong>
@@ -240,7 +301,7 @@ export function BootstrapDebugInfo() {
   );
 }
 
-// 🆕 BONUS: Hook for manuell bootstrap trigger (for debug/testing)
+// Hook for manuell bootstrap trigger (for debug/testing)
 export function useManualBootstrap() {
   const { bootstrap, retryCritical, retrySecondary } = useBootstrap();
   

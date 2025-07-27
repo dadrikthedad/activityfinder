@@ -9,10 +9,12 @@ import { useMessageNotificationStore } from '@/store/useMessageNotificationStore
 import { useBootstrapDistributor } from './useBootstrapDistributor';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useUserCacheStore } from '@/store/useUserCacheStore'; 
+import { useOnlineStatus } from './useOnlineStatus';
 
 export const useBootstrap = () => {
   const hasInitialized = useRef(false);
   const { distributeCriticalData, distributeSecondaryData } = useBootstrapDistributor();
+  const { markOnline } = useOnlineStatus();
 
   // Bootstrap state fra BootstrapStore
   const {
@@ -160,6 +162,9 @@ export const useBootstrap = () => {
       bootstrap();
     } else {
       console.log("✅ Bootstrap cache valid and app is bootstrapped");
+
+      // Even if cache is valid, we need to mark user as online
+      markOnline();
       
       // 🔧 BONUS: Kjør kun secondary hvis den trenger oppdatering
       if (!secondaryValid) {
@@ -167,7 +172,7 @@ export const useBootstrap = () => {
         loadSecondaryData();
       }
     }
-  }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, loadSecondaryData]);
+  }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, markOnline, loadSecondaryData]);
 
   return {
     // ✅ Data fra alle stores
