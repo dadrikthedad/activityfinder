@@ -58,22 +58,28 @@ public class UserOnlineService
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
-            string errorMessage = "Database update failed - constraint violation or connection issue";
+            // Start med den innerste feilen
+            var innerMsg = dbEx.InnerException?.Message ?? "No inner exception";
+            var innerType = dbEx.InnerException?.GetType().Name ?? "Unknown";
             
             if (dbEx.InnerException is Npgsql.PostgresException pgEx)
             {
-                errorMessage = pgEx.SqlState switch
+                var errorMessage = pgEx.SqlState switch
                 {
-                    "23505" => "Device is already registered for this user",
-                    "23503" => "Invalid user reference - user may not exist", 
-                    "23502" => "Required field is missing",
-                    "22001" => "Data too long for database field",
+                    "23505" => $"Duplicate entry: {pgEx.Detail ?? pgEx.MessageText}",
+                    "23503" => $"Foreign key violation: {pgEx.Detail ?? pgEx.MessageText}", 
+                    "23502" => $"Required field missing: {pgEx.Detail ?? pgEx.MessageText}",
+                    "22001" => $"Data too long: {pgEx.Detail ?? pgEx.MessageText}",
                     "08006" => "Database connection failed",
-                    _ => $"Database constraint error: {pgEx.MessageText}"
+                    _ => $"PostgreSQL error ({pgEx.SqlState}): {pgEx.MessageText}"
                 };
+                return (false, errorMessage);
             }
-            
-            return (false, errorMessage);
+            else
+            {
+                // Ikke PostgreSQL - gi alle detaljer vi kan få
+                return (false, $"Database error ({innerType}): {innerMsg}");
+            }
         }
         catch (Exception ex)
         {
