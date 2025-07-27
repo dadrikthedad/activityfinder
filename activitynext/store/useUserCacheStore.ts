@@ -5,14 +5,25 @@ import { indexedDBStorage } from "./indexedNotificationDBStorage";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { SecondaryBootstrapResponseDTO } from "@/types/bootstrap/SecondaryBootstrapResponseDTO";
 import { CriticalBootstrapResponseDTO } from "@/types/bootstrap/CriticalBootstrapResponseDTO";
+import { UserSettingsDTO } from "@/types/UserSettingsDTO";
 
 interface UserCacheStore {
+  // Current user og settings
+  currentUser: UserSummaryDTO | null;
+  settings: UserSettingsDTO | null;
+
   // Data - nå med relationship status
   users: Record<number, UserSummaryDTO>;
   
   // Cache metadata
   lastUpdated: number;
   hasLoadedFromBootstrap: boolean;
+
+  // CurrentUserActions
+  setCurrentUser: (user: UserSummaryDTO) => void;
+  getCurrentUser: () => UserSummaryDTO | null;
+  setSettings: (settings: UserSettingsDTO) => void;
+  getSettings: () => UserSettingsDTO | null;
   
   // Core actions
   setUser: (user: UserSummaryDTO) => void;
@@ -50,9 +61,40 @@ export const useUserCacheStore = create<UserCacheStore>()(
   persist(
     subscribeWithSelector((set, get) => ({
       // --- Initial state ---
+      currentUser: null,
+      settings: null,
       users: {},
       lastUpdated: 0,
       hasLoadedFromBootstrap: false,
+
+      // --- Current user actions ---
+      setCurrentUser: (user: UserSummaryDTO) => {
+        console.log("👤 Setting current user:", user.fullName);
+        set(state => ({
+          currentUser: user,
+          lastUpdated: Date.now(),
+          // Også legg current user i users cache
+          users: {
+            ...state.users,
+            [user.id]: {
+              ...user,
+              lastUpdated: Date.now()
+            }
+          }
+        }));
+      },
+      
+      getCurrentUser: () => get().currentUser,
+
+      setSettings: (settings: UserSettingsDTO) => {
+        console.log("⚙️ Setting user settings:", settings.language);
+        set(() => ({
+          settings,
+          lastUpdated: Date.now()
+        }));
+      },
+      
+      getSettings: () => get().settings,
       
       // --- Core actions ---
       setUser: (user: UserSummaryDTO) => 
@@ -89,6 +131,8 @@ export const useUserCacheStore = create<UserCacheStore>()(
             };
         }),
 
+
+
       // setUsers with smart merging for relationship data
       setUsers: (users: UserSummaryDTO[]) => {
         const now = Date.now();
@@ -120,7 +164,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
             console.warn(`👤 setUsers: Resolved ${duplicatesInInput} duplicates using timestamps`);
         }
         
-        // 🔧 SMART MERGE med eksisterende state - 🆕 RESPEKT RELATIONSHIP DATA
+        // 🔧 SMART MERGE med eksisterende state
         set(state => {
             const updatedUsers = { ...state.users };
             let newUsers = 0;
@@ -336,6 +380,8 @@ export const useUserCacheStore = create<UserCacheStore>()(
           
           console.log("👤 Cleaning up old user cache");
           return {
+            currentUser: null,
+            settings: null,
             users: {},
             lastUpdated: 0,
             hasLoadedFromBootstrap: false
@@ -358,6 +404,8 @@ export const useUserCacheStore = create<UserCacheStore>()(
       
       reset: () =>
         set({
+          currentUser: null, 
+          settings: null, 
           users: {},
           lastUpdated: 0,
           hasLoadedFromBootstrap: false
@@ -368,12 +416,14 @@ export const useUserCacheStore = create<UserCacheStore>()(
       storage: createJSONStorage(() => indexedDBStorage),
       
       partialize: (state) => ({
+        currentUser: state.currentUser,
+        settings: state.settings,
         users: state.users,
         lastUpdated: state.lastUpdated,
         hasLoadedFromBootstrap: state.hasLoadedFromBootstrap
       }),
       
-      version: 2, // 🆕 BUMPED version due to structural changes
+      version: 1,
       migrate: (persisted: unknown, version: number) => {
         const state = persisted as Partial<UserCacheStore>;
         
@@ -381,6 +431,8 @@ export const useUserCacheStore = create<UserCacheStore>()(
           // Clear old cache since structure changed
           console.log("👤 Migrating UserCache to v2 - clearing old data");
           return {
+            currentUser: null,
+            settings: null,
             users: {},
             lastUpdated: 0,
             hasLoadedFromBootstrap: false
@@ -392,6 +444,14 @@ export const useUserCacheStore = create<UserCacheStore>()(
     }
   )
 );
+
+export const useCurrentUser = () => {
+  return useUserCacheStore(state => state.currentUser);
+};
+
+export const useUserSettings = () => {
+  return useUserCacheStore(state => state.settings);
+};
 
 export const useFriends = () => {
   return useUserCacheStore(state => state.getFriends());

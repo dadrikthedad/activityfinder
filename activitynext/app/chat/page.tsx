@@ -146,6 +146,7 @@ export default function ChatPage() {
               <span className="font-medium">{user?.fullName || 'Not loaded'}</span>
             </div>
             
+
             
             <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
               <span>🌐 Language:</span>

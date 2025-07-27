@@ -16,8 +16,6 @@ export const useBootstrap = () => {
 
   // Bootstrap state fra BootstrapStore
   const {
-    user,
-    settings,
     syncToken,
     criticalLoading,
     secondaryLoading,
@@ -44,12 +42,16 @@ export const useBootstrap = () => {
 
   const { notifications: appNotifications } = useNotificationStore();
 
-  const { cleanupOldUsers } = useUserCacheStore();
+  const {
+    currentUser: user,
+    settings,
+    cleanupOldUsers
+  } = useUserCacheStore();
 
   // Cleanup old cache ved oppstart
   useEffect(() => {
     cleanupOldCache();
-    cleanupOldUsers(); // 🆕 LEGG TIL UserCache cleanup
+    cleanupOldUsers();
   }, [cleanupOldCache, cleanupOldUsers]);
 
   // Load critical data med cache validation
@@ -108,7 +110,7 @@ export const useBootstrap = () => {
     }
   }, [isSecondaryCacheValid, distributeSecondaryData, setSecondaryLoading, setSecondaryError]);
 
-  // 🔧 LITT FORBEDRET: Main bootstrap function
+  //  Main bootstrap function
   const bootstrap = useCallback(async () => {
     console.log("🔄 Starter full bootstrap...");
     
@@ -151,7 +153,7 @@ export const useBootstrap = () => {
     
     console.log("🔍 Bootstrap cache status:", { criticalValid, secondaryValid });
     
-    // 🎯 ENKLERE: Kun bootstrap hvis critical cache er invalid
+    // Kun bootstrap hvis critical cache er invalid
     // (secondary kjøres automatisk hvis invalid)
     if (!criticalValid || !isBootstrapped) {
       console.log("🔄 Starting bootstrap (critical cache invalid or not bootstrapped)...");
@@ -169,8 +171,8 @@ export const useBootstrap = () => {
 
   return {
     // ✅ Data fra alle stores
-    user,                      // fra BootstrapStore 
-    settings,                 // fra BootstrapStore
+    user,                      // fra UserCacheStore (currentUser)
+    settings,                 // fra fra UserCacheStore
     pendingFriendInvitations, // fra NotificationStore
     syncToken,                // fra BootstrapStore
     conversations,            // fra ChatStore

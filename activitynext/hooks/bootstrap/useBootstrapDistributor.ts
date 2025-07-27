@@ -33,6 +33,8 @@ export const useBootstrapDistributor = () => {
   } = useNotificationStore();
 
   const {
+    setCurrentUser,
+    setSettings,
     cacheUsersFromCriticalBootstrap,
     setUsers
   } = useUserCacheStore();
@@ -40,39 +42,45 @@ export const useBootstrapDistributor = () => {
   const distributeCriticalData = useCallback((data: CriticalBootstrapResponseDTO) => {
     console.log("📦 Distributing critical bootstrap data...");
    
-    // 1. User + syncToken til BootstrapStore
+    // 1. SyncToken til BootstrapStore
     setCriticalData(data);
-   
-    // 2. Conversations direkte til ChatStore
+    
+    // 2. Current user til UserCacheStore
+    setCurrentUser(data.user);
+
+    // 3. Conversations direkte til ChatStore
     setConversations(data.recentConversations);
     setHasLoadedConversations(true);
 
-    // 3. Cache conversation participants i UserCache
+    // 4. Cache conversation participants i UserCache
     cacheUsersFromCriticalBootstrap(data);
    
     console.log("✅ Critical data distributed:", {
       user: data.user.fullName,
       conversations: data.recentConversations.length,
-      stores: "BootstrapStore + ChatStore + UserCache"
+      stores: "UserCacheStore (settings) + BootstrapStore (timestamps) + ChatStore + MessageNotificationStore + NotificationStore + UserCache"
     });
-  }, [setCriticalData, setConversations, setHasLoadedConversations, cacheUsersFromCriticalBootstrap]);
+  }, [setCriticalData, setCurrentUser, setConversations, setHasLoadedConversations, cacheUsersFromCriticalBootstrap]);
 
   const distributeSecondaryData = useCallback((data: SecondaryBootstrapResponseDTO) => {
     console.log("📦 Distributing secondary bootstrap data...");
    
-    // 1. Settings til BootstrapStore (friends/blocked flyttet til UserCache)
+    // 1. 🆕 Settings til UserCacheStore (ikke BootstrapStore lenger)
+    setSettings(data.settings);
+    
+    // 2. Bootstrap timestamps til BootstrapStore (uten settings)
     setSecondaryData(data);
    
-    // 2. Chat-relatert data direkte til ChatStore
+    // 3. Chat-relatert data direkte til ChatStore
     setUnreadConversationIds(data.unreadConversationIds);
     setHasLoadedUnreadConversationIds(true);
    
-    // 3. Pending message requests til ChatStore
+    // 4. Pending message requests til ChatStore
     setPendingMessageRequests(data.pendingMessageRequests);
     setHasLoadedPendingRequests(true);
     setCachedPendingRequests(data.pendingMessageRequests);
 
-    // 4. MessageNotifications til MessageNotificationStore
+    // 5. MessageNotifications til MessageNotificationStore
     if (data.recentMessageNotifications && data.recentMessageNotifications.length > 0) {
       // Gjenbruk hjelpefunksjon for konsistent logikk
       const merged = mergeMessageNotifications(data.recentMessageNotifications);
@@ -82,7 +90,7 @@ export const useBootstrapDistributor = () => {
       setHasLoadedMessageNotifications(true);
       console.log("📨 Ingen message notifications mottatt, men marker som loaded");
     }
-    // 5. Friend invitations til NotificationStore
+    // 6. Friend invitations til NotificationStore
     if (data.pendingFriendInvitations && data.pendingFriendInvitations.length > 0) {
       setFriendRequests(data.pendingFriendInvitations);
       setHasLoadedFriendRequests(true);
@@ -96,7 +104,7 @@ export const useBootstrapDistributor = () => {
       console.log("👥 Ingen friend requests mottatt, men marker som loaded");
     }
 
-    // 6. App notifications til NotificationStore
+    // 7. App notifications til NotificationStore
     if (data.recentNotifications && data.recentNotifications.length > 0) {
       setNotifications(data.recentNotifications);
       setHasLoadedNotifications(true);
@@ -106,7 +114,7 @@ export const useBootstrapDistributor = () => {
       console.log("🔔 Ingen app notifications mottatt, men marker som loaded");
     }
 
-    // 7. Cache all users med relationships i UserCache
+    // 8. Cache all users med relationships i UserCache
       console.log("🔍 DEBUG: About to process allUserSummaries...");
       console.log("🔍 DEBUG: allUserSummaries data:", {
         exists: !!data.allUserSummaries,
@@ -152,6 +160,7 @@ export const useBootstrapDistributor = () => {
     setNotifications,           
     setHasLoadedNotifications,
     setUsers,
+    setSettings
   ]);
 
   return {
