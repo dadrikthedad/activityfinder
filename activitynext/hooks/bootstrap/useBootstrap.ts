@@ -44,9 +44,7 @@ export const useBootstrap = () => {
 
   const { notifications: appNotifications } = useNotificationStore();
 
-  const { getFriends, getBlockedUsers, cleanupOldUsers } = useUserCacheStore();
-  const friends = getFriends();
-  const blockedUsers = getBlockedUsers();
+  const { cleanupOldUsers } = useUserCacheStore();
 
   // Cleanup old cache ved oppstart
   useEffect(() => {
@@ -171,9 +169,7 @@ export const useBootstrap = () => {
 
   return {
     // ✅ Data fra alle stores
-    user,                      // fra BootstrapStore
-    friends,                   // fra UserCache
-    blockedUsers,             // fra UserCache  
+    user,                      // fra BootstrapStore 
     settings,                 // fra BootstrapStore
     pendingFriendInvitations, // fra NotificationStore
     syncToken,                // fra BootstrapStore

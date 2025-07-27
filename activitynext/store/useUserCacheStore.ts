@@ -89,8 +89,8 @@ export const useUserCacheStore = create<UserCacheStore>()(
             };
         }),
 
-        // Oppdater setUsers med smart merging:
-        setUsers: (users: UserSummaryDTO[]) => {
+      // setUsers with smart merging for relationship data
+      setUsers: (users: UserSummaryDTO[]) => {
         const now = Date.now();
         const userMap = new Map<number, UserSummaryDTO>();
         let duplicatesInInput = 0;
@@ -120,7 +120,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
             console.warn(`👤 setUsers: Resolved ${duplicatesInInput} duplicates using timestamps`);
         }
         
-        // 🔧 SMART MERGE med eksisterende state
+        // 🔧 SMART MERGE med eksisterende state - 🆕 RESPEKT RELATIONSHIP DATA
         set(state => {
             const updatedUsers = { ...state.users };
             let newUsers = 0;
@@ -131,10 +131,20 @@ export const useUserCacheStore = create<UserCacheStore>()(
             const existingUser = updatedUsers[userId];
             
             if (existingUser) {
-                // Sammenlign timestamps
-                if (!existingUser.lastUpdated || 
-                    newUser.lastUpdated! >= existingUser.lastUpdated) {
+                // 🆕 ALWAYS UPDATE if new user has relationship data (from backend)
+                if (newUser.isFriend !== undefined || newUser.isBlocked !== undefined) {
+                // Backend data is authoritative for relationships
                 updatedUsers[userId] = newUser;
+                updatedExisting++;
+                } else if (!existingUser.lastUpdated || 
+                    newUser.lastUpdated! >= existingUser.lastUpdated) {
+                // Regular timestamp-based update for non-relationship data
+                updatedUsers[userId] = {
+                    ...newUser,
+                    // Preserve existing relationship status if new user doesn't have it
+                    isFriend: newUser.isFriend ?? existingUser.isFriend,
+                    isBlocked: newUser.isBlocked ?? existingUser.isBlocked
+                };
                 updatedExisting++;
                 } else {
                 preservedExisting++;
@@ -167,14 +177,14 @@ export const useUserCacheStore = create<UserCacheStore>()(
                 [userId]: { 
                 ...existingUser, 
                 ...updates,
-                lastUpdated: Date.now() // 🆕 LEGG TIL for konsistens
+                lastUpdated: Date.now()
                 }
             },
             lastUpdated: Date.now()
             };
         }),
       
-      // 🆕 Simplified relationship actions
+      // Relationship actions
       setUserFriendStatus: (userId: number, isFriend: boolean, isBlocked = false) => {
         set(state => {
             const user = state.users[userId];
@@ -187,7 +197,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
                 ...user,
                 isFriend,
                 isBlocked,
-                lastUpdated: Date.now() // 🆕 LEGG TIL for konsistens
+                lastUpdated: Date.now()
                 }
             },
             lastUpdated: Date.now()
@@ -195,8 +205,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
         });
         },
       
-      
-        setUserBlockedStatus: (userId: number, isBlocked: boolean, isFriend = false) => {
+      setUserBlockedStatus: (userId: number, isBlocked: boolean, isFriend = false) => {
         set(state => {
             const user = state.users[userId];
             if (!user) return state;
@@ -208,7 +217,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
                 ...user,
                 isBlocked,
                 isFriend,
-                lastUpdated: Date.now() // 🆕 LEGG TIL for konsistens
+                lastUpdated: Date.now()
                 }
             },
             lastUpdated: Date.now()
@@ -238,7 +247,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
         return Object.values(state.users).filter(user => user.isBlocked === true);
       },
       
-      // 🔧 OPPDATERT bootstrap caching med boolean flags
+      // 🔧 UPDATED: Critical bootstrap caching (no relationship status)
       cacheUsersFromCriticalBootstrap: (data: CriticalBootstrapResponseDTO) => {
         const userMap = new Map<number, UserSummaryDTO>();
         const now = Date.now();
@@ -250,9 +259,8 @@ export const useUserCacheStore = create<UserCacheStore>()(
             if (!userMap.has(user.id)) {
                 userMap.set(user.id, {
                 ...user,
-                isFriend: false,
-                isBlocked: false,
-                lastUpdated: now // 🆕 Bootstrap timestamp
+                // Don't set relationship status from critical bootstrap
+                lastUpdated: now
                 });
             }
             })
@@ -261,95 +269,52 @@ export const useUserCacheStore = create<UserCacheStore>()(
         const uniqueUsers = Array.from(userMap.values());
         console.log(`👤 Cached ${uniqueUsers.length} users from critical bootstrap`);
         
-        set(state => {
-            const updatedUsers = { ...state.users };
-            
-            userMap.forEach((newUser, userId) => {
-            const existingUser = updatedUsers[userId];
-            if (existingUser) {
-                // 🔧 Smart merge: behold relationship flags hvis bootstrap ikke har nyere data
-                if (!existingUser.lastUpdated || newUser.lastUpdated! >= existingUser.lastUpdated) {
-                updatedUsers[userId] = {
-                    ...newUser,
-                    // Behold relationship flags fra existing hvis de er nyere
-                    isFriend: existingUser.isFriend,
-                    isBlocked: existingUser.isBlocked
-                };
-                }
-                // Ellers behold helt existing
-            } else {
-                updatedUsers[userId] = newUser;
-            }
-            });
-            
-            return {
-            users: updatedUsers,
-            lastUpdated: Date.now()
-            };
-        });
+        // Use setUsers for smart merging
+        get().setUsers(uniqueUsers);
         },
       
+      // Secondary bootstrap now handles allUserSummaries AND other users
       cacheUsersFromSecondaryBootstrap: (data: SecondaryBootstrapResponseDTO) => {
         const userMap = new Map<number, UserSummaryDTO>();
         const now = Date.now();
         
-        console.log("👤 Caching users from SECONDARY bootstrap...");
+        console.log("👤 Caching remaining users from SECONDARY bootstrap...");
         
-        // Friends med authoritative relationship data
-        data.friends?.forEach(user => {
-            userMap.set(user.id, {
-            ...user,
-            isFriend: true,
-            isBlocked: false,
-            lastUpdated: now // 🆕 Authoritative timestamp
-            });
-        });
+        // allUserSummaries is handled separately in distributor
+        // Here we only cache users from other sources (notifications, invitations, etc.)
         
-        data.blockedUsers?.forEach(user => {
-            userMap.set(user.id, {
-            ...user,
-            isFriend: false,
-            isBlocked: true,
-            lastUpdated: now // 🆕 Authoritative timestamp
-            });
-        });
-        
-        // Friend invitations og notifications som default
+        // Friend invitations
         data.pendingFriendInvitations?.forEach(inv => {
           if (inv.userSummary && !userMap.has(inv.userSummary.id)) {
             userMap.set(inv.userSummary.id, {
               ...inv.userSummary,
-              isFriend: false,
-              isBlocked: false,
+              // Don't override relationship status - these are invitation users
               lastUpdated: now 
             });
           }
         });
         
+        // App notifications
         data.recentNotifications?.forEach(notif => {
           if (notif.relatedUser && !userMap.has(notif.relatedUser.id)) {
             userMap.set(notif.relatedUser.id, {
               ...notif.relatedUser,
-              isFriend: false,
-              isBlocked: false,
+              // Don't set relationship status for notification users
               lastUpdated: now 
             });
           }
         });
         
         const uniqueUsers = Array.from(userMap.values());
-        console.log(`👤 Cached ${uniqueUsers.length} users from secondary bootstrap:`, {
-          friends: uniqueUsers.filter(u => u.isFriend).length,
-          blocked: uniqueUsers.filter(u => u.isBlocked).length,
-          neither: uniqueUsers.filter(u => !u.isFriend && !u.isBlocked).length
-        });
         
-        // Bootstrap data overskriver alltid
-        set(state => ({
-            users: { ...state.users, ...Object.fromEntries(userMap) },
-            lastUpdated: Date.now(),
-            hasLoadedFromBootstrap: true
-        }));
+        if (uniqueUsers.length > 0) {
+          console.log(`👤 Cached ${uniqueUsers.length} additional users from secondary bootstrap`);
+          // Use setUsers for smart merging
+          get().setUsers(uniqueUsers);
+        }
+        
+        // Mark as loaded from bootstrap
+        set({ hasLoadedFromBootstrap: true });
         },
       
       // Bulk operations
@@ -408,9 +373,20 @@ export const useUserCacheStore = create<UserCacheStore>()(
         hasLoadedFromBootstrap: state.hasLoadedFromBootstrap
       }),
       
-      version: 1,
-      migrate: (persisted: unknown) => {
+      version: 2, // 🆕 BUMPED version due to structural changes
+      migrate: (persisted: unknown, version: number) => {
         const state = persisted as Partial<UserCacheStore>;
+        
+        if (version < 2) {
+          // Clear old cache since structure changed
+          console.log("👤 Migrating UserCache to v2 - clearing old data");
+          return {
+            users: {},
+            lastUpdated: 0,
+            hasLoadedFromBootstrap: false
+          } as UserCacheStore;
+        }
+        
         return state as UserCacheStore;
       }
     }

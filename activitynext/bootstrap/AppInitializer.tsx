@@ -7,7 +7,7 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useNotificationStore } from '@/store/useNotificationStore';
-import { useUserCacheStore } from '@/store/useUserCacheStore';
+import { useUserCacheStore, useFriends, useBlockedUsers } from '@/store/useUserCacheStore';
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
@@ -39,7 +39,7 @@ export function AppInitializer() {
       return;
     }
     
-    // ✅ Ny bruker i samme sesjon? Reset alle stores
+    // Ny bruker i samme sesjon? Reset alle stores
     if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
       console.log("🔄 BOOT: User switch detected, resetting all stores...");
       useBootstrapStore.getState().reset();
@@ -76,7 +76,7 @@ export function AppInitializer() {
       criticalLoading
     });
     
-    // 🎯 ENKLERE LOGIKK: useBootstrap håndterer cache validation internt
+    //  useBootstrap håndterer cache validation internt
     // Vi kaller bare bootstrap() hvis vi ikke er ferdig ennå
     if (!isBootstrapped) {
       console.log("🚀 BOOT: Triggering bootstrap...");
@@ -86,7 +86,7 @@ export function AppInitializer() {
     }
   }, [token, userId, isBootstrapped, criticalLoading, bootstrap, isCriticalCacheValid, isSecondaryCacheValid]);
 
-  // ✅ BEHOLDT: Exponential backoff retry logic
+  //  Exponential backoff retry logic
   useEffect(() => {
     const maxRetries = 5;
     const retryDelays = [1000, 2000, 4000, 8000, 16000];
@@ -130,7 +130,7 @@ export function AppInitializer() {
     };
   }, [criticalError, isBootstrapped, retryCritical]);
 
-  // ✅ FORENKLET: Debug logging
+  // Debug logging
   useEffect(() => {
     if (criticalLoading) {
       console.log("⏳ BOOT: Loading critical bootstrap data...");
@@ -153,18 +153,19 @@ export function BootstrapDebugInfo() {
     criticalError,
     secondaryError,
     user,
-    friends,
     settings,
     conversations,
     messageNotifications,
     pendingFriendInvitations,
-    blockedUsers,
     appNotifications,
     isCriticalCacheValid,
     isSecondaryCacheValid,
   } = useBootstrap();
   
   const { unreadConversationIds } = useChatStore();
+
+  const friends = useFriends();
+  const blockedUsers = useBlockedUsers();
   
 
   // 🔧 Kun vis i development

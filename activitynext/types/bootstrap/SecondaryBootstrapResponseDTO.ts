@@ -8,8 +8,7 @@ import { NotificationDTO } from "../NotificationEventDTO";
 
 export interface SecondaryBootstrapResponseDTO {
   settings: UserSettingsDTO;
-  friends: UserSummaryDTO[];
-  blockedUsers: UserSummaryDTO[];
+  allUserSummaries: UserSummaryDTO[];
   unreadConversationIds: number[];
   pendingMessageRequests: MessageRequestDTO[];
   recentMessageNotifications: MessageNotificationDTO[];
