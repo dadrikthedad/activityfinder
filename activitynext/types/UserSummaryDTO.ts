@@ -4,6 +4,11 @@ export interface UserSummaryDTO {
     fullName: string;
     profileImageUrl: string | null;
     groupRequestStatus?: GroupRequestStatus | string | null;
+
+    // Ekstra logikk for samhandlig med andre brukere
+    isFriend?: boolean;
+    isBlocked?: boolean;
+    lastUpdated?: number; // Unix timestamp
   }
 
   export enum GroupRequestStatus {

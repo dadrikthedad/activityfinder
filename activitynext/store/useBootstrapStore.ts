@@ -12,8 +12,6 @@ type BootstrapStore = {
   syncToken: string | null;
   
   // Secondary data (lagres her)
-  friends: UserSummaryDTO[];
-  blockedUsers: UserSummaryDTO[];
   settings: UserSettingsDTO | null;
   
   // Loading states
@@ -44,17 +42,7 @@ type BootstrapStore = {
   setSecondaryData: (data: SecondaryBootstrapResponseDTO) => void;
   setSecondaryLoading: (loading: boolean) => void;
   setSecondaryError: (error: string | null) => void;
-  setFriends: (friends: UserSummaryDTO[]) => void;
-  setBlockedUsers: (users: UserSummaryDTO[]) => void;
   setSettings: (settings: UserSettingsDTO) => void;
-  
-  // Friends management (fra eksisterende store)
-  addFriend: (friend: UserSummaryDTO) => void;
-  removeFriend: (friendId: number) => void;
-  
-  // Blocked users management (fra eksisterende store)
-  blockUser: (user: UserSummaryDTO) => void;
-  unblockUser: (userId: number) => void;
   
   // Cache management (fra eksisterende store)
   cleanupOldCache: () => void;
@@ -76,8 +64,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
       // --- Initial state ---
       user: null,
       syncToken: null,
-      friends: [],
-      blockedUsers: [],
       settings: null,
       
       criticalLoading: false,
@@ -122,8 +108,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
       // --- Secondary data actions ---
       setSecondaryData: (data: SecondaryBootstrapResponseDTO) =>
         set((state) => ({
-          friends: data.friends,
-          blockedUsers: data.blockedUsers,
           settings: data.settings,
           secondaryLoading: false,
           secondaryError: null,
@@ -142,52 +126,8 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryLoading: false 
         })),
 
-      setFriends: (friends: UserSummaryDTO[]) =>
-        set(() => ({ friends: [...friends] })),
-
-      setBlockedUsers: (users: UserSummaryDTO[]) =>
-        set(() => ({ blockedUsers: [...users] })),
-
       setSettings: (settings: UserSettingsDTO) =>
         set(() => ({ settings })),
-
-      // --- ✅ Friends management (fra eksisterende store) ---
-      addFriend: (friend: UserSummaryDTO) =>
-        set((state) => {
-          const exists = state.friends.some(f => f.id === friend.id);
-          if (exists) return {};
-          
-          return {
-            friends: [...state.friends, friend],
-            secondaryCacheTimestamp: Date.now(),
-          };
-        }),
-
-      removeFriend: (friendId: number) =>
-        set((state) => ({
-          friends: state.friends.filter(f => f.id !== friendId),
-          secondaryCacheTimestamp: Date.now(),
-        })),
-
-      // --- ✅ Blocked users management (fra eksisterende store) ---
-      blockUser: (user: UserSummaryDTO) =>
-        set((state) => {
-          const exists = state.blockedUsers.some(u => u.id === user.id);
-          if (exists) return {};
-          
-          return {
-            blockedUsers: [...state.blockedUsers, user],
-            // Fjern fra venner hvis de var venner
-            friends: state.friends.filter(f => f.id !== user.id),
-            secondaryCacheTimestamp: Date.now(),
-          };
-        }),
-
-      unblockUser: (userId: number) =>
-        set((state) => ({
-          blockedUsers: state.blockedUsers.filter(u => u.id !== userId),
-          secondaryCacheTimestamp: Date.now(),
-        })),
 
       // --- ✅ Cache management (fra eksisterende store) ---
       cleanupOldCache: () =>
@@ -229,8 +169,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
           }
           
           if (resetSecondary) {
-            updates.friends = [];
-            updates.blockedUsers = [];
             updates.settings = null;
             updates.secondaryCacheTimestamp = 0;
             updates.hasLoadedSecondary = false;
@@ -278,8 +216,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
         set({
           user: null,
           syncToken: null,
-          friends: [],
-          blockedUsers: [],
           settings: null,
           
           criticalLoading: false,
@@ -311,8 +247,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
         hasLoadedCritical: state.hasLoadedCritical,
         
         // Secondary data
-        friends: state.friends,
-        blockedUsers: state.blockedUsers,
         settings: state.settings,
         secondaryCacheTimestamp: state.secondaryCacheTimestamp,
         hasLoadedSecondary: state.hasLoadedSecondary,

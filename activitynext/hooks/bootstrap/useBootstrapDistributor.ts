@@ -5,6 +5,7 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { mergeMessageNotifications, setMessageNotificationsInStore } from '@/functions/messages/MessageNotificationFunctions';
+import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
 
 export const useBootstrapDistributor = () => {
@@ -31,6 +32,11 @@ export const useBootstrapDistributor = () => {
     setHasLoadedNotifications
   } = useNotificationStore();
 
+  const {
+    cacheUsersFromCriticalBootstrap,
+    cacheUsersFromSecondaryBootstrap
+  } = useUserCacheStore();
+
   const distributeCriticalData = useCallback((data: CriticalBootstrapResponseDTO) => {
     console.log("📦 Distributing critical bootstrap data...");
    
@@ -40,18 +46,21 @@ export const useBootstrapDistributor = () => {
     // 2. Conversations direkte til ChatStore
     setConversations(data.recentConversations);
     setHasLoadedConversations(true);
+
+    // 3. Cache conversation participants i UserCache
+    cacheUsersFromCriticalBootstrap(data);
    
     console.log("✅ Critical data distributed:", {
       user: data.user.fullName,
       conversations: data.recentConversations.length,
-      stores: "BootstrapStore + ChatStore"
+      stores: "BootstrapStore + ChatStore + UserCache"
     });
-  }, [setCriticalData, setConversations, setHasLoadedConversations]);
+  }, [setCriticalData, setConversations, setHasLoadedConversations, cacheUsersFromCriticalBootstrap]);
 
   const distributeSecondaryData = useCallback((data: SecondaryBootstrapResponseDTO) => {
     console.log("📦 Distributing secondary bootstrap data...");
    
-    // 1. Friends/Settings/Blocked til BootstrapStore
+    // 1. Settings til BootstrapStore (friends/blocked flyttet til UserCache)
     setSecondaryData(data);
    
     // 2. Chat-relatert data direkte til ChatStore
@@ -87,7 +96,7 @@ export const useBootstrapDistributor = () => {
       console.log("👥 Ingen friend requests mottatt, men marker som loaded");
     }
 
-    // 🆕 6. App notifications til NotificationStore
+    // 6. App notifications til NotificationStore
     if (data.recentNotifications && data.recentNotifications.length > 0) {
       setNotifications(data.recentNotifications);
       setHasLoadedNotifications(true);
@@ -96,15 +105,18 @@ export const useBootstrapDistributor = () => {
       setHasLoadedNotifications(true);
       console.log("🔔 Ingen app notifications mottatt, men marker som loaded");
     }
+
+    // 7. Cache all users med relationships i UserCache
+    cacheUsersFromSecondaryBootstrap(data);
    
     console.log("✅ Secondary data distributed:", {
-      friends: data.friends.length,
       settings: data.settings.language,
       unreadConversations: data.unreadConversationIds.length,
       pendingRequests: data.pendingMessageRequests.length,
       messageNotifications: data.recentMessageNotifications?.length || 0,
       pendingFriendInvitations: data.pendingFriendInvitations.length,
       appNotifications: data.recentNotifications?.length || 0,
+      usersCached: "✅",
       stores: "BootstrapStore + ChatStore + MessageNotificationStore + NotificationStore" 
     });
   }, [
@@ -119,6 +131,7 @@ export const useBootstrapDistributor = () => {
     setHasLoadedFriendRequests,
     setNotifications,           
     setHasLoadedNotifications,
+    cacheUsersFromSecondaryBootstrap
   ]);
 
   return {

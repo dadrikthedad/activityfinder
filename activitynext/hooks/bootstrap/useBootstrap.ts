@@ -8,6 +8,7 @@ import { useChatStore } from '@/store/useChatStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { useBootstrapDistributor } from './useBootstrapDistributor';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { useUserCacheStore } from '@/store/useUserCacheStore'; 
 
 export const useBootstrap = () => {
   const hasInitialized = useRef(false);
@@ -16,8 +17,6 @@ export const useBootstrap = () => {
   // Bootstrap state fra BootstrapStore
   const {
     user,
-    friends,
-    blockedUsers,
     settings,
     syncToken,
     criticalLoading,
@@ -45,10 +44,15 @@ export const useBootstrap = () => {
 
   const { notifications: appNotifications } = useNotificationStore();
 
+  const { getFriends, getBlockedUsers, cleanupOldUsers } = useUserCacheStore();
+  const friends = getFriends();
+  const blockedUsers = getBlockedUsers();
+
   // Cleanup old cache ved oppstart
   useEffect(() => {
     cleanupOldCache();
-  }, [cleanupOldCache]);
+    cleanupOldUsers(); // 🆕 LEGG TIL UserCache cleanup
+  }, [cleanupOldCache, cleanupOldUsers]);
 
   // Load critical data med cache validation
   const loadCriticalData = useCallback(async () => {
@@ -168,8 +172,8 @@ export const useBootstrap = () => {
   return {
     // ✅ Data fra alle stores
     user,                      // fra BootstrapStore
-    friends,                   // fra BootstrapStore
-    blockedUsers,             // fra BootstrapStore  
+    friends,                   // fra UserCache
+    blockedUsers,             // fra UserCache  
     settings,                 // fra BootstrapStore
     pendingFriendInvitations, // fra NotificationStore
     syncToken,                // fra BootstrapStore

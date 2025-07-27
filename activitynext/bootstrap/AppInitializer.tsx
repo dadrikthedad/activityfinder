@@ -7,6 +7,7 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { useUserCacheStore } from '@/store/useUserCacheStore';
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
@@ -45,6 +46,7 @@ export function AppInitializer() {
       useChatStore.getState().reset();
       useMessageNotificationStore.getState().reset(); // 🆕 LEGG TIL
       useNotificationStore.getState().reset();
+      useUserCacheStore.getState().reset();
       
       // Reset retry counter for ny bruker
       retryCountRef.current = 0;
@@ -156,12 +158,14 @@ export function BootstrapDebugInfo() {
     conversations,
     messageNotifications,
     pendingFriendInvitations,
+    blockedUsers,
     appNotifications,
     isCriticalCacheValid,
     isSecondaryCacheValid,
   } = useBootstrap();
   
   const { unreadConversationIds } = useChatStore();
+  
 
   // 🔧 Kun vis i development
   if (process.env.NODE_ENV !== 'development') {
@@ -223,6 +227,7 @@ export function BootstrapDebugInfo() {
         <strong>📊 Data Counts</strong>
         <div>User: {getStatusIcon(!!user)}</div>
         <div>Friends: {friends?.length || 0}</div>
+        <div>Blocked Users: {blockedUsers?.length || 0}</div>
         <div>Settings: {getStatusIcon(!!settings)}</div>
         <div>Conversations: {conversations?.length || 0}</div>
         <div>Unread IDs: {unreadConversationIds?.length || 0}</div>
