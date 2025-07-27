@@ -8,7 +8,7 @@ import {
   MessageDTO,
   MessageWithFilesData,
 } from "@/types/MessageDTO";
-import { useCurrentUserSummary } from "../user/useCurrentUserSummary";
+import { useCurrentUser } from "@/store/useUserCacheStore";
 import { useChatStore } from "@/store/useChatStore";
 
 // ===================================
@@ -41,12 +41,12 @@ function isFilePayload(payload: SendMessagePayload): payload is MessageWithFiles
 export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useCurrentUserSummary();
+  const user = useCurrentUser();
   
-  // 🆕 Get current conversation ID from store
+  // Get current conversation ID from store
   const conversationId = useChatStore((state) => state.currentConversationId);
 
-  // 🆕 Reset error when conversation changes
+  // Reset error when conversation changes
   useEffect(() => {
     setError(null);
   }, [conversationId]);
@@ -122,12 +122,12 @@ async function sendWithFiles(payload: MessageWithFilesData): Promise<MessageDTO>
     throw new Error(ERROR_MESSAGES.NO_CONTENT);
   }
 
-  // ✅ Type guard: Sikre at files finnes før validering
+  //  Type guard: Sikre at files finnes før validering
   if (!payload.files || payload.files.length === 0) {
     throw new Error("Ingen filer valgt");
   }
 
-  // ✅ Frontend-validering av filer
+  //  Frontend-validering av filer
   const validation = validateFiles(payload.files);
   if (!validation.isValid) {
     throw new Error(validation.error || "Ugyldig fil");

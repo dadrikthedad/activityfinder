@@ -8,7 +8,7 @@ import { cn } from "../lib/utils";
 import FormButton from "@/components/FormButton";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import { useUploadProfileImage } from "@/hooks/image/useUploadProfileImage";
-import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 import Spinner from "./common/Spinner";
 
 interface Props {
@@ -27,7 +27,7 @@ export default function ProfileAvatar({
     const [selectedFile, setSelectedFile] = useState<File | null>(null); // Her lagres filen som er valgt til opplastning slik at vi kan previewe og sende til backend
     const [selectedFileName, setSelectedFileName] = useState<string>(""); // Navnet på den valgte filen
     const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Her er forhåndsvisning av det nye bilde før oppdatering
-    const { refresh: refreshCurrentUser } = useCurrentUserSummary();
+    const { currentUser, setCurrentUser } = useUserCacheStore();
     const [imgLoading, setImgLoading] = useState(false);
 
     const { // Kommer fra useUploadProfileImage og håndter opplastning av bilde
@@ -57,9 +57,16 @@ export default function ProfileAvatar({
       const handleUpload = async () => { //Håndterer API-kallet til backend. Laster opp bilde med upload(). 
         if (!selectedFile) return;
         const uploadedUrl = await upload(selectedFile);
-        if (uploadedUrl) {
+        if (uploadedUrl && currentUser) {
+          const updatedUser = {
+            ...currentUser,
+            profileImageUrl: uploadedUrl // Assuming this is the field name
+          };
+          setCurrentUser(updatedUser);
+          
+          // Still call refetchProfile if provided (for other profile views)
           await refetchProfile?.();
-          refreshCurrentUser();  // Refetcher siden ved bytte av bilde
+          
           handleClose();
         }
       };

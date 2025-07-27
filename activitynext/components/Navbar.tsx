@@ -11,7 +11,7 @@ import NotificationDropdown from "@/components/notifications/NotificationDropdow
 import NavbarNotifications from "@/components/notifications/NavbarNotifications";
 import { useMarkAllNotificationsAsRead } from "@/hooks/notifications/useMarkAllNotificationsAsRead";
 import MessageDropdown from "@/components/messages/MessageDropdown";
-import { useCurrentUserSummary } from "@/hooks/user/useCurrentUserSummary";
+import { useCurrentUser } from "@/store/useUserCacheStore"; 
 import NavbarMessageNotifications from "./messages/NavbarMessageNotificaitons";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import NavbarLoginDropdown from "./navbar/NavbarLoginDropdown";
@@ -24,8 +24,10 @@ export default function Navbar() {
   // Chat store state
   const showMessages = useChatStore((s) => s.showMessages);
   const setShowMessages = useChatStore((s) => s.setShowMessages);
+
+  const currentUser = useCurrentUser();
   
-  // ✅ ENKEL STATE - minimal overlay footprint
+  // ENKEL STATE - minimal overlay footprint
   const [showLoginDropdown, setShowLoginDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   
@@ -35,7 +37,7 @@ export default function Navbar() {
   const markAllNotificationsRead = useNotificationStore((s) => s.markAllNotificationsRead);
   
   // Message state
-  const { user: currentUser } = useCurrentUserSummary();
+  
   const [messagePos, setMessagePos] = useState<{ x: number; y: number } | null>(null);
   
   const DROPDOWN_WIDTH = 1200;
@@ -104,7 +106,7 @@ export default function Navbar() {
         {isLoggedIn ? (
           <>
             
-            {/* Messages - ✅ FORENKLET */}
+            {/* Messages */}
             <li className="relative">
               <NavbarMessageNotifications onClick={handleToggleMessages} />
 
@@ -117,7 +119,7 @@ export default function Navbar() {
               )}
             </li>
 
-            {/* Notifications - ✅ FORENKLET */}
+            {/* Notifications */}
             <li className="relative">
               <NavbarNotifications
                 onClick={handleToggleNotifications}
@@ -135,14 +137,14 @@ export default function Navbar() {
               <ProfileLink />
             </li>
             
-            {/* ✅ NEW: Use standalone NavbarSettingsDropdown component */}
+            {/*  Use standalone NavbarSettingsDropdown component */}
             <li>
               <NavbarSettingsDropdown />
             </li>
           </>
         ) : (
           <>
-            {/* Login Dropdown - ✅ FORENKLET */}
+            {/* Login Dropdown */}
             <li className="relative">
               <button
                 onClick={handleToggleLogin}
