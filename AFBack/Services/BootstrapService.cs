@@ -91,20 +91,12 @@ namespace AFBack.Services
                     return await GetUserSettingsWithContext(userId, context);
                 });
 
-                var friendsTask = Task.Run(async () =>
+                var userRelationshipsTask = Task.Run(async () =>
                 {
                     using var scope = _serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    _logger.LogDebug("📋 Getting friends with separate context");
-                    return await GetUserFriendsWithContext(userId, context);
-                });
-
-                var blockedUsersTask = Task.Run(async () =>
-                {
-                    using var scope = _serviceProvider.CreateScope();
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    _logger.LogDebug("📋 Getting blocked users with separate context");
-                    return await GetBlockedUsersWithContext(userId, context);
+                    _logger.LogDebug("📋 Getting user relationships with separate context");
+                    return await GetUserRelationshipsWithContext(userId, context);
                 });
 
                 var unreadConversationsTask = Task.Run(async () =>
@@ -150,11 +142,10 @@ namespace AFBack.Services
                 });
 
                 _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
-                await Task.WhenAll(settingsTask, friendsTask, blockedUsersTask, unreadConversationsTask, pendingRequestsTask, messageNotificationsTask, friendInvitationsTask, appNotificationsTask);
+                await Task.WhenAll(settingsTask, userRelationshipsTask, unreadConversationsTask, pendingRequestsTask, messageNotificationsTask, friendInvitationsTask, appNotificationsTask);
 
                 var settings = await settingsTask;
-                var friends = await friendsTask;
-                var blockedUsers = await blockedUsersTask;
+                var userRelationships = await userRelationshipsTask;
                 var unreadConversationIds = await unreadConversationsTask;
                 var pendingRequests = await pendingRequestsTask; 
                 var messageNotifications = await messageNotificationsTask;
@@ -165,8 +156,7 @@ namespace AFBack.Services
                 var response = new SecondaryBootstrapResponseDTO
                 {
                     Settings = settings.ToUserSettingsDTO(),
-                    Friends = friends.ToUserSummaryDTOsSafe(),
-                    BlockedUsers = blockedUsers.ToUserSummaryDTOsSafe(),
+                    AllUserSummaries = userRelationships,
                     UnreadConversationIds = unreadConversationIds,
                     PendingMessageRequests = pendingRequests,
                     RecentMessageNotifications = messageNotifications,
@@ -175,8 +165,8 @@ namespace AFBack.Services
                 };
 
                 _logger.LogInformation(
-                    "✅ Parallel secondary bootstrap completed - Friends: {FriendCount}, Blocked: {BlockedCount}, Unread: {UnreadCount}, Pending: {PendingCount}, MessageNotifications: {NotificationCount}, FriendInvitations: {InvitationCount}, Notifications: {Notifications}",
-                    friends.Count, blockedUsers.Count, unreadConversationIds.Count, pendingRequests.Count, messageNotifications.Count, friendInvitations.Count, notifications.Count);
+                    "✅ Parallel secondary bootstrap completed - AllUserSummaries friends/blocked: {RelationshipCount}, Unread: {UnreadCount}, Pending: {PendingCount}, MessageNotifications: {NotificationCount}, FriendInvitations: {InvitationCount}, Notifications: {NotificationCount}",
+                    userRelationships.Count, unreadConversationIds.Count, pendingRequests.Count, messageNotifications.Count, friendInvitations.Count, notifications.Count);
                 return response;
             }
             catch (Exception ex)
@@ -268,57 +258,57 @@ namespace AFBack.Services
             return settings;
         }
 
-        private async Task<List<User>> GetUserFriendsWithContext(int userId, ApplicationDbContext context)
+        private async Task<List<UserSummaryDTO>> GetUserRelationshipsWithContext(int userId, ApplicationDbContext context)
         {
-            _logger.LogDebug("🔍 Getting friends for user {UserId} (separate context)", userId);
-    
-            // Hent venner hvor brukeren er UserId (User → Friend)
-            var friendsAsUser = context.Friends
-                .Where(f => f.UserId == userId)
-                .Include(f => f.FriendUser)
-                .ThenInclude(u => u.Profile)
-                .Select(f => f.FriendUser);
+            _logger.LogDebug("🔍 Getting user relationships for user {UserId} (separate context)", userId);
 
-            // Hent venner hvor brukeren er FriendId (Friend → User)  
-            var friendsAsFriend = context.Friends
-                .Where(f => f.FriendId == userId)
-                .Include(f => f.User)
-                .ThenInclude(u => u.Profile)
-                .Select(f => f.User);
+            var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-            // Kombiner begge lister og fjern duplikater
-            var allFriends = await friendsAsUser
-                .Union(friendsAsFriend)
+            // Get all friend relationships for the user (bidirectional)
+            var friendIds = await context.Friends
+                .Where(f => f.UserId == userId || f.FriendId == userId)
+                .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
                 .Distinct()
                 .ToListAsync();
 
-            _logger.LogDebug("✅ Found {FriendCount} friends", allFriends.Count);
-            return allFriends;
-        }
-
-        private async Task<List<User>> GetBlockedUsersWithContext(int userId, ApplicationDbContext context)
-        {
-            _logger.LogDebug("🔍 Getting blocked users for user {UserId} (separate context)", userId);
-
-            var blockedByUser = context.UserBlock
-                .Where(ub => ub.BlockerId == userId)
-                .Include(ub => ub.BlockedUser)
-                .ThenInclude(u => u.Profile)
-                .Select(ub => ub.BlockedUser);
-
-            var blockedUser = context.UserBlock
-                .Where(ub => ub.BlockedUserId == userId)
-                .Include(ub => ub.Blocker)
-                .ThenInclude(u => u.Profile)
-                .Select(ub => ub.Blocker);
-
-            var allBlockedUsers = await blockedByUser
-                .Union(blockedUser)
+            // Get all blocked user relationships (bidirectional)
+            var blockedUserIds = await context.UserBlock
+                .Where(b => b.BlockerId == userId || b.BlockedUserId == userId)
+                .Select(b => b.BlockerId == userId ? b.BlockedUserId : b.BlockerId)
                 .Distinct()
                 .ToListAsync();
 
-            _logger.LogDebug("✅ Found {BlockedCount} blocked users", allBlockedUsers.Count);
-            return allBlockedUsers;
+            // Combine all related user IDs
+            var allRelatedUserIds = friendIds.Union(blockedUserIds).Distinct().ToList();
+
+            if (!allRelatedUserIds.Any())
+            {
+                _logger.LogDebug("✅ No user relationships found");
+                return new List<UserSummaryDTO>();
+            }
+
+            // Get user details for all related users
+            var userRelationships = await context.Users
+                .Where(u => allRelatedUserIds.Contains(u.Id))
+                .Include(u => u.Profile)
+                .Select(u => new UserSummaryDTO
+                {
+                    Id = u.Id,
+                    FullName = u.FullName,
+                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                    GroupRequestStatus = null, // Not relevant in this context
+                    isFriend = friendIds.Contains(u.Id),
+                    isBlocked = blockedUserIds.Contains(u.Id),
+                    LastUpdated = currentTimestamp
+                })
+                .ToListAsync();
+
+            _logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}", 
+                userRelationships.Count, 
+                userRelationships.Count(ur => ur.isFriend == true),
+                userRelationships.Count(ur => ur.isBlocked == true));
+            
+            return userRelationships;
         }
         
         private async Task<List<int>> GetUnreadConversationIdsWithContext(int userId, ApplicationDbContext context)

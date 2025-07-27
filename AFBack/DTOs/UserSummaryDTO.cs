@@ -11,4 +11,9 @@ public class UserSummaryDTO
     
     public GroupRequestStatus? GroupRequestStatus { get; set; } // For å skille mellom en bruker har godkjent en gruppesamtale eller ikke, kan eventuelt brukes senere til å skille i vanlig samtaler og
     
+    // Logikk for samhandling mellom brukere
+    public bool? isFriend  { get; set; }
+    public bool? isBlocked { get; set; }
+    public long? LastUpdated { get; set; }
+
 }
