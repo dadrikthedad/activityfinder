@@ -11,9 +11,9 @@ using AFBack.Hubs;
 public class NotificationService : INotificationService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IHubContext<NotificationHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
 
-    public NotificationService(ApplicationDbContext context, IHubContext<NotificationHub> hubContext)
+    public NotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext)
     {
         _context = context;
         _hubContext = hubContext;

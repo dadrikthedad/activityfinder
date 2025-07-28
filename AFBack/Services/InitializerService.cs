@@ -13,14 +13,14 @@ namespace AFBack.Services;
 public class InitializerService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly SendMessageCache _msgCache;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<UserController> _logger;
 
-    public InitializerService(ApplicationDbContext context, IHubContext<ChatHub> hubContext,
+    public InitializerService(ApplicationDbContext context, IHubContext<UserHub> hubContext,
         MessageNotificationService messageNotificationService, SendMessageCache msgCache,
         IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger)
     {

@@ -20,12 +20,12 @@ public class FriendInvitationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
-    private readonly IHubContext<NotificationHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
     private readonly SendMessageCache       _msgCache;  
     private readonly FriendService _friendService;
     
 
-    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<NotificationHub> hubContext,  SendMessageCache msgCache, FriendService friendService)
+    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<UserHub> hubContext,  SendMessageCache msgCache, FriendService friendService)
     {
         _context = context;
         _notificationService = notificationService;

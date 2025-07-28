@@ -20,14 +20,14 @@ public class GroupConversationController : BaseController
     private readonly SendMessageCache _msgCache;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly ILogger<GroupConversationController> _logger;
     private readonly GroupNotificationService _groupNotificationService;
 
 
 
-    public GroupConversationController(ApplicationDbContext context, ILogger<GroupConversationController> logger, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService)
+    public GroupConversationController(ApplicationDbContext context, ILogger<GroupConversationController> logger, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService)
     {
         _logger = logger;
         _context = context;

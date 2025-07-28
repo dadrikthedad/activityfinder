@@ -31,7 +31,7 @@ builder.Host.UseSerilog((context, services, configuration) =>
         .WriteTo.Logger(lc => lc
             .Filter.ByIncludingOnly(logEvent =>
                 logEvent.Properties.ContainsKey("SourceContext") &&
-                logEvent.Properties["SourceContext"].ToString().Contains("NotificationHub"))
+                logEvent.Properties["SourceContext"].ToString().Contains("UserHub"))
             .WriteTo.File("logs/notifications.log", rollingInterval: RollingInterval.Day)
         );
 });
@@ -272,10 +272,8 @@ app.UseStaticFiles();
 // Hvis noen prøver å gå inn på en side som ikke eksisterer så blir de sendt tilbake til home eller index.
 app.MapFallbackToFile("index.html");
 
-// Her er endepunktet for huben for notifications til SignalR
-app.MapHub<NotificationHub>("/hubs/notifications");
 // her er endepunktet for meldinger til SignalR
-app.MapHub<ChatHub>("/chathub");
+app.MapHub<UserHub>("/chathub");
 
 
 // Configure the HTTP request pipeline.

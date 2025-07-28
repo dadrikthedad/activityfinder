@@ -11,9 +11,9 @@ namespace AFBack.Services;
 public class GroupNotificationService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
 
-    public GroupNotificationService(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
+    public GroupNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext)
     {
         _context = context;
         _hubContext = hubContext;

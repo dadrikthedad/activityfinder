@@ -10,12 +10,12 @@ namespace AFBack.Services;
 public class MessageNotificationService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IHubContext<ChatHub> _hubContext; 
+    private readonly IHubContext<UserHub> _hubContext; 
     private readonly ILogger<MessageNotificationService> _logger;
     private readonly GroupNotificationService _groupNotificationService;
     
 
-    public MessageNotificationService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService)
+    public MessageNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService)
     {
         _context = context;
         _hubContext = hubContext;

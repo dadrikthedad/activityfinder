@@ -22,13 +22,13 @@ public class FileController : BaseController
     private readonly ApplicationDbContext _context;
     private readonly ILogger<FileController> _logger;
     private readonly BlobServiceClient _blobServiceClient;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly GroupNotificationService _groupNotificationService;
     private readonly IFileService _fileService;
     private readonly IMessageService _messageService;
     
-    public FileController(ApplicationDbContext context, ILogger<FileController> logger, BlobServiceClient blobServiceClient, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IFileService fileService, IMessageService messageService)
+    public FileController(ApplicationDbContext context, ILogger<FileController> logger, BlobServiceClient blobServiceClient, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IFileService fileService, IMessageService messageService)
     {
         _context = context;
         _logger = logger;

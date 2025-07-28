@@ -8,9 +8,9 @@ namespace AFBack.Controllers;
 [Route("api/test-notification")]
 public class NotificationTestController : ControllerBase
 {
-    private readonly IHubContext<NotificationHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
 
-    public NotificationTestController(IHubContext<NotificationHub> hubContext)
+    public NotificationTestController(IHubContext<UserHub> hubContext)
     {
         _hubContext = hubContext;
     }

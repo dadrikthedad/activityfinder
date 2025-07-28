@@ -11,11 +11,11 @@ namespace AFBack.Services;
 public class ReactionService : IReactionService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly ILogger<UserController> _logger;
 
-    public ReactionService(ApplicationDbContext context, IHubContext<ChatHub> hubContext, MessageNotificationService messageNotificationService,  ILogger<UserController> logger)
+    public ReactionService(ApplicationDbContext context, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService,  ILogger<UserController> logger)
     {
         _context = context;
         _hubContext = hubContext;

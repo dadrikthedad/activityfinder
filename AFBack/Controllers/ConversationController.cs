@@ -18,12 +18,12 @@ using System.Security.Claims;
 public class ConversationsController : BaseController
 {
     private readonly ConversationService _conversationService;
-    private readonly IHubContext<ChatHub> _hubContext;
+    private readonly IHubContext<UserHub> _hubContext;
     private readonly IMessageService _messageService;
     private readonly ApplicationDbContext _context;
     private readonly SendMessageCache _msgCache;
 
-    public ConversationsController(ConversationService conversationService, IHubContext<ChatHub> hubContext, IMessageService messageService, ApplicationDbContext context, SendMessageCache msgCache)
+    public ConversationsController(ConversationService conversationService, IHubContext<UserHub> hubContext, IMessageService messageService, ApplicationDbContext context, SendMessageCache msgCache)
     {
         _conversationService = conversationService;
         _hubContext = hubContext;
