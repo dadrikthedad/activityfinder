@@ -1,6 +1,6 @@
 // Hooken for å se lese notifications, brukes over notificaiton ikonet i navbaren for å se om vi har noen varlser
 import { useEffect, useState } from "react";
-import { useNotificationHub } from "@/hooks/signalr/useNotificationHub";
+import { useSignalRService } from "@/components/signalr/SignalRService"
 import { useAuth } from "@/context/AuthContext";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
 import { API_BASE_URL } from "@/constants/routes";
@@ -9,8 +9,8 @@ export function useUnreadNotifications() {
     const { token } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
   
-    useNotificationHub({
-      onReceive: () => setUnreadCount((prev) => prev + 1),
+    useSignalRService({
+      onNotification: () => setUnreadCount((prev) => prev + 1), 
     });
   
     useEffect(() => {

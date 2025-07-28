@@ -29,3 +29,22 @@ export function markOfflineBeacon(apiBaseUrl: string): void {
     console.log("📡 Sent offline beacon:", { deviceId });
   }
 }
+
+// Få capabilities (kun denne trenger du i tillegg)
+export function getCapabilities(): string[] {
+  const capabilities = [];
+  
+  if ('Notification' in window) capabilities.push('notifications');
+  if ('serviceWorker' in navigator) capabilities.push('service-worker');
+  if (navigator.onLine !== undefined) capabilities.push('online-detection');
+  
+  return capabilities;
+}
+// Utility function for getting current device info (bruker eksisterende utils)
+export function getCurrentDeviceInfo() {
+  return {
+    deviceId: generateDeviceId(),
+    platform: getPlatform(),
+    capabilities: getCapabilities()
+  };
+}

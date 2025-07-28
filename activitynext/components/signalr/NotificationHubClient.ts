@@ -10,7 +10,7 @@ import { showNotificationToast } from "../toast/Toast";
 import { LocalToastType } from "../toast/Toast";
 import { useSignalRService } from "./SignalRService";
 
-export function useRealtimeNotifications() {
+export function NotificationHubClient() {
   const { token } = useAuth();                    // token kan være undefined rett etter reload
 
   const addNotification   = useNotificationStore((s) => s.addNotification);
