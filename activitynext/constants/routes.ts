@@ -21,8 +21,7 @@ export const API_ROUTES = {
       statusBetween: (otherUserId: number) => `/api/friendinvitations/between/${otherUserId}`,
     },
     // SignalR
-    notificationHub: "/hubs/notifications",
-    chatHub: "/chathub",
+    chatHub: "/userhub",
     // Notifications
     notifications: {
       markAllAsRead: "/api/notifications/mark-all-as-read",
