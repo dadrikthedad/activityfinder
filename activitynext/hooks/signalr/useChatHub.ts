@@ -153,9 +153,10 @@ export function useChatHub(
             messageDeletedRef.current?.(data);
           });
 
-          // 🆕 Lagt til generell notifikasjonshåndtering
+          // Lagt til generell notifikasjonshåndtering
           conn.on("ReceiveNotification", (notification: NotificationDTO) => {
-            console.log("📥 New notification:", notification);
+            console.log("📥 ReceiveNotification event mottatt i useChatHub:", notification);
+            console.log("🎯 notificationRef.current er:", !!notificationRef.current);
             notificationRef.current?.(notification);
           });
 

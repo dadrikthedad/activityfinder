@@ -25,7 +25,29 @@ interface SignalREventHandlers {
   onNotification?: (notification: NotificationDTO) => void;
 }
 
+interface SignalREventHandlers {
+  // Chat events
+  onMessage?: (message: MessageDTO) => void;
+  onReaction?: (reaction: ReactionDTO, notification?: MessageNotificationDTO) => void;
+  onRequestApproved?: (notification: MessageNotificationDTO) => void;
+  onRequestCreated?: (data: MessageRequestCreatedDto) => void;
+  onGroupRequestCreated?: (data: GroupRequestCreatedDto) => void;
+  onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void;
+  onGroupDisbanded?: (data: GroupDisbandedDto) => void;
+  onGroupParticipantsUpdated?: (conversationId: number) => void;
+  onMessageDeleted?: (data: { conversationId: number; message: MessageDTO }) => void;
+  
+  // General notifications
+  onNotification?: (notification: NotificationDTO) => void;
+}
+
 export function useSignalRService(handlers: SignalREventHandlers) {
+  console.log("🏗️ SignalRService initialized with handlers:", {
+    hasOnMessage: !!handlers.onMessage,
+    hasOnReaction: !!handlers.onReaction,
+    hasOnNotification: !!handlers.onNotification
+  });
+
   useChatHub(
     handlers.onMessage,
     handlers.onReaction,

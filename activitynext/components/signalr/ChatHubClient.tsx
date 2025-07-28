@@ -25,6 +25,7 @@ import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
 import { MessageDTO } from "@/types/MessageDTO";
 import { useSimpleBootstrapCheck } from "./useSimpleBootstrapCheck";
 import { useSignalRService } from "./SignalRService";
+import { useRealtimeNotifications } from "./NotificationHubClient";
 
 export default function ChatHubClient() {
     const addMessage = useChatStore((state) => state.addMessage);
@@ -50,6 +51,9 @@ export default function ChatHubClient() {
     const updateMessage = useChatStore((state) => state.updateMessage);
     // Sjekker at bootstrappen er ferdig før vi legger inn nye pending
     const { checkAndExecute } = useSimpleBootstrapCheck();
+
+    // For at useRealtimeNotifications skal kjøres samtidig kontinuerlig
+    useRealtimeNotifications();
 
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
       const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
