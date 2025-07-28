@@ -273,7 +273,7 @@ app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
 
 // her er endepunktet for meldinger til SignalR
-app.MapHub<UserHub>("/chathub");
+app.MapHub<UserHub>("/userhub");
 
 
 // Configure the HTTP request pipeline.
