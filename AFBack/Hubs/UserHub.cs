@@ -11,11 +11,11 @@ namespace AFBack.Hubs;
 public class UserHub : Hub
 {
     private static readonly ILogger _logger = Log.ForContext<UserHub>();
-    private readonly ConversationService _conversationService;
+    private readonly UserOnlineService _onlineService;
 
-    public UserHub(ConversationService conversationService)
+    public UserHub(UserOnlineService onlineService)
     {
-        _conversationService = conversationService;
+        _onlineService = onlineService;
     }
 
     public override async Task OnConnectedAsync()
@@ -29,24 +29,56 @@ public class UserHub : Hub
             return;
         }
 
-        _logger.Information($"✅ SignalR: Bruker {userId} tilkoblet UserHub.");
+        // Hent device info fra query string eller headers
+        var deviceId = Context.GetHttpContext()?.Request.Query["deviceId"].FirstOrDefault() 
+                      ?? Context.ConnectionId; // Fallback til ConnectionId
+        var platform = Context.GetHttpContext()?.Request.Query["platform"].FirstOrDefault() 
+                      ?? "web";
+        var capabilities = Context.GetHttpContext()?.Request.Query["capabilities"]
+                         .FirstOrDefault()?.Split(',') ?? Array.Empty<string>();
+
+        // 🆕 Bruk WebSocket-spesifikk metode med ConnectionId
+        await _onlineService.SetWebSocketConnectedAsync(
+            userId, 
+            deviceId, 
+            Context.ConnectionId, 
+            platform, 
+            capabilities,
+            new { 
+                UserAgent = Context.GetHttpContext()?.Request.Headers["User-Agent"].FirstOrDefault(),
+                RemoteIpAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString(),
+                ConnectedAt = DateTime.UtcNow
+            });
+
+        // Legg til i en gruppe basert på userId for enkel messaging
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
+
+        _logger.Information($"✅ SignalR: Bruker {userId} tilkoblet på enhet {deviceId} ({platform}) med connection {Context.ConnectionId}");
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
-        if (userId != null)
+        var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
+        if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
         {
-            _logger.Information($"🔌 SignalR: Bruker {userId} frakoblet UserHub.");
+            var deviceId = Context.GetHttpContext()?.Request.Query["deviceId"].FirstOrDefault() 
+                          ?? Context.ConnectionId;
+
+            // 🆕 Bruk WebSocket-spesifikk disconnection method
+            var disconnectionReason = exception?.Message ?? "Normal disconnection";
+            await _onlineService.SetWebSocketDisconnectedAsync(userId, deviceId, Context.ConnectionId, disconnectionReason);
+
+            _logger.Information($"🔌 SignalR: Bruker {userId} frakoblet fra enhet {deviceId} (connection {Context.ConnectionId})");
             
             if (exception != null)
             {
-                _logger.Warning(exception, $"⚠️ SignalR: Bruker {userId} frakoblet med feil.");
+                _logger.Warning(exception, $"⚠️ SignalR: Bruker {userId} frakoblet med feil på enhet {deviceId}");
             }
         }
 
         await base.OnDisconnectedAsync(exception);
     }
+    
 }

@@ -477,13 +477,13 @@ public class ApplicationDbContext : DbContext
             // Primary key
             entity.HasKey(e => e.Id);
 
-            // 🔧 FIKSER FEILEN: Pek til navigation property
+            //  Pek til navigation property
             entity.HasOne(e => e.User)
-                .WithMany(u => u.OnlineStatuses) // 🔑 ENDRET: Peker til navigation property
+                .WithMany(u => u.OnlineStatuses) // : Peker til navigation property
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Rest of configuration remains the same...
+            // Indekser
             entity.HasIndex(e => new { e.UserId, e.DeviceId })
                 .IsUnique()
                 .HasDatabaseName("IX_UserOnlineStatus_UserId_DeviceId");
@@ -496,6 +496,16 @@ public class ApplicationDbContext : DbContext
 
             entity.HasIndex(e => e.LastSeen)
                 .HasDatabaseName("IX_UserOnlineStatus_LastSeen");
+
+            // 🆕 Nye indekser for WebSocket-felter
+            entity.HasIndex(e => e.ConnectionId)
+                .HasDatabaseName("IX_UserOnlineStatus_ConnectionId");
+
+            entity.HasIndex(e => e.IsWebSocketConnected)
+                .HasDatabaseName("IX_UserOnlineStatus_IsWebSocketConnected");
+
+            entity.HasIndex(e => new { e.IsWebSocketConnected, e.WebSocketConnectedAt })
+                .HasDatabaseName("IX_UserOnlineStatus_WebSocket_ConnectedAt");
 
             // Property configurations...
             entity.Property(e => e.DeviceId)
@@ -517,6 +527,36 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.IsOnline)
                 .IsRequired()
                 .HasDefaultValue(false);
+
+            // WebSocket-spesifikke property konfigurasjoner
+            entity.Property(e => e.IsWebSocketConnected)
+                .IsRequired()
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.ConnectionId)
+                .HasMaxLength(200)
+                .HasColumnType("varchar(200)");
+
+            entity.Property(e => e.WebSocketConnectedAt)
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(e => e.WebSocketDisconnectedAt)
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(e => e.DisconnectionReason)
+                .HasMaxLength(500)
+                .HasColumnType("varchar(500)");
+
+            entity.Property(e => e.ReconnectionAttempts)
+                .IsRequired()
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.LastHeartbeat)
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(e => e.ConnectionMetadata)
+                .HasMaxLength(1000)
+                .HasColumnType("text");
 
             entity.Property(e => e.Capabilities)
                 .HasConversion(

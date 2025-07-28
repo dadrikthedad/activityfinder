@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Models;
@@ -15,6 +16,8 @@ public class UserOnlineService
         _context = context;
         _logger = logger;
     }
+    
+    // Heartbeat
 
     public async Task<(bool success, string errorMessage)> MarkUserOnlineAsync(int userId, OnlineStatusRequest request)
     {
@@ -148,46 +151,6 @@ public class UserOnlineService
         }
     }
 
-    public async Task<UserOnlineStatus?> GetUserOnlineStatusAsync(int userId, string? deviceId = null)
-    {
-        try
-        {
-            var query = _context.UserOnlineStatuses
-                .Where(u => u.UserId == userId && u.IsOnline);
-
-            if (!string.IsNullOrEmpty(deviceId))
-            {
-                query = query.Where(u => u.DeviceId == deviceId);
-            }
-
-            return await query
-                .OrderByDescending(u => u.LastSeen)
-                .FirstOrDefaultAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get online status for user {UserId}", userId);
-            return null;
-        }
-    }
-
-    public async Task<List<UserOnlineStatus>> GetOnlineUsersAsync(List<int> userIds)
-    {
-        try
-        {
-            return await _context.UserOnlineStatuses
-                .Where(u => userIds.Contains(u.UserId) && u.IsOnline)
-                .GroupBy(u => u.UserId)
-                .Select(g => g.OrderByDescending(u => u.LastSeen).First())
-                .ToListAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get online users for {Count} user IDs", userIds.Count);
-            return new List<UserOnlineStatus>();
-        }
-    }
-
     public async Task UpdateHeartbeatAsync(int userId, string deviceId)
     {
         try
@@ -215,6 +178,99 @@ public class UserOnlineService
                 userId, deviceId);
         }
     }
+    
+    /////////////////////////////// ------------------ WebSocket ------------------------------------------ ////////////////////////
+    
+     /// <summary>
+    /// Registrer WebSocket som tilkoblet for spesifikk enhet
+    /// </summary>
+    public async Task SetWebSocketConnectedAsync(int userId, string deviceId, string connectionId, string platform = "web", string[] capabilities = null, object metadata = null)
+    {
+        try
+        {
+            var existingStatus = await _context.UserOnlineStatuses
+                .FirstOrDefaultAsync(s => s.UserId == userId && s.DeviceId == deviceId);
+
+            var now = DateTime.UtcNow;
+            var metadataJson = metadata != null ? JsonSerializer.Serialize(metadata) : null;
+
+            if (existingStatus != null)
+            {
+                // Oppdater eksisterende status
+                existingStatus.IsWebSocketConnected = true;
+                existingStatus.ConnectionId = connectionId;
+                existingStatus.WebSocketConnectedAt = now;
+                existingStatus.WebSocketDisconnectedAt = null;
+                existingStatus.DisconnectionReason = null;
+                existingStatus.Platform = platform;
+                existingStatus.Capabilities = capabilities ?? Array.Empty<string>();
+                existingStatus.ConnectionMetadata = metadataJson;
+                existingStatus.ReconnectionAttempts = 0;
+            }
+            else
+            {
+                // Opprett ny status for denne enheten
+                var newStatus = new UserOnlineStatus
+                {
+                    UserId = userId,
+                    DeviceId = deviceId,
+                    ConnectionId = connectionId,
+                    IsOnline = false, // La heartbeat-systemet håndtere IsOnline
+                    IsWebSocketConnected = true,
+                    WebSocketConnectedAt = now,
+                    LastSeen = now,
+                    Platform = platform,
+                    Capabilities = capabilities ?? Array.Empty<string>(),
+                    ConnectionMetadata = metadataJson,
+                    ReconnectionAttempts = 0
+                };
+                
+                _context.UserOnlineStatuses.Add(newStatus);
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("✅ WebSocket connected: User {UserId}, Device {DeviceId}, Connection {ConnectionId}", 
+                userId, deviceId, connectionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to set WebSocket connected for user {UserId}, device {DeviceId}", userId, deviceId);
+        }
+    }
+     
+    // <summary>
+    /// Registrer WebSocket som frakoblet for spesifikk enhet
+    /// </summary>
+    public async Task SetWebSocketDisconnectedAsync(int userId, string deviceId, string connectionId, string reason = null)
+    {
+        try
+        {
+            var status = await _context.UserOnlineStatuses
+                .FirstOrDefaultAsync(s => s.UserId == userId && s.DeviceId == deviceId && s.ConnectionId == connectionId);
+
+            if (status != null)
+            {
+                var now = DateTime.UtcNow;
+                
+                status.IsWebSocketConnected = false;
+                status.WebSocketDisconnectedAt = now;
+                status.DisconnectionReason = reason;
+                status.ConnectionId = null; // Clear connection ID
+                
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("🔌 WebSocket disconnected: User {UserId}, Device {DeviceId}, Reason: {Reason}", 
+                    userId, deviceId, reason ?? "Unknown");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to set WebSocket disconnected for user {UserId}, device {DeviceId}", userId, deviceId);
+        }
+    }
+    
+    /// <summary>
+    /// Rydd opp /////////////////////////////////////////
+    /// </summary>
 
     public async Task CleanupStaleConnectionsAsync()
     {
@@ -242,38 +298,6 @@ public class UserOnlineService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to cleanup stale connections");
-        }
-    }
-
-    // 🔧 NYTT: Hjelpemetode for å sjekke om bruker er online
-    public async Task<bool> IsUserOnlineAsync(int userId)
-    {
-        try
-        {
-            return await _context.UserOnlineStatuses
-                .AnyAsync(u => u.UserId == userId && u.IsOnline);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to check if user {UserId} is online", userId);
-            return false;
-        }
-    }
-
-    // 🔧 NYTT: Hent alle online enheter for en bruker
-    public async Task<List<UserOnlineStatus>> GetUserDevicesAsync(int userId)
-    {
-        try
-        {
-            return await _context.UserOnlineStatuses
-                .Where(u => u.UserId == userId && u.IsOnline)
-                .OrderByDescending(u => u.LastSeen)
-                .ToListAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get devices for user {UserId}", userId);
-            return new List<UserOnlineStatus>();
         }
     }
 }
