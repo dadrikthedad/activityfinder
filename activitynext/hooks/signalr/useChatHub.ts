@@ -10,8 +10,7 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO } from "@/types/GroupNotificationUpdateDTO";
 import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
-
-
+import { NotificationDTO } from "@/types/NotificationEventDTO";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
@@ -22,7 +21,8 @@ export function useChatHub(
   onGroupNotificationUpdated?: (data: GroupNotificationUpdateDTO) => void,
   onGroupDisbanded?: (data: GroupDisbandedDto) => void,
   onGroupParticipantsUpdated?: (conversationId: number) => void,
-  onMessageDeleted?: (data: { conversationId: number; message: MessageDTO }) => void
+  onMessageDeleted?: (data: { conversationId: number; message: MessageDTO }) => void,
+  onReceiveNotification?: (notification: NotificationDTO) => void  
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -35,8 +35,9 @@ export function useChatHub(
   const groupDisbandedRef = useRef(onGroupDisbanded);
   const groupParticipantsUpdatedRef = useRef(onGroupParticipantsUpdated);
   const messageDeletedRef = useRef(onMessageDeleted);
+  const notificationRef = useRef(onReceiveNotification); 
 
-   // Oppdater refs hvis funksjonene endres
+  // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
   useEffect(() => {
@@ -48,6 +49,7 @@ export function useChatHub(
   useEffect(() => { groupDisbandedRef.current = onGroupDisbanded }, [onGroupDisbanded]);
   useEffect(() => { groupParticipantsUpdatedRef.current = onGroupParticipantsUpdated }, [onGroupParticipantsUpdated]);
   useEffect(() => { messageDeletedRef.current = onMessageDeleted }, [onMessageDeleted]);
+  useEffect(() => { notificationRef.current = onReceiveNotification }, [onReceiveNotification]); 
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -65,8 +67,9 @@ export function useChatHub(
       if (conn.state === signalR.HubConnectionState.Disconnected) {
         try {
           await conn.start();
-          console.log("✅ Connected to ChatHub");
+          console.log("✅ Connected to the hub");
 
+          // Fjern alle tidligere event listeners
           conn.off("ReceiveMessage");
           conn.off("ReceiveReaction");
           conn.off("MessageRequestApproved");
@@ -74,6 +77,7 @@ export function useChatHub(
           conn.off("GroupRequestCreated");
           conn.off("GroupNotificationUpdated");
           conn.off("MessageDeleted");
+          conn.off("ReceiveNotification"); 
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             messageRef.current?.(message);
@@ -96,7 +100,6 @@ export function useChatHub(
             // 1. Send den til callback hvis noen bruker den
             approvedRef.current?.(notification);
           
-
             // 2. Eller legg den rett i notification-store:
             useMessageNotificationStore.getState().upsertNotification(notification);
           });
@@ -135,7 +138,7 @@ export function useChatHub(
             groupNotificationUpdatedRef.current?.(data);
           });
 
-          conn.on("GroupDisbanded", (data: GroupDisbandedDto) => { // 🆕
+          conn.on("GroupDisbanded", (data: GroupDisbandedDto) => {
             console.log("💥 Group disbanded via SignalR:", data);
             groupDisbandedRef.current?.(data);
           });
@@ -149,10 +152,12 @@ export function useChatHub(
             console.log("🗑️ Message deleted via SignalR:", data);
             messageDeletedRef.current?.(data);
           });
-          
-            
 
-          
+          // 🆕 Lagt til generell notifikasjonshåndtering
+          conn.on("ReceiveNotification", (notification: NotificationDTO) => {
+            console.log("📥 New notification:", notification);
+            notificationRef.current?.(notification);
+          });
 
         } catch (err) {
           console.error("❌ SignalR Connection Error:", err);
@@ -162,6 +167,12 @@ export function useChatHub(
     };
 
     startConnection();
+
+    // 🆕 Lagt til reconnection logic (fra NotificationHub)
+    conn.onclose(() => {
+      console.warn("🔌 SignalR-tilkobling brutt. Prøver igjen om 2 sek...");
+      setTimeout(() => startConnection(), 2000);
+    });
 
     return () => {
       console.log("🛑 Stopping SignalR connection...");

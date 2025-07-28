@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
-import NotificationHubClient from "@/components/signalr/NotificationHubClient"; // Her kobler jeg opp mot NotificationHub. Brukes en gang slik at den kjører globalt
 import ChatHubClient from "@/components/signalr/ChatHubClient";  // Her kobler jeg opp mot ChatHub. Brukes en gang slik at den kjøres globalt
 import Navbar from "@/components/Navbar";
 import CacheCleanup from "@/components/common/CacheCleanup";
@@ -44,15 +43,13 @@ export default function RootLayout({
               <AppInitializer />
                 <ModalProvider>
                   <CacheCleanup>
-                
-                  <NotificationHubClient /> 
                     <ChatHubClient />
                       <Navbar /> {/* 👈 LEGG TIL DENNE */}
                         <UserActionPopoverPortal />
-                        <GroupSettingsPortal />
-                        <main>{children}</main>
-                        <Toaster position="bottom-right" richColors />
-                  </CacheCleanup>
+                          <GroupSettingsPortal />
+                            <main>{children}</main>
+                          <Toaster position="bottom-right" richColors />
+                        </CacheCleanup>
                 </ModalProvider>
             </AuthProvider>
           </OverlayLayerProvider>

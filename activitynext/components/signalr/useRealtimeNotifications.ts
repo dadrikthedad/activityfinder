@@ -1,6 +1,5 @@
 "use client";
 
-import { useNotificationHub }   from "@/hooks/signalr/useNotificationHub";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { useAuth }              from "@/context/AuthContext";
 import { getFriendInvitationById } from "@/services/friends/friendService";
@@ -9,6 +8,7 @@ import type { NotificationDTO } from "@/types/NotificationEventDTO";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 import { showNotificationToast } from "../toast/Toast";
 import { LocalToastType } from "../toast/Toast";
+import { useSignalRService } from "./SignalRService";
 
 export function useRealtimeNotifications() {
   const { token } = useAuth();                    // token kan være undefined rett etter reload
@@ -19,9 +19,9 @@ export function useRealtimeNotifications() {
   const setFriendRequestTotalCount = useNotificationStore((s) => s.setFriendRequestTotalCount);
   const friendRequestTotalCount = useNotificationStore((s) => s.friendRequestTotalCount);
 
-   useNotificationHub({
-    onReceive: async (evt: NotificationDTO) => {
-      try {
+    useSignalRService({
+    onNotification: async (evt: NotificationDTO) => {
+       try {
         // 🟢 Ny venneforespørsel
         if (evt.type === "FriendInvitation") {
           if (!token || !evt.friendInvitationId) return;
@@ -29,12 +29,12 @@ export function useRealtimeNotifications() {
           addNotification(evt);
           if (fr) {
             addFriendRequest(fr);
-            setFriendRequestTotalCount(friendRequestTotalCount + 1); // ✅ Øk total
+            setFriendRequestTotalCount(friendRequestTotalCount + 1);
             showNotificationToast({
-                senderName: fr.userSummary?.fullName ?? "Someone",
-                conversationId: -1, // ikke en samtale ennå
-                type: LocalToastType.FriendRequestReceived,
-              });
+              senderName: fr.userSummary?.fullName ?? "Someone",
+              conversationId: -1, // ikke en samtale ennå
+              type: LocalToastType.FriendRequestReceived,
+            });
           }
           return;
         }
@@ -79,6 +79,6 @@ export function useRealtimeNotifications() {
       } catch (err) {
         console.error("❌ Realtime-handler feilet:", err);
       }
-    },
-  });
+    }}
+  );
 }
