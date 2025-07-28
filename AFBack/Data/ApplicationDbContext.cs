@@ -39,6 +39,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<CanSend> CanSend { get; set; }
     
     public DbSet<UserOnlineStatus> UserOnlineStatuses { get; set; }
+    
+    public DbSet<SyncEvent> SyncEvents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -566,6 +568,48 @@ public class ApplicationDbContext : DbContext
                         : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
                 )
                 .HasColumnType("text");
+        });
+        
+        modelBuilder.Entity<SyncEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+    
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+    
+            // Primary index for sync queries (mest brukte)
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt })
+                .HasDatabaseName("IX_SyncEvent_UserId_CreatedAt");
+    
+            // Index for cleanup operations
+            entity.HasIndex(e => e.CreatedAt)
+                .HasDatabaseName("IX_SyncEvent_CreatedAt");
+    
+            // Index for debugging og søk basert på relaterte entiteter
+            entity.HasIndex(e => new { e.RelatedEntityType, e.RelatedEntityId })
+                .HasDatabaseName("IX_SyncEvent_RelatedEntity")
+                .HasFilter("\"RelatedEntityId\" IS NOT NULL"); // Conditional index
+    
+            // Constraints
+            entity.Property(e => e.SyncToken)
+                .IsRequired()
+                .HasMaxLength(200);
+        
+            entity.Property(e => e.EventData)
+                .IsRequired()
+                .HasColumnType("text"); // eller "nvarchar(max)" hvis du foretrekker det
+        
+            entity.Property(e => e.SyncToken)
+                .IsRequired()
+                .HasMaxLength(100);
+        
+            entity.Property(e => e.Source)
+                .HasMaxLength(200);
+        
+            entity.Property(e => e.RelatedEntityType)
+                .HasMaxLength(50);
         });
 
 

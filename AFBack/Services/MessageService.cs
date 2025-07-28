@@ -1,4 +1,5 @@
-﻿using AFBack.Controllers;
+﻿using AFBack.Constants;
+using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.Models;
 using AFBack.DTOs;
@@ -19,10 +20,13 @@ public class MessageService : IMessageService
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<UserController> _logger;
+    private readonly SyncService _syncService;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IConfiguration _configuration;
 
     public MessageService(ApplicationDbContext context, IHubContext<UserHub> hubContext,
         MessageNotificationService messageNotificationService, SendMessageCache msgCache,
-        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger)
+        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger, SyncService syncService, IServiceProvider serviceProvider, IConfiguration configuration)
     {
         _context = context;
         _hubContext = hubContext;
@@ -31,6 +35,9 @@ public class MessageService : IMessageService
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _syncService = syncService;
+        _serviceProvider = serviceProvider;
+        _configuration = configuration;
 
     }
 
@@ -258,9 +265,29 @@ public class MessageService : IMessageService
                     needsMessageRequestNotification: needsMessageRequestNotification,
                     isRejectedSender: isRejectedSender));
             }
-            // 🆕 Marker type så frontend vet hva den skal gjøre
-
             
+            try 
+            {
+                await _syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.NEW_MESSAGE,
+                    eventData: new { 
+                        messageId = response.Id, 
+                        conversationId = conversation.Id,
+                        senderId = senderId,
+                        content = dto.Text,
+                        sentAt = response.SentAt
+                    },
+                    targetUserIds: participantIds,
+                    source: "API",
+                    relatedEntityId: response.Id,
+                    relatedEntityType: "Message"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
+                // Ikke krasj - sync event er ikke kritisk for API response
+            }
         }
         else
         {
@@ -1250,7 +1277,7 @@ public class MessageService : IMessageService
             .Where(cp => cp.ConversationId == conversation.Id)
             .Select(cp => cp.UserId)
             .ToArrayAsync();
-    
+        
         // Send notifikasjoner
         _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
             conversationId: conversation.Id,
@@ -1261,6 +1288,30 @@ public class MessageService : IMessageService
             senderId: senderId,
             receiverId: null,
             response: response));
+        
+        // Lage syncevent
+        try 
+        {
+            await _syncService.CreateAndDistributeSyncEventAsync(
+                eventType: SyncEventTypes.NEW_MESSAGE,
+                eventData: new { 
+                    messageId = response.Id, 
+                    conversationId = conversation.Id,
+                    senderId = senderId,
+                    content = dto.Text,
+                    sentAt = response.SentAt
+                },
+                targetUserIds: participantIds,
+                source: "API",
+                relatedEntityId: response.Id,
+                relatedEntityType: "Message"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
+            // Ikke krasj - sync event er ikke kritisk
+        }
     
         return response;
     }

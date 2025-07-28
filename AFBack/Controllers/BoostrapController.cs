@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
+using AFBack.DTOs.BoostrapDTO.Sync;
 using AFBack.Services;
 
 namespace AFBack.Controllers
@@ -13,13 +14,14 @@ namespace AFBack.Controllers
     {
         private readonly BootstrapService _bootstrapService;
         private readonly UserOnlineService _userOnlineService;
+        private readonly SyncService _syncService;
         
 
-        public BootstrapController(BootstrapService bootstrapService, UserOnlineService userOnlineSerivce)
+        public BootstrapController(BootstrapService bootstrapService, UserOnlineService userOnlineService, SyncService syncService)
         {
             _bootstrapService = bootstrapService;
-            _userOnlineService = userOnlineSerivce;
-
+            _userOnlineService = userOnlineService;
+            _syncService = syncService; 
         }
 
         [HttpGet("bootstrap/critical")]
@@ -186,11 +188,30 @@ namespace AFBack.Controllers
                 });
             }
         }
-
-        private int? GetUserId()
+        
+        [HttpGet("sync")]
+        public async Task<ActionResult<SyncResponseDTO>> GetSync([FromQuery] string? since)
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return int.TryParse(userIdClaim, out var userId) ? userId : null;
+            try
+            {
+                var userId = GetUserId();
+                if (userId == null)
+                {
+                    return Unauthorized(new { error = "Invalid user token" });
+                }
+        
+                var response = await _syncService.GetEventsSinceAsync(userId.Value, since);
+        
+                return Ok(response);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { 
+                    error = "Failed to process sync request", 
+                    details = ex.Message,
+                    userId = GetUserId()
+                });
+            }
         }
     }
 }

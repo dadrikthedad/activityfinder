@@ -16,9 +16,10 @@ namespace AFBack.Services
         private readonly IMessageService  _messageService;
         private readonly FriendService _friendService;
         private readonly INotificationService _notificationService;
+        private readonly SyncService _syncService;
 
         public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
-            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService messageService, FriendService friendService, INotificationService notificationService)
+            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService messageService, FriendService friendService, INotificationService notificationService, SyncService syncService)
         {
             _context = context;
             _logger = logger;
@@ -27,6 +28,7 @@ namespace AFBack.Services
             _messageService = messageService;
             _friendService = friendService;
             _notificationService = notificationService;
+            _syncService = syncService;
         }
 
         public async Task<CriticalBootstrapResponseDTO> GetCriticalBootstrapAsync(int userId)
@@ -73,7 +75,7 @@ namespace AFBack.Services
                     User = user.ToUserSummaryDTO(),
                     RecentConversations = conversations,
                     ConversationMessages = conversationMessages,
-                    SyncToken = GenerateSimpleSyncToken(userId, user.IsOnline)
+                    SyncToken = _syncService.GenerateSyncToken() 
                 };
 
                 _logger.LogInformation("✅ Parallel critical bootstrap completed for user: {UserName} with {MessageCount} conversation message sets", 
@@ -472,23 +474,6 @@ namespace AFBack.Services
                 _logger.LogError(ex, "❌ Failed to get app notifications for user {UserId}", userId);
                 return new List<NotificationDTO>(); // Robust: returner tom liste
             }
-        }
-        
-
-        // SYNC ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        private string GenerateSimpleSyncToken(int userId, bool isOnline)
-        {
-            var token = new
-            {
-                userId = userId,
-                timestamp = DateTime.UtcNow.ToString("O"),
-                version = 1,
-                isOnline = isOnline
-            };
-
-            var json = System.Text.Json.JsonSerializer.Serialize(token);
-            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
         }
     }
 }
