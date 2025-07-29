@@ -279,21 +279,29 @@ namespace AFBack.Services
                 // Get messages for each conversation in parallel
                 var messageTasks = conversationResults.Select(async conversationResult =>
                 {
+                    // ✅ NY SCOPE for hver parallel task
+                    using var taskScope = _serviceProvider.CreateScope();
+                    var taskMessageService = taskScope.ServiceProvider.GetRequiredService<IMessageService>();
+    
                     try
                     {
-                        var messages = await messageService.GetMessagesForConversationAsync(
+                        _logger.LogDebug("🔍 Fetching messages for conversation {ConversationId}", conversationResult.Conversation.Id);
+
+                        var messages = await taskMessageService.GetMessagesForConversationAsync(
                             conversationResult.Conversation.Id, 
                             userId, 
                             skip: 0, 
                             take: 20);
-                        
+
+                        _logger.LogDebug("✅ Got {MessageCount} messages for conversation {ConversationId}", 
+                            messages.Count, conversationResult.Conversation.Id);
+
                         return new { ConversationId = conversationResult.Conversation.Id, Messages = messages };
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "⚠️ Failed to get messages for conversation {ConversationId}", 
-                            conversationResult.Conversation.Id);
-                        // Return empty list for failed conversations instead of crashing
+                        _logger.LogError(ex, "❌ DETAILED ERROR for conversation {ConversationId}: {ErrorMessage}", 
+                            conversationResult.Conversation.Id, ex.Message);
                         return new { ConversationId = conversationResult.Conversation.Id, Messages = new List<MessageResponseDTO>() };
                     }
                 });
