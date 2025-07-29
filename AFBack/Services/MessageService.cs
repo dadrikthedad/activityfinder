@@ -251,42 +251,49 @@ public class MessageService : IMessageService
             // NotifyAndBroadcastAsync
             if (shouldNotify || needsMessageRequestNotification || isRejectedSender)
             {
-                _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
-                    conversationId: conversation.Id,
-                    isGroup: conversation.IsGroup,
-                    groupName: conversation.GroupName,
-                    groupImageUrl: conversation.GroupImageUrl,
-                    participantIds: participantIds,
-                    senderId: senderId,
-                    receiverId: receiverId,
-                    response: response,
-                    shouldSendSignalR: shouldNotify,
-                    shouldCreateNotifications: shouldNotify,
-                    needsMessageRequestNotification: needsMessageRequestNotification,
-                    isRejectedSender: isRejectedSender));
-            }
-            
-            try 
-            {
-                await _syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.NEW_MESSAGE,
-                    eventData: new { 
-                        messageId = response.Id, 
-                        conversationId = conversation.Id,
-                        senderId = senderId,
-                        content = dto.Text,
-                        sentAt = response.SentAt
-                    },
-                    targetUserIds: participantIds,
-                    source: "API",
-                    relatedEntityId: response.Id,
-                    relatedEntityType: "Message"
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
-                // Ikke krasj - sync event er ikke kritisk for API response
+                _taskQueue.QueueAsync(async () => 
+                {
+                    // Først SignalR
+                    await NotifyAndBroadcastAsync(
+                        conversationId: conversation.Id,
+                        isGroup: conversation.IsGroup,
+                        groupName: conversation.GroupName,
+                        groupImageUrl: conversation.GroupImageUrl,
+                        participantIds: participantIds,
+                        senderId: senderId,
+                        receiverId: receiverId,
+                        response: response,
+                        shouldSendSignalR: shouldNotify,
+                        shouldCreateNotifications: shouldNotify,
+                        needsMessageRequestNotification: needsMessageRequestNotification,
+                        isRejectedSender: isRejectedSender);
+        
+                    // Så sync event med ny scope
+                    using var scope = _scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); // eller hva _syncService heter
+        
+                    try 
+                    {
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.NEW_MESSAGE,
+                            eventData: new { 
+                                messageId = response.Id, 
+                                conversationId = conversation.Id,
+                                senderId = senderId,
+                                content = dto.Text,
+                                sentAt = response.SentAt
+                            },
+                            targetUserIds: participantIds,
+                            source: "API",
+                            relatedEntityId: response.Id,
+                            relatedEntityType: "Message"
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
+                    }
+                });
             }
         }
         else
@@ -1279,39 +1286,46 @@ public class MessageService : IMessageService
             .ToArrayAsync();
         
         // Send notifikasjoner
-        _taskQueue.QueueAsync(() => NotifyAndBroadcastAsync(
-            conversationId: conversation.Id,
-            isGroup: conversation.IsGroup,
-            groupName: conversation.GroupName,
-            groupImageUrl: conversation.GroupImageUrl,
-            participantIds: participantIds,
-            senderId: senderId,
-            receiverId: null,
-            response: response));
+        _taskQueue.QueueAsync(async () => 
+        {
+            // Først SignalR-notifikasjoner
+            await NotifyAndBroadcastAsync(
+                conversationId: conversation.Id,
+                isGroup: conversation.IsGroup,
+                groupName: conversation.GroupName,
+                groupImageUrl: conversation.GroupImageUrl,
+                participantIds: participantIds,
+                senderId: senderId,
+                receiverId: null,
+                response: response);
         
-        // Lage syncevent
-        try 
-        {
-            await _syncService.CreateAndDistributeSyncEventAsync(
-                eventType: SyncEventTypes.NEW_MESSAGE,
-                eventData: new { 
-                    messageId = response.Id, 
-                    conversationId = conversation.Id,
-                    senderId = senderId,
-                    content = dto.Text,
-                    sentAt = response.SentAt
-                },
-                targetUserIds: participantIds,
-                source: "API",
-                relatedEntityId: response.Id,
-                relatedEntityType: "Message"
-            );
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
-            // Ikke krasj - sync event er ikke kritisk
-        }
+            // Så sync event med ny scope (ikke-kritisk)
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); // eller hva _syncService heter
+        
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.NEW_MESSAGE,
+                    eventData: new { 
+                        messageId = response.Id, 
+                        conversationId = conversation.Id,
+                        senderId = senderId,
+                        content = dto.Text,
+                        sentAt = response.SentAt
+                    },
+                    targetUserIds: participantIds,
+                    source: "API",
+                    relatedEntityId: response.Id,
+                    relatedEntityType: "Message"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
+                // Ikke krasj - sync event er ikke kritisk
+            }
+        });
     
         return response;
     }
