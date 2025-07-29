@@ -163,7 +163,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
        * - 50 siste notifikasjoner (matcher slice(0, 50) logikken)
        */
       partialize: (state) => ({
-        notifications: state.messageNotifications.slice(0, 50),
+        messageNotifications: state.messageNotifications.slice(0, 50),
         hasLoadedNotifications: state.hasLoadedNotifications,
       }),
 
