@@ -9,6 +9,7 @@ import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useUserCacheStore, useFriends, useBlockedUsers } from '@/store/useUserCacheStore';
+import { useBootstrapDistributor  } from "@/hooks/bootstrap/useBootstrapDistributor";
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
@@ -16,6 +17,7 @@ export function AppInitializer() {
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const hasInitializedOnlineRef = useRef(false); 
+  const { markCacheAsLoaded } = useBootstrapDistributor();
   
   const { 
     isBootstrapped, 
@@ -64,6 +66,14 @@ export function AppInitializer() {
       useMessageNotificationStore.getState().reset(); // 🆕 LEGG TIL
       useNotificationStore.getState().reset();
       useUserCacheStore.getState().reset();
+
+      const criticalValid = isCriticalCacheValid();
+      const secondaryValid = isSecondaryCacheValid();
+
+      if (criticalValid && secondaryValid) {
+        console.log("🔧 BOOT: Marking cache as loaded after store reset");
+        markCacheAsLoaded();
+      }
       
       // Reset retry counter for ny bruker
       retryCountRef.current = 0;
@@ -83,7 +93,7 @@ export function AppInitializer() {
     prevUserIdRef.current = userId;
     
     console.log("🚀 BOOT: AppInitializer ready for userId =", userId);
-  }, [token, userId, isOnline, markOffline]);
+    }, [token, userId, isOnline, markOffline, isCriticalCacheValid, isSecondaryCacheValid, markCacheAsLoaded]);
 
   
 

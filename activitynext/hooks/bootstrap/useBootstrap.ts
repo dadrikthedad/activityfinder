@@ -13,7 +13,7 @@ import { useOnlineStatus } from './useOnlineStatus';
 
 export const useBootstrap = () => {
   const hasInitialized = useRef(false);
-  const { distributeCriticalData, distributeSecondaryData } = useBootstrapDistributor();
+  const { distributeCriticalData, distributeSecondaryData, markCacheAsLoaded  } = useBootstrapDistributor();
   const { markOnline } = useOnlineStatus();
 
   // Bootstrap state fra BootstrapStore
@@ -141,9 +141,7 @@ export const useBootstrap = () => {
     loadSecondaryData();
   }, [loadSecondaryData]);
 
-  // 🔧 FORBEDRET: Auto-bootstrap med bedre logikk
   useEffect(() => {
-    // Strict mode protection
     if (hasInitialized.current) {
       console.log("✅ useBootstrap already initialized, skipping...");
       return;
@@ -155,24 +153,21 @@ export const useBootstrap = () => {
     
     console.log("🔍 Bootstrap cache status:", { criticalValid, secondaryValid });
     
-    // Kun bootstrap hvis critical cache er invalid
-    // (secondary kjøres automatisk hvis invalid)
     if (!criticalValid || !isBootstrapped) {
       console.log("🔄 Starting bootstrap (critical cache invalid or not bootstrapped)...");
       bootstrap();
     } else {
       console.log("✅ Bootstrap cache valid and app is bootstrapped");
-
-      // Even if cache is valid, we need to mark user as online
+      
+      markCacheAsLoaded(); // ✅ LEGG TIL DENNE LINJEN
       markOnline();
       
-      // 🔧 BONUS: Kjør kun secondary hvis den trenger oppdatering
       if (!secondaryValid) {
         console.log("🔄 Refreshing secondary data in background...");
         loadSecondaryData();
       }
     }
-  }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, markOnline, loadSecondaryData]);
+  }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, markOnline, loadSecondaryData, markCacheAsLoaded]);
 
   return {
     // ✅ Data fra alle stores
