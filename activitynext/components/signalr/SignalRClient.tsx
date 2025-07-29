@@ -1,7 +1,8 @@
-// ChatHubClienten som brukes i layout til å koble seg på klienten og fanger meldinger som kommer over signalr
+// SignalRClient.tsx - Med direkte useChatHub kall
 "use client";
 
 import { useChatStore } from "@/store/useChatStore";
+import { useNotificationStore } from "@/store/useNotificationStore";
 import { ReactionDTO } from "@/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
 import { handleIncomingMessage } from "./handleIncomingMessage";
@@ -24,46 +25,57 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
 import { MessageDTO } from "@/types/MessageDTO";
 import { useSimpleBootstrapCheck } from "./useSimpleBootstrapCheck";
-import { useSignalRService } from "./SignalRService";
-import { NotificationHubClient } from "./NotificationHubClient";
+import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { LocalToastType } from "../toast/Toast";
+import { getFriendInvitationById } from "@/services/friends/friendService";
+import { getNotificationById } from "@/services/notifications/notificationService";
+import { useChatHub } from "@/hooks/signalr/useChatHub"; 
+import { preloadMessagesForConversation } from "@/functions/SignalR/PreloadMessagesForConversation";
 
-export default function ChatHubClient() {
+export default function SignalRClient() {
+    const { token, userId } = useAuth();
+    
+    // Chat Store
     const addMessage = useChatStore((state) => state.addMessage);
-    const updateConversationTimestamp = useChatStore( // For å oppdatere samtalelisten i sanntid ved ny melding
-      (state) => state.updateConversationTimestamp
-    );
-    const updateMessageReactions = useChatStore((state) => state.updateMessageReactions); // Oppdaterer meldingsreaksjoner
-    const updateSearchResultReactions = useChatStore((state) => state.updateSearchResultReactions); // Oppdater reaksjoner i søkefelt
+    const updateConversationTimestamp = useChatStore((state) => state.updateConversationTimestamp);
+    const updateMessageReactions = useChatStore((state) => state.updateMessageReactions);
+    const updateSearchResultReactions = useChatStore((state) => state.updateSearchResultReactions);
     const searchMode = useChatStore((state) => state.searchMode);
-    const { userId } = useAuth();
     const addConversation = useChatStore(s => s.addConversation);
-    const setCachedMessages = useChatStore(s => s.setCachedMessages); // For å cache meldinger
+    const setCachedMessages = useChatStore(s => s.setCachedMessages);
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
-    const { syncPendingConversation } = usePendingConversationSync();
     const showMessages = useChatStore.getState().showMessages;
     const removeConversation = useChatStore((state) => state.removeConversation);
     const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
     const removePendingRequest = useChatStore((state) => state.removePendingRequest);
+    const updateMessage = useChatStore((state) => state.updateMessage);
+
+    // Notification Store
+    const addNotification = useNotificationStore((s) => s.addNotification);
+    const addFriendRequest = useNotificationStore((s) => s.addFriendRequest);
+    const notificationsRef = useNotificationStore((s) => s.notifications);
+    const setFriendRequestTotalCount = useNotificationStore((s) => s.setFriendRequestTotalCount);
+    const friendRequestTotalCount = useNotificationStore((s) => s.friendRequestTotalCount);
+
+    // Message Notification Store
     const updateNotificationsForRejectedConversation = useMessageNotificationStore(
       (state) => state.updateNotificationsForRejectedConversation
     );
+
+    // Other hooks
+    const { syncPendingConversation } = usePendingConversationSync();
     const { refreshConversation } = useConversationUpdate();
-    const updateMessage = useChatStore((state) => state.updateMessage);
-    // Sjekker at bootstrappen er ferdig før vi legger inn nye pending
     const { checkAndExecute } = useSimpleBootstrapCheck();
 
-    NotificationHubClient();
-
+    // Helper functions (same as before)
     const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
       const { conversationIds, pendingMessageRequests, cachedMessages } = useChatStore.getState();
 
-      // Sjekk om samtalen allerede finnes
       if (conversationIds.has(conversationId)) {
-        // Proaktiv caching av meldinger hvis vi ikke har dem allerede
         if (shouldCacheMessages && !cachedMessages[conversationId]) {
           console.log(`💾 Proaktiv caching av meldinger for samtale ${conversationId}...`);
           try {
-            const messages = await getMessagesForConversation(conversationId, 0, 50); // Hent siste 50 meldinger
+            const messages = await getMessagesForConversation(conversationId, 0, 50);
             if (messages && messages.length > 0) {
               setCachedMessages(conversationId, messages);
               console.log(`✅ Cachet ${messages.length} meldinger for samtale ${conversationId}`);
@@ -75,7 +87,6 @@ export default function ChatHubClient() {
         return;
       }
 
-      // Sjekk om samtalen er i pending-listen
       const isPending = pendingMessageRequests.some(
         (request) => request.conversationId === conversationId
       );
@@ -88,7 +99,6 @@ export default function ChatHubClient() {
       console.log(`🔍 Samtale ${conversationId} finnes ikke i listen, henter den...`);
 
       try {
-        // Hent både samtale og meldinger parallelt
         const [conversation, messages] = await Promise.all([
           getConversationById(conversationId),
           shouldCacheMessages ? getMessagesForConversation(conversationId, 0, 50) : Promise.resolve(null)
@@ -98,7 +108,6 @@ export default function ChatHubClient() {
           addConversation(conversation);
           console.log(`✅ Samtale ${conversationId} lagt til i listen`);
 
-          // Cache meldinger hvis vi fikk dem
           if (messages && messages.length > 0 && shouldCacheMessages) {
             setCachedMessages(conversationId, messages);
             console.log(`✅ Cachet ${messages.length} meldinger for samtale ${conversationId}`);
@@ -109,33 +118,15 @@ export default function ChatHubClient() {
       }
     };
 
-    // Utvidet funksjon for å cache meldinger for eksisterende samtaler
-    const preloadMessagesForConversation = async (conversationId: number) => {
-      const { cachedMessages, conversationIds } = useChatStore.getState();
-      
-      // Kun cache hvis samtalen finnes og vi ikke allerede har cachet meldinger
-      if (conversationIds.has(conversationId) && !cachedMessages[conversationId]) {
-        console.log(`🚀 Preloader meldinger for samtale ${conversationId}...`);
-        try {
-          const messages = await getMessagesForConversation(conversationId, 0, 50);
-          if (messages && messages.length > 0) {
-            setCachedMessages(conversationId, messages);
-            console.log(`✅ Preloadet ${messages.length} meldinger for samtale ${conversationId}`);
-          }
-        } catch (error) {
-          console.error(`❌ Kunne ikke preloade meldinger for samtale ${conversationId}:`, error);
-        }
-      }
-    };
+    
 
-    useSignalRService({
-      // Melding
-      onMessage: async (message) => {
-        console.log("💬 Mottatt melding via SignalR:", message);
+    // 🚀 DIREKTE KALL til useChatHub - ikke via useSignalRService
+    useChatHub(
+      // onMessage
+      async (message: MessageDTO) => {
+        console.log("💬 Mottatt melding via useChatHub:", message);
 
-        // Sørg for at samtalen finnes og cache meldinger proaktivt
         await ensureConversationExists(message.conversationId, true);
-   
         addMessage(message);
         updateConversationTimestamp(message.conversationId, message.sentAt);
         
@@ -150,7 +141,7 @@ export default function ChatHubClient() {
           message.senderId !== userId &&
           (!showMessages || message.conversationId !== currentConversationId) && 
           !message.isSilent &&
-          !message.isSystemMessage // Ingen toast for systemmeldinger
+          !message.isSystemMessage
         ) {
           showNotificationToast({
             senderName: message.sender?.fullName ?? "ukjent",
@@ -165,31 +156,27 @@ export default function ChatHubClient() {
         }
       },
 
-      // Reaksjon
-      onReaction: async (reaction, notification) => {
-        console.log("🎉 Mottatt reaksjon via SignalR:", reaction);
-        console.log("🔔 Mottatt notification via SignalR:", notification);
+      // onReaction  
+      async (reaction, notification) => {
+        console.log("🎉 Mottatt reaksjon via useChatHub:", reaction);
 
-        // Preload meldinger for reakcsjonssamtalen
         if (notification?.conversationId) {
           await preloadMessagesForConversation(notification.conversationId);
         }
 
-        updateMessageReactions(reaction as ReactionDTO); // Oppdater cache uansett
-        handleIncomingReaction(reaction, userId, notification); // 👈 send med notification
+        updateMessageReactions(reaction as ReactionDTO);
+        handleIncomingReaction(reaction, userId, notification);
 
         if (searchMode) {
           updateSearchResultReactions(reaction as ReactionDTO);
         }
       },
 
-      // Godkjent forespørsel
-      onRequestApproved: async (notification) => {
-        console.log("✅ Godkjent forespørsel via SignalR:", notification); 
+      // onRequestApproved
+      async (notification) => {
+        console.log("✅ Godkjent forespørsel via useChatHub:", notification); 
         const convId = notification.conversationId;
-        if (!convId) {
-          return;
-        }
+        if (!convId) return;
 
         showNotificationToast({
           senderName: notification.senderName ?? "Someone",
@@ -201,8 +188,8 @@ export default function ChatHubClient() {
         await finalizeConversationApproval(convId, true, notification);
       },
 
-      // Lagd en meldingsforespørsel til en annen bruker
-      onRequestCreated: async (data: MessageRequestCreatedDto) => {
+      // onRequestCreated
+      async (data: MessageRequestCreatedDto) => {
         await checkAndExecute(async () => {
           if (data.notification) {
             await handleIncomingNotification(data.notification);
@@ -220,8 +207,8 @@ export default function ChatHubClient() {
         });
       },
 
-      // Gruppeforespørsel opprettet - handle exactly like MessageRequest
-      onGroupRequestCreated: async (data: GroupRequestCreatedDto) => {
+      // onGroupRequestCreated
+      async (data: GroupRequestCreatedDto) => {
         await checkAndExecute(async () => {
           if (data.notification) {
             await handleIncomingNotification(data.notification);
@@ -242,12 +229,11 @@ export default function ChatHubClient() {
         });
       },
 
-      // Ny GroupNotificationUpdated callback
-      onGroupNotificationUpdated: async (data: GroupNotificationUpdateDTO) => {
-        console.log("🔔 GroupNotification oppdatert i ChatHubClient:", data);
+      // onGroupNotificationUpdated
+      async (data: GroupNotificationUpdateDTO) => {
+        console.log("🔔 GroupNotification oppdatert i SignalRClient:", data);
         const { userId: targetUserId, notification, groupEventType, affectedUsers } = data;
       
-        // Sjekk at notifikasjonen er for den innloggede brukeren
         if (targetUserId !== userId) {
           console.log("⚠️ GroupNotification ikke for denne brukeren, hopper over");
           return;
@@ -260,27 +246,21 @@ export default function ChatHubClient() {
             latestAffectedUsers: affectedUsers
           };
 
-          // Konverter string til enum verdi
           let eventTypeEnum: GroupEventType;
-
-          // Håndter både string og nummer fra backend
           if (typeof groupEventType === 'string') {
             eventTypeEnum = GroupEventType[groupEventType as keyof typeof GroupEventType];
           } else {
             eventTypeEnum = groupEventType;
           }
 
-          // 🆕 Håndter forskjellige group events
           if (notification.conversationId != null) {
             await refreshConversation(notification.conversationId, {
-              logPrefix: "👥" // Samme prefix for alle group events
+              logPrefix: "👥"
             });
           }
 
-          // Oppdater notification-panelet med enhanced data
           await handleIncomingNotification(enhancedNotification);
 
-          // Vis toast for alle hendelser
           if (notification.conversationId != null) {
             showNotificationToast({
               senderName: notification.senderName ?? "Someone",
@@ -295,26 +275,23 @@ export default function ChatHubClient() {
         }
       },
 
-      onGroupDisbanded: async (data: GroupDisbandedDto) => {
-        console.log("💥 Gruppe disbanded via SignalR:", data);
+      // onGroupDisbanded
+      async (data: GroupDisbandedDto) => {
+        console.log("💥 Gruppe disbanded via useChatHub:", data);
         const { conversationId, groupName, notification } = data;
         
-        // Fjern samtalen fra store
         removeConversation(conversationId);
         removePendingRequest(conversationId); 
         
-        // Hvis brukeren er i den disbanded samtalen, naviger bort
         if (currentConversationId === conversationId) {
           setCurrentConversationId(null);
         }
 
         updateNotificationsForRejectedConversation(conversationId);
         
-        // Oppdater notification hvis den finnes
         if (notification) {
           await handleIncomingNotification(notification);
           
-          // Vis toast om disbanded gruppe
           showNotificationToast({
             senderName: "System",
             messagePreview: `Group "${groupName}" has been disbanded`,
@@ -327,21 +304,19 @@ export default function ChatHubClient() {
         console.log(`✅ Fjernet disbanded gruppe ${conversationId} fra store`);
       },
 
-      // Oppdaterer en gruppeforespørsel med riktig participants ved nylig inviterte brukere
-      onGroupParticipantsUpdated: async (conversationId: number) => {
-        console.log("🔁 Group participants updated via SignalR for conversation:", conversationId);
-        
-        // Bruk med forceUpdate for å oppdatere participants
+      // onGroupParticipantsUpdated
+      async (conversationId: number) => {
+        console.log("🔁 Group participants updated via useChatHub for conversation:", conversationId);
         await syncPendingConversation(conversationId, true);
       },
 
-      onMessageDeleted: async (data: { conversationId: number; message: MessageDTO }) => {
-        console.log("🗑️ Mottatt slettet melding via SignalR:", data);
+      // onMessageDeleted
+      async (data: { conversationId: number; message: MessageDTO }) => {
+        console.log("🗑️ Mottatt slettet melding via useChatHub:", data);
         
         const { conversationId, message } = data;
         const { conversationIds } = useChatStore.getState();
         
-        // Sjekk om vi har denne samtalen i store
         if (conversationIds.has(conversationId)) {
           console.log(`✅ Oppdaterer slettet melding ${message.id} i samtale ${conversationId}`);
           updateMessage(conversationId, message.id, message);
@@ -349,8 +324,66 @@ export default function ChatHubClient() {
         } else {
           console.log(`⚠️ Samtale ${conversationId} finnes ikke i store, hopper over oppdatering`);
         }
+      },
+
+      // onNotification
+      async (evt: NotificationDTO) => {
+        console.log("🔔 Notification received via useChatHub:", evt);
+        
+        try {
+          if (evt.type === "FriendInvitation") {
+            if (!token || !evt.friendInvitationId) return;
+            const fr = await getFriendInvitationById(evt.friendInvitationId, token);
+            addNotification(evt);
+            if (fr) {
+              addFriendRequest(fr);
+              setFriendRequestTotalCount(friendRequestTotalCount + 1);
+              showNotificationToast({
+                senderName: fr.userSummary?.fullName ?? "Someone",
+                conversationId: -1,
+                type: LocalToastType.FriendRequestReceived,
+              });
+            }
+            return;
+          }
+
+          if (evt.type === "FriendInvAccepted") {
+            addNotification(evt);
+
+            if (evt.relatedUser) {
+              showNotificationToast({
+                senderName: evt.relatedUser.fullName ?? "Someone",
+                type: LocalToastType.FriendInvAccepted,
+                relatedUser: evt.relatedUser,
+              });
+            }
+
+            if (evt.conversationId) {
+              await finalizeConversationApproval(evt.conversationId);
+            }
+            return;
+          }
+
+          if (evt.message || evt.relatedUser) {
+            addNotification(evt);
+            return;
+          }
+
+          const cached = notificationsRef.find((n) => n.id === evt.id);
+          if (cached) {
+            addNotification(cached);
+            return;
+          }
+
+          if (!token) return;
+          const full = await getNotificationById(evt.id, token);
+          if (full) addNotification(full);
+
+        } catch (err) {
+          console.error("❌ Realtime-handler feilet:", err);
+        }
       }
-    });
+    );
 
     return null; // Kun sideeffekter
 }
