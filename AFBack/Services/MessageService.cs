@@ -185,6 +185,22 @@ public class MessageService : IMessageService
             // Brukeren svarer på en åpen meldingsforespørsel som de ikke selv har sendt.
             // Dette tolkes som en godkjenning – men bare dersom det faktisk finnes en ubehandlet forespørsel.
             bool nowApproved = false;
+            
+
+            // 5  Lag selve meldingen
+            var message = CreateMessage(senderId, conversation.Id, dto, !requiresApproval);
+
+            if (conversation.Id == 0) // samtalen er ny
+                message.Conversation = conversation;
+            else
+                message.ConversationId = conversation.Id;
+
+            _context.Messages.Add(message);
+            conversation.LastMessageSentAt = message.SentAt;
+
+            // 6 ÉN lagring av alt ovenfor
+            await _context.SaveChangesAsync();
+            
             if (!conversation.IsGroup && requiresApproval && !isRejected && !requestSent)
             {
                 var existingRequest = await _context.MessageRequests
@@ -212,20 +228,6 @@ public class MessageService : IMessageService
                 await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, 
                     conversation.IsGroup ? CanSendReason.GroupRequest : CanSendReason.Friendship);
             }
-
-            // 5  Lag selve meldingen
-            var message = CreateMessage(senderId, conversation.Id, dto, !requiresApproval);
-
-            if (conversation.Id == 0) // samtalen er ny
-                message.Conversation = conversation;
-            else
-                message.ConversationId = conversation.Id;
-
-            _context.Messages.Add(message);
-            conversation.LastMessageSentAt = message.SentAt;
-
-            // 6 ÉN lagring av alt ovenfor
-            await _context.SaveChangesAsync();
 
             // 🆕 Hent meldingen på nytt med full parent data
             response = await MapToResponseDtoOptimized(message.Id);
