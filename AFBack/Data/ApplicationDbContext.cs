@@ -429,42 +429,43 @@ public class ApplicationDbContext : DbContext
         {
             // Primary key
             entity.HasKey(cs => cs.Id);
-        
-            // Unique constraint på UserId + ConversationId (en bruker kan kun ha én CanSend per samtale)
+
+            // Unique constraint på UserId + ConversationId
             entity.HasIndex(cs => new { cs.UserId, cs.ConversationId })
                 .IsUnique()
                 .HasDatabaseName("IX_CanSend_UserId_ConversationId");
-        
+
             // Index for rask lookup basert på ConversationId
             entity.HasIndex(cs => cs.ConversationId)
                 .HasDatabaseName("IX_CanSend_ConversationId");
-              
+      
             // Index for cleanup/maintenance queries basert på LastUpdated
             entity.HasIndex(cs => cs.LastUpdated)
                 .HasDatabaseName("IX_CanSend_LastUpdated");
 
-            // Foreign key relationships
+            // 🆕 EKSPLISITT foreign key konfigurasjoner - dette forhindrer shadow properties
             entity.HasOne(cs => cs.User)
-                .WithMany() // Anta at User ikke har navigation property tilbake
+                .WithMany()
                 .HasForeignKey(cs => cs.UserId)
-                .OnDelete(DeleteBehavior.Cascade); // Slett CanSend hvis bruker slettes
-              
+                .HasConstraintName("FK_CanSend_Users_UserId") // Eksplisitt navn
+                .OnDelete(DeleteBehavior.Cascade);
+      
             entity.HasOne(cs => cs.Conversation)
-                .WithMany() // Anta at Conversation ikke har navigation property tilbake
+                .WithMany()
                 .HasForeignKey(cs => cs.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade); // Slett CanSend hvis samtale slettes
+                .HasConstraintName("FK_CanSend_Conversations_ConversationId") // Eksplisitt navn
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // Property konfigurasjoner for PostgreSQL
-            entity.Property(cs => cs.ApprovedAt)
-                .IsRequired();
-            
-            entity.Property(cs => cs.LastUpdated)
-                .IsRequired();
+            // 🆕 EKSPLISITT ignorer shadow properties
+            entity.Ignore("ConversationId1");
+            entity.Ignore("UserId1");
 
-            entity.Property(cs => cs.Reason)
-                .IsRequired();
+            // Property konfigurasjoner
+            entity.Property(cs => cs.ApprovedAt).IsRequired();
+            entity.Property(cs => cs.LastUpdated).IsRequired();
+            entity.Property(cs => cs.Reason).IsRequired();
 
-            // Table name (valgfri hvis du vil overstyre EF sin konvensjon)
+            // Table name
             entity.ToTable("CanSend");
         });
         

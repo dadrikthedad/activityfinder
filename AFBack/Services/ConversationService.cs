@@ -292,6 +292,35 @@ public class ConversationService
             }
 
             await _context.SaveChangesAsync();
+            
+            // SYNC EVENT - etter SaveChanges
+            _taskQueue.QueueAsync(async () => 
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+                try 
+                {
+                    // Sync event kun for brukeren som gjenopprettet (ikke den andre parten)
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.CONVERSATION_RESTORED,
+                        eventData: new { 
+                            conversationId = conversationId,
+                            userId = userId,
+                            restoredAt = DateTime.UtcNow
+                        },
+                        singleUserId: userId, // Kun til brukeren som gjenopprettet
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "Conversation"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to create sync event for conversation restoration. ConversationId: {ConversationId}, UserId: {UserId}", 
+                        conversationId, userId);
+                }
+            });
         }
         
     }

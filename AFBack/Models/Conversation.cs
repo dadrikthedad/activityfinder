@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AFBack.Models;
 
@@ -26,6 +27,7 @@ public class Conversation
     
     public DateTime? DisbandedAt { get; set; }
     
+    [NotMapped]
     public ICollection<CanSend> ApprovedSenders { get; set; } = new List<CanSend>();
     public ICollection<ConversationParticipant> Participants { get; set; } = new List<ConversationParticipant>();
     public ICollection<Message> Messages { get; set; } = new List<Message>();

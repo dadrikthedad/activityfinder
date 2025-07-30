@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Functions;
@@ -23,15 +24,21 @@ public class FriendInvitationsController : ControllerBase
     private readonly IHubContext<UserHub> _hubContext;
     private readonly SendMessageCache       _msgCache;  
     private readonly FriendService _friendService;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<FriendInvitationsController> _logger;
     
 
-    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<UserHub> hubContext,  SendMessageCache msgCache, FriendService friendService)
+    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<UserHub> hubContext,  SendMessageCache msgCache, FriendService friendService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<FriendInvitationsController> logger)
     {
         _context = context;
         _notificationService = notificationService;
         _hubContext = hubContext;
         _msgCache            = msgCache;
         _friendService = friendService;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     // POST: Send venneforespørsel
@@ -82,6 +89,36 @@ public class FriendInvitationsController : ControllerBase
                 type: NotificationEntityType.FriendInvitation,
                 friendInvitationId: invitation.Id
             );
+            
+            // 🆕 SYNC EVENT - etter SaveChanges
+            _taskQueue.QueueAsync(async () => 
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+                try 
+                {
+                    // Sync event til mottakeren om ny vennforespørsel
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.FRIEND_REQUEST_RECEIVED,
+                        eventData: new { 
+                            invitationId = invitation.Id,
+                            senderId = userId,
+                            receiverId = dto.ReceiverId,
+                            sentAt = invitation.SentAt
+                        },
+                        singleUserId: dto.ReceiverId, // Kun til mottakeren
+                        source: "API",
+                        relatedEntityId: invitation.Id,
+                        relatedEntityType: "FriendInvitation"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to create sync event for friend request. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
+                        invitation.Id, userId, dto.ReceiverId);
+                }
+            });
 
             return Ok(new { message = "Friend request sent." });
         }
@@ -234,6 +271,55 @@ public class FriendInvitationsController : ControllerBase
         );
 
         await _context.SaveChangesAsync();
+        
+        // SYNC EVENTS - etter SaveChanges
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                // Event til senderen - deres forespørsel ble godkjent
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.FRIEND_REQUEST_ACCEPTED,
+                    eventData: new { 
+                        invitationId = invitation.Id,
+                        senderId = invitation.SenderId,
+                        receiverId = invitation.ReceiverId,
+                        acceptedAt = DateTime.UtcNow,
+                        conversationId = conversationId
+                    },
+                    singleUserId: invitation.SenderId,
+                    source: "API",
+                    relatedEntityId: invitation.Id,
+                    relatedEntityType: "FriendInvitation"
+                );
+
+                // Event til begge - ny venn lagt til
+                var userIds = new List<int> { invitation.SenderId, invitation.ReceiverId };
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.FRIEND_ADDED,
+                    eventData: new { 
+                        userId = invitation.SenderId,
+                        friendId = invitation.ReceiverId,
+                        createdAt = newFriend.CreatedAt,
+                        conversationId = conversationId
+                    },
+                    targetUserIds: userIds,
+                    source: "API",
+                    relatedEntityId: invitation.SenderId,
+                    relatedEntityType: "Friends"
+                );
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to create sync events for friend request acceptance. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
+                    invitation.Id, invitation.SenderId, invitation.ReceiverId);
+            }
+        });
+        
+        
 
         var responseData = new 
         { 

@@ -1,10 +1,13 @@
 ﻿using System.Security.Claims;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Models;
+using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 
 namespace AFBack.Controllers;
 // Håndterer vennskap mellom to brukere
@@ -14,10 +17,16 @@ namespace AFBack.Controllers;
 public class FriendsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<FriendsController> _logger;
 
-    public FriendsController(ApplicationDbContext context)
+    public FriendsController(ApplicationDbContext context, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<FriendsController> logger)
     {
         _context = context;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
     
 
@@ -158,9 +167,45 @@ public class FriendsController : ControllerBase
         
         if (friendship == null)
             return NotFound("Friendship not found.");
+        
+        var removedUserId = friendship.UserId;
+        var removedFriendId = friendship.FriendId;
+        var removedAt = DateTime.UtcNow;
+
 
         _context.Friends.Remove(friendship);
         await _context.SaveChangesAsync();
+        
+        // SYNC EVENT - etter SaveChanges
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                // Event til begge - venn fjernet
+                var targetUserIds = new List<int> { removedUserId, removedFriendId };
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.FRIEND_REMOVED,
+                    eventData: new { 
+                        userId = removedUserId,
+                        friendId = removedFriendId,
+                        removedAt = removedAt,
+                        removedBy = userId // Hvem som fjernet vennskapet
+                    },
+                    targetUserIds: targetUserIds,
+                    source: "API",
+                    relatedEntityId: removedUserId, // Bruker en av ID-ene som referanse
+                    relatedEntityType: "Friends"
+                );
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to create sync event for friend removal. UserId: {UserId}, FriendId: {FriendId}, RemovedBy: {RemovedBy}", 
+                    removedUserId, removedFriendId, userId);
+            }
+        });
 
         return Ok(new { message = "Friend removed" });
     }

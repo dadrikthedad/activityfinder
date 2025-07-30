@@ -296,7 +296,24 @@ public class MessageService : IMessageService
         
                     try 
                     {
-                        // 🆕 Sync event for ny message request
+                        // Sync event til oppretter av meldingsforespørselen
+                        if (needsMessageRequestNotification && !conversation.IsGroup)
+                        {
+                            await syncService.CreateAndDistributeSyncEventAsync(
+                                eventType: SyncEventTypes.CONVERSATION_CREATED,
+                                eventData: new { 
+                                    senderId = senderId,
+                                    receiverId = receiverId.Value,
+                                    conversationId = conversation.Id,
+                                },
+                                singleUserId: senderId,
+                                source: "API",
+                                relatedEntityId: conversation.Id,
+                                relatedEntityType: "Conversation" 
+                            );
+                        }
+                        
+                        // Sync event for ny message request
                         if (needsMessageRequestNotification && !conversation.IsGroup && receiverId.HasValue)
                         {
                             await syncService.CreateAndDistributeSyncEventAsync(

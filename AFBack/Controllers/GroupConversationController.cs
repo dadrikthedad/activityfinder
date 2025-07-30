@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Functions;
@@ -107,6 +108,94 @@ public class GroupConversationController : BaseController
         
         
         await _context.SaveChangesAsync();
+        
+        // 🆕 SYNC EVENTS - etter SaveChanges
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                
+                // Hvis ny gruppe ble opprettet
+                if (isNewConversation)
+                {
+                    // Event til creator om ny gruppe
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.CONVERSATION_CREATED,
+                        eventData: new { 
+                            conversationId = conversation.Id,
+                            groupName = conversation.GroupName,
+                            creatorId = senderId,
+                            isGroup = true,
+                            createdAt = DateTime.UtcNow
+                        },
+                        singleUserId: senderId,
+                        source: "API",
+                        relatedEntityId: conversation.Id,
+                        relatedEntityType: "Conversation"
+                    );
+                }
+                
+                // Event til hver inviterte bruker om group request
+                foreach (var groupRequest in groupRequests)
+                {
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.GROUP_REQUEST_RECEIVED,
+                        eventData: new { 
+                            groupRequestId = groupRequest.Id,
+                            senderId = groupRequest.SenderId,
+                            receiverId = groupRequest.ReceiverId,
+                            conversationId = groupRequest.ConversationId,
+                            groupName = conversation.GroupName,
+                            requestedAt = groupRequest.RequestedAt,
+                            isNewGroup = isNewConversation
+                        },
+                        singleUserId: groupRequest.ReceiverId,
+                        source: "API",
+                        relatedEntityId: groupRequest.Id,
+                        relatedEntityType: "GroupRequest"
+                    );
+                }
+
+                // Hvis det er en eksisterende gruppe, send oppdatering til eksisterende medlemmer
+                if (!isNewConversation)
+                {
+                    var existingMemberIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                        .ConversationParticipants
+                        .Where(cp => cp.ConversationId == conversation.Id)
+                        .Select(cp => cp.UserId)
+                        .ToListAsync();
+
+                    // Filtrer bort de som nettopp ble invitert og senderen
+                    var membersToNotify = existingMemberIds
+                        .Where(id => !validRecipients.Contains(id) && id != senderId)
+                        .ToList();
+
+                    if (membersToNotify.Any())
+                    {
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.GROUP_MEMBERS_INVITED,
+                            eventData: new { 
+                                conversationId = conversation.Id,
+                                inviterId = senderId,
+                                invitedUserIds = validRecipients,
+                                invitedAt = DateTime.UtcNow
+                            },
+                            targetUserIds: membersToNotify,
+                            source: "API",
+                            relatedEntityId: conversation.Id,
+                            relatedEntityType: "Conversation"
+                        );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to create sync events for group requests: {ex.Message}");
+            }
+        });
         
         Console.WriteLine("🟡 Queueing background task for group requests...");
         // 6️⃣ Send notifikasjoner i bakgrunnen

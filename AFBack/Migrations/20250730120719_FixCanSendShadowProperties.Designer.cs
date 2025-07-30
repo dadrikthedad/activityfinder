@@ -3,6 +3,7 @@ using System;
 using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250730120719_FixCanSendShadowProperties")]
+    partial class FixCanSendShadowProperties
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -49,6 +52,9 @@ namespace AFBack.Migrations
                     b.Property<int>("ConversationId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("ConversationId2")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("LastUpdated")
                         .HasColumnType("timestamp with time zone");
 
@@ -58,13 +64,20 @@ namespace AFBack.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("UserId2")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId")
                         .HasDatabaseName("IX_CanSend_ConversationId");
 
+                    b.HasIndex("ConversationId2");
+
                     b.HasIndex("LastUpdated")
                         .HasDatabaseName("IX_CanSend_LastUpdated");
+
+                    b.HasIndex("UserId2");
 
                     b.HasIndex("UserId", "ConversationId")
                         .IsUnique()
@@ -1045,12 +1058,20 @@ namespace AFBack.Migrations
                         .IsRequired()
                         .HasConstraintName("FK_CanSend_Conversations_ConversationId");
 
+                    b.HasOne("AFBack.Models.Conversation", null)
+                        .WithMany("ApprovedSenders")
+                        .HasForeignKey("ConversationId2");
+
                     b.HasOne("AFBack.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_CanSend_Users_UserId");
+
+                    b.HasOne("AFBack.Models.User", null)
+                        .WithMany("CanSendTo")
+                        .HasForeignKey("UserId2");
 
                     b.Navigation("Conversation");
 
@@ -1436,6 +1457,8 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.Conversation", b =>
                 {
+                    b.Navigation("ApprovedSenders");
+
                     b.Navigation("Messages");
 
                     b.Navigation("Participants");
@@ -1467,6 +1490,8 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.User", b =>
                 {
+                    b.Navigation("CanSendTo");
+
                     b.Navigation("OnlineStatuses");
 
                     b.Navigation("Profile");
