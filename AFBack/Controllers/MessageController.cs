@@ -3,6 +3,7 @@ using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
@@ -256,6 +257,61 @@ public class MessagesController : BaseController
         }
 
         await _context.SaveChangesAsync();
+        
+        // 🆕 SYNC EVENTS for Group Request Rejection
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                // Event til brukeren som avslo - fjern gruppen fra listen
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.GROUP_REQUEST_REJECTED,
+                    eventData: new { 
+                        conversationId = conversationId,
+                        senderId = senderId,
+                        receiverId = receiverId,
+                        rejectedAt = DateTime.UtcNow
+                    },
+                    singleUserId: receiverId,
+                    source: "API",
+                    relatedEntityId: conversationId,
+                    relatedEntityType: "GroupRequest"
+                );
+
+                // Event til eksisterende medlemmer om at noen avslo
+                var existingMemberIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                    .ConversationParticipants
+                    .Where(cp => cp.ConversationId == conversationId)
+                    .Select(cp => cp.UserId)
+                    .ToListAsync();
+
+                if (existingMemberIds.Any())
+                {
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.GROUP_MEMBER_LEFT,
+                        eventData: new { 
+                            conversationId = conversationId,
+                            leftUserId = receiverId,
+                            leftAt = DateTime.UtcNow,
+                            wasCreator = false,
+                            newCreatorId = (int?)null,
+                            reason = "RequestRejected"
+                        },
+                        targetUserIds: existingMemberIds,
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "Conversation"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to create sync events for group request rejection: {ex.Message}");
+            }
+        });
 
         // 3️⃣ Lag systemmelding for avslåing (valgfritt)
         var user = await _context.Users
@@ -314,6 +370,34 @@ public class MessagesController : BaseController
 
         
         await _context.SaveChangesAsync();
+        
+        // 🆕 SYNC EVENT for Message Request Rejection
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.MESSAGE_REQUEST_REJECTED,
+                    eventData: new { 
+                        senderId = senderId,
+                        receiverId = receiverId,
+                        rejectedAt = DateTime.UtcNow,
+                        conversationId = request.ConversationId
+                    },
+                    singleUserId: receiverId, // Kun til den som avslo
+                    source: "API",
+                    relatedEntityId: request.ConversationId,
+                    relatedEntityType: "MessageRequest"
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to create sync event for message request rejection: {ex.Message}");
+            }
+        });
 
         return Ok(new { message = "Forespørsel avslått." });
     }

@@ -168,10 +168,11 @@ public class GroupConversationController : BaseController
                         .Select(cp => cp.UserId)
                         .ToListAsync();
 
-                    // Filtrer bort de som nettopp ble invitert og senderen
+                    // Filtrer bort de som nettopp ble invitert
                     var membersToNotify = existingMemberIds
-                        .Where(id => !validRecipients.Contains(id) && id != senderId)
+                        .Where(id => !validRecipients.Contains(id)) // Fjernet "&& id != senderId"
                         .ToList();
+
 
                     if (membersToNotify.Any())
                     {
@@ -584,6 +585,94 @@ public class GroupConversationController : BaseController
             }
 
             await _context.SaveChangesAsync();
+            
+            // 🆕 SYNC EVENTS - etter SaveChanges
+            _taskQueue.QueueAsync(async () => 
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+                try 
+                {
+                    // 1️⃣ Event til brukeren som forlot - fjern gruppen fra listen
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.CONVERSATION_LEFT,
+                        eventData: new { 
+                            conversationId = conversationId,
+                            userId = userId.Value,
+                            leftAt = DateTime.UtcNow,
+                            wasCreator = wasCreator
+                        },
+                        singleUserId: userId.Value,
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "Conversation"
+                    );
+
+                    // 2️⃣ Event til gjenværende medlemmer om at noen forlot
+                    var remainingMemberIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                        .ConversationParticipants
+                        .Where(cp => cp.ConversationId == conversationId)
+                        .Select(cp => cp.UserId)
+                        .ToListAsync();
+
+                    if (remainingMemberIds.Any())
+                    {
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.GROUP_MEMBER_LEFT,
+                            eventData: new { 
+                                conversationId = conversationId,
+                                leftUserId = userId.Value,
+                                leftAt = DateTime.UtcNow,
+                                wasCreator = wasCreator,
+                                newCreatorId = wasCreator ? (int?)conversation.CreatorId : null
+                            },
+                            targetUserIds: remainingMemberIds,
+                            source: "API",
+                            relatedEntityId: conversationId,
+                            relatedEntityType: "Conversation"
+                        );
+                    }
+
+                    // 3️⃣ Sjekk om gruppen ble disbanded
+                    var updatedConversation = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                        .Conversations
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+                    if (updatedConversation?.IsDisbanded == true)
+                    {
+                        // Event til alle pending brukere om disbanded gruppe
+                        var pendingUserIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                            .GroupRequests
+                            .Where(gr => gr.ConversationId == conversationId && 
+                                         gr.Status == GroupRequestStatus.Pending)
+                            .Select(gr => gr.ReceiverId)
+                            .ToListAsync();
+
+                        if (pendingUserIds.Any())
+                        {
+                            await syncService.CreateAndDistributeSyncEventAsync(
+                                eventType: SyncEventTypes.GROUP_DISBANDED,
+                                eventData: new { 
+                                    conversationId = conversationId,
+                                    groupName = updatedConversation.GroupName,
+                                    disbandedAt = updatedConversation.DisbandedAt,
+                                    reason = "NoActiveMembers"
+                                },
+                                targetUserIds: pendingUserIds,
+                                source: "API",
+                                relatedEntityId: conversationId,
+                                relatedEntityType: "Conversation"
+                            );
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to create sync events for group leave: {ex.Message}");
+                }
+            });
 
             // 7️⃣ Hent bruker-navn for systemmelding
             var user = await _context.Users
@@ -686,7 +775,7 @@ public class GroupConversationController : BaseController
         }
     }
 
-    // 🆕 Ny metode for å notifisere om disbanded gruppe
+    // Ny metode for å notifisere om disbanded gruppe
     private async Task NotifyGroupDisbandedAsync(Conversation conversation, List<int> pendingUserIds)
     {
         try
@@ -710,7 +799,7 @@ public class GroupConversationController : BaseController
                     _context.MessageNotifications.Add(notification);
                     await _context.SaveChangesAsync(); // Lagre for å få ID
 
-                    // 🆕 Send SignalR om disbanded gruppe
+                    // Send SignalR om disbanded gruppe
                     await _hubContext.Clients.User(userId.ToString())
                         .SendAsync("GroupDisbanded", new GroupDisbandedDto
                         {
@@ -781,7 +870,7 @@ public class GroupConversationController : BaseController
         }
     }
     
-    // Sletting av en gruppesamtale ikke i bruk atm
+    // Sletting av en gruppesamtale - ikke i bruk atm
     private async Task DeleteEmptyGroupAsync(Conversation conversation)
     {
         try
@@ -890,7 +979,41 @@ public class GroupConversationController : BaseController
         
         var oldName = group.GroupName;
         group.GroupName = newName.Trim();
+        
+        // Hent alle participant IDs før SaveChanges
+        var participantIds = group.Participants.Select(p => p.UserId).ToList();
+        
         await _context.SaveChangesAsync();
+        
+        // 🆕 SYNC EVENT - etter SaveChanges
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.CONVERSATION_UPDATED,
+                    eventData: new { 
+                        conversationId = groupId,
+                        updateType = "GroupNameChanged",
+                        oldName = oldName ?? "",
+                        newName = newName.Trim(),
+                        updatedBy = userId,
+                        updatedAt = DateTime.UtcNow
+                    },
+                    targetUserIds: participantIds, // Alle participants
+                    source: "API",
+                    relatedEntityId: groupId,
+                    relatedEntityType: "Conversation"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for group name update. GroupId: {GroupId}", groupId);
+            }
+        });
 
         var userName = await _context.Users
             .Where(u => u.Id == userId)
@@ -923,6 +1046,7 @@ public class GroupConversationController : BaseController
         return Ok(new { success = true });
     }
     
+    // Sletter en gruppeforespørsel for å kunne bli invitert tilbake i en gruppe
     [HttpDelete("group-request/{conversationId}")]
     public async Task<IActionResult> DeleteGroupRequestAsync(int conversationId)
     {

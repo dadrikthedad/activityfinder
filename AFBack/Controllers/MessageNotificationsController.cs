@@ -11,7 +11,7 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class MessageNotificationsController : ControllerBase
+public class MessageNotificationsController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly MessageNotificationService _messageNotificationService;
@@ -32,12 +32,14 @@ public class MessageNotificationsController : ControllerBase
         try
         {
             var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized();
 
             if (page < 1 || pageSize <= 0)
                 return BadRequest("Ugyldig pagineringsverdi.");
 
             var (notifications, totalCount) = await _messageNotificationService.GetUserNotificationsAsync(
-                userId, page, pageSize);
+                userId.Value, page, pageSize);
 
             return Ok(new
             {
@@ -124,32 +126,6 @@ public class MessageNotificationsController : ControllerBase
         return NoContent();
     }
     
-    // Sette en notification som lest, men gir oss informasjonen om notifikasjonen. Slette?
-    [HttpGet("read/{id}")]
-    public async Task<IActionResult> ReadNotification(int id)
-    {
-        var userId = GetUserId();
-
-        var notification = await _context.MessageNotifications
-            .Include(n => n.FromUser)
-            .Include(n => n.Message)
-            .Include(n => n.Conversation)
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
-
-        if (notification == null)
-            return NotFound();
-
-        if (!notification.IsRead)
-        {
-            notification.IsRead = true;
-            notification.ReadAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
-
-        var dto = _messageNotificationService.MapToDTO(notification);
-        return Ok(dto);
-    }
-    
     // setter alle notifikasjoner som lest
     [HttpPost("mark-all-as-read")]
     public async Task<IActionResult> MarkAllAsRead()
@@ -170,11 +146,4 @@ public class MessageNotificationsController : ControllerBase
         return NoContent();
     }
     
-    
-    // Hente ID
-    private int GetUserId()
-    {
-        return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
-                         ?? throw new Exception("Ugyldig bruker"));
-    }
 }

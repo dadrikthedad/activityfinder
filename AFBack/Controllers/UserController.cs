@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Text.Json;
+using AFBack.Constants;
 using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
@@ -25,22 +26,23 @@ public class UserController : BaseController
    
     // Egenskapen for å koble oss til databasen, settes kun engang i konstruktøren
     private readonly ApplicationDbContext _context;
-    
     // Loggeren
     private readonly ILogger<UserController> _logger;
-    
     // Lager token og sjekker at passord og epost er riktig.
     private readonly AuthService _authService;
-    
     private readonly CountryService _countryService;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
-    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService)
+    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _countryService = countryService;
         _logger = logger;
         _authService = authService;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
     }
     
     // Henter alle land:
@@ -383,6 +385,13 @@ public class UserController : BaseController
         user.UpdateFullName();
         
         await _context.SaveChangesAsync();
+        
+        // Notify friends and blockers
+        NotifyFriendsAndBlockersOfProfileUpdate(
+            user.Id, 
+            new List<string> { "firstName", "fullName" },
+            new { firstName = dto.FirstName, fullName = user.FullName }
+        );
 
         return Ok(new { message = "First name updated." });
     }
@@ -401,6 +410,15 @@ public class UserController : BaseController
         user.UpdateFullName();
         
         await _context.SaveChangesAsync();
+        
+        // Notify friends and blockers
+        NotifyFriendsAndBlockersOfProfileUpdate(
+            user.Id, 
+            new List<string> { "firstName", "fullName" },
+            new { middleName = dto.MiddleName, fullName = user.FullName }
+        );
+        
+        
 
         return Ok(new { message = "Middle name updated." });
     }
@@ -419,9 +437,17 @@ public class UserController : BaseController
         user.UpdateFullName();
         
         await _context.SaveChangesAsync();
+        
+        NotifyFriendsAndBlockersOfProfileUpdate(
+            user.Id, 
+            new List<string> { "firstName", "fullName" },
+            new { lastName = dto.LastName, fullName = user.FullName }
+        );
 
         return Ok(new { message = "Last name updated." });
     }
+    
+    
     // Patch for profilesettings sin endring av telefon
     [HttpPatch("phone")]
     [Authorize]
@@ -625,6 +651,70 @@ public class UserController : BaseController
             .ToListAsync();
 
         return Ok(results);
+    }
+    
+    // Hjelpe metode for å lage SyncEvent ved oppdatering av 
+    private void NotifyFriendsAndBlockersOfProfileUpdate(int userId, List<string> updatedFields, object additionalData = null)
+    {
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            try 
+            {
+                // Hent alle venner (begge retninger)
+                var friendIds = await context.Friends
+                    .Where(f => f.UserId == userId || f.FriendId == userId)
+                    .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
+                    .ToListAsync();
+
+                // Hent brukere som har blokkert denne brukeren
+                var blockerIds = await context.UserBlock
+                    .Where(ub => ub.BlockedUserId == userId)
+                    .Select(ub => ub.BlockerId)
+                    .ToListAsync();
+
+                // Kombiner og fjern duplikater
+                var usersToNotify = friendIds.Union(blockerIds).ToList();
+
+                if (usersToNotify.Any())
+                {
+                    // Bygg event data
+                    var eventData = new Dictionary<string, object>
+                    {
+                        ["userId"] = userId,
+                        ["updatedFields"] = updatedFields,
+                        ["updatedAt"] = DateTime.UtcNow
+                    };
+
+                    // Legg til additional data hvis det finnes
+                    if (additionalData != null)
+                    {
+                        var properties = additionalData.GetType().GetProperties();
+                        foreach (var prop in properties)
+                        {
+                            eventData[prop.Name] = prop.GetValue(additionalData);
+                        }
+                    }
+
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.USER_PROFILE_UPDATED,
+                        eventData: eventData,
+                        targetUserIds: usersToNotify,
+                        source: "API",
+                        relatedEntityId: userId,
+                        relatedEntityType: "User"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error
+                Console.WriteLine($"Failed to create sync event for profile update. UserId: {userId}, Error: {ex.Message}");
+            }
+        });
     }
     
 }

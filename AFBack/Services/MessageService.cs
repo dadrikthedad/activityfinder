@@ -21,12 +21,10 @@ public class MessageService : IMessageService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<UserController> _logger;
     private readonly SyncService _syncService;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IConfiguration _configuration;
 
     public MessageService(ApplicationDbContext context, IHubContext<UserHub> hubContext,
         MessageNotificationService messageNotificationService, SendMessageCache msgCache,
-        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger, SyncService syncService, IServiceProvider serviceProvider, IConfiguration configuration)
+        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger, SyncService syncService)
     {
         _context = context;
         _hubContext = hubContext;
@@ -36,8 +34,6 @@ public class MessageService : IMessageService
         _scopeFactory = scopeFactory;
         _logger = logger;
         _syncService = syncService;
-        _serviceProvider = serviceProvider;
-        _configuration = configuration;
 
     }
 
@@ -886,7 +882,7 @@ public class MessageService : IMessageService
         await _context.SaveChangesAsync();
 
         // 📤 Hent oppdatert melding via optimalisert metode
-        var response = await MapToResponseDtoOptimized(messageId); // 🆕 Pass messageId, ikke message objekt
+        var response = await MapToResponseDtoOptimized(messageId); // Pass messageId, ikke message objekt
     
         // Hent participants for SignalR broadcast
         var participantIds = message.Conversation.Participants
@@ -899,6 +895,41 @@ public class MessageService : IMessageService
             participantIds: participantIds,
             deletedMessage: response
         ));
+        
+        _taskQueue.QueueAsync(async () => 
+        {
+            // Først SignalR (for øyeblikkelig UI oppdatering)
+            await NotifyMessageDeleted(
+                conversationId: message.ConversationId,
+                participantIds: participantIds,
+                deletedMessage: response
+            );
+
+            // Så Sync Event (for offline/bootstrap sync)
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.MESSAGE_DELETED,
+                    eventData: new { 
+                        messageId = messageId,
+                        conversationId = message.ConversationId,
+                        senderId = userId,
+                        deletedAt = DateTime.UtcNow
+                    },
+                    targetUserIds: participantIds.ToList(),
+                    source: "API",
+                    relatedEntityId: messageId,
+                    relatedEntityType: "Message"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for message deletion. MessageId: {MessageId}", messageId);
+            }
+        });
 
         return response;
     }

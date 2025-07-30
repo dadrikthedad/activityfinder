@@ -1,4 +1,5 @@
-﻿using AFBack.Controllers;
+﻿using AFBack.Constants;
+using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
@@ -14,13 +15,17 @@ public class ReactionService : IReactionService
     private readonly IHubContext<UserHub> _hubContext;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly ILogger<UserController> _logger;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public ReactionService(ApplicationDbContext context, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService,  ILogger<UserController> logger)
+    public ReactionService(ApplicationDbContext context, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService,  ILogger<UserController> logger, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _hubContext = hubContext;
         _messageNotificationService = messageNotificationService;
         _logger = logger;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task AddReactionAsync(int messageId, int userId, string emoji)
@@ -135,9 +140,13 @@ public class ReactionService : IReactionService
             IsRemoved = isRemoved
         };
 
-        // ✅ Send alltid til alle participants (ingen gruppehåndtering)
+        //  Send alltid til alle participants (ingen gruppehåndtering)
         var participantIds = message.Conversation.Participants
             .Select(p => p.UserId.ToString())
+            .ToList();
+        
+        var participantIdsInt = message.Conversation.Participants
+            .Select(p => p.UserId)
             .ToList();
 
         MessageNotificationDTO? notificationDto = null;
@@ -152,9 +161,64 @@ public class ReactionService : IReactionService
                 emoji: emoji
             );
         }
+        
+        _taskQueue.QueueAsync(async () => 
+        {
+            // Først SignalR (for øyeblikkelig UI oppdatering)
+            await SendReactionUpdateAsync(participantIds, null, dto, notificationDto);
 
-        // ✅ Send til alle participants
-        await SendReactionUpdateAsync(participantIds, null, dto, notificationDto);
+            // Så Sync Event (for offline/bootstrap sync)
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                // Bestem event type basert på operasjon
+                string eventType = isRemoved ? SyncEventTypes.REACTION_REMOVED : SyncEventTypes.REACTION_ADDED;
+
+                object eventData;
+
+                if (!isRemoved && removedEmoji != null)
+                {
+                    // Emoji ble endret
+                    eventData = new { 
+                        messageId = messageId,
+                        conversationId = message.ConversationId,
+                        userId = userId,
+                        emoji = emoji,
+                        previousEmoji = removedEmoji,
+                        userFullName = user?.FullName,
+                        actionAt = DateTime.UtcNow,
+                        isEmojiChange = true
+                    };
+                }
+                else
+                {
+                    // Vanlig add/remove
+                    eventData = new { 
+                        messageId = messageId,
+                        conversationId = message.ConversationId,
+                        userId = userId,
+                        emoji = emoji,
+                        userFullName = user?.FullName,
+                        actionAt = DateTime.UtcNow
+                    };
+                }
+
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: eventType,
+                    eventData: eventData,
+                    targetUserIds: participantIdsInt,
+                    source: "API",
+                    relatedEntityId: messageId,
+                    relatedEntityType: "Message"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to create sync event for reaction. MessageId: {MessageId}, UserId: {UserId}", messageId, userId);
+            }
+        });
     }
 
 

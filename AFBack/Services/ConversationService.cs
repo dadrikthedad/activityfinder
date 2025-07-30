@@ -101,16 +101,6 @@ public class ConversationService
             }).ToList();
         }
         
-        // Henter alle samtelene til en bruker, burkes til SingalR chaatHub
-        public async Task<List<Conversation>> GetUserConversationsAsync(int userId, bool isGroup)
-        {
-            return await _context.Conversations
-                .Where(c => c.IsGroup == isGroup && c.Participants.Any(p => p.UserId == userId))
-                .Include(c => c.Participants)
-                .ThenInclude(p => p.User)
-                .ThenInclude(u => u.Profile)
-                .ToListAsync();
-        }
         
         // Når en bruker åpner en samtale så sjekker vi om vi har lest meldingen for å fjerne notifasjonen
         public async Task MarkConversationAsReadAsync(int userId, int conversationId)

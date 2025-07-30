@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
@@ -27,8 +28,10 @@ public class FileController : BaseController
     private readonly GroupNotificationService _groupNotificationService;
     private readonly IFileService _fileService;
     private readonly IMessageService _messageService;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
     
-    public FileController(ApplicationDbContext context, ILogger<FileController> logger, BlobServiceClient blobServiceClient, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IFileService fileService, IMessageService messageService)
+    public FileController(ApplicationDbContext context, ILogger<FileController> logger, BlobServiceClient blobServiceClient, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IFileService fileService, IMessageService messageService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _logger = logger;
@@ -38,6 +41,8 @@ public class FileController : BaseController
         _groupNotificationService = groupNotificationService;
         _fileService = fileService;
         _messageService = messageService;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
     }
     
     [HttpPost("upload-profile-image")]
@@ -84,6 +89,8 @@ public class FileController : BaseController
             return BadRequest(new { message = errorMessage });
 
         Conversation? group = null;
+        List<int> participantIds = new();
+        
         if (groupId.HasValue)
         {
             group = await _context.Conversations
@@ -98,17 +105,51 @@ public class FileController : BaseController
             
             if (!isParticipant && !isCreator)
                 return Forbid("You don't have permission to upload image for this group");
+            
+            // Hent participant IDs før SaveChanges
+            participantIds = group.Participants.Select(p => p.UserId).ToList();
         }
 
         try
         {
             var imageUrl = await _fileService.UploadFileAsync(file, "group-pictures");
+            var oldImageUrl = group?.GroupImageUrl;
 
             // Oppdater gruppe hvis det er eksisterende
             if (groupId.HasValue && group != null)
             {
                 group.GroupImageUrl = imageUrl;
                 await _context.SaveChangesAsync();
+                
+                // 🆕 SYNC EVENT - etter SaveChanges
+                _taskQueue.QueueAsync(async () => 
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+                    try 
+                    {
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.CONVERSATION_UPDATED,
+                            eventData: new { 
+                                conversationId = groupId.Value,
+                                updateType = "GroupImageChanged",
+                                oldImageUrl = oldImageUrl,
+                                newImageUrl = imageUrl,
+                                updatedBy = userId,
+                                updatedAt = DateTime.UtcNow
+                            },
+                            targetUserIds: participantIds, // Alle participants
+                            source: "API",
+                            relatedEntityId: groupId.Value,
+                            relatedEntityType: "Conversation"
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create sync event for group image update. GroupId: {GroupId}", groupId.Value);
+                    }
+                });
 
                 var userName = await _context.Users
                     .Where(u => u.Id == userId)

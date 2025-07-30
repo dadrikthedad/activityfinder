@@ -7,7 +7,7 @@ namespace AFBack.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ReactionController : ControllerBase
+public class ReactionController : BaseController
 {
     private readonly IReactionService _reactionService;
 
@@ -20,13 +20,11 @@ public class ReactionController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddReaction([FromBody] ReactionRequest request)
     {
-        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdStr, out var userId))
-            return Unauthorized("Bruker-ID mangler eller har feil format i token.");
+        int senderId = GetUserId() ?? throw new UnauthorizedAccessException("User not authenticated");
 
         try
         {
-            await _reactionService.AddReactionAsync(request.MessageId, userId, request.Emoji);
+            await _reactionService.AddReactionAsync(request.MessageId, senderId, request.Emoji);
             return Ok(new { message = "Reaksjon lagt til." });
         }
         catch (KeyNotFoundException ex)

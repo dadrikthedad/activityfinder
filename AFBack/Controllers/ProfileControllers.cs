@@ -1,4 +1,6 @@
 ﻿using System.Security.Claims;
+using AFBack.Constants;
+using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
@@ -19,12 +21,16 @@ public class ProfileController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ProfileController> _logger;
     private readonly BlobServiceClient _blobServiceClient;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger, BlobServiceClient blobServiceClient)
+    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger, BlobServiceClient blobServiceClient, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _logger = logger;
         _blobServiceClient = blobServiceClient;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
     }
     
     // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs. Denne brukes både på profile/[id], editprofile og settings
@@ -118,6 +124,10 @@ public class ProfileController : ControllerBase
         {
             return NotFound(new { message = "Profile not found." });
         }
+        
+        // Ta vare på gamle verdier for å kunne sammenligne
+        var oldProfileImageUrl = profile.ProfileImageUrl;
+        var oldBio = profile.Bio;
 
         profile.ProfileImageUrl = dto.ProfileImageUrl;
         profile.Bio = dto.Bio;
@@ -125,6 +135,54 @@ public class ProfileController : ControllerBase
         profile.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+        
+        // SYNC EVENT - til alle venner
+         _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            try 
+            {
+                // Hent alle venner som trenger oppdatering
+                var friendIds = await context.Friends
+                    .Where(f => f.UserId == userId || f.FriendId == userId)
+                    .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
+                    .ToListAsync();
+
+                if (friendIds.Any())
+                {
+                    // Finn ut hvilke felter som faktisk endret seg
+                    var updatedFields = new List<string>();
+                    if (oldProfileImageUrl != dto.ProfileImageUrl) updatedFields.Add("profileImage");
+                    if (oldBio != dto.Bio) updatedFields.Add("bio");
+                    // Websites endres alltid siden vi kaller SetWebsites, så vi inkluderer den
+                    updatedFields.Add("websites");
+
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.USER_PROFILE_UPDATED,
+                        eventData: new { 
+                            userId = userId,
+                            updatedFields = updatedFields,
+                            profileImageUrl = dto.ProfileImageUrl,
+                            bio = dto.Bio,
+                            websites = dto.Websites ?? new List<string>(),
+                            updatedAt = DateTime.UtcNow
+                        },
+                        targetUserIds: friendIds,
+                        source: "API",
+                        relatedEntityId: userId,
+                        relatedEntityType: "User"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error - bruk din logger
+                Console.WriteLine($"Failed to create sync event for profile update. UserId: {userId}, Error: {ex.Message}");
+            }
+        });
 
         return Ok(new { message = "Profile updated successfully" });
     }
