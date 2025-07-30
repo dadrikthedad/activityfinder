@@ -1,4 +1,5 @@
-﻿using AFBack.Data;
+﻿using AFBack.Constants;
+using AFBack.Data;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.DTOs;
@@ -10,11 +11,17 @@ public class ConversationService
     {
         private readonly ApplicationDbContext _context;
         private readonly SendMessageCache _msgCache;
+        private readonly IBackgroundTaskQueue _taskQueue;
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ILogger<ConversationService> _logger;
 
-        public ConversationService(ApplicationDbContext context, SendMessageCache msgCache)
+        public ConversationService(ApplicationDbContext context, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<ConversationService> logger)
         {
             _context = context;
             _msgCache = msgCache;
+            _taskQueue = taskQueue;
+            _scopeFactory = scopeFactory;
+            _logger = logger;
         }
         // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
@@ -204,6 +211,35 @@ public class ConversationService
             }
 
             await _context.SaveChangesAsync();
+            
+            // 🆕 SYNC EVENT - etter SaveChanges
+            _taskQueue.QueueAsync(async () => 
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+        
+                try 
+                {
+                    // Sync event kun for brukeren som slettet (ikke den andre parten)
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.CONVERSATION_DELETED,
+                        eventData: new { 
+                            conversationId = conversationId,
+                            userId = userId,
+                            deletedAt = participant.DeletedAt
+                        },
+                        singleUserId: userId, // Kun til brukeren som slettet
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "Conversation"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to create sync event for conversation deletion. ConversationId: {ConversationId}, UserId: {UserId}", 
+                        conversationId, userId);
+                }
+            });
         }
         
         // Gjennoppretting en samtale

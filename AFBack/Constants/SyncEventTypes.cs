@@ -12,9 +12,13 @@ public static class SyncEventTypes
     public const string MESSAGE_REQUEST_APPROVED = "MESSAGE_REQUEST_APPROVED";
     public const string MESSAGE_REQUEST_REJECTED = "MESSAGE_REQUEST_REJECTED";
     
+    // Group Requests
+    public const string GROUP_REQUEST_APPROVED = "GROUP_REQUEST_APPROVED";
+    
     // Conversations  
     public const string CONVERSATION_CREATED = "CONVERSATION_CREATED";
     public const string CONVERSATION_UPDATED = "CONVERSATION_UPDATED";
+    public const string CONVERSATION_DELETED = "CONVERSATION_DELETED";
     
     // Friends
     public const string FRIEND_ADDED = "FRIEND_ADDED";

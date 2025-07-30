@@ -598,7 +598,7 @@ public class MessageService : IMessageService
     // Her henter vi og ser meldinger etter vi har godtkjent en meldingsforespørsel
     public async Task ApproveMessageRequestAsync(int receiverId, int conversationId)
     {
-        // ✅ Sjekk først hvilken type samtale det er
+        // Sjekk først hvilken type samtale det er
         var conversation = await _context.Conversations
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.Id == conversationId);
@@ -607,7 +607,7 @@ public class MessageService : IMessageService
             throw new Exception("The conversation does not exist.");
 
         bool isGroupRequest = conversation.IsGroup;
-        int senderId; // ✅ Definer senderId her
+        int senderId; // Definer senderId her
 
         if (isGroupRequest)
         {
@@ -641,7 +641,7 @@ public class MessageService : IMessageService
         }
         else
         {
-            // ✅ Håndter MessageRequest
+            // Håndter MessageRequest
             var messageRequest = await _context.MessageRequests
                 .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && 
                                           r.ConversationId == conversationId &&
@@ -650,15 +650,15 @@ public class MessageService : IMessageService
             if (messageRequest == null)
                 throw new Exception("Meldingsforespørselen finnes ikke eller er allerede behandlet.");
 
-            // ✅ ALLTID godkjenn uansett om avsender har slettet
+            // ALLTID godkjenn uansett om avsender har slettet
             messageRequest.IsAccepted = true;
             messageRequest.IsRejected = false;
             senderId = messageRequest.SenderId;
 
-            // ✅ ALLTID marker samtalen som godkjent
+            // ALLTID marker samtalen som godkjent
             conversation.IsApproved = true;
         
-            // 🆕 Sjekk om avsender har slettet - kun for CanSend-beslutning
+            // Sjekk om avsender har slettet - kun for CanSend-beslutning
             var senderHasDeleted = await _context.ConversationParticipants
                 .AsNoTracking()
                 .AnyAsync(p => p.ConversationId == conversationId && 
@@ -675,6 +675,55 @@ public class MessageService : IMessageService
         }
         
         await _context.SaveChangesAsync();
+        
+        // 🆕 SYNC EVENTS - etter SaveChanges når alle IDer er tilgjengelige
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+        
+            try 
+            {
+                if (isGroupRequest)
+                {
+                    // Sync event for group request approval
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.GROUP_REQUEST_APPROVED,
+                        eventData: new { 
+                            conversationId = conversationId,
+                            senderId = senderId,
+                            receiverId = receiverId,
+                            groupName = conversation.GroupName
+                        },
+                        targetUserIds: conversation.Participants.Select(p => p.UserId),
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "GroupRequest"
+                    );
+                }
+                else
+                {
+                    // Sync event for message request approval
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.MESSAGE_REQUEST_APPROVED,
+                        eventData: new { 
+                            conversationId = conversationId,
+                            senderId = senderId,
+                            receiverId = receiverId
+                        },
+                        targetUserIds: new[] { senderId, receiverId },
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "MessageRequest"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for request approval. ConversationId: {ConversationId}, IsGroup: {IsGroup}", 
+                    conversationId, isGroupRequest);
+            }
+        });
         
         // Hent brukeren som godkjenner
         var approver = await _context.Users
@@ -706,7 +755,7 @@ public class MessageService : IMessageService
         }
         else
         {
-            // ✅ Håndter MessageRequest som før
+            // Håndter MessageRequest som før
             var notification = await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
                 receiverId, senderId, conversationId);
 
