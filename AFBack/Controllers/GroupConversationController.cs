@@ -105,6 +105,7 @@ public class GroupConversationController : BaseController
             newParticipants.Add(participant);
         }
         
+        
         await _context.SaveChangesAsync();
         
         Console.WriteLine("🟡 Queueing background task for group requests...");
@@ -248,6 +249,16 @@ public class GroupConversationController : BaseController
         };
         _context.ConversationParticipants.Add(creatorParticipant);
         
+        var creatorCanSend = new CanSend
+        {
+            ConversationId = newConversation.Id,
+            UserId = senderId,
+            ApprovedAt = DateTime.UtcNow,
+            Reason = CanSendReason.GroupRequestCreator,
+            LastUpdated = DateTime.UtcNow
+        };
+        _context.CanSend.Add(creatorCanSend);
+        
         var creatorRequest = new GroupRequest
         {
             SenderId = senderId,
@@ -261,6 +272,8 @@ public class GroupConversationController : BaseController
 
        
         await _context.SaveChangesAsync();
+        
+        
         
         // 1️⃣ Hent creator navn
         var creator = await _context.Users.FindAsync(senderId);
