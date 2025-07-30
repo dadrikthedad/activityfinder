@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using AFBack.Constants;
 using AFBack.Data;
@@ -25,10 +26,53 @@ public class SyncService
     /// </summary>
     public string GenerateSyncToken()
     {
-        // Enkel timestamp-basert token
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var timestamp = DateTime.UtcNow;
         var random = Random.Shared.Next(1000, 9999);
-        return $"{timestamp}-{random}"; // Eksempel: "1690747919234-1542"
+        
+        var token = new SyncEventExtensions.SyncToken
+        {
+            Timestamp = timestamp,
+            Version = 1,
+            Random = random, // Inkluder random-verdien
+            Hash = GenerateTokenHash(timestamp, random)
+        };
+        
+        var json = JsonSerializer.Serialize(token);
+        var bytes = Encoding.UTF8.GetBytes(json);
+        return Convert.ToBase64String(bytes);
+    }
+
+    /// <summary>
+    /// Validér token hash
+    /// </summary>
+    private bool ValidateTokenHash(SyncEventExtensions.SyncToken token)
+    {
+        try
+        {
+            // Generer forventet hash basert på token-data
+            var expectedHash = GenerateTokenHash(token.Timestamp, token.Random);
+            
+            // Sammenlign med faktisk hash
+            return string.Equals(token.Hash, expectedHash, StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to validate token hash");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Generer hash for token (for integritet/validering)
+    /// </summary>
+    private string GenerateTokenHash(DateTime timestamp, int random)
+    {
+        // Inkluder versjon i hash for fremtidig kompatibilitet
+        var data = $"v1-{timestamp:O}-{random}";
+        var bytes = Encoding.UTF8.GetBytes(data);
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var hash = sha256.ComputeHash(bytes);
+        return Convert.ToBase64String(hash)[..12]; // Øk til 12 karakterer for bedre sikkerhet
     }
 
     /// <summary>
@@ -39,7 +83,32 @@ public class SyncService
         try
         {
             var bytes = Convert.FromBase64String(tokenString);
-            return JsonSerializer.Deserialize<SyncEventExtensions.SyncToken>(bytes);
+            var json = Encoding.UTF8.GetString(bytes);
+            var token = JsonSerializer.Deserialize<SyncEventExtensions.SyncToken>(json);
+            
+            if (token == null)
+            {
+                _logger.LogWarning("Failed to deserialize sync token");
+                return null;
+            }
+            
+            // Validér token integritet
+            if (token.Version == 1)
+            {
+                if (string.IsNullOrEmpty(token.Hash))
+                {
+                    _logger.LogWarning("Sync token missing hash for version 1");
+                    return null;
+                }
+                
+                if (!ValidateTokenHash(token))
+                {
+                    _logger.LogWarning("Sync token hash validation failed");
+                    return null;
+                }
+            }
+            
+            return token;
         }
         catch (Exception ex)
         {
@@ -165,7 +234,7 @@ public class SyncService
                 }
             }
 
-            // Bygg query step-by-step 🆕
+            // Bygg query step-by-step
             var query = _context.SyncEvents
                 .Where(e => e.UserId == userId);
 
@@ -175,7 +244,7 @@ public class SyncService
             }
 
             var events = await query
-                .OrderBy(e => e.CreatedAt) // 🆕 Flytt OrderBy hit
+                .OrderBy(e => e.CreatedAt)
                 .Take(1000)
                 .Select(e => new SyncEventDto
                 {

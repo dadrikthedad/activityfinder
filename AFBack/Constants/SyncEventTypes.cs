@@ -7,6 +7,11 @@ public static class SyncEventTypes
     public const string MESSAGE_UPDATED = "MESSAGE_UPDATED";
     public const string MESSAGE_DELETED = "MESSAGE_DELETED";
     
+    // Message Requests
+    public const string MESSAGE_REQUEST_CREATED = "MESSAGE_REQUEST_CREATED";
+    public const string MESSAGE_REQUEST_APPROVED = "MESSAGE_REQUEST_APPROVED";
+    public const string MESSAGE_REQUEST_REJECTED = "MESSAGE_REQUEST_REJECTED";
+    
     // Conversations  
     public const string CONVERSATION_CREATED = "CONVERSATION_CREATED";
     public const string CONVERSATION_UPDATED = "CONVERSATION_UPDATED";

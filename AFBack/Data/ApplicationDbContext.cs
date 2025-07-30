@@ -456,16 +456,13 @@ public class ApplicationDbContext : DbContext
 
             // Property konfigurasjoner for PostgreSQL
             entity.Property(cs => cs.ApprovedAt)
-                .IsRequired()
-                .HasDefaultValueSql("NOW()"); // PostgreSQL
-              
+                .IsRequired();
+            
             entity.Property(cs => cs.LastUpdated)
-                .IsRequired()
-                .HasDefaultValueSql("NOW()"); // PostgreSQL
-              
+                .IsRequired();
+
             entity.Property(cs => cs.Reason)
-                .IsRequired()
-                .HasDefaultValue(CanSendReason.MessageRequest);
+                .IsRequired();
 
             // Table name (valgfri hvis du vil overstyre EF sin konvensjon)
             entity.ToTable("CanSend");
@@ -591,25 +588,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => new { e.RelatedEntityType, e.RelatedEntityId })
                 .HasDatabaseName("IX_SyncEvent_RelatedEntity")
                 .HasFilter("\"RelatedEntityId\" IS NOT NULL"); // Conditional index
-    
-            // Constraints
-            entity.Property(e => e.SyncToken)
-                .IsRequired()
-                .HasMaxLength(200);
-        
-            entity.Property(e => e.EventData)
-                .IsRequired()
-                .HasColumnType("text"); // eller "nvarchar(max)" hvis du foretrekker det
-        
-            entity.Property(e => e.SyncToken)
-                .IsRequired()
-                .HasMaxLength(100);
-        
-            entity.Property(e => e.Source)
-                .HasMaxLength(200);
-        
-            entity.Property(e => e.RelatedEntityType)
-                .HasMaxLength(50);
+            
         });
 
 

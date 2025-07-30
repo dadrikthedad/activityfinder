@@ -22,7 +22,7 @@ public class SyncEvent
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     [Required]
-    [MaxLength(100)]
+    [MaxLength(200)]
     public string SyncToken { get; set; }
     
     // Optional: for debugging and cleanup

@@ -216,6 +216,26 @@ public class MessageService : IMessageService
                     await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, CanSendReason.MessageRequest);
                     await _context.AddCanSendAsync(receiverId.Value, conversation.Id, _msgCache, CanSendReason.MessageRequest);
                     
+                    _taskQueue.QueueAsync(async () => 
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+        
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.MESSAGE_REQUEST_APPROVED,
+                            eventData: new { 
+                                conversationId = conversation.Id,
+                                senderId = senderId,
+                                receiverId = receiverId.Value
+                            },
+                            targetUserIds: new[] { senderId, receiverId.Value },
+                            source: "API",
+                            relatedEntityId: conversation.Id,
+                            relatedEntityType: "MessageRequest"
+                        );
+                    });
+
+                    
                     nowApproved = true;
                 }
             }
@@ -276,6 +296,24 @@ public class MessageService : IMessageService
         
                     try 
                     {
+                        // 🆕 Sync event for ny message request
+                        if (needsMessageRequestNotification && !conversation.IsGroup && receiverId.HasValue)
+                        {
+                            await syncService.CreateAndDistributeSyncEventAsync(
+                                eventType: SyncEventTypes.MESSAGE_REQUEST_CREATED,
+                                eventData: new { 
+                                    senderId = senderId,
+                                    receiverId = receiverId.Value,
+                                    conversationId = conversation.Id
+                                },
+                                singleUserId: receiverId.Value,
+                                source: "API",
+                                relatedEntityId: conversation.Id,
+                                relatedEntityType: "MessageRequest"
+                            );
+                        }
+
+                        // Eksisterende NEW_MESSAGE sync event
                         await syncService.CreateAndDistributeSyncEventAsync(
                             eventType: SyncEventTypes.NEW_MESSAGE,
                             eventData: new { 
@@ -293,7 +331,7 @@ public class MessageService : IMessageService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
+                        _logger.LogError(ex, "Failed to create sync events for message {MessageId}", response.Id);
                     }
                 });
             }
