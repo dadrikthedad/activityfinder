@@ -4,7 +4,6 @@ public static class SyncEventTypes
 {
     // Messages
     public const string NEW_MESSAGE = "NEW_MESSAGE";
-    public const string MESSAGE_UPDATED = "MESSAGE_UPDATED";
     public const string MESSAGE_DELETED = "MESSAGE_DELETED";
     
     // REACTIONS
@@ -44,10 +43,4 @@ public static class SyncEventTypes
     public const string USER_PROFILE_UPDATED = "USER_PROFILE_UPDATED";
     public const string USER_BLOCKED = "USER_BLOCKED";
     public const string USER_UNBLOCKED = "USER_UNBLOCKED";
-    public const string USER_ONLINE = "USER_ONLINE";
-    public const string USER_OFFLINE = "USER_OFFLINE";
-    
-    // Real-time
-    public const string TYPING_START = "TYPING_START";
-    public const string TYPING_STOP = "TYPING_STOP";
 }

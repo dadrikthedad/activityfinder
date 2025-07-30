@@ -63,7 +63,7 @@ export function AppInitializer() {
       console.log("🔄 BOOT: User switch detected, resetting all stores...");
       useBootstrapStore.getState().reset();
       useChatStore.getState().reset();
-      useMessageNotificationStore.getState().reset(); // 🆕 LEGG TIL
+      useMessageNotificationStore.getState().reset();
       useNotificationStore.getState().reset();
       useUserCacheStore.getState().reset();
 
@@ -123,26 +123,28 @@ export function AppInitializer() {
     }
   }, [token, userId, isBootstrapped, criticalLoading, bootstrap, isCriticalCacheValid, isSecondaryCacheValid]);
 
-  // Online status orchestration
+  // ✅ FORBEDRET: Online status orchestration med heartbeat restart
   useEffect(() => {
-    if (hasInitializedOnlineRef.current) {
-      console.log("✅ BOOT: Already initialized online status, skipping (strict mode protection)");
-      return;
-    }
-
-    // Only mark online when all conditions are met
-    if (
+    // Sjekk om vi kan/skal gå online
+    const shouldGoOnline = (
       token &&                // User is authenticated
       userId &&               // User ID exists
       isBootstrapped &&       // Bootstrap is complete
       user &&                 // User data is loaded
       !criticalError &&       // No critical errors
-      !isOnline &&           // Not already online
       !isConnecting          // Not currently connecting
-    ) {
-      console.log("✅ BOOT: All conditions met - marking user online");
-      hasInitializedOnlineRef.current = true; 
+    );
+
+    // 🔑 LØSNING: Alltid prøv å gå online hvis vi skal være det, men ikke er det
+    if (shouldGoOnline && !isOnline) {
+      console.log("✅ BOOT: Conditions met for going online - marking user online");
       markOnline();
+    }
+    
+    // 🔑 INITIAL SETUP: Merk at vi har prøvd å gå online første gang
+    if (shouldGoOnline && !hasInitializedOnlineRef.current) {
+      hasInitializedOnlineRef.current = true;
+      console.log("🎯 BOOT: Initial online setup complete");
     }
   }, [
     token,
@@ -154,6 +156,48 @@ export function AppInitializer() {
     isConnecting,
     markOnline
   ]);
+
+  // ✅ NYTT: Page visibility handler for å restarte heartbeat
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      // Kun håndter hvis vi er bootstrapped og autentisert
+      if (!token || !userId || !isBootstrapped || !user) {
+        return;
+      }
+
+      if (document.visibilityState === 'visible' && !isOnline && !isConnecting) {
+        console.log("👁️ BOOT: Page became visible and we're offline - attempting to go online");
+        markOnline();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [token, userId, isBootstrapped, user, isOnline, isConnecting, markOnline]);
+
+  // ✅ NYTT: Network status handler for å restarte heartbeat
+  useEffect(() => {
+    const handleNetworkOnline = () => {
+      // Kun håndter hvis vi er bootstrapped og autentisert
+      if (!token || !userId || !isBootstrapped || !user) {
+        return;
+      }
+
+      if (!isOnline && !isConnecting) {
+        console.log("🌐 BOOT: Network came back online - attempting to go online");
+        markOnline();
+      }
+    };
+
+    window.addEventListener('online', handleNetworkOnline);
+    
+    return () => {
+      window.removeEventListener('online', handleNetworkOnline);
+    };
+  }, [token, userId, isBootstrapped, user, isOnline, isConnecting, markOnline]);
 
   //  Exponential backoff retry logic
   useEffect(() => {
