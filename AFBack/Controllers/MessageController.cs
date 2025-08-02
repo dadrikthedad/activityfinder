@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using AFBack.Constants;
 using AFBack.Data;
+using AFBack.Extensions;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -258,53 +259,85 @@ public class MessagesController : BaseController
 
         await _context.SaveChangesAsync();
         
+        
+
+        // 3️⃣ Lag systemmelding for avslåing (valgfritt)
+        var user = await _context.Users
+            .Where(u => u.Id == receiverId)
+            .Select(u => u.FullName)
+            .FirstOrDefaultAsync();
+        
+        
+        MessageResponseDTO? systemMessage = null;
+        if (!string.IsNullOrEmpty(user))
+        {
+            systemMessage = await _messageNotificationService.CreateSystemMessageAsync(conversationId,
+            $"{user} has left the conversation"
+                );
+        }
+        
         // 🆕 SYNC EVENTS for Group Request Rejection
         _taskQueue.QueueAsync(async () => 
         {
             using var scope = _scopeFactory.CreateScope();
             var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             try 
             {
-                // Event til brukeren som avslo - fjern gruppen fra listen
+                // 1️⃣ Event til brukeren som avslo - fjern gruppen fra listen
                 await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.GROUP_REQUEST_REJECTED,
-                    eventData: new { 
-                        conversationId = conversationId,
-                        senderId = senderId,
-                        receiverId = receiverId,
-                        rejectedAt = DateTime.UtcNow
-                    },
+                    eventType: SyncEventTypes.CONVERSATION_LEFT,
+                    eventData: conversationId,
                     singleUserId: receiverId,
                     source: "API",
                     relatedEntityId: conversationId,
                     relatedEntityType: "GroupRequest"
                 );
 
-                // Event til eksisterende medlemmer om at noen avslo
-                var existingMemberIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
-                    .ConversationParticipants
+                // 2️⃣ Event til eksisterende medlemmer om at noen avslo
+                var existingMemberIds = await context.ConversationParticipants
                     .Where(cp => cp.ConversationId == conversationId)
                     .Select(cp => cp.UserId)
                     .ToListAsync();
 
                 if (existingMemberIds.Any())
                 {
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.GROUP_MEMBER_LEFT,
-                        eventData: new { 
-                            conversationId = conversationId,
-                            leftUserId = receiverId,
-                            leftAt = DateTime.UtcNow,
-                            wasCreator = false,
-                            newCreatorId = (int?)null,
-                            reason = "RequestRejected"
-                        },
-                        targetUserIds: existingMemberIds,
-                        source: "API",
-                        relatedEntityId: conversationId,
-                        relatedEntityType: "Conversation"
-                    );
+                    // 🆕 Hent oppdatert conversation med remaining members
+                    var updatedConversation = await context.Conversations
+                        .Include(c => c.Participants)
+                            .ThenInclude(p => p.User)
+                                .ThenInclude(u => u.Profile)
+                        .FirstOrDefaultAsync(c => c.Id == conversationId);
+
+                    if (updatedConversation != null)
+                    {
+                        // Hent userData for existing members
+                        var userData = await SyncEventExtensions.GetUserDataAsync(context, existingMemberIds.ToArray());
+
+                        // Hent group request statuses
+                        var groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+                            context, conversationId, existingMemberIds.ToArray());
+
+                        // Bygg conversation data
+                        var conversationData = updatedConversation.MapConversationToSyncData(
+                            receiverId, // Brukeren som avslo
+                            userData, 
+                            groupRequestStatuses
+                        );
+
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.GROUP_INFO_UPDATED, // 🆕 Endre til GROUP_INFO_UPDATED
+                            eventData: new { 
+                                conversationData, // 🆕 Send hele conversation object
+                                systemMessage     // 🆕 Send systemmelding
+                            },
+                            targetUserIds: existingMemberIds,
+                            source: "API",
+                            relatedEntityId: conversationId,
+                            relatedEntityType: "Conversation"
+                        );
+                    }
                 }
             }
             catch (Exception ex)
@@ -312,19 +345,6 @@ public class MessagesController : BaseController
                 Console.WriteLine($"Failed to create sync events for group request rejection: {ex.Message}");
             }
         });
-
-        // 3️⃣ Lag systemmelding for avslåing (valgfritt)
-        var user = await _context.Users
-            .Where(u => u.Id == receiverId)
-            .Select(u => u.FullName)
-            .FirstOrDefaultAsync();
-
-        if (!string.IsNullOrEmpty(user))
-        {
-            await _messageNotificationService.CreateSystemMessageAsync(conversationId,
-            $"{user} has left the conversation"
-                );
-        }
         
         _taskQueue.QueueAsync(async () =>
         {
@@ -380,13 +400,8 @@ public class MessagesController : BaseController
             try 
             {
                 await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.MESSAGE_REQUEST_REJECTED,
-                    eventData: new { 
-                        senderId = senderId,
-                        receiverId = receiverId,
-                        rejectedAt = DateTime.UtcNow,
-                        conversationId = request.ConversationId
-                    },
+                    eventType: SyncEventTypes.CONVERSATION_LEFT,
+                    eventData: request.ConversationId,  
                     singleUserId: receiverId, // Kun til den som avslo
                     source: "API",
                     relatedEntityId: request.ConversationId,

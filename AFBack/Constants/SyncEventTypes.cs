@@ -3,44 +3,34 @@ namespace AFBack.Constants;
 public static class SyncEventTypes 
 {
     // Messages
-    public const string NEW_MESSAGE = "NEW_MESSAGE";
-    public const string MESSAGE_DELETED = "MESSAGE_DELETED";
-    
-    // REACTIONS
-    public const string REACTION_ADDED = "REACTION_ADDED";
-    public const string REACTION_REMOVED = "REACTION_REMOVED";
-    
-    // Message Requests
-    public const string MESSAGE_REQUEST_CREATED = "MESSAGE_REQUEST_CREATED";
-    public const string MESSAGE_REQUEST_APPROVED = "MESSAGE_REQUEST_APPROVED";
-    public const string MESSAGE_REQUEST_REJECTED = "MESSAGE_REQUEST_REJECTED";
-    
-    // Group Requests
-    public const string GROUP_REQUEST_RECEIVED = "GROUP_REQUEST_RECEIVED";
-    public const string GROUP_REQUEST_APPROVED = "GROUP_REQUEST_APPROVED";
-    public const string GROUP_MEMBERS_INVITED = "GROUP_MEMBERS_INVITED";
-    public const string GROUP_REQUEST_REJECTED = "GROUP_REQUEST_REJECTED";
-    
+    public const string NEW_MESSAGE = "NEW_MESSAGE"; // -- FERDIG FRONTEND TIL BACKEND! Systemmeldinger ferdig: ApprovedMessageRequest
+    public const string MESSAGE_DELETED = "MESSAGE_DELETED"; // -- FERDIG FRONTEND TIL BACKEND!
+    // Reactions
+    public const string REACTION = "REACTION"; // -- FERDIG FRONTEND TIL BACKEND!
+    // Message Requester
+    public const string REQUEST_RECEIVED = "REQUEST_RECEIVED"; // Denne eventen er til de som mottar en gruppeforespørsel. Sender med hele conven -- FERDIG FRONTEND TIL BACKEND!
     // Conversations  
-    public const string CONVERSATION_CREATED = "CONVERSATION_CREATED"; // Brukes når en bruker lager en meldingsforespørsel eller gruppe slik at syncevent vet at denne brukeren har en ny samtale i samtaelisten
-    public const string CONVERSATION_DELETED = "CONVERSATION_DELETED";
-    public const string CONVERSATION_RESTORED = "CONVERSATION_RESTORED"; 
-    
-    
+    public const string CONVERSATION_CREATED = "CONVERSATION_CREATED"; // Her sender vi med samtalen til den som har opprettet gruppen/samtalen eller godkjent samtalen, samt systemmelding. -- FERDIG BACKEND! 
+    public const string CONVERSATION_RESTORED = "CONVERSATION_RESTORED"; // Sender med hele Conversation-objektet og legger den til i bakgrunn -- FERDIG FRONTEND TIL BACKEND
     // Group Events
-    public const string GROUP_MEMBER_LEFT = "GROUP_MEMBER_LEFT"; 
-    public const string GROUP_DISBANDED = "GROUP_DISBANDED";
-    public const string CONVERSATION_LEFT = "CONVERSATION_LEFT"; // Brukes når en bruker forlater en gruppe
-    public const string CONVERSATION_UPDATED = "CONVERSATION_UPDATED";
+    public const string CONVERSATION_LEFT = "CONVERSATION_LEFT"; // Brukes når vi forlater en gruppesamtale, avlslår en request eller den blir disbandet. Sender kun conversationId. Sletter den fra samtale listen -- FERDIG BACKEND OG FRONTEND!
+    public const string GROUP_INFO_UPDATED = "GROUP_INFO_UPDATED"; // Brukes når noen har oppdatert gruppenavnet, gruppebilde, invitert noen eller noen har forlatt gruppen. Sender med hele samtalen og vi legger til eller oppdater samtalen hvis vi har akseptert, hvis samtalen er i pending så oppdateres gruppenavnet. -- FERDIG BACKEND TIL FRONTEND!
+    // ---------------------------------- IKKE FERDIG -------------------------------- //
     
     // Friends
-    public const string FRIEND_REQUEST_RECEIVED = "FRIEND_REQUEST_RECEIVED";
+    public const string FRIEND_REQUEST_RECEIVED = "FRIEND_REQUEST_RECEIVED"; // Oppdaterer frontend med den nye venneforespørselen -- FERDIG BACKEND OG FRONTEND!
     public const string FRIEND_REQUEST_ACCEPTED = "FRIEND_REQUEST_ACCEPTED"; 
     public const string FRIEND_ADDED = "FRIEND_ADDED";
     public const string FRIEND_REMOVED = "FRIEND_REMOVED";
     
     // Users
     public const string USER_PROFILE_UPDATED = "USER_PROFILE_UPDATED";
-    public const string USER_BLOCKED = "USER_BLOCKED";
-    public const string USER_UNBLOCKED = "USER_UNBLOCKED";
+    public const string USER_BLOCKED = "USER_BLOCKED"; // Ikke lagt til
+    public const string USER_UNBLOCKED = "USER_UNBLOCKED"; // Ikke lagt til
+    
+    // Alle notificaitons er ferdig -- FERDIG FRONTEND TIL BACKEND!
+    public const string MESSAGE_NOTIFICATION_CREATED = "MESSAGE_NOTIFICATION_CREATED";
+    
+    // Notifications til appen
+    public const string NOTIFICATION_CREATED = "NOTIFICATION_CREATED";
 }

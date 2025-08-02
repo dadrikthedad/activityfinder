@@ -21,15 +21,27 @@ export const handleMessage = async (
   userId: number | null, 
   currentConversationId: number | null, 
   showMessages: boolean,
-  ensureConversationExists: (conversationId: number, shouldCache?: boolean) => Promise<void>
+  ensureConversationExists: (conversationId: number, shouldCache?: boolean) => Promise<void>,
 ) => {
   console.log("💬 Mottatt melding via useChatHub:", message);
 
   const { addMessage, updateConversationTimestamp, conversations } = useChatStore.getState();
 
-  await ensureConversationExists(message.conversationId, true);
-  addMessage(message);
-  updateConversationTimestamp(message.conversationId, message.sentAt);
+  try {
+    await ensureConversationExists(message.conversationId, true);
+  } catch (error) {
+    console.error(`❌ Klarte ikke sikre samtale ${message.conversationId}:`, error);
+    return;
+  }
+
+  try {
+    addMessage(message);
+    updateConversationTimestamp(message.conversationId, message.sentAt);
+    console.log(`💬 Melding ${message.id} lagt til i samtale ${message.conversationId}`);
+  } catch (error) {
+    console.error(`❌ Klarte ikke legge til melding ${message.id}:`, error);
+    return;
+  }
   
   if (!message.isSilent && !message.isSystemMessage) {
     handleIncomingMessage(message, userId);
@@ -95,11 +107,11 @@ export const handleRequestApproved = async (notification: MessageNotificationDTO
   await finalizeConversationApproval(convId, true, notification);
 };
 
-export const handleRequestCreated = async (
+export const handleMessageRequestReceived = async (
   data: MessageRequestCreatedDto,
   userId: number | null,
   checkAndExecute: CheckAndExecuteFunction,
-  syncPendingConversation: SyncPendingConversationFunction
+  syncPendingConversation: SyncPendingConversationFunction,
 ) => {
   await checkAndExecute(async () => {
     if (data.notification) {

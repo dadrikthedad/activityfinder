@@ -1,7 +1,6 @@
 // Godtar en meldingsforespørsel, samt henter alle samtalene fra backend og oppdaterer useChatStore i sanntid
 import { useCallback, useState } from "react";
-import { approveMessageRequest } from "@/services/messages/messageService";
-import { getMessagesForConversation } from "@/services/messages/conversationService";
+import { approveMessageRequestLogic } from "@/functions/messages/approveMessageRequestLogic";
 import { useChatStore } from "@/store/useChatStore";
 import { getConversationById } from "@/services/messages/conversationService";
 import { ConversationDTO } from "@/types/ConversationDTO";
@@ -14,70 +13,34 @@ export function useApproveMessageRequest() {
 
   const removeRequest = useChatStore((state) => state.removePendingRequest);
   const addConversation = useChatStore((state) => state.addConversation);
-  const setCachedMessages = useChatStore((state) => state.setCachedMessages);
   const setCurrentConversationId = useChatStore((s) => s.setCurrentConversationId);
   const setPendingLockedConversationId = useChatStore(
     (s) => s.setPendingLockedConversationId
   );
-    const { userId: currentUserId } = useAuth();
+  const { userId: currentUserId } = useAuth();
 
   const approve = useCallback(
-    async (conversationId: number) => {
+  async (conversationId: number, isSync: boolean = false) => {
+    if (!isSync) {
       setLoading(true);
       setError(null);
-
-      try {
-        // 1) Godkjenn på API
-        await approveMessageRequest(conversationId);
-
-        // 2) Hent hele samtalen fra backend
-        const conversation = await getConversationById(conversationId);
-        if (conversation) {
-          const unlockedConversation = { ...conversation, isPendingApproval: false };
-          addConversation(unlockedConversation);
-        }
-
-        // 3) Hent de siste meldingene, og cache dem
-        const messages = await getMessagesForConversation(conversationId, 0, 20);
-        setCachedMessages(conversationId, messages ?? []);
-
-        // 4) Fjern pending-forespørselen
-        removeRequest(conversationId);
-
-        
-
-        const pendingId = useChatStore.getState().pendingLockedConversationId;
-        if (pendingId === conversationId) {
-          setCurrentConversationId(conversationId);
-        }
-        else {
-          // Marker som ulest hvis den ikke vises
-          const state = useChatStore.getState();
-          if (!state.unreadConversationIds.includes(conversationId)) {
-            state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
-          }
-        }
-
-        // 5) “Lås opp” og sett aktiv samtal
-        setPendingLockedConversationId(null);
-
-
-        console.log("✅ Meldingsforespørsel godkjent og samtale lagt til:", conversationId);
-      } catch (err) {
-        console.error("❌ Feil ved godkjenning:", err);
+    }
+    try {
+      await approveMessageRequestLogic(conversationId, isSync);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Ukjent feil";
+      console.error("❌ Feil i approve:", errorMessage);
+      if (!isSync) {
         setError("Kunne ikke godkjenne forespørselen.");
-      } finally {
+      }
+    } finally {
+      if (!isSync) {
         setLoading(false);
       }
-    },
-    [
-      removeRequest,
-      addConversation,
-      setCachedMessages,
-      setPendingLockedConversationId,
-      setCurrentConversationId,
-    ]
-  );
+    }
+  },
+  []
+);
 
   const approveLocally = useCallback(async (conversationId: number) => {
     const state = useChatStore.getState();

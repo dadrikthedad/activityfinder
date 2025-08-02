@@ -7,6 +7,7 @@ using AFBack.Functions;
 using AFBack.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using AFBack.Extensions;
 
 // En service for å håndtere alle meldinger
 namespace AFBack.Services;
@@ -69,6 +70,13 @@ public class MessageService : IMessageService
         var (conversation, receiverId) = dto.ConversationId > 0 
             ? await GetExistingConversation(senderId, dto.ConversationId)
             : await GetOrCreateConversationFast(senderId, dto);
+
+        Dictionary<int, (string FullName, string? ProfileImageUrl)>? userData = null;
+
+        if (dto.ConversationId <= 0 && !conversation.IsGroup && receiverId.HasValue)
+        {
+            userData = await SyncEventExtensions.GetUserDataAsync(_context, senderId, receiverId.Value);
+        }
         
         if (!conversation.IsGroup && !receiverId.HasValue)
             throw new InvalidOperationException("receiverId skal være satt i 1–1 samtale.");
@@ -212,26 +220,6 @@ public class MessageService : IMessageService
                     await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, CanSendReason.MessageRequest);
                     await _context.AddCanSendAsync(receiverId.Value, conversation.Id, _msgCache, CanSendReason.MessageRequest);
                     
-                    _taskQueue.QueueAsync(async () => 
-                    {
-                        using var scope = _scopeFactory.CreateScope();
-                        var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
-        
-                        await syncService.CreateAndDistributeSyncEventAsync(
-                            eventType: SyncEventTypes.MESSAGE_REQUEST_APPROVED,
-                            eventData: new { 
-                                conversationId = conversation.Id,
-                                senderId = senderId,
-                                receiverId = receiverId.Value
-                            },
-                            targetUserIds: new[] { senderId, receiverId.Value },
-                            source: "API",
-                            relatedEntityId: conversation.Id,
-                            relatedEntityType: "MessageRequest"
-                        );
-                    });
-
-                    
                     nowApproved = true;
                 }
             }
@@ -292,15 +280,16 @@ public class MessageService : IMessageService
         
                     try 
                     {
-                        // Sync event til oppretter av meldingsforespørselen
+                        // Sync event til oppretter av meldingsforespørselen (CONVERSATION_CREATED)
                         if (needsMessageRequestNotification && !conversation.IsGroup)
                         {
+                            var conversationData = conversation.MapConversationToSyncData(senderId, userData);
+        
                             await syncService.CreateAndDistributeSyncEventAsync(
                                 eventType: SyncEventTypes.CONVERSATION_CREATED,
                                 eventData: new { 
-                                    senderId = senderId,
-                                    receiverId = receiverId.Value,
-                                    conversationId = conversation.Id,
+                                    conversationData,           // Pending-samtalen
+                                    message = response           // 🆕 Den faktiske meldingen brukeren sendte
                                 },
                                 singleUserId: senderId,
                                 source: "API",
@@ -308,16 +297,22 @@ public class MessageService : IMessageService
                                 relatedEntityType: "Conversation" 
                             );
                         }
-                        
-                        // Sync event for ny message request
+    
+                        // Sync event for ny message request (MESSAGE_REQUEST_RECEIVED)
                         if (needsMessageRequestNotification && !conversation.IsGroup && receiverId.HasValue)
                         {
+                            var messageRequestData = conversation.MapToRequestDTO(
+                                senderId: senderId,
+                                requestedAt: DateTime.UtcNow,
+                                userData: userData,
+                                isGroupRequest: false // 🆕 False for message requests
+                            );
+        
                             await syncService.CreateAndDistributeSyncEventAsync(
-                                eventType: SyncEventTypes.MESSAGE_REQUEST_CREATED,
+                                eventType: SyncEventTypes.REQUEST_RECEIVED,
                                 eventData: new { 
-                                    senderId = senderId,
-                                    receiverId = receiverId.Value,
-                                    conversationId = conversation.Id
+                                    messageRequestData,           // Pending-samtalen
+                                    message = response           // Den faktiske meldingen brukeren sendte
                                 },
                                 singleUserId: receiverId.Value,
                                 source: "API",
@@ -325,16 +320,20 @@ public class MessageService : IMessageService
                                 relatedEntityType: "MessageRequest"
                             );
                         }
+                        
+                        Dictionary<int, string>? groupRequestStatuses = null;
+                        if (conversation.IsGroup)
+                        {
+                            groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+                                _context, conversation.Id, participantIds);
+                        }
 
                         // Eksisterende NEW_MESSAGE sync event
                         await syncService.CreateAndDistributeSyncEventAsync(
                             eventType: SyncEventTypes.NEW_MESSAGE,
-                            eventData: new { 
-                                messageId = response.Id, 
-                                conversationId = conversation.Id,
-                                senderId = senderId,
-                                content = dto.Text,
-                                sentAt = response.SentAt
+                            eventData: new {
+                                message = response,  // MessageResponseDTO
+                                conversation = conversation.MapConversationToSyncData(senderId, userData, groupRequestStatuses)
                             },
                             targetUserIds: participantIds,
                             source: "API",
@@ -614,6 +613,8 @@ public class MessageService : IMessageService
         // Sjekk først hvilken type samtale det er
         var conversation = await _context.Conversations
             .Include(c => c.Participants)
+                .ThenInclude(p => p.User)
+                    .ThenInclude(u => u.Profile) //  Inkluder User og Profile data
             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
         if (conversation == null)
@@ -688,55 +689,42 @@ public class MessageService : IMessageService
         }
         
         await _context.SaveChangesAsync();
+        // Bygg conversation sync data ETTER SaveChanges (når all data er oppdatert)
+        var userIds = conversation.Participants.Select(p => p.UserId).ToArray();
+    
+        // 🆕 Hent userData hvis ikke allerede loaded
+        Dictionary<int, (string FullName, string? ProfileImageUrl)> userData;
+        bool hasUserData = conversation.Participants?.Any(p => p.User != null) == true;
         
-        // 🆕 SYNC EVENTS - etter SaveChanges når alle IDer er tilgjengelige
-        _taskQueue.QueueAsync(async () => 
+        if (hasUserData)
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            // Bruk existing user data fra Include
+            userData = conversation.Participants.ToDictionary(
+                p => p.UserId,
+                p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+            );
+        }
+        else
+        {
+            // Hent userData fra database
+            userData = await SyncEventExtensions.GetUserDataAsync(_context, userIds);
+        }
         
-            try 
-            {
-                if (isGroupRequest)
-                {
-                    // Sync event for group request approval
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.GROUP_REQUEST_APPROVED,
-                        eventData: new { 
-                            conversationId = conversationId,
-                            senderId = senderId,
-                            receiverId = receiverId,
-                            groupName = conversation.GroupName
-                        },
-                        targetUserIds: conversation.Participants.Select(p => p.UserId),
-                        source: "API",
-                        relatedEntityId: conversationId,
-                        relatedEntityType: "GroupRequest"
-                    );
-                }
-                else
-                {
-                    // Sync event for message request approval
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.MESSAGE_REQUEST_APPROVED,
-                        eventData: new { 
-                            conversationId = conversationId,
-                            senderId = senderId,
-                            receiverId = receiverId
-                        },
-                        targetUserIds: new[] { senderId, receiverId },
-                        source: "API",
-                        relatedEntityId: conversationId,
-                        relatedEntityType: "MessageRequest"
-                    );
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create sync event for request approval. ConversationId: {ConversationId}, IsGroup: {IsGroup}", 
-                    conversationId, isGroupRequest);
-            }
-        });
+        // Hent group request statuses for groups
+        Dictionary<int, string>? groupRequestStatuses = null;
+        if (conversation.IsGroup)
+        {
+            groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+                _context, conversationId, userIds);
+        }
+
+        //  Bygg conversation sync data med group statuses
+        var conversationSyncData = conversation.MapConversationToSyncData(
+            receiverId, 
+            userData, 
+            groupRequestStatuses
+        );
+
         
         // Hent brukeren som godkjenner
         var approver = await _context.Users
@@ -748,7 +736,7 @@ public class MessageService : IMessageService
             ? $"{approver.FullName} has joined the group."
             : $"{approver.FullName} has accepted the conversation.";
 
-        await _messageNotificationService.CreateSystemMessageAsync(conversationId, systemMessageText);
+        var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(conversationId, systemMessageText);
 
         if (isGroupRequest)
         {
@@ -775,6 +763,54 @@ public class MessageService : IMessageService
             await _hubContext.Clients.User(senderId.ToString())
                 .SendAsync("MessageRequestApproved", notification);
         }
+        
+        // SYNC EVENTS - etter SaveChanges når alle IDer er tilgjengelige
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                if (isGroupRequest)
+                {
+                    // Sync event for group request approval
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.GROUP_INFO_UPDATED,
+                        eventData: new {
+                            conversation = conversationSyncData, // Match andre events
+                            systemMessage
+                        }, // Kun samtale-data, ikke ekstra wrapper
+                        targetUserIds: conversation.Participants.Select(p => p.UserId),
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "GroupRequest"
+                    );
+                }
+                else
+                {
+                    // Bruk CONVERSATION_CREATED for begge parter i 1-1 samtaler
+                    var bothUserIds = new[] { senderId, receiverId };
+                
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.CONVERSATION_CREATED,
+                        eventData: new {
+                            conversation = conversationSyncData, 
+                            systemMessage
+                        },
+                        targetUserIds: bothUserIds, // Begge får samme event
+                        source: "API",
+                        relatedEntityId: conversationId,
+                        relatedEntityType: "MessageRequest"
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for request approval. ConversationId: {ConversationId}, IsGroup: {IsGroup}", 
+                    conversationId, isGroupRequest);
+            }
+        });
     }
 
     // Søke etter meldinger til en samtale
@@ -915,9 +951,7 @@ public class MessageService : IMessageService
                     eventType: SyncEventTypes.MESSAGE_DELETED,
                     eventData: new { 
                         messageId = messageId,
-                        conversationId = message.ConversationId,
-                        senderId = userId,
-                        deletedAt = DateTime.UtcNow
+                        conversationId = message.ConversationId
                     },
                     targetUserIds: participantIds.ToList(),
                     source: "API",
@@ -1017,6 +1051,8 @@ public class MessageService : IMessageService
 
         var existing = await _context.Conversations
             .Include(c => c.Participants)
+                .ThenInclude(p => p.User)               // ← LEGG TIL DISSE
+                .ThenInclude(u => u.Profile)  
             .FirstOrDefaultAsync(c =>
                 !c.IsGroup &&
                 c.Participants.Count == 2 &&
@@ -1025,6 +1061,7 @@ public class MessageService : IMessageService
 
         if (existing != null)
             return (existing, recId);
+        
 
         var convNew = new Conversation
         {
@@ -1142,7 +1179,7 @@ public class MessageService : IMessageService
         };
     }
 
-    private async Task<MessageResponseDTO> MapToResponseDtoOptimized(int messageId)
+    public async Task<MessageResponseDTO> MapToResponseDtoOptimized(int messageId)
     {
         var dto = await _context.Messages
             .AsNoTracking()
@@ -1304,6 +1341,7 @@ public class MessageService : IMessageService
         
         var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
         
+        
         /* 2. MessageRequest notification hvis nødvendig */
         if (needsMessageRequestNotification && !isGroup && receiverId.HasValue)
         {
@@ -1345,7 +1383,7 @@ public class MessageService : IMessageService
             {
                 await notifSvc.CreateMessageNotificationAsync(
                     recipientUserId: uid,
-                    senderUserId: senderId,
+                    senderUserId: senderId, 
                     conversationId: conversationId,
                     messageId: response.Id);
             }
@@ -1438,18 +1476,32 @@ public class MessageService : IMessageService
         
             // Så sync event med ny scope (ikke-kritisk)
             using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); // eller hva _syncService heter
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); 
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
             try 
             {
+                // 🆕 Fetch group request statuses if it's a group
+                Dictionary<int, string>? groupRequestStatuses = null;
+                if (conversation.IsGroup)
+                {
+                    groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+                        context, conversation.Id, participantIds);
+                }
+
+                // Build conversation data for sync event (with group statuses)
+                var conversationSyncData = await SyncEventExtensions.BuildConversationSyncData(
+                    context, 
+                    conversation, 
+                    participantIds,
+                    groupRequestStatuses // Pass group statuses
+                );
+                
                 await syncService.CreateAndDistributeSyncEventAsync(
                     eventType: SyncEventTypes.NEW_MESSAGE,
-                    eventData: new { 
-                        messageId = response.Id, 
-                        conversationId = conversation.Id,
-                        senderId = senderId,
-                        content = dto.Text,
-                        sentAt = response.SentAt
+                    eventData: new {
+                        message = response,
+                        conversation = conversationSyncData
                     },
                     targetUserIds: participantIds,
                     source: "API",

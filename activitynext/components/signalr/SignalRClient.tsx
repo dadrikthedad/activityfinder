@@ -14,7 +14,7 @@ import {
   handleMessage,
   handleReaction,
   handleRequestApproved,
-  handleRequestCreated,
+  handleMessageRequestReceived,
   handleMessageDeleted
 } from "./handlers/messageHandlers";
 
@@ -57,7 +57,7 @@ export default function SignalRClient() {
 
       // onRequestCreated
       async (data) => {
-        await handleRequestCreated(data, userId, checkAndExecute, syncPendingConversation);
+        await handleMessageRequestReceived(data, userId, checkAndExecute, syncPendingConversation);
       },
 
       // onGroupRequestCreated

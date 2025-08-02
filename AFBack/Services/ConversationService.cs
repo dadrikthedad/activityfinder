@@ -3,6 +3,7 @@ using AFBack.Data;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.DTOs;
+using AFBack.Extensions;
 using AFBack.Functions;
 
 namespace AFBack.Services;
@@ -212,12 +213,8 @@ public class ConversationService
                 {
                     // Sync event kun for brukeren som slettet (ikke den andre parten)
                     await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.CONVERSATION_DELETED,
-                        eventData: new { 
-                            conversationId = conversationId,
-                            userId = userId,
-                            deletedAt = participant.DeletedAt
-                        },
+                        eventType: SyncEventTypes.CONVERSATION_LEFT,
+                        eventData: conversationId,
                         singleUserId: userId, // Kun til brukeren som slettet
                         source: "API",
                         relatedEntityId: conversationId,
@@ -283,6 +280,12 @@ public class ConversationService
 
             await _context.SaveChangesAsync();
             
+            // 🆕 Hent user data for participants (samme som ApproveMessageRequestAsync)
+            var userIds = conversation.Participants.Select(p => p.UserId).ToArray();
+            var userData = await SyncEventExtensions.GetUserDataAsync(_context, userIds);
+
+            var conversationSyncData = conversation.MapConversationToSyncData(userId, userData);
+            
             // SYNC EVENT - etter SaveChanges
             _taskQueue.QueueAsync(async () => 
             {
@@ -294,11 +297,7 @@ public class ConversationService
                     // Sync event kun for brukeren som gjenopprettet (ikke den andre parten)
                     await syncService.CreateAndDistributeSyncEventAsync(
                         eventType: SyncEventTypes.CONVERSATION_RESTORED,
-                        eventData: new { 
-                            conversationId = conversationId,
-                            userId = userId,
-                            restoredAt = DateTime.UtcNow
-                        },
+                        eventData: conversationSyncData,
                         singleUserId: userId, // Kun til brukeren som gjenopprettet
                         source: "API",
                         relatedEntityId: conversationId,

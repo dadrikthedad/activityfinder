@@ -14,6 +14,7 @@ type CheckAndExecuteFunction = (callback: () => Promise<void>) => Promise<void>;
 type SyncPendingConversationFunction = (conversationId: number, forceRefresh?: boolean) => Promise<unknown>;
 type RefreshConversationFunction = (conversationId: number, options?: { logPrefix?: string }) => Promise<unknown>;
 
+// Mottat en gruppeforespørsler
 export const handleGroupRequestCreated = async (
   data: GroupRequestCreatedDto,
   userId: number | null,

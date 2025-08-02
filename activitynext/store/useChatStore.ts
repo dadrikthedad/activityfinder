@@ -23,7 +23,8 @@ type ChatStore = {
   cacheTimestamps: Record<number, number>;
   searchMode: boolean;
   setSearchMode: (value: boolean) => void;
-  updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) => void; 
+  updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) => void;
+  softDeleteMessage: (conversationId: number, messageId: number) => void; 
   updateMessageReactions: (reaction: ReactionDTO) => void;
   cleanupOldCache: () => void;
   pendingMessageRequests: MessageRequestDTO[];
@@ -51,6 +52,7 @@ type ChatStore = {
   scrollToMessageId: number | null;
   setScrollToMessageId: (id: number | null) => void;
   addPendingRequest: (request: MessageRequestDTO) => void;
+  updatePendingRequest: (conversationId: number, updates: Partial<MessageRequestDTO>) => void;
   hasLoadedPendingRequests: boolean;
   setHasLoadedPendingRequests: (value: boolean) => void;
   hasLoadedConversations: boolean;
@@ -142,6 +144,28 @@ export const useChatStore = create<ChatStore>()(
             pendingRequestsCacheTimestamp: Date.now(),
           };
         }),
+
+        updatePendingRequest: (conversationId: number, updates: Partial<MessageRequestDTO>) =>
+          set((state) => {
+            const updatedRequests = state.pendingMessageRequests.map(request => 
+              request.conversationId === conversationId 
+                ? { ...request, ...updates }
+                : request
+            );
+            
+            // Kun oppdater hvis faktisk endring skjedde
+            const hasChanges = updatedRequests.some((req, index) => 
+              req !== state.pendingMessageRequests[index]
+            );
+            
+            if (!hasChanges) return {};
+            
+            return {
+              pendingMessageRequests: updatedRequests,
+              pendingRequestsCache: updatedRequests,
+              pendingRequestsCacheTimestamp: Date.now(),
+            };
+          }),
 
       removePendingRequest: (conversationId: number) =>
         set((state) => ({
@@ -248,6 +272,46 @@ export const useChatStore = create<ChatStore>()(
               if (hasMessage) {
                 cachedMessages[conversationId] = updateMessages(state.cachedMessages[conversationId]);
                 console.log(`✅ Oppdatert melding ${messageId} i cachedMessages`);
+              }
+            }
+
+            return {
+              liveMessages,
+              cachedMessages,
+            };
+          }),
+
+        softDeleteMessage: (conversationId: number, messageId: number) =>
+          set((state) => {
+            const markAsDeleted = (messages: MessageDTO[]) =>
+              messages.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      isDeleted: true,
+                      attachments: []
+                    }
+                  : m
+              );
+
+            const liveMessages = { ...state.liveMessages };
+            const cachedMessages = { ...state.cachedMessages };
+
+            // Oppdater i liveMessages hvis meldingen finnes
+            if (liveMessages[conversationId]) {
+              const hasMessage = liveMessages[conversationId].some(m => m.id === messageId);
+              if (hasMessage) {
+                liveMessages[conversationId] = markAsDeleted(liveMessages[conversationId]);
+                console.log(`🗑️ Soft-deleted melding ${messageId} i liveMessages`);
+              }
+            }
+
+            // Oppdater i cachedMessages hvis meldingen finnes
+            if (cachedMessages[conversationId]) {
+              const hasMessage = cachedMessages[conversationId].some(m => m.id === messageId);
+              if (hasMessage) {
+                cachedMessages[conversationId] = markAsDeleted(cachedMessages[conversationId]);
+                console.log(`🗑️ Soft-deleted melding ${messageId} i cachedMessages`);
               }
             }
 

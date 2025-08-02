@@ -1,0 +1,1 @@
+export type SyncReason = 'startup' | 'fallback' | 'recovery' | 'manual';

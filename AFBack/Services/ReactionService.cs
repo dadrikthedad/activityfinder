@@ -2,6 +2,7 @@
 using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Extensions;
 using AFBack.Hubs;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
@@ -34,6 +35,8 @@ public class ReactionService : IReactionService
         var message = await _context.Messages
             .Include(m => m.Conversation)
                 .ThenInclude(c => c.Participants)
+                    .ThenInclude(p => p.User)
+                        .ThenInclude(u => u.Profile)
             .FirstOrDefaultAsync(m => m.Id == messageId);
 
         if (message == null)
@@ -125,12 +128,49 @@ public class ReactionService : IReactionService
                 Emoji = emoji
             });
         }
+        
+        conversation = message.Conversation;
+        conversation.LastMessageSentAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+        
+        // 🆕 Bygg conversation sync data ETTER SaveChanges
+        var participantIdsArray = conversation.Participants.Select(p => p.UserId).ToArray();
+        
+        // Bygg userData fra existing data eller hent fra database
+        Dictionary<int, (string FullName, string? ProfileImageUrl)> userData;
+        bool hasUserData = conversation.Participants?.Any(p => p.User != null) == true;
+    
+        if (hasUserData)
+        {
+            userData = conversation.Participants.ToDictionary(
+                p => p.UserId,
+                p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+            );
+        }
+        else
+        {
+            userData = await SyncEventExtensions.GetUserDataAsync(_context, participantIdsArray);
+        }
+    
+        // Hent group request statuses for groups
+        Dictionary<int, string>? groupRequestStatuses = null;
+        if (conversation.IsGroup)
+        {
+            groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+                _context, conversation.Id, participantIdsArray);
+        }
+
+        // Bygg conversation sync data
+        var conversationData = conversation.MapConversationToSyncData(
+            userId, 
+            userData, 
+            groupRequestStatuses
+        );
 
         var user = await _context.Users.FindAsync(userId);
 
-        var dto = new ReactionDTO
+        var reactionDto = new ReactionDTO
         {
             MessageId = messageId,
             UserId = userId,
@@ -165,29 +205,25 @@ public class ReactionService : IReactionService
         _taskQueue.QueueAsync(async () => 
         {
             // Først SignalR (for øyeblikkelig UI oppdatering)
-            await SendReactionUpdateAsync(participantIds, null, dto, notificationDto);
+            await SendReactionUpdateAsync(participantIds, reactionDto, notificationDto);
 
             // Så Sync Event (for offline/bootstrap sync)
             using var scope = _scopeFactory.CreateScope();
             var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            
 
             try 
             {
-                // Bestem event type basert på operasjon
-                string eventType = isRemoved ? SyncEventTypes.REACTION_REMOVED : SyncEventTypes.REACTION_ADDED;
-
                 object eventData;
 
                 if (!isRemoved && removedEmoji != null)
                 {
                     // Emoji ble endret
                     eventData = new { 
+                        reaction = reactionDto,           // 🆕 Full reaction DTO
+                        conversation = conversationData,  // 🆕 Full conversation data
                         messageId = messageId,
-                        conversationId = message.ConversationId,
-                        userId = userId,
-                        emoji = emoji,
                         previousEmoji = removedEmoji,
-                        userFullName = user?.FullName,
                         actionAt = DateTime.UtcNow,
                         isEmojiChange = true
                     };
@@ -196,17 +232,15 @@ public class ReactionService : IReactionService
                 {
                     // Vanlig add/remove
                     eventData = new { 
+                        reaction = reactionDto,           // Full reaction DTO
+                        conversation = conversationData,  // Full conversation data
                         messageId = messageId,
-                        conversationId = message.ConversationId,
-                        userId = userId,
-                        emoji = emoji,
-                        userFullName = user?.FullName,
                         actionAt = DateTime.UtcNow
                     };
                 }
 
                 await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: eventType,
+                    eventType: SyncEventTypes.REACTION,
                     eventData: eventData,
                     targetUserIds: participantIdsInt,
                     source: "API",
@@ -223,7 +257,7 @@ public class ReactionService : IReactionService
 
 
     
-    private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, string? groupName, ReactionDTO reaction, MessageNotificationDTO? notification)
+    private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, ReactionDTO reaction, MessageNotificationDTO? notification)
     {
         var payload = new
         {

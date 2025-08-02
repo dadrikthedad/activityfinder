@@ -1,4 +1,5 @@
-﻿using AFBack.DTOs;
+﻿using AFBack.Constants;
+using AFBack.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -12,11 +13,15 @@ public class NotificationService : INotificationService
 {
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<UserHub> _hubContext;
+    private readonly SyncService _syncService; 
+    private readonly BackgroundTaskQueue _taskQueue;
 
-    public NotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext)
+    public NotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, SyncService syncService, BackgroundTaskQueue taskQueue)
     {
         _context = context;
         _hubContext = hubContext;
+        _syncService = syncService;
+        _taskQueue = taskQueue;
     }
 
     public async Task CreateNotificationAsync(
@@ -69,6 +74,39 @@ public class NotificationService : INotificationService
 
         _context.Notifications.Add(notification);
         await _context.SaveChangesAsync();
+        
+        _taskQueue.QueueAsync(async () =>
+        {
+            try
+            {
+                // 📝 Hent den komplette notifikasjonen med RelatedUser data
+                var completeNotification = await _context.Notifications
+                    .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.Id == notification.Id);
+
+                if (completeNotification != null)
+                {
+                    // 🔄 Bruk eksisterende ToDto-metode
+                    var notificationDto = ToDto(completeNotification);
+
+                    await _syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.NOTIFICATION_CREATED,
+                        eventData: notificationDto,
+                        singleUserId: recipientUserId,
+                        source: "NotificationService",
+                        relatedEntityId: notification.Id,
+                        relatedEntityType: "Notification"
+                    );
+                
+                    Log.Information("✅ Sync event created for notification {NotificationId}", notification.Id);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "❌ Failed to create sync event for notification {NotificationId}", notification.Id);
+            }
+        });
 
         Log.Information("📡 Sender notification via SignalR til {UserId}", recipientUserId);
 

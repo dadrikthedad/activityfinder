@@ -130,7 +130,7 @@ export async function handleIncomingNotification(
     
     store.upsertNotification(finalNotification);
     return true;
-  }
+}
 
 export async function handleIncomingReactionNotification(
   notification: MessageNotificationDTO,

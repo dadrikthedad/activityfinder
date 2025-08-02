@@ -3,6 +3,7 @@ using System.Security.Claims;
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Extensions;
 using AFBack.Hubs;
 using AFBack.Models;
 using AFBack.Services;
@@ -113,7 +114,6 @@ public class FileController : BaseController
         try
         {
             var imageUrl = await _fileService.UploadFileAsync(file, "group-pictures");
-            var oldImageUrl = group?.GroupImageUrl;
 
             // Oppdater gruppe hvis det er eksisterende
             if (groupId.HasValue && group != null)
@@ -121,24 +121,48 @@ public class FileController : BaseController
                 group.GroupImageUrl = imageUrl;
                 await _context.SaveChangesAsync();
                 
+                var userName = await _context.Users
+                    .Where(u => u.Id == userId)
+                    .Select(u => u.FullName)
+                    .FirstOrDefaultAsync() ?? "En bruker";
+
+                var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
+                    groupId.Value,
+                    $"{userName} has changed the group image"
+                );
+
+                
                 // 🆕 SYNC EVENT - etter SaveChanges
                 _taskQueue.QueueAsync(async () => 
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                     try 
                     {
+                        // Bygg userData fra allerede hentet data
+                        var userData = group.Participants.ToDictionary(
+                            p => p.UserId,
+                            p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+                        );
+                        
+                        // Hent group request statuses
+                        var participantApprovalStatus = await context.GroupRequests
+                            .Where(gr => gr.ConversationId == groupId.Value && 
+                                         participantIds.Contains(gr.ReceiverId))
+                            .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
+        
+                        // Bruk den extension method for å få hele conversation data
+                        var conversationData = group.MapConversationToSyncData(
+                            userId, 
+                            userData, 
+                            participantApprovalStatus // Send med group statuses
+                        );
+                        
                         await syncService.CreateAndDistributeSyncEventAsync(
-                            eventType: SyncEventTypes.CONVERSATION_UPDATED,
-                            eventData: new { 
-                                conversationId = groupId.Value,
-                                updateType = "GroupImageChanged",
-                                oldImageUrl = oldImageUrl,
-                                newImageUrl = imageUrl,
-                                updatedBy = userId,
-                                updatedAt = DateTime.UtcNow
-                            },
+                            eventType: SyncEventTypes.GROUP_INFO_UPDATED,
+                            eventData: new {conversationData, systemMessage},
                             targetUserIds: participantIds, // Alle participants
                             source: "API",
                             relatedEntityId: groupId.Value,
@@ -151,16 +175,7 @@ public class FileController : BaseController
                     }
                 });
 
-                var userName = await _context.Users
-                    .Where(u => u.Id == userId)
-                    .Select(u => u.FullName)
-                    .FirstOrDefaultAsync() ?? "En bruker";
-
-                await _messageNotificationService.CreateSystemMessageAsync(
-                    groupId.Value,
-                    $"{userName} has changed the group image"
-                );
-
+                
                 await _groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupImageChanged,
                     groupId.Value,

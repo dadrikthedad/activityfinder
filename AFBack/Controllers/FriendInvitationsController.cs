@@ -2,6 +2,7 @@
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Extensions;
 using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Models;
@@ -95,23 +96,32 @@ public class FriendInvitationsController : ControllerBase
             {
                 using var scope = _scopeFactory.CreateScope();
                 var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); // Erstatt med din context-klasse
 
                 try 
                 {
-                    // Sync event til mottakeren om ny vennforespørsel
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.FRIEND_REQUEST_RECEIVED,
-                        eventData: new { 
-                            invitationId = invitation.Id,
-                            senderId = userId,
-                            receiverId = dto.ReceiverId,
-                            sentAt = invitation.SentAt
-                        },
-                        singleUserId: dto.ReceiverId, // Kun til mottakeren
-                        source: "API",
-                        relatedEntityId: invitation.Id,
-                        relatedEntityType: "FriendInvitation"
-                    );
+                    // 📝 Hent den komplette invitasjonen med sender-info
+                    var completeInvitation = await context.FriendInvitations
+                        .Where(i => i.Id == invitation.Id)
+                        .Include(i => i.Sender).ThenInclude(u => u.Profile)
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync();
+
+                    if (completeInvitation != null)
+                    {
+                        // 🔄 Bruk samme ToDto-metode som i GetPending...
+                        var invitationDto = FriendExtensions.ToFriendInvitationDto(completeInvitation);
+
+                        // Sync event til mottakeren om ny vennforespørsel
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.FRIEND_REQUEST_RECEIVED,
+                            eventData: invitationDto, // 🎯 Send hele DTO-en!
+                            singleUserId: dto.ReceiverId,
+                            source: "API",
+                            relatedEntityId: invitation.Id,
+                            relatedEntityType: "FriendInvitation"
+                        );
+                    }
                 }
                 catch (Exception ex)
                 {

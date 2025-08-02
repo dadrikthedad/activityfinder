@@ -1,3 +1,4 @@
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
@@ -13,17 +14,21 @@ public class MessageNotificationService
     private readonly IHubContext<UserHub> _hubContext; 
     private readonly ILogger<MessageNotificationService> _logger;
     private readonly GroupNotificationService _groupNotificationService;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
     
 
-    public MessageNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService)
+    public MessageNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _hubContext = hubContext;
         _logger = logger;
         _groupNotificationService = groupNotificationService;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
     }
     
-    public async Task<Message> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
+    public async Task<MessageResponseDTO> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
     {
         var systemMessage = new Message
         {
@@ -39,7 +44,7 @@ public class MessageNotificationService
 
         // Oppdater samtalen
         var conversation = await _context.Conversations
-            .Include(c => c.Participants) // 🆕 Include participants for SignalR
+            .Include(c => c.Participants) // Include participants for SignalR
             .FirstOrDefaultAsync(c => c.Id == conversationId);
             
         if (conversation != null)
@@ -49,83 +54,74 @@ public class MessageNotificationService
 
         // 🆕 Lagre først så vi får message.Id
         await _context.SaveChangesAsync();
+        
+        var response = new MessageResponseDTO
+        {
+            Id = systemMessage.Id,
+            SenderId = null,
+            Sender = null,
+            Text = systemMessage.Text,
+            SentAt = systemMessage.SentAt,
+            ConversationId = systemMessage.ConversationId,
+            IsSystemMessage = true,
+            IsSilent = false, // Systemmeldinger vises, men ingen toast
+            // Attachments = new List<AttachmentDto>(),
+            Reactions = new List<ReactionDTO>()
+        };
 
-        // 🆕 Send SystemMessage over SignalR til alle deltakere
+        // Send SystemMessage over SignalR til alle deltakere
         if (conversation != null)
         {
-            var response = new MessageResponseDTO
-            {
-                Id = systemMessage.Id,
-                SenderId = null,
-                Sender = null,
-                Text = systemMessage.Text,
-                SentAt = systemMessage.SentAt,
-                ConversationId = systemMessage.ConversationId,
-                IsSystemMessage = true,
-                IsSilent = false, // Systemmeldinger vises, men ingen toast
-                // Attachments = new List<AttachmentDto>(),
-                Reactions = new List<ReactionDTO>()
-            };
-
+            // Brukere å sende til
             var participantIds = conversation.Participants
                 .Where(p => excludeUserIds == null || !excludeUserIds.Contains(p.UserId))
                 .Select(p => p.UserId.ToString());
+
             
             // Send til alle deltakere
             await _hubContext.Clients.Users(participantIds)
                 .SendAsync("ReceiveMessage", response);
         }
-
-        return systemMessage;
+        
+        return response;
     }
     
     public async Task CreateMessageNotificationAsync(int recipientUserId, int senderUserId, int conversationId, int messageId)
     {
-        // Hent conversation info for å bestemme type melding
-        var conversation = await _context.Conversations
-            .Where(c => c.Id == conversationId)
-            .Select(c => new { c.IsGroup, c.GroupName })
-            .FirstOrDefaultAsync();
+        // 🚀 SINGLE QUERY: Hent alt vi trenger i én spørring
+        var query = from c in _context.Conversations
+                    where c.Id == conversationId
+                    select new
+                    {
+                        ConversationInfo = new { c.IsGroup, c.GroupName, c.GroupImageUrl },
+                        ExistingNotification = _context.MessageNotifications // Group: any sender, 1-1: specific sender
+                            .FirstOrDefault(n => n.UserId == recipientUserId &&
+                                                 n.ConversationId == conversationId &&
+                                                 !n.IsRead &&
+                                                 n.Type == NotificationType.NewMessage &&
+                                                 (c.IsGroup || n.FromUserId == senderUserId))
+                    };
 
-        if (conversation == null) return;
-
-        // For grupper: finn eksisterende notification basert på conversationId (ikke senderId)
-        MessageNotification? existingNotification = null;
+        var result = await query.FirstOrDefaultAsync();
         
-        if (conversation.IsGroup)
-        {
-            // For grupper: samle alle meldinger fra samme gruppe
-            existingNotification = await _context.MessageNotifications
-                .FirstOrDefaultAsync(n =>
-                    n.UserId == recipientUserId &&
-                    n.ConversationId == conversationId &&
-                    !n.IsRead &&
-                    n.Type == NotificationType.NewMessage);
-        }
-        else
-        {
-            // For 1-1 samtaler: gruppér per sender
-            existingNotification = await _context.MessageNotifications
-                .FirstOrDefaultAsync(n =>
-                    n.UserId == recipientUserId &&
-                    n.FromUserId == senderUserId &&
-                    n.ConversationId == conversationId &&
-                    !n.IsRead &&
-                    n.Type == NotificationType.NewMessage);
-        }
+        var conversation = result.ConversationInfo;
+        var existingNotification = result.ExistingNotification;
+
+        MessageNotification notificationToReturn;
 
         if (existingNotification != null)
         {
-            // Oppdater eksisterende notification
+            // 🔄 Oppdater eksisterende notification
             existingNotification.MessageCount = (existingNotification.MessageCount ?? 1) + 1;
             existingNotification.CreatedAt = DateTime.UtcNow;
-            existingNotification.MessageId = messageId; // Oppdater til nyeste melding
+            existingNotification.MessageId = messageId;
             existingNotification.FromUserId = senderUserId;
             
+            notificationToReturn = existingNotification;
         }
         else
         {
-            // Opprett ny notification
+            // ✨ Opprett ny notification
             var notification = new MessageNotification
             {
                 UserId = recipientUserId,
@@ -139,8 +135,93 @@ public class MessageNotificationService
             };
 
             _context.MessageNotifications.Add(notification);
+            notificationToReturn = notification;
         }
+
         await _context.SaveChangesAsync();
+
+        // 🎯 SMART: Bruk notification entity til å bygge DTO uten extra query
+        var dto = await BuildNotificationDTO(notificationToReturn, conversation.IsGroup, conversation.GroupName, conversation.GroupImageUrl);
+        
+        // 🚀 Automatically queue sync event
+        QueueNotificationSyncEvent(dto, recipientUserId);
+
+    }
+    
+    
+    //  Helper method for å bygge DTO uten extra queries til CreateMessageNotifiaitonAsync
+    private async Task<MessageNotificationDTO> BuildNotificationDTO(
+        MessageNotification notification, 
+        bool isGroup, 
+        string? groupName,
+        string? groupImageUrl)
+    {
+        // Hent kun user data vi trenger
+        var dataQuery = from u in _context.Users
+            where u.Id == notification.FromUserId
+            select new 
+            { 
+                u.FullName, 
+                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                MessageText = notification.MessageId.HasValue 
+                    ? _context.Messages
+                        .Where(m => m.Id == notification.MessageId.Value)
+                        .Select(m => m.Text)
+                        .FirstOrDefault()
+                    : null
+            };
+
+        var data = await dataQuery.FirstOrDefaultAsync();
+        string? messageText = data?.MessageText;
+
+        // 🎯 Bygg preview uten full MapToDTO complexity
+        string preview;
+        var displayCount = notification.MessageCount ?? 1;
+        
+        if (isGroup)
+        {
+            if (displayCount > 1)
+            {
+                preview = $"There are {displayCount} new messages in {groupName}";
+            }
+            else
+            {
+                var msgPreview = messageText?.Length > 40 ? messageText.Substring(0, 40) + "..." : messageText ?? "";
+                preview = $"sent to {groupName}: {msgPreview}";
+            }
+        }
+        else
+        {
+            if (displayCount > 1)
+            {
+                preview = $"has sent you {displayCount} messages";
+            }
+            else
+            {
+                var msgPreview = messageText?.Length > 40 ? messageText.Substring(0, 40) + "..." : messageText ?? "";
+                preview = $"said: {msgPreview}";
+            }
+        }
+
+        return new MessageNotificationDTO
+        {
+            Id = notification.Id,
+            Type = notification.Type,
+            CreatedAt = notification.CreatedAt,
+            IsRead = notification.IsRead,
+            ReadAt = notification.ReadAt,
+            MessageId = notification.MessageId,
+            ConversationId = notification.ConversationId,
+            SenderName = data?.FullName,
+            SenderId = notification.FromUserId,
+            SenderProfileImageUrl = data?.ProfileImageUrl,
+            GroupName = groupName,
+            GroupImageUrl = groupImageUrl, // 🆕 Nå med gruppebilde
+            MessagePreview = preview,
+            MessageCount = notification.MessageCount,
+            IsConversationRejected = false, // Default - kan optimeres senere hvis nødvendig
+            IsReactionUpdate = false
+        };
     }
     
     public async Task<MessageNotificationDTO?> CreateMessageRequestNotificationAsync(int senderId, int receiverId, int conversationId)
@@ -180,7 +261,11 @@ public class MessageNotificationService
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        return MapToDTO(created!);
+        var dto = MapToDTO(created!);
+        
+        QueueNotificationSyncEvent(dto, receiverId); 
+        
+        return dto;
     }
     
     public async Task<MessageNotificationDTO> CreateMessageRequestApprovedNotificationAsync(
@@ -207,7 +292,12 @@ public class MessageNotificationService
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        return MapToDTO(created!);
+        var dto = MapToDTO(created!);
+    
+        // Automatically queue sync event
+        QueueNotificationSyncEvent(dto, senderId);
+        
+        return dto;
     }
     
     public async Task<MessageNotificationDTO> CreateMessageReactionNotificationAsync(
@@ -262,7 +352,12 @@ public class MessageNotificationService
             .ThenInclude(m => m.Reactions)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        return MapToDTO(created!);
+        var dto = MapToDTO(created!);
+    
+        // Automatically queue sync event
+        QueueNotificationSyncEvent(dto, receiverUserId);
+    
+        return dto;
     }
     
     public async Task<MessageNotificationDTO?> CreateGroupRequestNotificationAsync(
@@ -310,7 +405,12 @@ public class MessageNotificationService
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        return MapToDTO(created!);
+        var dto = MapToDTO(created!);
+    
+        // Automatically queue sync event
+        QueueNotificationSyncEvent(dto, receiverId);
+    
+        return dto;
     }
     
     
@@ -562,5 +662,31 @@ public class MessageNotificationService
             _logger.LogError(ex, "❌ Failed to get notifications for user {UserId}", userId);
             throw; // Re-throw for proper error handling
         }
+    }
+    
+    // Hjelpemetode for å lage en notifikasjon til å lage en sync event til hver notifikasjon blir laget
+    public void QueueNotificationSyncEvent(MessageNotificationDTO notification, int receiverUserId)
+    {
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.MESSAGE_NOTIFICATION_CREATED,
+                    eventData: notification,
+                    singleUserId: receiverUserId, // 👈 Bruk parameteren
+                    source: "API",
+                    relatedEntityId: notification.Id,
+                    relatedEntityType: "MessageNotification"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create sync event for notification {NotificationId}", notification.Id);
+            }
+        });
     }
 }

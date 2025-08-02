@@ -2,7 +2,7 @@ import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/constants/routes";
 import { CriticalBootstrapResponseDTO } from "@/types/bootstrap/CriticalBootstrapResponseDTO";
 import { SecondaryBootstrapResponseDTO } from "@/types/bootstrap/SecondaryBootstrapResponseDTO";
-import { SyncResponseDTO } from "@/types/bootstrap/SyncResponseDTO";
+
 
 // Henter kritisk data for rask oppstart av appen
 export async function getCriticalBootstrap(): Promise<CriticalBootstrapResponseDTO | null> {
@@ -22,15 +22,6 @@ export async function getSecondaryBootstrap(): Promise<SecondaryBootstrapRespons
   return await fetchWithAuth<SecondaryBootstrapResponseDTO>(url);
 }
 
-// Sync-funksjon for å hente endringer siden siste sync (for senere implementasjon)
-export async function getSyncUpdates(syncToken: string): Promise<SyncResponseDTO | null> {
-  const query = new URLSearchParams({ since: syncToken });
-  const url = `${API_BASE_URL}/api/me/sync?${query.toString()}`;
-  
-  console.log("🔄 Synkroniserer endringer:", url);
-  
-  return await fetchWithAuth<SyncResponseDTO>(url);
-}
 
 // Marker bruker som online (for senere implementasjon)
 export async function markUserOnline(deviceId: string, platform: string = "web"): Promise<{ status: string } | null> {
