@@ -603,13 +603,29 @@ public class UserController : BaseController
             return BadRequest("Query cannot be empty.");
         }
 
+        var currentUserId = GetUserId(); // ✅ Kan være null hvis ikke innlogget
+
         // Normaliser søkestrengen
         var normalizedQuery = string.Join(" ", query
             .ToLower()
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
+        List<int> blockedUserIds = new List<int>();
+
+        // ✅ Kun hent blocked relationships hvis innlogget
+        if (currentUserId.HasValue)
+        {
+            blockedUserIds = await _context.UserBlock
+                .Where(b => b.BlockerId == currentUserId || b.BlockedUserId == currentUserId)
+                .Select(b => b.BlockerId == currentUserId ? b.BlockedUserId : b.BlockerId)
+                .ToListAsync();
+        }
+
         var results = await _context.Users
-            .Where(u => u.FullName.ToLower().Contains(normalizedQuery))
+            .Where(u => 
+                u.FullName.ToLower().Contains(normalizedQuery) &&
+                (currentUserId == null || u.Id != currentUserId) && // ✅ Ekskluder seg selv bare hvis innlogget
+                !blockedUserIds.Contains(u.Id)) // ✅ Tom liste hvis ikke innlogget
             .Select(u => new UserSummaryDTO
             {
                 Id = u.Id,
@@ -624,8 +640,8 @@ public class UserController : BaseController
     
     [HttpGet("search/group-invite/{conversationId}")]
     public async Task<ActionResult<List<UserSummaryDTO>>> SearchUsersForGroupInvite(
-        [FromRoute] int conversationId,
-        [FromQuery] string query)
+    [FromRoute] int conversationId,
+    [FromQuery] string query)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -633,15 +649,27 @@ public class UserController : BaseController
         }
 
         var currentUserId = GetUserId();
-    
+        
+        if (currentUserId == null)
+        {
+            return Unauthorized();
+        }
+
         var normalizedQuery = string.Join(" ", query
             .ToLower()
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+        // ✅ Hent blocked relationships
+        var blockedUserIds = await _context.UserBlock
+            .Where(b => b.BlockerId == currentUserId || b.BlockedUserId == currentUserId)
+            .Select(b => b.BlockerId == currentUserId ? b.BlockedUserId : b.BlockerId)
+            .ToListAsync();
 
         var results = await _context.Users
             .Where(u => 
                 u.FullName.ToLower().Contains(normalizedQuery) &&
                 u.Id != currentUserId &&
+                !blockedUserIds.Contains(u.Id) && // ✅ Ikke blocked users
                 // Ikke eksisterende deltaker
                 !_context.ConversationParticipants
                     .Any(cp => cp.ConversationId == conversationId && cp.UserId == u.Id) &&
