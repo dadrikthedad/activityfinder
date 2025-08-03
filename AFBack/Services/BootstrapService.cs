@@ -376,22 +376,30 @@ namespace AFBack.Services
                 return new List<UserSummaryDTO>();
             }
 
-            // Get user details for all related users
-            var userRelationships = await context.Users
+            // FIKSET: Hent brukere først, deretter legg til relationships i C# kode
+            var users = await context.Users
                 .Where(u => allRelatedUserIds.Contains(u.Id))
                 .Include(u => u.Profile)
-                .Select(u => new UserSummaryDTO
+                .Select(u => new 
                 {
                     Id = u.Id,
                     FullName = u.FullName,
-                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
-                    GroupRequestStatus = null, // Not relevant in this context
-                    isFriend = friendIds.Contains(u.Id) ? true : (bool?)null,
-                    isBlocked = blockRelationships.Any(b => b.UserId == u.Id && b.IBlockedThem) ? true : (bool?)null,
-                    hasBlockedMe = blockRelationships.Any(b => b.UserId == u.Id && b.TheyBlockedMe) ? true : (bool?)null,
-                    LastUpdated = currentTimestamp
+                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
                 })
                 .ToListAsync();
+
+            // ✅ Bygg UserSummaryDTO i C# kode (ikke EF LINQ)
+            var userRelationships = users.Select(u => new UserSummaryDTO
+            {
+                Id = u.Id,
+                FullName = u.FullName,
+                ProfileImageUrl = u.ProfileImageUrl,
+                GroupRequestStatus = null, // Not relevant in this context
+                isFriend = friendIds.Contains(u.Id) ? true : (bool?)null,
+                isBlocked = blockRelationships.Any(b => b.UserId == u.Id && b.IBlockedThem) ? true : (bool?)null,
+                hasBlockedMe = blockRelationships.Any(b => b.UserId == u.Id && b.TheyBlockedMe) ? true : (bool?)null,
+                LastUpdated = currentTimestamp
+            }).ToList();
 
             _logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}, HasBlockedMe: {HasBlockedMeCount}", 
                 userRelationships.Count, 
