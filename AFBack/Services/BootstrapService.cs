@@ -356,11 +356,16 @@ namespace AFBack.Services
                 .ToListAsync();
 
             // Get all blocked user relationships (bidirectional)
-            var blockedUserIds = await context.UserBlock
+            var blockRelationships = await context.UserBlock
                 .Where(b => b.BlockerId == userId || b.BlockedUserId == userId)
-                .Select(b => b.BlockerId == userId ? b.BlockedUserId : b.BlockerId)
-                .Distinct()
+                .Select(b => new { 
+                    UserId = b.BlockerId == userId ? b.BlockedUserId : b.BlockerId,
+                    IBlockedThem = b.BlockerId == userId,
+                    TheyBlockedMe = b.BlockedUserId == userId 
+                })
                 .ToListAsync();
+
+            var blockedUserIds = blockRelationships.Select(b => b.UserId).Distinct().ToList();
 
             // Combine all related user IDs
             var allRelatedUserIds = friendIds.Union(blockedUserIds).Distinct().ToList();
@@ -381,16 +386,18 @@ namespace AFBack.Services
                     FullName = u.FullName,
                     ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
                     GroupRequestStatus = null, // Not relevant in this context
-                    isFriend = friendIds.Contains(u.Id),
-                    isBlocked = blockedUserIds.Contains(u.Id),
+                    isFriend = friendIds.Contains(u.Id) ? true : (bool?)null,
+                    isBlocked = blockRelationships.Any(b => b.UserId == u.Id && b.IBlockedThem) ? true : (bool?)null,
+                    hasBlockedMe = blockRelationships.Any(b => b.UserId == u.Id && b.TheyBlockedMe) ? true : (bool?)null,
                     LastUpdated = currentTimestamp
                 })
                 .ToListAsync();
 
-            _logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}", 
+            _logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}, HasBlockedMe: {HasBlockedMeCount}", 
                 userRelationships.Count, 
                 userRelationships.Count(ur => ur.isFriend == true),
-                userRelationships.Count(ur => ur.isBlocked == true));
+                userRelationships.Count(ur => ur.isBlocked == true),
+                userRelationships.Count(ur => ur.hasBlockedMe == true)); 
             
             return userRelationships;
         }

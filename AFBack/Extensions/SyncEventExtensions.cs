@@ -184,4 +184,5 @@ public static class SyncEventExtensions
                          userIds.Contains(gr.ReceiverId))
             .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
     }
+    
 }

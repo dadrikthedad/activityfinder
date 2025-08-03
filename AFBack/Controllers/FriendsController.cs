@@ -170,7 +170,6 @@ public class FriendsController : ControllerBase
         
         var removedUserId = friendship.UserId;
         var removedFriendId = friendship.FriendId;
-        var removedAt = DateTime.UtcNow;
 
 
         _context.Friends.Remove(friendship);
@@ -184,25 +183,35 @@ public class FriendsController : ControllerBase
 
             try 
             {
-                // Event til begge - venn fjernet
-                var targetUserIds = new List<int> { removedUserId, removedFriendId };
+                // Event til første bruker - fjern den andre som venn
                 await syncService.CreateAndDistributeSyncEventAsync(
                     eventType: SyncEventTypes.FRIEND_REMOVED,
                     eventData: new { 
-                        userId = removedUserId,
                         friendId = removedFriendId,
-                        removedAt = removedAt,
-                        removedBy = userId // Hvem som fjernet vennskapet
+                        removedBy = userId
                     },
-                    targetUserIds: targetUserIds,
+                    singleUserId: removedUserId,
                     source: "API",
-                    relatedEntityId: removedUserId, // Bruker en av ID-ene som referanse
+                    relatedEntityId: removedFriendId,
+                    relatedEntityType: "Friends"
+                );
+
+                // Event til andre bruker - fjern den første som venn  
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.FRIEND_REMOVED,
+                    eventData: new { 
+                        friendId = removedUserId,
+                        removedBy = userId
+                    },
+                    singleUserId: removedFriendId,
+                    source: "API",
+                    relatedEntityId: removedUserId,
                     relatedEntityType: "Friends"
                 );
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Failed to create sync event for friend removal. UserId: {UserId}, FriendId: {FriendId}, RemovedBy: {RemovedBy}", 
+                Log.Error(ex, "Failed to create sync events for friend removal. UserId: {UserId}, FriendId: {FriendId}, RemovedBy: {RemovedBy}", 
                     removedUserId, removedFriendId, userId);
             }
         });

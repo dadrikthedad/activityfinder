@@ -14,6 +14,8 @@ public class UserSummaryDTO
     // Logikk for samhandling mellom brukere
     public bool? isFriend  { get; set; }
     public bool? isBlocked { get; set; }
+    
+    public bool? hasBlockedMe { get; set; }
     public long? LastUpdated { get; set; }
 
 }

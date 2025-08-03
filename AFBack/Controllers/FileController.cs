@@ -64,6 +64,18 @@ public class FileController : BaseController
             var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
             if (profile == null) 
                 return NotFound("Profile not found");
+            
+            // Notify venner og blokkere om profilbilde-endring
+            UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
+                _taskQueue,
+                _scopeFactory,
+                userId, 
+                new List<string> { "profileImageUrl" },
+                new Dictionary<string, object> 
+                { 
+                    ["profileImageUrl"] = imageUrl 
+                }
+            );
 
             profile.ProfileImageUrl = imageUrl;
             profile.UpdatedAt = DateTime.UtcNow;

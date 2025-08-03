@@ -2,6 +2,7 @@
 using AFBack.DTOs;
 using AFBack.Models;
 using AFBack.Data;
+using AFBack.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services
@@ -21,13 +22,14 @@ namespace AFBack.Services
         /// Hent ventende venneforespørsler for en bruker med paginering
         /// </summary>
         public async Task<(List<FriendInvitationDTO> invitations, int totalCount)> GetPendingFriendInvitationsAsync(
-            int userId, 
-            int pageNumber = 1, 
+            int userId,
+            int pageNumber = 1,
             int pageSize = 10)
         {
             try
             {
-                _logger.LogDebug("🔍 Getting pending friend invitations for user {UserId} - Page: {Page}, PageSize: {PageSize}", 
+                _logger.LogDebug(
+                    "🔍 Getting pending friend invitations for user {UserId} - Page: {Page}, PageSize: {PageSize}",
                     userId, pageNumber, pageSize);
 
                 if (pageNumber <= 0 || pageSize <= 0)
@@ -37,7 +39,6 @@ namespace AFBack.Services
 
                 var query = _context.FriendInvitations
                     .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
-                    .Include(i => i.Sender).ThenInclude(u => u.Profile)
                     .OrderByDescending(i => i.SentAt)
                     .AsNoTracking();
 
@@ -48,9 +49,24 @@ namespace AFBack.Services
                     .Take(pageSize)
                     .ToListAsync();
 
-                var dtoList = dbList.Select(ToDto).ToList();
+                // 🎯 Bruk nye metoder for å bygge DTO-er med relationship data
+                var dtoList = new List<FriendInvitationDTO>();
 
-                _logger.LogDebug("✅ Retrieved {InvitationCount} friend invitations out of {TotalCount} total", 
+                foreach (var inv in dbList)
+                {
+                    var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                        _context,
+                        inv.SenderId,
+                        userId // current user's perspective
+                    );
+
+                    if (senderSummary != null)
+                    {
+                        dtoList.Add(inv.ToFriendInvitationDto(senderSummary));
+                    }
+                }
+
+                _logger.LogDebug("✅ Retrieved {InvitationCount} friend invitations out of {TotalCount} total",
                     dtoList.Count, totalCount);
 
                 return (dtoList, totalCount);
@@ -66,30 +82,12 @@ namespace AFBack.Services
         /// Bootstrap wrapper - returnerer kun invitations
         /// </summary>
         public async Task<List<FriendInvitationDTO>> GetPendingFriendInvitationsForBootstrapAsync(
-            int userId, 
+            int userId,
             int limit = 10)
         {
             var (invitations, _) = await GetPendingFriendInvitationsAsync(userId, pageNumber: 1, pageSize: limit);
             return invitations;
         }
 
-        /// <summary>
-        /// Felles DTO-mapping metode
-        /// </summary>
-        private static FriendInvitationDTO ToDto(FriendInvitation inv) =>
-            new()
-            {
-                Id = inv.Id,
-                ReceiverId = inv.ReceiverId,
-                Status = inv.Status.ToString().ToLower(), // "pending"/"accepted"/"declined"
-                SentAt = inv.SentAt,
-                UserSummary = new UserSummaryDTO
-                {
-                    Id = inv.Sender.Id,
-                    FullName = inv.Sender.FullName,
-                    ProfileImageUrl = inv.Sender.Profile?.ProfileImageUrl
-                }
-            };
-        
     }
 }

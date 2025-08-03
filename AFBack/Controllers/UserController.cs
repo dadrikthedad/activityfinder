@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using AFBack.Constants;
+using AFBack.Extensions;
 using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
@@ -387,12 +388,16 @@ public class UserController : BaseController
         await _context.SaveChangesAsync();
         
         // Notify friends and blockers
-        NotifyFriendsAndBlockersOfProfileUpdate(
+        UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
+            _taskQueue,
+            _scopeFactory,
             user.Id, 
-            new List<string> { "firstName", "fullName" },
-            new { firstName = dto.FirstName, fullName = user.FullName }
+            new List<string> { "fullName" },
+            new Dictionary<string, object> 
+            { 
+                ["fullName"] = user.FullName 
+            }
         );
-
         return Ok(new { message = "First name updated." });
     }
     // Patch for profilesettings sin endring av mellomnavn
@@ -412,13 +417,16 @@ public class UserController : BaseController
         await _context.SaveChangesAsync();
         
         // Notify friends and blockers
-        NotifyFriendsAndBlockersOfProfileUpdate(
+        UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
+            _taskQueue,
+            _scopeFactory,
             user.Id, 
-            new List<string> { "firstName", "fullName" },
-            new { middleName = dto.MiddleName, fullName = user.FullName }
+            new List<string> { "fullName" },
+            new Dictionary<string, object> 
+            { 
+                ["fullName"] = user.FullName 
+            }
         );
-        
-        
 
         return Ok(new { message = "Middle name updated." });
     }
@@ -438,10 +446,15 @@ public class UserController : BaseController
         
         await _context.SaveChangesAsync();
         
-        NotifyFriendsAndBlockersOfProfileUpdate(
+        UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
+            _taskQueue,
+            _scopeFactory,
             user.Id, 
-            new List<string> { "firstName", "fullName" },
-            new { lastName = dto.LastName, fullName = user.FullName }
+            new List<string> { "fullName" },
+            new Dictionary<string, object> 
+            { 
+                ["fullName"] = user.FullName 
+            }
         );
 
         return Ok(new { message = "Last name updated." });

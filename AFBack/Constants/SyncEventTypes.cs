@@ -19,14 +19,13 @@ public static class SyncEventTypes
     
     // Friends
     public const string FRIEND_REQUEST_RECEIVED = "FRIEND_REQUEST_RECEIVED"; // Oppdaterer frontend med den nye venneforespørselen -- FERDIG BACKEND OG FRONTEND!
-    public const string FRIEND_REQUEST_ACCEPTED = "FRIEND_REQUEST_ACCEPTED"; 
-    public const string FRIEND_ADDED = "FRIEND_ADDED";
+    public const string FRIEND_ADDED = "FRIEND_ADDED"; // Sender med hele UserSummary til begge brukerne av venneforespørselen og legger den til. Sletter også pending fra pendinglsiten hvis den er der -- FERDIG BACKEND OG FRONTEND!
+    public const string FRIEND_REQUEST_DECLINED = "FRIEND_REQUEST_DECLINED"; // Sletter en venneforespørsel fra pending liSte. -- FERDIG BACKEND OG FRONTEND!
     public const string FRIEND_REMOVED = "FRIEND_REMOVED";
     
     // Users
-    public const string USER_PROFILE_UPDATED = "USER_PROFILE_UPDATED";
-    public const string USER_BLOCKED = "USER_BLOCKED"; // Ikke lagt til
-    public const string USER_UNBLOCKED = "USER_UNBLOCKED"; // Ikke lagt til
+    public const string USER_PROFILE_UPDATED = "USER_PROFILE_UPDATED"; // Brukes når en bruker oppdatere profilbilde eller navn, og sender med nødvendig informasjon for å oppdatere i store. -- FERDIGF BACKEND OG FRONTEND!
+    public const string USER_BLOCKED_UPDATED = "USER_BLOCKED_UPDATED"; // Oppdaterer brukeren som hjar blitt blokkert eller har blokkert oss i USerSummary -- FERDIG BACKEND OG FRONTEND!!
     
     // Alle notificaitons er ferdig -- FERDIG FRONTEND TIL BACKEND!
     public const string MESSAGE_NOTIFICATION_CREATED = "MESSAGE_NOTIFICATION_CREATED";

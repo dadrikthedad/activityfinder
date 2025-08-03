@@ -33,7 +33,8 @@ public class NotificationService : INotificationService
         int? commentId = null,
         int? friendInvitationId = null,
         int? eventInvitationId = null,
-        int? conversationId = null
+        int? conversationId = null,
+        UserSummaryDTO? relatedUserSummary = null
     )
     {
         var notification = new Notification
@@ -51,9 +52,10 @@ public class NotificationService : INotificationService
             ConversationId = conversationId 
         };
         
-        UserSummaryDTO? relatedUserDto = null;
         
-        if (relatedUserId.HasValue)
+        UserSummaryDTO? relatedUserDto = relatedUserSummary;
+        
+        if (relatedUserDto == null && relatedUserId.HasValue)
         {
             var relatedUser = await _context.Users
                 .Include(u => u.Profile)
@@ -79,28 +81,28 @@ public class NotificationService : INotificationService
         {
             try
             {
-                // 📝 Hent den komplette notifikasjonen med RelatedUser data
-                var completeNotification = await _context.Notifications
-                    .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(n => n.Id == notification.Id);
-
-                if (completeNotification != null)
+                var notificationDto = new NotificationDTO
                 {
-                    // 🔄 Bruk eksisterende ToDto-metode
-                    var notificationDto = ToDto(completeNotification);
+                    Id = notification.Id,
+                    Type = notification.Type,
+                    Message = notification.Message,
+                    IsRead = notification.IsRead,
+                    CreatedAt = notification.CreatedAt,
+                    PostId = notification.PostId,
+                    CommentId = notification.CommentId,
+                    FriendInvitationId = notification.FriendInvitationId,
+                    EventInvitationId = notification.EventInvitationId,
+                    RelatedUser = relatedUserDto // 🎯 Bruker provided/fetched UserSummary
+                };
 
-                    await _syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.NOTIFICATION_CREATED,
-                        eventData: notificationDto,
-                        singleUserId: recipientUserId,
-                        source: "NotificationService",
-                        relatedEntityId: notification.Id,
-                        relatedEntityType: "Notification"
-                    );
-                
-                    Log.Information("✅ Sync event created for notification {NotificationId}", notification.Id);
-                }
+                await _syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.NOTIFICATION_CREATED,
+                    eventData: notificationDto,
+                    singleUserId: recipientUserId,
+                    source: "NotificationService",
+                    relatedEntityId: notification.Id,
+                    relatedEntityType: "Notification"
+                );
             }
             catch (Exception ex)
             {

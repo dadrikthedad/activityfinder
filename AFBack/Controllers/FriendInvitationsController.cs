@@ -100,22 +100,21 @@ public class FriendInvitationsController : ControllerBase
 
                 try 
                 {
-                    // 📝 Hent den komplette invitasjonen med sender-info
-                    var completeInvitation = await context.FriendInvitations
-                        .Where(i => i.Id == invitation.Id)
-                        .Include(i => i.Sender).ThenInclude(u => u.Profile)
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync();
-
-                    if (completeInvitation != null)
+                    // 🎯 Bruk den nye alt-i-ett metoden
+                    var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                        context, 
+                        userId, // senderId
+                        dto.ReceiverId // currentUserId (mottakerens perspektiv)
+                    );
+                    
+                    if (senderSummary != null)
                     {
-                        // 🔄 Bruk samme ToDto-metode som i GetPending...
-                        var invitationDto = FriendExtensions.ToFriendInvitationDto(completeInvitation);
+                        var invitationDto = invitation.ToFriendInvitationDto(senderSummary);
 
                         // Sync event til mottakeren om ny vennforespørsel
                         await syncService.CreateAndDistributeSyncEventAsync(
                             eventType: SyncEventTypes.FRIEND_REQUEST_RECEIVED,
-                            eventData: invitationDto, // 🎯 Send hele DTO-en!
+                            eventData: invitationDto, // Send hele DTO-en!
                             singleUserId: dto.ReceiverId,
                             source: "API",
                             relatedEntityId: invitation.Id,
@@ -148,14 +147,23 @@ public class FriendInvitationsController : ControllerBase
             return Unauthorized();
 
         var inv = await _context.FriendInvitations
-            .Include(i => i.Sender).ThenInclude(u => u.Profile)
             .FirstOrDefaultAsync(i =>
                 i.Id == id &&
                 (i.ReceiverId == userId || i.SenderId == userId)); // sikkerhet
 
         if (inv == null) return NotFound();
 
-        return Ok(ToDto(inv));
+        // 🎯 Hent sender med relationship data fra current user sitt perspektiv
+        var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+            _context,
+            inv.SenderId,
+            userId // current user's perspective
+        );
+
+        if (senderSummary == null) return NotFound("Sender not found");
+
+        var invitationDto = inv.ToFriendInvitationDto(senderSummary);
+        return Ok(invitationDto);
     }
 
     /* ---------- HENT ALLE (eksisterende) ---------- */
@@ -192,22 +200,6 @@ public class FriendInvitationsController : ControllerBase
             return StatusCode(500, new { message = $"An error occurred while retrieving invitations. Error: {ex}" });
         }
     }
-
-    /* ---------- Felles DTO-mapping ---------- */
-    private static FriendInvitationDTO ToDto(FriendInvitation inv) =>
-        new()
-        {
-            Id         = inv.Id,
-            ReceiverId = inv.ReceiverId,
-            Status     = inv.Status.ToString().ToLower(), // "pending"/"accepted"/"declined"
-            SentAt     = inv.SentAt,
-            UserSummary = new UserSummaryDTO
-            {
-                Id              = inv.Sender.Id,
-                FullName        = inv.Sender.FullName,
-                ProfileImageUrl = inv.Sender.Profile?.ProfileImageUrl
-            }
-        };
 
     // PATCH: Godta forespørsel
     [HttpPatch("{id}/accept")]
@@ -272,13 +264,7 @@ public class FriendInvitationsController : ControllerBase
             
         }
         
-        await _notificationService.CreateNotificationAsync(
-            recipientUserId: invitation.SenderId,
-            relatedUserId: invitation.ReceiverId,
-            type: NotificationEntityType.FriendInvAccepted,
-            friendInvitationId: invitation.Id,
-            conversationId: conversationId
-        );
+        
 
         await _context.SaveChangesAsync();
         
@@ -287,40 +273,46 @@ public class FriendInvitationsController : ControllerBase
         {
             using var scope = _scopeFactory.CreateScope();
             var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             try 
             {
-                // Event til senderen - deres forespørsel ble godkjent
-                await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.FRIEND_REQUEST_ACCEPTED,
-                    eventData: new { 
-                        invitationId = invitation.Id,
-                        senderId = invitation.SenderId,
-                        receiverId = invitation.ReceiverId,
-                        acceptedAt = DateTime.UtcNow,
-                        conversationId = conversationId
-                    },
-                    singleUserId: invitation.SenderId,
-                    source: "API",
-                    relatedEntityId: invitation.Id,
-                    relatedEntityType: "FriendInvitation"
-                );
+                // 📝 Hent UserSummary for begge brukere fra hver sitt perspektiv
+                var senderSummaryForReceiver = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                    context, invitation.SenderId, invitation.ReceiverId);
+                    
+                var receiverSummaryForSender = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                    context, invitation.ReceiverId, invitation.SenderId);
 
-                // Event til begge - ny venn lagt til
-                var userIds = new List<int> { invitation.SenderId, invitation.ReceiverId };
-                await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.FRIEND_ADDED,
-                    eventData: new { 
-                        userId = invitation.SenderId,
-                        friendId = invitation.ReceiverId,
-                        createdAt = newFriend.CreatedAt,
-                        conversationId = conversationId
-                    },
-                    targetUserIds: userIds,
-                    source: "API",
-                    relatedEntityId: invitation.SenderId,
-                    relatedEntityType: "Friends"
-                );
+                if (senderSummaryForReceiver != null && receiverSummaryForSender != null)
+                {
+
+                    // Event til mottakeren - legg til ny venn (senderen)
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.FRIEND_ADDED,
+                        eventData: new { 
+                            friendUser = senderSummaryForReceiver, // 🎯 Den som sendte forespørselen
+                            conversationId = conversationId
+                        },
+                        singleUserId: invitation.ReceiverId,
+                        source: "API",
+                        relatedEntityId: invitation.SenderId,
+                        relatedEntityType: "Friends"
+                    );
+
+                    // Event til senderen - legg til ny venn (mottakeren)  
+                    await syncService.CreateAndDistributeSyncEventAsync(
+                        eventType: SyncEventTypes.FRIEND_ADDED,
+                        eventData: new { 
+                            friendUser = receiverSummaryForSender, // 🎯 Den som godkjente forespørselen
+                            conversationId = conversationId
+                        },
+                        singleUserId: invitation.SenderId,
+                        source: "API",
+                        relatedEntityId: invitation.ReceiverId,
+                        relatedEntityType: "Friends"
+                    );
+                }
             }
             catch (Exception ex)
             {
@@ -329,8 +321,14 @@ public class FriendInvitationsController : ControllerBase
             }
         });
         
+        await _notificationService.CreateNotificationAsync(
+            recipientUserId: invitation.SenderId,
+            relatedUserId: invitation.ReceiverId,
+            type: NotificationEntityType.FriendInvAccepted,
+            friendInvitationId: invitation.Id,
+            conversationId: conversationId
+        );
         
-
         var responseData = new 
         { 
             message = "Friend request accepted.",
@@ -358,7 +356,31 @@ public class FriendInvitationsController : ControllerBase
 
         invitation.Status = InvitationStatus.Declined;
         await _context.SaveChangesAsync();
+        
+        // 🆕 SYNC EVENT - fjern fra pending liste
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
 
+            try 
+            {
+                // Event til mottakeren (den som avslo) - fjern fra pending liste
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.FRIEND_REQUEST_DECLINED,
+                    eventData: invitation.Id,
+                    singleUserId: invitation.ReceiverId, // Kun til den som avslo
+                    source: "API",
+                    relatedEntityId: invitation.Id,
+                    relatedEntityType: "FriendInvitation"
+                );
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to create sync event for friend request decline. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
+                    invitation.Id, invitation.SenderId, invitation.ReceiverId);
+            }
+        });
         return Ok("Friend request declined.");
     }
     
