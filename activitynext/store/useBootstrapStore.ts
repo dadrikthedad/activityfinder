@@ -16,11 +16,11 @@ type BootstrapStore = {
   criticalError: string | null;
   secondaryError: string | null;
   
-  // ✅ Cache timestamps (fra eksisterende store)
+  // Cache timestamps (fra eksisterende store)
   criticalCacheTimestamp: number;
   secondaryCacheTimestamp: number;
   
-  // ✅ Loading flags (fra eksisterende store)
+  // Loading flags (fra eksisterende store)
   hasLoadedCritical: boolean;
   hasLoadedSecondary: boolean;
   
@@ -28,7 +28,7 @@ type BootstrapStore = {
   setCriticalData: (data: CriticalBootstrapResponseDTO) => void;
   setCriticalLoading: (loading: boolean) => void;
   setCriticalError: (error: string | null) => void;
-  setSyncToken: (token: string) => void;
+  setSyncToken: (token: string | null) => void;
   
   // Actions - Secondary data  
   setSecondaryData: (data: SecondaryBootstrapResponseDTO) => void;
@@ -88,7 +88,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
           criticalLoading: false,
         })),
 
-      setSyncToken: (token: string) =>
+      setSyncToken: (token: string | null) =>
         set(() => ({ syncToken: token })),
 
       // --- Secondary data actions ---
@@ -112,7 +112,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
           secondaryLoading: false 
         })),
 
-      // --- ✅ Cache management (fra eksisterende store) ---
+      // --- Cache management (fra eksisterende store) ---
       cleanupOldCache: () =>
         set((state) => {
           console.log("🧹 Cleaning up bootstrap cache at", new Date().toLocaleTimeString());
@@ -216,7 +216,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
       storage: createJSONStorage(() => indexedDBStorage),
 
       /**
-       * ✅ partialize fra eksisterende store - lagre alt som er nyttig for caching
+       * partialize fra eksisterende store - lagre alt som er nyttig for caching
        */
       partialize: (state) => ({
         // Critical data
@@ -234,7 +234,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
 
       version: 1,
       migrate: (persisted: unknown) => {
-        // ✅ Håndter migrering fra eksisterende store
+        // Håndter migrering fra eksisterende store
         const state = persisted as Partial<BootstrapStore>;
         return state as BootstrapStore;
       },

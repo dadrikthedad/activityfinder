@@ -1,6 +1,7 @@
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Extensions;
+using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Models;
 using AFBack.Services;
@@ -17,17 +18,20 @@ namespace AFBack.Controllers;
 public class BlockedController : BaseController
 {
     private readonly ApplicationDbContext _context;
-    private readonly IBackgroundTaskQueue _taskQueue; // 🆕
-    private readonly IServiceScopeFactory _scopeFactory; // 🆕
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly SendMessageCache _sendMessageCache;
 
     public BlockedController(
         ApplicationDbContext context,
-        IBackgroundTaskQueue taskQueue, // 🆕
-        IServiceScopeFactory scopeFactory) // 🆕
+        IBackgroundTaskQueue taskQueue, 
+        IServiceScopeFactory scopeFactory,
+        SendMessageCache sendMessageCache) 
     {
         _context = context;
-        _taskQueue = taskQueue; // 🆕
-        _scopeFactory = scopeFactory; // 🆕
+        _taskQueue = taskQueue; 
+        _scopeFactory = scopeFactory;
+        _sendMessageCache = sendMessageCache;
     }
     
      // POST: api/userblocks/block/{userId}
@@ -64,7 +68,19 @@ public class BlockedController : BaseController
              return Conflict("Brukeren er allerede blokkert");
          }
 
-         // Opprett ny blokkering
+         // ✅ Hent 1-til-1 samtale mellom brukerne
+         var oneToOneConversation = await _context.Conversations
+             .Where(c => c.IsGroup == false)
+             .Where(c => _context.ConversationParticipants
+                             .Where(cp => cp.ConversationId == c.Id)
+                             .Select(cp => cp.UserId)
+                             .Contains(currentUserId.Value) &&
+                         _context.ConversationParticipants
+                             .Where(cp => cp.ConversationId == c.Id)
+                             .Select(cp => cp.UserId)
+                             .Contains(userId))
+             .FirstOrDefaultAsync();
+
          var userBlock = new UserBlocks
          {
              BlockerId = currentUserId.Value,
@@ -73,6 +89,16 @@ public class BlockedController : BaseController
          };
 
          _context.UserBlock.Add(userBlock);
+
+         // ✅ Fjern CanSend for begge brukere hvis 1-til-1 samtale eksisterer
+         if (oneToOneConversation != null)
+         {
+             await _context.RemoveCanSendAsync(currentUserId.Value, oneToOneConversation.Id, _sendMessageCache);
+             await _context.RemoveCanSendAsync(userId, oneToOneConversation.Id, _sendMessageCache);
+        
+             Console.WriteLine($"🚫 Removed CanSend for both users in conversation {oneToOneConversation.Id} due to blocking");
+         }
+         
          await _context.SaveChangesAsync();
          
          // 🆕 Send separate blocking events med komplett UserSummary
@@ -146,8 +172,44 @@ public class BlockedController : BaseController
         {
             return NotFound("Blokkering ikke funnet");
         }
+        
+        // Sjekk forhold før unblocking for å vite om CanSend skal gjenopprettes
+        var areFriends = await _context.Friends
+            .AnyAsync(f => (f.UserId == currentUserId && f.FriendId == userId) ||
+                           (f.UserId == userId && f.FriendId == currentUserId));
+
+        // Sjekk om det finnes godkjent MessageRequest mellom brukerne
+        var hasApprovedMessageRequest = await _context.MessageRequests
+            .AnyAsync(mr => ((mr.SenderId == currentUserId && mr.ReceiverId == userId) ||
+                             (mr.SenderId == userId && mr.ReceiverId == currentUserId)) &&
+                            mr.IsAccepted == true && mr.IsRejected == false);
+
+        // Hent 1-til-1 samtale mellom brukerne
+        var oneToOneConversation = await _context.Conversations
+            .Where(c => c.IsGroup == false)
+            .Where(c => _context.ConversationParticipants
+                            .Where(cp => cp.ConversationId == c.Id)
+                            .Select(cp => cp.UserId)
+                            .Contains(currentUserId.Value) &&
+                        _context.ConversationParticipants
+                            .Where(cp => cp.ConversationId == c.Id)
+                            .Select(cp => cp.UserId)
+                            .Contains(userId))
+            .FirstOrDefaultAsync();
 
         _context.UserBlock.Remove(existingBlock);
+
+        // Gjenopprett CanSend hvis forholdene tillater det
+        if (oneToOneConversation != null && (areFriends || hasApprovedMessageRequest))
+        {
+            var reason = areFriends ? CanSendReason.Friendship : CanSendReason.MessageRequest;
+        
+            await _context.AddCanSendAsync(currentUserId.Value, oneToOneConversation.Id, _sendMessageCache, reason);
+            await _context.AddCanSendAsync(userId, oneToOneConversation.Id, _sendMessageCache, reason);
+        
+            Console.WriteLine($"Restored CanSend for both users in conversation {oneToOneConversation.Id} after unblocking. Reason: {reason}");
+        }
+        
         await _context.SaveChangesAsync();
         
         // Send samme struktur som BlockUser - komplette UserSummary objekter

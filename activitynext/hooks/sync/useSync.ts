@@ -13,6 +13,7 @@ export function useSync() {
   const previousTokenRef = useRef<string | null>(null);
   const isInitializedRef = useRef(false);
   const startupSyncDoneRef = useRef(false);
+  const isInitializingRef = useRef(false); // 🆕 Prevent initialization during sync
 
   // Delta sync functionality
   const { performDeltaSync, initializeSyncToken } = useDeltaSync();
@@ -47,8 +48,14 @@ export function useSync() {
     }
   });
 
-  // 1. ✅ OPTIMIZED: Initialize sync token only when it actually changes
+  // 1. ✅ FIXED: Initialize sync token only when it actually changes AND not during sync
   useEffect(() => {
+    // 🔧 Skip if we're currently initializing (prevents loops during sync token updates)
+    if (isInitializingRef.current) {
+      console.log('⏸️ Skipping token initialization - currently syncing');
+      return;
+    }
+
     if (syncToken && syncToken !== previousTokenRef.current) {
       console.log('🔄 Sync token changed, initializing...');
       previousTokenRef.current = syncToken;
@@ -60,17 +67,27 @@ export function useSync() {
     }
   }, [syncToken, initializeSyncToken]);
 
-  // 2. ✅ OPTIMIZED: Initial sync only once per token, and only after proper initialization
+  // 2. ✅ FIXED: Initial sync only once per token, and only after proper initialization
   useEffect(() => {
     if (syncToken && 
         isInitializedRef.current && 
-        !startupSyncDoneRef.current) {
+        !startupSyncDoneRef.current &&
+        !isInitializingRef.current) { // 🔧 Don't start new sync if already syncing
       
       console.log('⏱️ Scheduling startup sync in 3 seconds...');
       const timer = setTimeout(() => {
-        console.log('🚀 Performing startup sync');
-        performSyncWithTimestamp('startup');
-        startupSyncDoneRef.current = true;
+        // 🔧 Double-check we're not syncing before starting
+        if (!isInitializingRef.current && !startupSyncDoneRef.current) {
+          console.log('🚀 Performing startup sync');
+          isInitializingRef.current = true; // 🆕 Mark as syncing
+          
+          performSyncWithTimestamp('startup').finally(() => {
+            isInitializingRef.current = false; // 🆕 Reset after sync
+            startupSyncDoneRef.current = true; // Mark startup sync as done
+          });
+        } else {
+          console.log('⏸️ Startup sync skipped - already syncing or done');
+        }
       }, 3000);
 
       return () => {
@@ -78,7 +95,7 @@ export function useSync() {
         clearTimeout(timer);
       };
     }
-  }, [syncToken, performSyncWithTimestamp]); // Removed isInitializedRef from deps to avoid re-runs
+  }, [syncToken, performSyncWithTimestamp]);
 
   // 3. ✅ OPTIMIZED: Visibility change with debouncing
   useEffect(() => {
@@ -86,7 +103,7 @@ export function useSync() {
     
     const handleVisibilityChange = () => {
       // Only sync if we have a token and app becomes visible
-      if (!document.hidden && syncToken && isInitializedRef.current) {
+      if (!document.hidden && syncToken && isInitializedRef.current && !isInitializingRef.current) {
         // Debounce visibility changes (avoid rapid sync calls)
         if (visibilityTimer) {
           clearTimeout(visibilityTimer);
@@ -94,7 +111,10 @@ export function useSync() {
         
         visibilityTimer = setTimeout(() => {
           console.log('👀 App visible - performing recovery sync');
-          performSyncWithTimestamp('recovery');
+          isInitializingRef.current = true;
+          performSyncWithTimestamp('recovery').finally(() => {
+            isInitializingRef.current = false;
+          });
         }, 500); // 500ms debounce
       }
     };
@@ -114,7 +134,7 @@ export function useSync() {
     let networkTimer: NodeJS.Timeout | null = null;
     
     const handleNetworkOnline = () => {
-      if (syncToken && isInitializedRef.current) {
+      if (syncToken && isInitializedRef.current && !isInitializingRef.current) {
         // Debounce network changes (avoid rapid sync calls)
         if (networkTimer) {
           clearTimeout(networkTimer);
@@ -122,7 +142,10 @@ export function useSync() {
         
         networkTimer = setTimeout(() => {
           console.log('🌐 Network online - performing recovery sync');
-          performSyncWithTimestamp('recovery');
+          isInitializingRef.current = true;
+          performSyncWithTimestamp('recovery').finally(() => {
+            isInitializingRef.current = false;
+          });
         }, 1000); // 1 second debounce for network (might take time to stabilize)
       }
     };
@@ -144,8 +167,16 @@ export function useSync() {
       return;
     }
     
+    if (isInitializingRef.current) {
+      console.warn('⚠️ Cannot trigger sync - already syncing');
+      return;
+    }
+    
     console.log('🎯 Manual sync triggered');
-    performSyncWithTimestamp('manual');
+    isInitializingRef.current = true;
+    performSyncWithTimestamp('manual').finally(() => {
+      isInitializingRef.current = false;
+    });
   }, [syncToken, performSyncWithTimestamp]);
 
   // 6. ✅ DEBUG: Log current state
@@ -155,6 +186,7 @@ export function useSync() {
         hasToken: !!syncToken,
         isInitialized: isInitializedRef.current,
         startupSyncDone: startupSyncDoneRef.current,
+        isInitializing: isInitializingRef.current, // 🆕 Add this to debug
         signalRConnected: isSignalRConnected,
         fallbackActive: isFallbackActive,
         lastSyncAt: lastSyncAt?.toISOString()
@@ -169,6 +201,7 @@ export function useSync() {
     triggerSync,
     // 🆕 Additional useful state for debugging
     isInitialized: isInitializedRef.current,
-    hasToken: !!syncToken
+    hasToken: !!syncToken,
+    isInitializing: isInitializingRef.current // 🆕 Expose for debugging
   };
 }

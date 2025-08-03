@@ -92,9 +92,21 @@ public class SyncService
                 return null;
             }
             
+            
+            
             // Validér token integritet
             if (token.Version == 1)
             {
+                
+                // I ParseSyncToken, legg til explicit token age sjekk:
+                if (DateTime.UtcNow - token.Timestamp > TimeSpan.FromDays(7))
+                {
+                    _logger.LogInformation("Token expired: {Age:F1} days old (created: {Created})", 
+                        (DateTime.UtcNow - token.Timestamp).TotalDays,
+                        token.Timestamp.ToString("yyyy-MM-dd HH:mm:ss UTC"));
+                    return null;
+                }
+                
                 if (string.IsNullOrEmpty(token.Hash))
                 {
                     _logger.LogWarning("Sync token missing hash for version 1");

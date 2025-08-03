@@ -1,5 +1,5 @@
-"use client";
-// AppInitializer som håndterer bootstrap ved app-oppstart
+"use client"
+// AppInitializer med smart bootstrap/sync logikk
 import { useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useBootstrap } from "@/hooks/bootstrap/useBootstrap";
@@ -9,14 +9,17 @@ import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useUserCacheStore, useFriends, useBlockedUsers } from '@/store/useUserCacheStore';
-import { useBootstrapDistributor  } from "@/hooks/bootstrap/useBootstrapDistributor";
+import { useBootstrapDistributor } from "@/hooks/bootstrap/useBootstrapDistributor";
+import { useSync } from "@/hooks/sync/useSync";
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
   const prevUserIdRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-  const hasInitializedOnlineRef = useRef(false); 
+  const hasInitializedOnlineRef = useRef(false);
+  const initializationStrategyRef = useRef<'none' | 'bootstrap' | 'sync'>('none');
+  
   const { markCacheAsLoaded } = useBootstrapDistributor();
   
   const { 
@@ -37,6 +40,15 @@ export function AppInitializer() {
     markOffline 
   } = useOnlineStatus();
 
+  const { 
+    isSignalRConnected, 
+    isFallbackActive, 
+    lastSyncAt, 
+    triggerSync,
+    isInitialized: isSyncInitialized,
+    hasToken: hasSyncToken
+  } = useSync();
+
   // Reset stores ved brukerbytte
   useEffect(() => {
     console.log("🔍 BOOT: AppInitializer effect triggered:", { 
@@ -47,10 +59,10 @@ export function AppInitializer() {
     });
     
     if (!token || !userId) {
-      console.log("⏸️ BOOT: No token or userId, skipping bootstrap");
+      console.log("⏸️ BOOT: No token or userId, skipping initialization");
       hasInitializedOnlineRef.current = false;
+      initializationStrategyRef.current = 'none';
 
-      // Mark offline when not authenticated
       if (isOnline) {
         console.log("📡 BOOT: Not authenticated - marking offline");
         markOffline();
@@ -67,24 +79,16 @@ export function AppInitializer() {
       useNotificationStore.getState().reset();
       useUserCacheStore.getState().reset();
 
-      const criticalValid = isCriticalCacheValid();
-      const secondaryValid = isSecondaryCacheValid();
-
-      if (criticalValid && secondaryValid) {
-        console.log("🔧 BOOT: Marking cache as loaded after store reset");
-        markCacheAsLoaded();
-      }
-      
-      // Reset retry counter for ny bruker
+      // Reset states
       retryCountRef.current = 0;
-      hasInitializedOnlineRef.current = false; 
+      hasInitializedOnlineRef.current = false;
+      initializationStrategyRef.current = 'none';
 
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = undefined;
       }
 
-      // Mark offline when switching users
       if (isOnline) {
         console.log("📡 BOOT: User switch - marking offline");
         markOffline();
@@ -93,55 +97,87 @@ export function AppInitializer() {
     prevUserIdRef.current = userId;
     
     console.log("🚀 BOOT: AppInitializer ready for userId =", userId);
-    }, [token, userId, isOnline, markOffline, isCriticalCacheValid, isSecondaryCacheValid, markCacheAsLoaded]);
+  }, [token, userId, isOnline, markOffline]);
 
-  
-
-  // Enklere bootstrap trigger logikk
+  // 🔑 SMART INITIALIZATION LOGIC
   useEffect(() => {
     if (!token || !userId || criticalLoading) {
       return;
     }
 
+    // Hvis vi allerede har bestemt strategi, ikke gjør noe mer
+    if (initializationStrategyRef.current !== 'none') {
+      return;
+    }
+
     const criticalValid = isCriticalCacheValid();
     const secondaryValid = isSecondaryCacheValid();
+    const hasCachedSyncToken = localStorage.getItem('lastSyncToken');
     
-    console.log("🔍 BOOT: Cache status:", {
+    console.log("🧠 BOOT: Determining initialization strategy:", {
       criticalValid,
       secondaryValid,
-      isBootstrapped,
-      criticalLoading
+      hasCachedSyncToken: !!hasCachedSyncToken,
+      isBootstrapped
     });
-    
-    //  useBootstrap håndterer cache validation internt
-    // Vi kaller bare bootstrap() hvis vi ikke er ferdig ennå
-    if (!isBootstrapped) {
-      console.log("🚀 BOOT: Triggering bootstrap...");
-      bootstrap();
-    } else {
-      console.log("✅ BOOT: Already bootstrapped, skipping");
-    }
-  }, [token, userId, isBootstrapped, criticalLoading, bootstrap, isCriticalCacheValid, isSecondaryCacheValid]);
 
-  // ✅ FORBEDRET: Online status orchestration med heartbeat restart
+    // 🎯 BESLUTNINGSLOGIKK:
+    
+    // 1. Hvis vi har gyldig cache OG sync token → Bruk SYNC
+    if (criticalValid && secondaryValid && hasCachedSyncToken && !isBootstrapped) {
+      console.log("✨ BOOT: Valid cache + sync token found → Using SYNC strategy");
+      initializationStrategyRef.current = 'sync';
+      
+      // Merk cache som loaded siden vi har gyldig data
+      markCacheAsLoaded();
+      
+      // Start sync umiddelbart for å få latest changes
+      console.log("🚀 SYNC: Starting immediate sync with cached token");
+      triggerSync();
+      return;
+    }
+    
+    // 2. Hvis vi mangler cache eller token → Bruk BOOTSTRAP
+    if (!criticalValid || !secondaryValid || !hasCachedSyncToken || !isBootstrapped) {
+      console.log("🔄 BOOT: Missing cache or token → Using BOOTSTRAP strategy");
+      initializationStrategyRef.current = 'bootstrap';
+      
+      console.log("🚀 BOOT: Triggering full bootstrap...");
+      bootstrap();
+      return;
+    }
+    
+    // 3. Allerede bootstrapped og har alt vi trenger
+    console.log("✅ BOOT: Already initialized, nothing to do");
+    
+  }, [
+    token, 
+    userId, 
+    criticalLoading, 
+    isCriticalCacheValid, 
+    isSecondaryCacheValid, 
+    isBootstrapped,
+    bootstrap, 
+    markCacheAsLoaded, 
+    triggerSync
+  ]);
+
+  // Online status orchestration
   useEffect(() => {
-    // Sjekk om vi kan/skal gå online
     const shouldGoOnline = (
-      token &&                // User is authenticated
-      userId &&               // User ID exists
-      isBootstrapped &&       // Bootstrap is complete
-      user &&                 // User data is loaded
-      !criticalError &&       // No critical errors
-      !isConnecting          // Not currently connecting
+      token &&                
+      userId &&               
+      (isBootstrapped || initializationStrategyRef.current === 'sync') && // 🔧 Tillat online med sync strategy
+      user &&                 
+      !criticalError &&       
+      !isConnecting          
     );
 
-    // 🔑 LØSNING: Alltid prøv å gå online hvis vi skal være det, men ikke er det
     if (shouldGoOnline && !isOnline) {
       console.log("✅ BOOT: Conditions met for going online - marking user online");
       markOnline();
     }
     
-    // 🔑 INITIAL SETUP: Merk at vi har prøvd å gå online første gang
     if (shouldGoOnline && !hasInitializedOnlineRef.current) {
       hasInitializedOnlineRef.current = true;
       console.log("🎯 BOOT: Initial online setup complete");
@@ -157,11 +193,10 @@ export function AppInitializer() {
     markOnline
   ]);
 
-  // ✅ NYTT: Page visibility handler for å restarte heartbeat
+  // Page visibility handler
   useEffect(() => {
     const handleVisibilityChange = () => {
-      // Kun håndter hvis vi er bootstrapped og autentisert
-      if (!token || !userId || !isBootstrapped || !user) {
+      if (!token || !userId || (!isBootstrapped && initializationStrategyRef.current !== 'sync') || !user) {
         return;
       }
 
@@ -172,17 +207,13 @@ export function AppInitializer() {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [token, userId, isBootstrapped, user, isOnline, isConnecting, markOnline]);
 
-  // ✅ NYTT: Network status handler for å restarte heartbeat
+  // Network status handler
   useEffect(() => {
     const handleNetworkOnline = () => {
-      // Kun håndter hvis vi er bootstrapped og autentisert
-      if (!token || !userId || !isBootstrapped || !user) {
+      if (!token || !userId || (!isBootstrapped && initializationStrategyRef.current !== 'sync') || !user) {
         return;
       }
 
@@ -193,18 +224,45 @@ export function AppInitializer() {
     };
 
     window.addEventListener('online', handleNetworkOnline);
-    
-    return () => {
-      window.removeEventListener('online', handleNetworkOnline);
-    };
+    return () => window.removeEventListener('online', handleNetworkOnline);
   }, [token, userId, isBootstrapped, user, isOnline, isConnecting, markOnline]);
 
-  //  Exponential backoff retry logic
+  // 🆕 SYNC EVENT LISTENERS
+  useEffect(() => {
+    const handleFullRefreshRequired = (event: CustomEvent) => {
+      console.log("🔄 SYNC: Full refresh required:", event.detail.reason);
+      
+      // Reset strategy og trigger bootstrap
+      initializationStrategyRef.current = 'bootstrap';
+      bootstrap();
+    };
+
+    const handleSyncError = (event: CustomEvent) => {
+      console.error("❌ SYNC: Sync error:", event.detail);
+      
+      // Hvis sync feiler og vi ikke har bootstrap som fallback
+      if (initializationStrategyRef.current === 'sync' && !isBootstrapped) {
+        console.log("🔄 SYNC: Sync failed, falling back to bootstrap");
+        initializationStrategyRef.current = 'bootstrap';
+        bootstrap();
+      }
+    };
+
+    window.addEventListener('sync:fullRefreshRequired', handleFullRefreshRequired as EventListener);
+    window.addEventListener('sync:error', handleSyncError as EventListener);
+
+    return () => {
+      window.removeEventListener('sync:fullRefreshRequired', handleFullRefreshRequired as EventListener);
+      window.removeEventListener('sync:error', handleSyncError as EventListener);
+    };
+  }, [bootstrap, isBootstrapped]);
+
+  // Exponential backoff retry logic (kun for bootstrap errors)
   useEffect(() => {
     const maxRetries = 5;
     const retryDelays = [1000, 2000, 4000, 8000, 16000];
 
-    if (criticalError) {
+    if (criticalError && initializationStrategyRef.current === 'bootstrap') {
       if (retryCountRef.current < maxRetries) {
         const delay = retryDelays[retryCountRef.current] || 16000;
         
@@ -222,20 +280,17 @@ export function AppInitializer() {
         console.log("🛑 BOOT: Max retries reached. Manual intervention required.");
       }
     } else if (isBootstrapped) {
-      // Reset retry count on successful bootstrap
       if (retryCountRef.current > 0) {
         console.log("✅ BOOT: Bootstrap successful, resetting retry counter");
         retryCountRef.current = 0;
       }
       
-      // Clear any pending retry timeout
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
         retryTimeoutRef.current = undefined;
       }
     }
 
-    // Cleanup on unmount
     return () => {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
@@ -245,19 +300,41 @@ export function AppInitializer() {
 
   // Debug logging
   useEffect(() => {
-    if (criticalLoading) {
+    const strategy = initializationStrategyRef.current;
+    
+    if (strategy === 'bootstrap' && criticalLoading) {
       console.log("⏳ BOOT: Loading critical bootstrap data...");
+    } else if (strategy === 'sync' && isSyncInitialized) {
+      console.log("✅ SYNC: Sync-based initialization complete!");
     } else if (isBootstrapped && !criticalError) {
       console.log("✅ BOOT: Bootstrap complete!", {
+        strategy,
         retryCount: retryCountRef.current > 0 ? retryCountRef.current : "no retries needed"
       });
     }
-  }, [criticalLoading, isBootstrapped, criticalError]);
+  }, [criticalLoading, isBootstrapped, criticalError, isSyncInitialized]);
+
+  // 🆕 STRATEGY STATUS DEBUG
+  useEffect(() => {
+    const strategy = initializationStrategyRef.current;
+    
+    if (strategy !== 'none') {
+      console.log("🎯 INIT: Strategy status:", {
+        strategy,
+        isBootstrapped: strategy === 'bootstrap' ? isBootstrapped : 'N/A',
+        isSyncInitialized: strategy === 'sync' ? isSyncInitialized : 'N/A',
+        signalRConnected: isSignalRConnected,
+        fallbackActive: isFallbackActive,
+        lastSyncAt: lastSyncAt?.toISOString(),
+        hasSyncToken
+      });
+    }
+  }, [isBootstrapped, isSyncInitialized, isSignalRConnected, isFallbackActive, lastSyncAt, hasSyncToken]);
 
   return null;
 }
 
-// 🔧 FORBEDRET: Debug component med bedre styling og mer info
+// 🔧 FORBEDRET: Debug component med sync info
 export function BootstrapDebugInfo() {
   const { 
     isBootstrapped, 
@@ -280,13 +357,21 @@ export function BootstrapDebugInfo() {
     isConnecting, 
     connectionError 
   } = useOnlineStatus();
+
+  // 🆕 LEGG TIL SYNC STATUS
+  const { 
+    isSignalRConnected, 
+    isFallbackActive, 
+    lastSyncAt,
+    isInitialized: isSyncInitialized,
+    hasToken: hasSyncToken,
+    triggerSync
+  } = useSync();
   
   const { unreadConversationIds } = useChatStore();
-
   const friends = useFriends();
   const blockedUsers = useBlockedUsers();
   
-
   // 🔧 Kun vis i development
   if (process.env.NODE_ENV !== 'development') {
     return null;
@@ -315,6 +400,17 @@ export function BootstrapDebugInfo() {
     borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
   };
 
+  const buttonStyle: React.CSSProperties = {
+    background: 'rgba(0, 123, 255, 0.8)',
+    color: 'white',
+    border: 'none',
+    padding: '4px 8px',
+    borderRadius: '4px',
+    fontSize: '10px',
+    cursor: 'pointer',
+    marginTop: '4px',
+  };
+
   const getStatusIcon = (condition: boolean, loading = false) => {
     if (loading) return '⏳';
     return condition ? '✅' : '❌';
@@ -335,6 +431,21 @@ export function BootstrapDebugInfo() {
         <div>Online: {getStatusIcon(isOnline, isConnecting)}</div>
         <div>Connecting: {getStatusIcon(isConnecting)}</div>
         {connectionError && <div>Error: {connectionError.substring(0, 20)}...</div>}
+      </div>
+
+      {/* 🆕 SYNC STATUS SECTION */}
+      <div style={sectionStyle}>
+        <strong>🔄 Sync Status</strong>
+        <div>Initialized: {getStatusIcon(isSyncInitialized)}</div>
+        <div>Has Token: {getStatusIcon(hasSyncToken)}</div>
+        <div>SignalR: {getStatusIcon(isSignalRConnected)}</div>
+        <div>Fallback: {getStatusIcon(isFallbackActive)}</div>
+        {lastSyncAt && (
+          <div>Last Sync: {new Date(lastSyncAt).toLocaleTimeString()}</div>
+        )}
+        <button style={buttonStyle} onClick={triggerSync}>
+          Trigger Manual Sync
+        </button>
       </div>
       
       <div style={sectionStyle}>
@@ -359,21 +470,10 @@ export function BootstrapDebugInfo() {
         <div>Settings: {getStatusIcon(!!settings)}</div>
         <div>Conversations: {conversations?.length || 0}</div>
         <div>Unread IDs: {unreadConversationIds?.length || 0}</div>
-        <div>Message Notifications: {messageNotifications?.length || 0}</div> {/* 🆕 LEGG TIL */}
+        <div>Message Notifications: {messageNotifications?.length || 0}</div>
         <div>Friend Invitations: {pendingFriendInvitations?.length || 0}</div>
         <div>Notifications: {appNotifications?.length || 0}</div>
       </div>
     </div>
   );
-}
-
-// Hook for manuell bootstrap trigger (for debug/testing)
-export function useManualBootstrap() {
-  const { bootstrap, retryCritical, retrySecondary } = useBootstrap();
-  
-  return {
-    triggerFullBootstrap: bootstrap,
-    retryCritical,
-    retrySecondary,
-  };
 }

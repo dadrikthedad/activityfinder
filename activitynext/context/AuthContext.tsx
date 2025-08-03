@@ -16,6 +16,7 @@ import { indexedDBStorage } from "@/store/indexedNotificationDBStorage";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
+import { markOfflineWithDefaults } from "@/services/onlineStatusService";
 
 interface AuthContextType {
   isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
@@ -71,6 +72,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
   };
  
   const logout = async () => {
+      try {
+      // 🔴 MARKER SOM OFFLINE FØRST (før vi fjerner token)
+      console.log("🔴 Markerer bruker som offline ved utlogging...");
+      await markOfflineWithDefaults();
+      console.log("✅ Bruker markert som offline");
+    } catch (error) {
+      console.warn("⚠️ Kunne ikke markere som offline ved utlogging:", error);
+      // Fortsett med logout selv om offline-markering feiler
+    }
+
     if (typeof window !== "undefined") {
       // Fjern kun sesjons­relaterte nøkler
       localStorage.removeItem("token");
