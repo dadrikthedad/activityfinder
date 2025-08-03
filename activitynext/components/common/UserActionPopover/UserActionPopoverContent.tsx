@@ -14,6 +14,14 @@ interface Props {
   isOwner: boolean;
   isFriend: boolean;
   isFriendLoading: boolean;
+  // Blocking props
+  isBlocked?: boolean;
+  hasBlockedMe?: boolean;
+  isBlocking?: boolean;
+  isUnblocking?: boolean;
+  onBlock?: () => void;
+  onUnblock?: () => void;
+  // Props
   onVisitProfile: () => void;
   onSendMessage: () => void;
   onRemoveFriend: () => void;
@@ -38,6 +46,12 @@ export default function UserActionPopoverContent({
   isOwner,
   isFriend,
   isFriendLoading,
+  isBlocked = false,
+  hasBlockedMe = false,
+  isBlocking = false,
+  isUnblocking = false,
+  onBlock,
+  onUnblock,
   onVisitProfile,
   onSendMessage,
   onRemoveFriend,
@@ -89,6 +103,47 @@ export default function UserActionPopoverContent({
       position
     });
   }, [user, conversationId]);
+
+  
+  // ✅ Build dropdown actions based on current relationship status
+  const buildDropdownActions = useCallback(() => {
+    const actions = [];
+
+    // Friend actions
+    if (isFriend && onRemoveFriend) { // ✅ Check if function exists
+      actions.push({ label: "Remove Friend", onClick: onRemoveFriend });
+    }
+
+    // Block/Unblock actions
+    if (isBlocked && onUnblock) { // ✅ Check if function exists
+      actions.push({ 
+        label: isUnblocking ? "Unblocking..." : "Unblock", 
+        onClick: onUnblock,
+        disabled: isUnblocking
+      });
+    } else if (!hasBlockedMe && onBlock) { // ✅ Check if function exists
+      actions.push({ 
+        label: isBlocking ? "Blocking..." : "Block", 
+        onClick: onBlock,
+        disabled: isBlocking
+      });
+    }
+
+    actions.push(
+        { label: "Report", onClick: () => alert("Report clicked") }
+      );
+      
+    return actions;
+  }, [
+    isFriend, 
+    isBlocked, 
+    hasBlockedMe, 
+    isBlocking, 
+    isUnblocking, 
+    onRemoveFriend, 
+    onBlock, 
+    onUnblock
+  ]);
   
   return (
     <div className="w-96 bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 border-2 border-[#1C6B1C]">
@@ -172,23 +227,22 @@ export default function UserActionPopoverContent({
                 />
                 {!isOwner && (
                   <>
-                    <ProfileNavButton
-                      text="Send Message"
-                      onClick={onSendMessage}
-                      variant="small"
-                      className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
-                    />
+                    {/* ✅ Hide Send Message if user has blocked us */}
+                    {!hasBlockedMe && !isBlocked && (
+                      <ProfileNavButton
+                        text="Send Message"
+                        onClick={onSendMessage}
+                        variant="small"
+                        className="bg-[#1C6B1C] hover:bg-[#0F3D0F] text-white"
+                      />
+                    )}
+
                     {!isFriendLoading && (
                       <DropdownNavButton
                         text="More Options"
                         variant="small"
                         className="self-start bg-gray-500 hover:bg-gray-600 text-white rounded-md"
-                        actions={[
-                          ...(isFriend ? [{ label: "Remove Friend", onClick: onRemoveFriend }] : []),
-                          { label: "Block", onClick: () => alert("Block clicked") },
-                          { label: "Ignore", onClick: () => alert("Ignore clicked") },
-                          { label: "Report", onClick: () => alert("Report clicked") },
-                        ]}
+                        actions={buildDropdownActions()} // ✅ Dynamic actions based on relationship
                       />
                     )}
                   </>

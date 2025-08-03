@@ -4,12 +4,14 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useOverlay, useOverlayLayer } from "@/context/OverlayProvider";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
-import { useFriendWith } from "@/hooks/useFriendWith";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { MessageDTO } from "@/types/MessageDTO";
 import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
 import { useLeaveGroup } from "@/hooks/messages/useLeaveGroup";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
+import { useBlockUser } from "@/hooks/block/useBlockUser";
+import { useUnblockUser } from "@/hooks/block/useUnblockUser";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 interface UseUserActionPopoverProps {
   user: UserSummaryDTO;
@@ -43,10 +45,20 @@ export function useUserActionPopover({
   const { userId: currentUserId } = useAuth();
   const { closeAllLevels } = useOverlayLayer();
 
+  // Hent info om forhold fra store
+  const { getUser } = useUserCacheStore();
+  const cachedUser = getUser(user.id);
+  // Set forhold
+  const isFriend = cachedUser?.isFriend || false;
+  const isBlocked = cachedUser?.isBlocked || false; // User we have blocked
+  const hasBlockedMe = cachedUser?.hasBlockedMe || false;
+
   // Always call hooks - React requires consistent hook order
   const confirmRemoveResult = useConfirmRemoveFriend();
-  const friendResult = useFriendWith(user.id);
   const { leaveGroupMutation, isLeavingGroup, error: leaveGroupError } = useLeaveGroup()
+
+  const { blockUser, isLoading: isBlocking, error: blockError } = useBlockUser(); // Block hook
+  const { unblockUser, isLoading: isUnblocking, error: unblockError } = useUnblockUser();
 
   // Use results conditionally, not the hooks themselves
   const { confirmAndRemove, ConfirmDialog: RemoveFriendConfirmDialog } = (isSimplified || isNested)
@@ -55,10 +67,6 @@ export function useUserActionPopover({
 
   const { confirm, ConfirmDialog: LeaveGroupConfirmDialog } = useConfirmDialog();
   
-  
-  const { isFriend, loading: isFriendLoading } = (isSimplified || isNested)
-    ? { isFriend: false, loading: false }
-    : friendResult;
 
   // Overlay hooks for additional windows (only in full mode)
   const newMessageOverlay = useOverlay();
@@ -106,6 +114,28 @@ export function useUserActionPopover({
     onClose,
     onCloseDropdown
   ]);
+
+  // Block/Unblock handlers
+  const handleBlock = useCallback(async () => {
+    if (isSimplified) return;
+    
+    console.log('🚫 Blocking user:', user.fullName);
+    const response = await blockUser(user.id);
+    if (response) {
+      console.log('✅ User blocked:', response.message);
+    }
+  }, [user, blockUser, isSimplified]);
+
+  const handleUnblock = useCallback(async () => {
+    if (isSimplified) return;
+    
+    console.log('✅ Unblocking user:', user.fullName);
+    const response = await unblockUser(user.id);
+    if (response) {
+      console.log('✅ User unblocked:', response.message);
+
+    }
+  }, [user, unblockUser, isSimplified]);
 
   const handleLeaveGroup = useCallback(async () => {
     console.log('🚪 Attempting to leave group:', conversationId);
@@ -268,9 +298,15 @@ export function useUserActionPopover({
     // Core properties
     isOwner,
     isFriend,
-    isFriendLoading,
+    isFriendLoading: false,
+    isBlocked, // User we have blocked
+    hasBlockedMe, // User who blocked us
+    isBlocking, // Block operation loading
+    isUnblocking, // Unblock operation loading
     isLeavingGroup,
     leaveGroupError,
+    blockError,
+    unblockError,
 
     // Core handlers
     handleVisitProfile,
@@ -279,6 +315,8 @@ export function useUserActionPopover({
     handleSendMessage,
     handleRemoveFriend, // Legacy name for handleRemove
     handleRemove: handleRemoveFriend, // New name
+    handleBlock, // Block handler
+    handleUnblock,
     handleSendMessageToUser: handleSendMessageToUserWrapper,
     handleShowUserPopover,
 

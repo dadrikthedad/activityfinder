@@ -8,6 +8,7 @@ import { usePendingConversationSync } from "@/hooks/messages/getPendingConversat
 import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
 import { useSimpleBootstrapCheck } from "./useSimpleBootstrapCheck";
 import { useChatHub } from "@/hooks/signalr/useChatHub";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 // Import alle handler funksjoner
 import {
@@ -37,6 +38,7 @@ export default function SignalRClient() {
     const { syncPendingConversation } = usePendingConversationSync();
     const { refreshConversation } = useConversationUpdate();
     const { checkAndExecute } = useSimpleBootstrapCheck();
+    const updateUser = useUserCacheStore((state) => state.updateUser);
 
     // 🚀 DIREKTE KALL til useChatHub med inline handlers
     useChatHub(
@@ -88,7 +90,20 @@ export default function SignalRClient() {
       // onNotification
       async (evt) => {
         await handleNotification(evt, token);
-      }
+      },
+
+      // Oppdaterer en brukerprofil etter bytte av bilde eller navn
+      async (data) => {
+        updateUser(data.userId, data.updatedValues);
+        console.log('⚡ Real-time profile update via SignalR:', data.updatedFields, data.updatedValues);
+      },
+
+      // Oppdaterer UserCacheStore med oppdatert bruker etter en blokkering
+      async (data) => {
+        const { setUser } = useUserCacheStore.getState();
+        setUser(data); // Legg til/oppdater med isBlocked: true
+        console.log('🚫 You have been blocked/unblocked:', data.fullName);
+      },
     );
 
     return null; // Kun sideeffekter

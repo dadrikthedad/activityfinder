@@ -12,6 +12,7 @@ export async function processSyncEvent(event: SyncEventDTO): Promise<void> {
   console.log(`🔄 Processing sync event: ${event.eventType}`, eventData);
   const currentUserId = useUserCacheStore.getState().currentUser?.id ?? null;
   const { updateMessageReactions, addConversation } = useChatStore.getState();
+  const { updateUser, setUser } = useUserCacheStore.getState();
   
   switch (event.eventType) {
     // Message events 
@@ -86,24 +87,54 @@ export async function processSyncEvent(event: SyncEventDTO): Promise<void> {
       console.log('🤝 Friend request received:', eventData);
       break;
     }
-    case 'FRIEND_REQUEST_ACCEPTED':
-      // await handleFriendRequestAccepted(eventData);
+    case 'FRIEND_ADDED': {
+      const { removeFriendRequest } = useNotificationStore.getState();
+      
+      // Legg til/oppdater venn i user cache
+      updateUser(eventData.friendUser.id, {
+        ...eventData.friendUser,
+        isFriend: true,  // Sikre at relationship status er satt/
+      });
+      
+      // Fjern friend request hvis den finnes
+      const friendRequests = useNotificationStore.getState().friendRequests;
+      const existingRequest = friendRequests.find(fr => 
+        fr.userSummary?.id === eventData.friendUser.id
+      );
+      
+      if (existingRequest) {
+        removeFriendRequest(existingRequest.id);
+        console.log('🤝 Removed friend request after becoming friends');
+      }
+      
+      console.log('🤝 Friend added:', eventData.friendUser.fullName);
       break;
-    case 'FRIEND_ADDED':
-      // await handleFriendAdded(eventData);
+    }
+
+    case 'FRIEND_REQUEST_DECLINED': { // -- FERDIG FRONTEND TIL BACKEND!!
+      const { removeFriendRequest } = useNotificationStore.getState(); // Sender kun med pendingInv ID og sletter den fra listen
+      removeFriendRequest(eventData as number);
+      console.log('❌ Friend request declined and removed from pending list');
       break;
-    case 'FRIEND_REMOVED':
-      // await handleFriendRemoved(eventData);
+    }
+    case 'FRIEND_REMOVED': { // Sender med Id-en til vennen vi skal sette som ikke venn i UserSummary-listen -- FERDIG FRONTEND TIL BACKEND!!
+      updateUser(eventData.friendId, {
+        isFriend: false // 🎯 Sett som ikke-venn
+      });
+      console.log('💔 Friend removed from user cache:', eventData.friendId);
       break;
-    
-    case 'USER_PROFILE_UPDATED':
-      // await handleUserProfileUpdated(eventData);
+    }
+    case 'USER_PROFILE_UPDATED': {
+      const { updateUser } = useUserCacheStore.getState();
+      
+      // Oppdater kun de endrede feltene (f.eks. fullName eller profileImageUrl)
+      updateUser(eventData.userId, eventData.updatedValues);
+      
+      console.log('👤 User profile updated:', eventData.updatedFields, eventData.updatedValues);
       break;
-    case 'USER_BLOCKED':
-      // await handleUserBlocked(eventData);
-      break;
-    case 'USER_UNBLOCKED':
-      // await handleUserUnblocked(eventData);
+    }
+    case 'USER_BLOCKED_UPDATED': // Sender med hele USerSummaryen til den som blokkerte/unblokkerte brukeren eller som brukeren har blokkert/unblokkert selv -- FERDIG FRONTEND TIL BACKEND!!
+      setUser(eventData);
       break;
 
     // Notificaitons
@@ -117,7 +148,7 @@ export async function processSyncEvent(event: SyncEventDTO): Promise<void> {
       console.log('🔔 Notification added to store:', eventData);
       break;
     }
-    
+
     default:
       console.warn('Unknown sync event type:', event.eventType);
   }

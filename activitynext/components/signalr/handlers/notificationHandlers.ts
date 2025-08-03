@@ -6,6 +6,7 @@ import { showNotificationToast } from "@/components/toast/Toast";
 import { getFriendInvitationById } from "@/services/friends/friendService";
 import { getNotificationById } from "@/services/notifications/notificationService";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 export const handleNotification = async (
   evt: NotificationDTO,
@@ -20,7 +21,7 @@ export const handleNotification = async (
     friendRequestTotalCount,
     notifications: notificationsRef 
   } = useNotificationStore.getState();
-  
+
   try {
     if (evt.type === "FriendInvitation") {
       if (!token || !evt.friendInvitationId) return;
@@ -42,6 +43,11 @@ export const handleNotification = async (
       addNotification(evt);
 
       if (evt.relatedUser) {
+        const { setUser } = useUserCacheStore.getState(); // 🔄 Bruk setUser i stedet
+        
+        setUser(evt.relatedUser);
+        
+        console.log('🤝 Friend added to user cache:', evt.relatedUser.fullName);
         showNotificationToast({
           senderName: evt.relatedUser.fullName ?? "Someone",
           type: LocalToastType.FriendInvAccepted,

@@ -42,12 +42,18 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     isOwner,
     isFriend,
     isFriendLoading,
+    isBlocked, // User we have blocked
+    hasBlockedMe, // User who blocked us
+    isBlocking, // Block operation loading
+    isUnblocking, // Unblock operation loading
     isLeavingGroup,
     handleVisitProfile,
     handleClose,
     handleLeaveGroup,
     handleSendMessage,
     handleRemove,
+    handleBlock,
+    handleUnblock,
     handleShowUserPopover,
     handleSendMessageFromNested,
     showNewMessageWindow,
@@ -70,7 +76,7 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
     isGroup,
     participants,
     conversationId,
-    isSimplified: false // ✅ Full functionality
+    isSimplified: false // Full functionality
   });
 
   return (
@@ -90,6 +96,12 @@ export default React.memo(function UserActionPopover(props: UserActionPopoverPro
           isOwner={isOwner}
           isFriend={!!isFriend}
           isFriendLoading={isFriendLoading}
+          isBlocked={isBlocked} 
+          hasBlockedMe={hasBlockedMe} 
+          isBlocking={isBlocking} 
+          isUnblocking={isUnblocking}
+          onBlock={handleBlock}
+          onUnblock={handleUnblock} 
           isLeavingGroup={isLeavingGroup}
           onVisitProfile={handleVisitProfile}
           onSendMessage={handleSendMessage}

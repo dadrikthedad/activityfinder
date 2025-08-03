@@ -8,6 +8,7 @@ export interface UserSummaryDTO {
     // Ekstra logikk for samhandlig med andre brukere
     isFriend?: boolean;
     isBlocked?: boolean;
+    hasBlockedMe?: boolean;
     lastUpdated?: number; // Unix timestamp
   }
 

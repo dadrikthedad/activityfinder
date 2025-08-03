@@ -11,6 +11,7 @@ import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO } from "@/types/GroupNotificationUpdateDTO";
 import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
 import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
@@ -22,7 +23,14 @@ export function useChatHub(
   onGroupDisbanded?: (data: GroupDisbandedDto) => void,
   onGroupParticipantsUpdated?: (conversationId: number) => void,
   onMessageDeleted?: (data: { conversationId: number; message: MessageDTO }) => void,
-  onReceiveNotification?: (notification: NotificationDTO) => void  
+  onReceiveNotification?: (notification: NotificationDTO) => void,
+  onUserProfileUpdated?: (data: { 
+    userId: number; 
+    updatedFields: string[]; 
+    updatedValues: Partial<UserSummaryDTO>; 
+    updatedAt: string 
+  }) => void,
+  onUserBlockedUpdated?: (data: UserSummaryDTO) => void,
 ) {
   const messageRef = useRef(onReceiveMessage);
   const reactionRef = useRef<
@@ -36,6 +44,9 @@ export function useChatHub(
   const groupParticipantsUpdatedRef = useRef(onGroupParticipantsUpdated);
   const messageDeletedRef = useRef(onMessageDeleted);
   const notificationRef = useRef(onReceiveNotification); 
+  const userProfileUpdatedRef = useRef(onUserProfileUpdated);
+  const userBlockedUpdatedRef = useRef(onUserBlockedUpdated);
+
 
   // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
@@ -49,7 +60,9 @@ export function useChatHub(
   useEffect(() => { groupDisbandedRef.current = onGroupDisbanded }, [onGroupDisbanded]);
   useEffect(() => { groupParticipantsUpdatedRef.current = onGroupParticipantsUpdated }, [onGroupParticipantsUpdated]);
   useEffect(() => { messageDeletedRef.current = onMessageDeleted }, [onMessageDeleted]);
-  useEffect(() => { notificationRef.current = onReceiveNotification }, [onReceiveNotification]); 
+  useEffect(() => { notificationRef.current = onReceiveNotification }, [onReceiveNotification]);
+  useEffect(() => { userProfileUpdatedRef.current = onUserProfileUpdated }, [onUserProfileUpdated]);
+  useEffect(() => { userBlockedUpdatedRef.current = onUserBlockedUpdated }, [onUserBlockedUpdated]);
 
   useEffect(() => {
     const conn = createChatConnection();
@@ -77,7 +90,9 @@ export function useChatHub(
           conn.off("GroupRequestCreated");
           conn.off("GroupNotificationUpdated");
           conn.off("MessageDeleted");
-          conn.off("ReceiveNotification"); 
+          conn.off("ReceiveNotification");
+          conn.off("UserProfileUpdated");
+          conn.off("UserBlockedUpdated");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             messageRef.current?.(message);
@@ -158,6 +173,22 @@ export function useChatHub(
             console.log("📥 ReceiveNotification event mottatt i useChatHub:", notification);
             console.log("🎯 notificationRef.current er:", !!notificationRef.current);
             notificationRef.current?.(notification);
+          });
+
+          // Oppdatering av en brukerprofil etter en endring
+          conn.on("UserProfileUpdated", (data: { 
+            userId: number; 
+            updatedFields: string[]; 
+            updatedValues: Partial<UserSummaryDTO>; // 🔄 Endret fra Record<string, any>
+            updatedAt: string 
+          }) => {
+            console.log("👤 User profile updated via SignalR:", data);
+            userProfileUpdatedRef.current?.(data);
+          });
+
+          conn.on("UserBlockedUpdated", (data) => {
+            console.log("🚫 You were blocked/unblocked via SignalR:", data);
+            userBlockedUpdatedRef.current?.(data);
           });
 
         } catch (err) {

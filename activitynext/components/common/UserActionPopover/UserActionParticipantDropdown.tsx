@@ -99,7 +99,7 @@ export default function ParticipantsDropdownButton({
 
   const handleToggle = useCallback(() => {
     setIsOpen(prev => !prev);
-  }, [isOpen]);
+  }, []);
 
   const handleParticipantClick = useCallback((participant: UserSummaryDTO, event: React.MouseEvent) => {
     event.preventDefault();
