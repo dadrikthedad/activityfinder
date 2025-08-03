@@ -16,9 +16,10 @@ public class MessageNotificationService
     private readonly GroupNotificationService _groupNotificationService;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly NotificationSyncService _notificationSyncService;
     
 
-    public MessageNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
+    public MessageNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, NotificationSyncService notificationSyncService)
     {
         _context = context;
         _hubContext = hubContext;
@@ -26,6 +27,7 @@ public class MessageNotificationService
         _groupNotificationService = groupNotificationService;
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
+        _notificationSyncService = notificationSyncService;
     }
     
     public async Task<MessageResponseDTO> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
@@ -144,7 +146,7 @@ public class MessageNotificationService
         var dto = await BuildNotificationDTO(notificationToReturn, conversation.IsGroup, conversation.GroupName, conversation.GroupImageUrl);
         
         // 🚀 Automatically queue sync event
-        QueueNotificationSyncEvent(dto, recipientUserId);
+        _notificationSyncService.QueueNotificationSyncEvent(dto, recipientUserId);
 
     }
     
@@ -263,7 +265,7 @@ public class MessageNotificationService
 
         var dto = MapToDTO(created!);
         
-        QueueNotificationSyncEvent(dto, receiverId); 
+        _notificationSyncService.QueueNotificationSyncEvent(dto, receiverId); 
         
         return dto;
     }
@@ -295,7 +297,7 @@ public class MessageNotificationService
         var dto = MapToDTO(created!);
     
         // Automatically queue sync event
-        QueueNotificationSyncEvent(dto, senderId);
+        _notificationSyncService.QueueNotificationSyncEvent(dto, senderId);
         
         return dto;
     }
@@ -355,7 +357,7 @@ public class MessageNotificationService
         var dto = MapToDTO(created!);
     
         // Automatically queue sync event
-        QueueNotificationSyncEvent(dto, receiverUserId);
+        _notificationSyncService.QueueNotificationSyncEvent(dto, receiverUserId);
     
         return dto;
     }
@@ -408,7 +410,7 @@ public class MessageNotificationService
         var dto = MapToDTO(created!);
     
         // Automatically queue sync event
-        QueueNotificationSyncEvent(dto, receiverId);
+        _notificationSyncService.QueueNotificationSyncEvent(dto, receiverId);
     
         return dto;
     }
@@ -664,29 +666,5 @@ public class MessageNotificationService
         }
     }
     
-    // Hjelpemetode for å lage en notifikasjon til å lage en sync event til hver notifikasjon blir laget
-    public void QueueNotificationSyncEvent(MessageNotificationDTO notification, int receiverUserId)
-    {
-        _taskQueue.QueueAsync(async () => 
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
-
-            try 
-            {
-                await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.MESSAGE_NOTIFICATION_CREATED,
-                    eventData: notification,
-                    singleUserId: receiverUserId, // 👈 Bruk parameteren
-                    source: "API",
-                    relatedEntityId: notification.Id,
-                    relatedEntityType: "MessageNotification"
-                );
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to create sync event for notification {NotificationId}", notification.Id);
-            }
-        });
-    }
+    
 }

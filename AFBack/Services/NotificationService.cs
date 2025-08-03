@@ -14,9 +14,9 @@ public class NotificationService : INotificationService
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<UserHub> _hubContext;
     private readonly SyncService _syncService; 
-    private readonly BackgroundTaskQueue _taskQueue;
+    private readonly IBackgroundTaskQueue _taskQueue;
 
-    public NotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, SyncService syncService, BackgroundTaskQueue taskQueue)
+    public NotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, SyncService syncService, IBackgroundTaskQueue taskQueue)
     {
         _context = context;
         _hubContext = hubContext;

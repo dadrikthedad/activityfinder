@@ -12,13 +12,13 @@ public class GroupNotificationService
 {
     private readonly ApplicationDbContext _context;
     private readonly IHubContext<UserHub> _hubContext;
-    private readonly MessageNotificationService _messageNotificationService;
+    private readonly NotificationSyncService _notificationSyncService;
 
-    public GroupNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService)
+    public GroupNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, NotificationSyncService notificationSyncService)
     {
         _context = context;
         _hubContext = hubContext;
-        _messageNotificationService = messageNotificationService;
+        _notificationSyncService = notificationSyncService;
     }
     
     /// <summary>
@@ -89,7 +89,7 @@ public class GroupNotificationService
                                 });
                             
                             // 🆕 Send sync event rett etter (for offline brukere)
-                            _messageNotificationService.QueueNotificationSyncEvent(messageNotificationDTO, memberId);
+                            _notificationSyncService.QueueNotificationSyncEvent(messageNotificationDTO, memberId);
 
                             Console.WriteLine($"✅ Sent GroupNotificationUpdated to member {memberId} for conversation {conversationId}");
                         }

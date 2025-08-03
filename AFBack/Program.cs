@@ -179,6 +179,7 @@ builder.Services.AddScoped<FriendService>();
 builder.Services.AddScoped<UserOnlineService>();
 builder.Services.AddHostedService<MaintenanceCleanupService>();
 builder.Services.AddScoped<SyncService>();
+builder.Services.AddScoped<NotificationSyncService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
