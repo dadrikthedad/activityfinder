@@ -85,6 +85,10 @@ export default function MessageDropdown({
 
   const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
 
+  // For oppdatering av en optimistisk melding
+  const [editingOptimisticMessage, setEditingOptimisticMessage] = useState<MessageDTO | null>(null);
+
+
   // Hvis samtalen får en feil så har vi det her
   const [conversationError, setConversationError] = useState<string | null>(null);
   // Sjekk om det er en "deleted conversation" error
@@ -462,6 +466,7 @@ export default function MessageDropdown({
                   onScrollPositionChange={setAtBottom}
                   onReply={handleReply}
                   onConversationError={setConversationError}
+                  onEditOptimisticMessage={setEditingOptimisticMessage}
                 />
               </div>
 
@@ -472,6 +477,8 @@ export default function MessageDropdown({
                   onMessageSent={(message) => {
                     console.log("📤 OVERLAY Ny melding sendt:", message);
                     setReplyingTo(null);
+                    // 🆕 Clear editing state når melding er sendt
+                    setEditingOptimisticMessage(null);
                   }}
                   atBottom={atBottom}
                   onShowUserPopover={showUserPopover}
@@ -480,6 +487,8 @@ export default function MessageDropdown({
                   isDisabled={hasConversationError} // 🆕 Disable for any conversation error
                   hideToolbar={hasConversationError}
                   conversationError={conversationError}
+                  editingMessage={editingOptimisticMessage}
+                  onClearEditing={() => setEditingOptimisticMessage(null)}
                 />
               </div>
             </div>

@@ -14,6 +14,7 @@ import { ReplyPreview } from "./ReplyPreview";
 import { useEmojiInput } from "@/hooks/useEmojiPinput";
 import { EmojiPickerWrapper } from "./EmojiPickerWrapper";
 import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
+import { useCurrentUser } from "@/store/useUserCacheStore";
 
 
 interface MessageInputProps {
@@ -55,11 +56,13 @@ export default function MessageInput({
   const [rawText, setRawText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileValidationError, setFileValidationError] = useState<string | null>(null);
-  const { send, loading, error } = useSendMessage(onMessageSent);
+  const { send, error } = useSendMessage(onMessageSent);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
+  const user = useCurrentUser();
+
 
   // Bruk gjenbrukbar emoji hook
   const { showEmojiPicker, toggleEmojiPicker, closeEmojiPicker, insertEmoji } = useEmojiInput();
@@ -130,60 +133,111 @@ export default function MessageInput({
   };
 
   // Sjekk om vi kan sende meldingen
-  const canSendMessage = () => {
-    const hasText = rawText.trim().length > 0;
-    const hasFiles = selectedFiles.length > 0;
-    const hasValidFiles = hasFiles && !fileValidationError;
-    
-    return (hasText || hasValidFiles) && !isBlocked && !loading;
-  };
-
   const handleSend = () => {
-    const trimmed = rawText.trim();
-    const hasFiles = selectedFiles.length > 0;
-    
-    if (!trimmed && !hasFiles) return;
-    
-    if (hasFiles && fileValidationError) {
-      console.error("Kan ikke sende melding med ugyldig filer:", fileValidationError);
-      return;
-    }
+  const trimmed = rawText.trim();
+  const hasFiles = selectedFiles.length > 0;
+ 
+  if (!trimmed && !hasFiles) return;
+ 
+  if (hasFiles && fileValidationError) {
+    console.error("Kan ikke sende melding med ugyldig filer:", fileValidationError);
+    return;
+  }
 
-    const messageData = {
-      text: trimmed || undefined,
-      files: hasFiles ? selectedFiles : undefined,
-      conversationId: conversationId ?? undefined,
-      receiverId: receiverId?.toString(),
-      parentMessageId: replyingTo?.id 
-    };
+  // Generer en unik optimistic ID
+  const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+ 
+  // 🔧 VIKTIG: Lagre filer før vi tømmer selectedFiles
+  const filesToSend = hasFiles ? [...selectedFiles] : undefined;
 
-    setRawText("");
-    setText("");
-    inputRef.current?.focus();
-
-    send(messageData)
-      .then((result) => {
-        if (!result) return;
-        
-        setSelectedFiles([]);
-        setFileValidationError(null);
-        onClearReply?.();
-        
-        if (!conversationId && result.conversationId) {
-          useChatStore.getState().setCurrentConversationId(result.conversationId);
-        }
-        
-        if (conversationId) {
-          clearDraftFor(conversationId);
-        }
-      })
-      .catch((err) => {
-        console.error("Feil ved sending av melding:", err);
-        setRawText(trimmed);
-        setText(convertTextToEmojisPreserveFormat(trimmed));
-        inputRef.current?.focus();
-      });
+  // Lag optimistisk melding med all tilgjengelig informasjon
+  const optimisticMessage: MessageDTO = {
+    id: -Date.now(), // Unique negative ID for optimistic messages
+    optimisticId,
+    isOptimistic: true,
+    isSending: true,
+    sendError: null,
+    senderId: user?.id || null,
+    sender: user,
+    text: trimmed || null,
+    sentAt: new Date().toISOString(),
+    conversationId: conversationId || -1,
+    attachments: hasFiles ? selectedFiles.map(file => ({
+      fileUrl: URL.createObjectURL(file), // Temporary URL for preview
+      fileType: file.type,
+      fileName: file.name
+    })) : [],
+    reactions: [],
+    parentMessageId: replyingTo?.id || null,
+    parentMessageText: replyingTo?.text || null,
+    parentSender: replyingTo?.sender || null,
+    isSystemMessage: false,
+    isDeleted: false
   };
+
+  // Legg til optimistisk melding i store med eksisterende addMessage
+  if (conversationId) {
+    useChatStore.getState().addMessage(optimisticMessage);
+  }
+
+  // Tøm input fields
+  setRawText("");
+  setText("");
+  setSelectedFiles([]);
+  setFileValidationError(null);
+  onClearReply?.();
+  inputRef.current?.focus();
+
+  const messageData = {
+    text: trimmed || undefined,
+    files: filesToSend, // 🔧 VIKTIG: Bruk lagrede filer, ikke selectedFiles
+    conversationId: conversationId ?? undefined,
+    receiverId: receiverId?.toString(),
+    parentMessageId: replyingTo?.id
+  };
+
+  // Send til backend
+  send(messageData)
+    .then((result) => {
+      if (!result) {
+        // Hvis sending feilet, oppdater optimistisk melding med feil
+        if (conversationId) {
+          useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
+            ...optimisticMessage,
+            isSending: false,
+            sendError: "Failed to send message"
+          });
+        }
+        return;
+      }
+     
+      if (!conversationId && result.conversationId) {
+        useChatStore.getState().setCurrentConversationId(result.conversationId);
+      }
+     
+      if (conversationId) {
+        clearDraftFor(conversationId);
+      }
+    })
+    .catch((err) => {
+      console.error("Feil ved sending av melding:", err);
+     
+      // Oppdater optimistisk melding med feil
+      if (conversationId) {
+        useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
+          ...optimisticMessage,
+          isSending: false,
+          sendError: err.message || "Send failed"
+        });
+      }
+     
+      // Gjenopprett input fields
+      setRawText(trimmed);
+      setText(convertTextToEmojisPreserveFormat(trimmed));
+      setSelectedFiles(filesToSend || []); // 🔧 VIKTIG: Bruk lagrede filer
+      inputRef.current?.focus();
+    });
+};
 
   const displayError = conversationError || error;
 
@@ -255,6 +309,8 @@ export default function MessageInput({
     const list = document.querySelector("[data-message-scroll-container]") as HTMLElement;
     list?.scrollTo({ top: list.scrollHeight, behavior: "auto" });
   };
+
+  
 
   return (
     <div className="flex flex-col gap-2 mt-4 relative">
@@ -355,7 +411,7 @@ export default function MessageInput({
         />
         <button
           onClick={handleSend}
-          disabled={!canSendMessage()}
+          disabled={!(rawText.trim().length > 0 || (selectedFiles.length > 0 && !fileValidationError)) || isBlocked}
           className="bg-[#1C6B1C] hover:bg-[#145214] text-white px-4 py-2 rounded disabled:opacity-50"
         >
           Send

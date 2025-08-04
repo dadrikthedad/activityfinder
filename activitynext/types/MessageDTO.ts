@@ -33,7 +33,14 @@ export interface MessageDTO {
   isSilent?: boolean;
   isSystemMessage: boolean;
   isDeleted?: boolean;
+
+  // Optimistic fields
+  isOptimistic?: boolean;
+  optimisticId?: string; // Temporary ID før vi får riktig ID fra backend
+  isSending?: boolean;
+  sendError?: string | null;
 }
+
 
 export interface SendMessageRequestDTO {
   text?: string;

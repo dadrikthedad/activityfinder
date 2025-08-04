@@ -434,6 +434,8 @@ export default function MessageList({
       <div ref={bottomRef} />
     {!searchLoading && displayedMessages.map((msg) => {
         const isMine = currentUser?.id === msg.sender?.id;
+        const isOptimistic = msg.isOptimistic;
+        const hasSendError = msg.sendError;
 
         // 🆕 Systemmelding - spesiell rendering
         if (msg.isSystemMessage) {
@@ -452,7 +454,9 @@ export default function MessageList({
       }
   
         return (
-            <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"} ${
+                isOptimistic ? 'opacity-70' : ''
+              }`}>
               <ReactionHandler 
                 targetId={msg.id} 
                 userId={currentUser?.id ?? -1}  
@@ -593,6 +597,21 @@ export default function MessageList({
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              {isOptimistic && (
+                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1 justify-end">
+                  {msg.isSending ? (
+                    <>
+                      <div className="animate-spin w-3 h-3 border border-gray-400 border-t-transparent rounded-full"></div>
+                      <span>Sending...</span>
+                    </>
+                  ) : msg.sendError ? (
+                    <>
+                      <span className="text-red-500">❌ {msg.sendError}</span>
+                    </>
+                  ) : null}
                 </div>
               )}
           

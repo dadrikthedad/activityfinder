@@ -482,21 +482,65 @@ export const useChatStore = create<ChatStore>()(
       addMessage: (message) =>
         set((state) => {
           const current = state.liveMessages[message.conversationId] ?? [];
-          const alreadyExists = current.some((m) => m.id === message.id);
-          if (alreadyExists) {
-            console.log("⚠️ Message already exists, skipping:", message.id);
-            return state;
+          
+          // Hvis dette er en optimistisk melding, bare legg til
+          if (message.isOptimistic) {
+            const alreadyExists = current.some((m) => m.id === message.id);
+            if (alreadyExists) {
+              console.log("⚠️ Optimistic message already exists, skipping:", message.id);
+              return state;
+            }
+
+            const updated = {
+              ...state.liveMessages,
+              [message.conversationId]: [...current, message],
+            };
+
+            console.log("✨ Optimistic message added:", message.optimisticId);
+            return { liveMessages: updated };
           }
 
-          const updated = {
-            ...state.liveMessages,
-            [message.conversationId]: [...current, message],
-          };
+          // For ekte meldinger fra SignalR, sjekk om vi skal erstatte en optimistisk melding
+          const optimisticMatch = current.find(m => 
+            m.isOptimistic && 
+            m.text === message.text &&
+            m.senderId === message.senderId &&
+            Math.abs(new Date(m.sentAt).getTime() - new Date(message.sentAt).getTime()) < 10000
+          );
 
-          console.log("✅ Message added to liveMessages:", updated[message.conversationId]);
+          let updated;
+          if (optimisticMatch) {
+            // Erstatt optimistisk melding med ekte melding (behold samme posisjon)
+            updated = current.map(m => 
+              m.id === optimisticMatch.id 
+                ? {
+                    ...message,
+                    isOptimistic: false,
+                    optimisticId: undefined,
+                    isSending: false,
+                    sendError: null
+                  }
+                : m
+            );
+            
+            console.log("🔄 Replaced optimistic message with real message:", optimisticMatch.id, "->", message.id);
+          } else {
+            // Sjekk duplikater og legg til ny melding
+            const alreadyExists = current.some((m) => m.id === message.id);
+            if (alreadyExists) {
+              console.log("⚠️ Message already exists, skipping:", message.id);
+              return state;
+            }
+            
+            updated = [...current, message];
+            console.log("✅ New message added:", message.id);
+          }
 
           return {
-            liveMessages: updated,
+            liveMessages: {
+              ...state.liveMessages,
+              [message.conversationId]: updated,
+            }
           };
         }),
 
