@@ -24,7 +24,6 @@ export default function ConversationPage() {
   // Chat store state
   const { 
     setCurrentConversationId, 
-    currentConversationId,
     conversations 
   } = useChatStore();
   
@@ -68,6 +67,17 @@ export default function ConversationPage() {
       if (isPending) {
         useChatStore.getState().setPendingLockedConversationId(conversationId);
       }
+
+      // Scroll to bottom when conversation loads
+      setTimeout(() => {
+        const messageContainer = document.querySelector("[data-message-scroll-container]") as HTMLElement;
+        if (messageContainer) {
+          messageContainer.scrollTo({ 
+            top: messageContainer.scrollHeight, 
+            behavior: "smooth" 
+          });
+        }
+      }, 100);
     }
     
     return () => {

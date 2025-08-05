@@ -60,7 +60,7 @@ export default function MessagesPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-[#1e2122] flex flex-col">
       {/* Pending Requests Section - Collapsible */}
       {shouldShowPendingSection && (
-        <div className="flex-shrink-0 bg-white dark:bg-[#1e2122] shadow-sm border-b border-gray-200 dark:border-[#1C6B1C]">
+        <div className="flex-shrink-0 bg-white dark:bg-[#1e2122] shadow-sm border-b border-gray-200 dark:border-gray-700">
           {/* Pending Content - with smooth collapse animation */}
           <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
             isPendingCollapsed ? 'max-h-0' : 'max-h-96'
@@ -75,7 +75,7 @@ export default function MessagesPage() {
           </div>
           
           {/* Drag/Toggle Button */}
-          <div className="flex justify-center">
+          <div className="flex justify-center border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={togglePending}
               className="flex items-center justify-center w-16 h-8 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 group"
@@ -85,9 +85,9 @@ export default function MessagesPage() {
               <div className="flex flex-col items-center gap-1">
                 <div className="w-8 h-1 bg-[#1C6B1C] dark:bg-[#1C6B1C] rounded group-hover:bg-[#0F3D0F] dark:group-hover:bg-[#0F3D0F] transition-colors"></div>
                 {isPendingCollapsed ? (
-                  <ChevronDown size={16} className="text-gray-500 dark:text-[#1C6B1C] group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                  <ChevronDown size={16} className="text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
                 ) : (
-                  <ChevronUp size={16} className="text-gray-500 dark:text-[#1C6B1C] group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                  <ChevronUp size={16} className="text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
                 )}
               </div>
             </button>
@@ -95,13 +95,24 @@ export default function MessagesPage() {
         </div>
       )}
 
-      {/* ConversationList - Takes remaining space */}
-      <div className="flex-1 min-h-0 bg-white dark:bg-[#1e2122] relative">
-        <ConversationList
-          selectedId={null}
-          onSelect={handleSelectConversation}
-          currentUser={currentUser}
-        />
+      {/* ConversationList - Takes remaining space with proper height calculation */}
+      <div className="flex-1 bg-white dark:bg-[#1e2122] relative">
+        {/* Fixed height container to ensure proper scrolling */}
+        <div 
+          className="h-full overflow-hidden"
+          style={{ 
+            // Calculate height dynamically based on viewport and pending section
+            height: shouldShowPendingSection && !isPendingCollapsed 
+              ? 'calc(100vh - 200px)' // Adjust based on your pending section height
+              : 'calc(100vh - 64px)'   // Adjust based on your navbar height
+          }}
+        >
+          <ConversationList
+            selectedId={null}
+            onSelect={handleSelectConversation}
+            currentUser={currentUser}
+          />
+        </div>
         
         {/* Floating New Message Button */}
         <button
