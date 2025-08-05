@@ -15,6 +15,7 @@ import { useEmojiInput } from "@/hooks/useEmojiPinput";
 import { EmojiPickerWrapper } from "./EmojiPickerWrapper";
 import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
 import { useCurrentUser } from "@/store/useUserCacheStore";
+import { useIsMobile } from "@/hooks/mobil/useMobileDetection";
 
 
 interface MessageInputProps {
@@ -64,6 +65,7 @@ export default function MessageInput({
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const user = useCurrentUser();
+  const isMobile = useIsMobile();
 
 
   // Bruk gjenbrukbar emoji hook
@@ -343,7 +345,7 @@ export default function MessageInput({
         }}
         className="hidden"
       />
-      {!hideToolbar && (
+      {!hideToolbar && !isMobile && (
         <MessageToolbar
           atBottom={Boolean(atBottom)}
           onScrollToBottom={scrollToBottom}
@@ -356,6 +358,7 @@ export default function MessageInput({
           userPopoverRef={userPopoverRef}
         />
        )}
+       
 
       {/* Gjenbrukbar EmojiPicker */}
       <EmojiPickerWrapper

@@ -4,6 +4,7 @@ import TooltipButton from "../common/TooltipButton";
 import { useState } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 
+
 interface MessageToolbarProps {
   atBottom?: boolean;
   onScrollToBottom?: () => void;
