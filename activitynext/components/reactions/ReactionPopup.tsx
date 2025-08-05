@@ -6,6 +6,7 @@ import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
 import { ReactionDTO, MessageDTO } from "@/types/MessageDTO";
 import styles from "./styles.module.css";
 import TooltipWrapper from "../common/TooltipWrapper";
+import { useChatStore } from "@/store/useChatStore";
 
 interface ReactionPopupProps {
   onSelect: (emoji: string) => void;
@@ -35,6 +36,7 @@ export const ReactionPopup: React.FC<ReactionPopupProps> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
   const canDelete = message && currentUserId && message.sender?.id === currentUserId && onDelete;
+  const getActualMessageId = useChatStore((state) => state.getActualMessageId);
 
   const handleDelete = () => {
     if (message && onDelete) {
@@ -60,6 +62,18 @@ export const ReactionPopup: React.FC<ReactionPopupProps> = ({
       return;
     }
     onClose();
+  };
+
+  const getReactionStatus = (emoji: string) => {
+    if (!message) return false;
+    
+    // Få den faktiske message ID-en for å sjekke reaksjoner
+    const actualMessageId = getActualMessageId(message);
+    
+    // Sjekk reaksjoner basert på faktisk server ID
+    return existingReactions.some(
+      (r) => r.emoji === emoji && r.userId === userId && r.messageId === actualMessageId
+    );
   };
 
   return (
@@ -92,10 +106,7 @@ export const ReactionPopup: React.FC<ReactionPopupProps> = ({
 
         {/* Quick emoji knapper */}
         {quickEmojis.map((emoji) => {
-          const userHasReacted = existingReactions.some(
-            (r) => r.emoji === emoji && r.userId === userId
-          );
-         
+          const userHasReacted = getReactionStatus(emoji);
           return (
             <TooltipWrapper
               key={emoji}

@@ -18,6 +18,7 @@ import ProfileNavButton from "../settings/ProfileNavButton";
 import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
 import { createPortal } from "react-dom";
 import { clearDraftFor } from "@/utils/draft/draft";
+import { useSendMessage } from "@/hooks/messages/useSendMessage";
 
 interface MessageDropdownProps {
   currentUser: UserSummaryDTO | null;
@@ -67,6 +68,9 @@ export default function MessageDropdown({
   // User popover states
   const [conversationVisible, setConversationVisible] = useState(true);
 
+   const conversationId = useChatStore((state) => state.currentConversationId);
+  const { send } = useSendMessage();
+
   // Drag and drop states
   const [isDragging, setIsDragging] = useState(false);
   const positionRef = useRef({ x: 0, y: 0 });
@@ -74,6 +78,7 @@ export default function MessageDropdown({
   const DROPDOWN_POSITION_KEY = "messageDropdownPosition";
 
   const [atBottom, setAtBottom] = useState(true);
+  
 
   // Search functionality
   const {
@@ -84,10 +89,6 @@ export default function MessageDropdown({
   } = useConversationSearch();
 
   const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
-
-  // For oppdatering av en optimistisk melding
-  const [editingOptimisticMessage, setEditingOptimisticMessage] = useState<MessageDTO | null>(null);
-
 
   // Hvis samtalen får en feil så har vi det her
   const [conversationError, setConversationError] = useState<string | null>(null);
@@ -165,6 +166,75 @@ export default function MessageDropdown({
     // Du kan legge til smooth scroll logic her
   };
 
+   const handleRetryMessage = useCallback(async (failedMessage: MessageDTO) => {
+    if (!failedMessage.optimisticId || !conversationId) return;
+    
+    console.log("🔄 Retrying message:", failedMessage.optimisticId);
+    
+    // Marker som sender igjen
+    useChatStore.getState().updateMessage(conversationId, failedMessage.id, {
+      ...failedMessage,
+      isSending: true,
+      sendError: null
+    });
+
+    // Bygg messageData fra failed message
+    const messageData = {
+      text: failedMessage.text || undefined,
+      files: undefined, // Files er allerede prosessert som attachments i optimistic message
+      conversationId: conversationId,
+      receiverId: undefined, // Du kan lagre dette i failedMessage hvis nødvendig
+      parentMessageId: failedMessage.parentMessageId 
+    };
+
+    try {
+      const result = await send(messageData);
+      
+      if (!result) {
+        // Send failed again
+        useChatStore.getState().updateMessage(conversationId, failedMessage.id, {
+          ...failedMessage,
+          isSending: false,
+          sendError: "Retry failed - please try again"
+        });
+      }
+      // Hvis success, smart matching i addMessage vil håndtere resten automatisk
+      
+     } catch (err: unknown) { // 🔧 Endre fra 'any' til 'unknown'
+      console.error("❌ Retry failed:", err);
+      
+      // 🔧 Type-safe error handling
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : "Retry failed";
+      
+      useChatStore.getState().updateMessage(conversationId, failedMessage.id, {
+        ...failedMessage,
+        isSending: false,
+        sendError: errorMessage
+      });
+    }
+  }, [send, conversationId]);
+
+  // 🗑️ Delete logic i MessageDropdown  
+  const handleDeleteFailedMessage = useCallback((failedMessage: MessageDTO) => {
+    if (!conversationId) return;
+    
+    console.log("🗑️ Deleting failed message:", failedMessage.optimisticId);
+    
+    // Fjern meldingen fra liveMessages
+    const current = useChatStore.getState().liveMessages[conversationId] || [];
+    const filtered = current.filter(m => m.id !== failedMessage.id);
+    
+    // Oppdater store direkte
+    useChatStore.setState((state) => ({
+      liveMessages: {
+        ...state.liveMessages,
+        [conversationId]: filtered
+      }
+    }));
+  }, [conversationId]);
+
   useOverlayAutoClose(() => {
     setShowMessages(false);
     onCloseDropdown();
@@ -180,27 +250,30 @@ export default function MessageDropdown({
 
   // ✅ Separér store logic
   useEffect(() => {
-    setShowMessages(true);
+  setShowMessages(true);
+  
+  return () => {
+    setShowMessages(false);
     
-    return () => {
-      setShowMessages(false);
-      
-      // Cleanup chat state
-      if (currentConversationId !== null) {
-        const state = useChatStore.getState();
-        const live = state.liveMessages[currentConversationId] ?? [];
-        const cached = state.cachedMessages[currentConversationId] ?? [];
+    // 🆕 Konverter alle optimistiske meldinger til reelle ved lukking
+    const state = useChatStore.getState();
+    state.convertAllOptimisticToReal();
+    
+    // Eksisterende cleanup logic
+    if (currentConversationId !== null) {
+      const live = state.liveMessages[currentConversationId] ?? [];
+      const cached = state.cachedMessages[currentConversationId] ?? [];
 
-        const combined = [
-          ...cached,
-          ...live.filter(m => !cached.some(c => c.id === m.id))
-        ];
+      const combined = [
+        ...cached,
+        ...live.filter(m => !cached.some(c => c.id === m.id))
+      ];
 
-        state.setCachedMessages(currentConversationId, combined);
-        state.clearLiveMessages(currentConversationId);
-      }
-    };
-  }, []);
+      state.setCachedMessages(currentConversationId, combined);
+      state.clearLiveMessages(currentConversationId);
+    }
+  };
+}, []);
 
   // ✅ REMOVED: Sync new message dialog state - ikke nødvendig uten overlay
 
@@ -319,7 +392,18 @@ export default function MessageDropdown({
   const handleSelect = (id: number) => {
     const isSame = id === currentConversationId;
 
+    // 🆕 Konverter optimistiske meldinger fra forrige samtale
+    if (currentConversationId !== null && currentConversationId !== id) {
+      console.log(`🔄 Switching conversation: converting optimistic messages from ${currentConversationId}`);
+      useChatStore.getState().convertOptimisticToReal(currentConversationId);
+    }
+
     if (isSame) {
+      // 🆕 Konverter optimistiske meldinger ved toggle av samme samtale
+      if (currentConversationId !== null) {
+        useChatStore.getState().convertOptimisticToReal(currentConversationId);
+      }
+      
       setCurrentConversationId(null);
       setConversationVisible((prev) => !prev);
       return;
@@ -334,6 +418,7 @@ export default function MessageDropdown({
     state.setCurrentConversationId(id);
     setConversationVisible(true);
   };
+
 
   return (
     <div
@@ -466,7 +551,8 @@ export default function MessageDropdown({
                   onScrollPositionChange={setAtBottom}
                   onReply={handleReply}
                   onConversationError={setConversationError}
-                  onEditOptimisticMessage={setEditingOptimisticMessage}
+                  onRetryMessage={handleRetryMessage} // Send retry function
+                  onDeleteFailedMessage={handleDeleteFailedMessage}
                 />
               </div>
 
@@ -477,8 +563,6 @@ export default function MessageDropdown({
                   onMessageSent={(message) => {
                     console.log("📤 OVERLAY Ny melding sendt:", message);
                     setReplyingTo(null);
-                    // 🆕 Clear editing state når melding er sendt
-                    setEditingOptimisticMessage(null);
                   }}
                   atBottom={atBottom}
                   onShowUserPopover={showUserPopover}
@@ -487,8 +571,6 @@ export default function MessageDropdown({
                   isDisabled={hasConversationError} // 🆕 Disable for any conversation error
                   hideToolbar={hasConversationError}
                   conversationError={conversationError}
-                  editingMessage={editingOptimisticMessage}
-                  onClearEditing={() => setEditingOptimisticMessage(null)}
                 />
               </div>
             </div>

@@ -6,6 +6,7 @@ import { ConversationDTO } from "@/types/ConversationDTO";
 import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
 import { useMessageNotificationStore } from "./useMessageNotificationStore";
 
+
 type ChatStore = {
   conversations: ConversationDTO[];
   liveMessages: Record<number, MessageDTO[]>;
@@ -63,7 +64,13 @@ type ChatStore = {
   showMessages: boolean;
   setShowMessages: (value: boolean) => void;
   updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) => void;
-  
+  optimisticToServerIdMap: Record<string, number>;
+  // Lagre mapping uten å endre selve meldingen
+  registerOptimisticMapping: (optimisticId: string, serverId: number) => void;
+  // Hent riktig ID for reaksjoner/sletting
+  getActualMessageId: (messageWithOptimisticId: MessageDTO) => number;
+  convertOptimisticToReal: (conversationId: number) => void;
+  convertAllOptimisticToReal: () => void;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -71,7 +78,7 @@ type ChatStore = {
 
 export const useChatStore = create<ChatStore>()(
   persist(
-    subscribeWithSelector((set) => ({
+    subscribeWithSelector((set, get) => ({
       // --- initial state ---
       conversations: [],
       liveMessages: {},
@@ -95,6 +102,7 @@ export const useChatStore = create<ChatStore>()(
       hasLoadedUnreadConversationIds: false,
       hasLoadedConversations: false,
       showMessages: false,
+      optimisticToServerIdMap: {},
 
       // --- setters ---
       setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
@@ -324,32 +332,66 @@ export const useChatStore = create<ChatStore>()(
       updateMessageReactions: (reaction: ReactionDTO) =>
         set((state) => {
           console.log("🔁 Oppdaterer reaction i store:", reaction);
+          
+          // 🔧 Oppdatert updateMessages som håndterer både direkte ID og optimistic mapping
           const updateMessages = (messages: MessageDTO[]) =>
             messages.map((m) => {
-              if (m.id !== reaction.messageId) return m;
+              // Sjekk om denne meldingen er target for reaksjonen
+              const isDirectMatch = m.id === reaction.messageId;
+              const isOptimisticMatch = m.isOptimistic && 
+                state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId;
+              
+              if (!isDirectMatch && !isOptimisticMatch) return m;
+              
+              console.log(`🎯 Updating reactions for message:`, {
+                messageId: m.id,
+                isOptimistic: m.isOptimistic,
+                optimisticId: m.optimisticId,
+                reactionMessageId: reaction.messageId,
+                matchType: isDirectMatch ? 'direct' : 'optimistic'
+              });
 
               const existing = m.reactions ?? [];
+              
+              // 🔧 ORIGINAL LOGIKK: Fjern alle reaksjoner fra samme bruker først
               const filtered = existing.filter((r) => r.userId !== reaction.userId);
-
+              
+              // Så legg til ny reaksjon hvis den ikke er fjernet
               if (!reaction.isRemoved) {
                 filtered.push(reaction);
               }
-
+              
               return { ...m, reactions: filtered };
             });
 
           const liveMessages = { ...state.liveMessages };
           const cachedMessages = { ...state.cachedMessages };
 
+          // Oppdater liveMessages
           for (const [convId, msgs] of Object.entries(state.liveMessages)) {
-            if (msgs.some((m) => m.id === reaction.messageId)) {
+            // Sjekk både direkte match og optimistic mapping
+            const hasTargetMessage = msgs.some((m) => 
+              m.id === reaction.messageId || 
+              (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
+            );
+            
+            if (hasTargetMessage) {
               liveMessages[+convId] = updateMessages(msgs);
+              console.log(`📝 Updated liveMessages for conversation ${convId}`);
             }
           }
 
+          // Oppdater cachedMessages  
           for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
-            if (msgs.some((m) => m.id === reaction.messageId)) {
+            // Sjekk både direkte match og optimistic mapping
+            const hasTargetMessage = msgs.some((m) => 
+              m.id === reaction.messageId || 
+              (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
+            );
+            
+            if (hasTargetMessage) {
               cachedMessages[+convId] = updateMessages(msgs);
+              console.log(`💾 Updated cachedMessages for conversation ${convId}`);
             }
           }
 
@@ -359,7 +401,6 @@ export const useChatStore = create<ChatStore>()(
             reactionsVersion: state.reactionsVersion + 1,
           };
         }),
-
       setCachedMessages: (conversationId, messages) =>
         set((state) => ({
           cachedMessages: {
@@ -479,70 +520,172 @@ export const useChatStore = create<ChatStore>()(
           };
         }),
 
-      addMessage: (message) =>
-        set((state) => {
-          const current = state.liveMessages[message.conversationId] ?? [];
+    addMessage: (message) =>
+    set((state) => {
+      const current = state.liveMessages[message.conversationId] ?? [];
+   
+      // Hvis dette er en optimistisk melding, bare legg til
+      if (message.isOptimistic) {
+        const alreadyExists = current.some((m) => m.id === message.id);
+        if (alreadyExists) {
+          console.log("⚠️ Optimistic message already exists, skipping:", message.id);
+          return state;
+        }
+        const updated = {
+          ...state.liveMessages,
+          [message.conversationId]: [...current, message],
+        };
+        console.log("✨ Optimistic message added:", message.optimisticId);
+        return { liveMessages: updated };
+      }
+   
+      // For server-meldinger: kun legg til hvis det ikke er en optimistisk match
+      const optimisticMatch = current.find(m =>
+        m.isOptimistic &&
+        m.text === message.text &&
+        m.senderId === message.senderId &&
+        Math.abs(new Date(m.sentAt).getTime() - new Date(message.sentAt).getTime()) < 10000
+      );
+   
+      if (optimisticMatch) {
+        // IKKE endre meldingen - bare registrer mapping
+        console.log("🔗 Server message matches optimistic, registering mapping only");
+        return state; // Ingen visual endring!
+      } else {
+        // Vanlig ny melding fra andre
+        const alreadyExists = current.some((m) => m.id === message.id);
+        if (alreadyExists) {
+          console.log("⚠️ Message already exists, skipping:", message.id);
+          return state;
+        }
+     
+        const updated = [...current, message];
+        console.log("✅ New message added:", message.id);
+        
+        return {
+          liveMessages: {
+            ...state.liveMessages,
+            [message.conversationId]: updated,
+          }
+        };
+      }
+    }),
+
+      registerOptimisticMapping: (optimisticId, serverId) =>
+    set((state) => {
+      console.log(`🔗 Mapping optimistic ${optimisticId} → server ${serverId}`);
+      return {
+        optimisticToServerIdMap: {
+          ...state.optimisticToServerIdMap,
+          [optimisticId]: serverId,
+        }
+      };
+    }),
+
+  // 🆕 Hent riktig ID for API-kall
+  getActualMessageId: (message) => {
+    const state = get();
+    
+    // Hvis det er en optimistisk melding, bruk mapped ID
+    if (message.isOptimistic && message.optimisticId) {
+      const serverId = state.optimisticToServerIdMap[message.optimisticId];
+      if (serverId) {
+        console.log(`🔍 Found mapped ID: ${message.optimisticId} → ${serverId}`);
+        return serverId;
+      }
+      console.warn(`⚠️ No server ID found for optimistic: ${message.optimisticId}`);
+    }
+    
+    // Fallback til vanlig ID
+    return message.id;
+  },
+
+  convertOptimisticToReal: (conversationId) =>
+  set((state) => {
+    const liveMessages = state.liveMessages[conversationId] || [];
+    
+    // Konverter optimistiske meldinger til reelle basert på mapping
+    const convertedMessages = liveMessages.map(m => {
+      if (m.isOptimistic && m.optimisticId) {
+        const serverId = state.optimisticToServerIdMap[m.optimisticId];
+        
+        if (serverId) {
+          console.log(`🔄 Converting optimistic message to real:`, {
+            optimisticId: m.optimisticId,
+            oldId: m.id,
+            newId: serverId
+          });
           
-          // Hvis dette er en optimistisk melding, bare legg til
-          if (message.isOptimistic) {
-            const alreadyExists = current.some((m) => m.id === message.id);
-            if (alreadyExists) {
-              console.log("⚠️ Optimistic message already exists, skipping:", message.id);
-              return state;
-            }
-
-            const updated = {
-              ...state.liveMessages,
-              [message.conversationId]: [...current, message],
-            };
-
-            console.log("✨ Optimistic message added:", message.optimisticId);
-            return { liveMessages: updated };
-          }
-
-          // For ekte meldinger fra SignalR, sjekk om vi skal erstatte en optimistisk melding
-          const optimisticMatch = current.find(m => 
-            m.isOptimistic && 
-            m.text === message.text &&
-            m.senderId === message.senderId &&
-            Math.abs(new Date(m.sentAt).getTime() - new Date(message.sentAt).getTime()) < 10000
-          );
-
-          let updated;
-          if (optimisticMatch) {
-            // Erstatt optimistisk melding med ekte melding (behold samme posisjon)
-            updated = current.map(m => 
-              m.id === optimisticMatch.id 
-                ? {
-                    ...message,
-                    isOptimistic: false,
-                    optimisticId: undefined,
-                    isSending: false,
-                    sendError: null
-                  }
-                : m
-            );
-            
-            console.log("🔄 Replaced optimistic message with real message:", optimisticMatch.id, "->", message.id);
-          } else {
-            // Sjekk duplikater og legg til ny melding
-            const alreadyExists = current.some((m) => m.id === message.id);
-            if (alreadyExists) {
-              console.log("⚠️ Message already exists, skipping:", message.id);
-              return state;
-            }
-            
-            updated = [...current, message];
-            console.log("✅ New message added:", message.id);
-          }
-
           return {
-            liveMessages: {
-              ...state.liveMessages,
-              [message.conversationId]: updated,
-            }
+            ...m,
+            id: serverId, // Bruk server ID
+            isOptimistic: false, // Ikke lenger optimistisk
+            isSending: false,
+            sendError: null,
+            // Behold optimisticId for referanse
           };
-        }),
+        } else {
+          console.warn(`⚠️ No server ID found for optimistic message: ${m.optimisticId}`);
+          // Behold som optimistisk hvis ingen mapping finnes
+          return m;
+        }
+      }
+      
+      return m;
+    });
+
+    const conversionsCount = convertedMessages.filter(m => !m.isOptimistic).length - 
+                           liveMessages.filter(m => !m.isOptimistic).length;
+
+    if (conversionsCount > 0) {
+      console.log(`✅ Converted ${conversionsCount} optimistic messages in conversation ${conversationId}`);
+    }
+
+    return {
+      liveMessages: {
+        ...state.liveMessages,
+        [conversationId]: convertedMessages
+      }
+    };
+  }),
+
+convertAllOptimisticToReal: () =>
+  set((state) => {
+    const newLiveMessages: Record<number, MessageDTO[]> = {};
+    let totalConverted = 0;
+
+    // Konverter optimistiske meldinger i alle samtaler
+    for (const [convId, messages] of Object.entries(state.liveMessages)) {
+      const converted = messages.map(m => {
+        if (m.isOptimistic && m.optimisticId) {
+          const serverId = state.optimisticToServerIdMap[m.optimisticId];
+          
+          if (serverId) {
+            totalConverted++;
+            return {
+              ...m,
+              id: serverId,
+              isOptimistic: false,
+              isSending: false,
+              sendError: null,
+            };
+          }
+        }
+        return m;
+      });
+      
+      newLiveMessages[+convId] = converted;
+    }
+
+    if (totalConverted > 0) {
+      console.log(`✅ Converted ${totalConverted} optimistic messages across all conversations`);
+    }
+
+    return {
+      liveMessages: newLiveMessages
+    };
+  }),
+
 
       clearLiveMessages: (conversationId) =>
         set((state) => {
@@ -611,12 +754,32 @@ export const useChatStore = create<ChatStore>()(
           limitedLiveMessages[+convId] = messages.slice(-50); // Behold siste 50
         }
 
+        const cleanedOptimisticMap: Record<string, number> = {};
+        const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+        
+        for (const [optimisticId, serverId] of Object.entries(state.optimisticToServerIdMap || {})) {
+          // Extract timestamp from optimistic ID format: "opt_timestamp_randomId"
+          const parts = optimisticId.split('_');
+          if (parts.length >= 2) {
+            const timestamp = parseInt(parts[1]);
+            if (timestamp && timestamp > twoHoursAgo) {
+              cleanedOptimisticMap[optimisticId] = serverId;
+            } else {
+              console.log(`🧹 Cleaning old optimistic mapping: ${optimisticId}`);
+            }
+          } else {
+            // Keep mappings with unknown format to be safe
+            cleanedOptimisticMap[optimisticId] = serverId;
+          }
+        }
+
         return {
           conversations: state.conversations,
           cachedMessages: limitedCachedMessages,
           liveMessages: limitedLiveMessages, // ✅ LAGRES NÅ
           scrollPositions: state.scrollPositions,
           cacheTimestamps: state.cacheTimestamps,
+          optimisticToServerIdMap: cleanedOptimisticMap,
           pendingMessageRequests: state.pendingMessageRequests,
           pendingRequestsCache: state.pendingRequestsCache,
           pendingRequestsCacheTimestamp: state.pendingRequestsCacheTimestamp,
@@ -630,8 +793,18 @@ export const useChatStore = create<ChatStore>()(
 
       // Håndter deserialisering av Set
       onRehydrateStorage: () => (state) => {
-        if (state && Array.isArray(state.conversationIds)) {
-          state.conversationIds = new Set(state.conversationIds);
+        if (state) {
+          // Handle conversationIds Set
+          if (Array.isArray(state.conversationIds)) {
+            state.conversationIds = new Set(state.conversationIds);
+          }
+          
+          // 🆕 Ensure optimisticToServerIdMap exists
+          if (!state.optimisticToServerIdMap) {
+            state.optimisticToServerIdMap = {};
+          }
+          
+          console.log("🔄 Rehydrated optimistic mappings:", Object.keys(state.optimisticToServerIdMap).length);
         }
       },
 

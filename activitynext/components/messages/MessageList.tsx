@@ -3,7 +3,7 @@
 "use client";
 
 import { usePaginatedMessages } from "@/hooks/messages/getMessagesForConversation";
-import { useEffect, useRef, useMemo, useState } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { UserSummaryDTO } from "@/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore"; // Bruker useChatStore til å lagre og hente meldinger
 import MiniAvatar from "../common/MiniAvatar";
@@ -22,7 +22,303 @@ import { useDeleteMessage } from "@/hooks/messages/useSoftDelete";
 import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";
 import ProfileNavButton from "../settings/ProfileNavButton";
 
+// 🔧 Lag memoized MessageItem komponent
+const MessageItem = React.memo(({ 
+  msg, 
+  isMine, 
+  currentUser,
+  onShowUserPopover,
+  isLocked,
+  isDeleting,
+  handleReply,
+  handleDeleteMessage,
+  onRetryMessage,
+  onDeleteFailedMessage,
+  setScrollToMessageId
+}: {
+  msg: MessageDTO;
+  isMine: boolean;
+  currentUser: UserSummaryDTO | null;
+  onShowUserPopover: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  isLocked: boolean;
+  isDeleting: boolean;
+  handleReply: (message: MessageDTO) => void;
+  handleDeleteMessage: (message: MessageDTO) => void;
+  onRetryMessage?: (message: MessageDTO) => void;
+  onDeleteFailedMessage?: (message: MessageDTO) => void;
+  setScrollToMessageId: (id: number) => void;
+}) => {
+  const isOptimistic = msg.isOptimistic;
+  const hasSendError = msg.sendError;
 
+  // 🔧 Debug logging for denne komponenten
+  console.log(`🔄 MessageItem ${msg.id} rendering:`, {
+    isOptimistic,
+    hasSendError,
+    optimisticId: msg.optimisticId,
+    text: msg.text?.slice(0, 20) + "..."
+  });
+
+  // Systemmelding håndtering
+  if (msg.isSystemMessage) {
+    return (
+      <div key={msg.id} id={`message-${msg.id}`} className="flex justify-center my-2">
+        <div className="system-message text-center">
+          <div className="text-gray-600 dark:text-gray-400 text-sm italic whitespace-pre-line">
+            {msg.text}
+          </div>
+          <div className="text-xs text-gray-400 mt-1">
+            {formatSentDate(msg.sentAt)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      key={msg.id} 
+      id={`message-${msg.id}`}  
+      className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+    >
+      <ReactionHandler 
+        targetId={msg.id} 
+        userId={currentUser?.id ?? -1}  
+        existingReactions={msg.reactions} 
+        disabled={isLocked || isDeleting} 
+        message={msg}
+        onReply={handleReply}
+        currentUserId={currentUser?.id}
+        onDelete={handleDeleteMessage}
+      >
+        <div
+          className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${
+            isMine ? "text-right ml-auto" : "text-left"
+          } ${
+            isOptimistic && hasSendError 
+              ? 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500' 
+              : ''
+          }`}
+        >
+          {/* Topptekst: Avsender */}
+          <div className={`flex items-center gap-2 mb-2 ${isMine ? "justify-end" : ""}`}>
+            {!isMine && msg.sender ? (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const pos = {
+                    x: rect.left + window.scrollX,
+                    y: rect.bottom + window.scrollY,
+                  };
+                  onShowUserPopover(msg.sender!, pos);
+                }}
+                className="flex-shrink-0"
+              >
+                <MiniAvatar
+                  imageUrl={msg.sender.profileImageUrl ?? "/default-avatar.png"}
+                  size={30}
+                />
+              </button>
+            ) : !isMine ? (
+              <MiniAvatar imageUrl="/default-avatar.png" size={30} />
+            ) : null}
+
+            <span className={`text-sm font-medium ${isMine ? "italic text-[#1C6B1C]" : ""}`}>
+              {isMine
+                ? ""
+                : msg.sender?.fullName ?? <span className="italic text-gray-400">(Ukjent bruker)</span>}
+            </span>
+            <p className="text-xs text-gray-500 mt-1">
+              {formatSentDate(msg.sentAt)}
+            </p>
+
+            {isMine && (
+              <MiniAvatar imageUrl={currentUser?.profileImageUrl ?? "/default-avatar.png"} size={30} />
+            )}
+          </div>
+    
+          {/* Reply preview */}
+          {!msg.isDeleted && (msg.parentMessageId && (msg.parentMessageText || msg.parentSender)) && (
+            <div 
+              className={`mb-2 border-l border-[#1C6B1C] pl-3 py-2 bg-gray-50 dark:bg-[#2E2E2E] rounded-r-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                isMine ? "border-1 pr-3 pl-0 rounded-l-md rounded-r-none" : ""
+              }`}
+              onClick={() => {
+                if (msg.parentMessageId) {
+                  setScrollToMessageId(msg.parentMessageId);
+                }
+              }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <svg 
+                  className="w-3 h-3 text-gray-400 flex-shrink-0" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" 
+                  />
+                </svg>
+                {msg.parentSender && (
+                  <MiniAvatar 
+                    imageUrl={msg.parentSender.profileImageUrl ?? "/default-avatar.png"} 
+                    size={16} 
+                  />
+                )}
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                  {msg.parentSender?.fullName ?? "Someone"}
+                </span>
+              </div>
+              {msg.parentMessageText && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 break-words">
+                  {msg.parentMessageText.length > 100 
+                    ? `${convertTextToEmojisPreserveFormat(msg.parentMessageText.substring(0, 100))}...` 
+                    : convertTextToEmojisPreserveFormat(msg.parentMessageText)
+                  }
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Message text */}
+          {(msg.text?.trim() || msg.isDeleted) && (
+            <div className={`text-sm mb-2 break-words break-all whitespace-pre-line ${
+              msg.isDeleted ? "italic text-gray-500 dark:text-gray-400" : ""
+            }`}>
+              {msg.isDeleted 
+                ? "This message has been deleted" 
+                : convertTextToEmojisPreserveFormat(msg.text || "")
+              }
+            </div>
+          )}
+          
+          {/* Attachments */}
+          {msg.attachments && msg.attachments.length > 0 && (
+            <MessageAttachments 
+              attachments={msg.attachments}
+              className="mb-2"
+              isLocked={isLocked}
+            />
+          )}
+
+          {/* Reactions */}
+          {msg.reactions?.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-1 text-sm">
+              {Object.entries(groupReactionsDetailed(msg.reactions)).map(([emoji, { count, userIds, userNames }]) => {
+                const userHasReacted = userIds.includes(currentUser?.id ?? -1);
+
+                return (
+                  <div
+                    key={emoji}
+                    title={`Reagert av: ${userNames.join(", ")}`}
+                    className="bg-gray-700 text-white px-2 py-1 rounded-full flex items-center gap-1 text-xs cursor-pointer hover:bg-gray-600 transition"
+                    onClick={() => {
+                      if (userHasReacted) {
+                        addReaction({ messageId: msg.id, emoji });
+                      }
+                    }}
+                  >
+                    <span>{emoji}</span>
+                    <span>x{count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Error UI for failed optimistic messages */}
+          {isOptimistic && hasSendError && (
+            <div className="flex items-center justify-between gap-2 text-xs mt-2 p-2 rounded bg-gray-100 dark:bg-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="text-red-500">❌</span>
+                <span className="text-red-500">{msg.sendError}</span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRetryMessage?.(msg);
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
+                  title="Send again"
+                >
+                  🔄 Retry
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteFailedMessage?.(msg);
+                  }}
+                  className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors"
+                  title="Delete message"
+                >
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </ReactionHandler>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // 🔧 Custom comparison function
+  const prev = prevProps.msg;
+  const next = nextProps.msg;
+  
+  // Special case: Hvis melding går fra optimistic til confirmed, ikke re-render
+  const isOptimisticToConfirmed = 
+    prev.isOptimistic === true && 
+    next.isOptimistic === false &&
+    prev.optimisticId === next.optimisticId &&
+    prev.text === next.text &&
+    prev.senderId === next.senderId;
+
+    const reactionsChanged = JSON.stringify(prev.reactions || []) !== JSON.stringify(next.reactions || []);
+  
+  if (isOptimisticToConfirmed) {
+    console.log(`✅ MessageItem ${prev.id} skipping optimistic→confirmed transition`);
+    return true; // Skip rerender
+  }
+  
+  const shouldSkipRerender = (
+    prev.id === next.id &&
+    prev.text === next.text &&
+    prev.isOptimistic === next.isOptimistic &&
+    prev.sendError === next.sendError &&
+    prev.isDeleted === next.isDeleted &&
+    !reactionsChanged &&
+    prev.attachments?.length === next.attachments?.length &&
+    prevProps.isMine === nextProps.isMine &&
+    prevProps.isLocked === nextProps.isLocked &&
+    prevProps.isDeleting === nextProps.isDeleting
+  );
+  
+  if (!shouldSkipRerender) {
+    console.log(`🔄 MessageItem ${prev.id} will rerender because:`, {
+      idChanged: prev.id !== next.id,
+      textChanged: prev.text !== next.text,
+      optimisticChanged: prev.isOptimistic !== next.isOptimistic,
+      errorChanged: prev.sendError !== next.sendError,
+      deletedChanged: prev.isDeleted !== next.isDeleted,
+      reactionsChanged: prev.reactions?.length !== next.reactions?.length,
+      attachmentsChanged: prev.attachments?.length !== next.attachments?.length,
+      lockChanged: prevProps.isLocked !== nextProps.isLocked
+    });
+  } else {
+    console.log(`✅ MessageItem ${prev.id} skipping rerender - no relevant changes`);
+  }
+  
+  return shouldSkipRerender; // true = skip rerender
+});
+
+MessageItem.displayName = 'MessageItem';
 
 
 
@@ -33,6 +329,8 @@ interface MessageListProps {
     onScrollPositionChange?: (atBottom: boolean) => void; // Sier ifra når vi ikke er i bunn
     onReply?: (message: MessageDTO) => void; 
     onConversationError?: (error: string | null) => void;
+    onRetryMessage?: (message: MessageDTO) => void;
+    onDeleteFailedMessage?: (message: MessageDTO) => void;
   }
 // conversationId henter vi fra MessageDropdown slik at vi har kontroll på hvem samtale vi er i og currentUser brukes til å se egent bilde
 export default function MessageList({ 
@@ -41,7 +339,9 @@ export default function MessageList({
   conversationVisible,
   onScrollPositionChange,
   onReply,
-  onConversationError
+  onConversationError,
+  onRetryMessage,
+  onDeleteFailedMessage 
 }: MessageListProps) { 
     const { liveMessages } = useChatStore(); // Hvis melding kommer inn fra signalr
     const rawConversationId = useChatStore((state) => state.currentConversationId);
@@ -69,6 +369,8 @@ export default function MessageList({
     });
 
       const handleDeleteMessage = async (message: MessageDTO) => {
+      const { getActualMessageId } = useChatStore.getState();
+      const actualMessageId = getActualMessageId(message);
       const messagePreview = message.text 
         ? message.text.length > 50 
           ? `${message.text.slice(0, 50)}...` 
@@ -95,7 +397,10 @@ export default function MessageList({
       });
 
       if (confirmed) {
-        await deleteMessage(message); // 🆕 Kall hook function
+        await deleteMessage({ 
+      ...message, 
+      id: actualMessageId // Riktig server ID
+        }); // Kall hook function
       }
     };
 
@@ -366,6 +671,31 @@ export default function MessageList({
         onConversationError?.(error);
       }, [error, onConversationError]);
 
+        useEffect(() => {
+          console.log("📦 RENDER - displayedMessages changed:", displayedMessages.length);
+        }, [displayedMessages]);
+
+        useEffect(() => {
+          console.log("🔴 RENDER - live messages changed:", live.length);
+        }, [live]);
+
+        useEffect(() => {
+          console.log("🔵 RENDER - cached messages changed:", messages.length);
+        }, [messages]);
+
+        
+        useEffect(() => {
+          console.log("🔄 RENDER - RERENDER TRIGGER:", {
+            displayedMessagesIds: displayedMessages.map(m => m.id),
+            optimisticMessages: displayedMessages.filter(m => m.isOptimistic).map(m => ({
+              id: m.id,
+              optimisticId: m.optimisticId,
+              isSending: m.isSending,
+              sendError: m.sendError
+            }))
+          });
+        });
+
       if (rawConversationId === null) {
         return <div className="text-center text-gray-500">No conversation chosen</div>;
       }
@@ -432,195 +762,27 @@ export default function MessageList({
         </div>
       )}
       <div ref={bottomRef} />
-    {!searchLoading && displayedMessages.map((msg) => {
-        const isMine = currentUser?.id === msg.sender?.id;
-        const isOptimistic = msg.isOptimistic;
-        const hasSendError = msg.sendError;
+     {!searchLoading && displayedMessages.map((msg) => {
+          const isMine = currentUser?.id === msg.sender?.id;
+          const stableKey = msg.optimisticId || msg.id.toString();
 
-        // 🆕 Systemmelding - spesiell rendering
-        if (msg.isSystemMessage) {
           return (
-            <div key={msg.id} id={`message-${msg.id}`} className="flex justify-center my-2">
-              <div className="system-message text-center">
-                <div className="text-gray-600 dark:text-gray-400 text-sm italic whitespace-pre-line">
-                  {msg.text}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">
-                  {formatSentDate(msg.sentAt)}
-                </div>
-              </div>
-            </div>
+            <MessageItem
+              key={stableKey} // 🔧 Viktig: Bruk msg.id som key
+              msg={msg}
+              isMine={isMine}
+              currentUser={currentUser}
+              onShowUserPopover={onShowUserPopover}
+              isLocked={isLocked}
+              isDeleting={isDeleting}
+              handleReply={handleReply}
+              handleDeleteMessage={handleDeleteMessage}
+              onRetryMessage={onRetryMessage}
+              onDeleteFailedMessage={onDeleteFailedMessage}
+              setScrollToMessageId={setScrollToMessageId}
+            />
           );
-      }
-  
-        return (
-            <div key={msg.id} id={`message-${msg.id}`}  className={`flex ${isMine ? "justify-end" : "justify-start"} ${
-                isOptimistic ? 'opacity-70' : ''
-              }`}>
-              <ReactionHandler 
-                targetId={msg.id} 
-                userId={currentUser?.id ?? -1}  
-                existingReactions={msg.reactions} 
-                disabled={isLocked || isDeleting} 
-                message={msg} // 🆕 Send hele meldingen
-                onReply={handleReply}
-                currentUserId={currentUser?.id}
-                onDelete={handleDeleteMessage}
-                >
-                  
-            <div
-                className={`p-2 w-full break-words whitespace-pre-wrap overflow-visible ${
-                    isMine ? "text-right ml-auto" : "text-left"
-                }`}
-                >
-              {/* Topptekst: Avsender */}
-              <div className={`flex items-center gap-2 mb-2 ${isMine ? "justify-end" : ""}`}>
-                {!isMine && msg.sender ? (
-                     <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      const pos = {
-                        x: rect.left + window.scrollX,
-                        y: rect.bottom + window.scrollY,
-                      };
-                      onShowUserPopover(msg.sender!, pos);
-                    }}
-                    className="flex-shrink-0"
-                  >
-                    <MiniAvatar
-                      imageUrl={msg.sender.profileImageUrl ?? "/default-avatar.png"}
-                      size={30}
-                    />
-                  </button>
-                ) : !isMine ? (
-                    <MiniAvatar imageUrl="/default-avatar.png" size={30} />
-                ) : null}
-
-                <span className={`text-sm font-medium ${isMine ? "italic text-[#1C6B1C]" : ""}`}>
-                    {isMine
-                    ? ""
-                    : msg.sender?.fullName ?? <span className="italic text-gray-400">(Ukjent bruker)</span>}
-                </span>
-                <p className="text-xs text-gray-500 mt-1">
-                {formatSentDate(msg.sentAt)}
-                </p>
-
-                {isMine && (
-                    <MiniAvatar imageUrl={currentUser?.profileImageUrl ?? "/default-avatar.png"} size={30} />
-                )}
-                </div>
-          
-              {/* Innhold */}
-               {!msg.isDeleted && (msg.parentMessageId && (msg.parentMessageText || msg.parentSender)) && (
-                <div 
-                  className={`mb-2 border-l border-[#1C6B1C] pl-3 py-2 bg-gray-50 dark:bg-[#2E2E2E] rounded-r-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
-                    isMine ? "border-1 pr-3 pl-0 rounded-l-md rounded-r-none" : ""
-                  }`}
-                  onClick={() => {
-                    if (msg.parentMessageId) {
-                      setScrollToMessageId(msg.parentMessageId);
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <svg 
-                      className="w-3 h-3 text-gray-400 flex-shrink-0" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2} 
-                        d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" 
-                      />
-                    </svg>
-                    {msg.parentSender && (
-                      <MiniAvatar 
-                        imageUrl={msg.parentSender.profileImageUrl ?? "/default-avatar.png"} 
-                        size={16} 
-                      />
-                    )}
-                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                      {msg.parentSender?.fullName ?? "Someone"}
-                    </span>
-                  </div>
-                  {msg.parentMessageText && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 break-words">
-                      {msg.parentMessageText.length > 100 
-                        ? `${convertTextToEmojisPreserveFormat(msg.parentMessageText.substring(0, 100))}...` 
-                        : convertTextToEmojisPreserveFormat(msg.parentMessageText)
-                      }
-                    </div>
-                  )}
-                </div>
-              )}
-              {(msg.text?.trim() || msg.isDeleted) && (
-                <div className={`text-sm mb-2 break-words break-all whitespace-pre-line ${
-                  msg.isDeleted ? "italic text-gray-500 dark:text-gray-400" : ""
-                }`}>
-                  {msg.isDeleted 
-                    ? "This message has been deleted" 
-                    : convertTextToEmojisPreserveFormat(msg.text || "")
-                  }
-                </div>
-              )}
-              {/* Vedlegg og tidspunkt */}
-              {msg.attachments && msg.attachments.length > 0 && (
-                  <MessageAttachments 
-                    attachments={msg.attachments}
-                    className="mb-2"
-                    isLocked={isLocked}
-                  />
-                )}
-
-              {msg.reactions?.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-1 text-sm">
-                  {Object.entries(groupReactionsDetailed(msg.reactions)).map(([emoji, { count, userIds, userNames }]) => {
-                    const userHasReacted = userIds.includes(currentUser?.id ?? -1);
-
-                    return (
-                      <div
-                        key={emoji}
-                        title={`Reagert av: ${userNames.join(", ")}`} // 👈 Tooltip med navneliste
-                        className="bg-gray-700 text-white px-2 py-1 rounded-full flex items-center gap-1 text-xs cursor-pointer hover:bg-gray-600 transition"
-                        onClick={() => {
-                          if (userHasReacted) {
-                            addReaction({ messageId: msg.id, emoji }); // toggle-fjerning
-                          }
-                        }}
-                      >
-                        <span>{emoji}</span>
-                        <span>x{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {isOptimistic && (
-                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1 justify-end">
-                  {msg.isSending ? (
-                    <>
-                      <div className="animate-spin w-3 h-3 border border-gray-400 border-t-transparent rounded-full"></div>
-                      <span>Sending...</span>
-                    </>
-                  ) : msg.sendError ? (
-                    <>
-                      <span className="text-red-500">❌ {msg.sendError}</span>
-                    </>
-                  ) : null}
-                </div>
-              )}
-          
-              
-            </div>
-            </ReactionHandler>
-          </div>
-        );
-      })}
+        })}
         <div ref={topRef} />
           </div>
           <ConfirmDialog />

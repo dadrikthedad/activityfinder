@@ -17,16 +17,21 @@ type CheckAndExecuteFunction = (callback: () => Promise<void>) => Promise<void>;
 type SyncPendingConversationFunction = (conversationId: number, forceRefresh?: boolean) => Promise<unknown>;
 
 export const handleMessage = async (
-  message: MessageDTO, 
-  userId: number | null, 
-  currentConversationId: number | null, 
+  message: MessageDTO,
+  userId: number | null,
+  currentConversationId: number | null,
   showMessages: boolean,
   ensureConversationExists: (conversationId: number, shouldCache?: boolean) => Promise<void>,
 ) => {
   console.log("💬 Mottatt melding via useChatHub:", message);
-
-  const { addMessage, updateConversationTimestamp, conversations } = useChatStore.getState();
-
+  const { 
+    addMessage, 
+    registerOptimisticMapping,
+    updateConversationTimestamp, 
+    conversations,
+    liveMessages 
+  } = useChatStore.getState();
+  
   try {
     await ensureConversationExists(message.conversationId, true);
   } catch (error) {
@@ -35,26 +40,43 @@ export const handleMessage = async (
   }
 
   try {
-    addMessage(message);
+    // 🔧 Sjekk om dette er en bekreftelse på en optimistisk melding
+    const currentMessages = liveMessages[message.conversationId] || [];
+    const optimisticMatch = currentMessages.find(m =>
+      m.isOptimistic &&
+      m.text === message.text &&
+      m.senderId === message.senderId &&
+      Math.abs(new Date(m.sentAt).getTime() - new Date(message.sentAt).getTime()) < 10000
+    );
+
+    if (optimisticMatch && optimisticMatch.optimisticId) {
+      // 🎯 Registrer kun mapping - INGEN visual endring
+      registerOptimisticMapping(optimisticMatch.optimisticId, message.id);
+      console.log(`🔗 Registered mapping: ${optimisticMatch.optimisticId} → ${message.id}`);
+      
+      // Ikke kall addMessage - optimistiske meldingen forblir uendret visuelt
+    } else {
+      // 📝 Vanlig ny melding fra andre brukere
+      addMessage(message);
+      console.log(`💬 Ny melding ${message.id} lagt til i samtale ${message.conversationId}`);
+    }
+
     updateConversationTimestamp(message.conversationId, message.sentAt);
-    console.log(`💬 Melding ${message.id} lagt til i samtale ${message.conversationId}`);
   } catch (error) {
-    console.error(`❌ Klarte ikke legge til melding ${message.id}:`, error);
+    console.error(`❌ Klarte ikke behandle melding ${message.id}:`, error);
     return;
   }
-  
+ 
   if (!message.isSilent && !message.isSystemMessage) {
     handleIncomingMessage(message, userId);
   }
 
   const conversation = conversations.find(c => c.id === message.conversationId);
-
-  // Convert userId to number for comparison with message.senderId
   const userIdAsNumber = userId ?? null;
-
+  
   if (
     message.senderId !== userIdAsNumber &&
-    (!showMessages || message.conversationId !== currentConversationId) && 
+    (!showMessages || message.conversationId !== currentConversationId) &&
     !message.isSilent &&
     !message.isSystemMessage
   ) {

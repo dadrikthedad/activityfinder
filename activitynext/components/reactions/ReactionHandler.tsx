@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useReactions } from "@/hooks/reactions/useReactions";
 import { ReactionPopup } from "./ReactionPopup";
 import { ReactionDTO, MessageDTO } from "@/types/MessageDTO";
+import { useChatStore } from "@/store/useChatStore";
 
 interface ReactionHandlerProps {
   targetId: number;
@@ -18,7 +19,6 @@ interface ReactionHandlerProps {
 }
 
 export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
-  targetId,
   userId,
   existingReactions,
   children,
@@ -32,6 +32,7 @@ export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const hideTimeout = useRef<NodeJS.Timeout | null>(null);
+  const getActualMessageId = useChatStore((state) => state.getActualMessageId);
 
   const handleMouseEnter = (e: React.MouseEvent) => {
     if (disabled || message?.isDeleted) {
@@ -47,16 +48,38 @@ export const ReactionHandler: React.FC<ReactionHandlerProps> = ({
   const handleMouseLeave = () => {
     hideTimeout.current = setTimeout(() => setVisible(false), 200);
   };
+  // Handler for å legge til reaksjon med riktig ID
+  const handleAddReaction = (emoji: string) => {
+    if (!message) {
+      console.warn("⚠️ No message provided for reaction");
+      return;
+    }
+
+    // 🎯 Bruk getActualMessageId for å få riktig server ID
+    const actualMessageId = getActualMessageId(message);
+    
+    console.log(`💖 Adding reaction "${emoji}" to message:`, {
+      originalId: message.id,
+      actualId: actualMessageId,
+      isOptimistic: message.isOptimistic,
+      optimisticId: message.optimisticId
+    });
+  
+
+    addReaction({ 
+      messageId: actualMessageId, // 🎯 Bruk riktig server ID
+      emoji 
+    });
+    
+    setVisible(false);
+  };
  
   return (
     <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className="relative inline-block">
       {children}
       {visible && !disabled && !message?.isDeleted && (
         <ReactionPopup
-          onSelect={(emoji) => {
-            addReaction({ messageId: targetId, emoji });
-            setVisible(false);
-          }}
+          onSelect={handleAddReaction} 
           onClose={() => setVisible(false)}
           position={position}
           userId={userId}

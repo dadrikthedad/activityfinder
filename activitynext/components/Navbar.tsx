@@ -43,13 +43,25 @@ export default function Navbar() {
   const DROPDOWN_WIDTH = 1200;
 
   const handleToggleMessages = useCallback((e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = Math.min(window.innerWidth - DROPDOWN_WIDTH - 16, rect.right - DROPDOWN_WIDTH + 32);
-    const y = rect.bottom + 8;
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const x = Math.min(window.innerWidth - DROPDOWN_WIDTH - 16, rect.right - DROPDOWN_WIDTH + 32);
+  const y = rect.bottom + 8;
 
-    setMessagePos({ x, y });
-    setShowMessages(!showMessages); 
-  }, [setShowMessages, showMessages]);
+  setMessagePos({ x, y });
+  
+  // 🔧 Konverter optimistiske meldinger når vi lukker dropdown
+  if (showMessages) {
+    const { currentConversationId, convertOptimisticToReal, convertAllOptimisticToReal } = useChatStore.getState();
+    
+    if (currentConversationId !== null) {
+      convertOptimisticToReal(currentConversationId);
+    } else {
+      convertAllOptimisticToReal();
+    }
+  }
+  
+  setShowMessages(!showMessages); 
+}, [setShowMessages, showMessages]);
 
   const handleToggleNotifications = useCallback(() => {
     const unread = notifications.filter((n) => !n.isRead);
@@ -71,6 +83,19 @@ export default function Navbar() {
   const handleToggleLogin = useCallback(() => {
     setShowLoginDropdown(prev => !prev);
   }, []);
+
+  const handleCloseMessageDropdown = useCallback(() => {
+  // Konverter optimistiske meldinger
+  const { currentConversationId, convertOptimisticToReal, convertAllOptimisticToReal } = useChatStore.getState();
+  
+  if (currentConversationId !== null) {
+    convertOptimisticToReal(currentConversationId);
+  } else {
+    convertAllOptimisticToReal();
+  }
+  
+  setShowMessages(false);
+}, [setShowMessages]);
 
   return (
     <nav className="sticky top-0 z-50 flex justify-between items-center bg-[#145214] p-4 text-white shadow-md">
@@ -113,7 +138,7 @@ export default function Navbar() {
               {showMessages && (
                 <MessageDropdown 
                   currentUser={currentUser} 
-                  onCloseDropdown={() => setShowMessages(false)}
+                  onCloseDropdown={handleCloseMessageDropdown}
                   initialPosition={messagePos ?? undefined}
                 />
               )}
