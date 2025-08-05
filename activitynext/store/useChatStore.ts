@@ -71,6 +71,8 @@ type ChatStore = {
   getActualMessageId: (messageWithOptimisticId: MessageDTO) => number;
   convertOptimisticToReal: (conversationId: number) => void;
   convertAllOptimisticToReal: () => void;
+  isPendingCollapsed: boolean;
+  setIsPendingCollapsed: (value: boolean) => void;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -686,6 +688,9 @@ convertAllOptimisticToReal: () =>
     };
   }),
 
+    isPendingCollapsed: false,
+    setIsPendingCollapsed: (value: boolean) => set({ isPendingCollapsed: value }),
+
 
       clearLiveMessages: (conversationId) =>
         set((state) => {
@@ -788,6 +793,7 @@ convertAllOptimisticToReal: () =>
           hasLoadedPendingRequests: state.hasLoadedPendingRequests,
           hasLoadedConversations: state.hasLoadedConversations,
           hasLoadedUnreadConversationIds: state.hasLoadedUnreadConversationIds,
+          isPendingCollapsed: state.isPendingCollapsed,
         };
       },
 

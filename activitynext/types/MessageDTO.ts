@@ -34,7 +34,7 @@ export interface MessageDTO {
   isSystemMessage: boolean;
   isDeleted?: boolean;
 
-  // Optimistic fields
+  // Optimistic fields - frontend only
   isOptimistic?: boolean;
   optimisticId?: string; // Temporary ID før vi får riktig ID fra backend
   isSending?: boolean;

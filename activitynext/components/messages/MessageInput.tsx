@@ -38,6 +38,7 @@ interface MessageInputProps {
   isDisabled?: boolean;
   hideToolbar?: boolean;
   conversationError?: string | null;
+  autoFocus?: boolean;
 }
 
 export default function MessageInput({
@@ -51,6 +52,7 @@ export default function MessageInput({
   isDisabled = false,
   hideToolbar = false,
   conversationError,
+  autoFocus = true,
 }: MessageInputProps) {
   const [text, setText] = useState("");
   const [rawText, setRawText] = useState("");
@@ -249,10 +251,14 @@ export default function MessageInput({
   }, [conversationId]);
 
   useEffect(() => {
-    if (rawText === "") { // 🆕 Sjekk rawText
+  // Kun focus hvis autoFocus er true OG vi har en gyldig ref
+  if (autoFocus && inputRef.current) {
+    // Litt delay for å sikre at komponenten er fullstendig mounted
+    setTimeout(() => {
       inputRef.current?.focus();
-    }
-  }, [rawText]); 
+    }, 100);
+  }
+}, [conversationId, autoFocus]); 
 
   const validateSelectedFiles = (files: File[]) => {
     if (files.length === 0) {

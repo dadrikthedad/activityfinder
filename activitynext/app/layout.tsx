@@ -10,6 +10,7 @@ import { OverlayLayerProvider } from "@/context/OverlayProvider";
 import UserActionPopoverPortal from "@/components/common/UserActionPopover/UserActionPopoverPortal";
 import GroupSettingsPortal from "@/components/groupmessages/GroupSettingsPortal";
 import { AppInitializer } from "@/bootstrap/AppInitializer";
+import MobileNavbarOverlay from "@/components/navbar/MobilNavbar";
 
 
 
@@ -44,7 +45,8 @@ export default function RootLayout({
                 <ModalProvider>
                   <CacheCleanup>
                     <SignalRClient/>
-                      <Navbar />
+                      <MobileNavbarOverlay /> {/* ✅ Mobil navbar - vises kun på mobil/tablet */}
+                      <Navbar />        
                         <UserActionPopoverPortal />
                           <GroupSettingsPortal />
                             <main>{children}</main>

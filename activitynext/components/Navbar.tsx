@@ -98,7 +98,7 @@ export default function Navbar() {
 }, [setShowMessages]);
 
   return (
-    <nav className="sticky top-0 z-50 flex justify-between items-center bg-[#145214] p-4 text-white shadow-md">
+    <nav className="sticky top-0 z-50 hidden md:flex justify-between items-center bg-[#145214] p-4 text-white shadow-md">
       {/* Venstre del: Logo + lenker */}
       <div className="flex items-center gap-8">
         <div className="text-2xl font-bold">Magee.no</div>
