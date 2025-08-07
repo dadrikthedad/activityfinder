@@ -9,6 +9,7 @@ import {
   ScrollView,
   StatusBar,
   Animated,
+  ActivityIndicator
 } from 'react-native';
 import { ChevronUp, ChevronDown, Plus } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -16,6 +17,7 @@ import { useCurrentUser } from '@/store/useUserCacheStore';
 import { useChatStore } from '@/store/useChatStore';
 import ConversationListNative from '@/components/messages/ConversationListNative';
 import { PendingRequestsListNative } from '@/components/messages/PendingRequestsListNative';
+import { useBootstrapStore } from '@/store/useBootstrapStore';
 
 interface MessagesScreenProps {
   navigation: any;
@@ -24,6 +26,8 @@ interface MessagesScreenProps {
 export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   const { isLoggedIn } = useAuth();
   const currentUser = useCurrentUser();
+
+  const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
   
   // Pending collapse state - from store
   const isPendingCollapsed = useChatStore(state => state.isPendingCollapsed);
@@ -76,6 +80,25 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           >
             <Text style={styles.loginButtonText}>Logg inn</Text>
           </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+   if (!isBootstrapped) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
+        
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Meldinger</Text>
+        </View>
+
+        <View style={[styles.content, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#1C6B1C" />
+          <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 8 }}>
+            Initializing...
+          </Text>
         </View>
       </SafeAreaView>
     );

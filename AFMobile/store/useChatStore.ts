@@ -6,6 +6,11 @@ import { ConversationDTO } from "@shared/types/ConversationDTO";
 import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
 import { useMessageNotificationStore } from "./useMessageNotificationStore";
 
+type ScrollData = {
+  messageId: number;
+  offset: number;
+  timestamp: number;
+};
 
 type ChatStore = {
   conversations: ConversationDTO[];
@@ -73,6 +78,10 @@ type ChatStore = {
   convertAllOptimisticToReal: () => void;
   isPendingCollapsed: boolean;
   setIsPendingCollapsed: (value: boolean) => void;
+
+  // Scroll til melding
+  scrollMessageIds: Record<number, ScrollData>; // New property
+  setScrollMessageId: (conversationId: number, scrollData: ScrollData) => void;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -478,6 +487,9 @@ export const useChatStore = create<ChatStore>()(
           liveMessages: Object.fromEntries(
             Object.entries(state.liveMessages).filter(([id]) => +id !== conversationId)
           ),
+          scrollMessageIds: Object.fromEntries( // 🆕 LEGG TIL DENNE LINJEN
+            Object.entries(state.scrollMessageIds).filter(([id]) => +id !== conversationId)
+          ),
           unreadConversationIds: state.unreadConversationIds.filter(id => id !== conversationId),
         })),
 
@@ -691,6 +703,17 @@ convertAllOptimisticToReal: () =>
     isPendingCollapsed: false,
     setIsPendingCollapsed: (value: boolean) => set({ isPendingCollapsed: value }),
 
+    scrollMessageIds: {},
+
+    setScrollMessageId: (conversationId, scrollData) =>
+      set((state) => ({
+        scrollMessageIds: {
+          ...state.scrollMessageIds,
+          [conversationId]: scrollData,
+        },
+      })),
+
+
 
       clearLiveMessages: (conversationId) =>
         set((state) => {
@@ -726,6 +749,7 @@ convertAllOptimisticToReal: () =>
           reactionsVersion: 0,
           pendingLockedConversationId: null,
           showMessages: false,
+          scrollMessageIds: {},
         }),
     })),
     {
@@ -794,6 +818,7 @@ convertAllOptimisticToReal: () =>
           hasLoadedConversations: state.hasLoadedConversations,
           hasLoadedUnreadConversationIds: state.hasLoadedUnreadConversationIds,
           isPendingCollapsed: state.isPendingCollapsed,
+          scrollMessageIds: state.scrollMessageIds
         };
       },
 

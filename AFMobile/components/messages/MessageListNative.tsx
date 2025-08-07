@@ -1,5 +1,5 @@
 // components/messages/MessageListNative.tsx
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import MessageAttachmentsNative from './MessageAttachmentsNative';
 import MiniAvatarNative from '../common/MiniAvatarNative';
 import { formatSentDate } from '@shared/utils/date/chatDate';
 import { ReactionHandlerNative } from '../reactions/ReactionHandlerNative';
+import { useBootstrapStore } from '@/store/useBootstrapStore';
 
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
@@ -69,15 +70,12 @@ const MessageItemNative = React.memo(({
 
   const handleAvatarPress = () => {
     if (message.sender && !isMine && onShowUserPopover) {
-      // For mobile, we can't get exact position, so we pass default
       onShowUserPopover(message.sender, { x: 0, y: 0 });
     }
   };
 
-  // Get existing reactions for this message
   const existingReactions = message.reactions || [];
 
-  // Group reactions by emoji and count them
   const groupedReactions = useMemo(() => {
     const reactionMap = new Map();
     
@@ -112,7 +110,6 @@ const MessageItemNative = React.memo(({
         isOptimistic && hasSendError && styles.errorMessageContainer,
       ]}
     >
-      {/* Avatar and sender info */}
       <View style={[styles.messageHeader, isMine && styles.myMessageHeader]}>
         {!isMine && message.sender && (
           <TouchableOpacity onPress={handleAvatarPress}>
@@ -140,7 +137,6 @@ const MessageItemNative = React.memo(({
         )}
       </View>
 
-      {/* Reply preview */}
       {message.parentMessageId && (message.parentMessageText || message.parentSender) && (
         <View style={[styles.replyPreview, isMine && styles.myReplyPreview]}>
           <View style={styles.replyContent}>
@@ -159,7 +155,6 @@ const MessageItemNative = React.memo(({
         </View>
       )}
 
-      {/* Message text */}
       {message.text && !message.isDeleted && (
         <View style={[styles.messageContent, isMine && styles.myMessageContent]}>
           <Text style={[styles.messageText, isMine && styles.myMessageText]}>
@@ -168,14 +163,12 @@ const MessageItemNative = React.memo(({
         </View>
       )}
 
-      {/* Deleted message */}
       {message.isDeleted && (
         <View style={styles.deletedMessageContainer}>
           <Text style={styles.deletedMessageText}>This message has been deleted</Text>
         </View>
       )}
 
-      {/* Attachments */}
       {message.attachments && message.attachments.length > 0 && (
         <View style={[styles.attachmentsContainer, isMine && styles.myAttachmentsContainer]}>
           <MessageAttachmentsNative
@@ -185,7 +178,6 @@ const MessageItemNative = React.memo(({
         </View>
       )}
 
-      {/* Error UI for failed messages */}
       {isOptimistic && hasSendError && (
         <View style={styles.errorActionsContainer}>
           <View style={styles.errorInfo}>
@@ -208,7 +200,6 @@ const MessageItemNative = React.memo(({
         </View>
       )}
 
-      {/* Sending indicator */}
       {isOptimistic && message.isSending && (
         <View style={styles.sendingIndicator}>
           <ActivityIndicator size="small" color="#6B7280" />
@@ -216,7 +207,6 @@ const MessageItemNative = React.memo(({
         </View>
       )}
 
-      {/* Reactions display */}
       {groupedReactions.length > 0 && (
         <View style={[styles.reactionsContainer, isMine && styles.myReactionsContainer]}>
           {groupedReactions.map((reaction, index) => (
@@ -230,7 +220,6 @@ const MessageItemNative = React.memo(({
     </View>
   );
 
-  // Don't wrap deleted or system messages with reaction handler
   if (message.isDeleted || isLocked || (isOptimistic && hasSendError)) {
     return messageContent;
   }
@@ -263,19 +252,35 @@ export default function MessageListNative({
   onRetryMessage,
   onDeleteFailedMessage,
 }: MessageListNativeProps) {
-  const { liveMessages, scrollPositions, setScrollPosition } = useChatStore();
+  const { 
+    liveMessages, 
+    scrollPositions, 
+    setScrollPosition,
+    scrollMessageIds,
+    setScrollMessageId
+  } = useChatStore();
   const rawConversationId = useChatStore((state) => state.currentConversationId);
   const conversationId = rawConversationId ?? -1;
 
   const flatListRef = useRef<FlatList>(null);
+  const topRef = useRef<View>(null);
+  const bottomRef = useRef<View>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const isRestoring = useRef(false);
+  
+  // 🔧 FIX: Track current scroll position more reliably
+  const currentScrollPosition = useRef(0);
+  const scrollUpdateTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
 
   const {
     messages,
     loadMore,
     loading,
     hasMore,
-    error
+    error,
+    isReady,
   } = usePaginatedMessages(conversationId, conversationVisible);
 
   const { deleteMessage, isDeleting } = useDeleteMessage({
@@ -287,12 +292,10 @@ export default function MessageListNative({
     }
   });
 
-  // Get live messages for current conversation
   const live = useMemo(() => {
     return liveMessages[conversationId] || [];
   }, [liveMessages, conversationId]);
 
-  // Combine and deduplicate messages
   const displayedMessages = useMemo(() => {
     const all = [...messages, ...live];
     const seen = new Set();
@@ -303,12 +306,9 @@ export default function MessageListNative({
         seen.add(msg.id);
         return true;
       })
-      // VIKTIG: Sorter i OMVENDT kronologisk rekkefølge for inverted FlatList
-      // Dette gjør at eldste meldinger kommer øverst og nyeste nederst når listen er invertert
       .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
   }, [messages, live]);
 
-  // Check if conversation is locked
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === conversationId)
@@ -318,7 +318,6 @@ export default function MessageListNative({
     currentConversation?.isPendingApproval === true ||
     conversationId === pendingLockedConversationId;
 
-  // Handle delete with confirmation
   const handleDeleteMessage = async (message: MessageDTO) => {
     const { getActualMessageId } = useChatStore.getState();
     const actualMessageId = getActualMessageId(message);
@@ -348,7 +347,6 @@ export default function MessageListNative({
     );
   };
 
-  // Render message item
   const renderMessage = ({ item }: { item: MessageDTO }) => (
     <MessageItemNative
       message={item}
@@ -362,72 +360,236 @@ export default function MessageListNative({
     />
   );
 
-  // Handle load more (for pagination at "top" of inverted list)
   const handleLoadMore = () => {
     if (hasMore && !loading) {
       loadMore();
     }
   };
 
-  // Handle scroll to track position and save it - throttled to reduce bouncing
-  const handleScroll = useRef(
-    ((event: any) => {
-      if (!isInitialized) return; // Don't save position during initialization
-
-      const { contentOffset } = event.nativeEvent;
-      
-      // Med inverted FlatList: contentOffset.y nær 0 = nederst (nyeste meldinger)
-      const isAtBottom = contentOffset.y <= 50;
-      onScrollPositionChange?.(isAtBottom);
-
-      // Save scroll position for this conversation (throttled)
-      setScrollPosition(conversationId, contentOffset.y);
-    })
-  ).current;
-
-  // Reset initialization when conversation changes
+  const stableConversationId = useRef(conversationId);
+  
   useEffect(() => {
-    setIsInitialized(false);
+    if (conversationId && conversationId !== -1) {
+      stableConversationId.current = conversationId;
+    }
   }, [conversationId]);
 
-  // Restore scroll position - only run once when conversation and data are ready
+  // 🔧 FIX 1: Make scroll tracking more efficient with scroll end detection
+  const handleScroll = useCallback((event: any) => {
+    if (isRestoring.current || !isInitialized) {
+      return; // Removed logging to reduce noise
+    }
+
+    const { contentOffset } = event.nativeEvent;
+    const targetConversationId = stableConversationId.current;
+    
+    if (!targetConversationId || targetConversationId === -1) {
+      return;
+    }
+    
+    // Update current position immediately
+    currentScrollPosition.current = contentOffset.y;
+    
+    const isAtBottom = contentOffset.y <= 50;
+    onScrollPositionChange?.(isAtBottom);
+
+    // 🔧 FIX: Debounced saving - only save when user stops scrolling
+    if (scrollUpdateTimer.current) {
+      clearTimeout(scrollUpdateTimer.current);
+    }
+    
+    scrollUpdateTimer.current = setTimeout(() => {
+      const ESTIMATED_MESSAGE_HEIGHT = 100;
+      const visibleMessageIndex = Math.max(0, 
+        Math.min(
+          Math.floor(contentOffset.y / ESTIMATED_MESSAGE_HEIGHT),
+          displayedMessages.length - 1
+        )
+      );
+      
+      const visibleMessage = displayedMessages[visibleMessageIndex];
+
+      if (visibleMessage) {
+        const scrollData = {
+          messageId: visibleMessage.id,
+          offset: contentOffset.y,
+          timestamp: Date.now()
+        };
+        
+        console.log(`📍 Scroll ended - saving position:`, {
+          messageId: visibleMessage.id,
+          offset: contentOffset.y,
+          messageText: visibleMessage.text?.substring(0, 20) + '...'
+        });
+        
+        setScrollMessageId(targetConversationId, scrollData);
+      }
+    }, 500); // Wait 500ms after scroll stops
+
+  }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized]);
+
+  // 🔧 FIX 2: Simplified viewport tracking - only when scroll tracking fails
+  const trackVisibleItems = useCallback((info: any) => {
+    if (isRestoring.current || !isInitialized) return;
+    
+    const targetConversationId = stableConversationId.current;
+    if (!targetConversationId || targetConversationId === -1) return;
+
+    const visibleItems = info.viewableItems;
+    if (visibleItems.length > 0) {
+      // Only save if we haven't saved recently (avoid duplicate saves)
+      const lastSave = useChatStore.getState().scrollMessageIds[targetConversationId]?.timestamp || 0;
+      const now = Date.now();
+      
+      if (now - lastSave > 1000) { // Only save if last save was >1 second ago
+        const firstVisibleMessage = visibleItems[0].item;
+        
+        const scrollData = {
+          messageId: firstVisibleMessage.id,
+          offset: currentScrollPosition.current,
+          timestamp: now
+        };
+        
+        console.log(`👁️ Viewport fallback save:`, {
+          messageId: firstVisibleMessage.id,
+          messageText: firstVisibleMessage.text?.substring(0, 20) + '...'
+        });
+        
+        setScrollMessageId(targetConversationId, scrollData);
+      }
+    }
+  }, [setScrollMessageId, isInitialized]);
+
+  // 🔧 FIX 3: Remove periodic saving - rely on scroll end detection
+  // Periodic saving removed to improve performance
+
   useEffect(() => {
-    if (!flatListRef.current || loading || displayedMessages.length === 0 || isInitialized) {
+    console.log(`🔄 Conversation changed to: ${conversationId}, resetting initialization`);
+    
+    if (conversationId && conversationId !== -1) {
+      setIsInitialized(false);
+      isRestoring.current = false;
+      currentScrollPosition.current = 0; // Reset position tracking
+    }
+  }, [conversationId]);
+
+  // 🔧 FIX 4: Enhanced restoration logic with forced initial tracking
+  useEffect(() => {
+    console.log(`📋 Restore effect triggered:`, {
+      hasRef: !!flatListRef.current,
+      loading,
+      messagesLength: displayedMessages.length,
+      isInitialized,
+      conversationId,
+      isBootstrapped
+    });
+
+    if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
       return;
     }
 
-    // Get saved position for this conversation
-    const savedPosition = scrollPositions[conversationId] || 0;
+    if (isInitialized) {
+      return;
+    }
 
-    // Use requestAnimationFrame for better timing
+    if (isRestoring.current) {
+      console.log(`🚫 Already restoring, skipping...`);
+      return;
+    }
+
+    isRestoring.current = true;
+
     const restorePosition = () => {
-      requestAnimationFrame(() => {
-        if (flatListRef.current && !isInitialized) {
-          try {
-            // For inverted FlatList, scroll to the saved position immediately
+      if (flatListRef.current && !isInitialized && displayedMessages.length > 0) {
+        try {
+          const scrollData = useChatStore.getState().scrollMessageIds[conversationId];
+          
+          if (scrollData?.messageId) {
+            const messageIndex = displayedMessages.findIndex(msg => msg.id === scrollData.messageId);
+            
+            if (messageIndex >= 0) {
+              console.log(`🎯 Restoring to message ID ${scrollData.messageId} at index ${messageIndex}`);
+              
+              flatListRef.current.scrollToIndex({
+                index: messageIndex,
+                animated: false,
+                viewPosition: 0.1,
+              });
+              
+              currentScrollPosition.current = scrollData.offset;
+              console.log(`✅ Successfully restored to message at index ${messageIndex}`);
+            } else {
+              console.log(`⚠️ Message ID ${scrollData.messageId} not found, using offset fallback`);
+              
+              flatListRef.current.scrollToOffset({
+                offset: scrollData.offset,
+                animated: false,
+              });
+              
+              currentScrollPosition.current = scrollData.offset;
+            }
+          } else {
+            const savedPosition = scrollPositions[conversationId] || 0;
+            console.log(`📍 No message ID saved, using offset: ${savedPosition}`);
+            
             flatListRef.current.scrollToOffset({
               offset: savedPosition,
-              animated: false, // No animation to prevent bouncing
+              animated: false,
             });
             
-            console.log(`📍 Restored scroll position for conversation ${conversationId}: ${savedPosition}`);
-            setIsInitialized(true);
-          } catch (error) {
-            console.warn('Failed to restore scroll position:', error);
-            setIsInitialized(true);
+            currentScrollPosition.current = savedPosition;
           }
+          
+          setIsInitialized(true);
+          isRestoring.current = false;
+          console.log(`🎯 Restoration complete for conversation ${conversationId}`);
+          
+          // 🚀 FORCE INITIAL TRACKING: Since handleScroll might not trigger, 
+          // manually save the current visible message after restoration
+          setTimeout(() => {
+            const ESTIMATED_MESSAGE_HEIGHT = 100;
+            const visibleMessageIndex = Math.max(0, 
+              Math.min(
+                Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
+                displayedMessages.length - 1
+              )
+            );
+            
+            const visibleMessage = displayedMessages[visibleMessageIndex];
+            
+            if (visibleMessage) {
+              const initialScrollData = {
+                messageId: visibleMessage.id,
+                offset: currentScrollPosition.current,
+                timestamp: Date.now()
+              };
+              
+              console.log(`🎯 FORCE Initial tracking after restoration:`, {
+                messageId: visibleMessage.id,
+                messageText: visibleMessage.text?.substring(0, 20) + '...',
+                offset: currentScrollPosition.current
+              });
+              
+              setScrollMessageId(conversationId, initialScrollData);
+            }
+          }, 100); // Small delay to ensure restoration is complete
+          
+        } catch (error) {
+          console.warn('❌ Failed to restore scroll position:', error);
+          setIsInitialized(true);
+          isRestoring.current = false;
         }
-      });
+      }
     };
 
-    // Shorter delay and use requestAnimationFrame
     const timer = setTimeout(restorePosition, 50);
 
-    return () => clearTimeout(timer);
-  }, [conversationId, displayedMessages.length, loading, scrollPositions, isInitialized]);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [conversationId, displayedMessages.length, loading, scrollPositions, isBootstrapped, setScrollMessageId]);
 
-  // Auto-scroll to bottom for new messages (when at bottom)
-  const lastMessageId = displayedMessages[0]?.id; // First item in inverted list is newest
+  const lastMessageId = displayedMessages[0]?.id;
   const previousLastMessageId = useRef<number | null>(null);
 
   useEffect(() => {
@@ -435,23 +597,41 @@ export default function MessageListNative({
 
     const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
     const savedPosition = scrollPositions[conversationId] || 0;
-    const isNearBottom = savedPosition <= 100; // If we were near bottom
+    const isNearBottom = savedPosition <= 100;
+
+    console.log(`🆕 New message check:`, {
+      hasNewMessage,
+      lastMessageId,
+      previousLastMessageId: previousLastMessageId.current,
+      savedPosition,
+      isNearBottom,
+      isInitialized
+    });
 
     if (hasNewMessage && isNearBottom && isInitialized) {
-      // Scroll to top of inverted list (which shows newest messages)
+      console.log(`🔽 Auto-scrolling to bottom for new message`);
       flatListRef.current.scrollToOffset({
         offset: 0,
         animated: true,
       });
+      currentScrollPosition.current = 0; // Update position tracking
     }
 
     previousLastMessageId.current = lastMessageId;
   }, [lastMessageId, conversationVisible, isInitialized, scrollPositions, conversationId]);
 
-  // Send error to parent
   useEffect(() => {
     onConversationError?.(error);
   }, [error, onConversationError]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollUpdateTimer.current) {
+        clearTimeout(scrollUpdateTimer.current);
+      }
+    };
+  }, []);
 
   if (rawConversationId === null) {
     return (
@@ -461,10 +641,20 @@ export default function MessageListNative({
     );
   }
 
-  if (loading && displayedMessages.length === 0) {
+  if (!isBootstrapped) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1C6B1C" />
+        <Text style={styles.loadingText}>Initializing...</Text>
+      </View>
+    );
+  }
+
+  if (!isReady && displayedMessages.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#1C6B1C" />
+        <Text style={styles.loadingText}>Loading messages...</Text>
       </View>
     );
   }
@@ -477,36 +667,54 @@ export default function MessageListNative({
         renderItem={renderMessage}
         keyExtractor={(item) => item.optimisticId || item.id.toString()}
         
-        // VIKTIG: inverted=true for å starte fra bunnen
         inverted={true}
         
-        // Load more når vi når "toppen" (som egentlig er bunnen pga inverted)
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.1}
         
+        // 🔧 FIX: Optimized scroll tracking
         onScroll={handleScroll}
-        scrollEventThrottle={16}
+        scrollEventThrottle={32} // Reduced frequency for better performance
+        
+        // 🔧 FIX: Viewport tracking as fallback only
+        onViewableItemsChanged={trackVisibleItems}
+        viewabilityConfig={{
+          itemVisiblePercentThreshold: 25, // Balanced threshold
+          minimumViewTime: 250 // Less frequent updates
+        }}
+        
         showsVerticalScrollIndicator={false}
         
-        // Prevent bouncing by disabling bounces and maintaining content position
         bounces={false}
         maintainVisibleContentPosition={{
           minIndexForVisible: 0,
           autoscrollToTopThreshold: 100,
         }}
         
-        // Prevent initial scroll to top on data changes
-        initialScrollIndex={0}
-        getItemLayout={undefined} // Let FlatList calculate layout naturally
+        getItemLayout={(data, index) => ({
+          length: 100,
+          offset: 100 * index,
+          index,
+        })}
         
-        // Loading indicator vises øverst når vi laster eldre meldinger
+        onScrollToIndexFailed={(info) => {
+          console.log(`📍 ScrollToIndex failed, falling back to offset:`, info);
+          flatListRef.current?.scrollToOffset({
+            offset: Math.min(info.averageItemLength * info.index, info.averageItemLength * displayedMessages.length),
+            animated: false,
+          });
+        }}
+        
         ListFooterComponent={
           loading && displayedMessages.length > 0 ? (
             <View style={styles.loadingMore}>
+              <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
               <ActivityIndicator size="small" color="#1C6B1C" />
               <Text style={styles.loadingMoreText}>Loading more messages...</Text>
             </View>
-          ) : null
+          ) : (
+            <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
+          )
         }
         
         ListEmptyComponent={
@@ -516,6 +724,10 @@ export default function MessageListNative({
               <Text style={styles.emptySubtext}>Start the conversation!</Text>
             </View>
           ) : null
+        }
+        
+        ListHeaderComponent={
+          <View ref={bottomRef} style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }} />
         }
       />
     </View>
@@ -572,6 +784,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginVertical: 2,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
   },
   myMessageContainer: {
     alignItems: 'flex-end',
