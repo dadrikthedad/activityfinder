@@ -1,6 +1,6 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL } from "@/constants/routes";
-import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
+import { API_BASE_URL } from "@/constants/api/routes";
+import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from "@shared/types/SendGroupRequestsDTO";
 
 
 // Service function to send group requests/invitations

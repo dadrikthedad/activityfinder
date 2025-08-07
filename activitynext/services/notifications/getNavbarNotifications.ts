@@ -1,7 +1,7 @@
 // Denne brukes til å hente 15 notifications som vises da i navbaren
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
-import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { API_BASE_URL, API_ROUTES } from "@/constants/api/routes";
+import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 
 export async function getNavbarNotifications(token: string): Promise<NotificationDTO[]> {
   const url = `${API_BASE_URL}${API_ROUTES.notifications.navbar}`;

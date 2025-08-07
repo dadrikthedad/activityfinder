@@ -1,6 +1,6 @@
 // hooks/useGroupSettingsPopover.ts
 import { useState, useCallback } from "react";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useUploadGroupImage } from "@/hooks/image/useUploadGroupImage";
 import { useChatStore } from "@/store/useChatStore";
 import { useUpdateGroupName } from "@/hooks/messages/useUpdateGroupName";

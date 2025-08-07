@@ -1,6 +1,6 @@
 // Reaction API-kall til backend relatert til reactions, for øyeblikket kun på meldinger.
 import { postRequest } from "@/services/baseService";
-import { API_BASE_URL } from "@/constants/routes";
+import { API_BASE_URL } from "@/constants/api/routes";
 
 export interface ReactionRequest {
   messageId: number;

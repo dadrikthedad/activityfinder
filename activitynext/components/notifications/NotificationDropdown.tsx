@@ -8,7 +8,7 @@ import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import FriendRequestButtons from "../friends/FriendRequestButtons";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
-import type { NotificationDTO } from "@/types/NotificationEventDTO";
+import type { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
 import { useRef, useEffect } from "react";
 

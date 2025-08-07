@@ -1,6 +1,6 @@
 // store/useGroupSettingsStore.ts
 import { create } from "zustand";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 
 interface GroupSettingsStoreData {
   user: UserSummaryDTO;

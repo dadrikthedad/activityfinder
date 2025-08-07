@@ -1,6 +1,6 @@
 // services/blockService.ts
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL } from "@/constants/routes";
+import { API_BASE_URL } from "@/constants/api/routes";
 
 // Blokkerer en bruker
 export async function blockUser(

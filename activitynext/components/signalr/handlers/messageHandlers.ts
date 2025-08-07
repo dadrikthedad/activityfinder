@@ -1,14 +1,14 @@
 // messageHandlers.ts - Alle message-relaterte handlers (med riktige eksisterende types)
 import { useChatStore } from "@/store/useChatStore";
-import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
-import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageDTO, ReactionDTO } from "@shared/types/MessageDTO";
+import { MessageRequestCreatedDto } from "@shared/types/MessageRequestCreatedDto";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { handleIncomingMessage } from "../handleIncomingMessage";
 import { handleIncomingReaction } from "../handleIncomingReactions";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
-import { NotificationType } from "@/types/MessageNotificationDTO";
-import truncateText from "@/services/helpfunctions/truncateMsgTextForToast";
+import { NotificationType } from "@shared/types/MessageNotificationDTO";
+import truncateText from "@shared/services/helpfunctions/truncateMsgTextForToast";
 import { preloadMessagesForConversation } from "@/functions/SignalR/PreloadMessagesForConversation";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 

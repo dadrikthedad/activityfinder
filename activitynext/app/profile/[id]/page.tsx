@@ -4,7 +4,7 @@ import { getUserProfile } from "@/services/profile";
 import { use } from "react";
 import { cookies } from "next/headers";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
-import { PublicProfileDTO } from "@/types/PublicProfileDTO";
+import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import PublicProfileView from "@/components/profile/PublicProfileView";
 
 // Dette må vi bruke siden det er next 15

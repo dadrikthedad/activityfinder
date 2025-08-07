@@ -3,7 +3,7 @@
 "use client";
 import React, { useState } from "react";
 import EmojiPicker, { EmojiClickData, Theme } from 'emoji-picker-react';
-import { ReactionDTO, MessageDTO } from "@/types/MessageDTO";
+import { ReactionDTO, MessageDTO } from "@shared/types/MessageDTO";
 import styles from "./styles.module.css";
 import TooltipWrapper from "../common/TooltipWrapper";
 import { useChatStore } from "@/store/useChatStore";

@@ -1,0 +1,74 @@
+.popup {
+  background: #2c2f30;
+  border: 1px solid #1C6B1C;
+  border-radius: 8px;
+  padding: 6px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+}
+
+.emojiButton {
+  font-size: 20px;
+  background: #2c2f30;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s ease-in-out;
+}
+
+.emojiButton:hover {
+   transform: scale(1.4);
+}
+
+.active {
+  background-color: #1C6B1C; /* light gray */
+  border: 2px solid #4ade80; 
+  border-radius: 50%;
+  padding: 2px 6px;
+  transform: scale(1.2);
+}
+
+.replyButton {
+  background: #2c2f30; /* 🆕 Match popup bakgrunn */
+  border: 1px solid #1C6B1C; /* 🆕 Match popup border */
+  border-radius: 4px; /* 🆕 Litt avrundede hjørner */
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px; /* 🆕 Litt mindre for å passe bedre */
+  height: 28px;
+  transition: all 0.1s ease-in-out; /* 🆕 Smooth transitions */
+}
+
+.replyButton:hover {
+  background-color: #1C6B1C; /* 🆕 Match din grønne farge */
+  transform: scale(1.1); /* 🆕 Litt hover-effekt som emojiene */
+}
+
+/* 🆕 Style for separator */
+.separator {
+  width: 1px;
+  height: 20px;
+  background-color: #1C6B1C;
+  margin: 0 4px;
+}
+
+.deleteButton {
+  background: #2c2f30;
+  border: 1px solid #6b7280; /* gray-500 border */
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  transition: all 0.1s ease-in-out;
+}
+
+.deleteButton:hover {
+  background-color: #6b7280; /* gray-500 bakgrunn på hover */
+  transform: scale(1.1);
+}

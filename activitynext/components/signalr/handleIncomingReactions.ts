@@ -1,8 +1,8 @@
-import { ReactionDTO } from "@/types/MessageDTO";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { ReactionDTO } from "@shared/types/MessageDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { showNotificationToast } from "../toast/Toast";
-import { NotificationType } from "@/types/MessageNotificationDTO";
+import { NotificationType } from "@shared/types/MessageNotificationDTO";
 import { handleIncomingReactionNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { LocalToastType } from "../toast/Toast";
 

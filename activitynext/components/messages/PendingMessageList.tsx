@@ -7,11 +7,11 @@ import { usePendingMessageRequests } from "@/hooks/messages/usePendingMessageReq
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useRejectMessageRequest } from "@/hooks/messages/useRejectMessageRequest";
-import { ConversationDTO } from "@/types/ConversationDTO";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { ConversationDTO } from "@shared/types/ConversationDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
-import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
+import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
 
 interface PendingRequestsListProps {
   limit?: number;

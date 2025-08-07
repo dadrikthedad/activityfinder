@@ -1,6 +1,6 @@
 // UserActionPopoverContent.tsx - Updated to handle nested send message
 import EnlargeableImage from "@/components/common/EnlargeableImage";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import ProfileNavButton from "../../settings/ProfileNavButton";
 import DropdownNavButton from "../../DropdownNavButton";
 import ParticipantsDropdownButton from "./UserActionParticipantDropdown";

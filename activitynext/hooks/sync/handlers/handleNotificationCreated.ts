@@ -1,6 +1,6 @@
 // handlers/handleNotificationCreated.ts
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 
 /**
  * Handle NOTIFICATION_CREATED sync event

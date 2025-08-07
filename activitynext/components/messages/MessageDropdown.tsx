@@ -2,7 +2,7 @@
 
 import MessageList from "./MessageList";
 import ConversationList from "./ConversationList";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import MessageInput from "./MessageInput";
 import PendingRequestsList from "./PendingMessageList";
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -12,8 +12,8 @@ import { useConversationSearch } from "@/hooks/messages/useSearchConversations";
 import Spinner from "../common/Spinner";
 import NotificationsPanel from "@/components/messages/NotificationsPanel";
 import NewMessageWindow from "./NewMessageWindow";
-import { MessageDTO } from "@/types/MessageDTO";
-import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
+import { SendGroupRequestsResponseDTO } from "@shared/types/SendGroupRequestsDTO";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
 import { createPortal } from "react-dom";

@@ -1,6 +1,6 @@
 
 // En funksjon for å gruppere reaksjoner og telle antall
-import { ReactionDTO } from "@/types/MessageDTO";
+import { ReactionDTO } from "@shared/types/MessageDTO";
 
 type GroupedReactions = Record<
   string,

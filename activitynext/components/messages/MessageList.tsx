@@ -4,10 +4,10 @@
 
 import { usePaginatedMessages } from "@/hooks/messages/getMessagesForConversation";
 import React, { useEffect, useRef, useMemo, useState } from "react";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore"; // Bruker useChatStore til å lagre og hente meldinger
 import MiniAvatar from "../common/MiniAvatar";
-import { formatSentDate } from "@/utils/date/chatDate";
+import { formatSentDate } from "@shared/utils/date/chatDate";
 import { ReactionHandler } from "../reactions/ReactionHandler";
 import { groupReactionsDetailed } from "@/utils/messages/emoji";
 import { addReaction } from "@/services/messages/reactionService";
@@ -16,7 +16,7 @@ import { debounce } from "lodash";
 import Spinner from "../common/Spinner";
 import { useMarkConversationNotificationsAsRead } from "@/hooks/messages/useMarkConversationNotificationAsRead";
 import { MessageAttachments } from "./MessageAttachmentsComp";
-import { MessageDTO } from "@/types/MessageDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 import { useDeleteMessage } from "@/hooks/messages/useSoftDelete";
 import { convertTextToEmojisPreserveFormat } from "../functions/message/EmojiConverter";

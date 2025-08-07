@@ -1,8 +1,8 @@
 // Her håndterer vi land og regionvalg til signup og editprofile, setter land ut ifra IP
 import { useState, useEffect, useCallback, useRef } from "react";
-import { SelectOption } from "@/types/select";
+import { SelectOption } from "@shared/types/select";
 import { fetchCountries, fetchRegions } from "@/services/user";
-import { FormDataType } from "@/types/form";
+import { FormDataType } from "@shared/types/form";
 
 interface UseCountryAndRegionProps {
   country: string; // Her lagere vi landet

@@ -1,5 +1,5 @@
 // components/messages/ReplyPreview.tsx
-import { MessageDTO } from "@/types/MessageDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
 
 interface ReplyPreviewProps {
   message: MessageDTO;

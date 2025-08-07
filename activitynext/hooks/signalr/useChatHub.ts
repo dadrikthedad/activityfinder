@@ -2,16 +2,16 @@
 import { useEffect, useRef } from "react";
 import { createChatConnection } from "@/utils/signalr/chatHub";
 import * as signalR from "@microsoft/signalr";
-import { MessageDTO } from "@/types/MessageDTO";
-import { ReactionDTO } from "@/types/MessageDTO";
-import { MessageRequestCreatedDto } from "@/types/MessageRequestCreatedDto";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
+import { ReactionDTO } from "@shared/types/MessageDTO";
+import { MessageRequestCreatedDto } from "@shared/types/MessageRequestCreatedDto";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
-import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
-import { GroupNotificationUpdateDTO } from "@/types/GroupNotificationUpdateDTO";
-import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
-import { NotificationDTO } from "@/types/NotificationEventDTO";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { GroupRequestCreatedDto } from "@shared/types/GroupRequestDTO";
+import { GroupNotificationUpdateDTO } from "@shared/types/GroupNotificationUpdateDTO";
+import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
+import { NotificationDTO } from "@shared/types/NotificationEventDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,

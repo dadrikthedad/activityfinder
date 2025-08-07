@@ -2,7 +2,7 @@
 "use client";
 
 import { useUserSearchForGroupInvite } from "@/hooks/search/useUserSearchForGroupInvite";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Card from "../common/Card";
 import MiniAvatar from "../common/MiniAvatar";

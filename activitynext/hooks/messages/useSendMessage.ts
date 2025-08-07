@@ -7,7 +7,7 @@ import {
   SendMessageRequestDTO,
   MessageDTO,
   MessageWithFilesData,
-} from "@/types/MessageDTO";
+} from "@shared/types/MessageDTO";
 import { useCurrentUser } from "@/store/useUserCacheStore";
 import { useChatStore } from "@/store/useChatStore";
 

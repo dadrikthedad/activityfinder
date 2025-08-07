@@ -1,9 +1,9 @@
 import { postRequest, getRequest, deleteRequest } from "@/services/baseService";
-import { API_BASE_URL } from "@/constants/routes";
-import { SendMessageRequestDTO, MessageDTO } from "@/types/MessageDTO";
-import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
-import { RejectRequestDTO } from "@/types/RejectRequestDTO";
-import { PaginatedMessageRequestsDTO } from "@/types/PaginatedMessageRequestsDTO";
+import { API_BASE_URL } from "@/constants/api/routes";
+import { SendMessageRequestDTO, MessageDTO } from "@shared/types/MessageDTO";
+import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
+import { RejectRequestDTO } from "@shared/types/RejectRequestDTO";
+import { PaginatedMessageRequestsDTO } from "@shared/types/PaginatedMessageRequestsDTO";
 
 // Sende meldinger til bruker eller grupper
 export async function sendTextMessage(

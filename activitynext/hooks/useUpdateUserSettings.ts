@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { updateUserSettings } from "@/services/settings";
-import { UserSettingsDTO } from "@/types/UserSettingsDTO";
+import { UserSettingsDTO } from "@shared/types/UserSettingsDTO";
 
 export function useUpdateUserSettings() { 
   const { token } = useAuth();

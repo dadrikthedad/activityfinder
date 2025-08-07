@@ -1,7 +1,7 @@
 import React, { useRef, useState, useLayoutEffect, ReactElement } from "react";
 import { createPortal } from "react-dom";
 import MiniAvatar from "../common/MiniAvatar";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 
 interface OverflowDropdownProps {
   anchorRef: React.RefObject<HTMLElement> | React.MutableRefObject<HTMLElement | null>;

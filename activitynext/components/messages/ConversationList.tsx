@@ -2,9 +2,9 @@
 "use client";
 
 import { usePaginatedConversations } from "@/hooks/messages/getMyConversations";
-import { ConversationDTO } from "@/types/ConversationDTO";
+import { ConversationDTO } from "@shared/types/ConversationDTO";
 import { ConversationListItem } from "./ConversationListUserCard";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useRef, useEffect, useState } from "react";
 import { take } from "@/hooks/messages/getMyConversations";

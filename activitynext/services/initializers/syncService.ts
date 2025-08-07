@@ -1,7 +1,7 @@
 // Sync-funksjon for å hente endringer siden siste sync (for senere implementasjon)
-import { SyncResponseDTO } from "@/types/sync/SyncResponseDTO";
+import { SyncResponseDTO } from "@shared/types/sync/SyncResponseDTO";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL } from "@/constants/routes";
+import { API_BASE_URL } from "@/constants/api/routes";
 
 export async function getSyncUpdates(syncToken?: string): Promise<SyncResponseDTO | null> {
   const url = new URL(`${API_BASE_URL}/api/me/sync`);

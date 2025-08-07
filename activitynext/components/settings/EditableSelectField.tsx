@@ -1,7 +1,7 @@
 // Select field til dropdown på gender i profilesettings
 "use client";
 import { useState } from "react";
-import { FieldName, validateSingleField } from "@/utils/validators";
+import { FieldName, validateSingleField } from "@shared/utils/validators";
 import EditableButtons from "./EditableButtons";
 
 interface EditableSelectFieldProps {

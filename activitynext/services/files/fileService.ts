@@ -1,8 +1,8 @@
 // services/imageService.ts
 import { postFormDataRequest } from "@/services/baseService";
-import { API_BASE_URL } from "@/constants/routes";
-import { UploadAttachmentsRequestDTO } from "@/types/MessageDTO";
-import { MessageDTO } from "@/types/MessageDTO";
+import { API_BASE_URL } from "@/constants/api/routes";
+import { UploadAttachmentsRequestDTO } from "@shared/types/MessageDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
 
 // Upload profilbilde
 export async function uploadProfileImage(file: File): Promise<string> {

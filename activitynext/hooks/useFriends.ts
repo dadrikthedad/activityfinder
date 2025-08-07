@@ -1,8 +1,8 @@
 // Her henter vi alle vennene våre som skal brukes i friends/page.tsx
 import { useEffect, useState, useCallback } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { FriendDTO } from "@/types/FriendDTO";
-import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
+import { FriendDTO } from "@shared/types/FriendDTO";
+import { API_ROUTES, API_BASE_URL } from "@/constants/api/routes";
 import { useAuth } from "@/context/AuthContext";
 
 interface PaginatedFriendsResponse {

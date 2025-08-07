@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user";
-import { PublicProfileDTO } from "@/types/PublicProfileDTO";
+import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 
 export function useUserSettings(refreshIndex: number = 0) {

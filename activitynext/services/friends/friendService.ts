@@ -1,7 +1,7 @@
 // services/friendService.ts
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { FriendInvitationDTO, PaginatedFriendInvResponse  } from "@/types/FriendInvitationDTO";
-import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
+import { FriendInvitationDTO, PaginatedFriendInvResponse  } from "@shared/types/FriendInvitationDTO";
+import { API_BASE_URL, API_ROUTES } from "@/constants/api/routes";
 
 // Henter alle mottatte venneforespørsler
 export async function getFriendInvitations(

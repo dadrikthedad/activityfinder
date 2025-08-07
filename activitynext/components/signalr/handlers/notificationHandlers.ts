@@ -1,6 +1,6 @@
 // notificationHandlers.ts - Alle notification-relaterte handlers
 import { useNotificationStore } from "@/store/useNotificationStore";
-import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { LocalToastType } from "@/components/toast/Toast";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { getFriendInvitationById } from "@/services/friends/friendService";

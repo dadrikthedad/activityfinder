@@ -1,5 +1,5 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
+import { API_BASE_URL, API_ROUTES } from "@/constants/api/routes";
 
 type MarkAllAsReadResponse = {
   message: string;

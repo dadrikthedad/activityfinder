@@ -2,10 +2,10 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { indexedDBStorage } from "./indexedNotificationDBStorage";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import { SecondaryBootstrapResponseDTO } from "@/types/bootstrap/SecondaryBootstrapResponseDTO";
-import { CriticalBootstrapResponseDTO } from "@/types/bootstrap/CriticalBootstrapResponseDTO";
-import { UserSettingsDTO } from "@/types/UserSettingsDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
+import { SecondaryBootstrapResponseDTO } from "@shared/types/bootstrap/SecondaryBootstrapResponseDTO";
+import { CriticalBootstrapResponseDTO } from "@shared/types/bootstrap/CriticalBootstrapResponseDTO";
+import { UserSettingsDTO } from "@shared/types/UserSettingsDTO";
 
 interface UserCacheStore {
   // Current user og settings

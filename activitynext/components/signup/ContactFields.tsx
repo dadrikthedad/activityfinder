@@ -1,7 +1,7 @@
 // Epost og phone i signup
 import FormField from "@/components/FormField";
-import { FieldName } from "@/utils/validators";
-import { FormDataType } from "@/types/form";
+import { FieldName } from "@shared/utils/validators";
+import { FormDataType } from "@shared/types/form";
 
 interface Props {
   formData: FormDataType;

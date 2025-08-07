@@ -1,6 +1,6 @@
 import { getRequest } from "@/services/baseService";
-import { API_BASE_URL } from "@/constants/routes";
-import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { API_BASE_URL } from "@/constants/api/routes";
+import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 
 export async function getNotifications(
   page: number = 1,

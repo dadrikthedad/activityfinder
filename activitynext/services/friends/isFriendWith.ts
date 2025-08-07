@@ -1,6 +1,6 @@
 // brukes til å sjekke om vi er en venn med brukeren sin side vi besøker, bruker backend sin FriendsWith fra FriendsController.cs
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL } from "@/constants/routes";
+import { API_BASE_URL } from "@/constants/api/routes";
 
 
 export async function isFriendWith(otherUserId: number, token: string): Promise<boolean> {

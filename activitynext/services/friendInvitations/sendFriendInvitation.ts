@@ -1,6 +1,6 @@
 // API-kall til backend SendInvitations i FriendInvitationsController.cs. Brukes til å sende en venneforespørsel fra innlogged bruker til en annen bruker
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL } from "@/constants/routes";
+import { API_BASE_URL } from "@/constants/api/routes";
 
 interface SendFriendRequestDTO {
   receiverId: number;

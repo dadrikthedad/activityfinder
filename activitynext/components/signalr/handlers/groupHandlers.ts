@@ -1,13 +1,13 @@
 // groupHandlers.ts - Alle group-relaterte handlers (uten any types)
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
-import { GroupRequestCreatedDto } from "@/types/GroupRequestDTO";
-import { GroupNotificationUpdateDTO, GroupEventType } from "@/types/GroupNotificationUpdateDTO";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
-import { GroupDisbandedDto } from "@/types/GroupDisbandedDTO";
+import { GroupRequestCreatedDto } from "@shared/types/GroupRequestDTO";
+import { GroupNotificationUpdateDTO, GroupEventType } from "@shared/types/GroupNotificationUpdateDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
+import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
-import { NotificationType } from "@/types/MessageNotificationDTO";
+import { NotificationType } from "@shared/types/MessageNotificationDTO";
 
 // Types for function parameters
 type CheckAndExecuteFunction = (callback: () => Promise<void>) => Promise<void>;

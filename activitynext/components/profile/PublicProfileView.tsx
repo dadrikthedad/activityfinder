@@ -9,7 +9,7 @@ import ProfileInfoCard from "@/components/ProfileInfoCard";
 import ProfileAvatar from "@/components/ProfileAvatar";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
 import ProfileActionMenu from "@/components/profile/ProfileActionMenu";
-import { PublicProfileDTO } from "@/types/PublicProfileDTO";
+import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import SimpleFriendList from "@/components/friends/SimpleFriendList";
 import { useFriendWith } from "@/hooks/useFriendWith";
 import Spinner from "../common/Spinner";
@@ -19,9 +19,9 @@ import PublicSimpleFriendList from "@/components/friends/PublicSimpleFriendList"
 import { mutate } from "swr";
 import { useOverlay } from "@/context/OverlayProvider";
 import NewMessageWindow from "../messages/NewMessageWindow";
-import { MessageDTO } from "@/types/MessageDTO";
-import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
+import { SendGroupRequestsResponseDTO } from "@shared/types/SendGroupRequestsDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 
 export default function PublicProfileView({
   profile: initialProfile,

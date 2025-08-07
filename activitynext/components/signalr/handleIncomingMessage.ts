@@ -1,5 +1,5 @@
-import { MessageDTO } from "@/types/MessageDTO";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 

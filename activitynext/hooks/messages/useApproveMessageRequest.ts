@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { approveMessageRequestLogic } from "@/functions/messages/approveMessageRequestLogic";
 import { useChatStore } from "@/store/useChatStore";
 import { getConversationById } from "@/services/messages/conversationService";
-import { ConversationDTO } from "@/types/ConversationDTO";
+import { ConversationDTO } from "@shared/types/ConversationDTO";
 import { LocalToastType, showNotificationToast } from "@/components/toast/Toast";
 import { useAuth } from "@/context/AuthContext";
 

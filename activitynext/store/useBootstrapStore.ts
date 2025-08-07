@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { indexedDBStorage } from "./indexedNotificationDBStorage";
-import { CriticalBootstrapResponseDTO } from "@/types/bootstrap/CriticalBootstrapResponseDTO";
-import { SecondaryBootstrapResponseDTO } from "@/types/bootstrap/SecondaryBootstrapResponseDTO";
+import { CriticalBootstrapResponseDTO } from "@shared/types/bootstrap/CriticalBootstrapResponseDTO";
+import { SecondaryBootstrapResponseDTO } from "@shared/types/bootstrap/SecondaryBootstrapResponseDTO";
 
 type BootstrapStore = {
   syncToken: string | null;

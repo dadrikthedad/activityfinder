@@ -1,9 +1,9 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { indexedDBStorage } from "./indexedNotificationDBStorage";
-import { MessageDTO, ReactionDTO } from "@/types/MessageDTO";
-import { ConversationDTO } from "@/types/ConversationDTO";
-import { MessageRequestDTO } from "@/types/MessageReqeustDTO";
+import { MessageDTO, ReactionDTO } from "@shared/types/MessageDTO";
+import { ConversationDTO } from "@shared/types/ConversationDTO";
+import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
 import { useMessageNotificationStore } from "./useMessageNotificationStore";
 
 

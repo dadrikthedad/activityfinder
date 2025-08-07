@@ -1,4 +1,4 @@
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import React, { JSX } from 'react';
 import { buildGroupEventText } from "./GroupEventTextBuilder";
 import { HighlightedText } from "../HighlightedText";

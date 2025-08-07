@@ -2,7 +2,7 @@ import { Paperclip, Smile, ArrowDown } from "lucide-react";
 import MessageSettingsDropdown from "./MessageSettingsDropdown";
 import TooltipButton from "../common/TooltipButton";
 import { useState } from "react";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 
 
 interface MessageToolbarProps {

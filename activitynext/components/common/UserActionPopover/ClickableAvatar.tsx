@@ -2,7 +2,7 @@
 "use client";
 import React from "react";
 import MiniAvatar from "../MiniAvatar";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
 import { calculatePopoverPosition } from "../PopoverPositioning";
 

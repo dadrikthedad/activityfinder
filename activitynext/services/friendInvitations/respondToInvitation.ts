@@ -1,6 +1,6 @@
 // Her skal vi håndtere om vi godkjenner eller avslår venneforespørsel, ikke ferdig enda
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_ROUTES, API_BASE_URL } from "@/constants/routes";
+import { API_ROUTES, API_BASE_URL } from "@/constants/api/routes";
 
 type FriendInvitationResponse = {
   message: string;

@@ -1,8 +1,8 @@
 // # Land, region og postalcode til signup
 import FormField from "@/components/FormField";
-import { FieldName } from "@/utils/validators";
-import { FormDataType } from "@/types/form";
-import { SelectOption } from "@/types/select";
+import { FieldName } from "@shared/utils/validators";
+import { FormDataType } from "@shared/types/form";
+import { SelectOption } from "@shared/types/select";
 
 interface Props {
   formData: FormDataType;

@@ -1,7 +1,7 @@
 // Endre land og region i profilesettings, bruker EditableButtons til å trykke på for å endre
 "use client";
 import { useState, useEffect } from "react";
-import { validateSingleField } from "@/utils/validators";
+import { validateSingleField } from "@shared/utils/validators";
 import EditableButtons from "./EditableButtons";
 
 interface EditableCountryRegionGroupProps {

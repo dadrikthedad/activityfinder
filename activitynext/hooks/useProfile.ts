@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user";
 import { useAuth } from "@/context/AuthContext";
-import { Profile } from "@/types/profile";
+import { Profile } from "@shared/types/profile";
 
 export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null); // Lagerer profilen

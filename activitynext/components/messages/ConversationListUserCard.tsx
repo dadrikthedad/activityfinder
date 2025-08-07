@@ -1,5 +1,5 @@
 // ConversationListUserCard.tsx - Fixed version som faktisk sender participants videre
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import ClickableAvatar from "../common/UserActionPopover/ClickableAvatar";
 import { useChatStore } from "@/store/useChatStore";
 

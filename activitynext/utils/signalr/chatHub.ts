@@ -1,6 +1,6 @@
 // utils/signalr/chatHub.ts
 import * as signalR from "@microsoft/signalr";
-import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
+import { API_BASE_URL, API_ROUTES } from "@/constants/api/routes";
 import { generateDeviceId } from "@/functions/bootstrap/UserOnlineFunctions";
 import { getPlatform } from "@/functions/bootstrap/UserOnlineFunctions";
 import { getCapabilities } from "@/functions/bootstrap/UserOnlineFunctions";

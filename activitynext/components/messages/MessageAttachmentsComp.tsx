@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AttachmentDto } from "@/types/MessageDTO";
+import { AttachmentDto } from "@shared/types/MessageDTO";
 import { DocumentPreview } from "../files/DocumentPreview";
 import { getFileTypeInfo, createFileFromUrl } from "../files/FileFunctions";
 import Image from "next/image";

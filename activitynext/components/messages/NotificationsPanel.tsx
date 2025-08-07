@@ -1,5 +1,5 @@
 import { useMessageNotificationActions } from "@/hooks/messages/useMessageNotificationActions";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import ProfileNavButton from "../settings/ProfileNavButton";

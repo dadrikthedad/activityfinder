@@ -1,6 +1,6 @@
 // API kall til backend for å hente fetchCountries(), fetchRegions(), regiserUserApi() som brukes i Signup og getCurrentUser() som brukes i Securitycred
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { User } from "@/types/UserDTO";
+import { User } from "@shared/types/UserDTO";
 
 const isServer = typeof window === "undefined";
 

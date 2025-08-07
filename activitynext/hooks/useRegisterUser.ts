@@ -1,7 +1,7 @@
 // Denne brukes for å sende en ny bruker som API til backend etter opprettelse
 import { useState } from "react";
 import { RegisterUserPayload, registerUserAPI } from "@/services/user";
-import { FormDataType } from "@/types/form";
+import { FormDataType } from "@shared/types/form";
 
 interface UseRegisterUserProps {
   formData: Record<string, string>; // Alle feltene fra skjemaet som skal brukes for å opprette en bruker

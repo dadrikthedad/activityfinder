@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { showNotificationToast } from "@/components/toast/Toast";
-import { NotificationType } from "@/types/MessageNotificationDTO";
+import { NotificationType } from "@shared/types/MessageNotificationDTO";
 import { useGetDeletedConversations } from "@/hooks/messages/useGetDeletedConversations";
 import { useGetRejectedConversations } from "@/hooks/messages/useGetRejectedConversations";
 import { useRestoreConversation } from "@/hooks/messages/useRestoreConversation";
 import { useApproveMessageRequest } from "@/hooks/messages/useApproveMessageRequest";
 import { useDeleteGroupRequest } from "@/hooks/messages/useDeleteGroupRequest";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useAuth } from "@/context/AuthContext";
 import { useBootstrap } from "@/hooks/bootstrap/useBootstrap"; // 👈 LEGG TIL
 

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { indexedDBStorage } from "./indexedNotificationDBStorage";
-import type { NotificationDTO } from "@/types/NotificationEventDTO";
-import { FriendInvitationDTO } from "@/types/FriendInvitationDTO";
+import type { NotificationDTO } from "@shared/types/NotificationEventDTO";
+import { FriendInvitationDTO } from "@shared/types/FriendInvitationDTO";
 
 interface NotificationState {
   // --- data ---

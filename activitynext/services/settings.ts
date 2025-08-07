@@ -1,6 +1,6 @@
 // Her henter vi de forskjellige endepunktene relatert til UserSettings
-import { UserSettingsDTO } from "@/types/UserSettingsDTO";
-import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
+import { UserSettingsDTO } from "@shared/types/UserSettingsDTO";
+import { API_BASE_URL, API_ROUTES } from "@/constants/api/routes";
 
 
 // Her oppdaterer vi userSettings-checkboks feltene ved å gjøre et API-kall, brukes i hooken useUpdateUserSettings.ts og henter UpdateSettings() fra UserSettingsController.cs

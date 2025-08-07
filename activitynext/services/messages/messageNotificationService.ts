@@ -1,6 +1,6 @@
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";// eller hvor du har den
-import { PaginatedNotifications } from "@/types/PaginatedNotificationsDTO";
-import { API_BASE_URL } from "@/constants/routes";
+import { PaginatedNotifications } from "@shared/types/PaginatedNotificationsDTO";
+import { API_BASE_URL } from "@/constants/api/routes";
 
 
 // Hente ALLE notifikasjoner

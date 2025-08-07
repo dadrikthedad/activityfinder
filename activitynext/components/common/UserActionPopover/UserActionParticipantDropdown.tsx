@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
-import { UserSummaryDTO, GroupRequestStatus } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO, GroupRequestStatus } from "@shared/types/UserSummaryDTO";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import MiniAvatar from "../MiniAvatar";
 import NestedUserActionPopover from "./NestedUserActionPopover";

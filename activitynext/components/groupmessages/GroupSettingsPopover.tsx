@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { createPortal } from "react-dom";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import ProfileNavButton from "../settings/ProfileNavButton";
 import EnlargeableImage from "@/components/common/EnlargeableImage";
 import { useGroupSettingsPopover } from "./useGroupSettingsPopover";

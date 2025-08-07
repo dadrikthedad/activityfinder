@@ -1,0 +1,186 @@
+// Her har vi bilde, samt en poppup og endring av bilde hvis vi besøker editprofile. Trykk på bilde åpner en pop-up som er større. Endres senre til å ha med like og kommentarer.
+"use client";
+
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { Dialog } from "@headlessui/react";
+import { cn } from "../lib/utils";
+import FormButton from "@/components/FormButton";
+import ProfileNavButton from "@/components/settings/ProfileNavButton";
+import { useUploadProfileImage } from "@/hooks/image/useUploadProfileImage";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
+import Spinner from "./common/SpinnerNative";
+
+interface Props {
+  imageUrl: string; // Url til profilbilde
+  size?: number; // størrelsen på bilde, valgrfitt. Kan brukes til små avatar bilder eller store profilbilder
+  isEditable?: boolean; // sjekk for å se om vi er på editprofile
+  refetchProfile?: () => Promise<void>; // henter oppdatert profilbilde hvis vi har byttet det
+}
+
+export default function ProfileAvatar({
+  imageUrl,
+  isEditable = false,
+  refetchProfile,
+}: Props) {
+    const [isOpen, setIsOpen] = useState(false); // Sjekker  om modalen er åpen eller ikke
+    const [selectedFile, setSelectedFile] = useState<File | null>(null); // Her lagres filen som er valgt til opplastning slik at vi kan previewe og sende til backend
+    const [selectedFileName, setSelectedFileName] = useState<string>(""); // Navnet på den valgte filen
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Her er forhåndsvisning av det nye bilde før oppdatering
+    const { currentUser, setCurrentUser } = useUserCacheStore();
+    const [imgLoading, setImgLoading] = useState(false);
+
+    const { // Kommer fra useUploadProfileImage og håndter opplastning av bilde
+        upload,
+        uploading,
+        error,
+        reset: resetUpload,
+      } = useUploadProfileImage();
+    
+      const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { // Ved bytte av bilde. Setter navnet på filen/url og previewer
+        if (!e.target.files) return; // avbryt hvis ingen fil
+        const file = e.target.files[0]; // navnet på filen
+        setSelectedFile(file);
+        setSelectedFileName(file.name);
+        setPreviewUrl(URL.createObjectURL(file));
+      };
+
+      useEffect(() => {
+        // Vi only loader “eksternt” bilde, ikke previewUrl
+        setImgLoading(true);
+      }, [imageUrl]);
+
+      const handleImageLoaded = () => {
+        setImgLoading(false);
+      };
+    
+      const handleUpload = async () => { //Håndterer API-kallet til backend. Laster opp bilde med upload(). 
+        if (!selectedFile) return;
+        const uploadedUrl = await upload(selectedFile);
+        if (uploadedUrl && currentUser) {
+          const updatedUser = {
+            ...currentUser,
+            profileImageUrl: uploadedUrl // Assuming this is the field name
+          };
+          setCurrentUser(updatedUser);
+          
+          // Still call refetchProfile if provided (for other profile views)
+          await refetchProfile?.();
+          
+          handleClose();
+        }
+      };
+    
+      const handleClose = () => { // Lukker modalen, fjerner preview og fil hvis det har vært lastet opp men ikke godkjent
+        setIsOpen(false);
+        setSelectedFile(null);
+        setSelectedFileName("");
+        setPreviewUrl(null);
+        resetUpload();
+      };
+
+      return (
+        <>
+          <div
+            onClick={() => setIsOpen(true)}
+            className={cn(
+              "relative cursor-pointer rounded-full border-4 border-[#1C6B1C] shadow-md overflow-hidden",
+              "w-48 h-48"
+            )}
+          >
+            {/* Spinner-overlay mens loading */}
+            {imgLoading && (
+             <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-full">
+              {/* Spinner uten tekst */}
+              <Spinner />
+            </div>
+            )}
+            <Image
+              src={imageUrl}
+              alt="Profile"
+              width={192}
+              height={192}
+              className="object-cover w-full h-full rounded-full"
+              onLoadingComplete={handleImageLoaded}
+              unoptimized={Boolean(previewUrl)}  
+            />
+          </div>
+    
+          {isEditable && (
+            <div className="flex justify-center mt-4">
+              <ProfileNavButton
+                text="Edit Profile Picture"
+                variant="long"
+                onClick={() => setIsOpen(true)}
+              />
+            </div>
+          )}
+          {/* Dette er modalen (Dialog from Headless UI) som viser forstørret bilde og gir mulig til åbytte */}
+          <Dialog open={isOpen} onClose={handleClose} className="fixed z-50 inset-0">
+            <div className="fixed inset-0 bg-black/80" aria-hidden="true" />
+            <div className="fixed inset-0 flex items-center justify-center p-4">
+              <Dialog.Panel className="bg-white dark:bg-zinc-900 p-6 rounded-lg max-w-[90vw] max-h-[90vh] w-auto h-auto text-center overflow-auto ">
+                <Image
+                  src={previewUrl || imageUrl}
+                  alt="Enlarged profile"
+                  width={1000}
+                  height={1000}
+                  className="rounded-xl mx-auto object-contain max-w-full max-h-[80vh]"
+                />
+                {/* Hvis vi ser på profilen via editprofile så kan vi endre på bilde */}
+                {isEditable && (
+                  <div className="mt-6">
+                    <input
+                      id="file-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className="cursor-pointer text-sm text-white bg-green-700 hover:bg-green-800 px-4 py-2 rounded inline-block"
+                    >
+                      Upload New Profile Picture
+                    </label>
+                    {selectedFileName && (
+                      <p className="text-sm mt-4 text-white">{selectedFileName}</p>
+                    )}
+                    {error && (
+                      <p className="text-red-500 text-sm mt-2">{error}</p>
+                    )}
+                  </div>
+                )}
+                {/* Knapper ved bytting av bilde */}
+                <div className="mt-6 flex justify-center gap-4">
+                  {selectedFile ? (
+                    <>
+                      <FormButton
+                        text={uploading ? "Saving..." : "Save"}
+                        type="button"
+                        onClick={handleUpload}
+                        disabled={uploading}
+                        className="px-6 py-2"
+                      />
+                      <FormButton
+                        text="Cancel"
+                        type="button"
+                        onClick={handleClose}
+                        className="px-6 py-2 bg-gray-500 hover:bg-gray-600"
+                      />
+                    </>
+                  ) : (
+                    <FormButton
+                      text="Close"
+                      type="button"
+                      onClick={handleClose}
+                      className="px-6 py-2"
+                    />
+                  )}
+                </div>
+              </Dialog.Panel>
+            </div>
+          </Dialog>
+        </>
+      );
+    }

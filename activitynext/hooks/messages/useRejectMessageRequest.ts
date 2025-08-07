@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { rejectRequest } from "@/services/messages/messageService";
 import { rejectMessageRequestLogic} from "@/functions/messages/rejectMesageRequestLogic";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
-import { RejectRequestDTO } from "@/types/RejectRequestDTO";
+import { RejectRequestDTO } from "@shared/types/RejectRequestDTO";
 
 export function useRejectMessageRequest() {
   const [loading, setLoading] = useState(false);

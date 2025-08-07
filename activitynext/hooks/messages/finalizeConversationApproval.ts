@@ -3,7 +3,7 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
-import { MessageNotificationDTO } from "@/types/MessageNotificationDTO";
+import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 
 export async function finalizeConversationApproval(
   conversationId: number,

@@ -1,7 +1,7 @@
 // Denne brukes til å hente 100 notifications som skal vises på /notifications
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL, API_ROUTES } from "@/constants/routes";
-import { NotificationDTO } from "@/types/NotificationEventDTO";
+import { API_BASE_URL, API_ROUTES } from "@/constants/api/routes";
+import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 
 export async function getPageNotifications(token: string): Promise<NotificationDTO[]> {
   const url = `${API_BASE_URL}${API_ROUTES.notifications.page}`;

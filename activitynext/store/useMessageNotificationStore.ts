@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { indexedDBStorage } from "./indexedNotificationDBStorage";
-import { MessageNotificationDTO, NotificationType } from "@/types/MessageNotificationDTO";
+import { MessageNotificationDTO, NotificationType } from "@shared/types/MessageNotificationDTO";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { markMessageNotificationAsRead } from "@/services/messages/messageNotificationService";
 

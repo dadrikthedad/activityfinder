@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useReactions } from "@/hooks/reactions/useReactions";
 import { ReactionPopup } from "./ReactionPopup";
-import { ReactionDTO, MessageDTO } from "@/types/MessageDTO";
+import { ReactionDTO, MessageDTO } from "@shared/types/MessageDTO";
 import { useChatStore } from "@/store/useChatStore";
 
 interface ReactionHandlerProps {

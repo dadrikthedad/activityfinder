@@ -2,16 +2,16 @@
 
 import { toast } from "sonner";
 import { useChatStore } from "@/store/useChatStore";
-import { NotificationType } from "@/types/MessageNotificationDTO";
+import { NotificationType } from "@shared/types/MessageNotificationDTO";
 import ProfileNavButton from "../settings/ProfileNavButton";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useRouter } from "next/navigation";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import MiniAvatar from "../common/MiniAvatar";// 🆕 Importer MiniAvatar
-import { GroupEventType } from "@/types/GroupNotificationUpdateDTO";
+import { GroupEventType } from "@shared/types/GroupNotificationUpdateDTO";
 import React from 'react';
 import { formatUserList } from "../functions/message/NotificationsUserListFormatter";
-import { AttachmentDto } from "@/types/MessageDTO";
+import { AttachmentDto } from "@shared/types/MessageDTO";
 import { getAttachmentSummary } from "./ToastFunctions";
 
 export enum LocalToastType {

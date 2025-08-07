@@ -1,6 +1,6 @@
 // Profil API kall til backend. updateBio(patch), updateWebsites(patch), updateProfileImage(post) og hent profiler med getUserProfile() som henter PublicProfileDTO
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import type { PublicProfileDTO } from "@/types/PublicProfileDTO";
+import type { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||

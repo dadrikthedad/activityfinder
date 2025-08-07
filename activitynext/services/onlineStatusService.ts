@@ -1,7 +1,7 @@
 // @/services/onlineStatusService.ts
-import { API_BASE_URL } from "@/constants/routes";
+import { API_BASE_URL } from "@/constants/api/routes";
 import { postRequest } from "./baseService";
-import { OnlineStatusRequest, OnlineStatusResponse, OfflineStatusRequest } from "@/types/OnlineStatusRequestDTO";
+import { OnlineStatusRequest, OnlineStatusResponse, OfflineStatusRequest } from "@shared/types/OnlineStatusRequestDTO";
 import { generateDeviceId, getPlatform } from "@/functions/bootstrap/UserOnlineFunctions";
 
 // Mark user as online

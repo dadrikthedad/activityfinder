@@ -1,7 +1,7 @@
 // For endring av epost i securitycred. Bruker EditableButton.tsx som mal
 "use client";
 import { useState } from "react";
-import { FieldName, validateSingleField } from "@/utils/validators";
+import { FieldName, validateSingleField } from "@shared/utils/validators";
 import EditableButtons from "./EditableButtons";
 import { useAuth } from "@/context/AuthContext";
 import { updateEmail } from "@/services/security";

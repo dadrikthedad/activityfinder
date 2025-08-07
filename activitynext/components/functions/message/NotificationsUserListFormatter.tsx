@@ -1,6 +1,6 @@
 import React, { JSX } from 'react';
 import { HighlightedText } from '../HighlightedText';
-import { UserSummaryDTO } from '@/types/UserSummaryDTO';
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 
 // Hjelpefunksjon med forhåndsdefinerte stiler
 const BoldName = ({ children }: { children: React.ReactNode }) => (

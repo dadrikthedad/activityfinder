@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getUserProfile } from "@/services/profile";
 import PublicProfileView from "@/components/profile/PublicProfileView";
-import { PublicProfileDTO } from "@/types/PublicProfileDTO";
+import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import AdditionalSettings from "@/components/settings/AdditionalSettings";
 import { useUpdateUserSettings } from "@/hooks/useUpdateUserSettings";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";

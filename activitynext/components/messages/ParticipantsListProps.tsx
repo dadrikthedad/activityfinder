@@ -1,6 +1,6 @@
 // ParticipantsList.tsx - gjenbrukbar komponent
 "use client";
-import { UserSummaryDTO, GroupRequestStatus } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO, GroupRequestStatus } from "@shared/types/UserSummaryDTO";
 import MiniAvatar from "../common/MiniAvatar";
 
 interface ParticipantsListProps {

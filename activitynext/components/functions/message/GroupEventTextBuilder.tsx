@@ -1,5 +1,5 @@
-import { GroupEventType } from "@/types/GroupNotificationUpdateDTO";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { GroupEventType } from "@shared/types/GroupNotificationUpdateDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import React, { JSX } from 'react';
 import { formatUserList } from "./NotificationsUserListFormatter";
 import { HighlightedText } from "../HighlightedText";

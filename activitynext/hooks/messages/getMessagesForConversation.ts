@@ -1,7 +1,7 @@
 // Her henter vi meldinger til en samtale fra backend ved å sende inn en samtaleId. Denne sikrer paginering
 import { useState, useEffect, useRef } from "react";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
-import { MessageDTO } from "@/types/MessageDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
 import { useChatStore } from "@/store/useChatStore";
 
 export function usePaginatedMessages(conversationId: number, isVisible: boolean) {

@@ -1,7 +1,7 @@
 // Feltene som man endrer feks navnfeltene, phone, postalcode osv. i profilesettings. Bruker EditableButton.tsx som mal
 "use client";
 import { useState } from "react";
-import { FieldName, validateSingleField } from "@/utils/validators";
+import { FieldName, validateSingleField } from "@shared/utils/validators";
 import EditableButtons from "./EditableButtons";
 
 interface EditableFieldProps {

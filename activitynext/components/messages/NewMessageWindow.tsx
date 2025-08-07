@@ -1,7 +1,7 @@
 import { useUserSearch } from "@/hooks/useUserSearch";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
-import { MessageDTO } from "@/types/MessageDTO";
-import { SendGroupRequestsResponseDTO } from "@/types/SendGroupRequestsDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
+import { SendGroupRequestsResponseDTO } from "@shared/types/SendGroupRequestsDTO";
 import { useState, useRef, useEffect, useCallback } from "react";
 import NewMessageInput from "./NewMessageInput";
 import Card from "../common/Card";

@@ -2,7 +2,7 @@
 // så kan vi sjekke om vår innloggede bruker er venn med brukeren fra en annens venneliste.
 "use client";
 import ClickableAvatar from "@/components/common/UserActionPopover/ClickableAvatar"; // NY IMPORT
-import { FriendDTO } from "@/types/FriendDTO";
+import { FriendDTO } from "@shared/types/FriendDTO";
 import { useFriendWith } from "@/hooks/useFriendWith";
 
 export default function FriendListItem({ friend }: { friend: FriendDTO }) {

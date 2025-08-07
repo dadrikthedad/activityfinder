@@ -8,7 +8,7 @@ import MiniAvatar from "../common/MiniAvatar";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import { useChatStore } from "@/store/useChatStore";
 import { useSearchMessages } from "@/hooks/messages/useSearchMessages";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import ParticipantsList from "./ParticipantsListProps";
 import { calculatePopoverPosition } from "../common/PopoverPositioning";
 import { useDeleteConversation } from "@/hooks/messages/useDeleteConversation";

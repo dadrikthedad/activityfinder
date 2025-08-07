@@ -2,12 +2,12 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { useSendMessage } from "@/hooks/messages/useSendMessage";
-import { MessageDTO } from "@/types/MessageDTO";
+import { MessageDTO } from "@shared/types/MessageDTO";
 import TextareaAutosize from "react-textarea-autosize";
 import { getDraftFor, saveDraftFor, clearDraftFor } from "@/utils/draft/draft";
 import { useChatStore } from "@/store/useChatStore";
 import MessageToolbar from "./MessageToolbar";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { validateFiles } from "../files/FileFunctions";
 import { FilePreview } from "../files/ImagePreview";
 import { ReplyPreview } from "./ReplyPreview";

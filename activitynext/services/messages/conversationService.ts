@@ -1,9 +1,9 @@
 // Samtale API-kall til backend relatert til samtaler. Henter samtaler, henter meldinger til samtaler
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
-import { API_BASE_URL } from "@/constants/routes";
-import { MessageDTO } from "@/types/MessageDTO"; // ← viktig!
-import { PagedConversationsResponseDTO } from "@/types/ConversationDTO";
-import { ConversationDTO } from "@/types/ConversationDTO";
+import { API_BASE_URL } from "@/constants/api/routes";
+import { MessageDTO } from "@shared/types/MessageDTO"; // ← viktig!
+import { PagedConversationsResponseDTO } from "@shared/types/ConversationDTO";
+import { ConversationDTO } from "@shared/types/ConversationDTO";
 // Henter alle samtalene til en bruker
 export async function getMyConversations(
     skip: number = 0,

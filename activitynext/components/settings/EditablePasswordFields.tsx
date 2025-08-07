@@ -3,7 +3,7 @@
 import { useState } from "react";
 import PasswordField from "@/components/PasswordField";
 import EditableButtons from "./EditableButtons";
-import { validateSingleField } from "@/utils/validators";
+import { validateSingleField } from "@shared/utils/validators";
 import { updatePassword } from "@/services/security";
 import { useAuth } from "@/context/AuthContext";
 

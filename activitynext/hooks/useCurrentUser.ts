@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { API_BASE_URL } from "@/services/user";
 import { useAuth } from "@/context/AuthContext";
-import { User } from "@/types/UserDTO";
+import { User } from "@shared/types/UserDTO";
 
 export function useCurrentUser() {
   const [user, setUser] = useState<User | null>(null); // Her lagres brukerdata fra backend

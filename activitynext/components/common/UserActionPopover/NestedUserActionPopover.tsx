@@ -2,7 +2,7 @@
 "use client";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { UserSummaryDTO } from "@/types/UserSummaryDTO";
+import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useOverlay, useOverlayAutoClose } from "@/context/OverlayProvider";
 import UserActionPopoverContent from "./UserActionPopoverContent";
 import { useUserActionPopover } from "./useUserActionPopover";
