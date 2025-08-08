@@ -1,25 +1,31 @@
+// Først: Installer pakken
+// npm install rn-emoji-keyboard
+// eller
+// yarn add rn-emoji-keyboard
+
 // components/reactions/ReactionMenuNative.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   Modal,
   StyleSheet,
-  ScrollView,
-  SafeAreaView,
   Dimensions,
+  Animated,
+  Clipboard,
+  Alert,
 } from 'react-native';
-// Import emoji picker
-import EmojiSelector from 'react-native-emoji-selector';
-import { ReactionDTO } from '@shared/types/MessageDTO';
-import { MessageDTO } from '@shared/types/MessageDTO';
+import EmojiPicker, { type EmojiType } from 'rn-emoji-keyboard'; // Ny import
+import { ReactionDTO, MessageDTO } from '@shared/types/MessageDTO';
 
 interface QuickAction {
-  type: 'reply' | 'delete';
+  type: 'reply' | 'delete' | 'copy';
   label: string;
+  icon: string;
   onPress: () => void;
   disabled?: boolean;
+  destructive?: boolean;
 }
 
 interface ReactionMenuNativeProps {
@@ -30,11 +36,13 @@ interface ReactionMenuNativeProps {
   existingReactions: ReactionDTO[];
   userId: number;
   message?: MessageDTO;
-  actualMessageId?: number | null; // 🆕 NEW: Pre-calculated actual message ID
+  actualMessageId?: number | null;
   actionsDisabled?: boolean;
+  messagePosition?: { x: number; y: number; width: number; height: number };
 }
 
 const quickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥"];
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
   visible,
@@ -46,10 +54,44 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
   message,
   actualMessageId, 
   actionsDisabled = false,
+  messagePosition,
 }) => {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // Erstatter showEmojiInput
+  const [mainMenuClosed, setMainMenuClosed] = useState(false);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
-  // 🔧 FIX: Use cached actualMessageId instead of calling getActualMessageId
+  useEffect(() => {
+    if (visible) {
+      // Reset states when component becomes visible
+      setMainMenuClosed(false);
+      setShowEmojiPicker(false);
+      
+      // Start animations
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Reset animations
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.8);
+      setShowEmojiPicker(false);
+      setMainMenuClosed(false);
+    }
+  }, [visible]);
+
   const getReactionStatus = (emoji: string) => {
     if (!message || actualMessageId === null) return false;
     
@@ -59,300 +101,360 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
   };
 
   const handleEmojiPress = (emoji: string) => {
-    if (actionsDisabled) {
-      return; // Ikke gjør noe hvis disabled
-    }
-
+    if (actionsDisabled) return;
     onReactionSelect(emoji);
+    onClose();
   };
 
-  const handleEmojiPickerSelect = (emoji: any) => {
-    // emoji-selector returns emoji as string
-    if (actionsDisabled) {
-      return;
-    }
-
-    onReactionSelect(emoji);
+  // Ny handler for emoji picker
+  const handleEmojiSelected = (emojiObject: EmojiType) => {
+    handleEmojiPress(emojiObject.emoji);
     setShowEmojiPicker(false);
+    setMainMenuClosed(false);
   };
 
-  
+  const handleCopyMessage = () => {
+    if (!message?.text) return;
+    
+    Clipboard.setString(message.text);
+    Alert.alert('Copied', 'Message copied to clipboard');
+    onClose();
+  };
+
+  // Oppdatert handler for pluss-knappen
+  const handleMoreEmojiPress = () => {
+    if (actionsDisabled) return;
+    
+    // Lukk hovedmenyen og åpne emoji picker
+    setMainMenuClosed(true);
+    setShowEmojiPicker(true);
+  };
+
+  const handleEmojiPickerClose = () => {
+    setShowEmojiPicker(false);
+    setMainMenuClosed(false);
+    onClose(); // Lukk hele komponenten
+  };
+
+  const getMenuPosition = () => {
+    if (!messagePosition) return { top: screenHeight / 2, left: 20 };
+    
+    const menuWidth = 280;
+    const menuHeight = 120;
+    
+    // Start with position above message
+    let top = messagePosition.y - menuHeight - 10;
+    let left = messagePosition.x + messagePosition.width / 2 - menuWidth / 2;
+    
+    // Adjust if menu goes off screen vertically
+    if (top < 50) {
+      top = messagePosition.y + messagePosition.height + 10;
+    }
+    
+    // Adjust if menu goes off screen horizontally
+    if (left < 20) {
+      left = 20;
+    }
+    if (left + menuWidth > screenWidth - 20) {
+      left = screenWidth - menuWidth - 20;
+    }
+    
+    return { top, left };
+  };
+
   const renderQuickEmojis = () => (
-    <View style={styles.emojiGrid}>
+    <View style={styles.emojiRow}>
       {quickEmojis.map((emoji) => {
         const isActive = getReactionStatus(emoji);
         return (
           <TouchableOpacity
             key={emoji}
             style={[
-              styles.emojiButton, 
+              styles.quickEmojiButton, 
               isActive && styles.activeEmoji,
-              actionsDisabled && styles.emojiButtonDisabled // 🔧 Disabled style
+              actionsDisabled && styles.disabledButton
             ]}
             onPress={() => handleEmojiPress(emoji)}
-            disabled={actionsDisabled} // 🔧 Disable touch
+            disabled={actionsDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={`React ${emoji}`}
           >
-            <Text style={[
-              styles.emojiText,
-              actionsDisabled && styles.emojiTextDisabled // 🔧 Grayed out
-            ]}>
-              {emoji}
-            </Text>
+            <Text style={styles.quickEmojiText}>{emoji}</Text>
           </TouchableOpacity>
         );
       })}
+      <TouchableOpacity
+        style={[styles.moreEmojiButton, actionsDisabled && styles.disabledButton]}
+        onPress={handleMoreEmojiPress}
+        disabled={actionsDisabled}
+        accessibilityRole="button"
+        accessibilityLabel="More emojis"
+      >
+        <Text style={styles.moreEmojiText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <SafeAreaView style={styles.menuContainer}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>
-              {showEmojiPicker ? 'Choose emoji' : 'React to message'}
-              {actionsDisabled && ' (sending...)'}
+  const renderActions = () => {
+    // Add copy action if not already present
+    const actionsWithCopy = quickActions.some(a => a.type === 'copy') 
+      ? quickActions 
+      : [
+          ...quickActions,
+          {
+            type: 'copy' as const,
+            label: 'Copy',
+            icon: '📋',
+            onPress: handleCopyMessage,
+            disabled: !message?.text,
+          }
+        ];
+
+    if (actionsWithCopy.length === 0) return null;
+
+    return (
+      <View style={styles.actionsRow}>
+        {actionsWithCopy.map((action) => (
+          <TouchableOpacity
+            key={action.type}
+            style={[
+              styles.actionButton,
+              action.disabled && styles.disabledButton,
+              action.destructive && styles.destructiveButton
+            ]}
+            onPress={action.onPress}
+            disabled={action.disabled}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+          >
+            <Text style={styles.actionIcon}>{action.icon}</Text>
+            <Text style={[
+              styles.actionLabel,
+              action.disabled && styles.disabledText,
+              action.destructive && styles.destructiveText
+            ]}>
+              {action.label}
             </Text>
-            <TouchableOpacity 
-              onPress={() => {
-                if (showEmojiPicker) {
-                  setShowEmojiPicker(false);
-                } else {
-                  onClose();
-                }
-              }} 
-              style={styles.closeButton}
-            >
-              <Text style={styles.closeButtonText}>
-                {showEmojiPicker ? '←' : '✕'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {showEmojiPicker ? (
-            /* Full Emoji Picker */
-            <View style={styles.emojiPickerContainer}>
-              <EmojiSelector
-                onEmojiSelected={handleEmojiPickerSelect}
-                showTabs={true}
-                showSearchBar={true}
-                showSectionTitles={true}
-                category={undefined}
-                columns={8}
-                placeholder="Search emoji..."
-                theme="#1C6B1C"
-              />
-            </View>
-          ) : (
-            /* Quick Menu */
-            <ScrollView style={styles.content}>
-              {/* Quick Actions */}
-              {quickActions.length > 0 && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Actions</Text>
-                  {quickActions.map((action) => (
-                    <TouchableOpacity
-                      key={action.type}
-                      style={[
-                        styles.actionButton,
-                        action.type === 'delete' && styles.deleteAction,
-                        action.disabled && styles.actionButtonDisabled // 🔧 Disabled style
-                      ]}
-                      onPress={action.onPress}
-                      disabled={action.disabled} // 🔧 Disable touch
-                    >
-                      <Text style={[
-                        styles.actionText,
-                        action.type === 'delete' && styles.deleteText,
-                        action.disabled && styles.actionTextDisabled // 🔧 Disabled text
-                      ]}>
-                        {action.type === 'reply' ? '↩️' : '🗑️'} {action.label}
-                        {action.disabled && ' (wait...)'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* Quick Emojis */}
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  Quick reactions
-                  {actionsDisabled && ' (wait for message to send)'}
-                </Text>
-                {renderQuickEmojis()}
-              </View>
-
-              {/* More Emojis Button */}
-              <View style={styles.section}>
-                <TouchableOpacity
-                  style={[
-                    styles.moreButton,
-                    actionsDisabled && styles.moreButtonDisabled // 🔧 Disabled style
-                  ]}
-                  onPress={() => {
-                    if (!actionsDisabled) {
-                      setShowEmojiPicker(true);
-                    }
-                  }}
-                  disabled={actionsDisabled} // 🔧 Disable touch
-                >
-                  <Text style={[
-                    styles.moreButtonText,
-                    actionsDisabled && styles.moreButtonTextDisabled // 🔧 Disabled text
-                  ]}>
-                    {actionsDisabled ? 'Please wait...' : 'More emojis 😊'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          )}
-        </SafeAreaView>
+          </TouchableOpacity>
+        ))}
       </View>
-    </Modal>
+    );
+  };
+
+  const renderFloatingMenu = () => {
+    const position = getMenuPosition();
+    
+    return (
+      <Animated.View
+        style={[
+          styles.floatingMenu,
+          {
+            top: position.top,
+            left: position.left,
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+            width: 280,
+            maxHeight: 200,
+          },
+        ]}
+      >
+        <View style={styles.floatingContent}>
+          {/* Quick Reactions */}
+          {renderQuickEmojis()}
+          
+          {/* Divider (only if we have actions) */}
+          {quickActions.length > 0 && <View style={styles.divider} />}
+          
+          {/* Actions */}
+          {renderActions()}
+        </View>
+      </Animated.View>
+    );
+  };
+
+  if (!visible && !showEmojiPicker) return null;
+
+  return (
+    <>
+      {/* Hovedmeny modal */}
+      <Modal
+        visible={visible && !mainMenuClosed}
+        transparent
+        animationType="none"
+        onRequestClose={onClose}
+        statusBarTranslucent
+      >
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={onClose}
+        >
+          <Animated.View style={{ opacity: fadeAnim }}>
+            {renderFloatingMenu()}
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Emoji Picker */}
+      <EmojiPicker
+        open={showEmojiPicker}
+        onClose={handleEmojiPickerClose}
+        onEmojiSelected={handleEmojiSelected}
+        // Tilpassinger
+        enableSearchBar={true}
+        enableRecentlyUsed={true}
+        categoryOrder={[
+          'recently_used',              // Nylig brukt først!
+          'smileys_emotion',
+          'people_body',
+          'animals_nature',
+          'food_drink',
+          'activities',
+          'travel_places',
+          'objects',
+          'symbols',
+          'flags',
+        ]}
+        emojiSize={26}
+        defaultHeight="50%"
+        expandedHeight="80%"
+        categoryPosition="top"
+        hideHeader={true}   
+        // Styling for å matche din app
+        theme={{
+          knob: '#1C6B1C',
+          container: '#ffffff',
+          header: '#ffffff',
+          category: { 
+            container: '#f5f5f5',
+            containerActive: '#1C6B1C',
+            iconActive: '#ffffff',
+            icon: '#1C6B1C',
+          }
+        }}
+        styles={{
+          container: {
+            borderWidth: 3,
+            borderColor: '#1C6B1C',
+            shadowColor: '#1C6B1C',
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 8,
+            borderTopLeftRadius: 10,
+            borderTopRightRadius: 10,
+            borderBottomLeftRadius: 0,    // Eksplisitt ingen runding nederst
+            borderBottomRightRadius: 0,
+          },
+        }}
+      />
+    </>
   );
 };
 
+// Eksisterende styles (uendret)
 const styles = StyleSheet.create({
-  // ... alle eksisterende styles ...
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
-  menuContainer: {
+  
+  // Floating Menu Styles
+  floatingMenu: {
+    position: 'absolute',
     backgroundColor: 'white',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '70%',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
     borderRadius: 16,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: '#1C6B1C',
   },
-  closeButtonText: {
-    fontSize: 16,
-    color: '#6B7280',
+  floatingContent: {
+    padding: 12,
   },
-  content: {
-    flex: 1,
-  },
-  section: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 12,
-  },
-  actionButton: {
+  
+  // Quick Emojis
+  emojiRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#F9FAFB',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  // 🔧 Nye disabled styles
-  actionButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  actionTextDisabled: {
-    color: '#9CA3AF',
-  },
-  deleteAction: {
-    backgroundColor: '#FEF2F2',
-  },
-  actionText: {
-    fontSize: 16,
-    color: '#374151',
-  },
-  deleteText: {
-    color: '#DC2626',
-  },
-  emojiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  emojiButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F9FAFB',
+  quickEmojiButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    marginHorizontal: 2,
   },
-  // 🔧 Nye emoji disabled styles
-  emojiButtonDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
+  quickEmojiText: {
+    fontSize: 22,
   },
-  emojiTextDisabled: {
-    opacity: 0.4,
+  moreEmojiButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E0E0E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreEmojiText: {
+    fontSize: 18,
+    color: '#666',
+    fontWeight: '600',
   },
   activeEmoji: {
-    backgroundColor: '#1C6B1C',
-    borderColor: '#16A34A',
+    backgroundColor: '#007AFF',
     transform: [{ scale: 1.1 }],
   },
-  emojiText: {
-    fontSize: 24,
-  },
-  moreButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  
+  // Actions
+  divider: {
+    height: 1,
     backgroundColor: '#1C6B1C',
+    marginVertical: 8,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  actionButton: {
     alignItems: 'center',
-    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    minWidth: 60,
   },
-  // 🔧 Nye more button disabled styles
-  moreButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  moreButtonTextDisabled: {
-    color: '#F3F4F6',
-  },
-  moreButtonText: {
+  actionIcon: {
     fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
+    marginBottom: 2,
   },
-  emojiPickerContainer: {
-    flex: 1,
-    height: Dimensions.get('window').height * 0.6,
-    backgroundColor: 'white',
+  actionLabel: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: '500',
+  },
+
+  // Common Styles
+  disabledButton: {
+    opacity: 0.5,
+    backgroundColor: '#F0F0F0',
+  },
+  disabledText: {
+    color: '#999',
+  },
+  destructiveButton: {
+    backgroundColor: '#FFE6E6',
+  },
+  destructiveText: {
+    color: '#FF3B30',
   },
 });

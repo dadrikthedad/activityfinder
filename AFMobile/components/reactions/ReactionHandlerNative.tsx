@@ -1,11 +1,12 @@
-// ReactionHandlerNative.tsx - Forbedret versjon
-import React, { useState, useMemo } from 'react';
+// ReactionHandlerNative.tsx - Oppdatert for best practice meny
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
   Alert,
   StyleSheet,
   Vibration,
+  Dimensions,
 } from 'react-native';
 import { ReactionDTO, MessageDTO } from '@shared/types/MessageDTO';
 import { useReactions } from '@/hooks/reactions/useReactions';
@@ -36,20 +37,22 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
 }) => {
   const { addReaction } = useReactions();
   const [showMenu, setShowMenu] = useState(false);
+  const [messagePosition, setMessagePosition] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | undefined>();
+  
+  const messageRef = useRef<View>(null);
   const getActualMessageId = useChatStore((state) => state.getActualMessageId);
 
-  // 🔧 Sjekk om meldingen kan håndteres (har enten vanlig ID eller optimistisk ID)
   const canHandleMessage = useMemo(() => {
     if (!message) return false;
-    
-    // Vanlig melding - kan alltid håndteres
     if (!message.isOptimistic) return true;
-    
-    // Optimistisk melding - kan håndteres hvis den har optimistisk ID
     return Boolean(message.optimisticId);
   }, [message?.id, message?.isOptimistic, message?.optimisticId]);
 
-  // 🔧 Sjekk om vi kan utføre handlinger (krever server ID)
   const actualMessageId = useMemo(() => {
     if (!message) return null;
     return getActualMessageId(message);
@@ -60,16 +63,18 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   }, [actualMessageId]);
 
   const handleLongPress = () => {
-    if (disabled || message?.isDeleted) return;
+    if (disabled || message?.isDeleted || !canHandleMessage) return;
 
-    // 🔧 Kan vise meny hvis vi kan håndtere meldingen (selv optimistiske)
-    if (!canHandleMessage) {
-      console.log("❌ Cannot handle message - no ID available");
-      return;
+    // Measure message position for floating menu
+    messageRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      setMessagePosition({ x: pageX, y: pageY, width, height });
+    });
+
+    // Haptic feedback (platform specific)
+    if (Vibration) {
+      Vibration.vibrate(50);
     }
- 
-    // Light haptic feedback
-    Vibration.vibrate(50);
+    
     setShowMenu(true);
   };
 
@@ -79,7 +84,6 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       return;
     }
 
-    // 🔧 Krever server ID for å utføre reaksjon
     if (!canPerformActions) {
       console.warn(`⚠️ Cannot react to message - no server ID available yet`);
       
@@ -88,7 +92,6 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
         "Message is still being sent. Please try again in a moment.",
         [{ text: "OK" }]
       );
-      setShowMenu(false);
       return;
     }
 
@@ -105,52 +108,56 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       messageId: messageId!,
       emoji
     });
-    setShowMenu(false);
   };
 
   const handleReply = () => {
     if (!message || !onReply) return;
 
-    // 🔧 Reply krever også server ID
     if (!canPerformActions) {
       Alert.alert(
         "Please wait", 
         "Message is still being sent. Please try again in a moment.",
         [{ text: "OK" }]
       );
-      setShowMenu(false);
       return;
     }
 
     onReply(message);
-    setShowMenu(false);
   };
 
   const handleDelete = () => {
     if (!message || !onDelete) return;
 
-    // 🔧 Delete kan fungere på optimistiske meldinger også
-    // fordi vi sletter lokalt først
     if (!canHandleMessage) {
       console.warn("❌ Cannot delete message - no ID available");
       return;
     }
 
-    onDelete(message);
-    setShowMenu(false);
+    // Show confirmation for destructive action
+    Alert.alert(
+      "Delete Message",
+      "Are you sure you want to delete this message?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: () => onDelete(message)
+        }
+      ]
+    );
   };
 
   const getQuickActions = () => {
     const actions = [];
    
     // Reply action (for other people's messages)
-    // 🔧 Vis reply-knappen, men den vil vise warning hvis ikke klar
     if (message && onReply && currentUserId !== message.sender?.id) {
       actions.push({
         type: 'reply' as const,
         label: 'Reply',
+        icon: '↩️',
         onPress: handleReply,
-        // 🔧 Vis visuell indikator hvis ikke klar enda
         disabled: !canPerformActions,
       });
     }
@@ -160,16 +167,16 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       actions.push({
         type: 'delete' as const,
         label: 'Delete',
+        icon: '🗑️',
         onPress: handleDelete,
-        // Delete er alltid tilgjengelig for egne meldinger
         disabled: false,
+        destructive: true,
       });
     }
    
     return actions;
   };
 
-  // 🔧 Hvis vi ikke kan håndtere meldingen i det hele tatt, ikke vis long press
   if (!canHandleMessage) {
     return <View style={styles.container}>{children}</View>;
   }
@@ -177,9 +184,11 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   return (
     <View style={styles.container}>
       <TouchableOpacity
+        ref={messageRef}
         onLongPress={handleLongPress}
         delayLongPress={500}
         activeOpacity={0.95}
+        style={styles.touchable}
       >
         {children}
       </TouchableOpacity>
@@ -193,8 +202,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
         userId={userId}
         message={message}
         actualMessageId={actualMessageId}
-        // 🔧 Legg til flag for å vise at noen handlinger ikke er klare enda
         actionsDisabled={!canPerformActions}
+        messagePosition={messagePosition}
       />
     </View>
   );
@@ -202,6 +211,9 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  touchable: {
     flex: 1,
   },
 });
