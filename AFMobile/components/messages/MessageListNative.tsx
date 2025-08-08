@@ -42,7 +42,7 @@ interface MessageItemProps {
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
 }
 
-const MessageItemNative = React.memo(({
+const MessageItemNative = ({
   message,
   currentUser,
   isLocked,
@@ -55,6 +55,13 @@ const MessageItemNative = React.memo(({
   const isMine = currentUser?.id === message.sender?.id;
   const isOptimistic = message.isOptimistic;
   const hasSendError = message.sendError;
+
+  // For å fjerne isSending
+  const isMapped = useChatStore(state => 
+    message.optimisticId ? Boolean(state.optimisticToServerIdMap?.[message.optimisticId]) : false
+  );
+
+  const shouldShowSending = message.isOptimistic && message.isSending && !isMapped;
 
   // System message
   if (message.isSystemMessage) {
@@ -200,7 +207,7 @@ const MessageItemNative = React.memo(({
         </View>
       )}
 
-      {isOptimistic && message.isSending && (
+       {shouldShowSending && (
         <View style={styles.sendingIndicator}>
           <ActivityIndicator size="small" color="#6B7280" />
           <Text style={styles.sendingText}>Sending...</Text>
@@ -238,7 +245,7 @@ const MessageItemNative = React.memo(({
       {messageContent}
     </ReactionHandlerNative>
   );
-});
+};
 
 MessageItemNative.displayName = 'MessageItemNative';
 
