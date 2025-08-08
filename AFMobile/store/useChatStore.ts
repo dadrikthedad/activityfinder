@@ -73,7 +73,7 @@ type ChatStore = {
   // Lagre mapping uten å endre selve meldingen
   registerOptimisticMapping: (optimisticId: string, serverId: number) => void;
   // Hent riktig ID for reaksjoner/sletting
-  getActualMessageId: (messageWithOptimisticId: MessageDTO) => number;
+  getActualMessageId: (messageWithOptimisticId: MessageDTO) => number | null;
   convertOptimisticToReal: (conversationId: number) => void;
   convertAllOptimisticToReal: () => void;
   isPendingCollapsed: boolean;
@@ -599,19 +599,20 @@ export const useChatStore = create<ChatStore>()(
   // 🆕 Hent riktig ID for API-kall
   getActualMessageId: (message) => {
     const state = get();
-    
+  
     // Hvis det er en optimistisk melding, bruk mapped ID
     if (message.isOptimistic && message.optimisticId) {
       const serverId = state.optimisticToServerIdMap[message.optimisticId];
       if (serverId) {
         console.log(`🔍 Found mapped ID: ${message.optimisticId} → ${serverId}`);
-        return serverId;
+        return serverId; // 👈 returnerer number
       }
-      console.warn(`⚠️ No server ID found for optimistic: ${message.optimisticId}`);
-    }
     
-    // Fallback til vanlig ID
-    return message.id;
+      return null; // 👈 returnerer null
+    }
+  
+    // Fallback til vanlig ID for ikke-optimistiske meldinger
+    return message.id; // 👈 returnerer number
   },
 
   convertOptimisticToReal: (conversationId) =>

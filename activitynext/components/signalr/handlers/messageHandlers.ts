@@ -8,7 +8,7 @@ import { handleIncomingReaction } from "../handleIncomingReactions";
 import { showNotificationToast } from "@/components/toast/Toast";
 import { handleIncomingNotification } from "@/services/helpfunctions/getNotificationsBeforeSignalr";
 import { NotificationType } from "@shared/types/MessageNotificationDTO";
-import truncateText from "@shared/services/helpfunctions/truncateMsgTextForToast";
+import truncateText from "@shared/utils/text/truncateMsgTextForToast";
 import { preloadMessagesForConversation } from "@/functions/SignalR/PreloadMessagesForConversation";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 
@@ -29,7 +29,7 @@ export const handleMessage = async (
     registerOptimisticMapping,
     updateConversationTimestamp, 
     conversations,
-    liveMessages 
+    liveMessages,
   } = useChatStore.getState();
   
   try {

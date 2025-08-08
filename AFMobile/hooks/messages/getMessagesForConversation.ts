@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { MessageDTO } from "@shared/types/MessageDTO";
 import { useChatStore } from "@/store/useChatStore";
-import { useBootstrapStore } from "@/store/useBootstrapStore"; // 🆕
+import { useBootstrapStore } from "@/store/useBootstrapStore";
 
 export function usePaginatedMessages(conversationId: number, isVisible: boolean) {
   const take = 20;
@@ -25,59 +25,102 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
   const hasLoadedInitialCache = useRef(false);
  
   const isInvalidConversation = conversationId === -1;
-  const isReady = isBootstrapped && hasLoadedConversations && isVisible;
+  
+  // 🔧 FIX: Separer ready conditions for cache vs API calls
+  const canUseCache = isBootstrapped && hasLoadedConversations;
+  const canMakeApiCalls = isBootstrapped && isVisible; // Ikke krev hasLoadedConversations for API calls
+  
+  console.log(`🔍 usePaginatedMessages state for conversation ${conversationId}:`, {
+    isBootstrapped,
+    hasLoadedConversations,
+    isVisible,
+    canUseCache,
+    canMakeApiCalls,
+    isInvalidConversation
+  });
 
   useEffect(() => {
-    if (isInvalidConversation || !isReady) {
+    if (isInvalidConversation) {
       return;
     }
-   
-    console.log(`🚀 Ready to load messages for conversation ${conversationId}`);
     
+    // 🔧 FIX: Reset state når vi bytter samtale
     setError(null);
     hasLoadedInitialCache.current = false;
-   
-    const cached = cachedMessages[conversationId] ?? [];
-    const live = liveMessages[conversationId] ?? [];
-    const combined = [
-      ...cached,
-      ...live.filter(m => !cached.some(c => c.id === m.id))
-    ];
-   
-    setMessages(combined);
-    
-    // 🔧 CRITICAL FIX: Ikke overskrive cache med combined data
-    // Kun oppdater cache hvis live messages inneholder nye data som bør persistent lagres
-    const newLiveMessages = live.filter(m => !m.isOptimistic && !cached.some(c => c.id === m.id));
-    if (newLiveMessages.length > 0) {
-      const updatedCache = [...cached, ...newLiveMessages];
-      console.log(`🔄 Adding ${newLiveMessages.length} new live messages to cache (total: ${updatedCache.length})`);
-      setCachedMessages(conversationId, updatedCache);
-    }
-    
-    if (cached.length > 0) {
-      console.log(`📦 Loaded ${combined.length} messages from cache for conversation ${conversationId} (${cached.length} cached + ${live.length} live)`);
-      hasLoadedInitialCache.current = true;
-      
-      // 🔧 CRITICAL FIX: Base hasMore på cached messages, ikke combined
-      setHasMore(cached.length >= take);
-    } else {
-      setHasMore(true);
-    }
-    
-    setLoading(false);
     lastSkipRef.current = -1;
    
-  }, [conversationId, cachedMessages, liveMessages, isInvalidConversation, isReady]);
+    // Hvis vi kan bruke cache, last cached + live messages
+    if (canUseCache) {
+      const cached = cachedMessages[conversationId] ?? [];
+      const live = liveMessages[conversationId] ?? [];
+      const combined = [
+        ...cached,
+        ...live.filter(m => !cached.some(c => c.id === m.id))
+      ];
+     
+      setMessages(combined);
+      
+      // Kun oppdater cache hvis live messages inneholder nye data som bør persistent lagres
+      const newLiveMessages = live.filter(m => !m.isOptimistic && !cached.some(c => c.id === m.id));
+      if (newLiveMessages.length > 0) {
+        const updatedCache = [...cached, ...newLiveMessages];
+        console.log(`🔄 Adding ${newLiveMessages.length} new live messages to cache (total: ${updatedCache.length})`);
+        setCachedMessages(conversationId, updatedCache);
+      }
+      
+      if (cached.length > 0) {
+        console.log(`📦 Loaded ${combined.length} messages from cache for conversation ${conversationId} (${cached.length} cached + ${live.length} live)`);
+        hasLoadedInitialCache.current = true;
+        setHasMore(cached.length >= take);
+      } else {
+        console.log(`📭 No cached messages for conversation ${conversationId}, will fetch from API`);
+        setHasMore(true);
+      }
+      
+      setLoading(false);
+    } else {
+      // 🆕 NEW: Hvis vi ikke kan bruke cache enda, clear messages og vent
+      console.log(`⏳ Waiting for bootstrap/conversations to load for conversation ${conversationId}`);
+      setMessages([]);
+      setHasMore(true);
+      setLoading(false);
+    }
+   
+  }, [conversationId, cachedMessages, liveMessages, isInvalidConversation, canUseCache]);
+
+  // 🆕 NEW: Automatisk initial load når vi blir ready til å gjøre API kall
+  useEffect(() => {
+    if (isInvalidConversation || !canMakeApiCalls) {
+      return;
+    }
+
+    const cached = cachedMessages[conversationId] ?? [];
+    const hasAnyMessages = messages.length > 0;
+    
+    // Hvis vi ikke har noen meldinger og heller ikke har cached data, start initial load
+    if (!hasAnyMessages && cached.length === 0 && !loading && !isFetching.current) {
+      console.log(`🚀 Auto-triggering initial load for conversation ${conversationId} (no cache available)`);
+      loadMore();
+    }
+  }, [conversationId, canMakeApiCalls, messages.length, cachedMessages, loading]);
 
   const loadMore = async () => {
-    if (isInvalidConversation || loading || !hasMore || isFetching.current || error || !isReady) {
+    // 🔧 FIX: Bruk canMakeApiCalls istedenfor isReady
+    if (isInvalidConversation || loading || !hasMore || isFetching.current || error || !canMakeApiCalls) {
+      console.log(`🚫 LoadMore blocked:`, {
+        isInvalidConversation,
+        loading,
+        hasMore,
+        isFetching: isFetching.current,
+        error: !!error,
+        canMakeApiCalls
+      });
       return;
     }
    
-    // 🔧 CRITICAL FIX: Base skipCount på cached messages, ikke combined messages
+    // Base skipCount på cached messages, ikke combined messages
     const cachedCount = cachedMessages[conversationId]?.length ?? 0;
-    const skipCount = cachedCount; // Skip basert på antall cached messages
+    const skipCount = cachedCount;
     
     console.log(`📊 LoadMore stats:`, {
       conversationId,
@@ -103,6 +146,7 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
     setError(null);
     
     try {
+      console.log(`🌐 Making API call: getMessagesForConversation(${conversationId}, ${skipCount}, ${take})`);
       const newMessages = await getMessagesForConversation(conversationId, skipCount, take) ?? [];
      
       console.log("📦 Hentet meldinger fra backend:", {
@@ -115,12 +159,12 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
       
       lastSkipRef.current = skipCount;
       
-      // 🔧 CRITICAL FIX: Check against cached messages, not local messages state
+      // Check against cached messages, not local messages state
       const existingCachedIds = new Set((cachedMessages[conversationId] ?? []).map((m) => m.id));
       const uniqueNew = newMessages.filter((m) => !existingCachedIds.has(m.id));
       
       if (uniqueNew.length > 0) {
-        // 🔧 CRITICAL FIX: Combine with existing CACHED messages, not local state
+        // Combine with existing CACHED messages, not local state
         const existingCached = cachedMessages[conversationId] ?? [];
         const updatedCached = [...uniqueNew, ...existingCached]; // Nye først (eldre meldinger)
         
@@ -176,6 +220,6 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
     loading: isInvalidConversation ? false : loading,
     hasMore: isInvalidConversation ? false : hasMore,
     error: isInvalidConversation ? null : error,
-    isReady,
+    isReady: canMakeApiCalls, // 🔧 FIX: Return canMakeApiCalls as isReady
   };
 }

@@ -2,7 +2,7 @@
 import { useNotificationStore } from "@/store/useNotificationStore";
 import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { LocalToastType } from "@/components/toast/NotificationToastNative";
-import { showNotificationToast } from "@/components/toast/NotificationToastNative";
+import { showNotificationToastNative } from "@/components/toast/NotificationToastNative";
 import { getFriendInvitationById } from "@/services/friends/friendService";
 import { getNotificationById } from "@/services/notifications/notificationService";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
@@ -30,7 +30,7 @@ export const handleNotification = async (
       if (fr) {
         addFriendRequest(fr);
         setFriendRequestTotalCount(friendRequestTotalCount + 1);
-        showNotificationToast({
+        showNotificationToastNative({
           senderName: fr.userSummary?.fullName ?? "Someone",
           conversationId: -1,
           type: LocalToastType.FriendRequestReceived,
@@ -48,7 +48,7 @@ export const handleNotification = async (
         setUser(evt.relatedUser);
         
         console.log('🤝 Friend added to user cache:', evt.relatedUser.fullName);
-        showNotificationToast({
+        showNotificationToastNative({
           senderName: evt.relatedUser.fullName ?? "Someone",
           type: LocalToastType.FriendInvAccepted,
           relatedUser: evt.relatedUser,

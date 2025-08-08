@@ -67,6 +67,7 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
           ...result,
           sender: user,
         };
+        
         onSuccess?.(enriched);
         return enriched;
       }

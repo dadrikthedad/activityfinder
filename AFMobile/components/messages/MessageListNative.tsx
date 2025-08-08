@@ -271,6 +271,11 @@ export default function MessageListNative({
   // 🔧 FIX: Track current scroll position more reliably
   const currentScrollPosition = useRef(0);
   const scrollUpdateTimer = useRef<NodeJS.Timeout | null>(null);
+  
+  // 🆕 NEW: Smooth infinite scroll state
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadMoreThrottleRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoadMoreTime = useRef(0);
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
 
@@ -319,33 +324,39 @@ export default function MessageListNative({
     conversationId === pendingLockedConversationId;
 
   const handleDeleteMessage = async (message: MessageDTO) => {
-    const { getActualMessageId } = useChatStore.getState();
-    const actualMessageId = getActualMessageId(message);
-    
-    const messagePreview = message.text 
-      ? message.text.length > 50 
-        ? `${message.text.slice(0, 50)}...` 
-        : message.text
-      : "this message";
+  const { getActualMessageId } = useChatStore.getState();
+  const actualMessageId = getActualMessageId(message);
+  
+  const messagePreview = message.text 
+    ? message.text.length > 50 
+      ? `${message.text.slice(0, 50)}...` 
+      : message.text
+    : "this message";
 
-    Alert.alert(
-      "Delete Message",
-      `Are you sure you want to delete "${messagePreview}"?\n\nThis action cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive",
-          onPress: async () => {
+  Alert.alert(
+    "Delete Message",
+    `Are you sure you want to delete "${messagePreview}"?\n\nThis action cannot be undone.`,
+    [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "Delete", 
+        style: "destructive",
+        onPress: async () => {
+          // 🔧 FIX: Sjekk om actualMessageId er null
+          if (actualMessageId !== null) {
             await deleteMessage({ 
               ...message, 
               id: actualMessageId 
             });
+          } else {
+            // For optimistiske meldinger uten server ID, bruk original melding
+            await deleteMessage(message);
           }
         }
-      ]
-    );
-  };
+      }
+    ]
+  );
+};
 
   const renderMessage = ({ item }: { item: MessageDTO }) => (
     <MessageItemNative
@@ -360,27 +371,42 @@ export default function MessageListNative({
     />
   );
 
-  const handleLoadMore = () => {
-    if (hasMore && !loading) {
-      loadMore();
+  // 🆕 NEW: Smooth infinite scroll handler
+  const handleLoadMoreSmooth = useCallback(async () => {
+    // Throttle requests to avoid spam
+    const now = Date.now();
+    if (now - lastLoadMoreTime.current < 1000) { // Min 1 second between requests
+      return;
     }
-  };
 
-  const stableConversationId = useRef(conversationId);
-  
-  useEffect(() => {
-    if (conversationId && conversationId !== -1) {
-      stableConversationId.current = conversationId;
+    if (!hasMore || loading || isLoadingMore) {
+      return;
     }
-  }, [conversationId]);
 
-  // 🔧 FIX 1: Make scroll tracking more efficient with scroll end detection
+    console.log('🔄 Starting smooth load more...');
+    setIsLoadingMore(true);
+    lastLoadMoreTime.current = now;
+
+    try {
+      await loadMore();
+      console.log('✅ Smooth load more completed');
+    } catch (error) {
+      console.error('❌ Smooth load more failed:', error);
+    } finally {
+      // Add a small delay to prevent UI flickering
+      setTimeout(() => {
+        setIsLoadingMore(false);
+      }, 300);
+    }
+  }, [hasMore, loading, isLoadingMore, loadMore]);
+
+  // 🆕 NEW: Enhanced scroll handler with smooth infinite scroll
   const handleScroll = useCallback((event: any) => {
     if (isRestoring.current || !isInitialized) {
-      return; // Removed logging to reduce noise
+      return;
     }
 
-    const { contentOffset } = event.nativeEvent;
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     const targetConversationId = stableConversationId.current;
     
     if (!targetConversationId || targetConversationId === -1) {
@@ -393,7 +419,24 @@ export default function MessageListNative({
     const isAtBottom = contentOffset.y <= 50;
     onScrollPositionChange?.(isAtBottom);
 
-    // 🔧 FIX: Debounced saving - only save when user stops scrolling
+    // 🆕 NEW: Check if we're near the top (which is bottom in inverted list) to load more
+    const distanceFromTop = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    const loadMoreThreshold = 200; // Trigger when 200px from top
+    
+    if (distanceFromTop <= loadMoreThreshold && hasMore && !loading && !isLoadingMore) {
+      console.log(`📈 Near top (${distanceFromTop}px remaining), triggering smooth load more`);
+      
+      // Throttle the load more requests
+      if (loadMoreThrottleRef.current) {
+        clearTimeout(loadMoreThrottleRef.current);
+      }
+      
+      loadMoreThrottleRef.current = setTimeout(() => {
+        handleLoadMoreSmooth();
+      }, 100); // Small delay to avoid multiple rapid calls
+    }
+
+    // Save scroll position (debounced)
     if (scrollUpdateTimer.current) {
       clearTimeout(scrollUpdateTimer.current);
     }
@@ -424,9 +467,17 @@ export default function MessageListNative({
         
         setScrollMessageId(targetConversationId, scrollData);
       }
-    }, 500); // Wait 500ms after scroll stops
+    }, 500);
 
-  }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized]);
+  }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth]);
+
+  const stableConversationId = useRef(conversationId);
+  
+  useEffect(() => {
+    if (conversationId && conversationId !== -1) {
+      stableConversationId.current = conversationId;
+    }
+  }, [conversationId]);
 
   // 🔧 FIX 2: Simplified viewport tracking - only when scroll tracking fails
   const trackVisibleItems = useCallback((info: any) => {
@@ -460,16 +511,14 @@ export default function MessageListNative({
     }
   }, [setScrollMessageId, isInitialized]);
 
-  // 🔧 FIX 3: Remove periodic saving - rely on scroll end detection
-  // Periodic saving removed to improve performance
-
   useEffect(() => {
     console.log(`🔄 Conversation changed to: ${conversationId}, resetting initialization`);
     
     if (conversationId && conversationId !== -1) {
       setIsInitialized(false);
       isRestoring.current = false;
-      currentScrollPosition.current = 0; // Reset position tracking
+      currentScrollPosition.current = 0;
+      setIsLoadingMore(false); // 🆕 NEW: Reset loading more state
     }
   }, [conversationId]);
 
@@ -544,8 +593,7 @@ export default function MessageListNative({
           isRestoring.current = false;
           console.log(`🎯 Restoration complete for conversation ${conversationId}`);
           
-          // 🚀 FORCE INITIAL TRACKING: Since handleScroll might not trigger, 
-          // manually save the current visible message after restoration
+          // Force initial tracking after restoration
           setTimeout(() => {
             const ESTIMATED_MESSAGE_HEIGHT = 100;
             const visibleMessageIndex = Math.max(0, 
@@ -572,7 +620,7 @@ export default function MessageListNative({
               
               setScrollMessageId(conversationId, initialScrollData);
             }
-          }, 100); // Small delay to ensure restoration is complete
+          }, 100);
           
         } catch (error) {
           console.warn('❌ Failed to restore scroll position:', error);
@@ -614,7 +662,7 @@ export default function MessageListNative({
         offset: 0,
         animated: true,
       });
-      currentScrollPosition.current = 0; // Update position tracking
+      currentScrollPosition.current = 0;
     }
 
     previousLastMessageId.current = lastMessageId;
@@ -624,11 +672,14 @@ export default function MessageListNative({
     onConversationError?.(error);
   }, [error, onConversationError]);
 
-  // Cleanup timer on unmount
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       if (scrollUpdateTimer.current) {
         clearTimeout(scrollUpdateTimer.current);
+      }
+      if (loadMoreThrottleRef.current) {
+        clearTimeout(loadMoreThrottleRef.current);
       }
     };
   }, []);
@@ -669,18 +720,19 @@ export default function MessageListNative({
         
         inverted={true}
         
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.1}
+        // 🆕 REMOVED: onEndReached since we handle it in onScroll now
+        // onEndReached={handleLoadMore}
+        // onEndReachedThreshold={0.1}
         
-        // 🔧 FIX: Optimized scroll tracking
+        // Enhanced scroll tracking with smooth infinite scroll
         onScroll={handleScroll}
-        scrollEventThrottle={32} // Reduced frequency for better performance
+        scrollEventThrottle={16} // Higher frequency for smoother infinite scroll detection
         
-        // 🔧 FIX: Viewport tracking as fallback only
+        // Viewport tracking as fallback
         onViewableItemsChanged={trackVisibleItems}
         viewabilityConfig={{
-          itemVisiblePercentThreshold: 25, // Balanced threshold
-          minimumViewTime: 250 // Less frequent updates
+          itemVisiblePercentThreshold: 25,
+          minimumViewTime: 250
         }}
         
         showsVerticalScrollIndicator={false}
@@ -706,11 +758,13 @@ export default function MessageListNative({
         }}
         
         ListFooterComponent={
-          loading && displayedMessages.length > 0 ? (
+          (loading || isLoadingMore) && displayedMessages.length > 0 ? (
             <View style={styles.loadingMore}>
               <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
               <ActivityIndicator size="small" color="#1C6B1C" />
-              <Text style={styles.loadingMoreText}>Loading more messages...</Text>
+              <Text style={styles.loadingMoreText}>
+                {isLoadingMore ? 'Loading more messages...' : 'Loading...'}
+              </Text>
             </View>
           ) : (
             <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />

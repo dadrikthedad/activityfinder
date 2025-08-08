@@ -5,7 +5,7 @@ import { GroupRequestCreatedDto } from "@shared/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO, GroupEventType } from "@shared/types/GroupNotificationUpdateDTO";
 import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
-import { showNotificationToast } from "@/components/toast/NotificationToastNative";
+import { showNotificationToastNative } from "@/components/toast/NotificationToastNative";
 import { handleIncomingNotification } from "@/utils/messages/getNotificationsBeforeSignalr";
 import { NotificationType } from "@shared/types/MessageNotificationDTO";
 
@@ -27,7 +27,7 @@ export const handleGroupRequestCreated = async (
       await syncPendingConversation(data.conversationId);
       
       if (data.notification.senderId !== userId) {
-        showNotificationToast({
+        showNotificationToastNative({
           messagePreview: data.notification.messagePreview,
           type: NotificationType.GroupRequest,
           conversationId: data.conversationId,
@@ -77,7 +77,7 @@ export const handleGroupNotificationUpdated = async (
     await handleIncomingNotification(enhancedNotification);
 
     if (notification.conversationId != null) {
-      showNotificationToast({
+      showNotificationToastNative({
         senderName: notification.senderName ?? "Someone",
         type: NotificationType.GroupEvent,
         conversationId: notification.conversationId,
@@ -117,7 +117,7 @@ export const handleGroupDisbanded = async (
   if (notification) {
     await handleIncomingNotification(notification);
     
-    showNotificationToast({
+    showNotificationToastNative({
       senderName: "System",
       messagePreview: `Group "${groupName}" has been disbanded`,
       type: NotificationType.GroupDisbanded,

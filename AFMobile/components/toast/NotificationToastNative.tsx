@@ -48,7 +48,7 @@ interface NotificationToastProps {
   attachments?: AttachmentDto[];
 }
 
-export function showNotificationToast(props: NotificationToastProps) {
+export function showNotificationToastNative(props: NotificationToastProps) {
   Toast.show({
     type: 'customNotification',
     props: props,

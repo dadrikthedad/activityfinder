@@ -4,7 +4,7 @@ import { approveMessageRequestLogic } from "@/utils/messages/approveMessageReque
 import { useChatStore } from "@/store/useChatStore";
 import { getConversationById } from "@/services/messages/conversationService";
 import { ConversationDTO } from "@shared/types/ConversationDTO";
-import { LocalToastType, showNotificationToast } from "@/components/toast/NotificationToastNative";
+import { LocalToastType, showNotificationToastNative } from "@/components/toast/NotificationToastNative";
 import { useAuth } from "@/context/AuthContext";
 
 // TODO: etter toast er implimentert
@@ -73,7 +73,7 @@ export function useApproveMessageRequest() {
 
     if (convo) {
       const otherParticipant = convo.participants.find(p => p.id !== currentUserId); // Antatt at du har en currentUserId
-      showNotificationToast({
+      showNotificationToastNative({
         senderName: otherParticipant?.fullName ?? "Samtale",
         conversationId: convo.id,
         type: LocalToastType.MsgRequestAcceptedLocally, // Eller LocalToastType hvis du vil ha en egen

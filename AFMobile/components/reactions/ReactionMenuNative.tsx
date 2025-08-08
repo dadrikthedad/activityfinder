@@ -14,12 +14,12 @@ import {
 import EmojiSelector from 'react-native-emoji-selector';
 import { ReactionDTO } from '@shared/types/MessageDTO';
 import { MessageDTO } from '@shared/types/MessageDTO';
-import { useChatStore } from '@/store/useChatStore';
 
 interface QuickAction {
   type: 'reply' | 'delete';
   label: string;
   onPress: () => void;
+  disabled?: boolean;
 }
 
 interface ReactionMenuNativeProps {
@@ -30,6 +30,8 @@ interface ReactionMenuNativeProps {
   existingReactions: ReactionDTO[];
   userId: number;
   message?: MessageDTO;
+  actualMessageId?: number | null; // 🆕 NEW: Pre-calculated actual message ID
+  actionsDisabled?: boolean;
 }
 
 const quickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥"];
@@ -42,14 +44,14 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
   existingReactions,
   userId,
   message,
+  actualMessageId, 
+  actionsDisabled = false,
 }) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const getActualMessageId = useChatStore((state) => state.getActualMessageId);
 
+  // 🔧 FIX: Use cached actualMessageId instead of calling getActualMessageId
   const getReactionStatus = (emoji: string) => {
-    if (!message) return false;
-    
-    const actualMessageId = getActualMessageId(message);
+    if (!message || actualMessageId === null) return false;
     
     return existingReactions.some(
       (r) => r.emoji === emoji && r.userId === userId && r.messageId === actualMessageId
@@ -57,15 +59,24 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
   };
 
   const handleEmojiPress = (emoji: string) => {
+    if (actionsDisabled) {
+      return; // Ikke gjør noe hvis disabled
+    }
+
     onReactionSelect(emoji);
   };
 
   const handleEmojiPickerSelect = (emoji: any) => {
     // emoji-selector returns emoji as string
+    if (actionsDisabled) {
+      return;
+    }
+
     onReactionSelect(emoji);
     setShowEmojiPicker(false);
   };
 
+  
   const renderQuickEmojis = () => (
     <View style={styles.emojiGrid}>
       {quickEmojis.map((emoji) => {
@@ -73,10 +84,20 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
         return (
           <TouchableOpacity
             key={emoji}
-            style={[styles.emojiButton, isActive && styles.activeEmoji]}
+            style={[
+              styles.emojiButton, 
+              isActive && styles.activeEmoji,
+              actionsDisabled && styles.emojiButtonDisabled // 🔧 Disabled style
+            ]}
             onPress={() => handleEmojiPress(emoji)}
+            disabled={actionsDisabled} // 🔧 Disable touch
           >
-            <Text style={styles.emojiText}>{emoji}</Text>
+            <Text style={[
+              styles.emojiText,
+              actionsDisabled && styles.emojiTextDisabled // 🔧 Grayed out
+            ]}>
+              {emoji}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -96,6 +117,7 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
           <View style={styles.header}>
             <Text style={styles.headerTitle}>
               {showEmojiPicker ? 'Choose emoji' : 'React to message'}
+              {actionsDisabled && ' (sending...)'}
             </Text>
             <TouchableOpacity 
               onPress={() => {
@@ -139,15 +161,19 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
                       key={action.type}
                       style={[
                         styles.actionButton,
-                        action.type === 'delete' && styles.deleteAction
+                        action.type === 'delete' && styles.deleteAction,
+                        action.disabled && styles.actionButtonDisabled // 🔧 Disabled style
                       ]}
                       onPress={action.onPress}
+                      disabled={action.disabled} // 🔧 Disable touch
                     >
                       <Text style={[
                         styles.actionText,
-                        action.type === 'delete' && styles.deleteText
+                        action.type === 'delete' && styles.deleteText,
+                        action.disabled && styles.actionTextDisabled // 🔧 Disabled text
                       ]}>
                         {action.type === 'reply' ? '↩️' : '🗑️'} {action.label}
+                        {action.disabled && ' (wait...)'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -156,18 +182,32 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
 
               {/* Quick Emojis */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Quick reactions</Text>
+                <Text style={styles.sectionTitle}>
+                  Quick reactions
+                  {actionsDisabled && ' (wait for message to send)'}
+                </Text>
                 {renderQuickEmojis()}
               </View>
 
               {/* More Emojis Button */}
               <View style={styles.section}>
                 <TouchableOpacity
-                  style={styles.moreButton}
-                  onPress={() => setShowEmojiPicker(true)}
+                  style={[
+                    styles.moreButton,
+                    actionsDisabled && styles.moreButtonDisabled // 🔧 Disabled style
+                  ]}
+                  onPress={() => {
+                    if (!actionsDisabled) {
+                      setShowEmojiPicker(true);
+                    }
+                  }}
+                  disabled={actionsDisabled} // 🔧 Disable touch
                 >
-                  <Text style={styles.moreButtonText}>
-                    More emojis 😊
+                  <Text style={[
+                    styles.moreButtonText,
+                    actionsDisabled && styles.moreButtonTextDisabled // 🔧 Disabled text
+                  ]}>
+                    {actionsDisabled ? 'Please wait...' : 'More emojis 😊'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -180,7 +220,7 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
 };
 
 const styles = StyleSheet.create({
-  // ReactionMenuNative
+  // ... alle eksisterende styles ...
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -240,6 +280,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB',
     marginBottom: 8,
   },
+  // 🔧 Nye disabled styles
+  actionButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  actionTextDisabled: {
+    color: '#9CA3AF',
+  },
   deleteAction: {
     backgroundColor: '#FEF2F2',
   },
@@ -265,6 +314,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
+  // 🔧 Nye emoji disabled styles
+  emojiButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
+  emojiTextDisabled: {
+    opacity: 0.4,
+  },
   activeEmoji: {
     backgroundColor: '#1C6B1C',
     borderColor: '#16A34A',
@@ -280,6 +337,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C6B1C',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  // 🔧 Nye more button disabled styles
+  moreButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  moreButtonTextDisabled: {
+    color: '#F3F4F6',
   },
   moreButtonText: {
     fontSize: 16,

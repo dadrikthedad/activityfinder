@@ -5,7 +5,7 @@ import { MessageRequestCreatedDto } from "@shared/types/MessageRequestCreatedDto
 import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { handleIncomingMessage } from "../handleIncomingMessage";
 import { handleIncomingReaction } from "../handleIncomingReactions";
-import { showNotificationToast } from "@/components/toast/NotificationToastNative";
+import { showNotificationToastNative } from "@/components/toast/NotificationToastNative";
 import { handleIncomingNotification } from "@/utils/messages/getNotificationsBeforeSignalr";
 import { NotificationType } from "@shared/types/MessageNotificationDTO";
 import truncateText from "@shared/utils/text/truncateMsgTextForToast";
@@ -80,7 +80,7 @@ export const handleMessage = async (
     !message.isSilent &&
     !message.isSystemMessage
   ) {
-    showNotificationToast({
+    showNotificationToastNative({
       senderName: message.sender?.fullName ?? "ukjent",
       messagePreview: truncateText(message.text),
       senderProfileImage: message.sender?.profileImageUrl,
@@ -120,7 +120,7 @@ export const handleRequestApproved = async (notification: MessageNotificationDTO
   const convId = notification.conversationId;
   if (!convId) return;
 
-  showNotificationToast({
+  showNotificationToastNative({
     senderName: notification.senderName ?? "Someone",
     messagePreview: notification.messagePreview,
     conversationId: convId,
@@ -145,7 +145,7 @@ export const handleMessageRequestReceived = async (
       const userIdAsNumber = userId ?? null;
       
       if (data.notification.senderId !== userIdAsNumber) {
-        showNotificationToast({
+        showNotificationToastNative({
           senderName: data.notification.senderName,
           messagePreview: data.notification.messagePreview,
           type: NotificationType.MessageRequest,

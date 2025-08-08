@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { asyncStorage } from "./indexedNotificationDBStorage";
 import { MessageNotificationDTO, NotificationType } from "@shared/types/MessageNotificationDTO";
-import { showNotificationToast } from "@/components/toast/NotificationToastNative";
+import { showNotificationToastNative } from "@/components/toast/NotificationToastNative";
 import { markMessageNotificationAsRead } from "@/services/messages/messageNotificationService";
 
 // TODO: Må komme tilbake etter toast
@@ -64,7 +64,7 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
           const finalList = [merged, ...withoutDupes].slice(0, 50);
 
           if (wasNew && incoming.type === NotificationType.MessageRequestApproved) {
-            showNotificationToast({
+            showNotificationToastNative({
               senderName: incoming.senderName!,
               messagePreview: incoming.messagePreview!,
               conversationId: incoming.conversationId!,
