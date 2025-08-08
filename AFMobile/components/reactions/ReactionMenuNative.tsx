@@ -18,11 +18,25 @@ import {
 } from 'react-native';
 import EmojiPicker, { type EmojiType } from 'rn-emoji-keyboard'; // Ny import
 import { ReactionDTO, MessageDTO } from '@shared/types/MessageDTO';
+import { 
+  Heart, 
+  ThumbsUp, 
+  Smile, 
+  Frown, 
+  Laugh,
+  Flame,
+  PartyPopper,
+  Reply,
+  Trash2,
+  Copy,
+  Plus,
+  Clipboard as ClipboardIcon
+} from 'lucide-react-native';
 
 interface QuickAction {
   type: 'reply' | 'delete' | 'copy';
   label: string;
-  icon: string;
+  icon: string | React.ComponentType<any>;
   onPress: () => void;
   disabled?: boolean;
   destructive?: boolean;
@@ -204,17 +218,23 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
           {
             type: 'copy' as const,
             label: 'Copy',
-            icon: '📋',
+            icon: ClipboardIcon,
             onPress: handleCopyMessage,
             disabled: !message?.text,
+            destructive: false,   
           }
         ];
 
     if (actionsWithCopy.length === 0) return null;
 
-    return (
-      <View style={styles.actionsRow}>
-        {actionsWithCopy.map((action) => (
+     return (
+    <View style={styles.actionsRow}>
+      {actionsWithCopy.map((action) => {
+        // Sjekk om icon er en komponent eller string
+        const IconComponent = action.icon;
+        const isComponent = typeof action.icon !== 'string';
+        
+        return (
           <TouchableOpacity
             key={action.type}
             style={[
@@ -227,7 +247,18 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
             accessibilityRole="button"
             accessibilityLabel={action.label}
           >
-            <Text style={styles.actionIcon}>{action.icon}</Text>
+            {/* Render ikon basert på type */}
+            <View style={styles.actionIconContainer}>
+              {isComponent ? (
+                <IconComponent 
+                  size={16} 
+                  color={action.disabled ? '#999' : action.destructive ? '#ffffffff' : '#1C6B1C'} 
+                />
+              ) : (
+                 <Text style={styles.actionIcon}>{action.icon as string}</Text>
+              )}
+            </View>
+            
             <Text style={[
               styles.actionLabel,
               action.disabled && styles.disabledText,
@@ -236,10 +267,11 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
               {action.label}
             </Text>
           </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
+        );
+      })}
+    </View>
+  );
+};
 
   const renderFloatingMenu = () => {
     const position = getMenuPosition();
@@ -385,35 +417,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+    paddingHorizontal: 4,      // Legg til padding for å holde knappene inne
   },
   quickEmojiButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,                 // Reduser størrelse litt
+    height: 32,
+    borderRadius: 16,          // Oppdater for ny størrelse
     backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 2,
+    marginHorizontal: 1,       // Reduser margin
+    flex: 1,                   // La dem dele plassen jevnt
+    maxWidth: 32,              // Begrens maksimal bredde
   },
   quickEmojiText: {
-    fontSize: 22,
+    fontSize: 20,              // Reduser litt for mindre knapper
   },
   moreEmojiButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,                 // Match samme størrelse
+    height: 32,
+    borderRadius: 16,          // Match samme radius
     backgroundColor: '#E0E0E0',
     justifyContent: 'center',
     alignItems: 'center',
+    maxWidth: 32,              // Samme begrensning
   },
   moreEmojiText: {
-    fontSize: 18,
+    fontSize: 16,              // Reduser litt for mindre knapp
     color: '#666',
     fontWeight: '600',
   },
   activeEmoji: {
-    backgroundColor: '#007AFF',
-    transform: [{ scale: 1.1 }],
+    backgroundColor: '#1C6B1C',
+    transform: [{ scale: 1.15 }], // Reduser scale litt for mindre knapper
   },
   
   // Actions
@@ -426,16 +462,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
   },
-  actionButton: {
+   actionButton: {
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
     minWidth: 60,
+    gap: 4,                    // Space mellom ikon og tekst
   },
-  actionIcon: {
+  actionIconContainer: {
+    height: 20,                // Fast høyde for konsistens
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+    actionIcon: {
     fontSize: 16,
-    marginBottom: 2,
   },
   actionLabel: {
     fontSize: 12,
@@ -452,9 +493,9 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   destructiveButton: {
-    backgroundColor: '#FFE6E6',
+    backgroundColor: '#9CA3AF',
   },
   destructiveText: {
-    color: '#FF3B30',
+    color: '#ffffffff',
   },
 });

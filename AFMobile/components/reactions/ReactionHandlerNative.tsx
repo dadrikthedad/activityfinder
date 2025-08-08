@@ -12,6 +12,20 @@ import { ReactionDTO, MessageDTO } from '@shared/types/MessageDTO';
 import { useReactions } from '@/hooks/reactions/useReactions';
 import { useChatStore } from '@/store/useChatStore';
 import { ReactionMenuNative } from './ReactionMenuNative';
+import { 
+  Heart, 
+  ThumbsUp, 
+  Smile, 
+  Frown, 
+  Laugh,
+  Flame,
+  PartyPopper,
+  Reply,
+  Trash2,
+  Copy,
+  Plus,
+  MessageCircleReply
+} from 'lucide-react-native';
 
 interface ReactionHandlerNativeProps {
   targetId: number;
@@ -156,7 +170,7 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       actions.push({
         type: 'reply' as const,
         label: 'Reply',
-        icon: '↩️',
+        icon: MessageCircleReply,
         onPress: handleReply,
         disabled: !canPerformActions,
       });
@@ -167,7 +181,7 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       actions.push({
         type: 'delete' as const,
         label: 'Delete',
-        icon: '🗑️',
+        icon: Trash2,
         onPress: handleDelete,
         disabled: false,
         destructive: true,
