@@ -33,21 +33,20 @@ export default function VideoViewerNative({
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   
-  // Simplified seeking state - only one source of truth
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragPosition, setDragPosition] = useState(0);
-  const [wasPlayingBeforeDrag, setWasPlayingBeforeDrag] = useState(false);
+  // Drag state - consolidated into single object
+  const [dragState, setDragState] = useState({
+    isDragging: false,
+    position: 0,
+    wasPlaying: false,
+    startPageX: 0,
+    startPosition: 0,
+  });
   
   const [progressBarWidth, setProgressBarWidth] = useState(0);
   const videoRef = useRef<Video>(null);
   const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
-  
-  // Tracking refs for delta-based dragging
-  const dragStartPageX = useRef<number>(0);
-  const dragStartPosition = useRef<number>(0);
 
   const { width, height } = Dimensions.get('window');
   
@@ -55,238 +54,203 @@ export default function VideoViewerNative({
   
   const currentVideo = videos[currentIndex];
   const hasMultiple = videos.length > 1;
+  const displayPosition = dragState.isDragging ? dragState.position : position;
+  const isNearEnd = position >= duration * 0.95 && duration > 0;
 
-  // Get the current display position (either drag position or actual position)
-  const displayPosition = isDragging ? dragPosition : position;
-
-  // Centralized function for starting auto-hide countdown
-  const startAutoHideCountdown = () => {
+  // Consolidated timeout management
+  const manageControlsTimeout = (show: boolean, startCountdown = false) => {
     if (controlsTimeout.current) {
       clearTimeout(controlsTimeout.current);
+      controlsTimeout.current = null;
     }
-    controlsTimeout.current = setTimeout(() => {
-      setShowControls(false);
-    }, 3000);
-  };
-
-  // Reset controls timeout
-  const resetControlsTimeout = () => {
-    if (controlsTimeout.current) {
-      clearTimeout(controlsTimeout.current);
-    }
-    setShowControls(true);
     
-    // Skjul kontroller automatisk kun under avspilling og ikke under dragging
-    if (isPlaying && position < duration * 0.95 && !isDragging) {
-      startAutoHideCountdown();
+    setShowControls(show);
+    
+    if (startCountdown && isPlaying && !isNearEnd && !dragState.isDragging) {
+      controlsTimeout.current = setTimeout(() => setShowControls(false), 3000);
     }
   };
 
-  // Handle video status updates
+  // Handle video status updates - simplified
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (status.isLoaded && !isDragging) {
-      setIsLoading(false);
-      const previousIsPlaying = isPlaying;
-      
-      const newPosition = status.positionMillis || 0;
-      setIsPlaying(status.isPlaying || false);
-      setPosition(newPosition);
-      
-      if (status.durationMillis) {
-        setDuration(status.durationMillis);
+    if (!status.isLoaded) {
+      if ('error' in status) {
+        console.error('Video playback error:', status.error);
+        Alert.alert('Error', 'Could not load video');
       }
-      
-      if (status.didJustFinish) {
-        setShowControls(true);
-        if (controlsTimeout.current) {
-          clearTimeout(controlsTimeout.current);
-        }
-      }
-      // UI-logikk: Håndter play/pause endringer
-      else if (!previousIsPlaying && (status.isPlaying || false)) {
-        // Videoen begynte å spille - skjul kontroller etter 3 sekunder (men ikke hvis vi drar)
-        if (!isDragging) {
-          startAutoHideCountdown();
-        }
-      }
-      else if (previousIsPlaying && !(status.isPlaying || false)) {
-        // Videoen ble pauset - vis kontroller
-        if (controlsTimeout.current) {
-          clearTimeout(controlsTimeout.current);
-        }
-        setShowControls(true);
-      }
-    } else if (!status.isLoaded && 'error' in status) {
-      console.error('Video playback error:', status.error);
-      Alert.alert('Error', 'Could not load video');
+      return;
+    }
+
+    // Always update duration, even during dragging
+    if (status.durationMillis) {
+      setDuration(status.durationMillis);
+    }
+
+    // Skip position updates during dragging to prevent bouncing
+    if (dragState.isDragging) return;
+
+    const wasPlaying = isPlaying;
+    const nowPlaying = status.isPlaying || false;
+    
+    setIsPlaying(nowPlaying);
+    setPosition(status.positionMillis || 0);
+    
+    // Handle play state changes
+    if (status.didJustFinish) {
+      manageControlsTimeout(true);
+    } else if (!wasPlaying && nowPlaying) {
+      manageControlsTimeout(true, true);
+    } else if (wasPlaying && !nowPlaying) {
+      manageControlsTimeout(true);
     }
   };
 
-  // Toggle play/pause med restart funksjonalitet
+  // Toggle play/pause with restart functionality
   const togglePlayPause = async () => {
-    if (videoRef.current && !isDragging) {
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-        // Vis kontroller når vi pauser
-        if (controlsTimeout.current) {
-          clearTimeout(controlsTimeout.current);
-        }
-        setShowControls(true);
-      } else {
-        // Sjekk om videoen er ferdig (nær slutten)
-        const isNearEnd = position >= duration * 0.95;
-        
-        if (isNearEnd && duration > 0) {
-          // Restart fra begynnelsen hvis videoen er ferdig
-          await videoRef.current.setPositionAsync(0);
-          setPosition(0);
-          await videoRef.current.playAsync();
-        } else {
-          // Normal play fra nåværende posisjon
-          await videoRef.current.playAsync();
-        }
-        
-        // Skjul kontroller når vi starter avspilling
-        if (!isDragging) {
-          startAutoHideCountdown();
-        }
+    if (!videoRef.current || dragState.isDragging) return;
+
+    if (isPlaying) {
+      await videoRef.current.pauseAsync();
+      manageControlsTimeout(true);
+    } else {
+      if (isNearEnd) {
+        await videoRef.current.setPositionAsync(0);
+        setPosition(0);
       }
+      await videoRef.current.playAsync();
+      manageControlsTimeout(true, true);
     }
   };
 
-  // Handle progress bar layout
-  const onProgressBarLayout = (event: any) => {
-    const { width } = event.nativeEvent.layout;
-    setProgressBarWidth(width);
-  };
-
-  // Pan responder med absolutte coordinates for å unngå multi-layer problemer
+  // Pan responder for seeking
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, gestureState) => {
-      return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
-    },
+    onMoveShouldSetPanResponder: (_, gestureState) => 
+      Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5,
     
     onPanResponderGrant: async (event) => {
-      event.persist();
-      
       if (duration <= 0 || progressBarWidth <= 0) return;
       
       const { pageX } = event.nativeEvent;
       
-      setIsDragging(true);
-      setWasPlayingBeforeDrag(isPlaying);
+      setDragState({
+        isDragging: true,
+        position: position,
+        wasPlaying: isPlaying,
+        startPageX: pageX,
+        startPosition: position,
+      });
       
-      // Vis kontroller under dragging og stop auto-hide timeout
-      if (controlsTimeout.current) {
-        clearTimeout(controlsTimeout.current);
-      }
-      setShowControls(true);
+      manageControlsTimeout(true);
       
       if (isPlaying && videoRef.current) {
         await videoRef.current.pauseAsync();
       }
-      
-      // Lagre initial pageX og position for relative beregninger
-      dragStartPageX.current = pageX;
-      dragStartPosition.current = position;
-      
-      setDragPosition(position);
     },
     
     onPanResponderMove: (event) => {
-      event.persist();
+      if (!dragState.isDragging || duration <= 0 || progressBarWidth <= 0) return;
       
-      if (!isDragging || duration <= 0 || progressBarWidth <= 0) return;
-      
-      const { pageX } = event.nativeEvent;
-      const deltaX = pageX - dragStartPageX.current;
+      const deltaX = event.nativeEvent.pageX - dragState.startPageX;
       const deltaProgress = deltaX / progressBarWidth;
       const deltaTime = deltaProgress * duration;
+      const newPosition = Math.max(0, Math.min(duration, dragState.startPosition + deltaTime));
       
-      // Ny posisjon basert på start posisjon + delta
-      const newPosition = Math.max(0, Math.min(duration, dragStartPosition.current + deltaTime));
-      
-      setDragPosition(newPosition);
+      setDragState(prev => ({ ...prev, position: newPosition }));
     },
     
     onPanResponderRelease: async () => {
-      if (!isDragging) return;
+      if (!dragState.isDragging) return;
       
-      // Sett isDragging til false FØRST for å re-enable TouchableOpacity
-      setIsDragging(false);
+      const finalPosition = dragState.position;
+      const shouldResume = dragState.wasPlaying;
       
-      // Cleanup tracking variables
-      dragStartPageX.current = 0;
-      dragStartPosition.current = 0;
+      // Update position immediately to prevent bouncing
+      setPosition(finalPosition);
       
-      if (videoRef.current && dragPosition >= 0) {
-        await videoRef.current.setPositionAsync(dragPosition);
-        setPosition(dragPosition);
+      // Clear drag state
+      setDragState({
+        isDragging: false,
+        position: 0,
+        wasPlaying: false,
+        startPageX: 0,
+        startPosition: 0,
+      });
+      
+      // Update video position
+      if (videoRef.current && finalPosition >= 0) {
+        await videoRef.current.setPositionAsync(finalPosition);
         
-        if (wasPlayingBeforeDrag) {
+        if (shouldResume) {
           await videoRef.current.playAsync();
-          startAutoHideCountdown();
+          manageControlsTimeout(true, true);
         }
       }
-      
-      setDragPosition(0);
     },
     
     onPanResponderTerminate: () => {
-      setIsDragging(false);
-      setDragPosition(0);
-      // Cleanup tracking variables
-      dragStartPageX.current = 0;
-      dragStartPosition.current = 0;
+      setDragState({
+        isDragging: false,
+        position: 0,
+        wasPlaying: false,
+        startPageX: 0,
+        startPosition: 0,
+      });
     },
   });
 
-  // Handle tap to seek - disable when dragging
+  // Handle progress bar tap
   const handleProgressBarTap = async (event: any) => {
-    // Blokkér alle tap events under dragging
-    if (isDragging || duration <= 0 || progressBarWidth <= 0) return;
+    if (dragState.isDragging || duration <= 0 || progressBarWidth <= 0) return;
     
-    event.persist();
     const { locationX } = event.nativeEvent;
+    const clampedLocationX = Math.max(0, Math.min(progressBarWidth, locationX));
+    const progress = clampedLocationX / progressBarWidth;
+    const newPosition = Math.max(0, Math.min(duration, progress * duration));
     
     if (videoRef.current) {
-      const clampedLocationX = Math.max(0, Math.min(progressBarWidth, locationX));
-      const progress = clampedLocationX / progressBarWidth;
-      const newPosition = Math.max(0, Math.min(duration, progress * duration));
-      
       await videoRef.current.setPositionAsync(newPosition);
       setPosition(newPosition);
     }
-    resetControlsTimeout();
+    manageControlsTimeout(true, isPlaying);
   };
 
-  // Navigation
-  const goToNext = () => {
-    if (hasMultiple) {
-      setCurrentIndex((prev) => (prev + 1) % videos.length);
-      setIsPlaying(false);
-      setPosition(0);
-      setIsLoading(true);
-      setIsDragging(false);
-      setDragPosition(0);
-      setShowControls(true);
+  // Navigation functions
+  const navigateVideo = (direction: 'next' | 'prev') => {
+    if (!hasMultiple) return;
+    
+    const newIndex = direction === 'next' 
+      ? (currentIndex + 1) % videos.length
+      : (currentIndex - 1 + videos.length) % videos.length;
+    
+    // Reset all state for new video
+    setCurrentIndex(newIndex);
+    setIsPlaying(false);
+    setPosition(0);
+    setDragState({
+      isDragging: false,
+      position: 0,
+      wasPlaying: false,
+      startPageX: 0,
+      startPosition: 0,
+    });
+    manageControlsTimeout(true);
+  };
+
+  // Smart screen tap for UI toggle
+  const handleScreenTap = () => {
+    if (dragState.isDragging) return;
+    
+    if (showControls && isPlaying) {
+      manageControlsTimeout(false);
+    } else if (!showControls) {
+      manageControlsTimeout(true, isPlaying);
+    } else {
+      manageControlsTimeout(true, isPlaying);
     }
   };
 
-  const goToPrevious = () => {
-    if (hasMultiple) {
-      setCurrentIndex((prev) => (prev - 1 + videos.length) % videos.length);
-      setIsPlaying(false);
-      setPosition(0);
-      setIsLoading(true);
-      setIsDragging(false);
-      setDragPosition(0);
-      setShowControls(true);
-    }
-  };
-
-  // Format time
+  // Format time helper
   const formatTime = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
     const mins = Math.floor(seconds / 60);
@@ -303,61 +267,29 @@ export default function VideoViewerNative({
     }
   };
 
-  // Show options - forenklet uten always show controls
+  // Show options menu
   const showOptions = () => {
-    const options: Array<{
-      text: string;
-      onPress?: () => void;
-      style?: 'cancel' | 'default' | 'destructive';
-    }> = [];
-    
-    if (onDownload) {
-      options.push({ text: 'Download', onPress: handleDownload });
-    }
-    
-    options.push({ text: 'Close', onPress: onClose, style: 'cancel' });
-    
+    const options = [];
+    if (onDownload) options.push({ text: 'Download', onPress: handleDownload });
+    options.push({ text: 'Close', onPress: onClose, style: 'cancel' as const });
     Alert.alert(currentVideo.name, 'Choose an action', options);
   };
 
-  // Smart screen tap for UI toggle
-  const handleScreenTap = () => {
-    // Ikke tillat screen tap å skjule kontroller hvis vi drar
-    if (isDragging) return;
-    
-    if (showControls && isPlaying) {
-      // Hvis kontroller vises og videoen spiller, skjul dem umiddelbart
-      if (controlsTimeout.current) {
-        clearTimeout(controlsTimeout.current);
-      }
-      setShowControls(false);
-    } else if (!showControls) {
-      // Hvis kontroller er skjult, vis dem og start nedtelling
-      setShowControls(true);
-      if (isPlaying) {
-        startAutoHideCountdown();
-      }
-    } else {
-      // Hvis kontroller vises men videoen er pauset, bare reset timeout
-      resetControlsTimeout();
-    }
-  };
-
-  // Reset when video changes
+  // Reset state when video changes
   useEffect(() => {
     setPosition(0);
     setIsPlaying(false);
-    setIsLoading(true);
-    setIsDragging(false);
-    setDragPosition(0);
-    setWasPlayingBeforeDrag(false);
-    setShowControls(true);
-    if (controlsTimeout.current) {
-      clearTimeout(controlsTimeout.current);
-    }
+    setDragState({
+      isDragging: false,
+      position: 0,
+      wasPlaying: false,
+      startPageX: 0,
+      startPosition: 0,
+    });
+    manageControlsTimeout(true);
   }, [currentIndex]);
 
-  // Cleanup timeouts
+  // Cleanup
   useEffect(() => {
     return () => {
       if (controlsTimeout.current) {
@@ -382,7 +314,6 @@ export default function VideoViewerNative({
           onPress={handleScreenTap}
           activeOpacity={1}
         >
-          {/* Video Container */}
           <View style={styles.videoContainer}>
             <TouchableOpacity 
               style={styles.videoTouchable}
@@ -432,15 +363,15 @@ export default function VideoViewerNative({
               </View>
             </View>
 
-            {/* Play/Pause Button - med restart funksjonalitet */}
+            {/* Play/Pause Button */}
             <TouchableOpacity
               style={styles.playPauseButton}
               onPress={togglePlayPause}
             >
               <Text style={styles.playPauseText}>
-                {isLoading ? '⏳' : 
+                {duration === 0 ? '⏳' : 
                  isPlaying ? '⏸️' : 
-                 (position >= duration * 0.95 && duration > 0) ? '🔄' : '▶️'}
+                 isNearEnd ? '🔄' : '▶️'}
               </Text>
             </TouchableOpacity>
 
@@ -450,35 +381,30 @@ export default function VideoViewerNative({
                 {formatTime(displayPosition)}
               </Text>
               
-              {/* Progress Bar - med bedre event separation */}
               <View 
                 style={styles.progressBarTouchable}
                 {...panResponder.panHandlers}
-                onLayout={onProgressBarLayout}
+                onLayout={(event) => setProgressBarWidth(event.nativeEvent.layout.width)}
               >
                 <TouchableOpacity 
                   style={styles.progressBarTap}
                   onPress={handleProgressBarTap}
                   activeOpacity={1}
-                  disabled={isDragging} // Deaktiver TouchableOpacity under dragging
+                  disabled={dragState.isDragging}
                 >
                   <View style={styles.progressBar}>
                     <View style={styles.progressTrack} />
                     <View 
                       style={[
                         styles.progressFill,
-                        { 
-                          width: `${duration > 0 ? (displayPosition / duration) * 100 : 0}%` 
-                        }
+                        { width: `${duration > 0 ? (displayPosition / duration) * 100 : 0}%` }
                       ]} 
                     />
                     <View
                       style={[
                         styles.progressThumb,
-                        isDragging && styles.progressThumbActive,
-                        { 
-                          left: `${duration > 0 ? (displayPosition / duration) * 100 : 0}%` 
-                        }
+                        dragState.isDragging && styles.progressThumbActive,
+                        { left: `${duration > 0 ? (displayPosition / duration) * 100 : 0}%` }
                       ]}
                     />
                   </View>
@@ -493,14 +419,14 @@ export default function VideoViewerNative({
               <>
                 <TouchableOpacity
                   style={[styles.navButton, styles.navLeft]}
-                  onPress={goToPrevious}
+                  onPress={() => navigateVideo('prev')}
                 >
                   <Text style={styles.navText}>‹</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={[styles.navButton, styles.navRight]}
-                  onPress={goToNext}
+                  onPress={() => navigateVideo('next')}
                 >
                   <Text style={styles.navText}>›</Text>
                 </TouchableOpacity>
