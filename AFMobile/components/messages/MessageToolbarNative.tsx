@@ -18,7 +18,6 @@ interface MessageToolbarNativeProps {
   onPickEmoji?: () => void;
   showScrollToBottom?: boolean;
   showFile?: boolean;
-  showEmoji?: boolean;
   showSettings?: boolean;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
 }
@@ -30,7 +29,6 @@ export default function MessageToolbarNative({
   onPickEmoji,
   showScrollToBottom = true,
   showFile = true,
-  showEmoji = true,
   showSettings = true,
   onShowUserPopover,
 }: MessageToolbarNativeProps) {
@@ -124,15 +122,7 @@ export default function MessageToolbarNative({
             <Paperclip size={20} color="#1C6B1C" />
           </TouchableOpacity>
         )}
-        
-        {showEmoji && onPickEmoji && (
-          <TouchableOpacity
-            style={styles.toolbarButton}
-            onPress={onPickEmoji}
-          >
-            <Smile size={20} color="#1C6B1C" />
-          </TouchableOpacity>
-        )}
+      
       </View>
     </View>
   );

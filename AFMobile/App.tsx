@@ -27,23 +27,8 @@ const Stack = createStackNavigator<RootStackParamList>();
 function AppContent() {
   // Håndter app state changes for SignalR
   useEffect(() => {
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      console.log('📱 App state changed to:', nextAppState);
-      
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        console.log('🛑 App going to background, stopping SignalR...');
-        stopChatConnection().catch(err => 
-          console.error('Error stopping SignalR connection:', err)
-        );
-      }
-    };
-
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-
     return () => {
-      subscription?.remove();
-      // Cleanup SignalR når appen lukkes
-      stopChatConnection().catch(err => 
+      stopChatConnection().catch(err =>
         console.error('Error stopping SignalR connection on app close:', err)
       );
     };
@@ -67,7 +52,7 @@ function AuthenticatedApp() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <StatusBar style="auto" />
-      
+     
       {/* 🚀 SignalR kun når bruker er logget inn */}
       {isLoggedIn && <SignalRClientNative />}
      

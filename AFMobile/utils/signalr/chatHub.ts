@@ -41,13 +41,13 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
 
     // Setup network state listeners
     networkUnsubscribe = NetInfo.addEventListener(state => {
-      console.log('📱 Network state changed:', state.isConnected);
+      console.log('📱 SignalR - Network state changed:', state.isConnected);
       
       if (state.isConnected && chatConnection?.state === signalR.HubConnectionState.Disconnected) {
-        console.log('🌐 Device came online');
+        console.log('🌐 SignalR - Device came online');
         chatConnection.start().catch(err => console.error('Failed to restart SignalR:', err));
       } else if (!state.isConnected) {
-        console.log('📵 Device went offline');
+        console.log('📵SignalR - Device went offline');
       }
     });
   }
@@ -70,7 +70,7 @@ export async function stopChatConnection(): Promise<void> {
     try {
       await chatConnection.stop();
     } catch (error) {
-      console.error('Error stopping SignalR connection:', error);
+      console.error('SignalR - Error stopping SignalR connection:', error);
     }
     chatConnection = null;
   }
