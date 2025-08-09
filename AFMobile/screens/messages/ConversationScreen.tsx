@@ -23,7 +23,7 @@ import { clearDraftFor } from '@/utils/draft/draft';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
 import MessageListNative from '@/components/messages/MessageListNative';
 import MessageInputNative from '@/components/messages/MessageInputNative';
-import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@shared/types/navigation';
+import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
 
 export default function ConversationScreen() {
   const navigation = useNavigation<ConversationScreenNavigationProp>();
@@ -353,6 +353,7 @@ export default function ConversationScreen() {
             hideToolbar={hasConversationError}
             conversationError={conversationError}
             autoFocus={false}
+            conversationParticipants={currentConversation?.participants || []}
           />
         </View>
       </KeyboardAvoidingView>

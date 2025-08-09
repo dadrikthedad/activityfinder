@@ -227,7 +227,7 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
         accessibilityRole="button"
         accessibilityLabel="More emojis"
       >
-        <Plus size={16} color="#666" />
+        <Plus size={16} color="#ffffffff" />
       </TouchableOpacity>
     </View>
   );
@@ -440,7 +440,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
+    marginTop: 6,
     paddingHorizontal: 4,      // Legg til padding for å holde knappene inne
   },
   quickEmojiButton: {
@@ -465,11 +466,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     maxWidth: 32,              // Samme begrensning
-  },
-  moreEmojiText: {
-    fontSize: 16,              // Reduser litt for mindre knapp
-    color: '#ffffffff',
-    fontWeight: '600',
   },
   activeEmoji: {
     backgroundColor: '#1C6B1C',

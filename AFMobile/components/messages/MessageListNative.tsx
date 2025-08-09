@@ -20,6 +20,8 @@ import { formatSentDate } from '@shared/utils/date/chatDate';
 import { ReactionHandlerNative } from '../reactions/ReactionHandlerNative';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
+import { useReactionUsersModal } from '@/components/reactions/ReactionUsersModal';
+import { ReactionDTO } from '@shared/types/MessageDTO';
 
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
@@ -30,6 +32,7 @@ interface MessageListNativeProps {
   onConversationError?: (error: string | null) => void;
   onRetryMessage?: (message: MessageDTO) => void;
   onDeleteFailedMessage?: (message: MessageDTO) => void;
+  conversationParticipants?: UserSummaryDTO[];
 }
 
 interface MessageItemProps {
@@ -41,6 +44,7 @@ interface MessageItemProps {
   onRetry?: (message: MessageDTO) => void;
   onDeleteFailed?: (message: MessageDTO) => void;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
 }
 
 const MessageItemNative = ({
@@ -52,6 +56,7 @@ const MessageItemNative = ({
   onRetry,
   onDeleteFailed,
   onShowUserPopover,
+  onShowReactionUsers
 }: MessageItemProps) => {
   const isMine = currentUser?.id === message.sender?.id;
   const isOptimistic = message.isOptimistic;
@@ -109,6 +114,14 @@ const MessageItemNative = ({
     
     return Array.from(reactionMap.values());
   }, [existingReactions]);
+
+  const handleReactionPress = (emoji: string) => {
+    if (message?.reactions) {
+      // Importer showReactionUsers fra props eller context
+      // For nå, vi sender det som en prop fra parent
+      onShowReactionUsers?.(emoji, message.reactions);
+    }
+  };
 
   const messageContent = (
     <View
@@ -216,15 +229,20 @@ const MessageItemNative = ({
       )}
 
       {groupedReactions.length > 0 && (
-        <View style={[styles.reactionsContainer, isMine && styles.myReactionsContainer]}>
-          {groupedReactions.map((reaction, index) => (
-            <View key={`${reaction.emoji}-${index}`} style={styles.reactionBubble}>
-              <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
-              <Text style={styles.reactionCount}>{reaction.count}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+    <View style={[styles.reactionsContainer, isMine && styles.myReactionsContainer]}>
+      {groupedReactions.map((reaction, index) => (
+        <TouchableOpacity 
+          key={`${reaction.emoji}-${index}`} 
+          style={styles.reactionBubble}
+          onPress={() => handleReactionPress(reaction.emoji)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
+          <Text style={styles.reactionCount}>{reaction.count}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  )}
     </View>
   );
 
@@ -259,6 +277,7 @@ export default function MessageListNative({
   onConversationError,
   onRetryMessage,
   onDeleteFailedMessage,
+  conversationParticipants = [],
 }: MessageListNativeProps) {
   const { 
     liveMessages, 
@@ -286,6 +305,8 @@ export default function MessageListNative({
   const lastLoadMoreTime = useRef(0);
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
+
+  const { showReactionUsers } = useReactionUsersModal();
 
   const { confirm } = useConfirmModalNative();
 
@@ -368,6 +389,8 @@ export default function MessageListNative({
     }
   };
 
+  
+
   const renderMessage = ({ item }: { item: MessageDTO }) => (
     <MessageItemNative
       message={item}
@@ -378,6 +401,9 @@ export default function MessageListNative({
       onRetry={onRetryMessage}
       onDeleteFailed={onDeleteFailedMessage}
       onShowUserPopover={onShowUserPopover}
+      onShowReactionUsers={(emoji, reactions) => 
+      showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants) // 🆕 SEND participants
+    }
     />
   );
 
@@ -482,6 +508,8 @@ export default function MessageListNative({
   }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth]);
 
   const stableConversationId = useRef(conversationId);
+
+  
   
   useEffect(() => {
     if (conversationId && conversationId !== -1) {
@@ -681,6 +709,7 @@ export default function MessageListNative({
   useEffect(() => {
     onConversationError?.(error);
   }, [error, onConversationError]);
+  
 
   // Cleanup timers on unmount
   useEffect(() => {
