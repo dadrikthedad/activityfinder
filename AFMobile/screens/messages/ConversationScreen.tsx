@@ -334,6 +334,7 @@ export default function ConversationScreen() {
             onConversationError={setConversationError}
             onRetryMessage={handleRetryMessage}
             onDeleteFailedMessage={handleDeleteFailedMessage}
+            conversationParticipants={currentConversation?.participants || []} 
           />
         </View>
 
@@ -353,7 +354,6 @@ export default function ConversationScreen() {
             hideToolbar={hasConversationError}
             conversationError={conversationError}
             autoFocus={false}
-            conversationParticipants={currentConversation?.participants || []}
           />
         </View>
       </KeyboardAvoidingView>

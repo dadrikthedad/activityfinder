@@ -117,8 +117,6 @@ const MessageItemNative = ({
 
   const handleReactionPress = (emoji: string) => {
     if (message?.reactions) {
-      // Importer showReactionUsers fra props eller context
-      // For nå, vi sender det som en prop fra parent
       onShowReactionUsers?.(emoji, message.reactions);
     }
   };
@@ -758,10 +756,6 @@ export default function MessageListNative({
         keyExtractor={(item) => item.optimisticId || item.id.toString()}
         
         inverted={true}
-        
-        // 🆕 REMOVED: onEndReached since we handle it in onScroll now
-        // onEndReached={handleLoadMore}
-        // onEndReachedThreshold={0.1}
         
         // Enhanced scroll tracking with smooth infinite scroll
         onScroll={handleScroll}

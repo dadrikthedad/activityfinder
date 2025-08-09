@@ -1,4 +1,4 @@
-// ReactionHandlerNative.tsx - Oppdatert for best practice meny
+// ReactionHandlerNative.tsx - Forbedret for optimistiske meldinger
 import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
@@ -50,21 +50,44 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   
   const messageRef = useRef<View>(null);
   const getActualMessageId = useChatStore((state) => state.getActualMessageId);
+  const optimisticToServerIdMap = useChatStore((state) => state.optimisticToServerIdMap);
+  
 
+  // 🔧 FORBEDRET: Mer presis sjekk for om meldingen kan håndteres
   const canHandleMessage = useMemo(() => {
     if (!message) return false;
+    
+    // Hvis det er en vanlig melding (ikke optimistisk), kan vi alltid håndtere den
     if (!message.isOptimistic) return true;
-    return Boolean(message.optimisticId);
+    
+    // Hvis det er en optimistisk melding, sjekk om vi har optimisticId
+    if (message.isOptimistic && message.optimisticId) {
+      return true; // Vi kan håndtere optimistiske meldinger med optimisticId
+    }
+    
+    return false;
   }, [message?.id, message?.isOptimistic, message?.optimisticId]);
 
-  const actualMessageId = useMemo(() => {
+  // 🔧 FORBEDRET: Hent faktisk meldings-ID (kan være null for optimistiske meldinger uten mapping)
+   const actualMessageId = useMemo(() => {
     if (!message) return null;
     return getActualMessageId(message);
-  }, [message?.id, message?.optimisticId, getActualMessageId]);
+  }, [message, getActualMessageId, optimisticToServerIdMap]);
 
-  const canPerformActions = useMemo(() => {
+  // 🆕 NY: Sjekk om meldingen har en server-ID (enten direkte eller via mapping)
+  const hasServerMessageId = useMemo(() => {
     return actualMessageId !== null;
   }, [actualMessageId]);
+
+  // 🔧 FORBEDRET: Kan vi utføre handlinger som krever server-ID?
+  const canPerformServerActions = useMemo(() => {
+    return hasServerMessageId;
+  }, [hasServerMessageId]);
+
+  // 🆕 NY: Kan vi utføre lokale handlinger (som sletting av optimistiske meldinger)?
+  const canPerformLocalActions = useMemo(() => {
+    return canHandleMessage;
+  }, [canHandleMessage]);
 
   const handleLongPress = () => {
     if (disabled || message?.isDeleted || !canHandleMessage) return;
@@ -88,7 +111,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       return;
     }
 
-    if (!canPerformActions) {
+    // 🔧 FORBEDRET: Sjekk om vi kan legge til reaksjoner
+    if (!canPerformServerActions) {
       console.warn(`⚠️ Cannot react to message - no server ID available yet`);
       
       Alert.alert(
@@ -105,7 +129,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       originalId: message.id,
       actualId: messageId,
       isOptimistic: message.isOptimistic,
-      optimisticId: message.optimisticId
+      optimisticId: message.optimisticId,
+      hasServerMapping: hasServerMessageId
     });
  
     addReaction({
@@ -117,7 +142,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   const handleReply = () => {
     if (!message || !onReply) return;
 
-    if (!canPerformActions) {
+    // 🔧 FORBEDRET: Reply krever også server-ID
+    if (!canPerformServerActions) {
       Alert.alert(
         "Please wait", 
         "Message is still being sent. Please try again in a moment.",
@@ -130,39 +156,42 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   };
 
   const handleDelete = () => {
-  if (!message || !onDelete) return;
+    if (!message || !onDelete) return;
 
-  if (!canHandleMessage) {
-    console.warn("❌ Cannot delete message - no ID available");
-    return;
-  }
+    // 🔧 FORBEDRET: Sletting kan gjøres lokalt for optimistiske meldinger
+    if (!canPerformLocalActions) {
+      console.warn("❌ Cannot delete message - no ID available");
+      return;
+    }
 
-  // Kall onDelete direkte - MessageListNative håndterer konfirmasjonen
-  onDelete(message);
-};
+    // Kall onDelete direkte - MessageListNative håndterer konfirmasjonen
+    onDelete(message);
+  };
 
   const getQuickActions = () => {
     const actions = [];
    
     // Reply action (for other people's messages)
+    // 🔧 FORBEDRET: Reply krever server-ID
     if (message && onReply && currentUserId !== message.sender?.id) {
       actions.push({
         type: 'reply' as const,
         label: 'Reply',
         icon: MessageCircleReply,
         onPress: handleReply,
-        disabled: !canPerformActions,
+        disabled: !canPerformServerActions, // 🔧 Bruk server actions sjekk
       });
     }
    
     // Delete action (for own messages)  
+    // 🔧 FORBEDRET: Sletting kan gjøres lokalt
     if (message && onDelete && currentUserId === message.sender?.id && !message.isDeleted) {
       actions.push({
         type: 'delete' as const,
         label: 'Delete',
         icon: Trash2,
         onPress: handleDelete,
-        disabled: false,
+        disabled: !canPerformLocalActions, // 🔧 Bruk lokal actions sjekk
         destructive: true,
       });
     }
@@ -195,7 +224,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
         userId={userId}
         message={message}
         actualMessageId={actualMessageId}
-        actionsDisabled={!canPerformActions}
+        reactionsDisabled={!canPerformServerActions} // 🔧 FIX: Bruk riktig prop
+        actionsDisabled={false} // 🔧 FIX: Handlinger kan ha forskjellig tilgjengelighet
         messagePosition={messagePosition}
       />
     </View>
