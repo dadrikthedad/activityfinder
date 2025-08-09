@@ -12,6 +12,7 @@ import {
   PanResponder,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { Play, Pause, RefreshCcw } from 'lucide-react-native';
 import { RNFile } from '@/utils/files/FileFunctions';
 
 interface VideoViewerNativeProps {
@@ -55,20 +56,26 @@ export default function VideoViewerNative({
   const currentVideo = videos[currentIndex];
   const hasMultiple = videos.length > 1;
   const displayPosition = dragState.isDragging ? dragState.position : position;
-  const isNearEnd = position >= duration * 0.95 && duration > 0;
+  const isNearEnd = displayPosition >= duration * 0.95 && duration > 0;
 
-  // Consolidated timeout management
-  const manageControlsTimeout = (show: boolean, startCountdown = false) => {
+  // Auto-hide controls when playing
+  useEffect(() => {
+    if (isPlaying && showControls && !dragState.isDragging && !isNearEnd) {
+      const timeout = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+      
+      return () => clearTimeout(timeout);
+    }
+  }, [isPlaying, showControls, dragState.isDragging, isNearEnd]);
+
+  // Consolidated timeout management - simplified since useEffect handles auto-hide
+  const manageControlsTimeout = (show: boolean) => {
     if (controlsTimeout.current) {
       clearTimeout(controlsTimeout.current);
       controlsTimeout.current = null;
     }
-    
     setShowControls(show);
-    
-    if (startCountdown && isPlaying && !isNearEnd && !dragState.isDragging) {
-      controlsTimeout.current = setTimeout(() => setShowControls(false), 3000);
-    }
   };
 
   // Handle video status updates - simplified
@@ -99,7 +106,7 @@ export default function VideoViewerNative({
     if (status.didJustFinish) {
       manageControlsTimeout(true);
     } else if (!wasPlaying && nowPlaying) {
-      manageControlsTimeout(true, true);
+      manageControlsTimeout(true);
     } else if (wasPlaying && !nowPlaying) {
       manageControlsTimeout(true);
     }
@@ -118,7 +125,7 @@ export default function VideoViewerNative({
         setPosition(0);
       }
       await videoRef.current.playAsync();
-      manageControlsTimeout(true, true);
+      manageControlsTimeout(true);
     }
   };
 
@@ -183,7 +190,9 @@ export default function VideoViewerNative({
         
         if (shouldResume) {
           await videoRef.current.playAsync();
-          manageControlsTimeout(true, true);
+          manageControlsTimeout(true);
+        } else {
+          manageControlsTimeout(true);
         }
       }
     },
@@ -212,7 +221,8 @@ export default function VideoViewerNative({
       await videoRef.current.setPositionAsync(newPosition);
       setPosition(newPosition);
     }
-    manageControlsTimeout(true, isPlaying);
+    
+    manageControlsTimeout(true);
   };
 
   // Navigation functions
@@ -244,9 +254,9 @@ export default function VideoViewerNative({
     if (showControls && isPlaying) {
       manageControlsTimeout(false);
     } else if (!showControls) {
-      manageControlsTimeout(true, isPlaying);
+      manageControlsTimeout(true);
     } else {
-      manageControlsTimeout(true, isPlaying);
+      manageControlsTimeout(true);
     }
   };
 
@@ -323,7 +333,7 @@ export default function VideoViewerNative({
               <Video
                 ref={videoRef}
                 source={{ uri: currentVideo.uri }}
-                style={[styles.video, { width, height: height * 0.8 }]}
+                style={[styles.video, { width, height }]}
                 resizeMode={ResizeMode.CONTAIN}
                 onPlaybackStatusUpdate={onPlaybackStatusUpdate}
                 progressUpdateIntervalMillis={100}
@@ -363,19 +373,7 @@ export default function VideoViewerNative({
               </View>
             </View>
 
-            {/* Play/Pause Button */}
-            <TouchableOpacity
-              style={styles.playPauseButton}
-              onPress={togglePlayPause}
-            >
-              <Text style={styles.playPauseText}>
-                {duration === 0 ? '⏳' : 
-                 isPlaying ? '⏸️' : 
-                 isNearEnd ? '🔄' : '▶️'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Progress Bar */}
+            {/* Progress Bar with Play/Pause Button */}
             <View style={styles.progressContainer}>
               <Text style={styles.timeText}>
                 {formatTime(displayPosition)}
@@ -412,6 +410,22 @@ export default function VideoViewerNative({
               </View>
               
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
+
+              {/* Play/Pause Button */}
+              <TouchableOpacity
+                style={styles.playPauseButton}
+                onPress={togglePlayPause}
+              >
+                {duration === 0 ? (
+                  <Text style={styles.loadingText}>⏳</Text>
+                ) : isPlaying ? (
+                  <Pause size={24} color="white" />
+                ) : isNearEnd ? (
+                  <RefreshCcw size={24} color="white" />
+                ) : (
+                  <Play size={24} color="white" />
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* Navigation */}
@@ -433,6 +447,16 @@ export default function VideoViewerNative({
               </>
             )}
           </>
+        )}
+
+        {/* Center Restart Button - shown when video is finished */}
+        {isNearEnd && !isPlaying && (
+          <TouchableOpacity
+            style={styles.centerRestartButton}
+            onPress={togglePlayPause}
+          >
+            <RefreshCcw size={48} color="white" />
+          </TouchableOpacity>
         )}
       </View>
     </Modal>
@@ -500,7 +524,7 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#1C6B1C', // Changed to green
     borderRadius: 22,
     marginLeft: 8,
   },
@@ -510,43 +534,42 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   playPauseButton: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    width: 80,
-    height: 80,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 40,
+    width: 36,
+    height: 36,
+    backgroundColor: '#1C6B1C', // Changed to green
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -40,
-    marginLeft: -40,
+    marginLeft: 10,
   },
-  playPauseText: {
-    fontSize: 32,
+  loadingText: {
+    fontSize: 16,
     color: 'white',
   },
   progressContainer: {
     position: 'absolute',
-    bottom: 60,
-    left: 16,
-    right: 16,
+    bottom: 20,
+    left: 8, // Reduced from 16
+    right: 8, // Reduced from 16
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12, // Reduced from 16
     borderRadius: 8,
+    minHeight: 64,
   },
   timeText: {
     color: 'white',
     fontSize: 12,
-    minWidth: 40,
+    minWidth: 35, // Reduced from 40
     textAlign: 'center',
+    lineHeight: 16,
+    height: 16,
   },
   progressBarTouchable: {
     flex: 1,
-    marginHorizontal: 12,
+    marginHorizontal: 8, // Reduced from 12
     paddingVertical: 20,
     paddingHorizontal: 10,
   },
@@ -611,5 +634,18 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 24,
     fontWeight: 'bold',
+  },
+  centerRestartButton: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: 80,
+    height: 80,
+    backgroundColor: '#1C6B1C', // Changed to green
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -40,
+    marginLeft: -40,
   },
 });
