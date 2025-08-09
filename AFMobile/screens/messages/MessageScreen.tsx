@@ -28,6 +28,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   const currentUser = useCurrentUser();
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
+
+   const { setCurrentConversationId } = useChatStore();
   
   // Pending collapse state - from store
   const isPendingCollapsed = useChatStore(state => state.isPendingCollapsed);
@@ -44,8 +46,14 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
 
   // Handle conversation selection - navigate to individual conversation
   const handleSelectConversation = useCallback((conversationId: number) => {
+    console.log('🎯 MessagesScreen: Setting conversation ID before navigation:', conversationId);
+    
+    // Sett conversation ID umiddelbart
+    setCurrentConversationId(conversationId);
+    
+    // Deretter naviger
     navigation.navigate('ConversationScreen', { conversationId });
-  }, [navigation]);
+  }, [navigation, setCurrentConversationId]);
 
   // Toggle pending section with animation
   const togglePending = useCallback(() => {

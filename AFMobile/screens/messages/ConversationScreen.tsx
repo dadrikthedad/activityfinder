@@ -25,12 +25,16 @@ import MessageListNative from '@/components/messages/MessageListNative';
 import MessageInputNative from '@/components/messages/MessageInputNative';
 import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
 
-export default function ConversationScreen() {
-  const navigation = useNavigation<ConversationScreenNavigationProp>();
-  const route = useRoute<ConversationScreenRouteProp>();
+interface ConversationScreenProps {
+  navigation: ConversationScreenNavigationProp;
+  route: ConversationScreenRouteProp;
+}
+
+export default function ConversationScreen({ route, navigation }: ConversationScreenProps) {
+  const { conversationId } = route.params; 
   const { isLoggedIn } = useAuth();
   const currentUser = useCurrentUser();
-  const conversationId = route.params?.conversationId;
+  
   
   // Chat store state
   const { 

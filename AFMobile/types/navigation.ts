@@ -14,7 +14,7 @@ export type RootStackParamList = {
   About: undefined;
   Weather: undefined;
   MessagesScreen: undefined;
-  ConversationScreen: { conversationId?: number }; // Added with optional conversationId param
+  ConversationScreen: { conversationId: number }; // Added with optional conversationId param
   Notifications: undefined;
 };
 
