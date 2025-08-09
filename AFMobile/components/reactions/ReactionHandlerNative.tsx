@@ -13,17 +13,7 @@ import { useReactions } from '@/hooks/reactions/useReactions';
 import { useChatStore } from '@/store/useChatStore';
 import { ReactionMenuNative } from './ReactionMenuNative';
 import { 
-  Heart, 
-  ThumbsUp, 
-  Smile, 
-  Frown, 
-  Laugh,
-  Flame,
-  PartyPopper,
-  Reply,
   Trash2,
-  Copy,
-  Plus,
   MessageCircleReply
 } from 'lucide-react-native';
 
@@ -140,27 +130,16 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   };
 
   const handleDelete = () => {
-    if (!message || !onDelete) return;
+  if (!message || !onDelete) return;
 
-    if (!canHandleMessage) {
-      console.warn("❌ Cannot delete message - no ID available");
-      return;
-    }
+  if (!canHandleMessage) {
+    console.warn("❌ Cannot delete message - no ID available");
+    return;
+  }
 
-    // Show confirmation for destructive action
-    Alert.alert(
-      "Delete Message",
-      "Are you sure you want to delete this message?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete", 
-          style: "destructive", 
-          onPress: () => onDelete(message)
-        }
-      ]
-    );
-  };
+  // Kall onDelete direkte - MessageListNative håndterer konfirmasjonen
+  onDelete(message);
+};
 
   const getQuickActions = () => {
     const actions = [];

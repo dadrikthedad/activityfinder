@@ -9,7 +9,7 @@ import { useLeaveGroup } from "@/hooks/messages/useLeaveGroup";
 import { useBlockUser } from "@/hooks/block/useBlockUser";
 import { useUnblockUser } from "@/hooks/block/useUnblockUser";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
-import { useConfirmModal } from "@/hooks/useConfirmModal";
+import { useConfirmModalNative } from "@/hooks/useConfirmModalNative";
 
 // React Native navigation
 interface NavigationProp {
@@ -66,7 +66,7 @@ export function useUserActionPopoverNative({
     ? { confirmAndRemove: () => Promise.resolve() }
     : confirmRemoveResult;
 
-  const { confirm } = useConfirmModal();
+  const { confirm } = useConfirmModalNative();
 
   // Note: useConfirmModal handles rendering internally, no ConfirmDialog component needed
 

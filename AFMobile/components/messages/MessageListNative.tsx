@@ -19,6 +19,7 @@ import MiniAvatarNative from '../common/MiniAvatarNative';
 import { formatSentDate } from '@shared/utils/date/chatDate';
 import { ReactionHandlerNative } from '../reactions/ReactionHandlerNative';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
+import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
@@ -286,6 +287,8 @@ export default function MessageListNative({
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
 
+  const { confirm } = useConfirmModalNative();
+
   const {
     messages,
     loadMore,
@@ -331,39 +334,39 @@ export default function MessageListNative({
     conversationId === pendingLockedConversationId;
 
   const handleDeleteMessage = async (message: MessageDTO) => {
-  const { getActualMessageId } = useChatStore.getState();
-  const actualMessageId = getActualMessageId(message);
-  
-  const messagePreview = message.text 
-    ? message.text.length > 50 
-      ? `${message.text.slice(0, 50)}...` 
-      : message.text
-    : "this message";
+    const { getActualMessageId } = useChatStore.getState();
+    const actualMessageId = getActualMessageId(message);
+    
+    const messagePreview = message.text 
+      ? message.text.length > 50 
+        ? `${message.text.slice(0, 50)}...` 
+        : message.text
+      : "this message";
 
-  Alert.alert(
-    "Delete Message",
-    `Are you sure you want to delete "${messagePreview}"?\n\nThis action cannot be undone.`,
-    [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Delete", 
-        style: "destructive",
-        onPress: async () => {
-          // 🔧 FIX: Sjekk om actualMessageId er null
-          if (actualMessageId !== null) {
-            await deleteMessage({ 
-              ...message, 
-              id: actualMessageId 
-            });
-          } else {
-            // For optimistiske meldinger uten server ID, bruk original melding
-            await deleteMessage(message);
-          }
+    // Bruk din tilpassede modal i stedet for Alert
+    const confirmed = await confirm({
+      title: "Delete message",
+      message: `Are you certain you want to delete "${messagePreview}"?\n\nThis action cannot be undone.`
+    });
+
+    if (confirmed) {
+      try {
+        // Sjekk om actualMessageId er null
+        if (actualMessageId !== null) {
+          await deleteMessage({ 
+            ...message, 
+            id: actualMessageId 
+          });
+        } else {
+          // For optimistiske meldinger uten server ID, bruk original melding
+          await deleteMessage(message);
         }
+      } catch (error) {
+        console.error('Failed to delete message:', error);
+        // Du kan eventuelt vise en error-modal her også
       }
-    ]
-  );
-};
+    }
+  };
 
   const renderMessage = ({ item }: { item: MessageDTO }) => (
     <MessageItemNative

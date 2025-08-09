@@ -11,9 +11,26 @@ export function generateDeviceId(): string {
 }
 
 // Get platform type
-export function getPlatform(): 'web' | 'mobile' {
+export function getPlatform(): 'web' | 'ios' | 'android' {
   if (typeof window === 'undefined') return 'web';
-  return /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'web';
+
+  const ua = navigator.userAgent || navigator.vendor;
+
+  if (/android/i.test(ua)) {
+    return 'android';
+  }
+
+  const isIOS =
+    (/iPad|iPhone|iPod/.test(ua) ||
+      // iPadOS detection
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) &&
+    !('MSStream' in window);
+
+  if (isIOS) {
+    return 'ios';
+  }
+
+  return 'web';
 }
 
 // Browser beacon for reliable offline marking during page unload

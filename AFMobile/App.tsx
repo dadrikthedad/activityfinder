@@ -19,7 +19,8 @@ import MessagesScreen from './screens/messages/MessageScreen';
 import ConversationScreen from './screens/messages/ConversationScreen';
 import { AppInitializer } from './components/bootstrap/AppInitializerNative';
 import { stopChatConnection } from './utils/signalr/chatHub'; 
-import SignalRClientNative from './components/signalr/SignalRClientNative'; 
+import SignalRClientNative from './components/signalr/SignalRClientNative';
+import { ModalProvider } from './context/ModalContext'; 
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -51,8 +52,10 @@ function AppContent() {
   return (
     <NavigationContainer>
       <AuthProvider>
-        <AppInitializer />
-        <AuthenticatedApp />
+        <ModalProvider> 
+          <AppInitializer />
+          <AuthenticatedApp />
+        </ModalProvider>
       </AuthProvider>
     </NavigationContainer>
   );

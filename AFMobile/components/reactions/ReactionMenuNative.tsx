@@ -13,22 +13,11 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
-  Clipboard,
-  Alert,
+  Clipboard
 } from 'react-native';
 import EmojiPicker, { type EmojiType } from 'rn-emoji-keyboard'; // Ny import
 import { ReactionDTO, MessageDTO } from '@shared/types/MessageDTO';
 import { 
-  Heart, 
-  ThumbsUp, 
-  Smile, 
-  Frown, 
-  Laugh,
-  Flame,
-  PartyPopper,
-  Reply,
-  Trash2,
-  Copy,
   Plus,
   Clipboard as ClipboardIcon
 } from 'lucide-react-native';
@@ -147,7 +136,6 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
     if (!message?.text) return;
     
     Clipboard.setString(message.text);
-    Alert.alert('Copied', 'Message copied to clipboard');
     onClose();
   };
 
@@ -220,8 +208,7 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
             key={`${emoji}-${index}`}
             style={[
               styles.quickEmojiButton, 
-              isActive && styles.activeEmoji,
-              isRecent && styles.recentEmoji, // Kun recent får grønn border
+              isActive && styles.activeEmoji, // Kun recent får grønn border
               actionsDisabled && styles.disabledButton
             ]}
             onPress={() => handleEmojiPress(emoji)}
@@ -488,9 +475,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C6B1C',
     transform: [{ scale: 1.15 }], // Reduser scale litt for mindre knapper
   },
-  recentEmoji: {
-  },
-  
   // Actions
   divider: {
     height: 1,

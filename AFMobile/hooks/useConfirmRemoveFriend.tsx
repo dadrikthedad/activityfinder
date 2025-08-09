@@ -1,10 +1,10 @@
 // Håndterer sletting av sin modal som kommer opp ved å trykke på Remove Friend
-import { useConfirmModal } from "@/hooks/useConfirmModal"; 
+import { useConfirmModalNative } from "@/hooks/useConfirmModalNative"; 
 import { useRemoveFriend } from "@/hooks/useRemoveFriend";
 import { Text, View } from 'react-native';
 
 export function useConfirmRemoveFriend() {
-  const { confirm } = useConfirmModal(); // Ingen ConfirmDialog å returnere!
+  const { confirm } = useConfirmModalNative(); // Ingen ConfirmDialog å returnere!
   const { handleRemoveFriend } = useRemoveFriend();
 
   const confirmAndRemove = async (
