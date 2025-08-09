@@ -493,12 +493,6 @@ export default function MessageListNative({
           timestamp: Date.now()
         };
         
-        console.log(`📍 Scroll ended - saving position:`, {
-          messageId: visibleMessage.id,
-          offset: contentOffset.y,
-          messageText: visibleMessage.text?.substring(0, 20) + '...'
-        });
-        
         setScrollMessageId(targetConversationId, scrollData);
       }
     }, 500);
@@ -537,18 +531,12 @@ export default function MessageListNative({
           timestamp: now
         };
         
-        console.log(`👁️ Viewport fallback save:`, {
-          messageId: firstVisibleMessage.id,
-          messageText: firstVisibleMessage.text?.substring(0, 20) + '...'
-        });
-        
         setScrollMessageId(targetConversationId, scrollData);
       }
     }
   }, [setScrollMessageId, isInitialized]);
 
   useEffect(() => {
-    console.log(`🔄 Conversation changed to: ${conversationId}, resetting initialization`);
     
     if (conversationId && conversationId !== -1) {
       setIsInitialized(false);
@@ -558,16 +546,8 @@ export default function MessageListNative({
     }
   }, [conversationId]);
 
-  // 🔧 FIX 4: Enhanced restoration logic with forced initial tracking
+  // Enhanced restoration logic with forced initial tracking
   useEffect(() => {
-    console.log(`📋 Restore effect triggered:`, {
-      hasRef: !!flatListRef.current,
-      loading,
-      messagesLength: displayedMessages.length,
-      isInitialized,
-      conversationId,
-      isBootstrapped
-    });
 
     if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
       return;
@@ -593,7 +573,7 @@ export default function MessageListNative({
             const messageIndex = displayedMessages.findIndex(msg => msg.id === scrollData.messageId);
             
             if (messageIndex >= 0) {
-              console.log(`🎯 Restoring to message ID ${scrollData.messageId} at index ${messageIndex}`);
+              // console.log(`🎯 Restoring to message ID ${scrollData.messageId} at index ${messageIndex}`);
               
               flatListRef.current.scrollToIndex({
                 index: messageIndex,
@@ -602,7 +582,7 @@ export default function MessageListNative({
               });
               
               currentScrollPosition.current = scrollData.offset;
-              console.log(`✅ Successfully restored to message at index ${messageIndex}`);
+              // console.log(`✅ Successfully restored to message at index ${messageIndex}`);
             } else {
               console.log(`⚠️ Message ID ${scrollData.messageId} not found, using offset fallback`);
               
@@ -627,7 +607,6 @@ export default function MessageListNative({
           
           setIsInitialized(true);
           isRestoring.current = false;
-          console.log(`🎯 Restoration complete for conversation ${conversationId}`);
           
           // Force initial tracking after restoration
           setTimeout(() => {
@@ -647,13 +626,7 @@ export default function MessageListNative({
                 offset: currentScrollPosition.current,
                 timestamp: Date.now()
               };
-              
-              console.log(`🎯 FORCE Initial tracking after restoration:`, {
-                messageId: visibleMessage.id,
-                messageText: visibleMessage.text?.substring(0, 20) + '...',
-                offset: currentScrollPosition.current
-              });
-              
+   
               setScrollMessageId(conversationId, initialScrollData);
             }
           }, 100);
@@ -682,15 +655,6 @@ export default function MessageListNative({
     const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
     const savedPosition = scrollPositions[conversationId] || 0;
     const isNearBottom = savedPosition <= 100;
-
-    console.log(`🆕 New message check:`, {
-      hasNewMessage,
-      lastMessageId,
-      previousLastMessageId: previousLastMessageId.current,
-      savedPosition,
-      isNearBottom,
-      isInitialized
-    });
 
     if (hasNewMessage && isNearBottom && isInitialized) {
       console.log(`🔽 Auto-scrolling to bottom for new message`);

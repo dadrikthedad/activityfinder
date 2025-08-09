@@ -26,25 +26,16 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
  
   const isInvalidConversation = conversationId === -1;
   
-  // 🔧 FIX: Separer ready conditions for cache vs API calls
+  // Separer ready conditions for cache vs API calls
   const canUseCache = isBootstrapped && hasLoadedConversations;
   const canMakeApiCalls = isBootstrapped && isVisible; // Ikke krev hasLoadedConversations for API calls
-  
-  console.log(`🔍 usePaginatedMessages state for conversation ${conversationId}:`, {
-    isBootstrapped,
-    hasLoadedConversations,
-    isVisible,
-    canUseCache,
-    canMakeApiCalls,
-    isInvalidConversation
-  });
 
   useEffect(() => {
     if (isInvalidConversation) {
       return;
     }
     
-    // 🔧 FIX: Reset state når vi bytter samtale
+    //  Reset state når vi bytter samtale
     setError(null);
     hasLoadedInitialCache.current = false;
     lastSkipRef.current = -1;
@@ -69,7 +60,6 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
       }
       
       if (cached.length > 0) {
-        console.log(`📦 Loaded ${combined.length} messages from cache for conversation ${conversationId} (${cached.length} cached + ${live.length} live)`);
         hasLoadedInitialCache.current = true;
         setHasMore(cached.length >= take);
       } else {
