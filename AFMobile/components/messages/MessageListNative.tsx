@@ -862,7 +862,7 @@ const styles = StyleSheet.create({
   },
   myMessageHeader: {
     alignSelf: 'flex-end',
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
   },
   senderInfo: {
     alignItems: 'flex-start',

@@ -83,7 +83,13 @@ function AuthenticatedApp() {
             </Stack.Screen>
            
             {/* Sider UTEN navbar (fullscreen) */}
-            <Stack.Screen name="ConversationScreen" component={ConversationScreen} />
+            <Stack.Screen
+  name="ConversationScreen"
+  component={ConversationScreen}
+  options={{
+    cardStyleInterpolator: () => ({}), // Tom interpolator = ingen animasjon
+  }}
+/>
           </>
         ) : (
           <>

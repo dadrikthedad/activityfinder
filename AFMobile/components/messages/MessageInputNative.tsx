@@ -12,8 +12,9 @@ import {
   Modal,
   ActionSheetIOS,
   ScrollView,
+  Image as ImageReact,
 } from 'react-native';
-import { Camera, Image, FileText, Plus, ChevronRight, X } from 'lucide-react-native';
+import { Camera, Image as ImageLucid, FileText, Plus, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
@@ -24,6 +25,7 @@ import { getDraftFor, saveDraftFor, clearDraftFor } from '@/utils/draft/draft';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { ReplyPreviewNative } from './ReplyPreviewNative';
 import { RNFile, validateFiles, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
+import FileViewerNative from '../files/FileViewerNative';
 
 interface MessageInputNativeProps {
   receiverId?: number;
@@ -53,7 +55,9 @@ export default function MessageInputNative({
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<RNFile[]>([]);
   const [showActionsModal, setShowActionsModal] = useState(false);
-  const [showActions, setShowActions] = useState(true); // Controls if action buttons are visible
+  // Removed showActions state - always show the plus button
+  const [showFileViewer, setShowFileViewer] = useState(false);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const { send, error } = useSendMessage(onMessageSent);
   const inputRef = useRef<TextInput>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
@@ -75,8 +79,7 @@ export default function MessageInputNative({
     );
 
     return cached.length + uniqueLive.length;
-    
-});
+  });
 
   const isLocked =
     conversationId !== null &&
@@ -90,13 +93,6 @@ export default function MessageInputNative({
 
   const handleTextChange = (newText: string) => {
     setText(newText);
-    
-    // Hide actions when user starts typing, show when empty AND no files
-    if (newText.trim() && showActions) {
-      setShowActions(false);
-    } else if (!newText.trim() && selectedFiles.length === 0 && !showActions) {
-      setShowActions(true);
-    }
     
     if (conversationId) {
       saveDraftFor(conversationId, newText);
@@ -151,7 +147,6 @@ export default function MessageInputNative({
     // Clear input and files
     setText("");
     setSelectedFiles([]);
-    setShowActions(true);
     onClearReply?.();
 
     const messageData = hasFiles ? {
@@ -237,7 +232,7 @@ export default function MessageInputNative({
       };
       
       setSelectedFiles(prev => [...prev, file]);
-      setShowActions(false); // Hide actions when files are selected
+      // Plus button always visible - no need to hide
     }
   };
 
@@ -266,19 +261,30 @@ export default function MessageInputNative({
         const isVideo = asset.uri.includes('.mp4') || asset.uri.includes('.mov') || 
                        asset.type?.includes('video') || asset.duration !== undefined;
         
+        let mimeType: string = asset.type || ''; // Ensure it's always a string
+        
+        // Fix common ImagePicker MIME type issues
+        if (mimeType === 'image' || mimeType === '') {
+          mimeType = isVideo ? 'video/mp4' : 'image/jpeg'; // Default based on content
+        } else if (mimeType === 'video') {
+          mimeType = 'video/mp4'; // Default for incomplete video type
+        }
+        
         const fileExtension = isVideo ? 'mp4' : 'jpg';
-        const mimeType = asset.type || (isVideo ? 'video/mp4' : 'image/jpeg');
         
         return {
           uri: asset.uri,
-          type: mimeType,
+          type: mimeType, // Now guaranteed to be string
           name: asset.fileName || `${isVideo ? 'video' : 'image'}_${Date.now()}_${index}.${fileExtension}`,
           size: asset.fileSize
         };
       });
       
+      // Debug logging to see what we're getting
+      console.log('📷 Library files selected:', files.map(f => ({ name: f.name, type: f.type, uri: f.uri.substring(0, 50) + '...' })));
+      
       setSelectedFiles(prev => [...prev, ...files]);
-      setShowActions(false); // Hide actions when files are selected
+      // Plus button always visible - no need to hide
     }
   };
 
@@ -302,7 +308,7 @@ export default function MessageInputNative({
         }));
         
         setSelectedFiles(prev => [...prev, ...files]);
-        setShowActions(false); // Hide actions when files are selected
+        // Plus button always visible - no need to hide
       }
     } catch (err) {
       console.error('Error picking file:', err);
@@ -337,21 +343,17 @@ export default function MessageInputNative({
     }
   };
 
-  // Show actions again
-  const handleShowActions = () => {
-    setShowActions(true);
-  };
+  // Remove showActions function - not needed anymore
 
   // Remove file from selection
   const removeFile = (index: number) => {
-    setSelectedFiles(prev => {
-      const newFiles = prev.filter((_, i) => i !== index);
-      // Show actions again if no files and no text
-      if (newFiles.length === 0 && !text.trim()) {
-        setShowActions(true);
-      }
-      return newFiles;
-    });
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Open file viewer
+  const openFileViewer = (index: number) => {
+    setSelectedFileIndex(index);
+    setShowFileViewer(true);
   };
 
   // Load draft when conversation changes
@@ -362,12 +364,9 @@ export default function MessageInputNative({
       try {
         const existingDraft = await getDraftFor(conversationId);
         setText(existingDraft);
-        // Set showActions based on whether there's existing draft text and no files
-        setShowActions(!existingDraft.trim() && selectedFiles.length === 0);
       } catch (error) {
         console.error('Failed to load draft:', error);
         setText('');
-        setShowActions(true);
       }
     };
     
@@ -392,37 +391,108 @@ export default function MessageInputNative({
     return "Write a message...";
   };
 
-  // File preview component
+  // File preview component with smart filename truncation
   const FilePreview = ({ file, index }: { file: RNFile; index: number }) => {
     const fileInfo = getFileTypeInfo(file.type, file.name);
     const isImage = fileInfo.category === 'image';
+    const isVideo = fileInfo.category === 'video';
+    const isPreviewable = isImage || isVideo;
+    
+    // Debug logging for file categorization
+    console.log(`📋 File ${index}:`, {
+      name: file.name,
+      type: file.type,
+      category: fileInfo.category,
+      isPreviewable,
+      icon: fileInfo.icon
+    });
+    
+    // Smart filename truncation - always keep extension
+    const getDisplayFileName = (fileName: string, maxLength: number = 15) => {
+      if (fileName.length <= maxLength) return fileName;
+      
+      const parts = fileName.split('.');
+      if (parts.length < 2) {
+        // No extension, just truncate
+        return fileName.substring(0, maxLength - 3) + '...';
+      }
+      
+      const extension = parts.pop()!; // Get extension
+      const nameWithoutExt = parts.join('.');
+      const maxNameLength = maxLength - extension.length - 4; // -4 for "..." and "."
+      
+      if (maxNameLength <= 0) {
+        // If extension is too long, just show extension
+        return '...' + extension;
+      }
+      
+      return nameWithoutExt.substring(0, maxNameLength) + '...' + extension;
+    };
     
     return (
-      <View style={styles.filePreview}>
+      <TouchableOpacity 
+        style={[
+          styles.filePreview,
+          isPreviewable && styles.filePreviewClickable
+        ]}
+        onPress={() => isPreviewable ? openFileViewer(index) : undefined}
+        activeOpacity={isPreviewable ? 0.7 : 1}
+      >
+        {/* Remove button - top right corner */}
+        <TouchableOpacity
+          style={styles.removeFileButton}
+          onPress={() => removeFile(index)}
+          hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+        >
+          <View style={styles.removeFileButtonInner}>
+            <X size={12} color="white" />
+          </View>
+        </TouchableOpacity>
+
         <View style={styles.filePreviewContent}>
-          {isImage ? (
-            <Text style={styles.fileIcon}>🖼️</Text>
-          ) : (
-            <Text style={styles.fileIcon}>{fileInfo.icon}</Text>
-          )}
-          <View style={styles.fileInfo}>
+          {/* Media preview section */}
+          <View style={styles.mediaPreviewSection}>
+            {isImage && file.uri ? (
+              <View style={styles.imagePreviewContainer}>
+                <ImageReact
+                  source={{ uri: file.uri }}
+                  style={styles.imagePreview}
+                  resizeMode="cover"
+                />
+                <View style={styles.imageOverlay}>
+                  <Text style={styles.imageOverlayText}>🖼️</Text>
+                </View>
+              </View>
+            ) : isVideo ? (
+              <View style={styles.videoPreviewContainer}>
+                <Text style={styles.videoIcon}>🎥</Text>
+                <View style={styles.playOverlay}>
+                  <Text style={styles.playIcon}>▶️</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.documentIconContainer}>
+                <Text style={styles.fileIcon}>{fileInfo.icon}</Text>
+              </View>
+            )}
+          </View>
+          
+          {/* File info section */}
+          <View style={styles.fileInfoSection}>
             <Text style={styles.fileName} numberOfLines={1}>
-              {file.name}
+              {getDisplayFileName(file.name)}
             </Text>
             {file.size && (
               <Text style={styles.fileSize}>
                 {formatFileSize(file.size)}
               </Text>
             )}
+            {isPreviewable && (
+              <Text style={styles.previewHint}>Tap to preview</Text>
+            )}
           </View>
         </View>
-        <TouchableOpacity
-          style={styles.removeFileButton}
-          onPress={() => removeFile(index)}
-        >
-          <X size={16} color="#DC2626" />
-        </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -460,17 +530,13 @@ export default function MessageInputNative({
 
       {/* Input Row */}
       <View style={styles.inputContainer}>
-        {/* Actions button or arrow */}
+        {/* Actions button - always show plus */}
         {!isBlocked && (
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={showActions ? handleShowActionsMenu : handleShowActions}
+            onPress={handleShowActionsMenu}
           >
-            {showActions ? (
-              <Plus size={24} color="#1C6B1C" />
-            ) : (
-              <ChevronRight size={24} color="#1C6B1C" />
-            )}
+            <Plus size={24} color="#1C6B1C" />
           </TouchableOpacity>
         )}
         
@@ -523,7 +589,7 @@ export default function MessageInputNative({
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.modalOption} onPress={handlePickImage}>
-              <Image size={24} color="#1C6B1C" />
+              <ImageLucid size={24} color="#1C6B1C" />
               <Text style={styles.modalOptionText}>Choose from Library</Text>
             </TouchableOpacity>
             
@@ -534,6 +600,20 @@ export default function MessageInputNative({
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* File Viewer */}
+      {showFileViewer && selectedFiles.length > 0 && (
+        <FileViewerNative
+          visible={showFileViewer}
+          file={selectedFiles[selectedFileIndex]}
+          files={selectedFiles}
+          initialIndex={selectedFileIndex}
+          onClose={() => {
+            setShowFileViewer(false);
+            setSelectedFileIndex(0);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -581,7 +661,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   textInputWithButton: {
-    marginLeft: 0, // Ensure proper spacing with action button
+    marginLeft: 0,
   },
   textInputDisabled: {
     backgroundColor: '#F9FAFB',
@@ -630,6 +710,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  // File preview styles
   filePreviewContainer: {
     marginBottom: 8,
   },
@@ -641,37 +722,126 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 8,
     padding: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    maxWidth: 200,
+    width: 120,
+    height: 140, // Added fixed height for more space
+    position: 'relative',
+  },
+  filePreviewClickable: {
+    borderColor: '#1C6B1C',
+    borderWidth: 2,
+  },
+  removeFileButton: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    zIndex: 10,
+    backgroundColor: 'transparent',
+  },
+  removeFileButtonInner: {
+    backgroundColor: '#DC2626',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
   },
   filePreviewContent: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  fileIcon: {
+  mediaPreviewSection: {
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  imagePreviewContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 3,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  imageOverlayText: {
+    fontSize: 8,
+    color: 'white',
+  },
+  videoPreviewContainer: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#1F2937',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  videoIcon: {
     fontSize: 20,
   },
-  fileInfo: {
-    flex: 1,
-    minWidth: 0,
+  playOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 8,
+  },
+  playIcon: {
+    fontSize: 16,
+    color: 'white',
+  },
+  documentIconContainer: {
+    width: 80,
+    height: 80,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  fileIcon: {
+    fontSize: 28,
+  },
+  fileInfoSection: {
+    alignItems: 'center',
+    width: '100%',
   },
   fileName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     color: '#374151',
+    textAlign: 'center',
+    marginBottom: 2,
   },
   fileSize: {
-    fontSize: 10,
+    fontSize: 9,
     color: '#6B7280',
-    marginTop: 1,
+    textAlign: 'center',
+    marginBottom: 1,
   },
-  removeFileButton: {
-    padding: 4,
-    marginLeft: 4,
+  previewHint: {
+    fontSize: 8,
+    color: '#1C6B1C',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
