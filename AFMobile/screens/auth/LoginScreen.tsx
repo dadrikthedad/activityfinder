@@ -16,7 +16,7 @@ import { useLogin } from "@/hooks/auth/useLogin";
 import FormFieldNative from "@/components/common/FormFieldNative";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import ButtonNative from "@/components/common/ButtonNative";
-import { LoginScreenNavigationProp } from "@/types/navigation";
+import { LoginScreenNavigationProp } from "@shared/types/navigation";
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();

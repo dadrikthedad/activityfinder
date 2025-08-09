@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from '@/types/SendGroupRequestsDTO';
+import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from '@shared/types/SendGroupRequestsDTO';
 import { sendGroupRequests } from '@/services/messages/groupService';
 import { useConversationUpdate } from '../common/useConversationUpdate';
 import { useChatStore } from '@/store/useChatStore';

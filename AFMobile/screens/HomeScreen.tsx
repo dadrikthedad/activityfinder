@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import ButtonNative from "@/components/common/ButtonNative";
-import { HomeScreenNavigationProp } from "@/types/navigation";
+import { HomeScreenNavigationProp } from "@shared/types/navigation";
 import { useNavigation } from "@react-navigation/native";
 
 export default function HomeScreen() {

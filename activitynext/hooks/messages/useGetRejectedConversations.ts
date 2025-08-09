@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getRejectedConversations } from '@/services/messages/conversationService';
-import { ConversationDTO } from '@/types/ConversationDTO';
+import { ConversationDTO } from '@shared/types/ConversationDTO';
 
 interface UseGetRejectedConversationsResult {
   rejectedConversations: ConversationDTO[];

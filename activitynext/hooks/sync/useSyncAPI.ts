@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { getSyncUpdates } from '@/services/initializers/syncService';
-import { SyncReason } from '@/types/sync/SyncReason';
-import { SyncResponseDTO } from '@/types/sync/SyncResponseDTO'; // ✅ Explicit import
+import { SyncReason } from '@shared/types/sync/SyncReason';
+import { SyncResponseDTO } from '@shared/types/sync/SyncResponseDTO'; // ✅ Explicit import
 import { processSyncEvent } from './eventProcessor';
 
 export function useSyncApi() {

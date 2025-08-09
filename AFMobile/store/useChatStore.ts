@@ -82,6 +82,10 @@ type ChatStore = {
   // Scroll til melding
   scrollMessageIds: Record<number, ScrollData>; // New property
   setScrollMessageId: (conversationId: number, scrollData: ScrollData) => void;
+
+  // Lagring av recetn emojies
+  recentEmojis: string[];
+  addRecentEmoji: (emoji: string) => void;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -114,6 +118,7 @@ export const useChatStore = create<ChatStore>()(
       hasLoadedConversations: false,
       showMessages: false,
       optimisticToServerIdMap: {},
+      recentEmojis: [],
 
       // --- setters ---
       setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
@@ -714,6 +719,26 @@ convertAllOptimisticToReal: () =>
         },
       })),
 
+      addRecentEmoji: (emoji: string) =>
+        set((state) => {
+          console.log('💾 Adding recent emoji:', emoji);
+          
+          // Fjern emoji hvis den allerede finnes (for å flytte til toppen)
+          const filtered = state.recentEmojis.filter(e => e !== emoji);
+          
+          // Legg til på toppen
+          const updated = [emoji, ...filtered];
+          
+          // Behold kun de 10 siste
+          const limited = updated.slice(0, 10);
+          
+          console.log('📱 Updated recent emojis:', limited);
+          
+          return {
+            recentEmojis: limited
+          };
+        }),
+
 
 
       clearLiveMessages: (conversationId) =>
@@ -751,6 +776,7 @@ convertAllOptimisticToReal: () =>
           pendingLockedConversationId: null,
           showMessages: false,
           scrollMessageIds: {},
+          recentEmojis: [],
         }),
     })),
     {
@@ -819,7 +845,8 @@ convertAllOptimisticToReal: () =>
           hasLoadedConversations: state.hasLoadedConversations,
           hasLoadedUnreadConversationIds: state.hasLoadedUnreadConversationIds,
           isPendingCollapsed: state.isPendingCollapsed,
-          scrollMessageIds: state.scrollMessageIds
+          scrollMessageIds: state.scrollMessageIds,
+          recentEmojis: state.recentEmojis,
         };
       },
 

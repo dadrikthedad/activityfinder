@@ -1,6 +1,6 @@
 // hooks/usePendingMessageRequests.ts
 import { useState, useCallback} from 'react';
-import { MessageRequestDTO } from '@/types/MessageReqeustDTO';
+import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
 import { getPendingMessageRequests } from '@/services/messages/messageService';
 import { useChatStore } from '@/store/useChatStore';
 

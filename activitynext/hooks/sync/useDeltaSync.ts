@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
-import { SyncReason } from '@/types/sync/SyncReason';
+import { SyncReason } from '@shared/types/sync/SyncReason';
 import { useSyncApi } from './useSyncAPI';
 
 export function useDeltaSync() {

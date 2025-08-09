@@ -26,7 +26,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import type { RootStackParamList } from '@/types/navigation';
+import type { RootStackParamList } from '@shared/types/navigation';
 
 interface MobileNavbarNativeProps {
   onNavigateToMessages?: () => void;

@@ -3,7 +3,7 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useDeltaSync } from './useDeltaSync';
 import { useSignalRMonitor } from './useSignalRMonitor';
 import { useFallbackSync } from './useFallbackSync';
-import { SyncReason } from '@/types/sync/SyncReason';
+import { SyncReason } from '@shared/types/sync/SyncReason';
 
 export function useSync() {
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);

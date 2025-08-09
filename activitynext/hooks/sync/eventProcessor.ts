@@ -1,11 +1,11 @@
-import { SyncEventDTO } from '@/types/sync/SyncEventDTO';
+import { SyncEventDTO } from '@shared/types/sync/SyncEventDTO';
 import { handleMessageSync } from './handlers/messageSyncHandlers';
 import { useChatStore } from "@/store/useChatStore";
 import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { handleNotificationCreated } from './handlers/handleNotificationCreated';
 import { handleGroupInfoUpdated } from './handlers/handleGroupInfoUpdated';
 import { useNotificationStore } from '@/store/useNotificationStore';
-import { NotificationDTO } from '@/types/NotificationEventDTO';
+import { NotificationDTO } from '@shared/types/NotificationEventDTO';
 
 export async function processSyncEvent(event: SyncEventDTO): Promise<void> {
   const eventData = JSON.parse(event.eventData);

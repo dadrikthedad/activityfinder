@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getDeletedConversations } from '@/services/messages/conversationService';
-import { ConversationDTO } from '@/types/ConversationDTO';
+import { ConversationDTO } from '@shared/types/ConversationDTO';
 
 interface UseGetDeletedConversationsResult {
   deletedConversations: ConversationDTO[];

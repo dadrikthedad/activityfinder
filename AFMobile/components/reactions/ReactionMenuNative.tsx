@@ -32,6 +32,8 @@ import {
   Plus,
   Clipboard as ClipboardIcon
 } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useChatStore } from '@/store/useChatStore';
 
 interface QuickAction {
   type: 'reply' | 'delete' | 'copy';
@@ -55,7 +57,7 @@ interface ReactionMenuNativeProps {
   messagePosition?: { x: number; y: number; width: number; height: number };
 }
 
-const quickEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥"];
+const fallbackEmojis = ["👍", "❤️", "😂", "😮", "😢", "🎉", "🔥"];
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
@@ -76,6 +78,9 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  const recentEmojis = useChatStore((state) => state.recentEmojis);
+  const addRecentEmoji = useChatStore((state) => state.addRecentEmoji);
 
   useEffect(() => {
     if (visible) {
@@ -116,13 +121,24 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
 
   const handleEmojiPress = (emoji: string) => {
     if (actionsDisabled) return;
+    
+    // Lagre emoji som recent i store
+    addRecentEmoji(emoji);
+    
     onReactionSelect(emoji);
     onClose();
   };
 
+
   // Ny handler for emoji picker
   const handleEmojiSelected = (emojiObject: EmojiType) => {
-    handleEmojiPress(emojiObject.emoji);
+    const emoji = emojiObject.emoji;
+    
+    // Lagre emoji som recent i store
+    addRecentEmoji(emoji);
+    
+    // Fortsett med vanlig handling
+    handleEmojiPress(emoji);
     setShowEmojiPicker(false);
     setMainMenuClosed(false);
   };
@@ -176,22 +192,42 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
     return { top, left };
   };
 
-  const renderQuickEmojis = () => (
+   const renderQuickEmojis = () => {
+  // Kombiner recent + fallback for å alltid ha 7 emojis
+  const combineEmojis = () => {
+    const combined = [...recentEmojis]; // Start med recent
+    
+    // Legg til fallback emojis som ikke allerede finnes
+    for (const fallbackEmoji of fallbackEmojis) {
+      if (!combined.includes(fallbackEmoji) && combined.length < 7) {
+        combined.push(fallbackEmoji);
+      }
+    }
+    
+    return combined.slice(0, 7); // Sørg for maks 7
+  };
+  
+  const emojisToShow = combineEmojis();
+  
+  return (
     <View style={styles.emojiRow}>
-      {quickEmojis.map((emoji) => {
+      {emojisToShow.map((emoji, index) => {
         const isActive = getReactionStatus(emoji);
+        const isRecent = index < recentEmojis.length; // Kun de første er recent
+        
         return (
           <TouchableOpacity
-            key={emoji}
+            key={`${emoji}-${index}`}
             style={[
               styles.quickEmojiButton, 
               isActive && styles.activeEmoji,
+              isRecent && styles.recentEmoji, // Kun recent får grønn border
               actionsDisabled && styles.disabledButton
             ]}
             onPress={() => handleEmojiPress(emoji)}
             disabled={actionsDisabled}
             accessibilityRole="button"
-            accessibilityLabel={`React ${emoji}`}
+            accessibilityLabel={`React ${emoji} ${isRecent ? '(recent)' : ''}`}
           >
             <Text style={styles.quickEmojiText}>{emoji}</Text>
           </TouchableOpacity>
@@ -204,10 +240,11 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
         accessibilityRole="button"
         accessibilityLabel="More emojis"
       >
-        <Text style={styles.moreEmojiText}>+</Text>
+        <Plus size={16} color="#666" />
       </TouchableOpacity>
     </View>
   );
+};
 
   const renderActions = () => {
     // Add copy action if not already present
@@ -336,7 +373,7 @@ export const ReactionMenuNative: React.FC<ReactionMenuNativeProps> = ({
         enableSearchBar={true}
         enableRecentlyUsed={true}
         categoryOrder={[
-          'recently_used',              // Nylig brukt først!
+          'recently_used',             // Nylig brukt først!
           'smileys_emotion',
           'people_body',
           'animals_nature',
@@ -437,19 +474,21 @@ const styles = StyleSheet.create({
     width: 32,                 // Match samme størrelse
     height: 32,
     borderRadius: 16,          // Match samme radius
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#1C6B1C',
     justifyContent: 'center',
     alignItems: 'center',
     maxWidth: 32,              // Samme begrensning
   },
   moreEmojiText: {
     fontSize: 16,              // Reduser litt for mindre knapp
-    color: '#666',
+    color: '#ffffffff',
     fontWeight: '600',
   },
   activeEmoji: {
     backgroundColor: '#1C6B1C',
     transform: [{ scale: 1.15 }], // Reduser scale litt for mindre knapper
+  },
+  recentEmoji: {
   },
   
   // Actions

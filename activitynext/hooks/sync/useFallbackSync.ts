@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { SyncReason } from '@/types/sync/SyncReason';
+import { SyncReason } from '@shared/types/sync/SyncReason';
 
 interface FallbackSyncOptions {
   performSync: (reason: SyncReason) => Promise<void>;

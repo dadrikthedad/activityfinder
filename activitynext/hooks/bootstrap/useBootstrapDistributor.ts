@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { CriticalBootstrapResponseDTO } from '@/types/bootstrap/CriticalBootstrapResponseDTO';
-import { SecondaryBootstrapResponseDTO } from '@/types/bootstrap/SecondaryBootstrapResponseDTO';
+import { CriticalBootstrapResponseDTO } from '@shared/types/bootstrap/CriticalBootstrapResponseDTO';
+import { SecondaryBootstrapResponseDTO } from '@shared/types/bootstrap/SecondaryBootstrapResponseDTO';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';

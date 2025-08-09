@@ -1,5 +1,5 @@
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
-import { MessageNotificationDTO } from '@/types/MessageNotificationDTO';
+import { MessageNotificationDTO } from '@shared/types/MessageNotificationDTO';
 
 /**
  * Hjelpefunksjon for å merge message notifications med eksisterende data
