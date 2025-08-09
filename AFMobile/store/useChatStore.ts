@@ -609,7 +609,6 @@ export const useChatStore = create<ChatStore>()(
     if (message.isOptimistic && message.optimisticId) {
       const serverId = state.optimisticToServerIdMap[message.optimisticId];
       if (serverId) {
-        console.log(`🔍 Found mapped ID: ${message.optimisticId} → ${serverId}`);
         return serverId; // 👈 returnerer number
       }
     

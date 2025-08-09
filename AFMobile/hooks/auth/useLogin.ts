@@ -73,9 +73,7 @@ export const useLogin = (): UseLoginReturn => {
       
       // Use the login function from AuthContext
       login(data.token);
-      
-      console.log("✅ AUTH: Login successful");
-
+    
       // Clear form on successful login
       resetForm();
 

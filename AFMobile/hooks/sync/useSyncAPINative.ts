@@ -19,11 +19,6 @@ export function useSyncApiNative() {
     requiresFullRefresh: boolean;
     error?: string;
   }> => {
-    console.log(`🔄 Delta sync triggered (${reason})`, {
-      hasSyncToken: !!syncToken,
-      syncTokenPreview: syncToken ? syncToken.substring(0, 20) + '...' : 'none'
-    });
-    
     try {
       // Make API call
       const response: SyncResponseDTO | null = await getSyncUpdates(syncToken || undefined);

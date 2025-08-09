@@ -61,7 +61,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
       setToken(token);
       setIsLoggedIn(true);
       setUserId(newUserId);
-      console.log("✅BOOT: Auth state oppdatert");
       
       const previousToken = await AsyncStorage.getItem("token");
       const previousUserId = getUserIdFromToken(previousToken);

@@ -68,12 +68,12 @@ export const useBootstrap = () => {
     setCriticalError(null);
 
     try {
-      console.log("🚀 Starter kritisk bootstrap...");
+      // console.log("🚀 Starter kritisk bootstrap...");
       const criticalData = await getCriticalBootstrap();
       
       if (criticalData) {
         distributeCriticalData(criticalData);
-        console.log("✅ Kritisk bootstrap ferdig via distributor");
+        // console.log("✅ Kritisk bootstrap ferdig via distributor");
         return true;
       } else {
         throw new Error("Ingen kritisk data mottatt");
@@ -96,7 +96,7 @@ export const useBootstrap = () => {
     setSecondaryError(null);
 
     try {
-      console.log("📚 Starter sekundær bootstrap...");
+      // console.log("📚 Starter sekundær bootstrap...");
       const secondaryData = await getSecondaryBootstrap();
       
       if (secondaryData) {
@@ -122,7 +122,6 @@ export const useBootstrap = () => {
     
     if (criticalSuccess) {
       // 🔧 FIX: Start secondary data loading umiddelbart efter critical
-      console.log("🔄 Critical bootstrap success, starting secondary bootstrap...");
       loadSecondaryData().catch(error => {
         console.warn("⚠️ Secondary bootstrap failed (non-critical):", error);
         // Ikke kast error - appen kan fortsatt fungere uten secondary data
@@ -138,7 +137,7 @@ export const useBootstrap = () => {
     
     // Hvis vi har critical data men isBootstrapped er false, sett den til true
     if (hasLoadedCritical && user && !isBootstrapped && !criticalError) {
-      console.log("✅ Found existing critical data, setting isBootstrapped = true");
+      // console.log("✅ Found existing critical data, setting isBootstrapped = true");
       setBootstrapped(true);
     }
   }, [user, isBootstrapped, criticalError, setBootstrapped]);
@@ -146,7 +145,7 @@ export const useBootstrap = () => {
   // 🔧 FIX: Separat useEffect for å trigge secondary bootstrap når vi blir bootstrapped
   useEffect(() => {
     if (isBootstrapped && !isSecondaryCacheValid() && !secondaryLoading && !secondaryError) {
-      console.log("🔄 App is bootstrapped but secondary cache is invalid, loading secondary data...");
+      // console.log("🔄 App is bootstrapped but secondary cache is invalid, loading secondary data...");
       loadSecondaryData().catch(error => {
         console.warn("⚠️ Secondary bootstrap failed after bootstrapped:", error);
       });

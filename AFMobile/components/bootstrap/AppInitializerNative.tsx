@@ -51,14 +51,7 @@ export function AppInitializer() {
   } = useSyncNative();
 
   // Reset stores ved brukerbytte
-  useEffect(() => {
-    console.log("🔍 BOOT: AppInitializer effect triggered:", { 
-      token: token?.substring(0, 20), 
-      userId,
-      tokenExists: !!token,
-      userIdExists: !!userId
-    });
-    
+  useEffect(() => { 
     if (!token || !userId) {
       console.log("⏸️ BOOT: No token or userId, skipping initialization");
       hasInitializedOnlineRef.current = false;
@@ -96,8 +89,6 @@ export function AppInitializer() {
       }
     }
     prevUserIdRef.current = userId;
-    
-    console.log("🚀 BOOT: AppInitializer ready for userId =", userId);
   }, [token, userId, isOnline, markOffline]);
 
   // 🔑 SMART INITIALIZATION LOGIC

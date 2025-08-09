@@ -31,7 +31,6 @@ export default function ConversationListNative({
 }: ConversationListNativeProps) {
   const { conversations: storeConversations } = useChatStore();
   const { loadMore, loading, hasMore } = usePaginatedConversations();
-  const [hasAutoLoadedOnce, setHasAutoLoadedOnce] = useState(false);
   
   const getOtherUser = (conv: ConversationDTO): UserSummaryDTO | undefined => {
     return conv.participants.find(p => p.id !== currentUser?.id);
@@ -43,34 +42,17 @@ export default function ConversationListNative({
 
   // Handle pagination loading
   const handleLoadMore = useCallback(() => {
-    if (propConversations || loading || !hasMore) return;
-    console.log("📥 Loading more conversations...");
+    if (propConversations || loading || !hasMore) {
+      console.log("🛑 LoadMore blocked:", { 
+        propConversations: !!propConversations, 
+        loading, 
+        hasMore 
+      });
+      return;
+    }
+    console.log("📥 User scrolled - Loading more conversations...");
     loadMore();
   }, [propConversations, loading, hasMore, loadMore]);
-
-  // Auto-load if needed (similar to web version)
-  useEffect(() => {
-    if (
-      hasAutoLoadedOnce ||
-      propConversations ||
-      !hasLoadedConversations ||
-      storeConversations.length <= take // Use imported take constant
-    ) return;
-
-    if (!loading && hasMore) {
-      console.log("🧪 Auto-loading more conversations");
-      loadMore();
-      setHasAutoLoadedOnce(true);
-    }
-  }, [
-    storeConversations.length,
-    loadMore,
-    loading,
-    hasMore,
-    propConversations,
-    hasLoadedConversations,
-    hasAutoLoadedOnce,
-  ]);
 
   const renderConversation = ({ item: conv }: { item: ConversationDTO }) => {
     const hasUnread = unreadConversationIds.includes(conv.id);
@@ -140,6 +122,9 @@ export default function ConversationListNative({
         showsVerticalScrollIndicator={false}
         onEndReached={handleLoadMore}
         onEndReachedThreshold={0.1}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={10}
         ListFooterComponent={
           loading ? (
             <View style={styles.loadingFooter}>

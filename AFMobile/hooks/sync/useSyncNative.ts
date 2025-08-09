@@ -52,7 +52,6 @@ export function useSyncNative() {
   // 1. Initialize sync token only when it actually changes AND not during sync
   useEffect(() => {
     if (isInitializingRef.current) {
-      console.log('⏸️ Skipping token initialization - currently syncing');
       return;
     }
 

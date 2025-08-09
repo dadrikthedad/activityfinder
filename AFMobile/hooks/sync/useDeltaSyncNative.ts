@@ -34,7 +34,6 @@ export function useDeltaSyncNative() {
     // Update store without triggering watchers
     const currentStore = useBootstrapStore.getState();
     if (currentStore.syncToken !== newToken) {
-      console.log('🔄 Updating sync token silently (no watchers triggered)');
       useBootstrapStore.setState({ syncToken: newToken }, false); // false = don't notify
     }
   }, []);
@@ -47,8 +46,6 @@ export function useDeltaSyncNative() {
       console.warn(`⚠️ No sync token available for ${reason} sync`);
       return;
     }
-
-    console.log(`🔄 Delta sync starting (${reason}) with token:`, currentToken?.substring(0, 20) + '...' || 'none');
     
     // Perform sync with retry logic
     const result = await performSyncWithRetry(currentToken, reason);
