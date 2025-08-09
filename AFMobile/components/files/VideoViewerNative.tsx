@@ -59,6 +59,16 @@ export default function VideoViewerNative({
   // Get the current display position (either drag position or actual position)
   const displayPosition = isDragging ? dragPosition : position;
 
+  // Centralized function for starting auto-hide countdown
+  const startAutoHideCountdown = () => {
+    if (controlsTimeout.current) {
+      clearTimeout(controlsTimeout.current);
+    }
+    controlsTimeout.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  };
+
   // Reset controls timeout
   const resetControlsTimeout = () => {
     if (controlsTimeout.current) {
@@ -68,9 +78,7 @@ export default function VideoViewerNative({
     
     // Skjul kontroller automatisk kun under avspilling og ikke under dragging
     if (isPlaying && position < duration * 0.95 && !isDragging) {
-      controlsTimeout.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+      startAutoHideCountdown();
     }
   };
 
@@ -89,7 +97,6 @@ export default function VideoViewerNative({
       }
       
       if (status.didJustFinish) {
-        console.log('📹 Video finished - showing controls');
         setShowControls(true);
         if (controlsTimeout.current) {
           clearTimeout(controlsTimeout.current);
@@ -98,13 +105,8 @@ export default function VideoViewerNative({
       // UI-logikk: Håndter play/pause endringer
       else if (!previousIsPlaying && (status.isPlaying || false)) {
         // Videoen begynte å spille - skjul kontroller etter 3 sekunder (men ikke hvis vi drar)
-        if (controlsTimeout.current) {
-          clearTimeout(controlsTimeout.current);
-        }
         if (!isDragging) {
-          controlsTimeout.current = setTimeout(() => {
-            setShowControls(false);
-          }, 3000);
+          startAutoHideCountdown();
         }
       }
       else if (previousIsPlaying && !(status.isPlaying || false)) {
@@ -136,7 +138,6 @@ export default function VideoViewerNative({
         
         if (isNearEnd && duration > 0) {
           // Restart fra begynnelsen hvis videoen er ferdig
-          console.log('🔄 Video finished - restarting from beginning');
           await videoRef.current.setPositionAsync(0);
           setPosition(0);
           await videoRef.current.playAsync();
@@ -147,12 +148,7 @@ export default function VideoViewerNative({
         
         // Skjul kontroller når vi starter avspilling
         if (!isDragging) {
-          if (controlsTimeout.current) {
-            clearTimeout(controlsTimeout.current);
-          }
-          controlsTimeout.current = setTimeout(() => {
-            setShowControls(false);
-          }, 3000);
+          startAutoHideCountdown();
         }
       }
     }
@@ -176,9 +172,7 @@ export default function VideoViewerNative({
       
       if (duration <= 0 || progressBarWidth <= 0) return;
       
-      // Bruk pageX for absolutte screen coordinates
-      const pageX = event.nativeEvent.pageX;
-      console.log(`🤏 Drag started at pageX: ${pageX}, progressBarWidth: ${progressBarWidth}`);
+      const { pageX } = event.nativeEvent;
       
       setIsDragging(true);
       setWasPlayingBeforeDrag(isPlaying);
@@ -195,9 +189,8 @@ export default function VideoViewerNative({
       
       // Lagre initial pageX og position for relative beregninger
       dragStartPageX.current = pageX;
-      dragStartPosition.current = position; // Start fra current position
+      dragStartPosition.current = position;
       
-      console.log(`🎯 Starting drag from current position: ${formatTime(position)}`);
       setDragPosition(position);
     },
     
@@ -206,28 +199,21 @@ export default function VideoViewerNative({
       
       if (!isDragging || duration <= 0 || progressBarWidth <= 0) return;
       
-      const pageX = event.nativeEvent.pageX;
-      const startPageX = dragStartPageX.current;
-      const startDragPosition = dragStartPosition.current;
-      
-      // Beregn relativ bevegelse fra start punkt
-      const deltaX = pageX - startPageX;
+      const { pageX } = event.nativeEvent;
+      const deltaX = pageX - dragStartPageX.current;
       const deltaProgress = deltaX / progressBarWidth;
       const deltaTime = deltaProgress * duration;
       
       // Ny posisjon basert på start posisjon + delta
-      const newPosition = Math.max(0, Math.min(duration, startDragPosition + deltaTime));
+      const newPosition = Math.max(0, Math.min(duration, dragStartPosition.current + deltaTime));
       
-      console.log(`🔄 Drag: pageX ${pageX}, deltaX ${deltaX.toFixed(1)}, newPos: ${formatTime(newPosition)}`);
       setDragPosition(newPosition);
     },
     
     onPanResponderRelease: async () => {
       if (!isDragging) return;
       
-      console.log(`🎯 Drag ended at: ${formatTime(dragPosition)}`);
-      
-      // Viktig: Sett isDragging til false FØRST for å re-enable TouchableOpacity
+      // Sett isDragging til false FØRST for å re-enable TouchableOpacity
       setIsDragging(false);
       
       // Cleanup tracking variables
@@ -235,16 +221,12 @@ export default function VideoViewerNative({
       dragStartPosition.current = 0;
       
       if (videoRef.current && dragPosition >= 0) {
-        console.log(`⏭️ Seeking to: ${formatTime(dragPosition)}`);
         await videoRef.current.setPositionAsync(dragPosition);
         setPosition(dragPosition);
         
         if (wasPlayingBeforeDrag) {
           await videoRef.current.playAsync();
-          // Start auto-hide countdown ETTER at dragging er ferdig
-          controlsTimeout.current = setTimeout(() => {
-            setShowControls(false);
-          }, 3000);
+          startAutoHideCountdown();
         }
       }
       
@@ -262,16 +244,11 @@ export default function VideoViewerNative({
 
   // Handle tap to seek - disable when dragging
   const handleProgressBarTap = async (event: any) => {
-    // VIKTIG: Blokkér alle tap events under dragging
-    if (isDragging || duration <= 0 || progressBarWidth <= 0) {
-      console.log('🚫 Blocking tap-to-seek because isDragging:', isDragging);
-      return;
-    }
+    // Blokkér alle tap events under dragging
+    if (isDragging || duration <= 0 || progressBarWidth <= 0) return;
     
     event.persist();
     const { locationX } = event.nativeEvent;
-    
-    console.log('👆 Progress bar tapped at:', locationX);
     
     if (videoRef.current) {
       const clampedLocationX = Math.max(0, Math.min(progressBarWidth, locationX));
@@ -358,12 +335,7 @@ export default function VideoViewerNative({
       // Hvis kontroller er skjult, vis dem og start nedtelling
       setShowControls(true);
       if (isPlaying) {
-        if (controlsTimeout.current) {
-          clearTimeout(controlsTimeout.current);
-        }
-        controlsTimeout.current = setTimeout(() => {
-          setShowControls(false);
-        }, 3000);
+        startAutoHideCountdown();
       }
     } else {
       // Hvis kontroller vises men videoen er pauset, bare reset timeout
@@ -630,7 +602,7 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 60,
     left: 16,
     right: 16,
     flexDirection: 'row',
