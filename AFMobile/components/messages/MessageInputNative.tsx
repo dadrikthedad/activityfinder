@@ -257,24 +257,36 @@ export default function MessageInputNative({
 
     if (!result.canceled && result.assets.length > 0) {
       const files: RNFile[] = result.assets.map((asset, index) => {
-        // Determine if it's a video based on URI or type
-        const isVideo = asset.uri.includes('.mp4') || asset.uri.includes('.mov') || 
-                       asset.type?.includes('video') || asset.duration !== undefined;
+        // Better video detection - only consider it video if it actually has video indicators
+        const hasVideoExtension = asset.uri.includes('.mp4') || asset.uri.includes('.mov') || asset.uri.includes('.avi');
+        const hasVideoType = asset.type?.includes('video');
+        const hasVideoDuration = asset.duration != null && asset.duration > 0;
+        const isVideo = hasVideoType || (hasVideoExtension && hasVideoDuration);
         
-        let mimeType: string = asset.type || ''; // Ensure it's always a string
+        let mimeType: string = asset.type || '';
         
-        // Fix common ImagePicker MIME type issues
-        if (mimeType === 'image' || mimeType === '') {
-          mimeType = isVideo ? 'video/mp4' : 'image/jpeg'; // Default based on content
-        } else if (mimeType === 'video') {
-          mimeType = 'video/mp4'; // Default for incomplete video type
+        // Fix MIME type based on actual content type
+        if (mimeType === 'image' || (mimeType === '' && !isVideo)) {
+          // It's an image - detect specific type from filename if possible
+          const fileName = asset.fileName || '';
+          if (fileName.toLowerCase().includes('.png')) {
+            mimeType = 'image/png';
+          } else if (fileName.toLowerCase().includes('.gif')) {
+            mimeType = 'image/gif';
+          } else if (fileName.toLowerCase().includes('.webp')) {
+            mimeType = 'image/webp';
+          } else {
+            mimeType = 'image/jpeg'; // Default for images
+          }
+        } else if (mimeType === 'video' || (mimeType === '' && isVideo)) {
+          mimeType = 'video/mp4'; // Default for videos
         }
         
         const fileExtension = isVideo ? 'mp4' : 'jpg';
         
         return {
           uri: asset.uri,
-          type: mimeType, // Now guaranteed to be string
+          type: mimeType,
           name: asset.fileName || `${isVideo ? 'video' : 'image'}_${Date.now()}_${index}.${fileExtension}`,
           size: asset.fileSize
         };
@@ -465,9 +477,21 @@ export default function MessageInputNative({
               </View>
             ) : isVideo ? (
               <View style={styles.videoPreviewContainer}>
-                <Text style={styles.videoIcon}>🎥</Text>
+                {/* Show actual video frame as background */}
+                <ImageReact
+                  source={{ uri: file.uri }}
+                  style={styles.videoThumbnail}
+                  resizeMode="cover"
+                />
+                {/* Play button overlay */}
                 <View style={styles.playOverlay}>
-                  <Text style={styles.playIcon}>▶️</Text>
+                  <View style={styles.playButton}>
+                    <Text style={styles.playIcon}>▶️</Text>
+                  </View>
+                </View>
+                {/* Video indicator overlay */}
+                <View style={styles.videoIndicator}>
+                  <Text style={styles.videoIndicatorText}>🎥</Text>
                 </View>
               </View>
             ) : (
@@ -784,14 +808,25 @@ const styles = StyleSheet.create({
   videoPreviewContainer: {
     width: 80,
     height: 80,
-    backgroundColor: '#1F2937',
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    overflow: 'hidden',
     position: 'relative',
   },
-  videoIcon: {
-    fontSize: 20,
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  videoIndicator: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  videoIndicatorText: {
+    fontSize: 10,
   },
   playOverlay: {
     position: 'absolute',
@@ -802,11 +837,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 8,
+  },
+  playButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   playIcon: {
-    fontSize: 16,
-    color: 'white',
+    fontSize: 18,
+    marginLeft: 2, // Slight adjustment for visual centering
   },
   documentIconContainer: {
     width: 80,
