@@ -21,6 +21,7 @@ import { AppInitializer } from './components/bootstrap/AppInitializerNative';
 import { stopChatConnection } from './utils/signalr/chatHub'; 
 import SignalRClientNative from './components/signalr/SignalRClientNative';
 import { ModalProvider } from './context/ModalContext'; 
+import * as GestureHandler from 'react-native-gesture-handler';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -104,9 +105,12 @@ function AuthenticatedApp() {
 }
 
 export default function App() {
+  const { GestureHandlerRootView } = GestureHandler;
   return (
     <SafeAreaProvider>
-      <AppContent />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppContent />
+      </GestureHandlerRootView>
     </SafeAreaProvider>
   );
 }

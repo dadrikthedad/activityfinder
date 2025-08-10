@@ -1,4 +1,4 @@
-// components/common/ImageViewerNative.tsx - Midtstilt som VideoViewerNative
+// components/common/ImageViewerNative.tsx - Med ZoomableImage
 import React, { useState } from "react";
 import { 
   Modal, 
@@ -9,13 +9,14 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
-  ScrollView,
   StatusBar
 } from "react-native";
+import * as GestureHandler from 'react-native-gesture-handler'; // 👈 LEGG TIL DENNE
 import { RNFile } from "@/utils/files/FileFunctions";
 import ViewerHeaderNative from "./ViewerHeaderNative";
 import Toast from 'react-native-toast-message';
 import { toastConfig } from '@/components/toast/NotificationToastNative';
+import ZoomableImage from "./ZoomableImage"; // Din ZoomableImage komponent
 
 interface ImageViewerNativeProps {
   visible: boolean;
@@ -36,7 +37,9 @@ export default function ImageViewerNative({
 }: ImageViewerNativeProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showControls, setShowControls] = useState(true);
+  const [isZoomed, setIsZoomed] = useState(false);
   const { width, height } = Dimensions.get('window');
+  const { GestureHandlerRootView } = GestureHandler; // 👈 DESTRUKTUR HER
   
   if (images.length === 0) return null;
   
@@ -44,20 +47,32 @@ export default function ImageViewerNative({
   const hasMultiple = images.length > 1;
 
   const goToNext = () => {
-    if (hasMultiple) {
+    if (hasMultiple && !isZoomed) {
       setCurrentIndex((prev) => (prev + 1) % images.length);
     }
   };
 
   const goToPrevious = () => {
-    if (hasMultiple) {
+    if (hasMultiple && !isZoomed) {
       setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
     }
   };
 
-  // Toggle controls visibility like VideoViewerNative
+  // Toggle controls visibility
   const handleScreenTap = () => {
-    setShowControls(!showControls);
+    console.log('[ImageViewer] Screen tap received, isZoomed:', isZoomed);
+    if (!isZoomed) {
+      setShowControls(!showControls);
+    }
+  };
+
+  // Handle zoom state changes
+  const handleZoomChange = (zoomed: boolean) => {
+    console.log('[ImageViewer] Zoom changed to:', zoomed);
+    setIsZoomed(zoomed);
+    if (zoomed) {
+      setShowControls(false);
+    }
   };
 
   return (
@@ -68,105 +83,93 @@ export default function ImageViewerNative({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <StatusBar hidden />
-      <View style={styles.container}>
-        {/* Background - clickable for UI toggle */}
-        <TouchableOpacity 
-          style={styles.background}
-          onPress={handleScreenTap}
-          activeOpacity={1}
-        >
+      {/* 👈 WRAPPER ALT I GESTUREHANDLERROOTVIEW */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar hidden />
+        <View style={styles.container}>
+          {/* Background */}
+          <View style={styles.background} />
+
+          {/* Zoomable Image */}
           <View style={styles.imageContainer}>
-            <TouchableOpacity 
-              style={styles.imageTouchable}
-              onPress={handleScreenTap}
-              activeOpacity={1}
-            >
-              <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                maximumZoomScale={3}
-                minimumZoomScale={1}
-                bouncesZoom
-                showsHorizontalScrollIndicator={false}
-                showsVerticalScrollIndicator={false}
-              >
-                <Image
-                  source={{ uri: currentImage.uri }}
-                  style={[styles.image, { width, height }]} // Full skjermstørrelse som video
-                  resizeMode="contain"
-                  onError={() => {
-                    Alert.alert("Error", "Could not load image");
-                  }}
-                />
-              </ScrollView>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-
-        {/* Controls Overlay - kun når synlig */}
-        {showControls && (
-          <>
-            {/* Header */}
-            <ViewerHeaderNative
-              title={currentImage.name}
-              subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
-              onClose={onClose}
-              onDownload={onDownload}
-              currentFile={currentImage}
-              onShare={onShare}
+            <ZoomableImage
+              uri={currentImage.uri}
+              width={width}
+              height={height}
+              minScale={1}
+              maxScale={5}
+              onSingleTap={handleScreenTap}
+              onZoomChange={handleZoomChange}
             />
+          </View>
 
-            {/* Navigation */}
-            {hasMultiple && (
-              <>
-                <TouchableOpacity
-                  style={[styles.navButton, styles.navLeft]}
-                  onPress={goToPrevious}
-                >
-                  <Text style={styles.navText}>‹</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.navButton, styles.navRight]}
-                  onPress={goToNext}
-                >
-                  <Text style={styles.navText}>›</Text>
-                </TouchableOpacity>
-              </>
-            )}
+          {/* Controls Overlay */}
+          {showControls && (
+            <>
+              {/* Header */}
+              <ViewerHeaderNative
+                title={currentImage.name}
+                subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
+                onClose={onClose}
+                onDownload={onDownload}
+                currentFile={currentImage}
+                onShare={onShare}
+              />
 
-            {/* Thumbnails */}
-            {hasMultiple && images.length <= 10 && (
-              <View style={styles.thumbnailContainer}>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.thumbnailContent}
-                >
-                  {images.map((image, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.thumbnail,
-                        index === currentIndex && styles.thumbnailActive
-                      ]}
-                      onPress={() => setCurrentIndex(index)}
-                    >
-                      <Image
-                        source={{ uri: image.uri }}
-                        style={styles.thumbnailImage}
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </>
-        )}
-      </View>
-      <Toast config={toastConfig} />
+              {/* Navigation - kun når ikke zoomet */}
+              {hasMultiple && !isZoomed && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.navButton, styles.navLeft]}
+                    onPress={goToPrevious}
+                  >
+                    <Text style={styles.navText}>‹</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.navButton, styles.navRight]}
+                    onPress={goToNext}
+                  >
+                    <Text style={styles.navText}>›</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Thumbnails - kun når ikke zoomet */}
+              {hasMultiple && images.length <= 10 && !isZoomed && (
+                <View style={styles.thumbnailContainer}>
+                  <View style={styles.thumbnailContent}>
+                    {images.map((image, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.thumbnail,
+                          index === currentIndex && styles.thumbnailActive
+                        ]}
+                        onPress={() => setCurrentIndex(index)}
+                      >
+                        <Image
+                          source={{ uri: image.uri }}
+                          style={styles.thumbnailImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Zoom hint */}
+              {!isZoomed && (
+                <View style={styles.zoomHint}>
+                  <Text style={styles.zoomHintText}>Klyp eller dobbelttrykk for å zoome</Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+        <Toast config={toastConfig} />
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -182,28 +185,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    backgroundColor: 'black',
   },
   imageContainer: {
     flex: 1,
-    justifyContent: 'center',  // ← Senterer som VideoViewerNative
-    alignItems: 'center',
-  },
-  imageTouchable: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',  // ← Ekstra sentrering som VideoViewerNative
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: '100%', // ← Sikrer at innholdet kan sentreres
-  },
-  image: {
-    backgroundColor: 'transparent',
   },
   navButton: {
     position: 'absolute',
@@ -233,10 +220,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   thumbnailContent: {
-    paddingHorizontal: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
   },
   thumbnail: {
     width: 50,
@@ -254,5 +244,22 @@ const styles = StyleSheet.create({
   thumbnailImage: {
     width: '100%',
     height: '100%',
+  },
+  zoomHint: {
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    opacity: 0.7,
+  },
+  zoomHintText: {
+    color: 'white',
+    fontSize: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
 });
