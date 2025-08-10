@@ -2,7 +2,7 @@
 // components/common/MiniAvatarNative.tsx
 import React, { useState } from "react";
 import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
-import ImageViewerNative from "./ImageViewerNative";
+import ImageViewerNative from "../files/ImageViewerNative";
 
 interface MiniAvatarProps {
   imageUrl: string;

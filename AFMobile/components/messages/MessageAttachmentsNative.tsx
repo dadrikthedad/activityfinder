@@ -7,6 +7,7 @@ import {
   Image,
   StyleSheet,
   Dimensions,
+  Alert
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { 
@@ -16,6 +17,7 @@ import {
   RNFile 
 } from '@/utils/files/FileFunctions';
 import FileViewerNative from '../files/FileViewerNative';
+import { downloadFile } from '../files/FileHandlerNative';
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
@@ -275,6 +277,15 @@ export default function MessageAttachmentsNative({
     return parts.length > 0 ? `(${parts.join(', ')})` : '';
   };
 
+   const handleDownload = async (file: RNFile) => {
+    try {
+      await downloadFile(file.uri, file.name);
+    } catch (error) {
+      console.error('Nedlasting feilet:', error);
+      Alert.alert('Feil', 'Kunne ikke laste ned filen');
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Images Grid */}
@@ -382,6 +393,8 @@ export default function MessageAttachmentsNative({
             setShowViewer(false);
             setSelectedFileIndex(-1);
           }}
+          onDownload={handleDownload}
+          canDownload={true}
         />
       )}
     </View>

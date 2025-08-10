@@ -28,7 +28,6 @@ export function useDeltaSync() {
     // We need a way to update the store silently to avoid infinite loops
     const currentStore = useBootstrapStore.getState();
     if (currentStore.syncToken !== newToken) {
-      console.log('🔄 Updating sync token silently (no watchers triggered)');
       // Direct store update without triggering subscribers
       useBootstrapStore.setState({ syncToken: newToken }, false); // false = don't notify
     }

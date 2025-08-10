@@ -12,6 +12,7 @@ import {
   ScrollView
 } from "react-native";
 import { RNFile } from "@/utils/files/FileFunctions";
+import ViewerHeaderNative from "./ViewerHeader";
 
 interface ImageViewerNativeProps {
   visible: boolean;
@@ -93,28 +94,13 @@ export default function ImageViewerNative({
         />
         
         {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.fileName} numberOfLines={1}>
-              {currentImage.name}
-            </Text>
-            {hasMultiple && (
-              <Text style={styles.counter}>
-                {currentIndex + 1} of {images.length}
-              </Text>
-            )}
-          </View>
-          
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerButton} onPress={showOptions}>
-              <Text style={styles.headerButtonText}>⋯</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-              <Text style={styles.headerButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <ViewerHeaderNative
+          title={currentImage.name}
+          subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
+          onClose={onClose}
+          onDownload={onDownload}
+          currentFile={currentImage}
+        />
 
         {/* Image */}
         <View style={styles.imageContainer}>

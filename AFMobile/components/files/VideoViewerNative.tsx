@@ -14,6 +14,7 @@ import {
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Play, Pause, RefreshCcw } from 'lucide-react-native';
 import { RNFile } from '@/utils/files/FileFunctions';
+import ViewerHeaderNative from './ViewerHeader';
 
 interface VideoViewerNativeProps {
   visible: boolean;
@@ -349,29 +350,15 @@ export default function VideoViewerNative({
         {/* Controls Overlay */}
         {showControls && (
           <>
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Text style={styles.fileName} numberOfLines={1}>
-                  {currentVideo.name}
-                </Text>
-                {hasMultiple && (
-                  <Text style={styles.counter}>
-                    {currentIndex + 1} of {videos.length}
-                  </Text>
-                )}
-              </View>
-              
-              <View style={styles.headerRight}>
-                <TouchableOpacity style={styles.headerButton} onPress={showOptions}>
-                  <Text style={styles.headerButtonText}>⋯</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-                  <Text style={styles.headerButtonText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            {showControls && (
+              <ViewerHeaderNative
+                title={currentVideo.name}
+                subtitle={hasMultiple ? `${currentIndex + 1} of ${videos.length}` : undefined}
+                onClose={onClose}
+                onDownload={onDownload}
+                currentFile={currentVideo}
+              />
+            )}
 
             {/* Progress Bar with Play/Pause Button */}
             <View style={styles.progressContainer}>
