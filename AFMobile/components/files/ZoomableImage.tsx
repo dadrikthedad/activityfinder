@@ -63,7 +63,6 @@ const ZoomableImage: React.FC<Props> = ({
     .maxDuration(250)
     .onEnd((_event, success) => {
       if (success && onSingleTap) {
-        console.log(`[ZoomableImage] Single tap - scale: ${scale.value.toFixed(1)}x`);
         runOnJS(onSingleTap)();
       }
     });
@@ -75,8 +74,6 @@ const ZoomableImage: React.FC<Props> = ({
     .onEnd(() => {
       const currentScale = scale.value;
       const targetScale = currentScale > minScale ? minScale : maxScale / 2;
-      
-      console.log(`[ZoomableImage] Double tap - current: ${currentScale}, target: ${targetScale}`);
       
       scale.value = withSpring(targetScale, {
         damping: 20,
@@ -100,7 +97,6 @@ const ZoomableImage: React.FC<Props> = ({
   const pinch = Gesture.Pinch()
     .onStart(() => {
       savedScale.value = scale.value;
-      console.log(`[ZoomableImage] Pinch started at scale: ${scale.value}`);
     })
     .onUpdate((event) => {
       // Multipliser saved scale med event scale
@@ -131,7 +127,6 @@ const ZoomableImage: React.FC<Props> = ({
       savedScale.value = scale.value;
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
-      console.log(`[ZoomableImage] Pinch ended at scale: ${scale.value}`);
     });
 
   // Pan - MED BOUNDARY CONSTRAINTS
@@ -140,7 +135,6 @@ const ZoomableImage: React.FC<Props> = ({
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
       if (scale.value > minScale) {
-        console.log(`[ZoomableImage] Pan started (zoomed at ${scale.value}x)`);
       }
     })
     .onUpdate((event) => {
@@ -160,7 +154,6 @@ const ZoomableImage: React.FC<Props> = ({
       if (scale.value > minScale) {
         savedTranslateX.value = translateX.value;
         savedTranslateY.value = translateY.value;
-        console.log(`[ZoomableImage] Pan ended at position: (${translateX.value.toFixed(1)}, ${translateY.value.toFixed(1)})`);
       }
     });
 
@@ -173,7 +166,6 @@ const ZoomableImage: React.FC<Props> = ({
 
   // Reset når URI endres
   useEffect(() => {
-    console.log(`[ZoomableImage] URI changed, resetting...`);
     scale.value = minScale;
     translateX.value = 0;
     translateY.value = 0;
@@ -193,6 +185,23 @@ const ZoomableImage: React.FC<Props> = ({
       { scale: scale.value },
     ],
   }));
+
+  useEffect(() => {
+  
+  // Juster posisjon proporsjonalt til nye dimensjoner, men behold zoom
+  if (scale.value > minScale) {
+    const constrained = constrainToBounds(
+      translateX.value, 
+      translateY.value, 
+      scale.value
+    );
+    
+    translateX.value = withSpring(constrained.x, { damping: 25, stiffness: 400 });
+    translateY.value = withSpring(constrained.y, { damping: 25, stiffness: 400 });
+    savedTranslateX.value = constrained.x;
+    savedTranslateY.value = constrained.y;
+  }
+}, [width, height]);
 
   return (
     <GestureDetector gesture={composed}>

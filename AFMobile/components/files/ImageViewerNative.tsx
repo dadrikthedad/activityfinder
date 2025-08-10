@@ -1,5 +1,5 @@
 // components/common/ImageViewerNative.tsx - Med ZoomableImage
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Modal, 
   View, 
@@ -17,6 +17,7 @@ import ViewerHeaderNative from "./ViewerHeaderNative";
 import Toast from 'react-native-toast-message';
 import { toastConfig } from '@/components/toast/NotificationToastNative';
 import ZoomableImage from "./ZoomableImage"; // Din ZoomableImage komponent
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 interface ImageViewerNativeProps {
   visible: boolean;
@@ -38,7 +39,10 @@ export default function ImageViewerNative({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showControls, setShowControls] = useState(true);
   const [isZoomed, setIsZoomed] = useState(false);
-  const { width, height } = Dimensions.get('window');
+  const [dimensions, setDimensions] = useState(() => {
+    const { width, height } = Dimensions.get('window');
+    return { width, height };
+  });
   const { GestureHandlerRootView } = GestureHandler; // 👈 DESTRUKTUR HER
   
   if (images.length === 0) return null;
@@ -71,6 +75,21 @@ export default function ImageViewerNative({
     // IKKE skjul kontroller automatisk når zoomet - la brukeren bestemme
   };
 
+  useEffect(() => {
+    if (visible) {
+      // Unlock rotation når viewer åpnes
+      ScreenOrientation.unlockAsync();
+      
+      // Lytt til orientation changes
+      const subscription = ScreenOrientation.addOrientationChangeListener(() => {
+        const { width, height } = Dimensions.get('window');
+        setDimensions({ width, height });
+      });
+
+      return () => subscription?.remove();
+    }
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -90,8 +109,8 @@ export default function ImageViewerNative({
           <View style={styles.imageContainer}>
             <ZoomableImage
               uri={currentImage.uri}
-              width={width}
-              height={height}
+              width={dimensions.width}
+              height={dimensions.height}
               minScale={1}
               maxScale={5}
               onSingleTap={handleScreenTap}
@@ -158,7 +177,7 @@ export default function ImageViewerNative({
               {/* Zoom hint */}
               {!isZoomed && (
                 <View style={styles.zoomHint}>
-                  <Text style={styles.zoomHintText}>Klyp eller dobbelttrykk for å zoome</Text>
+                  <Text style={styles.zoomHintText}>Touch to zoom</Text>
                 </View>
               )}
             </>

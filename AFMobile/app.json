@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.dadrikthedad.AFMobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "requireFullScreen": false
     },
     "android": {
       "adaptiveIcon": {

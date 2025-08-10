@@ -22,6 +22,8 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { useReactionUsersModal } from '@/components/reactions/ReactionUsersModal';
 import { ReactionDTO } from '@shared/types/MessageDTO';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { Dimensions } from 'react-native';
 
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
@@ -325,6 +327,30 @@ export default function MessageListNative({
       console.error('Delete failed:', error);
     }
   });
+
+  const [dimensions, setDimensions] = useState(() => {
+    const { width, height } = Dimensions.get('window');
+    return { width, height };
+  });
+
+  const isLandscape = dimensions.width > dimensions.height;
+
+  useEffect(() => {
+    // Unlock rotation når MessageList er synlig
+    if (conversationVisible) {
+      ScreenOrientation.unlockAsync();
+      
+      const subscription = ScreenOrientation.addOrientationChangeListener((event) => {
+        const { width, height } = Dimensions.get('window');
+        setDimensions({ width, height });
+      });
+
+      return () => subscription?.remove();
+    } else {
+      // Lock tilbake til portrait når ikke synlig
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    }
+  }, [conversationVisible]);
 
   const live = useMemo(() => {
     return liveMessages[conversationId] || [];
