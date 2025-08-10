@@ -14,7 +14,9 @@ import {
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { Play, Pause, RefreshCcw } from 'lucide-react-native';
 import { RNFile } from '@/utils/files/FileFunctions';
-import ViewerHeaderNative from './ViewerHeader';
+import ViewerHeaderNative from './ViewerHeaderNative';
+import Toast from 'react-native-toast-message';
+import { toastConfig } from '@/components/toast/NotificationToastNative';
 
 interface VideoViewerNativeProps {
   visible: boolean;
@@ -22,6 +24,7 @@ interface VideoViewerNativeProps {
   initialIndex: number;
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
+  onShare?: (file: RNFile) => void;
 }
 
 export default function VideoViewerNative({
@@ -30,6 +33,7 @@ export default function VideoViewerNative({
   initialIndex = 0,
   onClose,
   onDownload,
+  onShare
 }: VideoViewerNativeProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -357,6 +361,7 @@ export default function VideoViewerNative({
                 onClose={onClose}
                 onDownload={onDownload}
                 currentFile={currentVideo}
+                onShare={onShare}
               />
             )}
 
@@ -446,6 +451,7 @@ export default function VideoViewerNative({
           </TouchableOpacity>
         )}
       </View>
+      <Toast config={toastConfig} />
     </Modal>
   );
 }

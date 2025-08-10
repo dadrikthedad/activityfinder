@@ -26,8 +26,10 @@ export enum LocalToastType {
   FriendRequestReceived = "FriendRequestReceived",
   CustomSystemNotice = "CustomSystemNotice",
   FriendInvAccepted = "FriendRequestAccepted",
-  MsgRequestAcceptedLocally = "MsgRequestAcceptedLocally"
+  MsgRequestAcceptedLocally = "MsgRequestAcceptedLocally",
+  FileDownloaded = "FileDownloaded"
 }
+
 
 export type ToastType = NotificationType | LocalToastType;
 
@@ -46,16 +48,20 @@ interface NotificationToastProps {
   affectedUserNames?: string[];
   affectedUsers?: UserSummaryDTO[];
   attachments?: AttachmentDto[];
+  position?: 'top' | 'bottom';  // 👈 Legg til denne
+  offset?: number; 
 }
 
 export function showNotificationToastNative(props: NotificationToastProps) {
+  const { position = 'top', offset = 60, ...toastProps } = props;
   Toast.show({
     type: 'customNotification',
-    props: props,
-    position: 'top',
+    props: toastProps,
+    position: position,
     visibilityTime: 5000,
     autoHide: true,
-    topOffset: 60,
+    topOffset: position === 'top' ? offset : undefined,
+    bottomOffset: position === 'bottom' ? offset : undefined,
   });
 }
 
@@ -186,6 +192,8 @@ function NotificationToastComponent({
         return groupName ? 
           `${senderDisplayName} says in ${groupName}:` : 
           `${senderDisplayName} says:`;
+      case LocalToastType.FileDownloaded:
+        return messagePreview || "";
       default:
         return `${senderDisplayName} sent you a notification`;
     }
@@ -203,6 +211,8 @@ function NotificationToastComponent({
       case NotificationType.NewMessage:
         mainMessage = messagePreview ?? "";
         break;
+      case LocalToastType.FileDownloaded:
+          return 'Download complete';
       default:
         return "";
     }
@@ -227,27 +237,57 @@ function NotificationToastComponent({
                          type === NotificationType.GroupEvent ||
                          type === NotificationType.GroupDisbanded;
 
+                         
+  const shouldShowButtons = (): boolean => {
+    switch (type) {
+      case LocalToastType.FileDownloaded:
+      case LocalToastType.CustomSystemNotice:
+        return false; // 👈 Ingen knapper for disse typene
+      default:
+        return true;  // 👈 Vis knapper for alle andre
+    }
+  };
+
+  const shouldShowAvatar = (): boolean => {
+    switch (type) {
+      case LocalToastType.FileDownloaded:
+      case LocalToastType.CustomSystemNotice:
+        return false; // 👈 Ingen avatar for disse typene
+      default:
+        return true;  // 👈 Vis avatar for alle andre
+    }
+  };
+  
+
   return (
     <TouchableOpacity 
       style={styles.container}
-      onPress={handleNotificationClick}
-      activeOpacity={0.9}
+      onPress={shouldShowButtons() ? handleNotificationClick : undefined}
+      activeOpacity={shouldShowButtons() ? 0.9 : 1}
     >
       <View style={styles.content}>
         {/* Header with images */}
         <View style={styles.header}>
-          <MiniAvatarNative
-            imageUrl={senderDisplayImage}
-            alt={senderDisplayName}
-            size={40}
-            withBorder={true}
-          />
+          {shouldShowAvatar() && (
+            <MiniAvatarNative
+              imageUrl={senderDisplayImage}
+              alt={senderDisplayName}
+              size={40}
+              withBorder={true}
+            />
+          )}
 
-          <View style={styles.textContainer}>
-            <Text style={styles.title} numberOfLines={2}>
-              {getTitle()}
-            </Text>
-          </View>
+           <View style={[
+              styles.textContainer,
+              !shouldShowAvatar() && styles.textContainerCentered // 👈 Legg til conditional style
+            ]}>
+              <Text style={[
+                styles.title,
+                !shouldShowAvatar() && styles.titleCentered // 👈 Og her også
+              ]} numberOfLines={2}>
+                {getTitle()}
+              </Text>
+            </View>
 
           {showGroupImages && (
             <MiniAvatarNative
@@ -261,12 +301,16 @@ function NotificationToastComponent({
 
         {/* Message body */}
         {getBody() && (
-          <Text style={styles.body} numberOfLines={3}>
+          <Text style={[
+            styles.body,
+            !shouldShowAvatar() && styles.bodyCentered // 👈 Legg til conditional style
+          ]} numberOfLines={3}>
             {getBody()}
           </Text>
         )}
 
         {/* Action buttons */}
+         {shouldShowButtons() && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity 
             style={[styles.button, styles.openButton]}
@@ -282,6 +326,7 @@ function NotificationToastComponent({
             <Text style={styles.buttonText}>Close</Text>
           </TouchableOpacity>
         </View>
+      )}
       </View>
     </TouchableOpacity>
   );
@@ -301,6 +346,7 @@ const styles = StyleSheet.create({
   container: {
     width: screenWidth - 32,
     marginHorizontal: 16,
+    zIndex: 999999,
   },
   content: {
     backgroundColor: '#fff',
@@ -315,7 +361,9 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
+    elevation: 999999,
+    zIndex: 999999,
+    
   },
   header: {
     flexDirection: 'row',
@@ -337,6 +385,17 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 12,
     lineHeight: 17,
+  },
+  textContainerCentered: {
+    alignItems: 'center',  
+    justifyContent: 'center',
+  },
+  
+  titleCentered: {
+    textAlign: 'center',
+  },
+  bodyCentered: {
+    textAlign: 'center', 
   },
   buttonContainer: {
     flexDirection: 'row',

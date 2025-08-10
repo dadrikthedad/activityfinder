@@ -3,7 +3,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { RNFile, getFileIcon, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
 import { openFileWithNativeApp, getFileTypeMessage } from './FileHandlerNative';
-import ViewerHeaderNative from './ViewerHeader';
+import ViewerHeaderNative from './ViewerHeaderNative';
 
 interface DocumentViewerNativeProps {
   visible: boolean;

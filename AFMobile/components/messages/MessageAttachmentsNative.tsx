@@ -17,7 +17,9 @@ import {
   RNFile 
 } from '@/utils/files/FileFunctions';
 import FileViewerNative from '../files/FileViewerNative';
-import { downloadFile } from '../files/FileHandlerNative';
+import { downloadFile, shareRNFile  } from '../files/FileHandlerNative';
+import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
+
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
@@ -208,6 +210,8 @@ export default function MessageAttachmentsNative({
       .map(att => att.fileUrl) : [])
   );
 
+  const confirmModal = useConfirmModalNative();
+
   if (!attachments || attachments.length === 0) {
     return null;
   }
@@ -285,6 +289,16 @@ export default function MessageAttachmentsNative({
       Alert.alert('Feil', 'Kunne ikke laste ned filen');
     }
   };
+
+  const handleShare = async (file: RNFile) => {
+    try {
+      await shareRNFile(file);
+    } catch (error) {
+      console.error('Deling feilet:', error);
+      Alert.alert('Feil', 'Kunne ikke dele filen');
+    }
+  };
+
 
   return (
     <View style={styles.container}>
@@ -394,7 +408,9 @@ export default function MessageAttachmentsNative({
             setSelectedFileIndex(-1);
           }}
           onDownload={handleDownload}
+          onShare={handleShare}
           canDownload={true}
+          canShare={true}
         />
       )}
     </View>

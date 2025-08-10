@@ -1,15 +1,19 @@
 // utils/FileHandlerNative.ts - Optimalisert versjon
-import { Linking, Alert } from 'react-native';
+import { Alert, Platform, Linking } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getFileTypeInfo, RNFile } from '@/utils/files/FileFunctions';
+import * as IntentLauncher from 'expo-intent-launcher';
+import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 // ===================================
 // 🎯 MIME TYPE HANDLING
 // ===================================
 
 // Bruk existerende getFileTypeInfo for å få MIME type
-const getMimeTypeFromFileInfo = (fileName: string): string => {
+export const getMimeTypeFromFileInfo = (fileName: string): string => {
   const extension = fileName.toLowerCase().split('.').pop();
   
   const mimeTypes: { [key: string]: string } = {
@@ -72,64 +76,261 @@ const getMimeTypeFromFileInfo = (fileName: string): string => {
 // ===================================
 
 /**
- * Åpne fil med native app - hovedfunksjon
+ * Åpne fil med native app - forbedret versjon
+ * Prøver først native åpning, faller tilbake på deling hvis nødvendig
  */
-export const openFileWithNativeApp = async (fileUri: string, fileName: string) => {
+export const openFileWithNativeApp = async (
+  fileUri: string, 
+  fileName: string,
+  confirmModal: { confirm: (options: { title?: string; message: string }) => Promise<boolean> }
+) => {
   try {
-    // Sjekk først om sharing er tilgjengelig
-    const isAvailable = await Sharing.isAvailableAsync();
+    console.log(`🔄 Prøver å åpne fil: ${fileName} (${fileUri})`);
     
-    if (isAvailable) {
-      // Bruk Sharing API (anbefalt for React Native/Expo)
-      await Sharing.shareAsync(fileUri, {
-        mimeType: getMimeTypeFromFileInfo(fileName),
-        dialogTitle: `Åpne ${fileName}`,
-      });
-    } else {
-      // Fallback til Linking API
-      const supported = await Linking.canOpenURL(fileUri);
-      if (supported) {
-        await Linking.openURL(fileUri);
-      } else {
-        Alert.alert(
-          'Kan ikke åpne fil',
-          'Ingen kompatible apper funnet for denne filtypen'
-        );
+    // Sjekk om filen eksisterer lokalt
+    let localUri = fileUri;
+    if (fileUri.startsWith('http')) {
+      // Last ned filen midlertidig hvis det er en URL
+      console.log('📥 Laster ned fil for åpning...');
+      const tempPath = `${FileSystem.cacheDirectory}temp_open_${Date.now()}_${fileName}`;
+      const downloadResult = await FileSystem.downloadAsync(fileUri, tempPath);
+      localUri = downloadResult.uri;
+    }
+
+    const mimeType = getMimeTypeFromFileInfo(fileName);
+    
+    if (Platform.OS === 'android') {
+      // Android: Bruk IntentLauncher for å åpne filen direkte
+      try {
+        console.log(`🤖 Android: Åpner med Intent (${mimeType})`);
+        
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: localUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: mimeType,
+        });
+        
+        console.log('✅ Fil åpnet med Android Intent');
+        return;
+        
+      } catch (intentError) {
+        console.log('⚠️ Intent feilet, prøver alternative metoder:', intentError);
+        
+        // Fallback: Prøv med content URI hvis det er en lokal fil
+        if (!localUri.startsWith('content://') && !localUri.startsWith('http')) {
+          try {
+            // Konverter til content URI for bedre kompatibilitet
+            const contentUri = await FileSystem.getContentUriAsync(localUri);
+            
+            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+              data: contentUri,
+              flags: 1,
+              type: mimeType,
+            });
+            
+            console.log('✅ Fil åpnet med content URI');
+            return;
+            
+          } catch (contentError) {
+            console.log('⚠️ Content URI feilet også:', contentError);
+          }
+        }
+      }
+    } else if (Platform.OS === 'ios') {
+      // iOS: Prøv først med dokumentinteraksjon
+      try {
+        console.log('🍎 iOS: Prøver å åpne fil...');
+        
+        // For iOS, bruk Linking for å åpne filer
+        const canOpen = await Linking.canOpenURL(localUri);
+        
+        if (canOpen) {
+          await Linking.openURL(localUri);
+          console.log('✅ Fil åpnet med iOS Linking');
+          return;
+        }
+      } catch (iosError) {
+        console.log('⚠️ iOS Linking feilet:', iosError);
       }
     }
+
+    // Hvis vi kommer hit, kunne vi ikke åpne filen
+    throw new Error('Ingen metode for å åpne filen er tilgjengelig');
+
   } catch (error) {
-    console.error('Feil ved åpning av fil:', error);
-    Alert.alert('Feil', 'Kunne ikke åpne filen');
+    console.error('❌ Feil ved åpning av fil:', error);
+    
+    // Vis brukervennlig feilmelding med forslag
+    const fileInfo = getFileTypeInfo('', fileName);
+    const suggestions = getSuggestionsForFileType(fileInfo.category);
+    
+    await confirmModal.confirm({
+      title: 'Kan ikke åpne fil',
+      message: `Kunne ikke åpne ${fileName}.\n\n${suggestions}`
+    });
   }
 };
 
 /**
- * Last ned fil fra URL
+ * Gi forslag basert på filtype
  */
-export const downloadFile = async (url: string, fileName: string) => {
+const getSuggestionsForFileType = (category: string): string => {
+  switch (category) {
+    case 'pdf':
+      return 'Prøv å installere Adobe Reader, Google PDF Viewer eller en annen PDF-leser.';
+    case 'document':
+      return 'Prøv å installere Microsoft Word, Google Docs eller WPS Office.';
+    case 'spreadsheet':
+      return 'Prøv å installere Microsoft Excel, Google Sheets eller WPS Office.';
+    case 'presentation':
+      return 'Prøv å installere Microsoft PowerPoint, Google Slides eller WPS Office.';
+    case 'image':
+      return 'Bildet burde åpnes i galleri-appen. Sjekk om filen er skadet.';
+    case 'video':
+      return 'Prøv å installere VLC, Google Photos eller en annen video-spiller.';
+    case 'audio':
+      return 'Prøv å installere en musikk-app som støtter dette formatet.';
+    default:
+      return 'Sjekk om du har en app installert som støtter denne filtypen.';
+  }
+};
+
+/**
+ * Forbedret downloadFile som bruker den nye openFileWithNativeApp
+ * @param url URL til filen som skal lastes ned
+ * @param fileName Navn på filen
+ * @param confirmModal useConfirmModalNative hook for å vise confirm dialog
+ */
+export const downloadFile = async (
+  url: string, 
+  fileName: string, 
+  confirmModal?: { confirm: (options: { title?: string; message: string }) => Promise<boolean> }
+) => {
   try {
+    console.log(`📥 Starter nedlasting: ${fileName} fra ${url}`);
+    
     const downloadPath = `${FileSystem.documentDirectory}${fileName}`;
     
     const { uri } = await FileSystem.downloadAsync(url, downloadPath);
     
-    Alert.alert(
-      'Nedlasting fullført',
-      `Filen ble lagret som: ${fileName}`,
-      [
-        { text: 'OK' },
-        {
-          text: 'Åpne',
-          onPress: () => openFileWithNativeApp(uri, fileName)
-        }
-      ]
-    );
+    console.log(`✅ Nedlasting fullført: ${uri}`);
+    
+    if (confirmModal) {
+      // Bruk custom modal med "Lukk" / "Åpne" knapper
+      const shouldOpen = await confirmModal.confirm({
+        title: 'Nedlasting fullført',
+        message: `Filen ble lagret som: ${fileName}\n\nVil du åpne filen nå?`
+      });
+      
+      if (shouldOpen) {
+        await openFileWithNativeApp(uri, fileName, confirmModal);
+      }
+    } else {
+      // Bruk custom toast notification
+      showNotificationToastNative({
+        type: LocalToastType.FileDownloaded,
+        messagePreview: fileName,
+        senderProfileImage: undefined,
+        position: 'bottom',
+        offset: 300,
+      });
+    }
     
     return uri;
   } catch (error) {
-    console.error('Feil ved nedlasting:', error);
-    Alert.alert('Feil', 'Kunne ikke laste ned filen');
+    console.error('❌ Feil ved nedlasting:', error);
+    
+    if (confirmModal) {
+      await confirmModal.confirm({
+        title: 'Feil',
+        message: 'Kunne ikke laste ned filen'
+      });
+    } else {
+      // Bruk custom toast for feil også
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        senderName: 'System',
+        messagePreview: 'Kunne ikke laste ned filen',
+        senderProfileImage: undefined
+      });
+    }
+    
     throw error;
   }
+};
+/**
+ * Get UTI (Uniform Type Identifier) for better iOS app matching
+ */
+const getUTIFromFileName = (fileName: string): string | undefined => {
+  const extension = fileName.toLowerCase().split('.').pop();
+  
+  const utiMap: { [key: string]: string } = {
+    'pdf': 'com.adobe.pdf',
+    'doc': 'com.microsoft.word.doc',
+    'docx': 'org.openxmlformats.wordprocessingml.document',
+    'xls': 'com.microsoft.excel.xls',
+    'xlsx': 'org.openxmlformats.spreadsheetml.sheet',
+    'ppt': 'com.microsoft.powerpoint.ppt',
+    'pptx': 'org.openxmlformats.presentationml.presentation',
+    'jpg': 'public.jpeg',
+    'jpeg': 'public.jpeg',
+    'png': 'public.png',
+    'mp4': 'public.mpeg-4',
+    'mov': 'com.apple.quicktime-movie',
+    'txt': 'public.plain-text',
+    'zip': 'public.zip-archive',
+  };
+  
+  return utiMap[extension || ''];
+};
+
+
+/**
+ * Del fil - laster ned midlertidig hvis nødvendig
+ */
+export const shareFile = async (fileUri: string, fileName: string) => {
+  try {
+    const isAvailable = await Sharing.isAvailableAsync();
+    
+    if (!isAvailable) {
+      Alert.alert('Deling ikke tilgjengelig', 'Deling er ikke støttet på denne enheten');
+      return;
+    }
+
+    let localUri = fileUri;
+    
+    // Hvis det er en URL, last ned midlertidig
+    if (fileUri.startsWith('http')) {
+      console.log('📥 Laster ned fil midlertidig for deling...');
+      
+      // Bruk en temp-mappe for delinger
+      const tempPath = `${FileSystem.cacheDirectory}temp_share_${Date.now()}_${fileName}`;
+      
+      const downloadResult = await FileSystem.downloadAsync(fileUri, tempPath);
+      localUri = downloadResult.uri;
+      
+      console.log('✅ Midlertidig nedlasting fullført:', localUri);
+    }
+    
+    // Del den lokale filen
+    await Sharing.shareAsync(localUri, {
+      mimeType: getMimeTypeFromFileInfo(fileName),
+      dialogTitle: `Del ${fileName}`
+    });
+    
+    console.log('✅ Deling fullført');
+    
+  } catch (error) {
+    console.error('Deling feilet:', error);
+    Alert.alert('Feil', 'Kunne ikke dele filen');
+  }
+};
+
+/**
+ * Wrapper funksjon for å dele RNFile
+ */
+export const shareRNFile = async (file: RNFile) => {
+  return shareFile(file.uri, file.name);
 };
 
 // ===================================
@@ -180,23 +381,5 @@ export const getFileTypeMessage = (file: RNFile): string => {
       return 'Videoer kan spilles av i media-apper';
     default:
       return 'Filen åpnes i en kompatibel app';
-  }
-};
-
-// ===================================
-// 🎯 SMART FILE HANDLER
-// ===================================
-
-/**
- * Smart fil-håndterer som bestemmer beste handling basert på filtype
- */
-export const handleFileInteraction = async (file: RNFile) => {
-  if (canPreviewFile(file)) {
-    // Returner false for å indikere at preview skal håndteres av parent component
-    return false;
-  } else {
-    // Åpne direkte med native app
-    await openFileWithNativeApp(file.uri, file.name);
-    return true;
   }
 };

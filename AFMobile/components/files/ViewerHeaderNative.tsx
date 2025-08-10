@@ -1,7 +1,7 @@
 // components/common/ViewerHeaderNative.tsx
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Download, X } from 'lucide-react-native';
+import { Download, X, Share } from 'lucide-react-native';
 import { RNFile } from '@/utils/files/FileFunctions';
 
 interface ViewerHeaderNativeProps {
@@ -9,8 +9,10 @@ interface ViewerHeaderNativeProps {
   subtitle?: string; // For "X of Y" counter
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
+  onShare?: (file: RNFile) => void; // Ny prop for deling
   currentFile?: RNFile;
   showDownload?: boolean; // Ekstra kontroll
+  showShare?: boolean; // Ekstra kontroll for deling
 }
 
 export default function ViewerHeaderNative({
@@ -18,12 +20,20 @@ export default function ViewerHeaderNative({
   subtitle,
   onClose,
   onDownload,
+  onShare,
   currentFile,
-  showDownload = true
+  showDownload = true,
+  showShare = true
 }: ViewerHeaderNativeProps) {
   const handleDownload = () => {
     if (onDownload && currentFile) {
       onDownload(currentFile);
+    }
+  };
+
+  const handleShare = () => {
+    if (onShare && currentFile) {
+      onShare(currentFile);
     }
   };
 
@@ -41,6 +51,16 @@ export default function ViewerHeaderNative({
       </View>
       
       <View style={styles.headerRight}>
+        {/* Del-knapp */}
+        {showShare && onShare && currentFile && (
+          <TouchableOpacity 
+            style={styles.headerButton} 
+            onPress={handleShare}
+          >
+            <Share size={20} color="white" />
+          </TouchableOpacity>
+        )}
+        
         {/* Nedlastingsknapp */}
         {showDownload && onDownload && currentFile && (
           <TouchableOpacity 

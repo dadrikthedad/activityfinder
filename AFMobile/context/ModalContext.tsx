@@ -10,6 +10,8 @@ import {
   Dimensions,
   StatusBar 
 } from 'react-native';
+import { toastConfig } from '@/components/toast/NotificationToastNative';
+import Toast from 'react-native-toast-message';
 
 interface ModalContextType {
   showModal: (content: ReactNode, options?: { 
@@ -84,6 +86,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
+          <Toast config={toastConfig} />
       </Modal>
     </ModalContext.Provider>
   );

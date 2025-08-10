@@ -13,6 +13,8 @@ interface FileViewerNativeProps {
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
   canDownload?: boolean; // Ny parameter for å kontrollere nedlasting
+  onShare?: (file: RNFile) => void;
+  canShare?: boolean;
 }
 
 export default function FileViewerNative({
@@ -22,7 +24,9 @@ export default function FileViewerNative({
   initialIndex = 0,
   onClose,
   onDownload,
-  canDownload = true // Default til true for bakoverkompatibilitet
+  canDownload = true,
+  onShare,
+  canShare
 }: FileViewerNativeProps) {
   const fileInfo = getFileTypeInfo(file.type, file.name);
   const isPreviewable = canPreviewFile(file);
@@ -44,6 +48,7 @@ export default function FileViewerNative({
         initialIndex={Math.max(0, imageIndex)}
         onClose={onClose}
         onDownload={canDownload ? onDownload : undefined}
+        onShare={canShare ? onShare : undefined}
       />
     );
   }
@@ -65,6 +70,7 @@ export default function FileViewerNative({
         initialIndex={Math.max(0, videoIndex)}
         onClose={onClose}
         onDownload={canDownload ? onDownload : undefined}
+        onShare={canShare ? onShare : undefined}
       />
     );
   }
@@ -75,6 +81,7 @@ export default function FileViewerNative({
       visible={visible}
       file={file}
       onClose={onClose}
+      onShare={onShare}
     />
   );
 }

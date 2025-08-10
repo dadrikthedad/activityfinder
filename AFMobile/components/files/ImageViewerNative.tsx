@@ -12,7 +12,9 @@ import {
   ScrollView
 } from "react-native";
 import { RNFile } from "@/utils/files/FileFunctions";
-import ViewerHeaderNative from "./ViewerHeader";
+import ViewerHeaderNative from "./ViewerHeaderNative";
+import Toast from 'react-native-toast-message';
+import { toastConfig } from '@/components/toast/NotificationToastNative';
 
 interface ImageViewerNativeProps {
   visible: boolean;
@@ -20,6 +22,7 @@ interface ImageViewerNativeProps {
   initialIndex: number;
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
+  onShare?: (file: RNFile) => void;
 }
 
 export default function ImageViewerNative({
@@ -27,7 +30,8 @@ export default function ImageViewerNative({
   images,
   initialIndex = 0,
   onClose,
-  onDownload
+  onDownload,
+  onShare
 }: ImageViewerNativeProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const { width, height } = Dimensions.get('window');
@@ -100,6 +104,7 @@ export default function ImageViewerNative({
           onClose={onClose}
           onDownload={onDownload}
           currentFile={currentImage}
+          onShare={onShare}
         />
 
         {/* Image */}
@@ -171,6 +176,7 @@ export default function ImageViewerNative({
           </View>
         )}
       </View>
+      <Toast config={toastConfig} />
     </Modal>
   );
 }
