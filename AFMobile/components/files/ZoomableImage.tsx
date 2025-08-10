@@ -57,12 +57,13 @@ const ZoomableImage: React.FC<Props> = ({
     };
   };
 
-  // Single tap - enkel implementering
+  // Single tap - fungerer alltid for å toggle kontroller
   const singleTap = Gesture.Tap()
     .numberOfTaps(1)
     .maxDuration(250)
     .onEnd((_event, success) => {
       if (success && onSingleTap) {
+        console.log(`[ZoomableImage] Single tap - scale: ${scale.value.toFixed(1)}x`);
         runOnJS(onSingleTap)();
       }
     });

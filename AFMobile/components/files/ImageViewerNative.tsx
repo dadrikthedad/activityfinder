@@ -58,21 +58,17 @@ export default function ImageViewerNative({
     }
   };
 
-  // Toggle controls visibility
+  // Toggle controls visibility - TILLAT ALLTID
   const handleScreenTap = () => {
-    console.log('[ImageViewer] Screen tap received, isZoomed:', isZoomed);
-    if (!isZoomed) {
-      setShowControls(!showControls);
-    }
+    console.log('[ImageViewer] Screen tap received, isZoomed:', isZoomed, 'showControls:', showControls);
+    setShowControls(!showControls);
   };
 
   // Handle zoom state changes
   const handleZoomChange = (zoomed: boolean) => {
     console.log('[ImageViewer] Zoom changed to:', zoomed);
     setIsZoomed(zoomed);
-    if (zoomed) {
-      setShowControls(false);
-    }
+    // IKKE skjul kontroller automatisk når zoomet - la brukeren bestemme
   };
 
   return (
