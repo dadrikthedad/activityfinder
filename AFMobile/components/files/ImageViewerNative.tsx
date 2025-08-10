@@ -1,4 +1,4 @@
-// components/common/ImageViewerNative.tsx - Updated with enhanced download
+// components/common/ImageViewerNative.tsx - Midtstilt som VideoViewerNative
 import React, { useState } from "react";
 import { 
   Modal, 
@@ -9,7 +9,8 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
-  ScrollView
+  ScrollView,
+  StatusBar
 } from "react-native";
 import { RNFile } from "@/utils/files/FileFunctions";
 import ViewerHeaderNative from "./ViewerHeaderNative";
@@ -34,6 +35,7 @@ export default function ImageViewerNative({
   onShare
 }: ImageViewerNativeProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [showControls, setShowControls] = useState(true);
   const { width, height } = Dimensions.get('window');
   
   if (images.length === 0) return null;
@@ -53,31 +55,9 @@ export default function ImageViewerNative({
     }
   };
 
-  // The download handler is now handled by ViewerHeaderNative
-  // which will use the enhanced downloadFile function with progress
-
-  const showOptions = () => {
-    const options: Array<{
-      text: string;
-      onPress?: () => void;
-      style?: "cancel" | "default" | "destructive";
-    }> = [];
-    
-    if (onDownload) {
-      options.push({ text: "Download", onPress: () => onDownload(currentImage) });
-    }
-    
-    if (onShare) {
-      options.push({ text: "Share", onPress: () => onShare(currentImage) });
-    }
-    
-    options.push({ text: "Close", onPress: onClose, style: "cancel" });
-    
-    Alert.alert(
-      currentImage.name,
-      "Choose an action",
-      options
-    );
+  // Toggle controls visibility like VideoViewerNative
+  const handleScreenTap = () => {
+    setShowControls(!showControls);
   };
 
   return (
@@ -88,91 +68,102 @@ export default function ImageViewerNative({
       onRequestClose={onClose}
       statusBarTranslucent
     >
+      <StatusBar hidden />
       <View style={styles.container}>
-        {/* Background */}
+        {/* Background - clickable for UI toggle */}
         <TouchableOpacity 
           style={styles.background}
-          onPress={onClose}
+          onPress={handleScreenTap}
           activeOpacity={1}
-        />
-        
-        {/* Header with enhanced download functionality */}
-        <ViewerHeaderNative
-          title={currentImage.name}
-          subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
-          onClose={onClose}
-          onDownload={onDownload}
-          currentFile={currentImage}
-          onShare={onShare}
-        />
-
-        {/* Image */}
-        <View style={styles.imageContainer}>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            maximumZoomScale={3}
-            minimumZoomScale={1}
-            bouncesZoom
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-          >
-            <Image
-              source={{ uri: currentImage.uri }}
-              style={[styles.image, { width, height: height * 0.8 }]}
-              resizeMode="contain"
-              onError={() => {
-                Alert.alert("Error", "Could not load image");
-              }}
-            />
-          </ScrollView>
-        </View>
-
-        {/* Navigation */}
-        {hasMultiple && (
-          <>
-            <TouchableOpacity
-              style={[styles.navButton, styles.navLeft]}
-              onPress={goToPrevious}
+        >
+          <View style={styles.imageContainer}>
+            <TouchableOpacity 
+              style={styles.imageTouchable}
+              onPress={handleScreenTap}
+              activeOpacity={1}
             >
-              <Text style={styles.navText}>‹</Text>
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                bouncesZoom
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+              >
+                <Image
+                  source={{ uri: currentImage.uri }}
+                  style={[styles.image, { width, height }]} // Full skjermstørrelse som video
+                  resizeMode="contain"
+                  onError={() => {
+                    Alert.alert("Error", "Could not load image");
+                  }}
+                />
+              </ScrollView>
             </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[styles.navButton, styles.navRight]}
-              onPress={goToNext}
-            >
-              <Text style={styles.navText}>›</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* Thumbnails */}
-        {hasMultiple && images.length <= 10 && (
-          <View style={styles.thumbnailContainer}>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.thumbnailContent}
-            >
-              {images.map((image, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.thumbnail,
-                    index === currentIndex && styles.thumbnailActive
-                  ]}
-                  onPress={() => setCurrentIndex(index)}
-                >
-                  <Image
-                    source={{ uri: image.uri }}
-                    style={styles.thumbnailImage}
-                    resizeMode="cover"
-                  />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
           </View>
+        </TouchableOpacity>
+
+        {/* Controls Overlay - kun når synlig */}
+        {showControls && (
+          <>
+            {/* Header */}
+            <ViewerHeaderNative
+              title={currentImage.name}
+              subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
+              onClose={onClose}
+              onDownload={onDownload}
+              currentFile={currentImage}
+              onShare={onShare}
+            />
+
+            {/* Navigation */}
+            {hasMultiple && (
+              <>
+                <TouchableOpacity
+                  style={[styles.navButton, styles.navLeft]}
+                  onPress={goToPrevious}
+                >
+                  <Text style={styles.navText}>‹</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.navButton, styles.navRight]}
+                  onPress={goToNext}
+                >
+                  <Text style={styles.navText}>›</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Thumbnails */}
+            {hasMultiple && images.length <= 10 && (
+              <View style={styles.thumbnailContainer}>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.thumbnailContent}
+                >
+                  {images.map((image, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.thumbnail,
+                        index === currentIndex && styles.thumbnailActive
+                      ]}
+                      onPress={() => setCurrentIndex(index)}
+                    >
+                      <Image
+                        source={{ uri: image.uri }}
+                        style={styles.thumbnailImage}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </>
         )}
       </View>
       <Toast config={toastConfig} />
@@ -183,7 +174,7 @@ export default function ImageViewerNative({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: 'black',
   },
   background: {
     position: 'absolute',
@@ -194,7 +185,13 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'center',  // ← Senterer som VideoViewerNative
+    alignItems: 'center',
+  },
+  imageTouchable: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',  // ← Ekstra sentrering som VideoViewerNative
     alignItems: 'center',
   },
   scrollView: {
@@ -203,6 +200,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     justifyContent: 'center',
     alignItems: 'center',
+    minHeight: '100%', // ← Sikrer at innholdet kan sentreres
   },
   image: {
     backgroundColor: 'transparent',

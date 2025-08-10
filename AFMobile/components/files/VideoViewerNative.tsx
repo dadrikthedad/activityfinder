@@ -254,16 +254,11 @@ export default function VideoViewerNative({
 
   // Smart screen tap for UI toggle
   const handleScreenTap = () => {
-    if (dragState.isDragging) return;
-    
-    if (showControls && isPlaying) {
-      manageControlsTimeout(false);
-    } else if (!showControls) {
-      manageControlsTimeout(true);
-    } else {
-      manageControlsTimeout(true);
-    }
-  };
+  if (dragState.isDragging) return;
+  
+  // Simply toggle controls visibility
+  manageControlsTimeout(!showControls);
+};
 
   // Format time helper
   const formatTime = (ms: number) => {
