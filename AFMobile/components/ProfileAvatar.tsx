@@ -7,7 +7,7 @@ import { Dialog } from "@headlessui/react";
 import { cn } from "../lib/utils";
 import FormButton from "@/components/FormButton";
 import ProfileNavButton from "@/components/settings/ProfileNavButton";
-import { useUploadProfileImage } from "@/hooks/image/useUploadProfileImage";
+import { useUploadProfileImage } from "@/hooks/files/useUploadProfileImage";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
 import Spinner from "./common/SpinnerNative";
 

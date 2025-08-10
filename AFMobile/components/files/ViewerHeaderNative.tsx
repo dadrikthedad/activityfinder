@@ -1,4 +1,4 @@
-// components/common/ViewerHeaderNative.tsx
+// components/common/ViewerHeaderNative.tsx - Forenklet uten egen modal
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Download, X, Share } from 'lucide-react-native';
@@ -9,10 +9,11 @@ interface ViewerHeaderNativeProps {
   subtitle?: string; // For "X of Y" counter
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
-  onShare?: (file: RNFile) => void; // Ny prop for deling
+  onShare?: (file: RNFile) => void;
   currentFile?: RNFile;
-  showDownload?: boolean; // Ekstra kontroll
-  showShare?: boolean; // Ekstra kontroll for deling
+  showDownload?: boolean;
+  showShare?: boolean;
+  isDownloading?: boolean; // Ny prop for å vise download state
 }
 
 export default function ViewerHeaderNative({
@@ -23,11 +24,17 @@ export default function ViewerHeaderNative({
   onShare,
   currentFile,
   showDownload = true,
-  showShare = true
+  showShare = true,
+  isDownloading = false
 }: ViewerHeaderNativeProps) {
-  const handleDownload = () => {
-    if (onDownload && currentFile) {
-      onDownload(currentFile);
+  
+  const handleDownload = async () => {
+    if (!currentFile || !onDownload) return;
+    
+    try {
+      await onDownload(currentFile);
+    } catch (error) {
+      console.error('Download failed:', error);
     }
   };
 
@@ -49,28 +56,29 @@ export default function ViewerHeaderNative({
           </Text>
         )}
       </View>
-      
+     
       <View style={styles.headerRight}>
         {/* Del-knapp */}
         {showShare && onShare && currentFile && (
-          <TouchableOpacity 
-            style={styles.headerButton} 
+          <TouchableOpacity
+            style={styles.headerButton}
             onPress={handleShare}
           >
             <Share size={20} color="white" />
           </TouchableOpacity>
         )}
-        
+       
         {/* Nedlastingsknapp */}
         {showDownload && onDownload && currentFile && (
-          <TouchableOpacity 
-            style={styles.headerButton} 
+          <TouchableOpacity
+            style={styles.headerButton}
             onPress={handleDownload}
+            disabled={isDownloading} // Bruk prop for å disable
           >
             <Download size={20} color="white" />
           </TouchableOpacity>
         )}
-        
+       
         {/* Lukk-knapp */}
         <TouchableOpacity style={styles.headerButton} onPress={onClose}>
           <X size={20} color="white" />

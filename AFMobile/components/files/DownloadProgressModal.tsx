@@ -9,6 +9,7 @@ import {
   Animated,
   Dimensions
 } from 'react-native';
+import { X } from 'lucide-react-native';
 
 interface DownloadProgressModalProps {
   visible: boolean;
@@ -39,7 +40,7 @@ export default function DownloadProgressModal({
 }: DownloadProgressModalProps) {
   const progressAnim = React.useRef(new Animated.Value(0)).current;
   const { width } = Dimensions.get('window');
-  const progressBarWidth = width - 80; // 40px margin on each side
+  const progressBarWidth = 160; // Fixed smaller width
 
   React.useEffect(() => {
     Animated.timing(progressAnim, {
@@ -55,11 +56,11 @@ export default function DownloadProgressModal({
     extrapolate: 'clamp',
   });
 
-  const getProgressText = () => {
+  const getBytesText = () => {
     if (totalBytes && downloadedBytes) {
       return `${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`;
     }
-    return `${Math.round(progress * 100)}%`;
+    return null;
   };
 
   return (
@@ -71,27 +72,22 @@ export default function DownloadProgressModal({
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
-          {/* Header */}
+          {/* Header with close button */}
           <View style={styles.header}>
-            <Text style={styles.title}>Laster ned fil</Text>
-            {onCancel && (
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={onCancel}
-              >
-                <Text style={styles.cancelText}>✕</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* File info */}
-          <View style={styles.fileInfo}>
+            {/* File name (compact) */}
             <Text style={styles.fileName} numberOfLines={1}>
               {fileName}
             </Text>
-            <Text style={styles.progressText}>
-              {getProgressText()}
-            </Text>
+            
+            {/* Close button */}
+            {onCancel && (
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={onCancel}
+              >
+                <X size={16} color="#ffffffff" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Progress bar */}
@@ -106,14 +102,16 @@ export default function DownloadProgressModal({
             </View>
           </View>
 
-          {/* Percentage */}
+          {/* Bytes info under progress bar */}
+          {getBytesText() && (
+            <Text style={styles.bytesText}>
+              {getBytesText()}
+            </Text>
+          )}
+
+          {/* Compact percentage */}
           <Text style={styles.percentage}>
             {Math.round(progress * 100)}%
-          </Text>
-
-          {/* Status */}
-          <Text style={styles.status}>
-            {progress < 1 ? 'Laster ned...' : 'Fullført!'}
           </Text>
         </View>
       </View>
@@ -124,85 +122,67 @@ export default function DownloadProgressModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   container: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 24,
+    borderRadius: 8,
+    padding: 16,
     margin: 20,
-    minWidth: 280,
-    maxWidth: '90%',
+    minWidth: 200,
+    maxWidth: 280,
     alignItems: 'center',
+    borderWidth: 2, 
+    borderColor: '#1C6B1C'
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
     flex: 1,
+    marginRight: 8,
   },
-  cancelButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#F3F4F6',
+  closeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#1C6B1C',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cancelText: {
-    fontSize: 16,
-    color: '#6B7280',
-    fontWeight: 'bold',
-  },
-  fileInfo: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  fileName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
   progressContainer: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
   progressBackground: {
-    height: 8,
+    height: 6,
     backgroundColor: '#E5E7EB',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 4,
+    backgroundColor: '#1C6B1C',
+    borderRadius: 3,
+  },
+  bytesText: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   percentage: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1F2937',
-    marginBottom: 8,
-  },
-  status: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontStyle: 'italic',
   },
 });

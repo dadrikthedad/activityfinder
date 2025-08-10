@@ -1,7 +1,7 @@
 // hooks/useGroupSettingsPopoverNative.ts
 import { useState, useCallback } from 'react';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
-import { useUploadGroupImageNative } from '@/hooks/image/useUploadGroupImageNative';
+import { useUploadGroupImageNative } from '@/hooks/files/useUploadGroupImageNative';
 import { useChatStore } from '@/store/useChatStore';
 import { useUpdateGroupName } from '@/hooks/messages/useUpdateGroupName';
 import * as ImagePicker from 'expo-image-picker';

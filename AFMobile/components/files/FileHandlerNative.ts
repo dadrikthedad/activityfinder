@@ -201,88 +201,37 @@ const getSuggestionsForFileType = (category: string): string => {
  * @param fileName Navn på filen
  * @param confirmModal useConfirmModalNative hook for å vise confirm dialog
  */
-export const downloadFile = async (
-  url: string, 
-  fileName: string, 
-  confirmModal?: { confirm: (options: { title?: string; message: string }) => Promise<boolean> }
-) => {
+// File size threshold for showing progress modal (5MB)
+const PROGRESS_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5MB
+
+// Function to estimate file size from URL (if possible)
+const estimateFileSize = async (url: string): Promise<number> => {
   try {
-    console.log(`📥 Starter nedlasting: ${fileName} fra ${url}`);
-    
-    const downloadPath = `${FileSystem.documentDirectory}${fileName}`;
-    
-    const { uri } = await FileSystem.downloadAsync(url, downloadPath);
-    
-    console.log(`✅ Nedlasting fullført: ${uri}`);
-    
-    if (confirmModal) {
-      // Bruk custom modal med "Lukk" / "Åpne" knapper
-      const shouldOpen = await confirmModal.confirm({
-        title: 'Nedlasting fullført',
-        message: `Filen ble lagret som: ${fileName}\n\nVil du åpne filen nå?`
-      });
-      
-      if (shouldOpen) {
-        await openFileWithNativeApp(uri, fileName, confirmModal);
-      }
-    } else {
-      // Bruk custom toast notification
-      showNotificationToastNative({
-        type: LocalToastType.FileDownloaded,
-        messagePreview: fileName,
-        senderProfileImage: undefined,
-        position: 'bottom',
-        offset: 300,
-      });
-    }
-    
-    return uri;
-  } catch (error) {
-    console.error('❌ Feil ved nedlasting:', error);
-    
-    if (confirmModal) {
-      await confirmModal.confirm({
-        title: 'Feil',
-        message: 'Kunne ikke laste ned filen'
-      });
-    } else {
-      // Bruk custom toast for feil også
-      showNotificationToastNative({
-        type: LocalToastType.CustomSystemNotice,
-        senderName: 'System',
-        messagePreview: 'Kunne ikke laste ned filen',
-        senderProfileImage: undefined
-      });
-    }
-    
-    throw error;
+    // Try to get file info without downloading
+    const response = await fetch(url, { method: 'HEAD' });
+    const contentLength = response.headers.get('content-length');
+    return contentLength ? parseInt(contentLength, 10) : 0;
+  } catch {
+    // If we can't get size, assume it's small
+    return 0;
   }
 };
-/**
- * Get UTI (Uniform Type Identifier) for better iOS app matching
- */
-const getUTIFromFileName = (fileName: string): string | undefined => {
-  const extension = fileName.toLowerCase().split('.').pop();
+
+// Helper function to determine if we should show progress
+export const shouldShowProgress = async (url: string, fileName?: string): Promise<boolean> => {
+  // Check file extension for known large file types
+  const largeFileExtensions = ['.zip', '.rar', '.tar', '.gz', '.7z', '.mov', '.avi', '.mkv', '.mp4', '.mp3', '.wav', '.flac', '.iso', '.dmg', '.exe', '.msi'];
+  const fileExtension = fileName ? '.' + fileName.split('.').pop()?.toLowerCase() : '';
   
-  const utiMap: { [key: string]: string } = {
-    'pdf': 'com.adobe.pdf',
-    'doc': 'com.microsoft.word.doc',
-    'docx': 'org.openxmlformats.wordprocessingml.document',
-    'xls': 'com.microsoft.excel.xls',
-    'xlsx': 'org.openxmlformats.spreadsheetml.sheet',
-    'ppt': 'com.microsoft.powerpoint.ppt',
-    'pptx': 'org.openxmlformats.presentationml.presentation',
-    'jpg': 'public.jpeg',
-    'jpeg': 'public.jpeg',
-    'png': 'public.png',
-    'mp4': 'public.mpeg-4',
-    'mov': 'com.apple.quicktime-movie',
-    'txt': 'public.plain-text',
-    'zip': 'public.zip-archive',
-  };
-  
-  return utiMap[extension || ''];
+  if (largeFileExtensions.includes(fileExtension)) {
+    return true;
+  }
+
+  // Try to estimate file size
+  const estimatedSize = await estimateFileSize(url);
+  return estimatedSize > PROGRESS_THRESHOLD_BYTES;
 };
+
 
 
 /**
@@ -348,15 +297,6 @@ export const canPreviewFile = (file: RNFile): boolean => {
   return fileInfo.category === 'image' || fileInfo.category === 'video';
 };
 
-/**
- * Sjekk om fil trenger native app (ikke kan forhåndsvises)
- */
-export const needsNativeApp = (file: RNFile): boolean => {
-  const fileInfo = getFileTypeInfo(file.type, file.name);
-  
-  // Dokumenter, presentasjoner, regneark trenger native apper
-  return ['document', 'spreadsheet', 'presentation', 'pdf', 'other'].includes(fileInfo.category);
-};
 
 /**
  * Get user-friendly message for file type

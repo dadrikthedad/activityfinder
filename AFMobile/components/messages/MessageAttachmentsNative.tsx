@@ -1,5 +1,5 @@
 // components/messages/MessageAttachmentsNative.tsx
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,8 +17,9 @@ import {
   RNFile 
 } from '@/utils/files/FileFunctions';
 import FileViewerNative from '../files/FileViewerNative';
-import { downloadFile, shareRNFile  } from '../files/FileHandlerNative';
-import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
+import { shareRNFile  } from '../files/FileHandlerNative';
+import DownloadProgressModal from '../files/DownloadProgressModal';
+import { useDownload } from '@/hooks/files/useDownload';
 
 
 interface MessageAttachmentsNativeProps {
@@ -210,8 +211,6 @@ export default function MessageAttachmentsNative({
       .map(att => att.fileUrl) : [])
   );
 
-  const confirmModal = useConfirmModalNative();
-
   if (!attachments || attachments.length === 0) {
     return null;
   }
@@ -267,6 +266,14 @@ export default function MessageAttachmentsNative({
   const selectedFile = selectedFileIndex >= 0 ? convertToRNFile(attachments[selectedFileIndex]) : null;
   const allRNFiles = attachments.map(convertToRNFile);
 
+  const { 
+    showProgress, 
+    progress, 
+    fileName, 
+    downloadFile, 
+    cancelDownload 
+  } = useDownload();
+
   // Get file types summary
   const getFileTypesSummary = () => {
     const imageCount = images.length;
@@ -281,14 +288,16 @@ export default function MessageAttachmentsNative({
     return parts.length > 0 ? `(${parts.join(', ')})` : '';
   };
 
-   const handleDownload = async (file: RNFile) => {
-    try {
-      await downloadFile(file.uri, file.name);
-    } catch (error) {
-      console.error('Nedlasting feilet:', error);
-      Alert.alert('Feil', 'Kunne ikke laste ned filen');
-    }
-  };
+
+const handleDownload = async (file: RNFile) => {
+  const result = await downloadFile(file.uri, file.name);
+  if (result) {
+    // Success - fil er lastet ned
+    console.log('Downloaded to:', result);
+  }
+  // Cancellation og errors håndteres automatisk av hooken
+};
+
 
   const handleShare = async (file: RNFile) => {
     try {
@@ -413,6 +422,16 @@ export default function MessageAttachmentsNative({
           canShare={true}
         />
       )}
+
+      {/* Download Progress Modal */}
+    <DownloadProgressModal
+        visible={showProgress}                       
+        fileName={fileName || ''}                           
+        progress={progress?.progress || 0}                    
+        totalBytes={progress?.totalBytesExpectedToWrite}       
+        downloadedBytes={progress?.totalBytesWritten} 
+        onCancel={cancelDownload}
+      />
     </View>
   );
 }

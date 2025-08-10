@@ -1,4 +1,4 @@
-// components/common/ImageViewerNative.tsx - Simple React Native image viewer
+// components/common/ImageViewerNative.tsx - Updated with enhanced download
 import React, { useState } from "react";
 import { 
   Modal, 
@@ -53,13 +53,8 @@ export default function ImageViewerNative({
     }
   };
 
-  const handleDownload = () => {
-    if (onDownload && currentImage) {
-      onDownload(currentImage);
-    } else {
-      Alert.alert("Download", "Download functionality not implemented");
-    }
-  };
+  // The download handler is now handled by ViewerHeaderNative
+  // which will use the enhanced downloadFile function with progress
 
   const showOptions = () => {
     const options: Array<{
@@ -69,7 +64,11 @@ export default function ImageViewerNative({
     }> = [];
     
     if (onDownload) {
-      options.push({ text: "Download", onPress: handleDownload });
+      options.push({ text: "Download", onPress: () => onDownload(currentImage) });
+    }
+    
+    if (onShare) {
+      options.push({ text: "Share", onPress: () => onShare(currentImage) });
     }
     
     options.push({ text: "Close", onPress: onClose, style: "cancel" });
@@ -97,7 +96,7 @@ export default function ImageViewerNative({
           activeOpacity={1}
         />
         
-        {/* Header */}
+        {/* Header with enhanced download functionality */}
         <ViewerHeaderNative
           title={currentImage.name}
           subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
@@ -192,45 +191,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 50, // Account for status bar
-  },
-  headerLeft: {
-    flex: 1,
-    marginRight: 16,
-  },
-  fileName: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  counter: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 22,
-    marginLeft: 8,
-  },
-  headerButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   imageContainer: {
     flex: 1,
