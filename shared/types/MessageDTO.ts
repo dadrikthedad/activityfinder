@@ -5,6 +5,13 @@ export interface AttachmentDto {
   fileUrl: string;
   fileType: string;
   fileName: string;
+
+  isOptimistic?: boolean;
+  optimisticId?: string; // Temporary ID før vi får riktig ID fra backend
+  localUri?: string; // Local file URI for preview (React Native)
+  isUploading?: boolean;
+  uploadError?: string | null;
+  fileSize?: number; 
 }
 
 export interface ReactionDTO {

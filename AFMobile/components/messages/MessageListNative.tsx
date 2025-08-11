@@ -195,6 +195,7 @@ const MessageItemNative = ({
           <MessageAttachmentsNative
             attachments={message.attachments}
             isLocked={isLocked}
+            isMapped={isMapped} 
           />
         </View>
       )}

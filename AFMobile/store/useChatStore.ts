@@ -76,12 +76,27 @@ type ChatStore = {
   getActualMessageId: (messageWithOptimisticId: MessageDTO) => number | null;
   convertOptimisticToReal: (conversationId: number) => void;
   convertAllOptimisticToReal: () => void;
+
+  optimisticToServerAttachmentMap: Record<string, string>; 
+  registerOptimisticAttachmentMapping: (optimisticAttachmentId: string, serverFileUrl: string) => void;
+  updateAttachmentUploadStatus: (
+    conversationId: number, 
+    messageId: number, 
+    attachmentOptimisticId: string, 
+    status: { isUploading?: boolean; uploadError?: string }
+  ) => void;
+
+
+
+
   isPendingCollapsed: boolean;
   setIsPendingCollapsed: (value: boolean) => void;
 
   // Scroll til melding
   scrollMessageIds: Record<number, ScrollData>; // New property
   setScrollMessageId: (conversationId: number, scrollData: ScrollData) => void;
+
+
 
   // Lagring av recetn emojies
   recentEmojis: string[];
@@ -119,6 +134,7 @@ export const useChatStore = create<ChatStore>()(
       showMessages: false,
       optimisticToServerIdMap: {},
       recentEmojis: [],
+      optimisticToServerAttachmentMap: {},
 
       // --- setters ---
       setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
@@ -705,6 +721,50 @@ convertAllOptimisticToReal: () =>
     };
   }),
 
+  registerOptimisticAttachmentMapping: (optimisticAttachmentId, serverFileUrl) =>
+    set((state) => {
+      console.log(`🔗 Mapping optimistic attachment ${optimisticAttachmentId} → server ${serverFileUrl}`);
+      return {
+        optimisticToServerAttachmentMap: {
+          ...state.optimisticToServerAttachmentMap,
+          [optimisticAttachmentId]: serverFileUrl,
+        }
+      };
+    }),
+
+  updateAttachmentUploadStatus: (conversationId, messageId, attachmentOptimisticId, status) =>
+    set((state) => {
+      const updateAttachments = (messages: MessageDTO[]) => 
+        messages.map(message => {
+          if (message.id !== messageId) return message;
+          
+          return {
+            ...message,
+            attachments: message.attachments.map(attachment => {
+              if (attachment.isOptimistic && attachment.optimisticId === attachmentOptimisticId) {
+                return {
+                  ...attachment,
+                  ...status
+                };
+              }
+              return attachment;
+            })
+          };
+        });
+
+      return {
+        ...state,
+        cachedMessages: {
+          ...state.cachedMessages,
+          [conversationId]: updateAttachments(state.cachedMessages[conversationId] || [])
+        },
+        liveMessages: {
+          ...state.liveMessages,
+          [conversationId]: updateAttachments(state.liveMessages[conversationId] || [])
+        }
+      };
+    }),
+
     isPendingCollapsed: false,
     setIsPendingCollapsed: (value: boolean) => set({ isPendingCollapsed: value }),
 
@@ -776,6 +836,7 @@ convertAllOptimisticToReal: () =>
           showMessages: false,
           scrollMessageIds: {},
           recentEmojis: [],
+          optimisticToServerAttachmentMap: {},
         }),
     })),
     {
@@ -828,6 +889,19 @@ convertAllOptimisticToReal: () =>
           }
         }
 
+        const cleanedAttachmentMap: Record<string, string> = {};
+          for (const [optimisticId, serverFileUrl] of Object.entries(state.optimisticToServerAttachmentMap || {})) {
+            const parts = optimisticId.split('_');
+            if (parts.length >= 2) {
+              const timestamp = parseInt(parts[1]);
+              if (timestamp && timestamp > twoHoursAgo) {
+                cleanedAttachmentMap[optimisticId] = serverFileUrl;
+              }
+            } else {
+              cleanedAttachmentMap[optimisticId] = serverFileUrl;
+            }
+          }
+
         return {
           conversations: state.conversations,
           cachedMessages: limitedCachedMessages,
@@ -846,6 +920,7 @@ convertAllOptimisticToReal: () =>
           isPendingCollapsed: state.isPendingCollapsed,
           scrollMessageIds: state.scrollMessageIds,
           recentEmojis: state.recentEmojis,
+          optimisticToServerAttachmentMap: cleanedAttachmentMap,
         };
       },
 
@@ -860,6 +935,10 @@ convertAllOptimisticToReal: () =>
           // 🆕 Ensure optimisticToServerIdMap exists
           if (!state.optimisticToServerIdMap) {
             state.optimisticToServerIdMap = {};
+          }
+
+          if (!state.optimisticToServerAttachmentMap) {
+            state.optimisticToServerAttachmentMap = {};
           }
           
           console.log("🔄 Rehydrated optimistic mappings:", Object.keys(state.optimisticToServerIdMap).length);

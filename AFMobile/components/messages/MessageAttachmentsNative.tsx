@@ -7,6 +7,8 @@ import {
   Image,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { 
@@ -18,12 +20,15 @@ import DownloadProgressModal from '../files/DownloadProgressModal';
 import { useDownload } from '@/hooks/files/useDownload';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '@/types/navigation';
+import { useChatStore } from '@/store/useChatStore';
+
 
 
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
   isLocked?: boolean;
+  isMapped?: boolean; 
 }
 
 interface AttachmentItemNativeProps {
@@ -35,6 +40,7 @@ interface AttachmentItemNativeProps {
   isBlurred?: boolean;
   onToggleBlur?: () => void;
   galleryInfo?: string;
+  isMapped?: boolean;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -46,11 +52,22 @@ const AttachmentItemNative = ({
   isLocked = false,
   isBlurred = false,
   onToggleBlur,
-  galleryInfo
+  galleryInfo,
+  isMapped = false
 }: AttachmentItemNativeProps) => {
   const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
   const isImage = fileInfo.category === 'image';
   const isVideo = fileInfo.category === 'video';
+
+  const isOptimistic = attachment.isOptimistic;
+  const imageUri = isOptimistic ? attachment.localUri : attachment.fileUrl;
+  
+  // 🔧 Vis upload status kun hvis optimistic OG ikke mapped ennå
+  const showUploadStatus = Boolean(
+    isOptimistic && 
+    !isMapped && 
+    (attachment.isUploading || attachment.uploadError)
+  );
 
   // Image attachment
   if (isImage) {
@@ -59,107 +76,132 @@ const AttachmentItemNative = ({
         style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
         onPress={onPress}
         activeOpacity={0.8}
+        disabled={showUploadStatus} // 🔧 Kun disable under upload, ikke etter mapping
       >
         <Image
-          source={{ uri: attachment.fileUrl }}
+          source={{ uri: imageUri }}
           style={[
             styles.image,
-            isBlurred && styles.blurredImage
+            isBlurred && styles.blurredImage,
+            showUploadStatus && styles.uploadingImage
           ]}
           resizeMode="cover"
         />
         
-        {/* Blur overlay */}
-        {isBlurred && (
-          <View style={styles.blurOverlay}>
-            <Text style={styles.blurText}>👁️</Text>
-            <Text style={styles.blurSubtext}>Tap to view</Text>
+        {/* 🆕 Upload status overlay - kun vis hvis ikke mapped */}
+        {showUploadStatus && (
+          <View style={styles.uploadStatusOverlay}>
+            {attachment.isUploading && (
+              <>
+                <ActivityIndicator size="small" color="#1C6B1C" />
+                <Text style={styles.uploadStatusText}>Uploading...</Text>
+              </>
+            )}
+            {attachment.uploadError && (
+              <>
+                <Text style={styles.uploadErrorIcon}>❌</Text>
+                <Text style={styles.uploadStatusText}>Upload failed</Text>
+              </>
+            )}
           </View>
         )}
+        
+        {/* 🔧 Show normal overlays when not uploading OR when mapped */}
+        {!showUploadStatus && (
+          <>
+            {/* Blur overlay */}
+            {isBlurred && (
+              <View style={styles.blurOverlay}>
+                <Text style={styles.blurText}>👁️</Text>
+                <Text style={styles.blurSubtext}>Tap to view</Text>
+              </View>
+            )}
 
-        {/* Gallery indicator */}
-        {galleryInfo && !isBlurred && (
-          <View style={styles.galleryIndicator}>
-            <Text style={styles.galleryText}>{galleryInfo}</Text>
-          </View>
-        )}
+            {/* Gallery indicator */}
+            {galleryInfo && !isBlurred && (
+              <View style={styles.galleryIndicator}>
+                <Text style={styles.galleryText}>{galleryInfo}</Text>
+              </View>
+            )}
 
-        {/* Blur toggle button for locked conversations */}
-        {isLocked && !isBlurred && (
-          <TouchableOpacity
-            style={styles.blurToggle}
-            onPress={(e) => {
-              e.stopPropagation();
-              onToggleBlur?.();
-            }}
-          >
-            <Text style={styles.blurToggleText}>🙈</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* File name overlay */}
-        {attachment.fileName && !isBlurred && (
-          <View style={styles.fileNameOverlay}>
-            <Text style={styles.fileNameText} numberOfLines={1}>
-              {getDisplayFileName(attachment.fileName, 20)}
-            </Text>
-          </View>
+            {/* File name overlay */}
+            {attachment.fileName && !isBlurred && (
+              <View style={styles.fileNameOverlay}>
+                <Text style={styles.fileNameText} numberOfLines={1}>
+                  {getDisplayFileName(attachment.fileName, 20)}
+                </Text>
+              </View>
+            )}
+          </>
         )}
       </TouchableOpacity>
     );
   }
 
-  // Video attachment
+  // Video attachment - samme logikk
   if (isVideo) {
     return (
       <TouchableOpacity
         style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
         onPress={onPress}
         activeOpacity={0.8}
+        disabled={showUploadStatus}
       >
         <View style={styles.videoContainer}>
           {/* Video thumbnail or placeholder */}
-          <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
-            <Text style={styles.videoIcon}>🎥</Text>
-          </View>
+          {isOptimistic && attachment.localUri ? (
+            // Show local video thumbnail for optimistic attachments
+            <Image
+              source={{ uri: attachment.localUri }}
+              style={[styles.image, isBlurred && styles.blurredImage]}
+              resizeMode="cover"
+            />
+          ) : (
+            // Default video placeholder
+            <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
+              <Text style={styles.videoIcon}>🎥</Text>
+            </View>
+          )}
           
-          {/* Blur overlay for videos */}
-          {isBlurred && (
-            <View style={styles.blurOverlay}>
-              <Text style={styles.blurText}>🎬</Text>
-              <Text style={styles.blurSubtext}>Tap to view</Text>
+          {/* 🆕 Upload status overlay for videos */}
+          {showUploadStatus && (
+            <View style={styles.uploadStatusOverlay}>
+              {attachment.isUploading && (
+                <>
+                  <ActivityIndicator size="small" color="#1C6B1C" />
+                  <Text style={styles.uploadStatusText}>Uploading video...</Text>
+                </>
+              )}
+              {attachment.uploadError && (
+                <>
+                  <Text style={styles.uploadErrorIcon}>❌</Text>
+                  <Text style={styles.uploadStatusText}>Upload failed</Text>
+                </>
+              )}
             </View>
           )}
+          
+          {/* Rest of video overlays - only show if not uploading */}
+          {!showUploadStatus && (
+            <>
+              {/* Existing blur, play button, etc. overlays */}
+              {isBlurred && (
+                <View style={styles.blurOverlay}>
+                  <Text style={styles.blurText}>🎬</Text>
+                  <Text style={styles.blurSubtext}>Tap to view</Text>
+                </View>
+              )}
 
-          {/* Play button overlay */}
-          {!isBlurred && (
-            <View style={styles.playOverlay}>
-              <View style={styles.playButton}>
-                <Text style={styles.playIcon}>▶️</Text>
-              </View>
-            </View>
-          )}
+              {!isBlurred && (
+                <View style={styles.playOverlay}>
+                  <View style={styles.playButton}>
+                    <Text style={styles.playIcon}>▶️</Text>
+                  </View>
+                </View>
+              )}
 
-          {/* Blur toggle for locked conversations */}
-          {isLocked && !isBlurred && (
-            <TouchableOpacity
-              style={styles.blurToggle}
-              onPress={(e) => {
-                e.stopPropagation();
-                onToggleBlur?.();
-              }}
-            >
-              <Text style={styles.blurToggleText}>🙈</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* File name */}
-          {attachment.fileName && !isBlurred && (
-            <View style={styles.fileNameOverlay}>
-              <Text style={styles.fileNameText} numberOfLines={1}>
-                {getDisplayFileName(attachment.fileName, 20)}
-              </Text>
-            </View>
+              {/* Other existing overlays... */}
+            </>
           )}
         </View>
       </TouchableOpacity>
@@ -195,7 +237,8 @@ const AttachmentItemNative = ({
 
 export default function MessageAttachmentsNative({ 
   attachments, 
-  isLocked = false 
+  isLocked = false,
+  isMapped = false  
 }: MessageAttachmentsNativeProps) {
   const navigation = useNavigation<RootStackNavigationProp>();
   const [selectedFileIndex] = useState<number>(-1);
@@ -213,13 +256,8 @@ export default function MessageAttachmentsNative({
     return null;
   }
 
-  // Convert AttachmentDto to RNFile format
-  const convertToRNFile = (attachment: AttachmentDto): RNFile => ({
-    uri: attachment.fileUrl,
-    type: attachment.fileType,
-    name: attachment.fileName || 'unknown',
-    size: undefined, // Size not available in AttachmentDto
-  });
+  const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
+
 
   // Toggle blur for specific attachment
   const toggleBlur = (fileUrl: string) => {
@@ -248,23 +286,73 @@ export default function MessageAttachmentsNative({
 
   // Handle attachment press
   const handleAttachmentPress = (attachment: AttachmentDto, index: number) => {
+    const showUploadStatus = Boolean(
+      attachment.isOptimistic && 
+      !isMapped && 
+      (attachment.isUploading || attachment.uploadError)
+    );
+    
+    if (showUploadStatus) {
+      if (attachment.uploadError) {
+        Alert.alert(
+          'Upload Failed', 
+          'This file failed to upload. Please try sending it again.',
+          [{ text: 'OK' }]
+        );
+      }
+      return;
+    }
+    
     const isCurrentlyBlurred = isLocked && blurredAttachments.has(attachment.fileUrl);
     
     if (isCurrentlyBlurred) {
-      // If blurred, just unblur it
       toggleBlur(attachment.fileUrl);
     } else {
-      // Navigate to MediaViewerScreen
+      // 🆕 Smart URI selection med mapping lookup
+      const convertToRNFile = (att: AttachmentDto): RNFile => {
+        let finalUri: string;
+        
+        if (att.isOptimistic && att.optimisticId) {
+          // Sjekk om vi har en mappet server URL
+          const mappedServerUrl = optimisticToServerAttachmentMap[att.optimisticId];
+          
+          if (mappedServerUrl) {
+            // Bruk server URL hvis mappet
+            finalUri = mappedServerUrl;
+            console.log(`📎 Using mapped server URL for ${att.optimisticId}: ${mappedServerUrl}`);
+          } else {
+            // Fallback til local URI hvis ikke mappet ennå
+            finalUri = att.localUri || att.fileUrl;
+            console.log(`📱 Using local URI for unmapped attachment: ${finalUri}`);
+          }
+        } else {
+          // Vanlige server attachments
+          finalUri = att.fileUrl;
+        }
+        
+        return {
+          uri: finalUri,
+          type: att.fileType,
+          name: att.fileName || 'unknown',
+          size: undefined,
+        };
+      };
+      
       const allRNFiles = attachments.map(convertToRNFile);
+      
+      // Debug logging
+      console.log('🎬 Opening MediaViewer with files:', allRNFiles.map(f => ({
+        name: f.name,
+        uri: f.uri.substring(0, 50) + '...'
+      })));
       
       navigation.navigate('MediaViewer', {
         files: allRNFiles,
         initialIndex: index,
-        conversationId: undefined // eller legg til conversationId hvis tilgjengelig
+        conversationId: undefined
       });
     }
-};
-
+  };
   const { 
     showProgress, 
     progress, 
@@ -308,6 +396,7 @@ export default function MessageAttachmentsNative({
                   isBlurred={isCurrentlyBlurred}
                   onToggleBlur={() => toggleBlur(attachment.fileUrl)}
                   galleryInfo={galleryInfo}
+                  isMapped={isMapped}
                 />
               );
             })}
@@ -344,6 +433,7 @@ export default function MessageAttachmentsNative({
                   isLocked={isLocked}
                   isBlurred={isCurrentlyBlurred}
                   onToggleBlur={() => toggleBlur(attachment.fileUrl)}
+                  isMapped={isMapped}
                 />
               );
             })}
@@ -364,6 +454,7 @@ export default function MessageAttachmentsNative({
                 index={globalIndex}
                 totalCount={documents.length}
                 onPress={() => handleAttachmentPress(attachment, globalIndex)}
+                isMapped={isMapped} 
               />
             );
           })}
@@ -583,5 +674,41 @@ const styles = StyleSheet.create({
   summarySubtext: {
     fontSize: 11,
     color: '#9CA3AF',
+  },
+
+
+  uploadStatusOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadStatusText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  uploadErrorIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  uploadingImage: {
+    opacity: 0.8,
+  },
+  uploadingDocument: {
+    opacity: 0.8,
+    backgroundColor: '#F3F4F6',
+  },
+  documentUploadStatus: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    marginTop: 2,
   },
 });

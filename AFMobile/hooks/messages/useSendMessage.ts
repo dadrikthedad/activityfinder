@@ -44,12 +44,7 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const user = useCurrentUser();
-  
   const conversationId = useChatStore((state) => state.currentConversationId);
-
-  useEffect(() => {
-    setError(null);
-  }, [conversationId]);
 
   const send = async (payload: SendMessagePayload) => {
     if (!user) return;
@@ -68,6 +63,41 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
           sender: user,
         };
         
+        // Hvis det er en melding med filer, registrer mapping for vedlegg
+        if (isFilePayload(payload) && result.attachments && result.attachments.length > 0 && conversationId !== null) {
+            const store = useChatStore.getState();
+            const allMessages = [
+              ...(store.cachedMessages[conversationId] || []),
+              ...(store.liveMessages[conversationId] || [])
+            ];
+            
+            // Først finn optimistisk melding basert på matching (tekst, sender, tid)
+            const optimisticMessage = allMessages.find(msg => 
+              msg.isOptimistic && 
+              msg.text === result.text &&
+              msg.senderId === result.senderId &&
+              Math.abs(new Date(msg.sentAt).getTime() - new Date(result.sentAt).getTime()) < 10000
+            );
+
+            if (optimisticMessage?.optimisticId) {
+              // Registrer message mapping først
+              store.registerOptimisticMapping(optimisticMessage.optimisticId, result.id);
+              
+              // Så registrer attachment mappings
+              if (optimisticMessage.attachments && result.attachments.length > 0) {
+                result.attachments.forEach((serverAttachment, index) => {
+                  const optimisticAttachment = optimisticMessage.attachments[index];
+                  if (optimisticAttachment?.isOptimistic && optimisticAttachment.optimisticId) {
+                    store.registerOptimisticAttachmentMapping(
+                      optimisticAttachment.optimisticId,
+                      serverAttachment.fileUrl
+                    );
+                  }
+                });
+              }
+            }
+          }
+        
         onSuccess?.(enriched);
         return enriched;
       }
@@ -85,7 +115,6 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
 
   return { send, loading, error };
 }
-
 async function sendText(payload: SendMessageRequestDTO): Promise<MessageDTO> {
   const hasText = payload.text && payload.text.trim().length > 0;
   

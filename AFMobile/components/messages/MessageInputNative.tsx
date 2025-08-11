@@ -18,7 +18,7 @@ import { Camera, Image as ImageLucid, FileText, Plus, X } from 'lucide-react-nat
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
-import { MessageDTO } from '@shared/types/MessageDTO';
+import { MessageDTO, AttachmentDto } from '@shared/types/MessageDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { getDraftFor, saveDraftFor, clearDraftFor } from '@/utils/draft/draft';
@@ -118,6 +118,20 @@ export default function MessageInputNative({
     // Generate unique optimistic ID
     const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Create optimistic attachments
+    const optimisticAttachments: AttachmentDto[] = selectedFiles.map((file, index) => ({
+      fileUrl: '', // Tomt for optimistic
+      fileType: file.type,
+      fileName: file.name,
+      fileSize: file.size,
+      // Optimistic fields
+      isOptimistic: true,
+      optimisticId: `opt_att_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
+      localUri: file.uri, // For preview i React Native
+      isUploading: true,
+      uploadError: null,
+    }));
+
     // Create optimistic message
     const optimisticMessage: MessageDTO = {
       id: -Date.now(),
@@ -130,7 +144,7 @@ export default function MessageInputNative({
       text: trimmed || null,
       sentAt: new Date().toISOString(),
       conversationId: conversationId || -1,
-      attachments: [], // Will be populated after successful send
+      attachments: optimisticAttachments, // Vis filene umiddelbart med lokal URI
       reactions: [],
       parentMessageId: replyingTo?.id || null,
       parentMessageText: replyingTo?.text || null,
@@ -144,7 +158,7 @@ export default function MessageInputNative({
       useChatStore.getState().addMessage(optimisticMessage);
     }
 
-    // Clear input and files
+    // Clear input and files immediately (for god UX)
     setText("");
     setSelectedFiles([]);
     onClearReply?.();
@@ -167,12 +181,27 @@ export default function MessageInputNative({
       const result = await send(messageData);
       
       if (!result) {
-        // Update optimistic message with error
+        // Update optimistic message and all attachments with error
         if (conversationId) {
           useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
             ...optimisticMessage,
             isSending: false,
             sendError: "Failed to send message"
+          });
+          
+          // Update all attachments with error
+          optimisticAttachments.forEach(attachment => {
+            if (attachment.optimisticId) {
+              useChatStore.getState().updateAttachmentUploadStatus(
+                conversationId,
+                optimisticMessage.id,
+                attachment.optimisticId,
+                {
+                  isUploading: false,
+                  uploadError: "Upload failed"
+                }
+              );
+            }
           });
         }
         return;
@@ -195,9 +224,24 @@ export default function MessageInputNative({
           isSending: false,
           sendError: err.message || "Send failed"
         });
+        
+        // Update all attachments with error
+        optimisticAttachments.forEach(attachment => {
+          if (attachment.optimisticId) {
+            useChatStore.getState().updateAttachmentUploadStatus(
+              conversationId,
+              optimisticMessage.id,
+              attachment.optimisticId,
+              {
+                isUploading: false,
+                uploadError: "Upload failed"
+              }
+            );
+          }
+        });
       }
       
-      // Restore input text and files
+      // Restore input text and files for retry
       setText(trimmed);
       setSelectedFiles(selectedFiles);
     }
