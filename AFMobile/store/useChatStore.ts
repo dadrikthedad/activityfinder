@@ -639,8 +639,11 @@ export const useChatStore = create<ChatStore>()(
   set((state) => {
     const liveMessages = state.liveMessages[conversationId] || [];
     
-    // Konverter optimistiske meldinger til reelle basert på mapping
+    // Convert both messages and their attachments in one pass
     const convertedMessages = liveMessages.map(m => {
+      let convertedMessage = m;
+      
+      // 1. Convert message itself if optimistic
       if (m.isOptimistic && m.optimisticId) {
         const serverId = state.optimisticToServerIdMap[m.optimisticId];
         
@@ -651,29 +654,80 @@ export const useChatStore = create<ChatStore>()(
             newId: serverId
           });
           
-          return {
+          convertedMessage = {
             ...m,
-            id: serverId, // Bruk server ID
-            isOptimistic: false, // Ikke lenger optimistisk
+            id: serverId, // Use server ID
+            isOptimistic: false, // Not optimistic anymore
             isSending: false,
             sendError: null,
-            // Behold optimisticId for referanse
+            // Keep optimisticId for reference
           };
         } else {
           console.warn(`⚠️ No server ID found for optimistic message: ${m.optimisticId}`);
-          // Behold som optimistisk hvis ingen mapping finnes
-          return m;
+          // Keep as optimistic if no mapping found
         }
       }
       
-      return m;
+      // 2. Convert attachments if any exist
+      if (convertedMessage.attachments && convertedMessage.attachments.length > 0) {
+        const convertedAttachments = convertedMessage.attachments.map(attachment => {
+          if (attachment.isOptimistic && attachment.optimisticId) {
+            const serverFileUrl = state.optimisticToServerAttachmentMap[attachment.optimisticId];
+            
+            if (serverFileUrl) {
+              console.log(`📎 Converting optimistic attachment to real:`, {
+                optimisticId: attachment.optimisticId,
+                fileName: attachment.fileName,
+                oldUri: attachment.localUri,
+                newUrl: serverFileUrl
+              });
+              
+              return {
+                ...attachment,
+                fileUrl: serverFileUrl, // Use server URL
+                isOptimistic: false, // Not optimistic anymore
+                isUploading: false,
+                uploadError: null,
+                // Clean up optimistic-only fields
+                localUri: undefined,
+                // Keep optimisticId for reference
+              };
+            } else {
+              console.warn(`⚠️ No server URL found for optimistic attachment: ${attachment.optimisticId}`);
+              // Keep as optimistic if no mapping found
+              return attachment;
+            }
+          }
+          
+          // Non-optimistic attachments remain unchanged
+          return attachment;
+        });
+        
+        // Only update message if attachments actually changed
+        const attachmentsChanged = convertedAttachments.some((att, index) => 
+          att !== convertedMessage.attachments[index]
+        );
+        
+        if (attachmentsChanged) {
+          convertedMessage = { ...convertedMessage, attachments: convertedAttachments };
+        }
+      }
+      
+      return convertedMessage;
     });
 
-    const conversionsCount = convertedMessages.filter(m => !m.isOptimistic).length - 
-                           liveMessages.filter(m => !m.isOptimistic).length;
+    // Count conversions for logging
+    const messageConversions = convertedMessages.filter(m => !m.isOptimistic).length - 
+                              liveMessages.filter(m => !m.isOptimistic).length;
+    
+    const attachmentConversions = convertedMessages.reduce((count, msg) => {
+      const realAttachments = msg.attachments?.filter(att => !att.isOptimistic).length || 0;
+      const originalRealAttachments = liveMessages.find(lm => lm.id === msg.id)?.attachments?.filter(att => !att.isOptimistic).length || 0;
+      return count + (realAttachments - originalRealAttachments);
+    }, 0);
 
-    if (conversionsCount > 0) {
-      console.log(`✅ Converted ${conversionsCount} optimistic messages in conversation ${conversationId}`);
+    if (messageConversions > 0 || attachmentConversions > 0) {
+      console.log(`✅ Converted ${messageConversions} optimistic messages and ${attachmentConversions} optimistic attachments in conversation ${conversationId}`);
     }
 
     return {
@@ -687,17 +741,21 @@ export const useChatStore = create<ChatStore>()(
 convertAllOptimisticToReal: () =>
   set((state) => {
     const newLiveMessages: Record<number, MessageDTO[]> = {};
-    let totalConverted = 0;
+    let totalMessageConversions = 0;
+    let totalAttachmentConversions = 0;
 
-    // Konverter optimistiske meldinger i alle samtaler
+    // Convert optimistic messages and attachments in all conversations
     for (const [convId, messages] of Object.entries(state.liveMessages)) {
       const converted = messages.map(m => {
+        let convertedMessage = m;
+        
+        // Convert message
         if (m.isOptimistic && m.optimisticId) {
           const serverId = state.optimisticToServerIdMap[m.optimisticId];
           
           if (serverId) {
-            totalConverted++;
-            return {
+            totalMessageConversions++;
+            convertedMessage = {
               ...m,
               id: serverId,
               isOptimistic: false,
@@ -706,14 +764,45 @@ convertAllOptimisticToReal: () =>
             };
           }
         }
-        return m;
+        
+        // Convert attachments
+        if (convertedMessage.attachments && convertedMessage.attachments.length > 0) {
+          const convertedAttachments = convertedMessage.attachments.map(attachment => {
+            if (attachment.isOptimistic && attachment.optimisticId) {
+              const serverFileUrl = state.optimisticToServerAttachmentMap[attachment.optimisticId];
+              
+              if (serverFileUrl) {
+                totalAttachmentConversions++;
+                return {
+                  ...attachment,
+                  fileUrl: serverFileUrl,
+                  isOptimistic: false,
+                  isUploading: false,
+                  uploadError: null,
+                  localUri: undefined,
+                };
+              }
+            }
+            return attachment;
+          });
+          
+          const attachmentsChanged = convertedAttachments.some((att, index) => 
+            att !== convertedMessage.attachments[index]
+          );
+          
+          if (attachmentsChanged) {
+            convertedMessage = { ...convertedMessage, attachments: convertedAttachments };
+          }
+        }
+        
+        return convertedMessage;
       });
       
       newLiveMessages[+convId] = converted;
     }
 
-    if (totalConverted > 0) {
-      console.log(`✅ Converted ${totalConverted} optimistic messages across all conversations`);
+    if (totalMessageConversions > 0 || totalAttachmentConversions > 0) {
+      console.log(`✅ Converted ${totalMessageConversions} optimistic messages and ${totalAttachmentConversions} optimistic attachments across all conversations`);
     }
 
     return {
