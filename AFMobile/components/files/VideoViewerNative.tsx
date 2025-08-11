@@ -12,7 +12,7 @@ import {
   PanResponder,
 } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
-import { Play, Pause, RefreshCcw } from 'lucide-react-native';
+import { Play, Pause, RefreshCcw, Hourglass } from 'lucide-react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { RNFile } from '@/utils/files/FileFunctions';
 import ViewerHeaderNative from './ViewerHeaderNative';
@@ -449,7 +449,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
               onPress={togglePlayPause}
             >
               {!isVideoReady ? (
-                <Text style={styles.loadingText}>⏳</Text>
+                <Hourglass size={24} color="white" />
               ) : isPlaying ? (
                 <Pause size={24} color="white" />
               ) : isNearEnd ? (
