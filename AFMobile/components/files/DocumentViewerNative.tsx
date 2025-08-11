@@ -1,34 +1,137 @@
-// components/common/DocumentViewerNative.tsx - Oppdatert versjon
-import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+// components/common/DocumentViewerNative.tsx - Enhanced versjon
+import React, { useState, useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { RNFile, getFileIcon, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
-import { openFileWithNativeApp, getFileTypeMessage } from './FileHandlerNative';
+import { openFileWithNativeApp, getFileTypeMessage, shareRNFile } from './FileHandlerNative';
 import ViewerHeaderNative from './ViewerHeaderNative';
+import * as FileSystem from 'expo-file-system';
 
 interface DocumentViewerNativeProps {
   visible: boolean;
   file: RNFile;
   onClose: () => void;
+  onShare?: (file: RNFile) => void;
 }
+
+// Filtyper som kan vises inline
+const INLINE_VIEWABLE_TYPES = [
+  'text/plain',
+  'application/json',
+  'text/markdown',
+  'text/html',
+  'text/css',
+  'text/javascript',
+  'text/typescript',
+  'application/xml',
+  'text/xml',
+  'text/csv'
+];
+
+// File extensions som kan vises inline
+const INLINE_VIEWABLE_EXTENSIONS = [
+  '.txt', '.md', '.json', '.js', '.ts', '.jsx', '.tsx', 
+  '.css', '.html', '.xml', '.csv', '.env', '.yaml', '.yml',
+  '.log', '.sql', '.py', '.java', '.cpp', '.c', '.php',
+  '.gitignore', '.dockerfile'
+];
+
+const canViewInline = (file: RNFile): boolean => {
+  const fileInfo = getFileTypeInfo(file.type, file.name);
+  const extension = '.' + file.name.toLowerCase().split('.').pop();
+  
+  return (
+    INLINE_VIEWABLE_TYPES.includes(file.type) ||
+    INLINE_VIEWABLE_EXTENSIONS.includes(extension) ||
+    fileInfo.category === 'code' ||
+    fileInfo.category === 'config' ||
+    fileInfo.category === 'data' ||
+    (fileInfo.category === 'document' && file.type === 'text/plain')
+  );
+};
 
 export default function DocumentViewerNative({
   visible,
   file,
-  onClose
+  onClose,
+  onShare
 }: DocumentViewerNativeProps) {
+  const [fileContent, setFileContent] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
+  
   const fileInfo = getFileTypeInfo(file.type, file.name);
   const icon = getFileIcon(file.name, file.type);
   const message = getFileTypeMessage(file);
   const sizeText = file.size ? formatFileSize(file.size) : 'Ukjent størrelse';
-  
+  const canShow = canViewInline(file);
+
+  // Last inn filinnhold hvis det kan vises inline
+  useEffect(() => {
+    const loadFileContent = async () => {
+      if (!canShow || !visible) return;
+      
+      setLoading(true);
+      setError('');
+      
+      try {
+        let content = '';
+        
+        if (file.uri.startsWith('http')) {
+          // Last ned fra URL
+          const response = await fetch(file.uri);
+          content = await response.text();
+        } else {
+          // Les lokal fil
+          content = await FileSystem.readAsStringAsync(file.uri);
+        }
+        
+        setFileContent(content);
+      } catch (err) {
+        console.error('Feil ved lasting av filinnhold:', err);
+        setError('Kunne ikke laste filinnhold');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFileContent();
+  }, [file.uri, visible, canShow]);
+
   const handleOpenFile = async () => {
     try {
-      await openFileWithNativeApp(file.uri, file.name);
-      // Lukk modal etter vellykket åpning
+      // Du må implementere confirmModal hook i din app
+      const confirmModal = {
+        confirm: async (options: { title?: string; message: string }) => {
+          return new Promise<boolean>((resolve) => {
+            Alert.alert(
+              options.title || 'Bekreft',
+              options.message,
+              [
+                { text: 'Avbryt', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'OK', onPress: () => resolve(true) }
+              ]
+            );
+          });
+        }
+      };
+      
+      await openFileWithNativeApp(file.uri, file.name, confirmModal);
       onClose();
     } catch (error) {
-      // Error er allerede håndtert i openFileWithNativeApp
       console.error('Feil ved åpning av fil:', error);
+    }
+  };
+
+  const handleShare = async () => {
+    if (onShare) {
+      onShare(file);
+    } else {
+      try {
+        await shareRNFile(file);
+      } catch (error) {
+        console.error('Deling feilet:', error);
+        Alert.alert('Feil', 'Kunne ikke dele filen');
+      }
     }
   };
 
@@ -44,9 +147,33 @@ export default function DocumentViewerNative({
         return '#ea580c'; // Orange
       case 'code':
         return '#7c3aed'; // Purple
+      case 'config':
+        return '#059669'; // Emerald
+      case 'data':
+        return '#db2777'; // Pink
       default:
         return '#6b7280'; // Gray
     }
+  };
+
+  const getSyntaxHighlighting = (content: string, fileName: string): React.ReactNode => {
+    // Enkel syntax highlighting basert på filtype
+    const extension = fileName.toLowerCase().split('.').pop();
+    
+    if (extension === 'json') {
+      try {
+        const formatted = JSON.stringify(JSON.parse(content), null, 2);
+        return <Text style={styles.jsonContent}>{formatted}</Text>;
+      } catch {
+        return <Text style={styles.codeContent}>{content}</Text>;
+      }
+    }
+    
+    if (['js', 'ts', 'jsx', 'tsx', 'css', 'html', 'xml', 'py', 'java'].includes(extension || '')) {
+      return <Text style={styles.codeContent}>{content}</Text>;
+    }
+    
+    return <Text style={styles.textContent}>{content}</Text>;
   };
 
   return (
@@ -79,7 +206,9 @@ export default function DocumentViewerNative({
               <Text style={styles.fileSize}>{sizeText}</Text>
             </View>
             
-            <Text style={styles.message}>{message}</Text>
+            {!canShow && (
+              <Text style={styles.message}>{message}</Text>
+            )}
             
             {/* Category badge */}
             <View style={[styles.categoryBadge, { backgroundColor: getColorByCategory() }]}>
@@ -89,10 +218,47 @@ export default function DocumentViewerNative({
             </View>
           </View>
           
+          {/* File content hvis det kan vises inline */}
+          {canShow && (
+            <View style={styles.contentContainer}>
+              <Text style={styles.contentHeader}>Innhold:</Text>
+              
+              {loading && (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color={getColorByCategory()} />
+                  <Text style={styles.loadingText}>Laster innhold...</Text>
+                </View>
+              )}
+              
+              {error && (
+                <Text style={styles.errorText}>{error}</Text>
+              )}
+              
+              {!loading && !error && fileContent && (
+                <ScrollView style={styles.fileContentScrollView} showsVerticalScrollIndicator={true}>
+                  <View style={styles.fileContentContainer}>
+                    {getSyntaxHighlighting(fileContent, file.name)}
+                  </View>
+                </ScrollView>
+              )}
+            </View>
+          )}
+          
           {/* Actions */}
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleOpenFile}>
-              <Text style={styles.primaryButtonText}>Åpne med app</Text>
+            {canShow && (
+              <TouchableOpacity style={styles.primaryButton} onPress={handleShare}>
+                <Text style={styles.primaryButtonText}>Del fil</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={canShow ? styles.secondaryButton : styles.primaryButton} 
+              onPress={canShow ? handleOpenFile : handleOpenFile}
+            >
+              <Text style={canShow ? styles.secondaryButtonText : styles.primaryButtonText}>
+                Åpne med app
+              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
@@ -117,8 +283,9 @@ const styles = StyleSheet.create({
     margin: 20,
     borderRadius: 12,
     padding: 20,
-    maxWidth: 320,
-    width: '90%',
+    maxWidth: 380,
+    width: '95%',
+    maxHeight: '90%',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -153,7 +320,7 @@ const styles = StyleSheet.create({
   },
   fileInfo: {
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 20,
   },
   fileIcon: {
     fontSize: 48,
@@ -201,6 +368,60 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  contentContainer: {
+    marginBottom: 20,
+    flex: 1,
+  },
+  contentHeader: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginLeft: 8,
+    color: '#6b7280',
+  },
+  errorText: {
+    color: '#dc2626',
+    textAlign: 'center',
+    padding: 20,
+  },
+  fileContentScrollView: {
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+  },
+  fileContentContainer: {
+    padding: 12,
+  },
+  textContent: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#374151',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  codeContent: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#1f2937',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    backgroundColor: '#f8fafc',
+  },
+  jsonContent: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#059669',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    backgroundColor: '#f0fdf4',
+  },
   actions: {
     gap: 12,
   },
@@ -211,7 +432,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-   primaryButtonText: {
+  primaryButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',

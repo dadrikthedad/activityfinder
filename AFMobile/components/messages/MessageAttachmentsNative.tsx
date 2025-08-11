@@ -7,19 +7,18 @@ import {
   Image,
   StyleSheet,
   Dimensions,
-  Alert
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { 
   getFileTypeInfo, 
-  formatFileSize, 
   getDisplayFileName,
   RNFile 
 } from '@/utils/files/FileFunctions';
-import FileViewerNative from '../files/FileViewerNative';
-import { shareRNFile  } from '../files/FileHandlerNative';
 import DownloadProgressModal from '../files/DownloadProgressModal';
 import { useDownload } from '@/hooks/files/useDownload';
+import { useNavigation } from '@react-navigation/native';
+import { RootStackNavigationProp } from '@/types/navigation';
+
 
 
 interface MessageAttachmentsNativeProps {
@@ -43,7 +42,6 @@ const itemSize = Math.min((screenWidth - 64) / 2, 150); // Max 150px, responsive
 
 const AttachmentItemNative = ({ 
   attachment, 
-  index, 
   onPress, 
   isLocked = false,
   isBlurred = false,
@@ -199,8 +197,8 @@ export default function MessageAttachmentsNative({
   attachments, 
   isLocked = false 
 }: MessageAttachmentsNativeProps) {
-  const [selectedFileIndex, setSelectedFileIndex] = useState<number>(-1);
-  const [showViewer, setShowViewer] = useState(false);
+  const navigation = useNavigation<RootStackNavigationProp>();
+  const [selectedFileIndex] = useState<number>(-1);
   const [blurredAttachments, setBlurredAttachments] = useState<Set<string>>(
     // For locked conversations, start with all media blurred
     new Set(isLocked ? attachments
@@ -256,21 +254,21 @@ export default function MessageAttachmentsNative({
       // If blurred, just unblur it
       toggleBlur(attachment.fileUrl);
     } else {
-      // Open viewer
-      setSelectedFileIndex(index);
-      setShowViewer(true);
+      // Navigate to MediaViewerScreen
+      const allRNFiles = attachments.map(convertToRNFile);
+      
+      navigation.navigate('MediaViewer', {
+        files: allRNFiles,
+        initialIndex: index,
+        conversationId: undefined // eller legg til conversationId hvis tilgjengelig
+      });
     }
-  };
-
-  // Get current file for viewer
-  const selectedFile = selectedFileIndex >= 0 ? convertToRNFile(attachments[selectedFileIndex]) : null;
-  const allRNFiles = attachments.map(convertToRNFile);
+};
 
   const { 
     showProgress, 
     progress, 
     fileName, 
-    downloadFile, 
     cancelDownload 
   } = useDownload();
 
@@ -287,27 +285,6 @@ export default function MessageAttachmentsNative({
     
     return parts.length > 0 ? `(${parts.join(', ')})` : '';
   };
-
-
-const handleDownload = async (file: RNFile) => {
-  const result = await downloadFile(file.uri, file.name);
-  if (result) {
-    // Success - fil er lastet ned
-    console.log('Downloaded to:', result);
-  }
-  // Cancellation og errors håndteres automatisk av hooken
-};
-
-
-  const handleShare = async (file: RNFile) => {
-    try {
-      await shareRNFile(file);
-    } catch (error) {
-      console.error('Deling feilet:', error);
-      Alert.alert('Feil', 'Kunne ikke dele filen');
-    }
-  };
-
 
   return (
     <View style={styles.container}>
@@ -403,24 +380,6 @@ const handleDownload = async (file: RNFile) => {
             Tap any file to view or download
           </Text>
         </View>
-      )}
-
-      {/* File Viewer */}
-      {selectedFile && (
-        <FileViewerNative
-          visible={showViewer}
-          file={selectedFile}
-          files={allRNFiles}
-          initialIndex={selectedFileIndex}
-          onClose={() => {
-            setShowViewer(false);
-            setSelectedFileIndex(-1);
-          }}
-          onDownload={handleDownload}
-          onShare={handleShare}
-          canDownload={true}
-          canShare={true}
-        />
       )}
 
       {/* Download Progress Modal */}

@@ -1,41 +1,45 @@
-// components/common/ImageViewerNative.tsx - Med ZoomableImage
+// components/common/ImageViewerNative.tsx - Modal-agnostic
 import React, { useState, useEffect } from "react";
 import { 
   Modal, 
   View, 
   TouchableOpacity, 
   Image, 
-  Text, 
+  Text,                   
   StyleSheet,
   Dimensions,
-  Alert,
   StatusBar
 } from "react-native";
-import * as GestureHandler from 'react-native-gesture-handler'; // 👈 LEGG TIL DENNE
+import * as ScreenOrientation from 'expo-screen-orientation';
+import * as GestureHandler from 'react-native-gesture-handler';
 import { RNFile } from "@/utils/files/FileFunctions";
 import ViewerHeaderNative from "./ViewerHeaderNative";
 import Toast from 'react-native-toast-message';
 import { toastConfig } from '@/components/toast/NotificationToastNative';
-import ZoomableImage from "./ZoomableImage"; // Din ZoomableImage komponent
-import * as ScreenOrientation from 'expo-screen-orientation';
+import ZoomableImage from "./ZoomableImage";
 
-interface ImageViewerNativeProps {
-  visible: boolean;
+interface ImageViewerContentProps {
   images: RNFile[];
   initialIndex: number;
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
   onShare?: (file: RNFile) => void;
+  useModal?: boolean; // NEW: Control whether to lock orientation
 }
 
-export default function ImageViewerNative({
-  visible,
+interface ImageViewerNativeProps extends ImageViewerContentProps {
+  visible: boolean;
+}
+
+// Core content component - can be used in Modal or Screen
+const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
   images,
   initialIndex = 0,
   onClose,
   onDownload,
-  onShare
-}: ImageViewerNativeProps) {
+  onShare,
+  useModal = true // Default to Modal behavior for backwards compatibility
+}) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showControls, setShowControls] = useState(true);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -43,12 +47,36 @@ export default function ImageViewerNative({
     const { width, height } = Dimensions.get('window');
     return { width, height };
   });
-  const { GestureHandlerRootView } = GestureHandler; // 👈 DESTRUKTUR HER
+
+  const { GestureHandlerRootView } = GestureHandler;
   
   if (images.length === 0) return null;
   
   const currentImage = images[currentIndex];
   const hasMultiple = images.length > 1;
+
+  // Orientation handling - only for Modal usage
+  useEffect(() => {
+    if (useModal) {
+      // Unlock rotation when viewer opens (Modal behavior)
+      ScreenOrientation.unlockAsync();
+      
+      // Listen to orientation changes
+      const subscription = ScreenOrientation.addOrientationChangeListener(() => {
+        const { width, height } = Dimensions.get('window');
+        setDimensions({ width, height });
+      });
+
+      return () => subscription?.remove();
+    } else {
+      // For Screen usage, just listen to dimension changes
+      const subscription = Dimensions.addEventListener('change', ({ window }) => {
+        setDimensions({ width: window.width, height: window.height });
+      });
+
+      return () => subscription?.remove();
+    }
+  }, [useModal]);
 
   const goToNext = () => {
     if (hasMultiple && !isZoomed) {
@@ -62,34 +90,133 @@ export default function ImageViewerNative({
     }
   };
 
-  // Toggle controls visibility - TILLAT ALLTID
+  // Toggle controls visibility
   const handleScreenTap = () => {
-    console.log('[ImageViewer] Screen tap received, isZoomed:', isZoomed, 'showControls:', showControls);
     setShowControls(!showControls);
   };
 
   // Handle zoom state changes
   const handleZoomChange = (zoomed: boolean) => {
-    console.log('[ImageViewer] Zoom changed to:', zoomed);
     setIsZoomed(zoomed);
-    // IKKE skjul kontroller automatisk når zoomet - la brukeren bestemme
   };
 
-  useEffect(() => {
-    if (visible) {
-      // Unlock rotation når viewer åpnes
-      ScreenOrientation.unlockAsync();
-      
-      // Lytt til orientation changes
-      const subscription = ScreenOrientation.addOrientationChangeListener(() => {
-        const { width, height } = Dimensions.get('window');
-        setDimensions({ width, height });
-      });
-
-      return () => subscription?.remove();
+  // Handle close with orientation locking for Modal
+  const handleClose = async () => {
+    if (useModal) {
+      try {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      } catch (error) {
+        console.warn('Failed to lock orientation:', error);
+      }
     }
-  }, [visible]);
+    onClose();
+  };
 
+  const content = (
+    <View style={styles.container}>
+      {/* Background */}
+      <View style={styles.background} />
+
+      {/* Zoomable Image */}
+      <View style={styles.imageContainer}>
+        <ZoomableImage
+          uri={currentImage.uri}
+          width={dimensions.width}
+          height={dimensions.height}
+          minScale={1}
+          maxScale={5}
+          onSingleTap={handleScreenTap}
+          onZoomChange={handleZoomChange}
+        />
+      </View>
+
+      {/* Controls Overlay */}
+      {showControls && (
+        <>
+          {/* Header */}
+          <ViewerHeaderNative
+            title={currentImage.name}
+            subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
+            onClose={handleClose}
+            onDownload={onDownload}
+            currentFile={currentImage}
+            onShare={onShare}
+          />
+
+          {/* Navigation - kun når ikke zoomet */}
+          {hasMultiple && !isZoomed && (
+            <>
+              <TouchableOpacity
+                style={[styles.navButton, styles.navLeft]}
+                onPress={goToPrevious}
+              >
+                <Text style={styles.navText}>‹</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.navButton, styles.navRight]}
+                onPress={goToNext}
+              >
+                <Text style={styles.navText}>›</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* Thumbnails - kun når ikke zoomet */}
+          {hasMultiple && images.length <= 10 && !isZoomed && (
+            <View style={styles.thumbnailContainer}>
+              <View style={styles.thumbnailContent}>
+                {images.map((image, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.thumbnail,
+                      index === currentIndex && styles.thumbnailActive
+                    ]}
+                    onPress={() => setCurrentIndex(index)}
+                  >
+                    <Image
+                      source={{ uri: image.uri }}
+                      style={styles.thumbnailImage}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Zoom hint */}
+          {!isZoomed && (
+            <View style={styles.zoomHint}>
+              <Text style={styles.zoomHintText}>Touch to zoom</Text>
+            </View>
+          )}
+        </>
+      )}
+
+      {/* Toast - only for Modal usage */}
+      {useModal && <Toast config={toastConfig} />}
+    </View>
+  );
+
+  // Wrap in GestureHandlerRootView if using Modal
+  if (useModal) {
+    return <GestureHandlerRootView style={{ flex: 1 }}>{content}</GestureHandlerRootView>;
+  }
+
+  return content;
+};
+
+// Modal wrapper for backwards compatibility
+export default function ImageViewerNative({
+  visible,
+  images,
+  initialIndex = 0,
+  onClose,
+  onDownload,
+  onShare
+}: ImageViewerNativeProps) {
   return (
     <Modal
       visible={visible}
@@ -98,96 +225,21 @@ export default function ImageViewerNative({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      {/* 👈 WRAPPER ALT I GESTUREHANDLERROOTVIEW */}
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <StatusBar hidden />
-        <View style={styles.container}>
-          {/* Background */}
-          <View style={styles.background} />
-
-          {/* Zoomable Image */}
-          <View style={styles.imageContainer}>
-            <ZoomableImage
-              uri={currentImage.uri}
-              width={dimensions.width}
-              height={dimensions.height}
-              minScale={1}
-              maxScale={5}
-              onSingleTap={handleScreenTap}
-              onZoomChange={handleZoomChange}
-            />
-          </View>
-
-          {/* Controls Overlay */}
-          {showControls && (
-            <>
-              {/* Header */}
-              <ViewerHeaderNative
-                title={currentImage.name}
-                subtitle={hasMultiple ? `${currentIndex + 1} of ${images.length}` : undefined}
-                onClose={onClose}
-                onDownload={onDownload}
-                currentFile={currentImage}
-                onShare={onShare}
-              />
-
-              {/* Navigation - kun når ikke zoomet */}
-              {hasMultiple && !isZoomed && (
-                <>
-                  <TouchableOpacity
-                    style={[styles.navButton, styles.navLeft]}
-                    onPress={goToPrevious}
-                  >
-                    <Text style={styles.navText}>‹</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.navButton, styles.navRight]}
-                    onPress={goToNext}
-                  >
-                    <Text style={styles.navText}>›</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-
-              {/* Thumbnails - kun når ikke zoomet */}
-              {hasMultiple && images.length <= 10 && !isZoomed && (
-                <View style={styles.thumbnailContainer}>
-                  <View style={styles.thumbnailContent}>
-                    {images.map((image, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[
-                          styles.thumbnail,
-                          index === currentIndex && styles.thumbnailActive
-                        ]}
-                        onPress={() => setCurrentIndex(index)}
-                      >
-                        <Image
-                          source={{ uri: image.uri }}
-                          style={styles.thumbnailImage}
-                          resizeMode="cover"
-                        />
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Zoom hint */}
-              {!isZoomed && (
-                <View style={styles.zoomHint}>
-                  <Text style={styles.zoomHintText}>Touch to zoom</Text>
-                </View>
-              )}
-            </>
-          )}
-        </View>
-        <Toast config={toastConfig} />
-      </GestureHandlerRootView>
+      <StatusBar hidden />
+      <ImageViewerContent
+        images={images}
+        initialIndex={initialIndex}
+        onClose={onClose}
+        onDownload={onDownload}
+        onShare={onShare}
+        useModal={true}
+      />
     </Modal>
   );
 }
+
+// Export content component for use in screens
+export { ImageViewerContent };
 
 const styles = StyleSheet.create({
   container: {

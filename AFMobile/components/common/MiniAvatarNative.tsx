@@ -1,5 +1,4 @@
 // components/common/MiniAvatarNative.tsx
-// components/common/MiniAvatarNative.tsx
 import React, { useState } from "react";
 import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
 import ImageViewerNative from "../files/ImageViewerNative";
@@ -21,7 +20,7 @@ export default function MiniAvatarNative({
 }: MiniAvatarProps) {
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [hasError, setHasError] = useState(false);
-  
+ 
   // Use local default if imageUrl is empty or if there's an error
   const shouldUseDefault = !imageUrl || imageUrl === "/default-avatar.png" || hasError;
  
@@ -34,7 +33,7 @@ export default function MiniAvatarNative({
     },
     withBorder ? styles.withBorder : styles.withoutBorder,
   ];
-  
+ 
   const imageStyle = [
     styles.image,
     {
@@ -47,12 +46,12 @@ export default function MiniAvatarNative({
   const handleImageError = () => {
     setHasError(true);
   };
-  
+ 
   const imageComponent = (
     <View style={containerStyle}>
       <Image
         source={
-          shouldUseDefault 
+          shouldUseDefault
             ? require('../../assets/images/default-avatar.png')
             : { uri: imageUrl }
         }
@@ -62,7 +61,7 @@ export default function MiniAvatarNative({
       />
     </View>
   );
-  
+ 
   if (enlargeable) {
     return (
       <>
@@ -70,20 +69,25 @@ export default function MiniAvatarNative({
           {imageComponent}
         </TouchableOpacity>
        
+        {/* Bruker Modal versjon av ImageViewerNative - perfekt for avatarer */}
         <ImageViewerNative
           visible={showImageViewer}
-          images={[{ 
-            uri: shouldUseDefault ? 'default-avatar' : imageUrl, 
-            name: alt, 
-            type: 'image/jpeg' 
+          images={[{
+            uri: shouldUseDefault 
+              ? Image.resolveAssetSource(require('../../assets/images/default-avatar.png')).uri 
+              : imageUrl,
+            name: alt,
+            type: 'image/jpeg',
+            size: undefined
           }]}
           initialIndex={0}
           onClose={() => setShowImageViewer(false)}
+          // Ingen onDownload eller onShare for avatarer - bare visning
         />
       </>
     );
   }
-  
+ 
   return imageComponent;
 }
 

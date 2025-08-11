@@ -22,6 +22,7 @@ import { stopChatConnection } from './utils/signalr/chatHub';
 import SignalRClientNative from './components/signalr/SignalRClientNative';
 import { ModalProvider } from './context/ModalContext'; 
 import * as GestureHandler from 'react-native-gesture-handler';
+import MediaViewerScreen from './screens/files/MediaViewerScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -85,12 +86,21 @@ function AuthenticatedApp() {
            
             {/* Sider UTEN navbar (fullscreen) */}
             <Stack.Screen
-  name="ConversationScreen"
-  component={ConversationScreen}
-  options={{
-    cardStyleInterpolator: () => ({}), // Tom interpolator = ingen animasjon
-  }}
-/>
+              name="ConversationScreen"
+              component={ConversationScreen}
+              options={{
+                cardStyleInterpolator: () => ({}), // Tom interpolator = ingen animasjon
+              }}
+            />
+            <Stack.Screen
+              name="MediaViewer"
+              component={MediaViewerScreen}
+              options={{
+                headerShown: false,
+                presentation: 'modal',
+                // La React Navigation håndtere animasjonen
+              }}
+            />
           </>
         ) : (
           <>

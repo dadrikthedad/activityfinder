@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   image: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'black',
   },
 });
 
