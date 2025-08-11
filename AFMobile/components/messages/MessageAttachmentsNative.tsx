@@ -21,6 +21,8 @@ import { useDownload } from '@/hooks/files/useDownload';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '@/types/navigation';
 import { useChatStore } from '@/store/useChatStore';
+import { Video, ResizeMode  } from 'expo-av';
+import { Play } from 'lucide-react-native';
 
 
 
@@ -140,73 +142,97 @@ const AttachmentItemNative = ({
 
   // Video attachment - samme logikk
   if (isVideo) {
-    return (
-      <TouchableOpacity
-        style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
-        onPress={onPress}
-        activeOpacity={0.8}
-        disabled={showUploadStatus}
-      >
-        <View style={styles.videoContainer}>
-          {/* Video thumbnail or placeholder */}
-          {isOptimistic && attachment.localUri ? (
-            // Show local video thumbnail for optimistic attachments
-            <Image
-              source={{ uri: attachment.localUri }}
-              style={[styles.image, isBlurred && styles.blurredImage]}
-              resizeMode="cover"
-            />
-          ) : (
-            // Default video placeholder
-            <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
-              <Text style={styles.videoIcon}>🎥</Text>
-            </View>
-          )}
-          
-          {/* 🆕 Upload status overlay for videos */}
-          {showUploadStatus && (
-            <View style={styles.uploadStatusOverlay}>
-              {attachment.isUploading && (
-                <>
-                  <ActivityIndicator size="small" color="#1C6B1C" />
-                  <Text style={styles.uploadStatusText}>Uploading video...</Text>
-                </>
-              )}
-              {attachment.uploadError && (
-                <>
-                  <Text style={styles.uploadErrorIcon}>❌</Text>
-                  <Text style={styles.uploadStatusText}>Upload failed</Text>
-                </>
-              )}
-            </View>
-          )}
-          
-          {/* Rest of video overlays - only show if not uploading */}
-          {!showUploadStatus && (
-            <>
-              {/* Existing blur, play button, etc. overlays */}
-              {isBlurred && (
-                <View style={styles.blurOverlay}>
-                  <Text style={styles.blurText}>🎬</Text>
-                  <Text style={styles.blurSubtext}>Tap to view</Text>
-                </View>
-              )}
+  const videoUri = imageUri;
+  
+  return (
+    <TouchableOpacity
+      style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+      disabled={showUploadStatus}
+    >
+      <View style={styles.videoContainer}>
+        {/* Try to show first frame of video - only if we have a valid URI */}
+        {!showUploadStatus && videoUri ? (
+          <Video
+            source={{ uri: videoUri }}
+            style={[styles.videoPreview, isBlurred && styles.blurredVideo]}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay={false}
+            positionMillis={1000}
+            useNativeControls={false}
+            isLooping={false}
+            onError={(error) => {
+              console.warn('Video preview error:', error);
+            }}
+          />
+        ) : (
+          // Only show placeholder if no video URI or uploading
+          <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
+            <Text style={styles.videoIcon}>🎥</Text>
+            <Text style={styles.placeholderText}>Video</Text>
+          </View>
+        )}
+        
+        {/* Upload status overlay */}
+        {showUploadStatus && (
+          <View style={styles.uploadStatusOverlay}>
+            {attachment.isUploading && (
+              <>
+                <ActivityIndicator size="small" color="#1C6B1C" />
+                <Text style={styles.uploadStatusText}>Uploading video...</Text>
+              </>
+            )}
+            {attachment.uploadError && (
+              <>
+                <Text style={styles.uploadErrorIcon}>❌</Text>
+                <Text style={styles.uploadStatusText}>Upload failed</Text>
+              </>
+            )}
+          </View>
+        )}
+        
+        {/* Video overlays - only show if not uploading */}
+        {!showUploadStatus && (
+          <>
+            {/* Blur overlay */}
+            {isBlurred && (
+              <View style={styles.blurOverlay}>
+                <Text style={styles.blurText}>🎬</Text>
+                <Text style={styles.blurSubtext}>Tap to view</Text>
+              </View>
+            )}
 
-              {!isBlurred && (
-                <View style={styles.playOverlay}>
-                  <View style={styles.playButton}>
-                    <Text style={styles.playIcon}>▶️</Text>
-                  </View>
+            {/* Play button overlay - always visible for videos */}
+            {!isBlurred && (
+              <View style={styles.playOverlay}>
+                <View style={styles.playButton}>
+                  <Play size={20} color="white" fill="white" />
                 </View>
-              )}
+              </View>
+            )}
 
-              {/* Other existing overlays... */}
-            </>
-          )}
-        </View>
-      </TouchableOpacity>
-    );
-  }
+            {/* Gallery indicator for multiple videos */}
+            {galleryInfo && !isBlurred && (
+              <View style={styles.galleryIndicator}>
+                <Text style={styles.galleryText}>{galleryInfo}</Text>
+              </View>
+            )}
+
+            {/* File name overlay */}
+            {attachment.fileName && !isBlurred && (
+              <View style={styles.fileNameOverlay}>
+                <Text style={styles.fileNameText} numberOfLines={1}>
+                  {getDisplayFileName(attachment.fileName, 20)}
+                </Text>
+              </View>
+            )}
+          </>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+}
 
   // Document/other file types
   return (
@@ -503,7 +529,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#1C6B1C',
   },
   image: {
     width: '100%',
@@ -561,7 +587,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: '#1C6B1C',
     paddingHorizontal: 4,
     paddingVertical: 2,
   },
@@ -598,12 +624,20 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   playButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
+    backgroundColor: '#1C6B1C',  // Grønn bakgrunn 🟢
+    borderRadius: 25,
+    width: 50,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   playIcon: {
     fontSize: 16,
@@ -710,5 +744,20 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontStyle: 'italic',
     marginTop: 2,
+  },
+  videoPreview: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  placeholderText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontWeight: '500',
+    marginTop: 4,
   },
 });

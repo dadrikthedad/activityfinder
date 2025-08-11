@@ -278,6 +278,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
