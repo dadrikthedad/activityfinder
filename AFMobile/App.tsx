@@ -93,14 +93,18 @@ function AuthenticatedApp() {
               }}
             />
             <Stack.Screen
-              name="MediaViewer"
-              component={MediaViewerScreen}
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                // La React Navigation håndtere animasjonen
-              }}
-            />
+                name="MediaViewer"
+                component={MediaViewerScreen}
+                options={{
+                  headerShown: false, // Gir modal-følelse
+                  cardStyleInterpolator: ({ current: { progress } }) => ({
+                    cardStyle: {
+                      opacity: progress,
+                      backgroundColor: 'black'
+                    },
+                  }),
+                }}
+              />
           </>
         ) : (
           <>

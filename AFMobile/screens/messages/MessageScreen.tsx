@@ -76,7 +76,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   if (!isLoggedIn) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
         <View style={styles.loginPrompt}>
           <Text style={styles.loginTitle}>Logg inn for å se meldinger</Text>
           <Text style={styles.loginSubtitle}>
@@ -96,8 +95,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
    if (!isBootstrapped) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
-        
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Meldinger</Text>
         </View>
@@ -114,7 +111,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
       
       {/* Header */}
       <View style={styles.header}>

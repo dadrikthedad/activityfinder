@@ -1,7 +1,6 @@
 // screens/MediaViewerScreen.tsx
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Alert, SafeAreaView  } from 'react-native';
-import * as ScreenOrientation from 'expo-screen-orientation';
+import React from 'react';
+import { View, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList, MediaViewerScreenNavigationProp } from '@/types/navigation';
 import { RNFile, getFileTypeInfo } from '@/utils/files/FileFunctions';
@@ -12,6 +11,8 @@ import DocumentViewerNative from '@/components/files/DocumentViewerNative';
 import DownloadProgressModal from '@/components/files/DownloadProgressModal';
 import { StatusBar } from 'react-native';
 import { ImageViewerContent } from '@/components/files/ImageViewerNative';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 
 
 type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
@@ -19,6 +20,7 @@ type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
 export default function MediaViewerScreen() {
   const navigation = useNavigation<MediaViewerScreenNavigationProp>();
   const route = useRoute<MediaViewerScreenRouteProp>();
+  const insets = useSafeAreaInsets();
   
   const { files, initialIndex, conversationId } = route.params;
   
@@ -30,7 +32,6 @@ export default function MediaViewerScreen() {
     downloadFile, 
     cancelDownload 
   } = useDownload();
-
 
   // Handle close - navigate back
   const handleClose = async () => {
@@ -80,8 +81,9 @@ export default function MediaViewerScreen() {
     const imageIndex = imageFiles.findIndex(f => f.uri === currentFile.uri);
     
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor="black" barStyle="light-content" />
+      <View style={{ flex: 1, backgroundColor: 'black' }}>
+        <View style={{ height: insets.top, backgroundColor: 'black' }} />
+        <StatusBar backgroundColor="black" barStyle="light-content"/>
         <ImageViewerContent
           images={imageFiles}
           initialIndex={Math.max(0, imageIndex)}
@@ -90,7 +92,7 @@ export default function MediaViewerScreen() {
           onShare={handleShare}
           useModal={false} // Important: use screen mode, not modal mode
         />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -105,7 +107,8 @@ export default function MediaViewerScreen() {
     const videoIndex = videoFiles.findIndex(f => f.uri === currentFile.uri);
     
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: 'black' }}>
+        <View style={{ height: insets.top, backgroundColor: 'black' }} />
         <StatusBar backgroundColor="black" barStyle="light-content" />
         <VideoViewerContent
           videos={videoFiles}
@@ -115,13 +118,14 @@ export default function MediaViewerScreen() {
           onShare={handleShare}
           useModal={false} // Important: use screen mode, not modal mode
         />
-      </SafeAreaView>
+      </View>
     );
   }
 
   // For all other file types - use DocumentViewerNative
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: 'black' }}>
+      <View style={{ height: insets.top, backgroundColor: 'black' }} />
       <StatusBar backgroundColor="black" barStyle="light-content" />
       <DocumentViewerNative
         visible={true} // Always visible since we're in a screen
@@ -139,7 +143,7 @@ export default function MediaViewerScreen() {
         downloadedBytes={progress?.totalBytesWritten} 
         onCancel={cancelDownload}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -147,6 +151,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: 'black',
-    // Remove absolute positioning - let flex handle the layout
   },
 });

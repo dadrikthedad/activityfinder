@@ -1,4 +1,4 @@
-// components/common/VideoViewerNative.tsx - Modal-agnostic
+// components/common/VideoViewerNative.tsx - With Autoplay
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal,
@@ -25,7 +25,7 @@ interface VideoViewerContentProps {
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
   onShare?: (file: RNFile) => void;
-  useModal?: boolean; // NEW: Control whether to use Modal behavior
+  useModal?: boolean; // Control whether to use Modal behavior
 }
 
 interface VideoViewerNativeProps extends VideoViewerContentProps {
@@ -46,6 +46,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [isVideoReady, setIsVideoReady] = useState(false); // NEW: Track video ready state
   const [dimensions, setDimensions] = useState(() => {
     const { width, height } = Dimensions.get('window');
     return { width, height };
@@ -105,6 +106,23 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     }
   }, [isPlaying, showControls, dragState.isDragging, isNearEnd]);
 
+  // Autoplay effect when video is ready - ALWAYS enabled
+  useEffect(() => {
+    const startAutoplay = async () => {
+      if (isVideoReady && !isPlaying && videoRef.current && duration > 0) {
+        try {
+          await videoRef.current.playAsync();
+          console.log('Autoplay started for video:', currentVideo.name);
+        } catch (error) {
+          console.warn('Autoplay failed:', error);
+          // Autoplay failed, but don't show error to user as this is common on some platforms
+        }
+      }
+    };
+
+    startAutoplay();
+  }, [isVideoReady, currentVideo.uri]); // Trigger when video changes or becomes ready
+
   // Consolidated timeout management - simplified since useEffect handles auto-hide
   const manageControlsTimeout = (show: boolean) => {
     if (controlsTimeout.current) {
@@ -114,14 +132,23 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     setShowControls(show);
   };
 
-  // Handle video status updates - simplified
+  // Handle video status updates - MODIFIED for autoplay
   const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
+      setIsVideoReady(false); // NEW: Video not ready
       if ('error' in status) {
         console.error('Video playback error:', status.error);
         Alert.alert('Error', 'Could not load video');
       }
       return;
+    }
+
+    // NEW: Mark video as ready when it's loaded and has duration
+    const wasReady = isVideoReady;
+    const nowReady = status.durationMillis != null && status.durationMillis > 0;
+    if (!wasReady && nowReady) {
+      setIsVideoReady(true);
+      console.log('Video ready for playback:', currentVideo.name);
     }
 
     // Always update duration, even during dragging
@@ -261,7 +288,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     manageControlsTimeout(true);
   };
 
-  // Navigation functions
+  // Navigation functions - MODIFIED to reset ready state
   const navigateVideo = (direction: 'next' | 'prev') => {
     if (!hasMultiple) return;
     
@@ -273,6 +300,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     setCurrentIndex(newIndex);
     setIsPlaying(false);
     setPosition(0);
+    setIsVideoReady(false); // NEW: Reset ready state
     setDragState({
       isDragging: false,
       position: 0,
@@ -311,10 +339,11 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     onClose();
   };
 
-  // Reset state when video changes
+  // Reset state when video changes - MODIFIED to reset ready state
   useEffect(() => {
     setPosition(0);
     setIsPlaying(false);
+    setIsVideoReady(false); // NEW: Reset ready state
     setDragState({
       isDragging: false,
       position: 0,
@@ -356,7 +385,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
               onPlaybackStatusUpdate={onPlaybackStatusUpdate}
               progressUpdateIntervalMillis={100}
               positionMillis={0}
-              shouldPlay={false}
+              shouldPlay={false} // Keep false - we control play via playAsync()
               isLooping={false}
               useNativeControls={false}
             />
@@ -414,12 +443,12 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
             
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
 
-            {/* Play/Pause Button */}
+            {/* Play/Pause Button - MODIFIED to show correct state */}
             <TouchableOpacity
               style={styles.playPauseButton}
               onPress={togglePlayPause}
             >
-              {duration === 0 ? (
+              {!isVideoReady ? (
                 <Text style={styles.loadingText}>⏳</Text>
               ) : isPlaying ? (
                 <Pause size={24} color="white" />
@@ -470,7 +499,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   return content;
 };
 
-// Modal wrapper for backwards compatibility
+// Modal wrapper for backwards compatibility - MODIFIED to pass autoplay
 export default function VideoViewerNative({
   visible,
   videos,

@@ -44,7 +44,7 @@ interface AttachmentItemNativeProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const itemSize = Math.min((screenWidth - 64) / 2, 150); // Max 150px, responsive to screen
+const itemSize = Math.min((screenWidth - 32) / 1.5, 250); // Max 150px, responsive to screen
 
 const AttachmentItemNative = ({ 
   attachment, 

@@ -47,6 +47,7 @@ const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
     const { width, height } = Dimensions.get('window');
     return { width, height };
   });
+  
 
   const { GestureHandlerRootView } = GestureHandler;
   
