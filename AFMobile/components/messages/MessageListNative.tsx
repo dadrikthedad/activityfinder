@@ -25,6 +25,10 @@ import { ReactionDTO } from '@shared/types/MessageDTO';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Dimensions } from 'react-native';
 
+interface MessageListNativeRef {
+  scrollToBottom: () => void;
+}
+
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
@@ -270,7 +274,7 @@ const MessageItemNative = React.memo(({
 
 MessageItemNative.displayName = 'MessageItemNative';
 
-export default function MessageListNative({
+const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, MessageListNativeProps> = ({
   currentUser,
   onShowUserPopover,
   conversationVisible,
@@ -280,7 +284,8 @@ export default function MessageListNative({
   onRetryMessage,
   onDeleteFailedMessage,
   conversationParticipants = [],
-}: MessageListNativeProps) {
+}, ref) => {
+  // Fjern props destructuring siden vi allerede har det her
   const { 
     liveMessages, 
     scrollPositions, 
@@ -667,6 +672,20 @@ export default function MessageListNative({
     };
   }, []);
 
+  // 🆕 SCROLL TO BOTTOM FUNCTION: Expose scrollToBottom method via ref
+  React.useImperativeHandle(ref, () => ({
+    scrollToBottom: () => {
+      if (flatListRef.current) {
+        console.log('🔽 Manually scrolling to bottom');
+        flatListRef.current.scrollToOffset({
+          offset: 0,
+          animated: true,
+        });
+        currentScrollPosition.current = 0;
+      }
+    }
+  }));
+
   // 🎯 OPTIMIZATION 4: Stable keyExtractor
   const keyExtractor = useCallback((item: MessageDTO) => {
     return item.optimisticId || item.id.toString();
@@ -769,7 +788,11 @@ export default function MessageListNative({
       />
     </View>
   );
-}
+};
+
+MessageListNative.displayName = 'MessageListNative';
+
+export default React.forwardRef(MessageListNative);
 
 const styles = StyleSheet.create({
   container: {

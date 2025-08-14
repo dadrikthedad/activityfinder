@@ -14,8 +14,6 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 interface MessageToolbarNativeProps {
   atBottom?: boolean;
   onScrollToBottom?: () => void;
-  onPickFile?: () => void;
-  onPickEmoji?: () => void;
   showScrollToBottom?: boolean;
   showFile?: boolean;
   showSettings?: boolean;
@@ -25,10 +23,7 @@ interface MessageToolbarNativeProps {
 export default function MessageToolbarNative({
   atBottom,
   onScrollToBottom,
-  onPickFile,
-  onPickEmoji,
   showScrollToBottom = true,
-  showFile = true,
   showSettings = true,
   onShowUserPopover,
 }: MessageToolbarNativeProps) {
@@ -110,19 +105,6 @@ export default function MessageToolbarNative({
             <ArrowDown size={20} color="#1C6B1C" />
           </TouchableOpacity>
         )}
-      </View>
-
-      {/* Right side - File and Emoji */}
-      <View style={styles.rightSection}>
-        {showFile && onPickFile && (
-          <TouchableOpacity
-            style={styles.toolbarButton}
-            onPress={onPickFile}
-          >
-            <Paperclip size={20} color="#1C6B1C" />
-          </TouchableOpacity>
-        )}
-      
       </View>
     </View>
   );

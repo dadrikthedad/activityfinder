@@ -1,5 +1,5 @@
 // screens/ConversationScreen.tsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  FlatList,
 } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, ArrowDown, Settings } from 'lucide-react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '@/context/AuthContext';
 import { useCurrentUser } from '@/store/useUserCacheStore';
@@ -23,7 +24,12 @@ import { clearDraftFor } from '@/utils/draft/draft';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
 import MessageListNative from '@/components/messages/MessageListNative';
 import MessageInputNative from '@/components/messages/MessageInputNative';
+import { MessageSettingsModalNative } from '@/components/messages/MessageSettingsModalNative';
 import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
+
+interface MessageListRef {
+  scrollToBottom: () => void;
+}
 
 interface ConversationScreenProps {
   navigation: ConversationScreenNavigationProp;
@@ -34,7 +40,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   const { conversationId } = route.params; 
   const { isLoggedIn } = useAuth();
   const currentUser = useCurrentUser();
-  
   
   // Chat store state
   const { 
@@ -50,6 +55,10 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<MessageDTO | null>(null);
   const [atBottom, setAtBottom] = useState(true);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  
+  // Ref for scroll to bottom functionality
+  const messageListRef = useRef<MessageListRef>(null);
   
   const { send } = useSendMessage();
   
@@ -229,6 +238,22 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     }));
   }, [conversationId]);
 
+  // Scroll to bottom handler
+  const handleScrollToBottom = useCallback(() => {
+    if (messageListRef.current?.scrollToBottom) {
+      messageListRef.current.scrollToBottom();
+    }
+  }, []);
+
+  // Settings modal handlers
+  const handleOpenSettings = useCallback(() => {
+    setShowSettingsModal(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setShowSettingsModal(false);
+  }, []);
+
   // Get conversation title for header
   const getConversationTitle = () => {
     if (!currentConversation) return "Laster samtale...";
@@ -279,7 +304,8 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
-      {/* Header */}
+      
+      {/* Header with integrated toolbar */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
           {/* Back button */}
@@ -298,6 +324,27 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
             <Text style={styles.conversationSubtitle}>
               {getConversationSubtitle()}
             </Text>
+          </View>
+          
+          {/* Toolbar buttons */}
+          <View style={styles.toolbarButtons}>
+            {/* Scroll to bottom button - only show when not at bottom */}
+            {!atBottom && (
+              <TouchableOpacity
+                style={styles.toolbarButton}
+                onPress={handleScrollToBottom}
+              >
+                <ArrowDown size={20} color="white" />
+              </TouchableOpacity>
+            )}
+            
+            {/* Settings button */}
+            <TouchableOpacity
+              style={styles.toolbarButton}
+              onPress={handleOpenSettings}
+            >
+              <Settings size={20} color="white" />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -328,6 +375,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
         {/* Message list - takes remaining space */}
         <View style={styles.messageContainer}>
           <MessageListNative
+            ref={messageListRef}
             key={conversationId}
             currentUser={currentUser}
             onShowUserPopover={showUserPopover}
@@ -360,6 +408,13 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
           />
         </View>
       </KeyboardAvoidingView>
+
+      {/* Settings Modal */}
+      <MessageSettingsModalNative
+        visible={showSettingsModal}
+        onClose={handleCloseSettings}
+        onShowUserPopover={showUserPopover}
+      />
     </SafeAreaView>
   );
 }
@@ -408,6 +463,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     marginTop: 2,
+  },
+  toolbarButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  toolbarButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   warningBanner: {
     backgroundColor: '#FEF3C7',
