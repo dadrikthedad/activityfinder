@@ -339,7 +339,8 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     return { width, height };
   });
 
-  const isLandscape = dimensions.width > dimensions.height;
+  const [showNewMessageBanner, setShowNewMessageBanner] = useState(false);
+  const [newMessageCount, setNewMessageCount] = useState(0);
 
   useEffect(() => {
     if (conversationVisible) {
@@ -634,27 +635,80 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     return () => clearTimeout(timer);
   }, [conversationId, displayedMessages.length, loading, isBootstrapped]);
 
-  // Auto-scroll til nye meldinger
+  // 🆕 NEW: Smart auto-scroll and new message detection
   const lastMessageId = displayedMessages[0]?.id;
   const previousLastMessageId = useRef<number | null>(null);
+  const lastVisibleMessageIndex = useRef(0);
 
+  // Calculate how many messages user is "up" from bottom
+  const getVisibleMessageIndex = useCallback(() => {
+    if (!flatListRef.current || displayedMessages.length === 0) return 0;
+    
+    const ESTIMATED_MESSAGE_HEIGHT = 120;
+    const index = Math.max(0, 
+      Math.min(
+        Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
+        displayedMessages.length - 1
+      )
+    );
+    return index;
+  }, [displayedMessages.length]);
+
+  // Update visible message index when scrolling
+  useEffect(() => {
+    lastVisibleMessageIndex.current = getVisibleMessageIndex();
+  }, [getVisibleMessageIndex]);
+
+  // Handle new messages with smart auto-scroll
   useEffect(() => {
     if (!flatListRef.current || !conversationVisible || !isInitialized) return;
 
     const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
-    const isNearBottom = currentScrollPosition.current <= 100;
+    
+    if (hasNewMessage) {
+      const messagesFromBottom = lastVisibleMessageIndex.current;
+      const MAX_AUTO_SCROLL_DISTANCE = 4; // Auto-scroll if within 4 messages from bottom
+      
+      if (messagesFromBottom <= MAX_AUTO_SCROLL_DISTANCE) {
+        // Close enough to bottom - auto scroll
+        console.log(`🔽 Auto-scrolling to bottom (${messagesFromBottom} messages from bottom)`);
+        flatListRef.current.scrollToOffset({
+          offset: 0,
+          animated: true,
+        });
+        currentScrollPosition.current = 0;
+        setShowNewMessageBanner(false);
+        setNewMessageCount(0);
+      } else {
+        // Too far from bottom - show notification
+        console.log(`📢 Showing new message banner (${messagesFromBottom} messages from bottom)`);
+        setNewMessageCount(prev => prev + 1);
+        setShowNewMessageBanner(true);
+      }
+    }
 
-    if (hasNewMessage && isNearBottom) {
-      console.log(`🔽 Auto-scrolling to bottom for new message`);
+    previousLastMessageId.current = lastMessageId;
+  }, [lastMessageId, conversationVisible, isInitialized]);
+
+  // Handle new message banner dismiss
+  const handleDismissNewMessageBanner = useCallback(() => {
+    setShowNewMessageBanner(false);
+    setNewMessageCount(0);
+  }, []);
+
+  // Handle scroll to new messages
+  const handleScrollToNewMessages = useCallback(() => {
+    if (flatListRef.current) {
+      console.log('🔽 Scrolling to new messages');
       flatListRef.current.scrollToOffset({
         offset: 0,
         animated: true,
       });
       currentScrollPosition.current = 0;
+      setShowNewMessageBanner(false);
+      setNewMessageCount(0);
     }
-
-    previousLastMessageId.current = lastMessageId;
-  }, [lastMessageId, conversationVisible, isInitialized]);
+  }, []);
 
   useEffect(() => {
     onConversationError?.(error);
@@ -682,6 +736,9 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
           animated: true,
         });
         currentScrollPosition.current = 0;
+        // Also dismiss new message banner when manually scrolling
+        setShowNewMessageBanner(false);
+        setNewMessageCount(0);
       }
     }
   }));
@@ -719,6 +776,30 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
 
   return (
     <View style={styles.container}>
+      {/* New Message Banner */}
+      {showNewMessageBanner && (
+        <View style={styles.newMessageBanner}>
+          <TouchableOpacity 
+            style={styles.newMessageContent}
+            onPress={handleScrollToNewMessages}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.newMessageText}>
+              {newMessageCount === 1 
+                ? "There is a new message in conversation"
+                : `There are ${newMessageCount} new messages in conversation`
+              }
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.dismissButton}
+            onPress={handleDismissNewMessageBanner}
+          >
+            <Text style={styles.dismissButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FlatList
         ref={flatListRef}
         data={displayedMessages}
@@ -1055,5 +1136,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  // 🆕 NEW: New message banner styles
+  newMessageBanner: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+    backgroundColor: '#1C6B1C',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  newMessageContent: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 8,
+  },
+  newMessageText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+    textAlign: 'center',
+  },
+  dismissButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dismissButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    opacity: 0.8,
   },
 });
