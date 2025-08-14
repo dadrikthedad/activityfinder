@@ -44,7 +44,8 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   // Chat store state
   const { 
     setCurrentConversationId, 
-    conversations 
+    conversations,
+    cleanupOptimisticForConversation 
   } = useChatStore();
   
   const currentConversation = conversations.find(c => c.id === conversationId);
@@ -82,39 +83,56 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   // Set current conversation on mount and cleanup on unmount
   useEffect(() => {
     if (conversationId) {
+      console.log('🎯 ConversationScreen: Setting conversation ID:', conversationId);
       setCurrentConversationId(conversationId);
       
-      // Set pending locked conversation if it's a pending request
-      const isPending = pending.some(r => r.conversationId === conversationId);
-      if (isPending) {
-        useChatStore.getState().setPendingLockedConversationId(conversationId);
-      }
+      // 🐛 DEBUG: Sjekk lagret posisjon
+      const savedPosition = useChatStore.getState().scrollPositions[conversationId];
+      console.log('📍 ConversationScreen: Found saved position:', savedPosition);
+    }
+  
+  return () => {
+    const state = useChatStore.getState();
+    
+    if (conversationId) {
+      console.log("🧹 Cleaning up conversation:", conversationId);
+      
+      // 1. Convert optimistic to real først
+      state.convertOptimisticToReal(conversationId);
+      
+      // 2. Cache messages
+      const live = state.liveMessages[conversationId] ?? [];
+      const cached = state.cachedMessages[conversationId] ?? [];
+      const combined = [
+        ...cached,
+        ...live.filter(m => !cached.some(c => c.id === m.id))
+      ];
+      state.setCachedMessages(conversationId, combined);
+      state.clearLiveMessages(conversationId);
+      
+      // 3. ✨ NYTT: Clean optimistic mappings for denne conversation
+      state.cleanupOptimisticForConversation(conversationId);
     }
     
-    return () => {
-      // Cleanup when leaving the page
-      const state = useChatStore.getState();
-      
-      // Convert optimistic messages to real
-      if (conversationId) {
-        state.convertOptimisticToReal(conversationId);
-        
-        // Cache messages
-        const live = state.liveMessages[conversationId] ?? [];
-        const cached = state.cachedMessages[conversationId] ?? [];
-        const combined = [
-          ...cached,
-          ...live.filter(m => !cached.some(c => c.id === m.id))
-        ];
-        state.setCachedMessages(conversationId, combined);
-        state.clearLiveMessages(conversationId);
+    setCurrentConversationId(null);
+    state.setPendingLockedConversationId(null);
+  };
+}, [conversationId, setCurrentConversationId]);
+
+  useEffect(() => {
+  if (conversationId) {
+    const isPending = pending.some(r => r.conversationId === conversationId);
+    if (isPending) {
+      useChatStore.getState().setPendingLockedConversationId(conversationId);
+    } else {
+      // Clear pending lock if no longer pending
+      const currentLocked = useChatStore.getState().pendingLockedConversationId;
+      if (currentLocked === conversationId) {
+        useChatStore.getState().setPendingLockedConversationId(null);
       }
-      
-      // Reset current conversation
-      setCurrentConversationId(null);
-      state.setPendingLockedConversationId(null);
-    };
-  }, [conversationId, setCurrentConversationId, pending]);
+    }
+  }
+}, [conversationId, pending]);
 
   // Clear draft when conversation error occurs
   useEffect(() => {

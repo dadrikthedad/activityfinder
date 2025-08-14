@@ -23,13 +23,35 @@ import SignalRClientNative from './components/signalr/SignalRClientNative';
 import { ModalProvider } from './context/ModalContext'; 
 import * as GestureHandler from 'react-native-gesture-handler';
 import MediaViewerScreen from './screens/files/MediaViewerScreen';
+import { useChatStore } from './store/useChatStore'; 
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
-  // Håndter app state changes for SignalR
   useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background') {
+        // App går i bakgrunnen - clean up current conversation
+        const store = useChatStore.getState();
+        const currentConversationId = store.currentConversationId;
+        
+        if (currentConversationId) {
+          console.log('🧹 App backgrounded - cleaning conversation:', currentConversationId);
+          
+          // All-in-one cleanup for current conversation
+          store.convertOptimisticToReal(currentConversationId);
+          store.cleanupOptimisticForConversation(currentConversationId);
+        }
+        
+        // Clean old mappings globally  
+        store.cleanupOptimisticMappings();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
     return () => {
+      subscription?.remove();
       stopChatConnection().catch(err =>
         console.error('Error stopping SignalR connection on app close:', err)
       );

@@ -1,4 +1,4 @@
-// components/messages/MessageSettingsModalNative.tsx
+// components/messages/MessageSettingsModalNative.tsx - Forbedret versjon
 import React from 'react';
 import {
   View,
@@ -8,8 +8,9 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  ScrollView,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { X, Search, Trash2, Users, Image, Bell, Archive } from 'lucide-react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { useDeleteConversation } from '@/hooks/messages/useDeleteConversation';
@@ -22,6 +23,51 @@ interface MessageSettingsModalNativeProps {
   onClose: () => void;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
 }
+
+interface MenuItemProps {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+  destructive?: boolean;
+  disabled?: boolean;
+}
+
+const MenuItem: React.FC<MenuItemProps> = ({ 
+  icon, 
+  title, 
+  subtitle, 
+  onPress, 
+  destructive = false, 
+  disabled = false 
+}) => (
+  <TouchableOpacity 
+    style={[
+      styles.menuItem, 
+      destructive && styles.destructiveItem,
+      disabled && styles.disabledItem
+    ]} 
+    onPress={onPress}
+    disabled={disabled}
+    activeOpacity={0.7}
+  >
+    <View style={styles.menuItemIcon}>
+      {icon}
+    </View>
+    <View style={styles.menuItemContent}>
+      <Text style={[
+        styles.menuItemText, 
+        destructive && styles.destructiveText,
+        disabled && styles.disabledText
+      ]}>
+        {title}
+      </Text>
+      {subtitle && (
+        <Text style={styles.menuItemSubtitle}>{subtitle}</Text>
+      )}
+    </View>
+  </TouchableOpacity>
+);
 
 export function MessageSettingsModalNative({
   visible,
@@ -67,10 +113,33 @@ export function MessageSettingsModalNative({
   };
 
   const handleSearchMessages = () => {
-    // Toggle search mode in store
     const searchMode = useChatStore.getState().searchMode;
     useChatStore.getState().setSearchMode(!searchMode);
     onClose();
+  };
+
+  const handleViewMedia = () => {
+    // TODO: Implement media gallery
+    console.log('View media gallery');
+    onClose();
+  };
+
+  const handleNotificationSettings = () => {
+    // TODO: Implement notification settings
+    console.log('Notification settings');
+    onClose();
+  };
+
+  const handleArchiveConversation = () => {
+    // TODO: Implement archive functionality
+    Alert.alert(
+      "Archive Conversation",
+      "This conversation will be moved to your archived chats.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Archive", onPress: () => console.log('Archive conversation') }
+      ]
+    );
   };
 
   const handleParticipantClick = (participant: UserSummaryDTO) => {
@@ -101,68 +170,77 @@ export function MessageSettingsModalNative({
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent={false}
     >
-      <View style={styles.modalOverlay}>
-        <SafeAreaView style={styles.modalContainer}>
+      <SafeAreaView style={styles.modalOverlay}>
+        <View style={styles.modalContainer}>
           {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Conversation Settings</Text>
+            <Text style={styles.modalTitle}>
+              {isGroup ? 'Group Settings' : 'Conversation Settings'}
+            </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={24} color="white" />
             </TouchableOpacity>
           </View>
 
-          {/* Content */}
-          <View style={styles.modalContent}>
-            {/* Search Messages */}
-            <TouchableOpacity style={styles.menuItem} onPress={handleSearchMessages}>
-              <Text style={styles.menuItemText}>Search messages</Text>
-            </TouchableOpacity>
-
-            {/* Delete Conversation (only for non-groups) */}
-            {!isGroup && currentConversationId && (
-              <TouchableOpacity 
-                style={[styles.menuItem, styles.destructiveItem]} 
-                onPress={handleDeleteConversation}
-                disabled={isDeleting}
-              >
-                <Text style={styles.destructiveText}>
-                  {isDeleting ? 'Deleting...' : 'Delete conversation'}
-                </Text>
-              </TouchableOpacity>
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+            {/* Group Header */}
+            {isGroup && currentConversation && (
+              <>
+                <TouchableOpacity style={styles.groupHeader} onPress={handleGroupHeaderClick}>
+                  <MiniAvatarNative
+                    imageUrl={currentConversation.groupImageUrl ?? "/default-group.png"}
+                    size={50}
+                    alt={currentConversation.groupName || "Group"}
+                    withBorder={false}
+                  />
+                  <View style={styles.groupInfo}>
+                    <Text style={styles.groupName}>
+                      {currentConversation.groupName || "Navnløs gruppe"}
+                    </Text>
+                    <Text style={styles.groupSubtitle}>
+                      {participants.length} participants
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <View style={styles.sectionDivider} />
+              </>
             )}
+
+            {/* Main Actions */}
+            <View style={styles.section}>
+              <MenuItem
+                icon={<Search size={20} color="#1C6B1C" />}
+                title="Search messages"
+                subtitle="Find messages in this conversation"
+                onPress={handleSearchMessages}
+              />
+              
+              <MenuItem
+                icon={<Image size={20} color="#1C6B1C" />}
+                title="Media & files"
+                subtitle="Photos, videos and documents"
+                onPress={handleViewMedia}
+              />
+              
+              <MenuItem
+                icon={<Bell size={20} color="#1C6B1C" />}
+                title="Notifications"
+                subtitle="Customize notification settings"
+                onPress={handleNotificationSettings}
+              />
+            </View>
 
             {/* Group Participants */}
             {isGroup && (
               <>
                 <View style={styles.sectionDivider} />
-                
-                {/* Group Header */}
-                {currentConversation && (
-                  <TouchableOpacity style={styles.groupHeader} onPress={handleGroupHeaderClick}>
-                    <MiniAvatarNative
-                      imageUrl={currentConversation.groupImageUrl ?? "/default-group.png"}
-                      size={40}
-                      alt={currentConversation.groupName || "Group"}
-                      withBorder={false}
-                    />
-                    <View style={styles.groupInfo}>
-                      <Text style={styles.groupName}>
-                        {currentConversation.groupName || "Navnløs gruppe"}
-                      </Text>
-                      <Text style={styles.groupSubtitle}>Group settings</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-                {/* Participants Header */}
                 <View style={styles.participantsHeader}>
                   <Text style={styles.participantsTitle}>
                     Participants ({participants.length})
                   </Text>
                 </View>
-
-                {/* Participants List */}
                 <ParticipantsListNative
                   participants={participants}
                   onParticipantClick={handleParticipantClick}
@@ -170,15 +248,36 @@ export function MessageSettingsModalNative({
                 />
               </>
             )}
-          </View>
-        </SafeAreaView>
-      </View>
+
+            {/* Danger Zone */}
+            <View style={styles.sectionDivider} />
+            <View style={styles.section}>
+              <MenuItem
+                icon={<Archive size={20} color="#F59E0B" />}
+                title="Archive conversation"
+                subtitle="Hide this conversation"
+                onPress={handleArchiveConversation}
+              />
+              
+              {!isGroup && currentConversationId && (
+                <MenuItem
+                  icon={<Trash2 size={20} color="#DC2626" />}
+                  title={isDeleting ? 'Deleting...' : 'Delete conversation'}
+                  subtitle="This action cannot be undone"
+                  onPress={handleDeleteConversation}
+                  destructive={true}
+                  disabled={isDeleting}
+                />
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  // MessageSettingsModalNative styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -186,19 +285,20 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: 'white',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '80%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '85%',
+    flex: 1,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#1C6B1C',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   modalTitle: {
     fontSize: 18,
@@ -211,22 +311,44 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
   },
+  section: {
+    backgroundColor: 'white',
+  },
   menuItem: {
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingVertical: 16,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E7EB',
+  },
+  menuItemIcon: {
+    marginRight: 16,
+  },
+  menuItemContent: {
+    flex: 1,
   },
   menuItemText: {
     fontSize: 16,
+    fontWeight: '500',
     color: '#374151',
+  },
+  menuItemSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 2,
   },
   destructiveItem: {
     backgroundColor: '#FEF2F2',
   },
   destructiveText: {
-    fontSize: 16,
     color: '#DC2626',
+  },
+  disabledItem: {
+    opacity: 0.5,
+  },
+  disabledText: {
+    color: '#9CA3AF',
   },
   sectionDivider: {
     height: 8,
@@ -235,34 +357,34 @@ const styles = StyleSheet.create({
   groupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 16,
+    backgroundColor: 'white',
   },
   groupInfo: {
     flex: 1,
   },
   groupName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#374151',
   },
   groupSubtitle: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6B7280',
+    marginTop: 2,
   },
   participantsHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     backgroundColor: '#F9FAFB',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#E5E7EB',
   },
   participantsTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#374151',
   },
 });

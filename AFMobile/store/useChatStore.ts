@@ -8,6 +8,7 @@ import { useMessageNotificationStore } from "./useMessageNotificationStore";
 
 type ScrollData = {
   messageId: number;
+  messageIndex?: number;
   offset: number;
   timestamp: number;
 };
@@ -76,6 +77,8 @@ type ChatStore = {
   getActualMessageId: (messageWithOptimisticId: MessageDTO) => number | null;
   convertOptimisticToReal: (conversationId: number) => void;
   convertAllOptimisticToReal: () => void;
+  cleanupOptimisticMappings: () => void;
+  cleanupOptimisticForConversation: (conversationId: number) => void;
 
   optimisticToServerAttachmentMap: Record<string, string>; 
   registerOptimisticAttachmentMapping: (optimisticAttachmentId: string, serverFileUrl: string) => void;
@@ -854,6 +857,109 @@ convertAllOptimisticToReal: () =>
       };
     }),
 
+    cleanupOptimisticMappings: () =>
+    set((state) => {
+      const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+      let cleanedCount = 0;
+      let cleanedAttachmentCount = 0;
+
+      // Clean optimistic message mappings
+      const cleanedOptimisticMap: Record<string, number> = {};
+      for (const [optimisticId, serverId] of Object.entries(state.optimisticToServerIdMap || {})) {
+        const parts = optimisticId.split('_');
+        if (parts.length >= 2) {
+          const timestamp = parseInt(parts[1]);
+          if (timestamp && timestamp > twoHoursAgo) {
+            cleanedOptimisticMap[optimisticId] = serverId;
+          } else {
+            cleanedCount++;
+          }
+        } else {
+          cleanedOptimisticMap[optimisticId] = serverId;
+        }
+      }
+
+      // Clean optimistic attachment mappings
+      const cleanedAttachmentMap: Record<string, string> = {};
+      for (const [optimisticId, serverFileUrl] of Object.entries(state.optimisticToServerAttachmentMap || {})) {
+        const parts = optimisticId.split('_');
+        if (parts.length >= 2) {
+          const timestamp = parseInt(parts[1]);
+          if (timestamp && timestamp > twoHoursAgo) {
+            cleanedAttachmentMap[optimisticId] = serverFileUrl;
+          } else {
+            cleanedAttachmentCount++;
+          }
+        } else {
+          cleanedAttachmentMap[optimisticId] = serverFileUrl;
+        }
+      }
+
+      if (cleanedCount > 0 || cleanedAttachmentCount > 0) {
+        console.log(`🧹 Cleaned ${cleanedCount} optimistic mappings and ${cleanedAttachmentCount} attachment mappings`);
+      }
+
+      return {
+        optimisticToServerIdMap: cleanedOptimisticMap,
+        optimisticToServerAttachmentMap: cleanedAttachmentMap,
+      };
+    }),
+
+    cleanupOptimisticForConversation: (conversationId: number) =>
+  set((state) => {
+    const conversationMessages = [
+      ...(state.liveMessages[conversationId] || []),
+      ...(state.cachedMessages[conversationId] || [])
+    ];
+
+    // Find all optimistic IDs for this conversation
+    const conversationOptimisticIds = new Set(
+      conversationMessages
+        .filter(m => m.isOptimistic && m.optimisticId)
+        .map(m => m.optimisticId!)
+    );
+
+    // Find all attachment optimistic IDs for this conversation
+    const conversationAttachmentIds = new Set(
+      conversationMessages
+        .flatMap(m => m.attachments || [])
+        .filter(att => att.isOptimistic && att.optimisticId)
+        .map(att => att.optimisticId!)
+    );
+
+    // Remove mappings for this conversation's optimistic IDs
+    const cleanedOptimisticMap = { ...state.optimisticToServerIdMap };
+    const cleanedAttachmentMap = { ...state.optimisticToServerAttachmentMap };
+    
+    let removedCount = 0;
+    let removedAttachmentCount = 0;
+
+    // Remove message mappings
+    for (const optimisticId of conversationOptimisticIds) {
+      if (cleanedOptimisticMap[optimisticId]) {
+        delete cleanedOptimisticMap[optimisticId];
+        removedCount++;
+      }
+    }
+
+    // Remove attachment mappings
+    for (const optimisticId of conversationAttachmentIds) {
+      if (cleanedAttachmentMap[optimisticId]) {
+        delete cleanedAttachmentMap[optimisticId];
+        removedAttachmentCount++;
+      }
+    }
+
+    if (removedCount > 0 || removedAttachmentCount > 0) {
+      console.log(`🧹 Cleaned ${removedCount} message mappings and ${removedAttachmentCount} attachment mappings for conversation ${conversationId}`);
+    }
+
+    return {
+      optimisticToServerIdMap: cleanedOptimisticMap,
+      optimisticToServerAttachmentMap: cleanedAttachmentMap,
+    };
+  }),
+
     isPendingCollapsed: false,
     setIsPendingCollapsed: (value: boolean) => set({ isPendingCollapsed: value }),
 
@@ -959,37 +1065,8 @@ convertAllOptimisticToReal: () =>
           limitedLiveMessages[+convId] = messages.slice(-50); // Behold siste 50
         }
 
-        const cleanedOptimisticMap: Record<string, number> = {};
-        const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
-        
-        for (const [optimisticId, serverId] of Object.entries(state.optimisticToServerIdMap || {})) {
-          // Extract timestamp from optimistic ID format: "opt_timestamp_randomId"
-          const parts = optimisticId.split('_');
-          if (parts.length >= 2) {
-            const timestamp = parseInt(parts[1]);
-            if (timestamp && timestamp > twoHoursAgo) {
-              cleanedOptimisticMap[optimisticId] = serverId;
-            } else {
-              console.log(`🧹 Cleaning old optimistic mapping: ${optimisticId}`);
-            }
-          } else {
-            // Keep mappings with unknown format to be safe
-            cleanedOptimisticMap[optimisticId] = serverId;
-          }
-        }
-
-        const cleanedAttachmentMap: Record<string, string> = {};
-          for (const [optimisticId, serverFileUrl] of Object.entries(state.optimisticToServerAttachmentMap || {})) {
-            const parts = optimisticId.split('_');
-            if (parts.length >= 2) {
-              const timestamp = parseInt(parts[1]);
-              if (timestamp && timestamp > twoHoursAgo) {
-                cleanedAttachmentMap[optimisticId] = serverFileUrl;
-              }
-            } else {
-              cleanedAttachmentMap[optimisticId] = serverFileUrl;
-            }
-          }
+        const optimisticMap = state.optimisticToServerIdMap || {};
+        const attachmentMap = state.optimisticToServerAttachmentMap || {};
 
         return {
           conversations: state.conversations,
@@ -997,7 +1074,7 @@ convertAllOptimisticToReal: () =>
           liveMessages: limitedLiveMessages, // ✅ LAGRES NÅ
           scrollPositions: state.scrollPositions,
           cacheTimestamps: state.cacheTimestamps,
-          optimisticToServerIdMap: cleanedOptimisticMap,
+          optimisticToServerIdMap: optimisticMap,
           pendingMessageRequests: state.pendingMessageRequests,
           pendingRequestsCache: state.pendingRequestsCache,
           pendingRequestsCacheTimestamp: state.pendingRequestsCacheTimestamp,
@@ -1009,7 +1086,7 @@ convertAllOptimisticToReal: () =>
           isPendingCollapsed: state.isPendingCollapsed,
           scrollMessageIds: state.scrollMessageIds,
           recentEmojis: state.recentEmojis,
-          optimisticToServerAttachmentMap: cleanedAttachmentMap,
+          optimisticToServerAttachmentMap: attachmentMap,
         };
       },
 

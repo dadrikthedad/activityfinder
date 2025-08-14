@@ -24,6 +24,7 @@ import { useReactionUsersModal } from '@/components/reactions/ReactionUsersModal
 import { ReactionDTO } from '@shared/types/MessageDTO';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { Dimensions } from 'react-native';
+import { InteractionManager } from 'react-native';
 
 interface MessageListNativeRef {
   scrollToBottom: () => void;
@@ -342,6 +343,11 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   const [showNewMessageBanner, setShowNewMessageBanner] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
 
+  const scrollPositionTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const [isRestoringPosition, setIsRestoringPosition] = useState(false);
+  const [canAutoScroll, setCanAutoScroll] = useState(true);
+
   useEffect(() => {
     if (conversationVisible) {
       ScreenOrientation.unlockAsync();
@@ -466,71 +472,127 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     }
   }, [hasMore, loading, isLoadingMore, loadMore]);
 
-  // 🔧 FIX 4: Optimized scroll handler med mindre aggressiv tracking
-  const handleScroll = useCallback((event: any) => {
-    if (isRestoring.current || !isInitialized) {
-      return;
-    }
+  const saveCurrentPosition = useCallback(() => {
+    if (!isInitialized || displayedMessages.length === 0) return;
 
-    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const { contentOffset, contentSize, layoutMeasurement } = scrollInfo.current;
     const targetConversationId = stableConversationId.current;
     
-    if (!targetConversationId || targetConversationId === -1) {
-      return;
-    }
+    if (!targetConversationId || targetConversationId === -1) return;
     
-    currentScrollPosition.current = contentOffset.y;
+    const scrollOffset = contentOffset.y;
     
-    const isAtBottom = contentOffset.y <= 50;
-    onScrollPositionChange?.(isAtBottom);
-
-    // 🔧 FIX 5: Mer konservativ infinite scroll triggering
-    const distanceFromTop = contentSize.height - layoutMeasurement.height - contentOffset.y;
+    // Estimat for hvilken melding som er synlig
+    const ESTIMATED_MESSAGE_HEIGHT = 120;
+    const estimatedMessageIndex = Math.max(0, 
+      Math.min(
+        Math.floor(scrollOffset / ESTIMATED_MESSAGE_HEIGHT),
+        displayedMessages.length - 1
+      )
+    );
     
-    if (distanceFromTop <= LOAD_MORE_THRESHOLD && hasMore && !loading && !isLoadingMore) {
-      console.log(`📈 Near top (${distanceFromTop}px remaining), considering load more...`);
+    const currentMessage = displayedMessages[estimatedMessageIndex];
+    
+    // Lagre til BÅDE scrollPositions og scrollMessageIds
+    setScrollPosition(targetConversationId, scrollOffset);
+    
+    if (currentMessage) {
+      // 🔧 FIX: Lagre BÅDE messageId og messageIndex for better fallback
+      const scrollData = {
+        messageId: currentMessage.id,
+        messageIndex: estimatedMessageIndex, // 🆕 Legg til messageIndex
+        offset: scrollOffset,
+        timestamp: Date.now()
+      };
+      setScrollMessageId(targetConversationId, scrollData);
       
-      // Clear any existing throttle timer
-      if (loadMoreThrottleRef.current) {
-        clearTimeout(loadMoreThrottleRef.current);
-      }
-      
-      // More conservative throttling
-      loadMoreThrottleRef.current = setTimeout(() => {
-        handleLoadMoreSmooth();
-      }, 300);
+      console.log('💾 Saved position:', {
+        conversationId: targetConversationId,
+        messageIndex: estimatedMessageIndex,
+        messageId: currentMessage.id,
+        messagePreview: currentMessage.text?.substring(0, 50) + '...',
+        scrollOffset: Math.round(scrollOffset),
+        messagesFromBottom: estimatedMessageIndex,
+        messagesFromTop: displayedMessages.length - 1 - estimatedMessageIndex,
+        sender: currentMessage.sender?.fullName || 'You'
+      });
     }
+  }, [isInitialized, displayedMessages, setScrollPosition, setScrollMessageId]);
 
-    // 🔧 FIX 6: Mindre aggressiv scroll position saving
-    if (scrollUpdateTimer.current) {
-      clearTimeout(scrollUpdateTimer.current);
+  // Calculate how many messages user is "up" from bottom
+  const getVisibleMessageIndex = useCallback(() => {
+    if (!flatListRef.current || displayedMessages.length === 0 || isRestoringPosition) return 0;
+    
+    const ESTIMATED_MESSAGE_HEIGHT = 120;
+    const index = Math.max(0, 
+      Math.min(
+        Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
+        displayedMessages.length - 1
+      )
+    );
+    return index;
+  }, [displayedMessages.length, isRestoringPosition]);
+
+  // 🔧 FIX 4: Optimized scroll handler med mindre aggressiv tracking
+  const handleScroll = useCallback((event: any) => {
+  if (isRestoring.current || !isInitialized) {
+    return;
+  }
+
+  const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+  const targetConversationId = stableConversationId.current;
+  
+  if (!targetConversationId || targetConversationId === -1) {
+    return;
+  }
+  
+  // 🔍 DEBUG: Log scroll changes during restoration period
+  if (isRestoringPosition || !canAutoScroll) {
+    const ESTIMATED_MESSAGE_HEIGHT = 120;
+    const currentIndex = Math.floor(contentOffset.y / ESTIMATED_MESSAGE_HEIGHT);
+    console.log(`🔍 SCROLL DURING RESTORATION: offset=${Math.round(contentOffset.y)}, estimatedIndex=${currentIndex}, isRestoring=${isRestoringPosition}, canAutoScroll=${canAutoScroll}`);
+  }
+  
+  // Lagre scroll info for senere bruk
+  scrollInfo.current = { contentOffset, contentSize, layoutMeasurement };
+  
+  currentScrollPosition.current = contentOffset.y;
+  
+  const isAtBottom = contentOffset.y <= 50;
+  onScrollPositionChange?.(isAtBottom);
+
+  getVisibleMessageIndex();
+
+  if (isRestoringPosition) {
+    console.log('🚫 Skipping infinite scroll check during position restoration');
+    return;
+  }
+
+  // Infinite scroll logic (samme som før)
+  const distanceFromTop = contentSize.height - layoutMeasurement.height - contentOffset.y;
+  
+  if (distanceFromTop <= LOAD_MORE_THRESHOLD && hasMore && !loading && !isLoadingMore) {
+    console.log(`📈 Near top (${distanceFromTop}px remaining), considering load more...`);
+    
+    if (loadMoreThrottleRef.current) {
+      clearTimeout(loadMoreThrottleRef.current);
     }
     
-    scrollUpdateTimer.current = setTimeout(() => {
-      if (displayedMessages.length > 0) {
-        const ESTIMATED_MESSAGE_HEIGHT = 120; // Økt fra 100 til 120
-        const visibleMessageIndex = Math.max(0, 
-          Math.min(
-            Math.floor(contentOffset.y / ESTIMATED_MESSAGE_HEIGHT),
-            displayedMessages.length - 1
-          )
-        );
-        
-        const visibleMessage = displayedMessages[visibleMessageIndex];
+    loadMoreThrottleRef.current = setTimeout(() => {
+      handleLoadMoreSmooth();
+    }, 300);
+  }
 
-        if (visibleMessage) {
-          const scrollData = {
-            messageId: visibleMessage.id,
-            offset: contentOffset.y,
-            timestamp: Date.now()
-          };
-          
-          setScrollMessageId(targetConversationId, scrollData);
-        }
-      }
-    }, 1000); // Økt fra 500ms til 1000ms
+  // 🆕 NYTT: Debounced position saving
+  if (scrollPositionTimer.current) {
+    clearTimeout(scrollPositionTimer.current);
+  }
+  
+  scrollPositionTimer.current = setTimeout(() => {
+    saveCurrentPosition();
+  }, 1000); // Lagrer posisjon 1 sekund etter at scrolling stopper
 
-  }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth]);
+}, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, saveCurrentPosition, getVisibleMessageIndex, isRestoringPosition, canAutoScroll]);
 
   const stableConversationId = useRef(conversationId);
 
@@ -572,87 +634,160 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
       isRestoring.current = false;
       currentScrollPosition.current = 0;
       setIsLoadingMore(false);
+      setIsRestoringPosition(false);
+      setCanAutoScroll(true); // 🔧 FIX: Reset auto-scroll permission
+      lastVisibleMessageIndex.current = 0
+      previousLastMessageId.current = null;
+      console.log(`🔄 Reset previousLastMessageId for conversation ${conversationId}`);
     }
   }, [conversationId]);
 
+  const scrollInfo = useRef({
+    contentOffset: { y: 0 },
+    contentSize: { height: 0 },
+    layoutMeasurement: { height: 0 }
+  });
+  
+ 
+
   // 🔧 FIX 8: Forenklet scroll restoration
   useEffect(() => {
-    if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
-      return;
-    }
+  if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
+    return;
+  }
 
-    if (isInitialized || isRestoring.current) {
-      return;
-    }
+  if (isInitialized || isRestoring.current) {
+    return;
+  }
 
-    isRestoring.current = true;
+  isRestoring.current = true;
+  setIsRestoringPosition(true);
+  setCanAutoScroll(false);
 
-    const restorePosition = () => {
-      if (flatListRef.current && !isInitialized && displayedMessages.length > 0) {
-        try {
-          const scrollData = useChatStore.getState().scrollMessageIds[conversationId];
-          
-          if (scrollData?.messageId) {
-            const messageIndex = displayedMessages.findIndex(msg => msg.id === scrollData.messageId);
-            
-            if (messageIndex >= 0 && messageIndex < 10) { // Kun restore hvis nær toppen
-              flatListRef.current.scrollToIndex({
-                index: messageIndex,
-                animated: false,
-                viewPosition: 0.1,
-              });
-              currentScrollPosition.current = scrollData.offset;
-            } else {
-              // Fallback til simpel offset
-              const savedPosition = Math.min(scrollData.offset, 1000); // Max 1000px scroll
-              flatListRef.current.scrollToOffset({
-                offset: savedPosition,
-                animated: false,
-              });
-              currentScrollPosition.current = savedPosition;
-            }
-          } else {
-            // Ingen saved position - start på bunnen
-            flatListRef.current.scrollToOffset({
-              offset: 0,
-              animated: false,
-            });
-            currentScrollPosition.current = 0;
-          }
-          
-          setIsInitialized(true);
-          isRestoring.current = false;
-          
-        } catch (error) {
-          console.warn('❌ Failed to restore scroll position:', error);
-          setIsInitialized(true);
-          isRestoring.current = false;
-        }
+  const restorePosition = () => {
+  if (flatListRef.current && !isInitialized && displayedMessages.length > 0) {
+    try {
+      // Initialize previousLastMessageId to prevent false new message detection
+      const currentLastMessageId = displayedMessages[0]?.id;
+      if (currentLastMessageId) {
+        previousLastMessageId.current = currentLastMessageId;
+        console.log(`🔧 Initialized previousLastMessageId to ${currentLastMessageId} during restoration`);
       }
-    };
 
-    const timer = setTimeout(restorePosition, 100);
-    return () => clearTimeout(timer);
-  }, [conversationId, displayedMessages.length, loading, isBootstrapped]);
+      const scrollData = useChatStore.getState().scrollMessageIds[conversationId];
+      
+      if (scrollData?.messageId) {
+        const messageIndex = displayedMessages.findIndex(msg => msg.id === scrollData.messageId);
+        
+        if (messageIndex >= 0) {
+          console.log(`🎯 Found message ID ${scrollData.messageId} at index ${messageIndex}`);
+          
+          const targetOffset = scrollData.offset;
+          console.log(`📍 Attempting to scroll to ORIGINAL offset: ${targetOffset}px (was at index ${messageIndex})`);
+          
+          // 🔧 FIX: Force scroll multiple times with increasing delays
+          const forceScroll = (attempt: number = 1) => {
+            if (flatListRef.current && attempt <= 5) {
+              console.log(`🔄 Scroll attempt ${attempt}: targeting ${targetOffset}px`);
+              
+              flatListRef.current.scrollToOffset({
+                offset: targetOffset,
+                animated: false,
+              });
+              
+              // Check if it worked after a short delay
+              setTimeout(() => {
+                const currentPos = currentScrollPosition.current;
+                const difference = Math.abs(currentPos - targetOffset);
+                
+                console.log(`📏 Attempt ${attempt} result: current=${Math.round(currentPos)}px, target=${Math.round(targetOffset)}px, diff=${Math.round(difference)}px`);
+                
+                // If we're not close enough (within 200px), try again
+                if (difference > 200 && attempt < 5) {
+                  forceScroll(attempt + 1);
+                } else {
+                  console.log(`✅ Scroll restoration ${difference <= 200 ? 'succeeded' : 'gave up'} after ${attempt} attempts`);
+                  currentScrollPosition.current = targetOffset; // Force update
+                }
+              }, attempt * 100); // Increasing delays: 100ms, 200ms, 300ms, etc.
+            }
+          };
+          
+          // Start the force scroll sequence
+          forceScroll(1);
+          
+          setTimeout(() => {
+            console.log(`🔍 Position check 500ms after restoration: currentScrollPosition=${currentScrollPosition.current}`);
+          }, 600);
+          
+          setTimeout(() => {
+            console.log(`🔍 Position check 1500ms after restoration: currentScrollPosition=${currentScrollPosition.current}`);
+          }, 1500);
+          
+        } else if (scrollData.messageIndex !== undefined) {
+          console.log(`🎯 Using messageIndex fallback: ${scrollData.messageIndex}`);
+          
+          const targetOffset = scrollData.offset;
+          console.log(`📍 Scrolling to original offset from messageIndex: ${targetOffset}px`);
+          flatListRef.current.scrollToOffset({
+            offset: targetOffset,
+            animated: false,
+          });
+          currentScrollPosition.current = targetOffset;
+        } else {
+          console.log(`📍 Using saved offset: ${scrollData.offset}px`);
+          flatListRef.current.scrollToOffset({
+            offset: scrollData.offset,
+            animated: false,
+          });
+          currentScrollPosition.current = scrollData.offset;
+        }
+      } else {
+        // Fallback til scrollPositions
+        const savedPosition = scrollPositions[conversationId] || 0;
+        console.log(`📍 Using scrollPositions fallback: ${savedPosition}px`);
+        
+        flatListRef.current.scrollToOffset({
+          offset: savedPosition,
+          animated: false,
+        });
+        currentScrollPosition.current = savedPosition;
+      }
+      
+      setIsInitialized(true);
+      isRestoring.current = false;
+      
+      setTimeout(() => {
+        setIsRestoringPosition(false);
+        console.log('✅ Position restoration completed, infinite scroll re-enabled');
+      }, 1000);
+
+      setTimeout(() => {
+        setCanAutoScroll(true);
+        console.log('✅ Auto-scroll re-enabled');
+      }, 2000);
+      
+    } catch (error) {
+      console.warn('❌ Failed to restore scroll position:', error);
+      setIsInitialized(true);
+      isRestoring.current = false;
+      setIsRestoringPosition(false);
+      setCanAutoScroll(true);
+    }
+  }
+};
+
+  // 🔧 FIX: Gi FlatList litt mer tid til å render items
+  const timer = setTimeout(restorePosition, 200); // Økt fra 100ms til 200ms
+  return () => clearTimeout(timer);
+}, [conversationId, displayedMessages.length, loading, scrollPositions, isBootstrapped]);
 
   // 🆕 NEW: Smart auto-scroll and new message detection
   const lastMessageId = displayedMessages[0]?.id;
   const previousLastMessageId = useRef<number | null>(null);
   const lastVisibleMessageIndex = useRef(0);
 
-  // Calculate how many messages user is "up" from bottom
-  const getVisibleMessageIndex = useCallback(() => {
-    if (!flatListRef.current || displayedMessages.length === 0) return 0;
-    
-    const ESTIMATED_MESSAGE_HEIGHT = 120;
-    const index = Math.max(0, 
-      Math.min(
-        Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
-        displayedMessages.length - 1
-      )
-    );
-    return index;
-  }, [displayedMessages.length]);
+  
 
   // Update visible message index when scrolling
   useEffect(() => {
@@ -661,7 +796,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
 
   // Handle new messages with smart auto-scroll
   useEffect(() => {
-    if (!flatListRef.current || !conversationVisible || !isInitialized) return;
+    if (!flatListRef.current || !conversationVisible || !isInitialized || isRestoringPosition || !canAutoScroll) return;
 
     const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
     
@@ -688,7 +823,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     }
 
     previousLastMessageId.current = lastMessageId;
-  }, [lastMessageId, conversationVisible, isInitialized]);
+  }, [lastMessageId, conversationVisible, isInitialized, isRestoringPosition, canAutoScroll]);
 
   // Handle new message banner dismiss
   const handleDismissNewMessageBanner = useCallback(() => {
@@ -723,6 +858,9 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
       if (loadMoreThrottleRef.current) {
         clearTimeout(loadMoreThrottleRef.current);
       }
+      if (scrollPositionTimer.current) {
+        clearTimeout(scrollPositionTimer.current);
+    }
     };
   }, []);
 
