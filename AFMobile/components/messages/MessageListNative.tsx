@@ -1,4 +1,4 @@
-// components/messages/MessageListNative.tsx
+// components/messages/MessageListNative.tsx - Optimalisert versjon
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
@@ -49,7 +49,8 @@ interface MessageItemProps {
   onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
 }
 
-const MessageItemNative = ({
+// 🎯 OPTIMIZATION 1: Memoized MessageItem for better performance
+const MessageItemNative = React.memo(({
   message,
   currentUser,
   isLocked,
@@ -83,11 +84,11 @@ const MessageItemNative = ({
     );
   }
 
-  const handleAvatarPress = () => {
+  const handleAvatarPress = useCallback(() => {
     if (message.sender && !isMine && onShowUserPopover) {
       onShowUserPopover(message.sender, { x: 0, y: 0 });
     }
-  };
+  }, [message.sender, isMine, onShowUserPopover]);
 
   const existingReactions = message.reactions || [];
 
@@ -117,11 +118,11 @@ const MessageItemNative = ({
     return Array.from(reactionMap.values());
   }, [existingReactions]);
 
-  const handleReactionPress = (emoji: string) => {
+  const handleReactionPress = useCallback((emoji: string) => {
     if (message?.reactions) {
       onShowReactionUsers?.(emoji, message.reactions);
     }
-  };
+  }, [message?.reactions, onShowReactionUsers]);
 
   const messageContent = (
     <View
@@ -265,7 +266,7 @@ const MessageItemNative = ({
       {messageContent}
     </ReactionHandlerNative>
   );
-};
+});
 
 MessageItemNative.displayName = 'MessageItemNative';
 
@@ -291,24 +292,23 @@ export default function MessageListNative({
   const conversationId = rawConversationId ?? -1;
 
   const flatListRef = useRef<FlatList>(null);
-  const topRef = useRef<View>(null);
-  const bottomRef = useRef<View>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const isRestoring = useRef(false);
   
-  // 🔧 FIX: Track current scroll position more reliably
+  // 🔧 FIX 1: Mindre aggressiv scroll tracking
   const currentScrollPosition = useRef(0);
   const scrollUpdateTimer = useRef<NodeJS.Timeout | null>(null);
   
-  // 🆕 NEW: Smooth infinite scroll state
+  // 🔧 FIX 2: Mer konservativ infinite scroll
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadMoreThrottleRef = useRef<NodeJS.Timeout | null>(null);
   const lastLoadMoreTime = useRef(0);
+  const LOAD_MORE_THROTTLE_MS = 2000; // Økt fra 1000ms til 2000ms
+  const LOAD_MORE_THRESHOLD = 400; // Økt fra 200px til 400px
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
 
   const { showReactionUsers } = useReactionUsersModal();
-
   const { confirm } = useConfirmModalNative();
 
   const {
@@ -337,7 +337,6 @@ export default function MessageListNative({
   const isLandscape = dimensions.width > dimensions.height;
 
   useEffect(() => {
-    // Unlock rotation når MessageList er synlig
     if (conversationVisible) {
       ScreenOrientation.unlockAsync();
       
@@ -348,7 +347,6 @@ export default function MessageListNative({
 
       return () => subscription?.remove();
     } else {
-      // Lock tilbake til portrait når ikke synlig
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
     }
   }, [conversationVisible]);
@@ -357,16 +355,21 @@ export default function MessageListNative({
     return liveMessages[conversationId] || [];
   }, [liveMessages, conversationId]);
 
+  // 🎯 OPTIMIZATION 2: Mer stabil message sorting og deduplication
   const displayedMessages = useMemo(() => {
-    const all = [...messages, ...live];
-    const seen = new Set();
+    const messageMap = new Map();
+    
+    // Add cached messages first
+    messages.forEach(msg => {
+      messageMap.set(msg.id, msg);
+    });
+    
+    // Add live messages, overriding cached ones if same ID
+    live.forEach(msg => {
+      messageMap.set(msg.id, msg);
+    });
 
-    return all
-      .filter((msg) => {
-        if (seen.has(msg.id)) return false;
-        seen.add(msg.id);
-        return true;
-      })
+    return Array.from(messageMap.values())
       .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
   }, [messages, live]);
 
@@ -379,7 +382,7 @@ export default function MessageListNative({
     currentConversation?.isPendingApproval === true ||
     conversationId === pendingLockedConversationId;
 
-  const handleDeleteMessage = async (message: MessageDTO) => {
+  const handleDeleteMessage = useCallback(async (message: MessageDTO) => {
     const { getActualMessageId } = useChatStore.getState();
     const actualMessageId = getActualMessageId(message);
     
@@ -389,7 +392,6 @@ export default function MessageListNative({
         : message.text
       : "this message";
 
-    // Bruk din tilpassede modal i stedet for Alert
     const confirmed = await confirm({
       title: "Delete message",
       message: `Are you certain you want to delete "${messagePreview}"?\n\nThis action cannot be undone.`
@@ -397,26 +399,22 @@ export default function MessageListNative({
 
     if (confirmed) {
       try {
-        // Sjekk om actualMessageId er null
         if (actualMessageId !== null) {
           await deleteMessage({ 
             ...message, 
             id: actualMessageId 
           });
         } else {
-          // For optimistiske meldinger uten server ID, bruk original melding
           await deleteMessage(message);
         }
       } catch (error) {
         console.error('Failed to delete message:', error);
-        // Du kan eventuelt vise en error-modal her også
       }
     }
-  };
+  }, [deleteMessage, confirm]);
 
-  
-
-  const renderMessage = ({ item }: { item: MessageDTO }) => (
+  // 🎯 OPTIMIZATION 3: Stabilized renderMessage with useCallback
+  const renderMessage = useCallback(({ item }: { item: MessageDTO }) => (
     <MessageItemNative
       message={item}
       currentUser={currentUser}
@@ -427,41 +425,42 @@ export default function MessageListNative({
       onDeleteFailed={onDeleteFailedMessage}
       onShowUserPopover={onShowUserPopover}
       onShowReactionUsers={(emoji, reactions) => 
-      showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants) // 🆕 SEND participants
-    }
+        showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants)
+      }
     />
-  );
+  ), [currentUser, isLocked, onReply, handleDeleteMessage, onRetryMessage, onDeleteFailedMessage, onShowUserPopover, showReactionUsers, conversationParticipants]);
 
-  // 🆕 NEW: Smooth infinite scroll handler
+  // 🔧 FIX 3: Mer konservativ infinite scroll med bedre throttling
   const handleLoadMoreSmooth = useCallback(async () => {
-    // Throttle requests to avoid spam
     const now = Date.now();
-    if (now - lastLoadMoreTime.current < 1000) { // Min 1 second between requests
+    if (now - lastLoadMoreTime.current < LOAD_MORE_THROTTLE_MS) {
+      console.log(`⏳ Load more throttled (${now - lastLoadMoreTime.current}ms since last)`);
       return;
     }
 
     if (!hasMore || loading || isLoadingMore) {
+      console.log(`🚫 Load more skipped: hasMore=${hasMore}, loading=${loading}, isLoadingMore=${isLoadingMore}`);
       return;
     }
 
-    console.log('🔄 Starting smooth load more...');
+    console.log('🔄 Starting conservative load more...');
     setIsLoadingMore(true);
     lastLoadMoreTime.current = now;
 
     try {
       await loadMore();
-      console.log('✅ Smooth load more completed');
+      console.log('✅ Conservative load more completed');
     } catch (error) {
-      console.error('❌ Smooth load more failed:', error);
+      console.error('❌ Conservative load more failed:', error);
     } finally {
-      // Add a small delay to prevent UI flickering
+      // Longer delay to prevent UI conflicts
       setTimeout(() => {
         setIsLoadingMore(false);
-      }, 300);
+      }, 500);
     }
   }, [hasMore, loading, isLoadingMore, loadMore]);
 
-  // 🆕 NEW: Enhanced scroll handler with smooth infinite scroll
+  // 🔧 FIX 4: Optimized scroll handler med mindre aggressiv tracking
   const handleScroll = useCallback((event: any) => {
     if (isRestoring.current || !isInitialized) {
       return;
@@ -474,69 +473,68 @@ export default function MessageListNative({
       return;
     }
     
-    // Update current position immediately
     currentScrollPosition.current = contentOffset.y;
     
     const isAtBottom = contentOffset.y <= 50;
     onScrollPositionChange?.(isAtBottom);
 
-    // 🆕 NEW: Check if we're near the top (which is bottom in inverted list) to load more
+    // 🔧 FIX 5: Mer konservativ infinite scroll triggering
     const distanceFromTop = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    const loadMoreThreshold = 200; // Trigger when 200px from top
     
-    if (distanceFromTop <= loadMoreThreshold && hasMore && !loading && !isLoadingMore) {
-      console.log(`📈 Near top (${distanceFromTop}px remaining), triggering smooth load more`);
+    if (distanceFromTop <= LOAD_MORE_THRESHOLD && hasMore && !loading && !isLoadingMore) {
+      console.log(`📈 Near top (${distanceFromTop}px remaining), considering load more...`);
       
-      // Throttle the load more requests
+      // Clear any existing throttle timer
       if (loadMoreThrottleRef.current) {
         clearTimeout(loadMoreThrottleRef.current);
       }
       
+      // More conservative throttling
       loadMoreThrottleRef.current = setTimeout(() => {
         handleLoadMoreSmooth();
-      }, 100); // Small delay to avoid multiple rapid calls
+      }, 300);
     }
 
-    // Save scroll position (debounced)
+    // 🔧 FIX 6: Mindre aggressiv scroll position saving
     if (scrollUpdateTimer.current) {
       clearTimeout(scrollUpdateTimer.current);
     }
     
     scrollUpdateTimer.current = setTimeout(() => {
-      const ESTIMATED_MESSAGE_HEIGHT = 100;
-      const visibleMessageIndex = Math.max(0, 
-        Math.min(
-          Math.floor(contentOffset.y / ESTIMATED_MESSAGE_HEIGHT),
-          displayedMessages.length - 1
-        )
-      );
-      
-      const visibleMessage = displayedMessages[visibleMessageIndex];
-
-      if (visibleMessage) {
-        const scrollData = {
-          messageId: visibleMessage.id,
-          offset: contentOffset.y,
-          timestamp: Date.now()
-        };
+      if (displayedMessages.length > 0) {
+        const ESTIMATED_MESSAGE_HEIGHT = 120; // Økt fra 100 til 120
+        const visibleMessageIndex = Math.max(0, 
+          Math.min(
+            Math.floor(contentOffset.y / ESTIMATED_MESSAGE_HEIGHT),
+            displayedMessages.length - 1
+          )
+        );
         
-        setScrollMessageId(targetConversationId, scrollData);
+        const visibleMessage = displayedMessages[visibleMessageIndex];
+
+        if (visibleMessage) {
+          const scrollData = {
+            messageId: visibleMessage.id,
+            offset: contentOffset.y,
+            timestamp: Date.now()
+          };
+          
+          setScrollMessageId(targetConversationId, scrollData);
+        }
       }
-    }, 500);
+    }, 1000); // Økt fra 500ms til 1000ms
 
   }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth]);
 
   const stableConversationId = useRef(conversationId);
 
-  
-  
   useEffect(() => {
     if (conversationId && conversationId !== -1) {
       stableConversationId.current = conversationId;
     }
   }, [conversationId]);
 
-  // 🔧 FIX 2: Simplified viewport tracking - only when scroll tracking fails
+  // 🔧 FIX 7: Simplified viewport tracking - kun som backup
   const trackVisibleItems = useCallback((info: any) => {
     if (isRestoring.current || !isInitialized) return;
     
@@ -545,11 +543,10 @@ export default function MessageListNative({
 
     const visibleItems = info.viewableItems;
     if (visibleItems.length > 0) {
-      // Only save if we haven't saved recently (avoid duplicate saves)
       const lastSave = useChatStore.getState().scrollMessageIds[targetConversationId]?.timestamp || 0;
       const now = Date.now();
       
-      if (now - lastSave > 1000) { // Only save if last save was >1 second ago
+      if (now - lastSave > 2000) { // Økt fra 1000ms til 2000ms
         const firstVisibleMessage = visibleItems[0].item;
         
         const scrollData = {
@@ -564,28 +561,21 @@ export default function MessageListNative({
   }, [setScrollMessageId, isInitialized]);
 
   useEffect(() => {
-    
     if (conversationId && conversationId !== -1) {
       setIsInitialized(false);
       isRestoring.current = false;
       currentScrollPosition.current = 0;
-      setIsLoadingMore(false); // 🆕 NEW: Reset loading more state
+      setIsLoadingMore(false);
     }
   }, [conversationId]);
 
-  // Enhanced restoration logic with forced initial tracking
+  // 🔧 FIX 8: Forenklet scroll restoration
   useEffect(() => {
-
     if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
       return;
     }
 
-    if (isInitialized) {
-      return;
-    }
-
-    if (isRestoring.current) {
-      console.log(`🚫 Already restoring, skipping...`);
+    if (isInitialized || isRestoring.current) {
       return;
     }
 
@@ -599,64 +589,33 @@ export default function MessageListNative({
           if (scrollData?.messageId) {
             const messageIndex = displayedMessages.findIndex(msg => msg.id === scrollData.messageId);
             
-            if (messageIndex >= 0) {
-              // console.log(`🎯 Restoring to message ID ${scrollData.messageId} at index ${messageIndex}`);
-              
+            if (messageIndex >= 0 && messageIndex < 10) { // Kun restore hvis nær toppen
               flatListRef.current.scrollToIndex({
                 index: messageIndex,
                 animated: false,
                 viewPosition: 0.1,
               });
-              
               currentScrollPosition.current = scrollData.offset;
-              // console.log(`✅ Successfully restored to message at index ${messageIndex}`);
             } else {
-              console.log(`⚠️ Message ID ${scrollData.messageId} not found, using offset fallback`);
-              
+              // Fallback til simpel offset
+              const savedPosition = Math.min(scrollData.offset, 1000); // Max 1000px scroll
               flatListRef.current.scrollToOffset({
-                offset: scrollData.offset,
+                offset: savedPosition,
                 animated: false,
               });
-              
-              currentScrollPosition.current = scrollData.offset;
+              currentScrollPosition.current = savedPosition;
             }
           } else {
-            const savedPosition = scrollPositions[conversationId] || 0;
-            console.log(`📍 No message ID saved, using offset: ${savedPosition}`);
-            
+            // Ingen saved position - start på bunnen
             flatListRef.current.scrollToOffset({
-              offset: savedPosition,
+              offset: 0,
               animated: false,
             });
-            
-            currentScrollPosition.current = savedPosition;
+            currentScrollPosition.current = 0;
           }
           
           setIsInitialized(true);
           isRestoring.current = false;
-          
-          // Force initial tracking after restoration
-          setTimeout(() => {
-            const ESTIMATED_MESSAGE_HEIGHT = 100;
-            const visibleMessageIndex = Math.max(0, 
-              Math.min(
-                Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
-                displayedMessages.length - 1
-              )
-            );
-            
-            const visibleMessage = displayedMessages[visibleMessageIndex];
-            
-            if (visibleMessage) {
-              const initialScrollData = {
-                messageId: visibleMessage.id,
-                offset: currentScrollPosition.current,
-                timestamp: Date.now()
-              };
-   
-              setScrollMessageId(conversationId, initialScrollData);
-            }
-          }, 100);
           
         } catch (error) {
           console.warn('❌ Failed to restore scroll position:', error);
@@ -666,24 +625,21 @@ export default function MessageListNative({
       }
     };
 
-    const timer = setTimeout(restorePosition, 50);
+    const timer = setTimeout(restorePosition, 100);
+    return () => clearTimeout(timer);
+  }, [conversationId, displayedMessages.length, loading, isBootstrapped]);
 
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [conversationId, displayedMessages.length, loading, scrollPositions, isBootstrapped, setScrollMessageId]);
-
+  // Auto-scroll til nye meldinger
   const lastMessageId = displayedMessages[0]?.id;
   const previousLastMessageId = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!flatListRef.current || !conversationVisible) return;
+    if (!flatListRef.current || !conversationVisible || !isInitialized) return;
 
     const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
-    const savedPosition = scrollPositions[conversationId] || 0;
-    const isNearBottom = savedPosition <= 100;
+    const isNearBottom = currentScrollPosition.current <= 100;
 
-    if (hasNewMessage && isNearBottom && isInitialized) {
+    if (hasNewMessage && isNearBottom) {
       console.log(`🔽 Auto-scrolling to bottom for new message`);
       flatListRef.current.scrollToOffset({
         offset: 0,
@@ -693,13 +649,12 @@ export default function MessageListNative({
     }
 
     previousLastMessageId.current = lastMessageId;
-  }, [lastMessageId, conversationVisible, isInitialized, scrollPositions, conversationId]);
+  }, [lastMessageId, conversationVisible, isInitialized]);
 
   useEffect(() => {
     onConversationError?.(error);
   }, [error, onConversationError]);
   
-
   // Cleanup timers on unmount
   useEffect(() => {
     return () => {
@@ -710,6 +665,11 @@ export default function MessageListNative({
         clearTimeout(loadMoreThrottleRef.current);
       }
     };
+  }, []);
+
+  // 🎯 OPTIMIZATION 4: Stable keyExtractor
+  const keyExtractor = useCallback((item: MessageDTO) => {
+    return item.optimisticId || item.id.toString();
   }, []);
 
   if (rawConversationId === null) {
@@ -744,55 +704,51 @@ export default function MessageListNative({
         ref={flatListRef}
         data={displayedMessages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.optimisticId || item.id.toString()}
+        keyExtractor={keyExtractor}
         
         inverted={true}
         
-        // Enhanced scroll tracking with smooth infinite scroll
+        // 🔧 FIX 9: Optimized scroll settings
         onScroll={handleScroll}
-        scrollEventThrottle={16} // Higher frequency for smoother infinite scroll detection
+        scrollEventThrottle={32} // Redusert fra 16 til 32 for mindre aggressiv tracking
         
-        // Viewport tracking as fallback
         onViewableItemsChanged={trackVisibleItems}
         viewabilityConfig={{
-          itemVisiblePercentThreshold: 25,
-          minimumViewTime: 250
+          itemVisiblePercentThreshold: 50, // Økt fra 25 til 50
+          minimumViewTime: 500 // Økt fra 250 til 500
         }}
         
         showsVerticalScrollIndicator={false}
         
+        // 🔧 FIX 10: Fjernet bounces og maintainVisibleContentPosition som kan forårsake problemer
         bounces={false}
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 100,
-        }}
+        // maintainVisibleContentPosition fjernet for å unngå konflikter
         
-        getItemLayout={(data, index) => ({
-          length: 100,
-          offset: 100 * index,
-          index,
-        })}
+        // 🔧 FIX 11: Fjernet getItemLayout siden det forårsaker problemer med variabel høyde
+        // getItemLayout fjernet
         
         onScrollToIndexFailed={(info) => {
           console.log(`📍 ScrollToIndex failed, falling back to offset:`, info);
+          const fallbackOffset = Math.min(
+            info.averageItemLength * info.index, 
+            info.averageItemLength * Math.min(displayedMessages.length, 20) // Begrenset fallback
+          );
           flatListRef.current?.scrollToOffset({
-            offset: Math.min(info.averageItemLength * info.index, info.averageItemLength * displayedMessages.length),
+            offset: fallbackOffset,
             animated: false,
           });
         }}
         
+        // 🔧 FIX 12: Forenklet ListFooterComponent
         ListFooterComponent={
           (loading || isLoadingMore) && displayedMessages.length > 0 ? (
             <View style={styles.loadingMore}>
-              <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
               <ActivityIndicator size="small" color="#1C6B1C" />
               <Text style={styles.loadingMoreText}>
-                {isLoadingMore ? 'Loading more messages...' : 'Loading...'}
+                Loading more messages...
               </Text>
             </View>
-          ) : (
-            <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
-          )
+          ) : null
         }
         
         ListEmptyComponent={
@@ -804,9 +760,12 @@ export default function MessageListNative({
           ) : null
         }
         
-        ListHeaderComponent={
-          <View ref={bottomRef} style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }} />
-        }
+        // 🎯 OPTIMIZATION 5: Performance optimizations
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10} // Redusert fra default
+        updateCellsBatchingPeriod={100} // Økt for mindre aggressiv re-rendering
+        initialNumToRender={15} // Redusert fra default 10
+        windowSize={21} // Default er 21, men eksplisitt satt
       />
     </View>
   );
