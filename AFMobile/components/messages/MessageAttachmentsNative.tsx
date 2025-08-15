@@ -1,4 +1,4 @@
-// components/messages/MessageAttachmentsNative.tsx - Updated with full ReactionHandler support
+// components/messages/MessageAttachmentsNative.tsx - Updated with compact document layout
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -25,7 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '@/types/navigation';
 import { useChatStore } from '@/store/useChatStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { Play, MessageCircleReply, Trash2, Clipboard as ClipboardIcon } from 'lucide-react-native';
+import { Play, MessageCircleReply, Trash2, Clipboard as ClipboardIcon, File } from 'lucide-react-native';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 import { ReactionMenuNative } from '../reactions/ReactionMenuNative';
 import { useReactions } from '@/hooks/reactions/useReactions';
@@ -86,6 +86,240 @@ const VideoPreview: React.FC<{ uri: string; isBlurred?: boolean }> = ({ uri, isB
       nativeControls={false}
     />
   );
+};
+
+// 🆕 NEW: Compact Document Attachment Component
+const DocumentAttachmentItem = ({ 
+  attachment, 
+  onPress, 
+  isLocked = false,
+  isMapped = false,
+  totalCount,
+  index,
+  // Reaction handler props
+  message,
+  currentUser,
+  onReply,
+  onDelete,
+  onShowUserPopover,
+  onShowReactionUsers
+}: AttachmentItemNativeProps) => {
+  const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+  const isOptimistic = attachment.isOptimistic;
+  
+  const showUploadStatus = Boolean(
+    isOptimistic && 
+    !isMapped && 
+    (attachment.isUploading || attachment.uploadError)
+  );
+
+  // Sjekk om vi kan bruke ReactionHandler
+  const canUseReactionHandler = Boolean(
+    message && 
+    currentUser && 
+    !message.isDeleted && 
+    !isLocked && 
+    !showUploadStatus
+  );
+
+  // State for reaction menu
+  const [showReactionMenu, setShowReactionMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | undefined>();
+  
+  const attachmentRef = useRef<View>(null);
+  const { addReaction } = useReactions();
+
+  // Handler for lang trykk på attachment
+  const handleLongPress = () => {
+    if (!canUseReactionHandler) return;
+    
+    // Measure attachment position for menu
+    attachmentRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      setMenuPosition({ x: pageX, y: pageY, width, height });
+    });
+
+    // Haptic feedback
+    if (Vibration) {
+      Vibration.vibrate(50);
+    }
+    
+    setShowReactionMenu(true);
+    console.log('🔗 Long press on document attachment - showing reaction menu');
+  };
+
+  // Reaction and action handlers (same as original)
+  const handleReactionSelect = (emoji: string) => {
+    if (!message || !currentUser) return;
+
+    const actualMessageId = useChatStore.getState().getActualMessageId(message);
+    if (!actualMessageId) {
+      Alert.alert(
+        "Please wait", 
+        "Message is still being sent. Please try again in a moment.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    console.log(`💖 Adding reaction "${emoji}" to message from document attachment:`, {
+      originalId: message.id,
+      actualId: actualMessageId,
+    });
+ 
+    addReaction({
+      messageId: actualMessageId,
+      emoji
+    });
+  };
+
+  const handleReply = () => {
+    if (!message || !onReply) return;
+
+    const actualMessageId = useChatStore.getState().getActualMessageId(message);
+    if (!actualMessageId) {
+      Alert.alert(
+        "Please wait", 
+        "Message is still being sent. Please try again in a moment.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    onReply(message);
+    setShowReactionMenu(false);
+  };
+
+  const handleDelete = () => {
+    if (!message || !onDelete) return;
+    onDelete(message);
+    setShowReactionMenu(false);
+  };
+
+  const handleCopyMessage = () => {
+    if (!message?.text) {
+      const fileName = attachment.fileName || 'Attachment';
+      Clipboard.setString(fileName);
+      console.log('📋 Copied document filename:', fileName);
+    } else {
+      Clipboard.setString(message.text);
+      console.log('📋 Copied message text:', message.text.substring(0, 50) + '...');
+    }
+    setShowReactionMenu(false);
+  };
+
+  const getQuickActions = () => {
+    const actions = [];
+   
+    if (message && onReply) {
+      actions.push({
+        type: 'reply' as const,
+        label: 'Reply',
+        icon: MessageCircleReply,
+        onPress: handleReply,
+        disabled: false,
+      });
+    }
+   
+    if (message && onDelete && currentUser?.id === message.sender?.id && !message.isDeleted) {
+      actions.push({
+        type: 'delete' as const,
+        label: 'Delete',
+        icon: Trash2,
+        onPress: handleDelete,
+        disabled: false,
+        destructive: true,
+      });
+    }
+
+    actions.push({
+      type: 'copy' as const,
+      label: 'Copy',
+      icon: ClipboardIcon,
+      onPress: handleCopyMessage,
+      disabled: false,
+    });
+   
+    return actions;
+  };
+
+  const documentContent = (
+    <TouchableOpacity
+      ref={attachmentRef}
+      style={[
+        styles.documentContainer,
+        showUploadStatus && styles.documentContainerUploading
+      ]}
+      onPress={onPress}
+      onLongPress={canUseReactionHandler ? handleLongPress : undefined}
+      delayLongPress={500}
+      activeOpacity={0.95}
+      disabled={showUploadStatus}
+    >
+      {/* Icon Section */}
+      <View style={styles.documentIconSection}>
+        <File size={24} color="#1C6B1C" />
+      </View>
+
+      {/* Content Section */}
+      <View style={styles.documentContentSection}>
+        <Text style={styles.documentName} numberOfLines={2}>
+          {getDisplayFileName(decodeURIComponent(attachment.fileName || 'Unnamed file'), 50)}
+        </Text>
+        <Text style={styles.documentType} numberOfLines={1}>
+          {attachment.fileName?.split('.').pop()?.toUpperCase() || 'FILE'}
+        </Text>
+      </View>
+
+      {/* Upload Status Overlay */}
+      {showUploadStatus && (
+        <View style={styles.documentUploadOverlay}>
+          {attachment.isUploading && (
+            <ActivityIndicator size="small" color="#1C6B1C" />
+          )}
+          {attachment.uploadError && (
+            <Text style={styles.documentUploadError}>❌</Text>
+          )}
+        </View>
+      )}
+
+      {/* 🆕 NEW: Gallery indicator for documents (when multiple) */}
+      {!showUploadStatus && totalCount > 1 && (
+        <View style={styles.documentGalleryIndicator}>
+          <Text style={styles.documentGalleryText}>{index + 1}/{totalCount}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  // Return with reaction menu if possible
+  if (canUseReactionHandler) {
+    return (
+      <View style={styles.documentWithReactions}>
+        {documentContent}
+        
+        <ReactionMenuNative
+          visible={showReactionMenu}
+          onClose={() => setShowReactionMenu(false)}
+          onReactionSelect={handleReactionSelect}
+          quickActions={getQuickActions()}
+          existingReactions={message!.reactions || []}
+          userId={currentUser!.id || 0}
+          message={message}
+          actualMessageId={useChatStore.getState().getActualMessageId(message!)}
+          reactionsDisabled={false}
+          actionsDisabled={false}
+          messagePosition={menuPosition}
+        />
+      </View>
+    );
+  }
+
+  return documentContent;
 };
 
 const AttachmentItemNative = ({ 
@@ -445,6 +679,12 @@ export default function MessageAttachmentsNative({
 
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
 
+  // 🆕 NEW: Check if all attachments are documents
+  const allAttachmentsAreDocuments = attachments.every(att => {
+    const info = getFileTypeInfo(att.fileType, att.fileName);
+    return info.category !== 'image' && info.category !== 'video';
+  });
+
   const toggleBlur = (fileUrl: string) => {
     setBlurredAttachments(prev => {
       const newSet = new Set(prev);
@@ -551,6 +791,83 @@ export default function MessageAttachmentsNative({
     return parts.length > 0 ? `(${parts.join(', ')})` : '';
   };
 
+  // 🆕 NEW: Render documents with compact layout if all are documents
+  if (allAttachmentsAreDocuments) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.documentSection}>
+          {attachments.length === 1 ? (
+            // Single document - full width
+            <DocumentAttachmentItem
+              key={`single-document-${attachments[0].fileUrl}`}
+              attachment={attachments[0]}
+              index={0}
+              totalCount={attachments.length}
+              onPress={() => handleAttachmentPress(attachments[0], 0)}
+              isLocked={isLocked}
+              isMapped={isMapped}
+              // Pass reaction handler props
+              message={message}
+              currentUser={currentUser}
+              onReply={onReply}
+              onDelete={onDelete}
+              onShowUserPopover={onShowUserPopover}
+              onShowReactionUsers={onShowReactionUsers}
+            />
+          ) : (
+            // Multiple documents - horizontal scroll
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.documentHorizontalGrid}
+              style={styles.documentHorizontalScroll}
+            >
+              {attachments.map((attachment, index) => (
+                <DocumentAttachmentItem
+                  key={`document-${index}-${attachment.fileUrl}`}
+                  attachment={attachment}
+                  index={index}
+                  totalCount={attachments.length}
+                  onPress={() => handleAttachmentPress(attachment, index)}
+                  isLocked={isLocked}
+                  isMapped={isMapped}
+                  // Pass reaction handler props
+                  message={message}
+                  currentUser={currentUser}
+                  onReply={onReply}
+                  onDelete={onDelete}
+                  onShowUserPopover={onShowUserPopover}
+                  onShowReactionUsers={onShowReactionUsers}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
+        {attachments.length > 5 && (
+          <View style={styles.summary}>
+            <Text style={styles.summaryText}>
+              {attachments.length} files total {getFileTypesSummary()}
+            </Text>
+            <Text style={styles.summarySubtext}>
+              Tap any file to view or download
+            </Text>
+          </View>
+        )}
+
+        <DownloadProgressModal
+          visible={showProgress}                       
+          fileName={fileName || ''}                           
+          progress={progress?.progress || 0}                    
+          totalBytes={progress?.totalBytesExpectedToWrite}       
+          downloadedBytes={progress?.totalBytesWritten} 
+          onCancel={cancelDownload}
+        />
+      </View>
+    );
+  }
+
+  // 🔧 EXISTING: Use original layout for mixed content or media-only
   return (
     <View style={styles.container}>
       {attachments.length > 0 && (
@@ -640,7 +957,7 @@ export default function MessageAttachmentsNative({
   );
 }
 
-// Styles forblir de samme
+// 🔧 UPDATED: Styles with new document styles
 const styles = StyleSheet.create({
   container: {
     marginTop: 8,
@@ -648,6 +965,86 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 8,
   },
+  // 🆕 NEW: Document section styles
+  documentSection: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  documentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffffff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1C6B1C',
+    padding: 12,
+    alignItems: 'center',
+    minHeight: 100,
+    width: screenWidth - 130, // Full width for single document
+    minWidth: Math.min(screenWidth - 150, 280), // Minimum width for scrolling documents
+  },
+  documentContainerUploading: {
+    opacity: 0.7,
+  },
+  documentIconSection: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#ffffffff',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  documentContentSection: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  documentName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  documentType: {
+    fontSize: 12,
+    color: '#1C6B1C',
+    textTransform: 'uppercase',
+    fontWeight: '500',
+  },
+  documentUploadOverlay: {
+    marginLeft: 12,
+  },
+  documentUploadError: {
+    fontSize: 18,
+  },
+  // Document gallery indicator styles
+  documentGalleryIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#1C6B1C',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  documentGalleryText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '500',
+  },
+  documentWithReactions: {
+    // Wrapper for document with reaction menu
+  },
+  // 🆕 NEW: Document horizontal scroll styles
+  documentHorizontalScroll: {
+    marginHorizontal: -4,
+  },
+  documentHorizontalGrid: {
+    paddingHorizontal: 4,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  // 🔧 EXISTING: Original styles
   imageContainer: {
     borderRadius: 8,
     overflow: 'hidden',
@@ -687,7 +1084,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 4,
     right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: '#1C6B1C',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,

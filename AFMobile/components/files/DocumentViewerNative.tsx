@@ -1,4 +1,4 @@
-// components/common/DocumentViewerNative.tsx - Modal-agnostic, følger ImageViewer mønster
+// components/common/DocumentViewerNative.tsx - Updated to show file extension instead of message
 import React, { useState, useEffect } from 'react';
 import { 
   Modal, 
@@ -14,7 +14,7 @@ import {
   StatusBar 
 } from 'react-native';
 import { RNFile, getFileIcon, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
-import { openFileWithNativeApp, getFileTypeMessage, shareRNFile } from './FileHandlerNative';
+import { openFileWithNativeApp, shareRNFile } from './FileHandlerNative';
 import ViewerHeaderNative from './ViewerHeaderNative';
 import * as FileSystem from 'expo-file-system';
 
@@ -68,6 +68,13 @@ const canViewInline = (file: RNFile): boolean => {
   );
 };
 
+// 🆕 NEW: Get file extension for display
+const getFileExtension = (fileName: string): string => {
+  const decodedFileName = decodeURIComponent(fileName);
+  const extension = decodedFileName.split('.').pop()?.toUpperCase();
+  return extension || 'FILE';
+};
+
 // Core content component - can be used in Modal or Screen
 const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   file,
@@ -83,9 +90,8 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   
   const fileInfo = getFileTypeInfo(file.type, file.name);
   const icon = getFileIcon(file.name, file.type);
-  const message = getFileTypeMessage(file);
-  const sizeText = file.size ? formatFileSize(file.size) : 'Ukjent størrelse';
   const canShow = canViewInline(file);
+  const fileExtension = getFileExtension(file.name); // 🆕 NEW: Get file extension
   
   // 🐛 DEBUG - sjekk canShow verdien
   console.log('📄 DocumentViewer canShow:', {
@@ -94,7 +100,8 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
     hasFileContent: Boolean(fileContent),
     loading,
     error,
-    useModal
+    useModal,
+    fileExtension // 🆕 NEW: Log file extension
   });
 
   // Last inn filinnhold hvis det kan vises inline
@@ -233,7 +240,7 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
 
       {/* Header */}
       <ViewerHeaderNative
-        title={file.name}
+        title={decodeURIComponent(file.name)} // 🔧 UPDATED: Decode filename in header too
         onClose={onClose}
         onDownload={onDownload ? handleDownload : undefined}
         onShare={onShare ? handleShare : undefined}
@@ -253,17 +260,17 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
           </Text>
           
           <Text style={styles.fileName} numberOfLines={2}>
-            {file.name}
+            {decodeURIComponent(file.name)} {/* 🔧 UPDATED: Decode filename */}
           </Text>
           
           <View style={styles.fileDetails}>
-            <Text style={styles.fileType}>{file.type || 'Ukjent type'}</Text>
-            <Text style={styles.separator}>•</Text>
-            <Text style={styles.fileSize}>{sizeText}</Text>
+            <Text style={styles.fileType}>{fileExtension}</Text> {/* 🔧 UPDATED: Show file extension */}
           </View>
           
           {!canShow && (
-            <Text style={styles.message}>{message}</Text>
+            <Text style={styles.message}>
+              This {fileExtension} file cannot be previewed. Tap "Open" to view it in another app.
+            </Text> // 🔧 UPDATED: Custom message with file type
           )}
           
           {/* Category badge */}
@@ -409,6 +416,8 @@ const styles = StyleSheet.create({
   fileType: {
     fontSize: 12,
     color: '#6b7280',
+    fontWeight: '600', // 🎨 Make file type more prominent
+    textTransform: 'uppercase', // 🎨 Consistent with attachment display
   },
   separator: {
     fontSize: 12,

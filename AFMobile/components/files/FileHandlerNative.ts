@@ -305,21 +305,7 @@ export const getFileTypeMessage = (file: RNFile): string => {
   const fileInfo = getFileTypeInfo(file.type, file.name);
   
   switch (fileInfo.category) {
-    case 'pdf':
-      return 'PDF-filer åpnes best i Adobe Reader eller lignende apper';
-    case 'document':
-      return 'Dokumenter åpnes i Microsoft Office eller Google Docs';
-    case 'spreadsheet':
-      return 'Regneark åpnes i Excel eller Google Sheets';
-    case 'presentation':
-      return 'Presentasjoner åpnes i PowerPoint eller Google Slides';
-    case 'code':
-      return 'Kodefiler kan åpnes i teksteditorer eller IDE-er';
-    case 'image':
-      return 'Bildene kan forhåndsvises eller åpnes i galleri-apper';
-    case 'video':
-      return 'Videoer kan spilles av i media-apper';
     default:
-      return 'Filen åpnes i en kompatibel app';
+      return 'No preview of this file. Open with an app.';
   }
 };

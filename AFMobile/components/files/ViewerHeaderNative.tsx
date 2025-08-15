@@ -34,10 +34,10 @@ export default function ViewerHeaderNative({
   const isLight = theme === 'light';
   
   // Dynamic colors based on theme
-  const iconColor = isDark ? 'white' : '#374151';
+  const iconColor = isDark ? 'white' : '#ffffffff';
   const textColor = isDark ? 'white' : '#374151';
   const subtitleColor = isDark ? 'rgba(255, 255, 255, 0.7)' : '#6b7280';
-  const buttonBackgroundColor = isDark ? '#1C6B1C' : '#f3f4f6';
+  const buttonBackgroundColor = isDark ? '#1C6B1C' : '#1C6B1C';
   const headerBackgroundColor = isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.95)';
 
   const handleDownload = async () => {
