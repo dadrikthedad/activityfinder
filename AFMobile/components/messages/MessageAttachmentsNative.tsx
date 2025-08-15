@@ -1,4 +1,4 @@
-// components/messages/MessageAttachmentsNative.tsx - Updated for expo-video
+// components/messages/MessageAttachmentsNative.tsx - Updated with ReactionHandler
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -9,7 +9,8 @@ import {
   Dimensions,
   ActivityIndicator,
   Alert,
-  ScrollView
+  ScrollView,
+  Vibration,
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { 
@@ -25,11 +26,22 @@ import { useChatStore } from '@/store/useChatStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Play } from 'lucide-react-native';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
+import { ReactionMenuNative } from '../reactions/ReactionMenuNative';
+import { useReactions } from '@/hooks/reactions/useReactions';
+import { MessageDTO, ReactionDTO } from '@shared/types/MessageDTO';
+import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
   isLocked?: boolean;
-  isMapped?: boolean; 
+  isMapped?: boolean;
+  // Nye props for reaction handler
+  message?: MessageDTO;
+  currentUser?: UserSummaryDTO | null;
+  onReply?: (message: MessageDTO) => void;
+  onDelete?: (message: MessageDTO) => void;
+  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
 }
 
 interface AttachmentItemNativeProps {
@@ -42,18 +54,23 @@ interface AttachmentItemNativeProps {
   onToggleBlur?: () => void;
   galleryInfo?: string;
   isMapped?: boolean;
+  // Nye props for reaction handler
+  message?: MessageDTO;
+  currentUser?: UserSummaryDTO | null;
+  onReply?: (message: MessageDTO) => void;
+  onDelete?: (message: MessageDTO) => void;
+  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const itemSize = Math.min((screenWidth - 32) / 1.5, 250); // Max 150px, responsive to screen
+const itemSize = Math.min((screenWidth - 32) / 1.5, 250);
 
 // Video Preview Component for thumbnails
 const VideoPreview: React.FC<{ uri: string; isBlurred?: boolean }> = ({ uri, isBlurred }) => {
-  // Create a player instance for video thumbnail
   const player = useVideoPlayer(uri, (player) => {
-    player.muted = true; // Always muted for previews
-    player.currentTime = 1; // Seek to 1 second for better thumbnail
-    // Don't auto-play for previews
+    player.muted = true;
+    player.currentTime = 1;
   });
 
   return (
@@ -78,7 +95,14 @@ const AttachmentItemNative = ({
   onToggleBlur,
   galleryInfo,
   isMapped = false,
-  totalCount
+  totalCount,
+  // Nye props
+  message,
+  currentUser,
+  onReply,
+  onDelete,
+  onShowUserPopover,
+  onShowReactionUsers
 }: AttachmentItemNativeProps) => {
   const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
   const isImage = fileInfo.category === 'image';
@@ -87,18 +111,114 @@ const AttachmentItemNative = ({
   const isOptimistic = attachment.isOptimistic;
   const imageUri = isOptimistic ? attachment.localUri : attachment.fileUrl;
   
-  // 🔧 Vis upload status kun hvis optimistic OG ikke mapped ennå
   const showUploadStatus = Boolean(
     isOptimistic && 
     !isMapped && 
     (attachment.isUploading || attachment.uploadError)
   );
 
-  return (
+  // Sjekk om vi kan bruke ReactionHandler
+  const canUseReactionHandler = Boolean(
+    message && 
+    currentUser && 
+    !message.isDeleted && 
+    !isLocked && 
+    !showUploadStatus
+  );
+
+  // State for reaction menu
+  const [showReactionMenu, setShowReactionMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | undefined>();
+  
+  const attachmentRef = useRef<View>(null);
+  const { addReaction } = useReactions();
+
+  // Handler for lang trykk på attachment
+  const handleLongPress = () => {
+    if (!canUseReactionHandler) return;
+    
+    // Measure attachment position for menu
+    attachmentRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      setMenuPosition({ x: pageX, y: pageY, width, height });
+    });
+
+    // Haptic feedback
+    if (Vibration) {
+      Vibration.vibrate(50);
+    }
+    
+    setShowReactionMenu(true);
+    console.log('🔗 Long press on attachment - showing reaction menu');
+  };
+
+  // Handler for reaction selection
+  const handleReactionSelect = (emoji: string) => {
+    if (!message || !currentUser) return;
+
+    const actualMessageId = useChatStore.getState().getActualMessageId(message);
+    if (!actualMessageId) {
+      Alert.alert(
+        "Please wait", 
+        "Message is still being sent. Please try again in a moment.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    console.log(`💖 Adding reaction "${emoji}" to message from attachment:`, {
+      originalId: message.id,
+      actualId: actualMessageId,
+    });
+ 
+    addReaction({
+      messageId: actualMessageId,
+      emoji
+    });
+  };
+
+  // Quick actions for attachment (same as message)
+  const getQuickActions = () => {
+    const actions = [];
+   
+    // Reply action (for other people's messages)
+    if (message && onReply && currentUser?.id !== message.sender?.id) {
+      actions.push({
+        type: 'reply' as const,
+        label: 'Reply',
+        icon: require('lucide-react-native').MessageCircleReply,
+        onPress: () => onReply(message),
+        disabled: false,
+      });
+    }
+   
+    // Delete action (for own messages)  
+    if (message && onDelete && currentUser?.id === message.sender?.id && !message.isDeleted) {
+      actions.push({
+        type: 'delete' as const,
+        label: 'Delete',
+        icon: require('lucide-react-native').Trash2,
+        onPress: () => onDelete(message),
+        disabled: false,
+        destructive: true,
+      });
+    }
+   
+    return actions;
+  };
+
+  const attachmentContent = (
     <TouchableOpacity
+      ref={attachmentRef}
       style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
       onPress={onPress}
-      activeOpacity={0.8}
+      onLongPress={canUseReactionHandler ? handleLongPress : undefined}
+      delayLongPress={500}
+      activeOpacity={0.95}
       disabled={showUploadStatus}
     >
       {/* BILDE INNHOLD */}
@@ -146,7 +266,7 @@ const AttachmentItemNative = ({
         </View>
       )}
 
-      {/* 🆕 FELLES OVERLAYS - gjelder alle typer */}
+      {/* FELLES OVERLAYS */}
       
       {/* Upload status overlay */}
       {showUploadStatus && (
@@ -207,18 +327,49 @@ const AttachmentItemNative = ({
       )}
     </TouchableOpacity>
   );
-};
 
+  // Returner attachment content med reaction menu hvis mulig
+  if (canUseReactionHandler) {
+    return (
+      <View style={styles.attachmentWithReactions}>
+        {attachmentContent}
+        
+        <ReactionMenuNative
+          visible={showReactionMenu}
+          onClose={() => setShowReactionMenu(false)}
+          onReactionSelect={handleReactionSelect}
+          quickActions={getQuickActions()}
+          existingReactions={message!.reactions || []}
+          userId={currentUser!.id || 0}
+          message={message}
+          actualMessageId={useChatStore.getState().getActualMessageId(message!)}
+          reactionsDisabled={false}
+          actionsDisabled={false}
+          messagePosition={menuPosition}
+        />
+      </View>
+    );
+  }
+
+  // Returner bare innholdet uten ReactionHandler
+  return attachmentContent;
+};
 
 export default function MessageAttachmentsNative({ 
   attachments, 
   isLocked = false,
-  isMapped = false  
+  isMapped = false,
+  // Nye props
+  message,
+  currentUser,
+  onReply,
+  onDelete,
+  onShowUserPopover,
+  onShowReactionUsers
 }: MessageAttachmentsNativeProps) {
   const navigation = useNavigation<RootStackNavigationProp>();
   const [selectedFileIndex] = useState<number>(-1);
   const [blurredAttachments, setBlurredAttachments] = useState<Set<string>>(
-    // For locked conversations, start with all media blurred
     new Set(isLocked ? attachments
       .filter(att => {
         const info = getFileTypeInfo(att.fileType, att.fileName);
@@ -233,7 +384,6 @@ export default function MessageAttachmentsNative({
 
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
 
-  // Toggle blur for specific attachment
   const toggleBlur = (fileUrl: string) => {
     setBlurredAttachments(prev => {
       const newSet = new Set(prev);
@@ -246,7 +396,6 @@ export default function MessageAttachmentsNative({
     });
   };
 
-  // Categorize attachments
   const images = attachments.filter(att => 
     getFileTypeInfo(att.fileType, att.fileName).category === 'image'
   );
@@ -258,7 +407,6 @@ export default function MessageAttachmentsNative({
     return category !== 'image' && category !== 'video';
   });
 
-  // Handle attachment press
   const handleAttachmentPress = (attachment: AttachmentDto, index: number) => {
     const showUploadStatus = Boolean(
       attachment.isOptimistic && 
@@ -282,25 +430,20 @@ export default function MessageAttachmentsNative({
     if (isCurrentlyBlurred) {
       toggleBlur(attachment.fileUrl);
     } else {
-      // 🆕 Smart URI selection med mapping lookup
       const convertToRNFile = (att: AttachmentDto): RNFile => {
         let finalUri: string;
         
         if (att.isOptimistic && att.optimisticId) {
-          // Sjekk om vi har en mappet server URL
           const mappedServerUrl = optimisticToServerAttachmentMap[att.optimisticId];
           
           if (mappedServerUrl) {
-            // Bruk server URL hvis mappet
             finalUri = mappedServerUrl;
             console.log(`📎 Using mapped server URL for ${att.optimisticId}: ${mappedServerUrl}`);
           } else {
-            // Fallback til local URI hvis ikke mappet ennå
             finalUri = att.localUri || att.fileUrl;
             console.log(`📱 Using local URI for unmapped attachment: ${finalUri}`);
           }
         } else {
-          // Vanlige server attachments
           finalUri = att.fileUrl;
         }
         
@@ -314,7 +457,6 @@ export default function MessageAttachmentsNative({
       
       const allRNFiles = attachments.map(convertToRNFile);
       
-      // Debug logging
       console.log('🎬 Opening MediaViewer with files:', allRNFiles.map(f => ({
         name: f.name,
         uri: f.uri.substring(0, 50) + '...'
@@ -335,7 +477,6 @@ export default function MessageAttachmentsNative({
     cancelDownload 
   } = useDownload();
 
-  // Get file types summary
   const getFileTypesSummary = () => {
     const imageCount = images.length;
     const videoCount = videos.length;
@@ -351,73 +492,81 @@ export default function MessageAttachmentsNative({
 
   return (
     <View style={styles.container}>
-      {/* Images Grid */}
-      {/* Combined Media ScrollView */}
-{attachments.length > 0 && (
-  <View style={styles.section}>
-    {attachments.length === 1 ? (
-      // Single attachment - full width display
-      <View style={styles.singleImageContainer}>
-        <AttachmentItemNative
-          key={`single-${attachments[0].fileUrl}`}
-          attachment={attachments[0]}
-          index={0}
-          totalCount={attachments.length}
-          onPress={() => handleAttachmentPress(attachments[0], 0)}
-          isLocked={isLocked}
-          isBlurred={isLocked && blurredAttachments.has(attachments[0].fileUrl)}
-          onToggleBlur={() => toggleBlur(attachments[0].fileUrl)}
-          galleryInfo={attachments.length > 1 ? `1/${attachments.length}` : undefined}
-          isMapped={isMapped}
-        />
-      </View>
-    ) : (
-      // Multiple attachments - horizontal scroll
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalGrid}
-        style={styles.horizontalScroll}
-      >
-        {attachments.map((attachment, index) => {
-          const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
-          const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
-          const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
-          const galleryInfo = `${index + 1}/${attachments.length}`;
+      {attachments.length > 0 && (
+        <View style={styles.section}>
+          {attachments.length === 1 ? (
+            <View style={styles.singleImageContainer}>
+              <AttachmentItemNative
+                key={`single-${attachments[0].fileUrl}`}
+                attachment={attachments[0]}
+                index={0}
+                totalCount={attachments.length}
+                onPress={() => handleAttachmentPress(attachments[0], 0)}
+                isLocked={isLocked}
+                isBlurred={isLocked && blurredAttachments.has(attachments[0].fileUrl)}
+                onToggleBlur={() => toggleBlur(attachments[0].fileUrl)}
+                galleryInfo={attachments.length > 1 ? `1/${attachments.length}` : undefined}
+                isMapped={isMapped}
+                // Pass reaction handler props
+                message={message}
+                currentUser={currentUser}
+                onReply={onReply}
+                onDelete={onDelete}
+                onShowUserPopover={onShowUserPopover}
+                onShowReactionUsers={onShowReactionUsers}
+              />
+            </View>
+          ) : (
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalGrid}
+              style={styles.horizontalScroll}
+            >
+              {attachments.map((attachment, index) => {
+                const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+                const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+                const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
+                const galleryInfo = `${index + 1}/${attachments.length}`;
 
-          return (
-            <AttachmentItemNative
-              key={`combined-${index}-${attachment.fileUrl}`}
-              attachment={attachment}
-              index={index}
-              totalCount={attachments.length}
-              onPress={() => handleAttachmentPress(attachment, index)}
-              isLocked={isLocked}
-              isBlurred={isCurrentlyBlurred}
-              onToggleBlur={() => toggleBlur(attachment.fileUrl)}
-              galleryInfo={galleryInfo}
-              isMapped={isMapped}
-            />
-          );
-        })}
-      </ScrollView>
-    )}
-  </View>
-)}
+                return (
+                  <AttachmentItemNative
+                    key={`combined-${index}-${attachment.fileUrl}`}
+                    attachment={attachment}
+                    index={index}
+                    totalCount={attachments.length}
+                    onPress={() => handleAttachmentPress(attachment, index)}
+                    isLocked={isLocked}
+                    isBlurred={isCurrentlyBlurred}
+                    onToggleBlur={() => toggleBlur(attachment.fileUrl)}
+                    galleryInfo={galleryInfo}
+                    isMapped={isMapped}
+                    // Pass reaction handler props
+                    message={message}
+                    currentUser={currentUser}
+                    onReply={onReply}
+                    onDelete={onDelete}
+                    onShowUserPopover={onShowUserPopover}
+                    onShowReactionUsers={onShowReactionUsers}
+                  />
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      )}
 
-{/* Summary for many files - flytt dette under den kombinerte ScrollView */}
-{attachments.length > 5 && (
-  <View style={styles.summary}>
-    <Text style={styles.summaryText}>
-      {attachments.length} files total {getFileTypesSummary()}
-    </Text>
-    <Text style={styles.summarySubtext}>
-      Tap any file to view or download
-    </Text>
-  </View>
-)}
+      {attachments.length > 5 && (
+        <View style={styles.summary}>
+          <Text style={styles.summaryText}>
+            {attachments.length} files total {getFileTypesSummary()}
+          </Text>
+          <Text style={styles.summarySubtext}>
+            Tap any file to view or download
+          </Text>
+        </View>
+      )}
 
-      {/* Download Progress Modal */}
       <DownloadProgressModal
         visible={showProgress}                       
         fileName={fileName || ''}                           
@@ -430,6 +579,7 @@ export default function MessageAttachmentsNative({
   );
 }
 
+// Styles forblir de samme
 const styles = StyleSheet.create({
   container: {
     marginTop: 8,
@@ -443,7 +593,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#1C6B1C',
-    // 🆕 For horisontal scroll - fast width
     minWidth: itemSize,
     minHeight: itemSize,
   },
@@ -487,17 +636,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '500',
   },
-  blurToggle: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    padding: 4,
-    borderRadius: 4,
-  },
-  blurToggleText: {
-    fontSize: 12,
-  },
   videoContainer: {
     width: '100%',
     height: '100%',
@@ -527,7 +665,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   playButton: {
-    backgroundColor: '#1C6B1C',  // Grønn bakgrunn 🟢
+    backgroundColor: '#1C6B1C',
     borderRadius: 25,
     width: 50,
     height: 50,
@@ -597,7 +735,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   horizontalScroll: {
-    marginHorizontal: -4, // Kompenser for padding
+    marginHorizontal: -4,
   },
   horizontalGrid: {
     paddingHorizontal: 4,
@@ -610,7 +748,7 @@ const styles = StyleSheet.create({
   documentContentContainer: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#F9FAFB', // Lys bakgrunn for dokumenter
+    backgroundColor: '#F9FAFB',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -622,12 +760,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   documentIconTextLarge: {
-    fontSize: 40, // Større ikon
+    fontSize: 40,
     opacity: 0.8,
   },
   documentInfoCentered: {
     paddingHorizontal: 8,
-    paddingBottom: 24, // Plass for overlay nederst
+    paddingBottom: 24,
     alignItems: 'center',
   },
   documentNameCentered: {
@@ -645,5 +783,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     fontWeight: '500',
   },
+  attachmentWithReactions: {
+    // Wrapper for attachment with reaction menu
+  },
 });
-

@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { MessageDTO } from '@shared/types/MessageDTO';
+import { MessageCircleReply } from 'lucide-react-native';
 
 interface ReplyPreviewNativeProps {
   message: MessageDTO;
@@ -58,7 +59,7 @@ export const ReplyPreviewNative: React.FC<ReplyPreviewNativeProps> = ({
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           {/* Reply icon (simple arrow) */}
-          <Text style={styles.replyIcon}>↩️</Text>
+          <MessageCircleReply size={16} color="#1C6B1C" />
           
           <Text style={styles.replyLabel}>
             Replying to {message.sender?.fullName || "Unknown"}

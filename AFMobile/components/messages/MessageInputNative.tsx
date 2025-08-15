@@ -13,7 +13,7 @@ import {
   ScrollView,
   Image as ImageReact,
 } from 'react-native';
-import { Camera, Image as ImageLucid, FileText, Plus, X, ArrowBigRight, Cross  } from 'lucide-react-native';
+import { Camera, Image as ImageLucid, FileText, Plus, X, ArrowBigRight, MessageCircleReply   } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';

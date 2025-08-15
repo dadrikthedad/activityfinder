@@ -188,20 +188,30 @@ const MessageItemNative = React.memo(({
       )}
 
       {message.isDeleted && (
-        <View style={styles.deletedMessageContainer}>
+        <View style={[
+          styles.deletedMessageContainer, 
+          isMine && styles.myDeletedMessageContainer
+        ]}>
           <Text style={styles.deletedMessageText}>This message has been deleted</Text>
         </View>
       )}
 
       {message.attachments && message.attachments.length > 0 && (
-        <View style={[styles.attachmentsContainer, isMine && styles.myAttachmentsContainer]}>
-          <MessageAttachmentsNative
-            attachments={message.attachments}
-            isLocked={isLocked}
-            isMapped={isMapped} 
-          />
-        </View>
-      )}
+      <View style={[styles.attachmentsContainer, isMine && styles.myAttachmentsContainer]}>
+        <MessageAttachmentsNative
+          attachments={message.attachments}
+          isLocked={isLocked}
+          isMapped={isMapped}
+          // Nye props for reaction handler
+          message={message}
+          currentUser={currentUser}
+          onReply={onReply}
+          onDelete={onDelete}
+          onShowUserPopover={onShowUserPopover}
+          onShowReactionUsers={onShowReactionUsers}
+        />
+      </View>
+    )}
 
       {isOptimistic && hasSendError && (
         <View style={styles.errorActionsContainer}>
@@ -1027,5 +1037,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'white',
     opacity: 0.8,
+  },
+    myDeletedMessageContainer: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignSelf: 'flex-end',  // Høyre side for mine meldinger
+    maxWidth: '80%',
   },
 });
