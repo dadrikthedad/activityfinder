@@ -13,7 +13,7 @@ import {
   ScrollView,
   Image as ImageReact,
 } from 'react-native';
-import { Camera, Image as ImageLucid, FileText, Plus, X } from 'lucide-react-native';
+import { Camera, Image as ImageLucid, FileText, Plus, X, ArrowBigRight, Cross  } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
@@ -26,7 +26,7 @@ import { ReplyPreviewNative } from './ReplyPreviewNative';
 import { RNFile, validateFiles, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
 import FileViewerNative from '../files/FileViewerNative';
 import { AppState } from 'react-native';
-import {launchCamera, MediaType, ImagePickerResponse} from 'react-native-image-picker';
+import {launchCamera } from 'react-native-image-picker';
 
 interface MessageInputNativeProps {
   receiverId?: number;
@@ -637,7 +637,7 @@ export default function MessageInputNative({
             style={styles.actionButton}
             onPress={handleShowActionsMenu}
           >
-            <Plus size={24} color="#1C6B1C" />
+            <Plus size={24} color="#ffffffff" />
           </TouchableOpacity>
         )}
         
@@ -662,12 +662,12 @@ export default function MessageInputNative({
         <TouchableOpacity
           style={[
             styles.sendButton,
-            (!text.trim() && selectedFiles.length === 0 || isBlocked) && styles.sendButtonDisabled
+            ((!text.trim() && selectedFiles.length === 0) || isBlocked) && styles.sendButtonDisabled
           ]}
           onPress={handleSend}
           disabled={(!text.trim() && selectedFiles.length === 0) || isBlocked}
         >
-          <Text style={styles.sendButtonText}>Send</Text>
+          <ArrowBigRight size={24} color="#ffffffff" />
         </TouchableOpacity>
       </View>
 
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#1C6B1C',
     justifyContent: 'center',
     alignItems: 'center',
     width: 40,
@@ -771,8 +771,8 @@ const styles = StyleSheet.create({
   sendButton: {
     backgroundColor: '#1C6B1C',
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },

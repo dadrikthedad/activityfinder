@@ -10,14 +10,11 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  FlatList,
 } from 'react-native';
-import { ArrowLeft, ArrowDown, Settings } from 'lucide-react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { ArrowBigLeft, ArrowBigDown, Settings } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { useChatStore } from '@/store/useChatStore';
-import { useUserActionPopoverStore } from '@/store/useUserActionPopoverStore';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { MessageDTO } from '@shared/types/MessageDTO';
 import { clearDraftFor } from '@/utils/draft/draft';
@@ -45,7 +42,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   const { 
     setCurrentConversationId, 
     conversations,
-    cleanupOptimisticForConversation 
   } = useChatStore();
   
   const currentConversation = conversations.find(c => c.id === conversationId);
@@ -295,15 +291,10 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   };
 
   // Get conversation subtitle for header
-  const getConversationSubtitle = () => {
-    if (!currentConversation) return "";
-    
-    if (currentConversation.isGroup) {
-      return `${currentConversation.participants.length} medlemmer`;
-    }
-    
-    return "Privat samtale";
-  };
+  const getConversationSubtitle = () =>
+  currentConversation?.isGroup
+    ? `${currentConversation.participants.length} members`
+    : "";
 
   // Handle back navigation
   const handleBack = useCallback(() => {
@@ -341,18 +332,27 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
             onPress={handleBack}
             style={styles.backButton}
           >
-            <ArrowLeft size={24} color="white" />
+            <ArrowBigLeft size={24} color="white" />
           </TouchableOpacity>
           
           {/* Conversation info */}
           <View style={styles.conversationInfo}>
-            <Text style={styles.conversationTitle}>
-              {getConversationTitle()}
-            </Text>
+          <Text
+            style={[
+              styles.conversationTitle,
+              !currentConversation?.isGroup && styles.conversationTitleSingleLine
+            ]}
+            numberOfLines={1}
+          >
+            {getConversationTitle()}
+          </Text>
+
+          {currentConversation?.isGroup && (
             <Text style={styles.conversationSubtitle}>
               {getConversationSubtitle()}
             </Text>
-          </View>
+          )}
+        </View>
           
           {/* Toolbar buttons */}
           <View style={styles.toolbarButtons}>
@@ -362,7 +362,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
                 style={styles.toolbarButton}
                 onPress={handleScrollToBottom}
               >
-                <ArrowDown size={20} color="white" />
+                <ArrowBigDown size={20} color="#ffffffff" />
               </TouchableOpacity>
             )}
             
@@ -371,7 +371,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
               style={styles.toolbarButton}
               onPress={handleOpenSettings}
             >
-              <Settings size={20} color="white" />
+              <Settings size={20} color="#ffffffff" />
             </TouchableOpacity>
           </View>
         </View>
@@ -465,12 +465,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
+    borderBottomWidth: 1,          // Nytt
+    borderBottomColor: '#FFFFFF', 
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 4,
+    paddingBottom: 6,
     gap: 16,
   },
   backButton: {
@@ -500,7 +503,7 @@ const styles = StyleSheet.create({
   toolbarButton: {
     padding: 8,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#1C6B1C',
   },
   warningBanner: {
     backgroundColor: '#FEF3C7',
@@ -522,10 +525,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   inputContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#1C6B1C',
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    borderTopColor: '#FFFFFF',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    paddingBottom: 14,
   },
+  conversationTitleSingleLine: {
+  marginTop: 0,
+  marginBottom: 0,
+  paddingBottom: 2
+},
 });

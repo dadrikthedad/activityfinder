@@ -197,10 +197,10 @@ const AttachmentItemNative = ({
             </View>
           )}
           
-          {/* 🎯 FELLES FileNameFooterPreview - KUN ÉN STED! */}
+          {/* FELLES FileNameFooterPreview */}
           <FileNameFooterPreview 
             fileName={attachment.fileName} 
-            maxLength={48}
+            maxLength={40}
             isBlurred={isBlurred} 
           />
         </>
