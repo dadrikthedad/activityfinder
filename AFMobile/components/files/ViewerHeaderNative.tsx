@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 0,
-    paddingTop: 10,
+    paddingTop: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     zIndex: 10,
   },

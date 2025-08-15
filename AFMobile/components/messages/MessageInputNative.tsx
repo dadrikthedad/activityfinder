@@ -252,50 +252,50 @@ export default function MessageInputNative({
   // Handle camera action
 
   const [isCameraActive, setIsCameraActive] = useState(false);
-const handleOpenCamera = async () => {
-  if (isCameraActive) return;
-  
-  setIsCameraActive(true);
-  setShowActionsModal(false);
-  
-  console.log('🎯 Opening camera with react-native-image-picker...');
-  
-  launchCamera(
-    {
-      mediaType: 'photo',
-      quality: 0.7,
-    },
-    (response) => {
-      console.log('📱 Camera response:', { didCancel: response.didCancel, hasAssets: !!response.assets });
-      
-      if (response.didCancel || response.errorMessage) {
-        console.log('❌ Camera cancelled or error:', response.errorMessage);
+  const handleOpenCamera = async () => {
+    if (isCameraActive) return;
+    
+    setIsCameraActive(true);
+    setShowActionsModal(false);
+    
+    console.log('🎯 Opening camera with react-native-image-picker...');
+    
+    launchCamera(
+      {
+        mediaType: 'photo',
+        quality: 0.7,
+      },
+      (response) => {
+        console.log('📱 Camera response:', { didCancel: response.didCancel, hasAssets: !!response.assets });
+        
+        if (response.didCancel || response.errorMessage) {
+          console.log('❌ Camera cancelled or error:', response.errorMessage);
+          setIsCameraActive(false);
+          return;
+        }
+        
+        // ✅ RIKTIG FIX: Sjekk asset og uri separat
+        const asset = response.assets?.[0];
+        if (!asset || !asset.uri) {
+          console.log('❌ No valid asset or URI received');
+          setIsCameraActive(false);
+          return;
+        }
+        
+        // Her vet TypeScript at asset.uri er definitivt string (ikke undefined)
+        const file: RNFile = {
+          uri: asset.uri, // ✅ Ingen TypeScript error
+          type: asset.type || 'image/jpeg',
+          name: asset.fileName || `camera_${Date.now()}.jpg`,
+          size: asset.fileSize
+        };
+        
+        console.log('✅ Camera file created:', file.name);
+        setSelectedFiles(prev => [...prev, file]);
         setIsCameraActive(false);
-        return;
       }
-      
-      // ✅ RIKTIG FIX: Sjekk asset og uri separat
-      const asset = response.assets?.[0];
-      if (!asset || !asset.uri) {
-        console.log('❌ No valid asset or URI received');
-        setIsCameraActive(false);
-        return;
-      }
-      
-      // Her vet TypeScript at asset.uri er definitivt string (ikke undefined)
-      const file: RNFile = {
-        uri: asset.uri, // ✅ Ingen TypeScript error
-        type: asset.type || 'image/jpeg',
-        name: asset.fileName || `camera_${Date.now()}.jpg`,
-        size: asset.fileSize
-      };
-      
-      console.log('✅ Camera file created:', file.name);
-      setSelectedFiles(prev => [...prev, file]);
-      setIsCameraActive(false);
-    }
-  );
-};
+    );
+  };
   // Handle image picker
   const handlePickImage = async () => {
     setShowActionsModal(false);

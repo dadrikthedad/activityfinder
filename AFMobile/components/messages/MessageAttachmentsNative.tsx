@@ -8,7 +8,8 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
-  Alert
+  Alert,
+  ScrollView
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { 
@@ -75,7 +76,8 @@ const AttachmentItemNative = ({
   isBlurred = false,
   onToggleBlur,
   galleryInfo,
-  isMapped = false
+  isMapped = false,
+  totalCount
 }: AttachmentItemNativeProps) => {
   const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
   const isImage = fileInfo.category === 'image';
@@ -244,31 +246,50 @@ const AttachmentItemNative = ({
   }
 
   // Document/other file types
-  return (
-    <TouchableOpacity
-      style={styles.documentContainer}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.documentIcon}>
-        <Text style={styles.documentIconText}>{fileInfo.icon}</Text>
+  // Document/other file types
+return (
+  <TouchableOpacity
+    style={[
+      styles.documentContainer,
+      // 🆕 For horisontal scroll - fast width som media
+      totalCount > 1 && styles.documentContainerHorizontal
+    ]}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
+    <View style={styles.documentIcon}>
+      <Text style={styles.documentIconText}>{fileInfo.icon}</Text>
+    </View>
+    
+    <View style={[
+      styles.documentInfo,
+      totalCount > 1 && styles.documentInfoHorizontal
+    ]}>
+      <Text style={[
+        styles.documentName,
+        totalCount > 1 && styles.documentNameHorizontal
+      ]} numberOfLines={totalCount > 1 ? 3 : 2}>
+        {attachment.fileName || 'Unnamed file'}
+      </Text>
+      <Text style={styles.documentType}>
+        {attachment.fileType || 'Unknown type'}
+      </Text>
+    </View>
+    
+    {/* Gallery indicator for documents in horizontal scroll */}
+    {galleryInfo && totalCount > 1 && (
+      <View style={styles.documentGalleryIndicator}>
+        <Text style={styles.galleryText}>{galleryInfo}</Text>
       </View>
-      
-      <View style={styles.documentInfo}>
-        <Text style={styles.documentName} numberOfLines={2}>
-          {attachment.fileName || 'Unnamed file'}
-        </Text>
-        <Text style={styles.documentType}>
-          {attachment.fileType || 'Unknown type'}
-        </Text>
-      </View>
-      
-      <View style={styles.documentIndicator}>
-        <Text style={styles.documentIndicatorText}>📎</Text>
-      </View>
-    </TouchableOpacity>
-  );
+    )}
+    
+    <View style={styles.documentIndicator}>
+      <Text style={styles.documentIndicatorText}>📎</Text>
+    </View>
+  </TouchableOpacity>
+);
 };
+
 
 export default function MessageAttachmentsNative({ 
   attachments, 
@@ -412,101 +433,70 @@ export default function MessageAttachmentsNative({
   return (
     <View style={styles.container}>
       {/* Images Grid */}
-      {images.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.grid}>
-            {images.slice(0, 4).map((attachment, index) => {
-              const globalIndex = attachments.indexOf(attachment);
-              const isCurrentlyBlurred = isLocked && blurredAttachments.has(attachment.fileUrl);
-              const galleryInfo = images.length > 1 ? `${index + 1}/${images.length}` : undefined;
+      {/* Combined Media ScrollView */}
+{attachments.length > 0 && (
+  <View style={styles.section}>
+    {attachments.length === 1 ? (
+      // Single attachment - full width display
+      <View style={styles.singleImageContainer}>
+        <AttachmentItemNative
+          key={`single-${attachments[0].fileUrl}`}
+          attachment={attachments[0]}
+          index={0}
+          totalCount={attachments.length}
+          onPress={() => handleAttachmentPress(attachments[0], 0)}
+          isLocked={isLocked}
+          isBlurred={isLocked && blurredAttachments.has(attachments[0].fileUrl)}
+          onToggleBlur={() => toggleBlur(attachments[0].fileUrl)}
+          galleryInfo={attachments.length > 1 ? `1/${attachments.length}` : undefined}
+          isMapped={isMapped}
+        />
+      </View>
+    ) : (
+      // Multiple attachments - horizontal scroll
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalGrid}
+        style={styles.horizontalScroll}
+      >
+        {attachments.map((attachment, index) => {
+          const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+          const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+          const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
+          const galleryInfo = `${index + 1}/${attachments.length}`;
 
-              return (
-                <AttachmentItemNative
-                  key={`image-${globalIndex}`}
-                  attachment={attachment}
-                  index={globalIndex}
-                  totalCount={images.length}
-                  onPress={() => handleAttachmentPress(attachment, globalIndex)}
-                  isLocked={isLocked}
-                  isBlurred={isCurrentlyBlurred}
-                  onToggleBlur={() => toggleBlur(attachment.fileUrl)}
-                  galleryInfo={galleryInfo}
-                  isMapped={isMapped}
-                />
-              );
-            })}
-            
-            {/* Show +X more overlay */}
-            {images.length > 4 && (
-              <TouchableOpacity
-                style={[styles.imageContainer, styles.moreOverlay, { width: itemSize, height: itemSize }]}
-                onPress={() => handleAttachmentPress(images[4], attachments.indexOf(images[4]))}
-              >
-                <Text style={styles.moreText}>+{images.length - 4}</Text>
-                <Text style={styles.moreSubtext}>more</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
+          return (
+            <AttachmentItemNative
+              key={`combined-${index}-${attachment.fileUrl}`}
+              attachment={attachment}
+              index={index}
+              totalCount={attachments.length}
+              onPress={() => handleAttachmentPress(attachment, index)}
+              isLocked={isLocked}
+              isBlurred={isCurrentlyBlurred}
+              onToggleBlur={() => toggleBlur(attachment.fileUrl)}
+              galleryInfo={galleryInfo}
+              isMapped={isMapped}
+            />
+          );
+        })}
+      </ScrollView>
+    )}
+  </View>
+)}
 
-      {/* Videos Grid */}
-      {videos.length > 0 && (
-        <View style={styles.section}>
-          <View style={styles.grid}>
-            {videos.map((attachment, index) => {
-              const globalIndex = attachments.indexOf(attachment);
-              const isCurrentlyBlurred = isLocked && blurredAttachments.has(attachment.fileUrl);
-
-              return (
-                <AttachmentItemNative
-                  key={`video-${globalIndex}`}
-                  attachment={attachment}
-                  index={globalIndex}
-                  totalCount={videos.length}
-                  onPress={() => handleAttachmentPress(attachment, globalIndex)}
-                  isLocked={isLocked}
-                  isBlurred={isCurrentlyBlurred}
-                  onToggleBlur={() => toggleBlur(attachment.fileUrl)}
-                  isMapped={isMapped}
-                />
-              );
-            })}
-          </View>
-        </View>
-      )}
-
-      {/* Documents List */}
-      {documents.length > 0 && (
-        <View style={styles.section}>
-          {documents.map((attachment, index) => {
-            const globalIndex = attachments.indexOf(attachment);
-            
-            return (
-              <AttachmentItemNative
-                key={`doc-${globalIndex}`}
-                attachment={attachment}
-                index={globalIndex}
-                totalCount={documents.length}
-                onPress={() => handleAttachmentPress(attachment, globalIndex)}
-                isMapped={isMapped} 
-              />
-            );
-          })}
-        </View>
-      )}
-
-      {/* Summary for many files */}
-      {attachments.length > 5 && (
-        <View style={styles.summary}>
-          <Text style={styles.summaryText}>
-            {attachments.length} files total {getFileTypesSummary()}
-          </Text>
-          <Text style={styles.summarySubtext}>
-            Tap any file to view or download
-          </Text>
-        </View>
-      )}
+{/* Summary for many files - flytt dette under den kombinerte ScrollView */}
+{attachments.length > 5 && (
+  <View style={styles.summary}>
+    <Text style={styles.summaryText}>
+      {attachments.length} files total {getFileTypesSummary()}
+    </Text>
+    <Text style={styles.summarySubtext}>
+      Tap any file to view or download
+    </Text>
+  </View>
+)}
 
       {/* Download Progress Modal */}
       <DownloadProgressModal
@@ -539,6 +529,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
     borderColor: '#1C6B1C',
+    // 🆕 For horisontal scroll - fast width
+    minWidth: itemSize,
+    minHeight: itemSize,
   },
   image: {
     width: '100%',
@@ -767,4 +760,44 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 4,
   },
+  horizontalScroll: {
+    marginHorizontal: -4, // Kompenser for padding
+  },
+  horizontalGrid: {
+    paddingHorizontal: 4,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  singleImageContainer: {
+    alignItems: 'center',
+  },
+  documentContainerHorizontal: {
+    width: itemSize,
+    height: itemSize,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  documentInfoHorizontal: {
+    flex: 1,
+    marginRight: 0,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  documentNameHorizontal: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 14,
+  },
+  documentGalleryIndicator: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
 });
+
