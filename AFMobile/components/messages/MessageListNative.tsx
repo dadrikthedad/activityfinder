@@ -1,4 +1,4 @@
-// components/messages/MessageListNative.tsx
+// components/messages/MessageListNative.tsx - Further cleaned version
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
@@ -22,8 +21,10 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { useReactionUsersModal } from '@/components/reactions/ReactionUsersModal';
 import { ReactionDTO } from '@shared/types/MessageDTO';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import { Dimensions } from 'react-native';
+
+interface MessageListNativeRef {
+  scrollToBottom: () => void;
+}
 
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
@@ -49,7 +50,8 @@ interface MessageItemProps {
   onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
 }
 
-const MessageItemNative = ({
+// Memoized MessageItem for better performance
+const MessageItemNative = React.memo(({
   message,
   currentUser,
   isLocked,
@@ -83,11 +85,11 @@ const MessageItemNative = ({
     );
   }
 
-  const handleAvatarPress = () => {
+  const handleAvatarPress = useCallback(() => {
     if (message.sender && !isMine && onShowUserPopover) {
       onShowUserPopover(message.sender, { x: 0, y: 0 });
     }
-  };
+  }, [message.sender, isMine, onShowUserPopover]);
 
   const existingReactions = message.reactions || [];
 
@@ -117,11 +119,11 @@ const MessageItemNative = ({
     return Array.from(reactionMap.values());
   }, [existingReactions]);
 
-  const handleReactionPress = (emoji: string) => {
+  const handleReactionPress = useCallback((emoji: string) => {
     if (message?.reactions) {
       onShowReactionUsers?.(emoji, message.reactions);
     }
-  };
+  }, [message?.reactions, onShowReactionUsers]);
 
   const messageContent = (
     <View
@@ -222,7 +224,7 @@ const MessageItemNative = ({
         </View>
       )}
 
-       {shouldShowSending && (
+      {shouldShowSending && (
         <View style={styles.sendingIndicator}>
           <ActivityIndicator size="small" color="#6B7280" />
           <Text style={styles.sendingText}>Sending...</Text>
@@ -230,20 +232,20 @@ const MessageItemNative = ({
       )}
 
       {groupedReactions.length > 0 && (
-    <View style={[styles.reactionsContainer, isMine && styles.myReactionsContainer]}>
-      {groupedReactions.map((reaction, index) => (
-        <TouchableOpacity 
-          key={`${reaction.emoji}-${index}`} 
-          style={styles.reactionBubble}
-          onPress={() => handleReactionPress(reaction.emoji)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
-          <Text style={styles.reactionCount}>{reaction.count}</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  )}
+        <View style={[styles.reactionsContainer, isMine && styles.myReactionsContainer]}>
+          {groupedReactions.map((reaction, index) => (
+            <TouchableOpacity 
+              key={`${reaction.emoji}-${index}`} 
+              style={styles.reactionBubble}
+              onPress={() => handleReactionPress(reaction.emoji)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
+              <Text style={styles.reactionCount}>{reaction.count}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 
@@ -265,11 +267,11 @@ const MessageItemNative = ({
       {messageContent}
     </ReactionHandlerNative>
   );
-};
+});
 
 MessageItemNative.displayName = 'MessageItemNative';
 
-export default function MessageListNative({
+const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, MessageListNativeProps> = ({
   currentUser,
   onShowUserPopover,
   conversationVisible,
@@ -279,36 +281,28 @@ export default function MessageListNative({
   onRetryMessage,
   onDeleteFailedMessage,
   conversationParticipants = [],
-}: MessageListNativeProps) {
-  const { 
-    liveMessages, 
-    scrollPositions, 
-    setScrollPosition,
-    scrollMessageIds,
-    setScrollMessageId
-  } = useChatStore();
-  const rawConversationId = useChatStore((state) => state.currentConversationId);
-  const conversationId = rawConversationId ?? -1;
+}, ref) => {
+  const { liveMessages } = useChatStore();
+  const conversationId = useChatStore((state) => state.currentConversationId) ?? -1;
 
   const flatListRef = useRef<FlatList>(null);
-  const topRef = useRef<View>(null);
-  const bottomRef = useRef<View>(null);
   const [isInitialized, setIsInitialized] = useState(false);
-  const isRestoring = useRef(false);
   
-  // 🔧 FIX: Track current scroll position more reliably
-  const currentScrollPosition = useRef(0);
-  const scrollUpdateTimer = useRef<NodeJS.Timeout | null>(null);
+  // Simplified scroll tracking - only what we actually need
+  const scrollY = useRef(0);
+  const visibleMessageIndex = useRef(0);
+  const lastMessageId = useRef<number | null>(null);
   
-  // 🆕 NEW: Smooth infinite scroll state
+  // Infinite scroll state
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const loadMoreThrottleRef = useRef<NodeJS.Timeout | null>(null);
-  const lastLoadMoreTime = useRef(0);
+  const loadMoreTimer = useRef<NodeJS.Timeout | null>(null);
+  
+  // New message banner state
+  const [showNewMessageBanner, setShowNewMessageBanner] = useState(false);
+  const [newMessageCount, setNewMessageCount] = useState(0);
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
-
   const { showReactionUsers } = useReactionUsersModal();
-
   const { confirm } = useConfirmModalNative();
 
   const {
@@ -320,7 +314,7 @@ export default function MessageListNative({
     isReady,
   } = usePaginatedMessages(conversationId, conversationVisible);
 
-  const { deleteMessage, isDeleting } = useDeleteMessage({
+  const { deleteMessage } = useDeleteMessage({
     onSuccess: (deletedMessage) => {
       console.log('Message deleted successfully:', deletedMessage.id);
     },
@@ -329,57 +323,38 @@ export default function MessageListNative({
     }
   });
 
-  const [dimensions, setDimensions] = useState(() => {
-    const { width, height } = Dimensions.get('window');
-    return { width, height };
-  });
-
-  const isLandscape = dimensions.width > dimensions.height;
-
-  useEffect(() => {
-    // Unlock rotation når MessageList er synlig
-    if (conversationVisible) {
-      ScreenOrientation.unlockAsync();
-      
-      const subscription = ScreenOrientation.addOrientationChangeListener((event) => {
-        const { width, height } = Dimensions.get('window');
-        setDimensions({ width, height });
-      });
-
-      return () => subscription?.remove();
-    } else {
-      // Lock tilbake til portrait når ikke synlig
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-    }
-  }, [conversationVisible]);
-
   const live = useMemo(() => {
     return liveMessages[conversationId] || [];
   }, [liveMessages, conversationId]);
 
+  // Combine and sort messages
   const displayedMessages = useMemo(() => {
-    const all = [...messages, ...live];
-    const seen = new Set();
+    const messageMap = new Map();
+    
+    // Add cached messages first
+    messages.forEach(msg => {
+      messageMap.set(msg.id, msg);
+    });
+    
+    // Add live messages, overriding cached ones if same ID
+    live.forEach(msg => {
+      messageMap.set(msg.id, msg);
+    });
 
-    return all
-      .filter((msg) => {
-        if (seen.has(msg.id)) return false;
-        seen.add(msg.id);
-        return true;
-      })
+    return Array.from(messageMap.values())
       .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
   }, [messages, live]);
 
-  const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === conversationId)
   );
+  const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
 
   const isLocked =
     currentConversation?.isPendingApproval === true ||
     conversationId === pendingLockedConversationId;
 
-  const handleDeleteMessage = async (message: MessageDTO) => {
+  const handleDeleteMessage = useCallback(async (message: MessageDTO) => {
     const { getActualMessageId } = useChatStore.getState();
     const actualMessageId = getActualMessageId(message);
     
@@ -389,7 +364,6 @@ export default function MessageListNative({
         : message.text
       : "this message";
 
-    // Bruk din tilpassede modal i stedet for Alert
     const confirmed = await confirm({
       title: "Delete message",
       message: `Are you certain you want to delete "${messagePreview}"?\n\nThis action cannot be undone.`
@@ -397,26 +371,22 @@ export default function MessageListNative({
 
     if (confirmed) {
       try {
-        // Sjekk om actualMessageId er null
         if (actualMessageId !== null) {
           await deleteMessage({ 
             ...message, 
             id: actualMessageId 
           });
         } else {
-          // For optimistiske meldinger uten server ID, bruk original melding
           await deleteMessage(message);
         }
       } catch (error) {
         console.error('Failed to delete message:', error);
-        // Du kan eventuelt vise en error-modal her også
       }
     }
-  };
+  }, [deleteMessage, confirm]);
 
-  
-
-  const renderMessage = ({ item }: { item: MessageDTO }) => (
+  // Render message with stable callback
+  const renderMessage = useCallback(({ item }: { item: MessageDTO }) => (
     <MessageItemNative
       message={item}
       currentUser={currentUser}
@@ -427,292 +397,144 @@ export default function MessageListNative({
       onDeleteFailed={onDeleteFailedMessage}
       onShowUserPopover={onShowUserPopover}
       onShowReactionUsers={(emoji, reactions) => 
-      showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants) // 🆕 SEND participants
-    }
+        showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants)
+      }
     />
-  );
+  ), [currentUser, isLocked, onReply, handleDeleteMessage, onRetryMessage, onDeleteFailedMessage, onShowUserPopover, showReactionUsers, conversationParticipants]);
 
-  // 🆕 NEW: Smooth infinite scroll handler
-  const handleLoadMoreSmooth = useCallback(async () => {
-    // Throttle requests to avoid spam
-    const now = Date.now();
-    if (now - lastLoadMoreTime.current < 1000) { // Min 1 second between requests
-      return;
-    }
+  // Simplified infinite scroll
+  const handleLoadMore = useCallback(async () => {
+    if (!hasMore || loading || isLoadingMore) return;
 
-    if (!hasMore || loading || isLoadingMore) {
-      return;
-    }
-
-    console.log('🔄 Starting smooth load more...');
     setIsLoadingMore(true);
-    lastLoadMoreTime.current = now;
-
     try {
       await loadMore();
-      console.log('✅ Smooth load more completed');
     } catch (error) {
-      console.error('❌ Smooth load more failed:', error);
+      console.error('Load more failed:', error);
     } finally {
-      // Add a small delay to prevent UI flickering
-      setTimeout(() => {
-        setIsLoadingMore(false);
-      }, 300);
+      setTimeout(() => setIsLoadingMore(false), 500);
     }
   }, [hasMore, loading, isLoadingMore, loadMore]);
 
-  // 🆕 NEW: Enhanced scroll handler with smooth infinite scroll
+  // Simplified scroll handler
   const handleScroll = useCallback((event: any) => {
-    if (isRestoring.current || !isInitialized) {
-      return;
-    }
+    if (!isInitialized) return;
 
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    const targetConversationId = stableConversationId.current;
+    scrollY.current = contentOffset.y;
     
-    if (!targetConversationId || targetConversationId === -1) {
-      return;
-    }
+    // Update visible message index (simple estimation)
+    const estimatedIndex = Math.floor(contentOffset.y / 120); // 120px estimated message height
+    visibleMessageIndex.current = Math.max(0, Math.min(estimatedIndex, displayedMessages.length - 1));
     
-    // Update current position immediately
-    currentScrollPosition.current = contentOffset.y;
-    
+    // Check if at bottom
     const isAtBottom = contentOffset.y <= 50;
     onScrollPositionChange?.(isAtBottom);
 
-    // 🆕 NEW: Check if we're near the top (which is bottom in inverted list) to load more
+    // Infinite scroll check (simplified)
     const distanceFromTop = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    const loadMoreThreshold = 200; // Trigger when 200px from top
-    
-    if (distanceFromTop <= loadMoreThreshold && hasMore && !loading && !isLoadingMore) {
-      console.log(`📈 Near top (${distanceFromTop}px remaining), triggering smooth load more`);
-      
-      // Throttle the load more requests
-      if (loadMoreThrottleRef.current) {
-        clearTimeout(loadMoreThrottleRef.current);
-      }
-      
-      loadMoreThrottleRef.current = setTimeout(() => {
-        handleLoadMoreSmooth();
-      }, 100); // Small delay to avoid multiple rapid calls
+    if (distanceFromTop <= 400) { // 400px threshold
+      if (loadMoreTimer.current) clearTimeout(loadMoreTimer.current);
+      loadMoreTimer.current = setTimeout(handleLoadMore, 300);
     }
+  }, [isInitialized, displayedMessages.length, onScrollPositionChange, handleLoadMore]);
 
-    // Save scroll position (debounced)
-    if (scrollUpdateTimer.current) {
-      clearTimeout(scrollUpdateTimer.current);
-    }
-    
-    scrollUpdateTimer.current = setTimeout(() => {
-      const ESTIMATED_MESSAGE_HEIGHT = 100;
-      const visibleMessageIndex = Math.max(0, 
-        Math.min(
-          Math.floor(contentOffset.y / ESTIMATED_MESSAGE_HEIGHT),
-          displayedMessages.length - 1
-        )
-      );
-      
-      const visibleMessage = displayedMessages[visibleMessageIndex];
-
-      if (visibleMessage) {
-        const scrollData = {
-          messageId: visibleMessage.id,
-          offset: contentOffset.y,
-          timestamp: Date.now()
-        };
-        
-        setScrollMessageId(targetConversationId, scrollData);
-      }
-    }, 500);
-
-  }, [displayedMessages, setScrollMessageId, onScrollPositionChange, isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth]);
-
-  const stableConversationId = useRef(conversationId);
-
-  
-  
+  // Reset state when conversation changes
   useEffect(() => {
-    if (conversationId && conversationId !== -1) {
-      stableConversationId.current = conversationId;
-    }
-  }, [conversationId]);
-
-  // 🔧 FIX 2: Simplified viewport tracking - only when scroll tracking fails
-  const trackVisibleItems = useCallback((info: any) => {
-    if (isRestoring.current || !isInitialized) return;
-    
-    const targetConversationId = stableConversationId.current;
-    if (!targetConversationId || targetConversationId === -1) return;
-
-    const visibleItems = info.viewableItems;
-    if (visibleItems.length > 0) {
-      // Only save if we haven't saved recently (avoid duplicate saves)
-      const lastSave = useChatStore.getState().scrollMessageIds[targetConversationId]?.timestamp || 0;
-      const now = Date.now();
-      
-      if (now - lastSave > 1000) { // Only save if last save was >1 second ago
-        const firstVisibleMessage = visibleItems[0].item;
-        
-        const scrollData = {
-          messageId: firstVisibleMessage.id,
-          offset: currentScrollPosition.current,
-          timestamp: now
-        };
-        
-        setScrollMessageId(targetConversationId, scrollData);
-      }
-    }
-  }, [setScrollMessageId, isInitialized]);
-
-  useEffect(() => {
-    
-    if (conversationId && conversationId !== -1) {
+    if (conversationId !== -1) {
       setIsInitialized(false);
-      isRestoring.current = false;
-      currentScrollPosition.current = 0;
-      setIsLoadingMore(false); // 🆕 NEW: Reset loading more state
+      scrollY.current = 0;
+      visibleMessageIndex.current = 0;
+      lastMessageId.current = null;
+      setIsLoadingMore(false);
+      setShowNewMessageBanner(false);
+      setNewMessageCount(0);
     }
   }, [conversationId]);
 
-  // Enhanced restoration logic with forced initial tracking
+  // Initialize list when ready
   useEffect(() => {
-
-    if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
+    if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped || isInitialized) {
       return;
     }
 
-    if (isInitialized) {
-      return;
+    // Initialize at bottom
+    flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+    scrollY.current = 0;
+    
+    // Set initial last message ID
+    const currentLastMessage = displayedMessages[0];
+    if (currentLastMessage) {
+      lastMessageId.current = currentLastMessage.id;
     }
+    
+    setIsInitialized(true);
+  }, [conversationId, displayedMessages.length, loading, isBootstrapped, isInitialized]);
 
-    if (isRestoring.current) {
-      console.log(`🚫 Already restoring, skipping...`);
-      return;
-    }
+  // Handle new messages with smart auto-scroll
+  const currentLastMessage = displayedMessages[0];
 
-    isRestoring.current = true;
+  useEffect(() => {
+    if (!flatListRef.current || !conversationVisible || !isInitialized || !currentLastMessage) return;
 
-    const restorePosition = () => {
-      if (flatListRef.current && !isInitialized && displayedMessages.length > 0) {
-        try {
-          const scrollData = useChatStore.getState().scrollMessageIds[conversationId];
-          
-          if (scrollData?.messageId) {
-            const messageIndex = displayedMessages.findIndex(msg => msg.id === scrollData.messageId);
-            
-            if (messageIndex >= 0) {
-              // console.log(`🎯 Restoring to message ID ${scrollData.messageId} at index ${messageIndex}`);
-              
-              flatListRef.current.scrollToIndex({
-                index: messageIndex,
-                animated: false,
-                viewPosition: 0.1,
-              });
-              
-              currentScrollPosition.current = scrollData.offset;
-              // console.log(`✅ Successfully restored to message at index ${messageIndex}`);
-            } else {
-              console.log(`⚠️ Message ID ${scrollData.messageId} not found, using offset fallback`);
-              
-              flatListRef.current.scrollToOffset({
-                offset: scrollData.offset,
-                animated: false,
-              });
-              
-              currentScrollPosition.current = scrollData.offset;
-            }
-          } else {
-            const savedPosition = scrollPositions[conversationId] || 0;
-            console.log(`📍 No message ID saved, using offset: ${savedPosition}`);
-            
-            flatListRef.current.scrollToOffset({
-              offset: savedPosition,
-              animated: false,
-            });
-            
-            currentScrollPosition.current = savedPosition;
-          }
-          
-          setIsInitialized(true);
-          isRestoring.current = false;
-          
-          // Force initial tracking after restoration
-          setTimeout(() => {
-            const ESTIMATED_MESSAGE_HEIGHT = 100;
-            const visibleMessageIndex = Math.max(0, 
-              Math.min(
-                Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
-                displayedMessages.length - 1
-              )
-            );
-            
-            const visibleMessage = displayedMessages[visibleMessageIndex];
-            
-            if (visibleMessage) {
-              const initialScrollData = {
-                messageId: visibleMessage.id,
-                offset: currentScrollPosition.current,
-                timestamp: Date.now()
-              };
-   
-              setScrollMessageId(conversationId, initialScrollData);
-            }
-          }, 100);
-          
-        } catch (error) {
-          console.warn('❌ Failed to restore scroll position:', error);
-          setIsInitialized(true);
-          isRestoring.current = false;
-        }
+    const hasNewMessage = currentLastMessage.id !== lastMessageId.current;
+    
+    if (hasNewMessage) {
+      const messagesFromBottom = visibleMessageIndex.current;
+      
+      if (messagesFromBottom <= 4) { // Within 4 messages from bottom
+        // Auto-scroll to bottom
+        flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+        scrollY.current = 0;
+        setShowNewMessageBanner(false);
+        setNewMessageCount(0);
+      } else {
+        // Show notification
+        setNewMessageCount(prev => prev + 1);
+        setShowNewMessageBanner(true);
       }
-    };
-
-    const timer = setTimeout(restorePosition, 50);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [conversationId, displayedMessages.length, loading, scrollPositions, isBootstrapped, setScrollMessageId]);
-
-  const lastMessageId = displayedMessages[0]?.id;
-  const previousLastMessageId = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!flatListRef.current || !conversationVisible) return;
-
-    const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
-    const savedPosition = scrollPositions[conversationId] || 0;
-    const isNearBottom = savedPosition <= 100;
-
-    if (hasNewMessage && isNearBottom && isInitialized) {
-      console.log(`🔽 Auto-scrolling to bottom for new message`);
-      flatListRef.current.scrollToOffset({
-        offset: 0,
-        animated: true,
-      });
-      currentScrollPosition.current = 0;
     }
 
-    previousLastMessageId.current = lastMessageId;
-  }, [lastMessageId, conversationVisible, isInitialized, scrollPositions, conversationId]);
+    lastMessageId.current = currentLastMessage.id;
+  }, [currentLastMessage?.id, conversationVisible, isInitialized]);
 
+  // Banner interactions
+  const dismissBanner = useCallback(() => {
+    setShowNewMessageBanner(false);
+    setNewMessageCount(0);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    if (flatListRef.current) {
+      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
+      scrollY.current = 0;
+      dismissBanner();
+    }
+  }, [dismissBanner]);
+
+  // Handle errors
   useEffect(() => {
     onConversationError?.(error);
   }, [error, onConversationError]);
   
-
-  // Cleanup timers on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
-      if (scrollUpdateTimer.current) {
-        clearTimeout(scrollUpdateTimer.current);
-      }
-      if (loadMoreThrottleRef.current) {
-        clearTimeout(loadMoreThrottleRef.current);
+      if (loadMoreTimer.current) {
+        clearTimeout(loadMoreTimer.current);
       }
     };
   }, []);
 
-  if (rawConversationId === null) {
+  // Expose scrollToBottom method via ref
+  React.useImperativeHandle(ref, () => ({ scrollToBottom }));
+
+  // Stable keyExtractor
+  const keyExtractor = useCallback((item: MessageDTO) => {
+    return item.optimisticId || item.id.toString();
+  }, []);
+
+  if (conversationId === -1) {
     return (
       <View style={styles.noConversationContainer}>
         <Text style={styles.noConversationText}>No conversation selected</Text>
@@ -740,59 +562,51 @@ export default function MessageListNative({
 
   return (
     <View style={styles.container}>
+      {/* New Message Banner */}
+      {showNewMessageBanner && (
+        <View style={styles.newMessageBanner}>
+          <TouchableOpacity 
+            style={styles.newMessageContent}
+            onPress={scrollToBottom}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.newMessageText}>
+              {newMessageCount === 1 
+                ? "There is a new message in conversation"
+                : `There are ${newMessageCount} new messages in conversation`
+              }
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.dismissButton}
+            onPress={dismissBanner}
+          >
+            <Text style={styles.dismissButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FlatList
         ref={flatListRef}
         data={displayedMessages}
         renderItem={renderMessage}
-        keyExtractor={(item) => item.optimisticId || item.id.toString()}
+        keyExtractor={keyExtractor}
         
         inverted={true}
         
-        // Enhanced scroll tracking with smooth infinite scroll
         onScroll={handleScroll}
-        scrollEventThrottle={16} // Higher frequency for smoother infinite scroll detection
-        
-        // Viewport tracking as fallback
-        onViewableItemsChanged={trackVisibleItems}
-        viewabilityConfig={{
-          itemVisiblePercentThreshold: 25,
-          minimumViewTime: 250
-        }}
+        scrollEventThrottle={32}
         
         showsVerticalScrollIndicator={false}
-        
         bounces={false}
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 100,
-        }}
-        
-        getItemLayout={(data, index) => ({
-          length: 100,
-          offset: 100 * index,
-          index,
-        })}
-        
-        onScrollToIndexFailed={(info) => {
-          console.log(`📍 ScrollToIndex failed, falling back to offset:`, info);
-          flatListRef.current?.scrollToOffset({
-            offset: Math.min(info.averageItemLength * info.index, info.averageItemLength * displayedMessages.length),
-            animated: false,
-          });
-        }}
         
         ListFooterComponent={
           (loading || isLoadingMore) && displayedMessages.length > 0 ? (
             <View style={styles.loadingMore}>
-              <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
               <ActivityIndicator size="small" color="#1C6B1C" />
-              <Text style={styles.loadingMoreText}>
-                {isLoadingMore ? 'Loading more messages...' : 'Loading...'}
-              </Text>
+              <Text style={styles.loadingMoreText}>Loading more messages...</Text>
             </View>
-          ) : (
-            <View ref={topRef} style={{ position: 'absolute', top: 0, left: 0, width: 1, height: 1 }} />
-          )
+          ) : null
         }
         
         ListEmptyComponent={
@@ -804,13 +618,20 @@ export default function MessageListNative({
           ) : null
         }
         
-        ListHeaderComponent={
-          <View ref={bottomRef} style={{ position: 'absolute', bottom: 0, left: 0, width: 1, height: 1 }} />
-        }
+        // Performance optimizations
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={100}
+        initialNumToRender={15}
+        windowSize={21}
       />
     </View>
   );
-}
+};
+
+MessageListNative.displayName = 'MessageListNative';
+
+export default React.forwardRef(MessageListNative);
 
 const styles = StyleSheet.create({
   container: {
@@ -1073,5 +894,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  // New message banner styles
+  newMessageBanner: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+    backgroundColor: '#1C6B1C',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  newMessageContent: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingLeft: 16,
+    paddingRight: 8,
+  },
+  newMessageText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'white',
+    textAlign: 'center',
+  },
+  dismissButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dismissButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'white',
+    opacity: 0.8,
   },
 });
