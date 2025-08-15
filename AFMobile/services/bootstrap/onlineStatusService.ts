@@ -30,12 +30,13 @@ export async function sendHeartbeat(deviceId: string): Promise<{ status: string 
  
   console.log("💓 Sender heartbeat:", url, { deviceId });
  
+  // ✅ Legg til logLevel: "none" for å unngå verbose logging
   return await fetchWithAuth<{ status: string }>(url, {
     method: "POST",
     headers: {
       "X-Device-Id": deviceId,
     },
-  });
+  }, undefined, "none"); // 👈 Dette gjør at kun din egen console.log vises
 }
 
 // Convenience function for marking online with defaults (React Native optimized)
