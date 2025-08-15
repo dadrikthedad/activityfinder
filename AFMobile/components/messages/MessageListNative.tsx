@@ -1,4 +1,4 @@
-// components/messages/MessageListNative.tsx - Further cleaned version
+// components/messages/MessageListNative.tsx - Cleaned version
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
+  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
@@ -283,20 +284,24 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   conversationParticipants = [],
 }, ref) => {
   const { liveMessages } = useChatStore();
-  const conversationId = useChatStore((state) => state.currentConversationId) ?? -1;
+  const rawConversationId = useChatStore((state) => state.currentConversationId);
+  const conversationId = rawConversationId ?? -1;
 
   const flatListRef = useRef<FlatList>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // Simplified scroll tracking - only what we actually need
-  const scrollY = useRef(0);
-  const visibleMessageIndex = useRef(0);
-  const lastMessageId = useRef<number | null>(null);
+  // Scroll tracking
+  const currentScrollPosition = useRef(0);
+  const lastVisibleMessageIndex = useRef(0);
+  const previousLastMessageId = useRef<number | null>(null);
   
   // Infinite scroll state
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const loadMoreTimer = useRef<NodeJS.Timeout | null>(null);
-  
+  const loadMoreThrottleRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoadMoreTime = useRef(0);
+  const LOAD_MORE_THROTTLE_MS = 2000;
+  const LOAD_MORE_THRESHOLD = 400;
+
   // New message banner state
   const [showNewMessageBanner, setShowNewMessageBanner] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
@@ -345,10 +350,10 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
       .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
   }, [messages, live]);
 
+  const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === conversationId)
   );
-  const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
 
   const isLocked =
     currentConversation?.isPendingApproval === true ||
@@ -402,51 +407,87 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     />
   ), [currentUser, isLocked, onReply, handleDeleteMessage, onRetryMessage, onDeleteFailedMessage, onShowUserPopover, showReactionUsers, conversationParticipants]);
 
-  // Simplified infinite scroll
-  const handleLoadMore = useCallback(async () => {
-    if (!hasMore || loading || isLoadingMore) return;
+  // Infinite scroll with throttling
+  const handleLoadMoreSmooth = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastLoadMoreTime.current < LOAD_MORE_THROTTLE_MS) {
+      console.log(`⏳ Load more throttled (${now - lastLoadMoreTime.current}ms since last)`);
+      return;
+    }
 
+    if (!hasMore || loading || isLoadingMore) {
+      console.log(`🚫 Load more skipped: hasMore=${hasMore}, loading=${loading}, isLoadingMore=${isLoadingMore}`);
+      return;
+    }
+
+    console.log('🔄 Starting load more...');
     setIsLoadingMore(true);
+    lastLoadMoreTime.current = now;
+
     try {
       await loadMore();
+      console.log('✅ Load more completed');
     } catch (error) {
-      console.error('Load more failed:', error);
+      console.error('❌ Load more failed:', error);
     } finally {
-      setTimeout(() => setIsLoadingMore(false), 500);
+      setTimeout(() => {
+        setIsLoadingMore(false);
+      }, 500);
     }
   }, [hasMore, loading, isLoadingMore, loadMore]);
 
-  // Simplified scroll handler
+  // Calculate visible message index
+  const getVisibleMessageIndex = useCallback(() => {
+    if (displayedMessages.length === 0) return 0;
+    
+    const ESTIMATED_MESSAGE_HEIGHT = 120;
+    const index = Math.max(0, 
+      Math.min(
+        Math.floor(currentScrollPosition.current / ESTIMATED_MESSAGE_HEIGHT),
+        displayedMessages.length - 1
+      )
+    );
+    return index;
+  }, [displayedMessages.length]);
+
+  // Handle scroll events
   const handleScroll = useCallback((event: any) => {
     if (!isInitialized) return;
 
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-    scrollY.current = contentOffset.y;
     
-    // Update visible message index (simple estimation)
-    const estimatedIndex = Math.floor(contentOffset.y / 120); // 120px estimated message height
-    visibleMessageIndex.current = Math.max(0, Math.min(estimatedIndex, displayedMessages.length - 1));
+    currentScrollPosition.current = contentOffset.y;
     
-    // Check if at bottom
     const isAtBottom = contentOffset.y <= 50;
     onScrollPositionChange?.(isAtBottom);
 
-    // Infinite scroll check (simplified)
+    // Update visible message index
+    lastVisibleMessageIndex.current = getVisibleMessageIndex();
+
+    // Infinite scroll logic
     const distanceFromTop = contentSize.height - layoutMeasurement.height - contentOffset.y;
-    if (distanceFromTop <= 400) { // 400px threshold
-      if (loadMoreTimer.current) clearTimeout(loadMoreTimer.current);
-      loadMoreTimer.current = setTimeout(handleLoadMore, 300);
+    
+    if (distanceFromTop <= LOAD_MORE_THRESHOLD && hasMore && !loading && !isLoadingMore) {
+      console.log(`📈 Near top (${distanceFromTop}px remaining), considering load more...`);
+      
+      if (loadMoreThrottleRef.current) {
+        clearTimeout(loadMoreThrottleRef.current);
+      }
+      
+      loadMoreThrottleRef.current = setTimeout(() => {
+        handleLoadMoreSmooth();
+      }, 300);
     }
-  }, [isInitialized, displayedMessages.length, onScrollPositionChange, handleLoadMore]);
+  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex]);
 
   // Reset state when conversation changes
   useEffect(() => {
-    if (conversationId !== -1) {
+    if (conversationId && conversationId !== -1) {
       setIsInitialized(false);
-      scrollY.current = 0;
-      visibleMessageIndex.current = 0;
-      lastMessageId.current = null;
+      currentScrollPosition.current = 0;
       setIsLoadingMore(false);
+      lastVisibleMessageIndex.current = 0;
+      previousLastMessageId.current = null;
       setShowNewMessageBanner(false);
       setNewMessageCount(0);
     }
@@ -454,87 +495,118 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
 
   // Initialize list when ready
   useEffect(() => {
-    if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped || isInitialized) {
+    if (!flatListRef.current || loading || displayedMessages.length === 0 || !isBootstrapped) {
       return;
     }
 
-    // Initialize at bottom
-    flatListRef.current.scrollToOffset({ offset: 0, animated: false });
-    scrollY.current = 0;
+    if (isInitialized) {
+      return;
+    }
+
+    // Initialize at bottom (offset 0 for inverted list)
+    flatListRef.current.scrollToOffset({
+      offset: 0,
+      animated: false,
+    });
+    currentScrollPosition.current = 0;
     
-    // Set initial last message ID
-    const currentLastMessage = displayedMessages[0];
-    if (currentLastMessage) {
-      lastMessageId.current = currentLastMessage.id;
+    // Initialize previousLastMessageId to prevent false new message detection
+    const currentLastMessageId = displayedMessages[0]?.id;
+    if (currentLastMessageId) {
+      previousLastMessageId.current = currentLastMessageId;
     }
     
     setIsInitialized(true);
   }, [conversationId, displayedMessages.length, loading, isBootstrapped, isInitialized]);
 
   // Handle new messages with smart auto-scroll
-  const currentLastMessage = displayedMessages[0];
+  const lastMessageId = displayedMessages[0]?.id;
 
   useEffect(() => {
-    if (!flatListRef.current || !conversationVisible || !isInitialized || !currentLastMessage) return;
+    if (!flatListRef.current || !conversationVisible || !isInitialized) return;
 
-    const hasNewMessage = currentLastMessage.id !== lastMessageId.current;
+    const hasNewMessage = lastMessageId && lastMessageId !== previousLastMessageId.current;
     
     if (hasNewMessage) {
-      const messagesFromBottom = visibleMessageIndex.current;
+      const messagesFromBottom = lastVisibleMessageIndex.current;
+      const MAX_AUTO_SCROLL_DISTANCE = 4; // Auto-scroll if within 4 messages from bottom
       
-      if (messagesFromBottom <= 4) { // Within 4 messages from bottom
-        // Auto-scroll to bottom
-        flatListRef.current.scrollToOffset({ offset: 0, animated: true });
-        scrollY.current = 0;
+      if (messagesFromBottom <= MAX_AUTO_SCROLL_DISTANCE) {
+        // Close enough to bottom - auto scroll
+        // console.log(`🔽 Auto-scrolling to bottom (${messagesFromBottom} messages from bottom)`);
+        flatListRef.current.scrollToOffset({
+          offset: 0,
+          animated: true,
+        });
+        currentScrollPosition.current = 0;
         setShowNewMessageBanner(false);
         setNewMessageCount(0);
       } else {
-        // Show notification
+        // Too far from bottom - show notification
+        // console.log(`📢 Showing new message banner (${messagesFromBottom} messages from bottom)`);
         setNewMessageCount(prev => prev + 1);
         setShowNewMessageBanner(true);
       }
     }
 
-    lastMessageId.current = currentLastMessage.id;
-  }, [currentLastMessage?.id, conversationVisible, isInitialized]);
+    previousLastMessageId.current = lastMessageId;
+  }, [lastMessageId, conversationVisible, isInitialized]);
 
-  // Banner interactions
-  const dismissBanner = useCallback(() => {
+  // Handle new message banner interactions
+  const handleDismissNewMessageBanner = useCallback(() => {
     setShowNewMessageBanner(false);
     setNewMessageCount(0);
   }, []);
 
-  const scrollToBottom = useCallback(() => {
+  const handleScrollToNewMessages = useCallback(() => {
     if (flatListRef.current) {
-      flatListRef.current.scrollToOffset({ offset: 0, animated: true });
-      scrollY.current = 0;
-      dismissBanner();
+      console.log('🔽 Scrolling to new messages');
+      flatListRef.current.scrollToOffset({
+        offset: 0,
+        animated: true,
+      });
+      currentScrollPosition.current = 0;
+      setShowNewMessageBanner(false);
+      setNewMessageCount(0);
     }
-  }, [dismissBanner]);
+  }, []);
 
   // Handle errors
   useEffect(() => {
     onConversationError?.(error);
   }, [error, onConversationError]);
   
-  // Cleanup
+  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
-      if (loadMoreTimer.current) {
-        clearTimeout(loadMoreTimer.current);
+      if (loadMoreThrottleRef.current) {
+        clearTimeout(loadMoreThrottleRef.current);
       }
     };
   }, []);
 
   // Expose scrollToBottom method via ref
-  React.useImperativeHandle(ref, () => ({ scrollToBottom }));
+  React.useImperativeHandle(ref, () => ({
+    scrollToBottom: () => {
+      if (flatListRef.current) {
+        console.log('🔽 Manually scrolling to bottom');
+        flatListRef.current.scrollToOffset({
+          offset: 0,
+          animated: true,
+        });
+        currentScrollPosition.current = 0;
+        setShowNewMessageBanner(false);
+        setNewMessageCount(0);
+      }
+    }
+  }));
 
   // Stable keyExtractor
   const keyExtractor = useCallback((item: MessageDTO) => {
     return item.optimisticId || item.id.toString();
   }, []);
 
-  if (conversationId === -1) {
+  if (rawConversationId === null) {
     return (
       <View style={styles.noConversationContainer}>
         <Text style={styles.noConversationText}>No conversation selected</Text>
@@ -567,7 +639,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
         <View style={styles.newMessageBanner}>
           <TouchableOpacity 
             style={styles.newMessageContent}
-            onPress={scrollToBottom}
+            onPress={handleScrollToNewMessages}
             activeOpacity={0.8}
           >
             <Text style={styles.newMessageText}>
@@ -579,7 +651,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.dismissButton}
-            onPress={dismissBanner}
+            onPress={handleDismissNewMessageBanner}
           >
             <Text style={styles.dismissButtonText}>✕</Text>
           </TouchableOpacity>
@@ -600,11 +672,25 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
         showsVerticalScrollIndicator={false}
         bounces={false}
         
+        onScrollToIndexFailed={(info) => {
+          console.log(`📍 ScrollToIndex failed, falling back to offset:`, info);
+          const fallbackOffset = Math.min(
+            info.averageItemLength * info.index, 
+            info.averageItemLength * Math.min(displayedMessages.length, 20)
+          );
+          flatListRef.current?.scrollToOffset({
+            offset: fallbackOffset,
+            animated: false,
+          });
+        }}
+        
         ListFooterComponent={
           (loading || isLoadingMore) && displayedMessages.length > 0 ? (
             <View style={styles.loadingMore}>
               <ActivityIndicator size="small" color="#1C6B1C" />
-              <Text style={styles.loadingMoreText}>Loading more messages...</Text>
+              <Text style={styles.loadingMoreText}>
+                Loading more messages...
+              </Text>
             </View>
           ) : null
         }

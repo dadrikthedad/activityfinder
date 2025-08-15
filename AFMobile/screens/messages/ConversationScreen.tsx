@@ -82,36 +82,46 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   // Set current conversation on mount and cleanup on unmount
   useEffect(() => {
-    if (conversationId) {
-      console.log('🎯 ConversationScreen: Setting conversation ID:', conversationId);
-      setCurrentConversationId(conversationId);
-      
-      // 🐛 DEBUG: Sjekk lagret posisjon
-      const savedPosition = useChatStore.getState().scrollPositions[conversationId];
-      console.log('📍 ConversationScreen: Found saved position:', savedPosition);
-    }
-  
+  if (conversationId) {
+    setCurrentConversationId(conversationId);
+  }
+
   return () => {
     const state = useChatStore.getState();
     
     if (conversationId) {
       console.log("🧹 Cleaning up conversation:", conversationId);
       
-      // 1. Convert optimistic to real først
+      // 1. Konverter optimistiske meldinger til ordentlige meldinger
       state.convertOptimisticToReal(conversationId);
       
-      // 2. Cache messages
-      const live = state.liveMessages[conversationId] ?? [];
-      const cached = state.cachedMessages[conversationId] ?? [];
-      const combined = [
-        ...cached,
-        ...live.filter(m => !cached.some(c => c.id === m.id))
-      ];
-      state.setCachedMessages(conversationId, combined);
-      state.clearLiveMessages(conversationId);
-      
-      // 3. ✨ NYTT: Clean optimistic mappings for denne conversation
-      state.cleanupOptimisticForConversation(conversationId);
+      // 2. Vent litt for å sikre at state er oppdatert, så hent konverterte meldinger
+      setTimeout(() => {
+        const updatedState = useChatStore.getState();
+        const live = updatedState.liveMessages[conversationId] ?? [];
+        const cached = updatedState.cachedMessages[conversationId] ?? [];
+        
+        // Merge meldinger - nå skal alle være konvertert
+        const combined = [
+          ...cached,
+          ...live.filter(m => !cached.some(c => c.id === m.id))
+        ];
+        
+        // Verifiser at konvertering var vellykket
+        const stillOptimistic = combined.filter(m => m.isOptimistic);
+        if (stillOptimistic.length > 0) {
+          console.warn(`⚠️ ${stillOptimistic.length} messages still optimistic after conversion`);
+        } else {
+          console.log(`✅ All messages successfully converted to real messages`);
+        }
+        
+        // Cache de fullstendig konverterte meldingene
+        updatedState.setCachedMessages(conversationId, combined);
+        updatedState.clearLiveMessages(conversationId);
+        
+        // 3. Nå kan vi trygt rydde opp mappings siden alle meldinger er konvertert
+        updatedState.cleanupOptimisticForConversation(conversationId);
+      }, 0);
     }
     
     setCurrentConversationId(null);

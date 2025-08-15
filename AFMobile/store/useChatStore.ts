@@ -639,107 +639,95 @@ export const useChatStore = create<ChatStore>()(
   },
 
   convertOptimisticToReal: (conversationId) =>
-  set((state) => {
-    const liveMessages = state.liveMessages[conversationId] || [];
-    
-    // Convert both messages and their attachments in one pass
-    const convertedMessages = liveMessages.map(m => {
-      let convertedMessage = m;
+    set((state) => {
+      const liveMessages = state.liveMessages[conversationId] || [];
+      const cachedMessages = state.cachedMessages[conversationId] || [];
       
-      // 1. Convert message itself if optimistic
-      if (m.isOptimistic && m.optimisticId) {
-        const serverId = state.optimisticToServerIdMap[m.optimisticId];
-        
-        if (serverId) {
-          console.log(`🔄 Converting optimistic message to real:`, {
-            optimisticId: m.optimisticId,
-            oldId: m.id,
-            newId: serverId
-          });
+      console.log(`🔄 Converting optimistic messages for conversation ${conversationId}`);
+      
+      const convertMessages = (messages: MessageDTO[], source: string) => {
+        return messages.map(m => {
+          // Skip hvis allerede konvertert
+          if (!m.isOptimistic) return m;
           
-          convertedMessage = {
-            ...m,
-            id: serverId, // Use server ID
-            isOptimistic: false, // Not optimistic anymore
-            isSending: false,
-            sendError: null,
-            // Keep optimisticId for reference
-          };
-        } else {
-          console.warn(`⚠️ No server ID found for optimistic message: ${m.optimisticId}`);
-          // Keep as optimistic if no mapping found
-        }
-      }
-      
-      // 2. Convert attachments if any exist
-      if (convertedMessage.attachments && convertedMessage.attachments.length > 0) {
-        const convertedAttachments = convertedMessage.attachments.map(attachment => {
-          if (attachment.isOptimistic && attachment.optimisticId) {
-            const serverFileUrl = state.optimisticToServerAttachmentMap[attachment.optimisticId];
+          if (m.optimisticId) {
+            const serverId = state.optimisticToServerIdMap[m.optimisticId];
             
-            if (serverFileUrl) {
-              console.log(`📎 Converting optimistic attachment to real:`, {
-                optimisticId: attachment.optimisticId,
-                fileName: attachment.fileName,
-                oldUri: attachment.localUri,
-                newUrl: serverFileUrl
+            if (serverId) {
+              console.log(`✅ Converting ${source} optimistic message:`, {
+                optimisticId: m.optimisticId,
+                oldId: m.id,
+                newId: serverId,
+                text: m.text?.substring(0, 50) + '...'
               });
               
-              return {
-                ...attachment,
-                fileUrl: serverFileUrl, // Use server URL
-                isOptimistic: false, // Not optimistic anymore
-                isUploading: false,
-                uploadError: null,
-                // Clean up optimistic-only fields
-                localUri: undefined,
-                // Keep optimisticId for reference
+              // FULLSTENDIG KONVERTERING - fjern alle optimistiske spor
+              const convertedMessage: MessageDTO = {
+                ...m,
+                id: serverId,                    // ✅ Bruk server ID
+                isOptimistic: false,             // ✅ Ikke optimistisk lenger
+                optimisticId: undefined,         // ✅ Fjern optimistic ID
+                isSending: false,                // ✅ Ikke sender lenger
+                sendError: null,                 // ✅ Ingen feil
+                // Behold alt annet som det var
               };
+              
+              // Konverter attachments hvis de finnes
+              if (convertedMessage.attachments && convertedMessage.attachments.length > 0) {
+                convertedMessage.attachments = convertedMessage.attachments.map(attachment => {
+                  if (attachment.isOptimistic && attachment.optimisticId) {
+                    const serverFileUrl = state.optimisticToServerAttachmentMap[attachment.optimisticId];
+                    
+                    if (serverFileUrl) {
+                      console.log(`📎 Converting attachment for message ${serverId}`);
+                      return {
+                        ...attachment,
+                        fileUrl: serverFileUrl,
+                        isOptimistic: false,
+                        optimisticId: undefined,
+                        isUploading: false,
+                        uploadError: null,
+                        localUri: undefined,
+                      };
+                    }
+                  }
+                  return attachment;
+                });
+              }
+              
+              return convertedMessage;
             } else {
-              console.warn(`⚠️ No server URL found for optimistic attachment: ${attachment.optimisticId}`);
-              // Keep as optimistic if no mapping found
-              return attachment;
+              console.warn(`⚠️ No server mapping found for optimistic message: ${m.optimisticId}`);
             }
           }
           
-          // Non-optimistic attachments remain unchanged
-          return attachment;
+          // Returner original hvis ingen konvertering
+          return m;
         });
-        
-        // Only update message if attachments actually changed
-        const attachmentsChanged = convertedAttachments.some((att, index) => 
-          att !== convertedMessage.attachments[index]
-        );
-        
-        if (attachmentsChanged) {
-          convertedMessage = { ...convertedMessage, attachments: convertedAttachments };
-        }
-      }
+      };
+
+      const convertedLive = convertMessages(liveMessages, 'live');
+      const convertedCached = convertMessages(cachedMessages, 'cached');
       
-      return convertedMessage;
-    });
+      // Tell konverteringer
+      const liveConversions = convertedLive.filter(m => !m.isOptimistic).length - 
+                            liveMessages.filter(m => !m.isOptimistic).length;
+      const cachedConversions = convertedCached.filter(m => !m.isOptimistic).length - 
+                              cachedMessages.filter(m => !m.isOptimistic).length;
+      
+      console.log(`🎯 Converted ${liveConversions} live and ${cachedConversions} cached optimistic messages`);
 
-    // Count conversions for logging
-    const messageConversions = convertedMessages.filter(m => !m.isOptimistic).length - 
-                              liveMessages.filter(m => !m.isOptimistic).length;
-    
-    const attachmentConversions = convertedMessages.reduce((count, msg) => {
-      const realAttachments = msg.attachments?.filter(att => !att.isOptimistic).length || 0;
-      const originalRealAttachments = liveMessages.find(lm => lm.id === msg.id)?.attachments?.filter(att => !att.isOptimistic).length || 0;
-      return count + (realAttachments - originalRealAttachments);
-    }, 0);
-
-    if (messageConversions > 0 || attachmentConversions > 0) {
-      console.log(`✅ Converted ${messageConversions} optimistic messages and ${attachmentConversions} optimistic attachments in conversation ${conversationId}`);
-    }
-
-    return {
-      liveMessages: {
-        ...state.liveMessages,
-        [conversationId]: convertedMessages
-      }
-    };
-  }),
+      return {
+        liveMessages: {
+          ...state.liveMessages,
+          [conversationId]: convertedLive
+        },
+        cachedMessages: {
+          ...state.cachedMessages,
+          [conversationId]: convertedCached
+        }
+      };
+    }),
 
 convertAllOptimisticToReal: () =>
   set((state) => {
