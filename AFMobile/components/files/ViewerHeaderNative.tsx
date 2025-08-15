@@ -1,19 +1,20 @@
-// components/common/ViewerHeaderNative.tsx - Forenklet uten egen modal
+// components/common/ViewerHeaderNative.tsx - Enhanced med theme support
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { Download, X, Share } from 'lucide-react-native';
 import { RNFile } from '@/utils/files/FileFunctions';
 
 interface ViewerHeaderNativeProps {
   title: string;
-  subtitle?: string; // For "X of Y" counter
+  subtitle?: string;
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
   onShare?: (file: RNFile) => void;
   currentFile?: RNFile;
   showDownload?: boolean;
   showShare?: boolean;
-  isDownloading?: boolean; // Ny prop for å vise download state
+  isDownloading?: boolean;
+  theme?: 'light' | 'dark'; // NEW: Theme prop
 }
 
 export default function ViewerHeaderNative({
@@ -25,12 +26,23 @@ export default function ViewerHeaderNative({
   currentFile,
   showDownload = true,
   showShare = true,
-  isDownloading = false
+  isDownloading = false,
+  theme = 'dark' // DEFAULT: Dark theme for backwards compatibility
 }: ViewerHeaderNativeProps) {
   
+  const isDark = theme === 'dark';
+  const isLight = theme === 'light';
+  
+  // Dynamic colors based on theme
+  const iconColor = isDark ? 'white' : '#374151';
+  const textColor = isDark ? 'white' : '#374151';
+  const subtitleColor = isDark ? 'rgba(255, 255, 255, 0.7)' : '#6b7280';
+  const buttonBackgroundColor = isDark ? '#1C6B1C' : '#f3f4f6';
+  const headerBackgroundColor = isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.95)';
+
   const handleDownload = async () => {
     if (!currentFile || !onDownload) return;
-    
+   
     try {
       await onDownload(currentFile);
     } catch (error) {
@@ -45,13 +57,16 @@ export default function ViewerHeaderNative({
   };
 
   return (
-    <View style={styles.header}>
+    <View style={[
+      styles.header,
+      { backgroundColor: headerBackgroundColor },
+    ]}>
       <View style={styles.headerLeft}>
-        <Text style={styles.fileName} numberOfLines={1}>
+        <Text style={[styles.fileName, { color: textColor }]} numberOfLines={1}>
           {title}
         </Text>
         {subtitle && (
-          <Text style={styles.counter}>
+          <Text style={[styles.counter, { color: subtitleColor }]}>
             {subtitle}
           </Text>
         )}
@@ -61,27 +76,34 @@ export default function ViewerHeaderNative({
         {/* Del-knapp */}
         {showShare && onShare && currentFile && (
           <TouchableOpacity
-            style={styles.headerButton}
+            style={[styles.headerButton, { backgroundColor: buttonBackgroundColor }]}
             onPress={handleShare}
           >
-            <Share size={20} color="white" />
+            <Share size={20} color={iconColor} />
           </TouchableOpacity>
         )}
        
         {/* Nedlastingsknapp */}
         {showDownload && onDownload && currentFile && (
           <TouchableOpacity
-            style={styles.headerButton}
+            style={[styles.headerButton, { backgroundColor: buttonBackgroundColor }]}
             onPress={handleDownload}
-            disabled={isDownloading} // Bruk prop for å disable
+            disabled={isDownloading}
           >
-            <Download size={20} color="white" />
+            {isDownloading ? (
+              <ActivityIndicator size="small" color={iconColor} />
+            ) : (
+              <Download size={20} color={iconColor} />
+            )}
           </TouchableOpacity>
         )}
        
         {/* Lukk-knapp */}
-        <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-          <X size={20} color="white" />
+        <TouchableOpacity 
+          style={[styles.headerButton, { backgroundColor: buttonBackgroundColor }]} 
+          onPress={onClose}
+        >
+          <X size={20} color={iconColor} />
         </TouchableOpacity>
       </View>
     </View>
@@ -100,7 +122,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 0,
     paddingTop: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     zIndex: 10,
   },
   headerLeft: {
@@ -108,12 +129,10 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   fileName: {
-    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },
   counter: {
-    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 14,
     marginTop: 2,
   },
@@ -126,7 +145,6 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1C6B1C',
     borderRadius: 22,
   },
 });

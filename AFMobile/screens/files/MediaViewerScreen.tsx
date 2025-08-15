@@ -1,4 +1,4 @@
-// screens/MediaViewerScreen.tsx
+// screens/MediaViewerScreen.tsx - Updated version
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Alert, SafeAreaView  } from 'react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -12,6 +12,7 @@ import DocumentViewerNative from '@/components/files/DocumentViewerNative';
 import DownloadProgressModal from '@/components/files/DownloadProgressModal';
 import { StatusBar } from 'react-native';
 import { ImageViewerContent } from '@/components/files/ImageViewerNative';
+import { DocumentViewerContent } from '@/components/files/DocumentViewerNative';
 
 type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
 
@@ -137,15 +138,16 @@ export default function MediaViewerScreen() {
     );
   }
 
-  // For all other file types - use DocumentViewerNative
+  // For all other file types - use DocumentViewerNative in SCREEN mode
   return (
-    <View style={styles.container}>
-      <StatusBar backgroundColor="black" barStyle="default" translucent={true}/>
-      <DocumentViewerNative
-        visible={true} // Always visible since we're in a screen
+    <>
+      <StatusBar backgroundColor="white" barStyle="dark-content" translucent={true}/>
+      <DocumentViewerContent
         file={currentFile}
         onClose={handleClose}
         onShare={handleShare}
+        onDownload={handleDownload}
+        useModal={false} // 🎯 VIKTIG: Bruk screen mode, ikke modal mode
       />
       
       {/* Download Progress Modal - samme som MessageAttachmentsNative */}
@@ -157,7 +159,7 @@ export default function MediaViewerScreen() {
         downloadedBytes={progress?.totalBytesWritten} 
         onCancel={cancelDownload}
       />
-    </View>
+    </>
   );
 }
 

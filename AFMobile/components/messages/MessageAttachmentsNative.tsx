@@ -328,8 +328,6 @@ const AttachmentItemNative = ({
           </View>
         </View>
       )}
-
-      {/* FELLES OVERLAYS */}
       
       {/* Upload status overlay */}
       {showUploadStatus && (
@@ -513,7 +511,7 @@ export default function MessageAttachmentsNative({
         return {
           uri: finalUri,
           type: att.fileType,
-          name: att.fileName || 'unknown',
+          name: decodeURIComponent(att.fileName || 'unknown'),
           size: undefined,
         };
       };

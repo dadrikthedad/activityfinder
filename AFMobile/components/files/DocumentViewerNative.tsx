@@ -1,16 +1,33 @@
-// components/common/DocumentViewerNative.tsx - Enhanced versjon
+// components/common/DocumentViewerNative.tsx - Modal-agnostic, følger ImageViewer mønster
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { 
+  Modal, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Alert, 
+  ScrollView, 
+  ActivityIndicator, 
+  Platform, 
+  SafeAreaView,
+  StatusBar 
+} from 'react-native';
 import { RNFile, getFileIcon, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
 import { openFileWithNativeApp, getFileTypeMessage, shareRNFile } from './FileHandlerNative';
 import ViewerHeaderNative from './ViewerHeaderNative';
 import * as FileSystem from 'expo-file-system';
 
-interface DocumentViewerNativeProps {
-  visible: boolean;
+interface DocumentViewerContentProps {
   file: RNFile;
   onClose: () => void;
   onShare?: (file: RNFile) => void;
+  onDownload?: (file: RNFile) => void;
+  useModal?: boolean; // Control behavior differences between Modal and Screen
+}
+
+interface DocumentViewerNativeProps extends DocumentViewerContentProps {
+  visible: boolean;
 }
 
 // Filtyper som kan vises inline
@@ -36,8 +53,10 @@ const INLINE_VIEWABLE_EXTENSIONS = [
 ];
 
 const canViewInline = (file: RNFile): boolean => {
-  const fileInfo = getFileTypeInfo(file.type, file.name);
-  const extension = '.' + file.name.toLowerCase().split('.').pop();
+  // Decode URL-encoded filename (in case it wasn't decoded earlier)
+  const decodedFileName = decodeURIComponent(file.name);
+  const fileInfo = getFileTypeInfo(file.type, decodedFileName);
+  const extension = '.' + decodedFileName.toLowerCase().split('.').pop();
   
   return (
     INLINE_VIEWABLE_TYPES.includes(file.type) ||
@@ -49,26 +68,39 @@ const canViewInline = (file: RNFile): boolean => {
   );
 };
 
-export default function DocumentViewerNative({
-  visible,
+// Core content component - can be used in Modal or Screen
+const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   file,
   onClose,
-  onShare
-}: DocumentViewerNativeProps) {
+  onShare,
+  onDownload,
+  useModal = true // Default to Modal behavior for backwards compatibility
+}) => {
   const [fileContent, setFileContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [isDownloading, setIsDownloading] = useState(false);
   
   const fileInfo = getFileTypeInfo(file.type, file.name);
   const icon = getFileIcon(file.name, file.type);
   const message = getFileTypeMessage(file);
   const sizeText = file.size ? formatFileSize(file.size) : 'Ukjent størrelse';
   const canShow = canViewInline(file);
+  
+  // 🐛 DEBUG - sjekk canShow verdien
+  console.log('📄 DocumentViewer canShow:', {
+    fileName: file.name,
+    canShow,
+    hasFileContent: Boolean(fileContent),
+    loading,
+    error,
+    useModal
+  });
 
   // Last inn filinnhold hvis det kan vises inline
   useEffect(() => {
     const loadFileContent = async () => {
-      if (!canShow || !visible) return;
+      if (!canShow) return;
       
       setLoading(true);
       setError('');
@@ -78,11 +110,15 @@ export default function DocumentViewerNative({
         
         if (file.uri.startsWith('http')) {
           // Last ned fra URL
+          console.log('🌐 Loading content from URL:', file.uri.substring(0, 100) + '...');
           const response = await fetch(file.uri);
           content = await response.text();
+          console.log('✅ Content loaded, length:', content.length);
         } else {
           // Les lokal fil
+          console.log('📱 Loading content from local file:', file.uri);
           content = await FileSystem.readAsStringAsync(file.uri);
+          console.log('✅ Local content loaded, length:', content.length);
         }
         
         setFileContent(content);
@@ -95,7 +131,21 @@ export default function DocumentViewerNative({
     };
 
     loadFileContent();
-  }, [file.uri, visible, canShow]);
+  }, [file.uri, canShow]);
+
+  const handleDownload = async (file: RNFile) => {
+    if (!onDownload) return;
+    
+    setIsDownloading(true);
+    try {
+      await onDownload(file);
+    } catch (error) {
+      console.error('Nedlasting feilet:', error);
+      Alert.alert('Feil', 'Kunne ikke laste ned filen');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleOpenFile = async () => {
     try {
@@ -122,7 +172,7 @@ export default function DocumentViewerNative({
     }
   };
 
-  const handleShare = async () => {
+  const handleShare = async (file: RNFile) => {
     if (onShare) {
       onShare(file);
     } else {
@@ -177,147 +227,165 @@ export default function DocumentViewerNative({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.container}>
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={2}>
-              {file.name}
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeText}>✕</Text>
-            </TouchableOpacity>
+    <View style={styles.container}>
+      {/* Background */}
+      <View style={styles.background} />
+
+      {/* Header */}
+      <ViewerHeaderNative
+        title={file.name}
+        onClose={onClose}
+        onDownload={onDownload ? handleDownload : undefined}
+        onShare={onShare ? handleShare : undefined}
+        currentFile={file}
+        showDownload={!!onDownload}
+        showShare={!!onShare}
+        isDownloading={isDownloading}
+        theme="light" // 🎨 Light theme for DocumentViewer
+      />
+
+      {/* Content Container */}
+      <View style={useModal ? styles.modalContent : styles.screenContent}>
+        {/* File info */}
+        <View style={styles.fileInfo}>
+          <Text style={[styles.fileIcon, { color: getColorByCategory() }]}>
+            {icon}
+          </Text>
+          
+          <Text style={styles.fileName} numberOfLines={2}>
+            {file.name}
+          </Text>
+          
+          <View style={styles.fileDetails}>
+            <Text style={styles.fileType}>{file.type || 'Ukjent type'}</Text>
+            <Text style={styles.separator}>•</Text>
+            <Text style={styles.fileSize}>{sizeText}</Text>
           </View>
           
-          {/* File info */}
-          <View style={styles.fileInfo}>
-            <Text style={[styles.fileIcon, { color: getColorByCategory() }]}>
-              {icon}
-            </Text>
-            
-            <Text style={styles.fileName} numberOfLines={2}>
-              {file.name}
-            </Text>
-            
-            <View style={styles.fileDetails}>
-              <Text style={styles.fileType}>{file.type || 'Ukjent type'}</Text>
-              <Text style={styles.separator}>•</Text>
-              <Text style={styles.fileSize}>{sizeText}</Text>
-            </View>
-            
-            {!canShow && (
-              <Text style={styles.message}>{message}</Text>
-            )}
-            
-            {/* Category badge */}
-            <View style={[styles.categoryBadge, { backgroundColor: getColorByCategory() }]}>
-              <Text style={styles.categoryText}>
-                {fileInfo.category.charAt(0).toUpperCase() + fileInfo.category.slice(1)}
-              </Text>
-            </View>
-          </View>
-          
-          {/* File content hvis det kan vises inline */}
-          {canShow && (
-            <View style={styles.contentContainer}>
-              <Text style={styles.contentHeader}>Innhold:</Text>
-              
-              {loading && (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="small" color={getColorByCategory()} />
-                  <Text style={styles.loadingText}>Laster innhold...</Text>
-                </View>
-              )}
-              
-              {error && (
-                <Text style={styles.errorText}>{error}</Text>
-              )}
-              
-              {!loading && !error && fileContent && (
-                <ScrollView style={styles.fileContentScrollView} showsVerticalScrollIndicator={true}>
-                  <View style={styles.fileContentContainer}>
-                    {getSyntaxHighlighting(fileContent, file.name)}
-                  </View>
-                </ScrollView>
-              )}
-            </View>
+          {!canShow && (
+            <Text style={styles.message}>{message}</Text>
           )}
           
-          {/* Actions */}
-          <View style={styles.actions}>
-            {canShow && (
-              <TouchableOpacity style={styles.primaryButton} onPress={handleShare}>
-                <Text style={styles.primaryButtonText}>Del fil</Text>
-              </TouchableOpacity>
-            )}
-            
-            <TouchableOpacity 
-              style={canShow ? styles.secondaryButton : styles.primaryButton} 
-              onPress={canShow ? handleOpenFile : handleOpenFile}
-            >
-              <Text style={canShow ? styles.secondaryButtonText : styles.primaryButtonText}>
-                Åpne med app
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.secondaryButton} onPress={onClose}>
-              <Text style={styles.secondaryButtonText}>Lukk</Text>
-            </TouchableOpacity>
+          {/* Category badge */}
+          <View style={[styles.categoryBadge, { backgroundColor: getColorByCategory() }]}>
+            <Text style={styles.categoryText}>
+              {fileInfo.category.charAt(0).toUpperCase() + fileInfo.category.slice(1)}
+            </Text>
           </View>
         </View>
+        
+        {/* File content hvis det kan vises inline */}
+        {canShow && (
+          <View style={styles.contentContainer}>
+            
+            {loading && (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={getColorByCategory()} />
+                <Text style={styles.loadingText}>Loading...</Text>
+              </View>
+            )}
+            
+            {error && (
+              <Text style={styles.errorText}>{error}</Text>
+            )}
+            
+            {!loading && !error && fileContent && (
+              <ScrollView 
+                style={styles.fileContentScrollView} 
+                showsVerticalScrollIndicator={true}
+                contentContainerStyle={styles.fileContentContainer}
+              >
+                {getSyntaxHighlighting(fileContent, file.name)}
+              </ScrollView>
+            )}
+          </View>
+        )}
+        
+        {/* Actions */}
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleOpenFile}>
+            <Text style={styles.primaryButtonText}>
+              Open
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
+    </View>
+  );
+};
+
+// Modal wrapper for backwards compatibility
+export default function DocumentViewerNative({
+  visible,
+  file,
+  onClose,
+  onShare,
+  onDownload
+}: DocumentViewerNativeProps) {
+  return (
+    <Modal 
+      visible={visible} 
+      transparent 
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" translucent />
+      <DocumentViewerContent
+        file={file}
+        onClose={onClose}
+        onShare={onShare}
+        onDownload={onDownload}
+        useModal={true}
+      />
     </Modal>
   );
 }
 
+// Export content component for use in screens
+export { DocumentViewerContent };
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'white',
   },
-  content: {
+  background: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'white',
+  },
+  
+  // Modal content styles
+  modalContent: {
     backgroundColor: 'white',
     margin: 20,
+    marginTop: 80, // Space for header
     borderRadius: 12,
     padding: 20,
     maxWidth: 380,
     width: '95%',
-    maxHeight: '90%',
+    maxHeight: '85%',
+    alignSelf: 'center',
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  
+  // Screen content styles
+  screenContent: {
     flex: 1,
-    marginRight: 10,
-    color: '#1f2937',
+    backgroundColor: 'white',
+    paddingTop: 80, // Space for header
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  closeButton: {
-    width: 30,
-    height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 15,
-  },
-  closeText: {
-    fontSize: 16,
-    color: '#6b7280',
-    fontWeight: 'bold',
-  },
+  
   fileInfo: {
     alignItems: 'center',
     marginBottom: 20,
@@ -370,7 +438,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     marginBottom: 20,
-    flex: 1,
+    flex: 1, // 🚀 Ta all tilgjengelig plass
+    minHeight: 200, // Minimum høyde for innhold
   },
   contentHeader: {
     fontSize: 14,
@@ -394,10 +463,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   fileContentScrollView: {
-    maxHeight: 200,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: 8,
+    flex: 1, // 🚀 Bruk all tilgjengelig plass
+    minHeight: 200, // Minimum høyde
   },
   fileContentContainer: {
     padding: 12,
@@ -424,6 +494,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: 12,
+    marginTop: 'auto', // Push to bottom
   },
   primaryButton: {
     backgroundColor: '#1C6B1C',
@@ -436,16 +507,5 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  secondaryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  secondaryButtonText: {
-    color: '#374151',
-    fontSize: 16,
   },
 });

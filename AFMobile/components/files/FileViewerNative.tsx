@@ -5,6 +5,7 @@ import { canPreviewFile } from './FileHandlerNative';
 import ImageViewerNative from './ImageViewerNative';
 import VideoViewerNative from './VideoViewerNative';
 import DocumentViewerNative from './DocumentViewerNative';
+
 interface FileViewerNativeProps {
   visible: boolean;
   file: RNFile;
@@ -81,7 +82,8 @@ export default function FileViewerNative({
       visible={visible}
       file={file}
       onClose={onClose}
-      onShare={onShare}
+      onShare={canShare ? onShare : undefined}
+      onDownload={canDownload ? onDownload : undefined}
     />
   );
 }
