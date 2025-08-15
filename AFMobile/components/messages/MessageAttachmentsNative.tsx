@@ -1,4 +1,4 @@
-// components/messages/MessageAttachmentsNative.tsx
+// components/messages/MessageAttachmentsNative.tsx - Updated for expo-video
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -21,11 +21,8 @@ import { useDownload } from '@/hooks/files/useDownload';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '@/types/navigation';
 import { useChatStore } from '@/store/useChatStore';
-import { Video, ResizeMode  } from 'expo-av';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { Play } from 'lucide-react-native';
-
-
-
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
@@ -47,6 +44,29 @@ interface AttachmentItemNativeProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 const itemSize = Math.min((screenWidth - 32) / 1.5, 250); // Max 150px, responsive to screen
+
+// Video Preview Component for thumbnails
+const VideoPreview: React.FC<{ uri: string; isBlurred?: boolean }> = ({ uri, isBlurred }) => {
+  // Create a player instance for video thumbnail
+  const player = useVideoPlayer(uri, (player) => {
+    player.muted = true; // Always muted for previews
+    player.currentTime = 1; // Seek to 1 second for better thumbnail
+    // Don't auto-play for previews
+  });
+
+  return (
+    <VideoView
+      style={[styles.videoPreview, isBlurred && styles.blurredVideo]}
+      player={player}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+      showsTimecodes={false}
+      requiresLinearPlayback={false}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+};
 
 const AttachmentItemNative = ({ 
   attachment, 
@@ -140,99 +160,88 @@ const AttachmentItemNative = ({
     );
   }
 
-  // Video attachment - samme logikk
+  // Video attachment - updated for expo-video
   if (isVideo) {
-  const videoUri = imageUri;
-  
-  return (
-    <TouchableOpacity
-      style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
-      onPress={onPress}
-      activeOpacity={0.8}
-      disabled={showUploadStatus}
-    >
-      <View style={styles.videoContainer}>
-        {/* Try to show first frame of video - only if we have a valid URI */}
-        {!showUploadStatus && videoUri ? (
-          <Video
-            source={{ uri: videoUri }}
-            style={[styles.videoPreview, isBlurred && styles.blurredVideo]}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay={false}
-            positionMillis={1000}
-            useNativeControls={false}
-            isLooping={false}
-            onError={(error) => {
-              console.warn('Video preview error:', error);
-            }}
-          />
-        ) : (
-          // Only show placeholder if no video URI or uploading
-          <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
-            <Text style={styles.videoIcon}>🎥</Text>
-            <Text style={styles.placeholderText}>Video</Text>
-          </View>
-        )}
-        
-        {/* Upload status overlay */}
-        {showUploadStatus && (
-          <View style={styles.uploadStatusOverlay}>
-            {attachment.isUploading && (
-              <>
-                <ActivityIndicator size="small" color="#1C6B1C" />
-                <Text style={styles.uploadStatusText}>Uploading video...</Text>
-              </>
-            )}
-            {attachment.uploadError && (
-              <>
-                <Text style={styles.uploadErrorIcon}>❌</Text>
-                <Text style={styles.uploadStatusText}>Upload failed</Text>
-              </>
-            )}
-          </View>
-        )}
-        
-        {/* Video overlays - only show if not uploading */}
-        {!showUploadStatus && (
-          <>
-            {/* Blur overlay */}
-            {isBlurred && (
-              <View style={styles.blurOverlay}>
-                <Text style={styles.blurText}>🎬</Text>
-                <Text style={styles.blurSubtext}>Tap to view</Text>
-              </View>
-            )}
-
-            {/* Play button overlay - always visible for videos */}
-            {!isBlurred && (
-              <View style={styles.playOverlay}>
-                <View style={styles.playButton}>
-                  <Play size={20} color="white" fill="white" />
+    const videoUri = imageUri;
+    
+    return (
+      <TouchableOpacity
+        style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
+        onPress={onPress}
+        activeOpacity={0.8}
+        disabled={showUploadStatus}
+      >
+        <View style={styles.videoContainer}>
+          {/* Try to show first frame of video - only if we have a valid URI */}
+          {!showUploadStatus && videoUri ? (
+            <VideoPreview uri={videoUri} isBlurred={isBlurred} />
+          ) : (
+            // Only show placeholder if no video URI or uploading
+            <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
+              <Text style={styles.videoIcon}>🎥</Text>
+              <Text style={styles.placeholderText}>Video</Text>
+            </View>
+          )}
+          
+          {/* Upload status overlay */}
+          {showUploadStatus && (
+            <View style={styles.uploadStatusOverlay}>
+              {attachment.isUploading && (
+                <>
+                  <ActivityIndicator size="small" color="#1C6B1C" />
+                  <Text style={styles.uploadStatusText}>Uploading video...</Text>
+                </>
+              )}
+              {attachment.uploadError && (
+                <>
+                  <Text style={styles.uploadErrorIcon}>❌</Text>
+                  <Text style={styles.uploadStatusText}>Upload failed</Text>
+                </>
+              )}
+            </View>
+          )}
+          
+          {/* Video overlays - only show if not uploading */}
+          {!showUploadStatus && (
+            <>
+              {/* Blur overlay */}
+              {isBlurred && (
+                <View style={styles.blurOverlay}>
+                  <Text style={styles.blurText}>🎬</Text>
+                  <Text style={styles.blurSubtext}>Tap to view</Text>
                 </View>
-              </View>
-            )}
+              )}
 
-            {/* Gallery indicator for multiple videos */}
-            {galleryInfo && !isBlurred && (
-              <View style={styles.galleryIndicator}>
-                <Text style={styles.galleryText}>{galleryInfo}</Text>
-              </View>
-            )}
+              {/* Play button overlay - always visible for videos */}
+              {!isBlurred && (
+                <View style={styles.playOverlay}>
+                  <View style={styles.playButton}>
+                    <Play size={20} color="white" fill="white" />
+                  </View>
+                </View>
+              )}
 
-            {/* File name overlay */}
-            {attachment.fileName && !isBlurred && (
-              <View style={styles.fileNameOverlay}>
-                <Text style={styles.fileNameText} numberOfLines={1}>
-                  {getDisplayFileName(attachment.fileName, 20)}
-                </Text>
-              </View>
-            )}
-          </>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-}
+              {/* Gallery indicator for multiple videos */}
+              {galleryInfo && !isBlurred && (
+                <View style={styles.galleryIndicator}>
+                  <Text style={styles.galleryText}>{galleryInfo}</Text>
+                </View>
+              )}
+
+              {/* File name overlay */}
+              {attachment.fileName && !isBlurred && (
+                <View style={styles.fileNameOverlay}>
+                  <Text style={styles.fileNameText} numberOfLines={1}>
+                    {getDisplayFileName(attachment.fileName, 20)}
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   // Document/other file types
   return (
@@ -283,7 +292,6 @@ export default function MessageAttachmentsNative({
   }
 
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
-
 
   // Toggle blur for specific attachment
   const toggleBlur = (fileUrl: string) => {
@@ -379,6 +387,7 @@ export default function MessageAttachmentsNative({
       });
     }
   };
+
   const { 
     showProgress, 
     progress, 
@@ -500,7 +509,7 @@ export default function MessageAttachmentsNative({
       )}
 
       {/* Download Progress Modal */}
-    <DownloadProgressModal
+      <DownloadProgressModal
         visible={showProgress}                       
         fileName={fileName || ''}                           
         progress={progress?.progress || 0}                    
@@ -709,8 +718,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#9CA3AF',
   },
-
-
   uploadStatusOverlay: {
     position: 'absolute',
     top: 0,

@@ -13,8 +13,6 @@ import DownloadProgressModal from '@/components/files/DownloadProgressModal';
 import { StatusBar } from 'react-native';
 import { ImageViewerContent } from '@/components/files/ImageViewerNative';
 
-
-
 type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
 
 export default function MediaViewerScreen() {
@@ -31,7 +29,6 @@ export default function MediaViewerScreen() {
     downloadFile, 
     cancelDownload 
   } = useDownload();
-
 
   // Handle close - navigate back
   const handleClose = async () => {
@@ -81,7 +78,7 @@ export default function MediaViewerScreen() {
     const imageIndex = imageFiles.findIndex(f => f.uri === currentFile.uri);
     
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <StatusBar backgroundColor="black" barStyle="dark-content" translucent={true} />
         <ImageViewerContent
           images={imageFiles}
@@ -91,7 +88,17 @@ export default function MediaViewerScreen() {
           onShare={handleShare}
           useModal={false} // Important: use screen mode, not modal mode
         />
-      </SafeAreaView>
+        
+        {/* Download Progress Modal - render at screen level */}
+        <DownloadProgressModal
+          visible={showProgress}                       
+          fileName={fileName || ''}                           
+          progress={progress?.progress || 0}                    
+          totalBytes={progress?.totalBytesExpectedToWrite}       
+          downloadedBytes={progress?.totalBytesWritten} 
+          onCancel={cancelDownload}
+        />
+      </View>
     );
   }
 
@@ -106,7 +113,7 @@ export default function MediaViewerScreen() {
     const videoIndex = videoFiles.findIndex(f => f.uri === currentFile.uri);
     
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <StatusBar backgroundColor="black" barStyle="light-content" translucent={true}/>
         <VideoViewerContent
           videos={videoFiles}
@@ -116,13 +123,23 @@ export default function MediaViewerScreen() {
           onShare={handleShare}
           useModal={false} // Important: use screen mode, not modal mode
         />
-      </SafeAreaView>
+        
+        {/* Download Progress Modal - render at screen level */}
+        <DownloadProgressModal
+          visible={showProgress}                       
+          fileName={fileName || ''}                           
+          progress={progress?.progress || 0}                    
+          totalBytes={progress?.totalBytesExpectedToWrite}       
+          downloadedBytes={progress?.totalBytesWritten} 
+          onCancel={cancelDownload}
+        />
+      </View>
     );
   }
 
   // For all other file types - use DocumentViewerNative
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar backgroundColor="black" barStyle="default" translucent={true}/>
       <DocumentViewerNative
         visible={true} // Always visible since we're in a screen
@@ -140,7 +157,7 @@ export default function MediaViewerScreen() {
         downloadedBytes={progress?.totalBytesWritten} 
         onCancel={cancelDownload}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

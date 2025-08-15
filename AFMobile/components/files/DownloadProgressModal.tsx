@@ -69,6 +69,9 @@ export default function DownloadProgressModal({
       transparent
       animationType="fade"
       statusBarTranslucent
+      // Add these props to ensure it's on top
+      presentationStyle="overFullScreen"
+      hardwareAccelerated={true}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
@@ -125,6 +128,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+    // Add high z-index to ensure it's on top
+    zIndex: 9999,
+    elevation: 9999, // For Android
   },
   container: {
     backgroundColor: 'white',
@@ -135,7 +141,16 @@ const styles = StyleSheet.create({
     maxWidth: 280,
     alignItems: 'center',
     borderWidth: 2, 
-    borderColor: '#1C6B1C'
+    borderColor: '#1C6B1C',
+    // Add shadow/elevation for better visibility
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10, // For Android
   },
   header: {
     flexDirection: 'row',

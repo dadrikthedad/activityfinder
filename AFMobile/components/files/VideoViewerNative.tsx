@@ -1,4 +1,4 @@
-// components/common/VideoViewerNative.tsx - With Autoplay
+// components/common/VideoViewerNative.tsx - Migrated to expo-video
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Modal,
@@ -11,7 +11,8 @@ import {
   StatusBar,
   PanResponder,
 } from 'react-native';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { VideoView, useVideoPlayer, VideoSource } from 'expo-video';
+import { useEventListener } from 'expo';
 import { Play, Pause, RefreshCcw, Hourglass } from 'lucide-react-native';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { RNFile } from '@/utils/files/FileFunctions';
@@ -25,7 +26,7 @@ interface VideoViewerContentProps {
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
   onShare?: (file: RNFile) => void;
-  useModal?: boolean; // Control whether to use Modal behavior
+  useModal?: boolean;
 }
 
 interface VideoViewerNativeProps extends VideoViewerContentProps {
@@ -39,20 +40,22 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   onClose,
   onDownload,
   onShare,
-  useModal = true // Default to Modal behavior for backwards compatibility
+  useModal = true
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
   const [showControls, setShowControls] = useState(true);
-  const [isVideoReady, setIsVideoReady] = useState(false); // NEW: Track video ready state
+  const [isVideoReady, setIsVideoReady] = useState(false);
   const [dimensions, setDimensions] = useState(() => {
     const { width, height } = Dimensions.get('window');
     return { width, height };
   });
   
-  // Drag state - consolidated into single object
+  // State for tracking current position from timeUpdate
+  const [currentPlaybackTime, setCurrentPlaybackTime] = useState(0);
+  const [lastSeekTime, setLastSeekTime] = useState<number | null>(null);
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Drag state
   const [dragState, setDragState] = useState({
     isDragging: false,
     position: 0,
@@ -62,23 +65,44 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   });
   
   const [progressBarWidth, setProgressBarWidth] = useState(0);
-  const videoRef = useRef<Video>(null);
   const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
   
   if (videos.length === 0) return null;
   
   const currentVideo = videos[currentIndex];
   const hasMultiple = videos.length > 1;
-  const displayPosition = dragState.isDragging ? dragState.position : position;
-  const isNearEnd = displayPosition >= duration * 0.95 && duration > 0;
 
-  // Orientation handling - only for Modal usage
+  // Create video player - use replace() to change videos
+  const player = useVideoPlayer(currentVideo.uri as VideoSource, (player) => {
+    // Configure player
+    player.loop = false;
+    player.muted = false;
+    player.timeUpdateEventInterval = 0.1; // Update every 100ms for smooth progress
+  });
+
+  // Replace video source when currentIndex changes (but not on initial load)
+  useEffect(() => {
+    // Skip initial load since player is already created with currentVideo.uri
+    if (currentIndex !== initialIndex) {
+      const newVideo = videos[currentIndex];
+      if (newVideo && player) {
+        console.log('Switching to video:', newVideo.name);
+        player.replace(newVideo.uri as VideoSource);
+      }
+    }
+  }, [currentIndex, player, initialIndex]);
+
+  // Player state - use state for position instead of direct player access
+  const isPlaying = player.playing;
+  const duration = player.duration > 0 ? player.duration * 1000 : 0; // Convert to milliseconds, handle NaN
+  const position = dragState.isDragging ? dragState.position : currentPlaybackTime;
+  const isNearEnd = duration > 0 && position >= duration * 0.95;
+
+  // Orientation handling
   useEffect(() => {
     if (useModal) {
-      // Unlock rotation when viewer opens (Modal behavior)
       ScreenOrientation.unlockAsync();
       
-      // Listen to orientation changes
       const subscription = ScreenOrientation.addOrientationChangeListener(() => {
         const { width, height } = Dimensions.get('window');
         setDimensions({ width, height });
@@ -86,7 +110,6 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
 
       return () => subscription?.remove();
     } else {
-      // For Screen usage, just listen to dimension changes
       const subscription = Dimensions.addEventListener('change', ({ window }) => {
         setDimensions({ width: window.width, height: window.height });
       });
@@ -106,24 +129,75 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     }
   }, [isPlaying, showControls, dragState.isDragging, isNearEnd]);
 
-  // Autoplay effect when video is ready - ALWAYS enabled
-  useEffect(() => {
-    const startAutoplay = async () => {
-      if (isVideoReady && !isPlaying && videoRef.current && duration > 0) {
-        try {
-          await videoRef.current.playAsync();
-          console.log('Autoplay started for video:', currentVideo.name);
-        } catch (error) {
-          console.warn('Autoplay failed:', error);
-          // Autoplay failed, but don't show error to user as this is common on some platforms
-        }
+  // Listen to player events using useEventListener
+  useEventListener(player, 'statusChange', ({ status, error }) => {
+    console.log('Player status changed:', status);
+    
+    if (error) {
+      console.error('Video playback error:', error);
+      Alert.alert('Error', 'Could not load video');
+      return;
+    }
+    
+    // Mark video as ready when loaded AND reset isNearEnd
+    if (status === 'readyToPlay') {
+      setIsVideoReady(true);
+      console.log('Video ready for playback:', currentVideo.name);
+      
+      // Reset near end state for new video
+      if (!isVideoReady) {
+        // Auto-play when ready (only on first load)
+        player.play();
       }
-    };
+    }
+    
+    // Reset isVideoReady when loading new video
+    if (status === 'loading') {
+      setIsVideoReady(false);
+    }
+  });
 
-    startAutoplay();
-  }, [isVideoReady, currentVideo.uri]); // Trigger when video changes or becomes ready
+  // Listen to time updates for progress - FIXED with seek protection
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    // Only update position if not dragging to prevent bouncing
+    if (!dragState.isDragging) {
+      const timeInMs = currentTime * 1000; // Convert to milliseconds
+      
+      // Ignore timeUpdate events shortly after manual seeking to prevent bouncing
+      if (lastSeekTime !== null && Math.abs(timeInMs - lastSeekTime) > 500) {
+        console.log('Ignoring timeUpdate bounce - Expected:', lastSeekTime/1000, 'Got:', currentTime);
+        return;
+      }
+      
+      // Clear seek protection after a short delay
+      if (lastSeekTime !== null && Math.abs(timeInMs - lastSeekTime) < 200) {
+        setLastSeekTime(null);
+      }
+      
+      setCurrentPlaybackTime(timeInMs);
+      console.log('Time update:', currentTime, 'seconds, duration:', player.duration);
+    }
+  });
 
-  // Consolidated timeout management - simplified since useEffect handles auto-hide
+  // Listen to playing state changes
+  useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
+    // Handle play state changes for controls visibility
+    if (playing) {
+      manageControlsTimeout(true);
+    } else {
+      manageControlsTimeout(true);
+    }
+  });
+
+  // Listen for when video reaches end
+  useEventListener(player, 'playToEnd', () => {
+    console.log('Video reached end:', currentVideo.name);
+    // Force UI update for end state
+    setIsVideoReady(true);
+    manageControlsTimeout(true);
+  });
+
+  // Consolidated timeout management
   const manageControlsTimeout = (show: boolean) => {
     if (controlsTimeout.current) {
       clearTimeout(controlsTimeout.current);
@@ -132,63 +206,25 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     setShowControls(show);
   };
 
-  // Handle video status updates - MODIFIED for autoplay
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      setIsVideoReady(false); // NEW: Video not ready
-      if ('error' in status) {
-        console.error('Video playback error:', status.error);
-        Alert.alert('Error', 'Could not load video');
-      }
-      return;
-    }
-
-    // NEW: Mark video as ready when it's loaded and has duration
-    const wasReady = isVideoReady;
-    const nowReady = status.durationMillis != null && status.durationMillis > 0;
-    if (!wasReady && nowReady) {
-      setIsVideoReady(true);
-      console.log('Video ready for playback:', currentVideo.name);
-    }
-
-    // Always update duration, even during dragging
-    if (status.durationMillis) {
-      setDuration(status.durationMillis);
-    }
-
-    // Skip position updates during dragging to prevent bouncing
+  // Toggle play/pause with restart functionality - fixed for expo-video
+  const togglePlayPause = () => {
     if (dragState.isDragging) return;
 
-    const wasPlaying = isPlaying;
-    const nowPlaying = status.isPlaying || false;
-    
-    setIsPlaying(nowPlaying);
-    setPosition(status.positionMillis || 0);
-    
-    // Handle play state changes
-    if (status.didJustFinish) {
-      manageControlsTimeout(true);
-    } else if (!wasPlaying && nowPlaying) {
-      manageControlsTimeout(true);
-    } else if (wasPlaying && !nowPlaying) {
-      manageControlsTimeout(true);
-    }
-  };
-
-  // Toggle play/pause with restart functionality
-  const togglePlayPause = async () => {
-    if (!videoRef.current || dragState.isDragging) return;
-
-    if (isPlaying) {
-      await videoRef.current.pauseAsync();
-      manageControlsTimeout(true);
-    } else {
-      if (isNearEnd) {
-        await videoRef.current.setPositionAsync(0);
-        setPosition(0);
+    try {
+      if (isPlaying) {
+        player.pause();
+        console.log('Pausing video');
+      } else {
+        if (isNearEnd) {
+          console.log('Restarting video from beginning');
+          player.currentTime = 0;
+        }
+        player.play();
+        console.log('Playing video');
       }
-      await videoRef.current.playAsync();
       manageControlsTimeout(true);
+    } catch (error) {
+      console.error('Error toggling play/pause:', error);
     }
   };
 
@@ -213,8 +249,8 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       
       manageControlsTimeout(true);
       
-      if (isPlaying && videoRef.current) {
-        await videoRef.current.pauseAsync();
+      if (isPlaying) {
+        player.pause();
       }
     },
     
@@ -229,14 +265,15 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       setDragState(prev => ({ ...prev, position: newPosition }));
     },
     
-    onPanResponderRelease: async () => {
+    onPanResponderRelease: () => {
       if (!dragState.isDragging) return;
       
       const finalPosition = dragState.position;
       const shouldResume = dragState.wasPlaying;
       
       // Update position immediately to prevent bouncing
-      setPosition(finalPosition);
+      setCurrentPlaybackTime(finalPosition);
+      setLastSeekTime(finalPosition); // Mark this as our seek target
       
       // Clear drag state
       setDragState({
@@ -247,16 +284,19 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
         startPosition: 0,
       });
       
-      // Update video position
-      if (videoRef.current && finalPosition >= 0) {
-        await videoRef.current.setPositionAsync(finalPosition);
+      try {
+        // Update video position
+        console.log('Seeking to:', finalPosition / 1000, 'seconds');
+        player.currentTime = finalPosition / 1000; // Convert back to seconds
         
         if (shouldResume) {
-          await videoRef.current.playAsync();
+          player.play();
           manageControlsTimeout(true);
         } else {
           manageControlsTimeout(true);
         }
+      } catch (error) {
+        console.error('Error during seek release:', error);
       }
     },
     
@@ -271,24 +311,29 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     },
   });
 
-  // Handle progress bar tap
-  const handleProgressBarTap = async (event: any) => {
+  // Handle progress bar tap - also update state immediately with seek protection
+  const handleProgressBarTap = (event: any) => {
     if (dragState.isDragging || duration <= 0 || progressBarWidth <= 0) return;
     
-    const { locationX } = event.nativeEvent;
-    const clampedLocationX = Math.max(0, Math.min(progressBarWidth, locationX));
-    const progress = clampedLocationX / progressBarWidth;
-    const newPosition = Math.max(0, Math.min(duration, progress * duration));
-    
-    if (videoRef.current) {
-      await videoRef.current.setPositionAsync(newPosition);
-      setPosition(newPosition);
+    try {
+      const { locationX } = event.nativeEvent;
+      const clampedLocationX = Math.max(0, Math.min(progressBarWidth, locationX));
+      const progress = clampedLocationX / progressBarWidth;
+      const newPosition = Math.max(0, Math.min(duration, progress * duration));
+      
+      // Update position immediately to prevent bouncing
+      setCurrentPlaybackTime(newPosition);
+      setLastSeekTime(newPosition); // Mark this as our seek target
+      
+      console.log('Seeking to:', newPosition / 1000, 'seconds');
+      player.currentTime = newPosition / 1000; // Convert to seconds
+      manageControlsTimeout(true);
+    } catch (error) {
+      console.error('Error seeking:', error);
     }
-    
-    manageControlsTimeout(true);
   };
 
-  // Navigation functions - MODIFIED to reset ready state
+  // Navigation functions
   const navigateVideo = (direction: 'next' | 'prev') => {
     if (!hasMultiple) return;
     
@@ -296,11 +341,9 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       ? (currentIndex + 1) % videos.length
       : (currentIndex - 1 + videos.length) % videos.length;
     
-    // Reset all state for new video
+    // Reset state for new video
     setCurrentIndex(newIndex);
-    setIsPlaying(false);
-    setPosition(0);
-    setIsVideoReady(false); // NEW: Reset ready state
+    setIsVideoReady(false);
     setDragState({
       isDragging: false,
       position: 0,
@@ -314,8 +357,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   // Smart screen tap for UI toggle
   const handleScreenTap = () => {
     if (dragState.isDragging) return;
-    
-    // Simply toggle controls visibility
+    console.log('Screen tapped, toggling controls. Current state:', showControls);
     manageControlsTimeout(!showControls);
   };
 
@@ -339,11 +381,11 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     onClose();
   };
 
-  // Reset state when video changes - MODIFIED to reset ready state
+  // Reset state when video changes - also reset seek protection
   useEffect(() => {
-    setPosition(0);
-    setIsPlaying(false);
-    setIsVideoReady(false); // NEW: Reset ready state
+    setIsVideoReady(false);
+    setCurrentPlaybackTime(0); // Reset playback time
+    setLastSeekTime(null); // Reset seek protection
     setDragState({
       isDragging: false,
       position: 0,
@@ -360,42 +402,45 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       if (controlsTimeout.current) {
         clearTimeout(controlsTimeout.current);
       }
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+      // Note: player cleanup is handled automatically by useVideoPlayer hook
     };
   }, []);
+
+  const displayPosition = dragState.isDragging ? dragState.position : position;
 
   const content = (
     <View style={styles.container}>
       {/* Background - clickable for UI toggle */}
-      <TouchableOpacity 
-        style={styles.background}
-        onPress={handleScreenTap}
-        activeOpacity={1}
-      >
+      <View style={styles.background}>
         <View style={styles.videoContainer}>
-          <TouchableOpacity 
-            style={styles.videoTouchable}
-            onPress={handleScreenTap}
-            activeOpacity={1}
-          >
-            <Video
-              ref={videoRef}
-              source={{ uri: currentVideo.uri }}
+          <View style={styles.videoTouchable}>
+            <VideoView
               style={[styles.video, { width: dimensions.width, height: dimensions.height }]}
-              resizeMode={ResizeMode.CONTAIN}
-              onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-              progressUpdateIntervalMillis={100}
-              positionMillis={0}
-              shouldPlay={false} // Keep false - we control play via playAsync()
-              isLooping={false}
-              useNativeControls={false}
+              player={player}
+              allowsFullscreen={false}
+              allowsPictureInPicture={false}
+              showsTimecodes={false}
+              requiresLinearPlayback={false}
+              contentFit="contain"
+              nativeControls={false}
             />
-          </TouchableOpacity>
+          </View>
         </View>
-      </TouchableOpacity>
+        
+        {/* Transparent overlay for touch handling */}
+        <TouchableOpacity 
+          style={styles.touchOverlay}
+          onPress={handleScreenTap}
+          activeOpacity={1}
+        />
+      </View>
 
       {/* Controls Overlay */}
       {showControls && (
-        <>
+        <View style={styles.controlsContainer}>
           <ViewerHeaderNative
             title={currentVideo.name}
             subtitle={hasMultiple ? `${currentIndex + 1} of ${videos.length}` : undefined}
@@ -443,7 +488,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
             
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
 
-            {/* Play/Pause Button - MODIFIED to show correct state */}
+            {/* Play/Pause Button */}
             <TouchableOpacity
               style={styles.playPauseButton}
               onPress={togglePlayPause}
@@ -478,11 +523,11 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
               </TouchableOpacity>
             </>
           )}
-        </>
+        </View>
       )}
 
       {/* Center Restart Button - shown when video is finished */}
-      {isNearEnd && !isPlaying && (
+      {isNearEnd && !isPlaying && duration > 0 && (
         <TouchableOpacity
           style={styles.centerRestartButton}
           onPress={togglePlayPause}
@@ -499,7 +544,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   return content;
 };
 
-// Modal wrapper for backwards compatibility - MODIFIED to pass autoplay
+// Modal wrapper for backwards compatibility
 export default function VideoViewerNative({
   visible,
   videos,
@@ -543,6 +588,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  touchOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    zIndex: 10, // Above video but below controls
+  },
+  controlsContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 20, // Above touch overlay
+    pointerEvents: 'box-none', // Allow touches to pass through to children
   },
   videoContainer: {
     flex: 1,
