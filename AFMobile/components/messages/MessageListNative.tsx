@@ -461,6 +461,12 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     const isAtBottom = contentOffset.y <= 50;
     onScrollPositionChange?.(isAtBottom);
 
+    if (isAtBottom && showNewMessageBanner) {
+      setShowNewMessageBanner(false);
+      setNewMessageCount(0);
+    }
+
+
     // Update visible message index
     lastVisibleMessageIndex.current = getVisibleMessageIndex();
 
@@ -478,7 +484,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
         handleLoadMoreSmooth();
       }, 300);
     }
-  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex]);
+  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex, showNewMessageBanner]);
 
   // Reset state when conversation changes
   useEffect(() => {
