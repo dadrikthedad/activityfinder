@@ -1,4 +1,4 @@
-// components/messages/MessageAttachmentsNative.tsx - Updated with ReactionHandler
+// components/messages/MessageAttachmentsNative.tsx - Updated with full ReactionHandler support
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Alert,
   ScrollView,
   Vibration,
+  Clipboard,
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { 
@@ -24,7 +25,7 @@ import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '@/types/navigation';
 import { useChatStore } from '@/store/useChatStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { Play } from 'lucide-react-native';
+import { Play, MessageCircleReply, Trash2, Clipboard as ClipboardIcon } from 'lucide-react-native';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 import { ReactionMenuNative } from '../reactions/ReactionMenuNative';
 import { useReactions } from '@/hooks/reactions/useReactions';
@@ -156,7 +157,7 @@ const AttachmentItemNative = ({
     console.log('🔗 Long press on attachment - showing reaction menu');
   };
 
-  // Handler for reaction selection
+  // 🔧 FORBEDRET: Handler for reaction selection
   const handleReactionSelect = (emoji: string) => {
     if (!message || !currentUser) return;
 
@@ -181,32 +182,94 @@ const AttachmentItemNative = ({
     });
   };
 
-  // Quick actions for attachment (same as message)
+  // 🔧 FORBEDRET: Reply handler
+  const handleReply = () => {
+    if (!message || !onReply) return;
+
+    const actualMessageId = useChatStore.getState().getActualMessageId(message);
+    if (!actualMessageId) {
+      Alert.alert(
+        "Please wait", 
+        "Message is still being sent. Please try again in a moment.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    console.log('💬 Replying to message from attachment:', {
+      originalId: message.id,
+      actualId: actualMessageId,
+      hasText: Boolean(message.text),
+      hasAttachments: Boolean(message.attachments?.length),
+    });
+
+    onReply(message);
+    setShowReactionMenu(false); // Lukk menyen
+  };
+
+  // 🔧 FORBEDRET: Delete handler
+  const handleDelete = () => {
+    if (!message || !onDelete) return;
+
+    console.log('🗑️ Deleting message from attachment:', {
+      originalId: message.id,
+      hasText: Boolean(message.text),
+      hasAttachments: Boolean(message.attachments?.length),
+    });
+
+    onDelete(message);
+    setShowReactionMenu(false); // Lukk menyen
+  };
+
+  // 🆕 NY: Copy message handler
+  const handleCopyMessage = () => {
+    if (!message?.text) {
+      // Hvis ingen tekst, kopier filnavn eller annen relevant info
+      const fileName = attachment.fileName || 'Attachment';
+      Clipboard.setString(fileName);
+      console.log('📋 Copied attachment filename:', fileName);
+    } else {
+      Clipboard.setString(message.text);
+      console.log('📋 Copied message text:', message.text.substring(0, 50) + '...');
+    }
+    setShowReactionMenu(false);
+  };
+
+  // 🔧 FORBEDRET: Quick actions for attachment
   const getQuickActions = () => {
     const actions = [];
    
-    // Reply action (for other people's messages)
-    if (message && onReply && currentUser?.id !== message.sender?.id) {
+    // 🔧 ENDRET: Reply action for ALLE meldinger (både egne og andres)
+    if (message && onReply) {
       actions.push({
         type: 'reply' as const,
         label: 'Reply',
-        icon: require('lucide-react-native').MessageCircleReply,
-        onPress: () => onReply(message),
+        icon: MessageCircleReply,
+        onPress: handleReply,
         disabled: false,
       });
     }
    
-    // Delete action (for own messages)  
+    // Delete action (kun for egne meldinger)  
     if (message && onDelete && currentUser?.id === message.sender?.id && !message.isDeleted) {
       actions.push({
         type: 'delete' as const,
         label: 'Delete',
-        icon: require('lucide-react-native').Trash2,
-        onPress: () => onDelete(message),
+        icon: Trash2,
+        onPress: handleDelete,
         disabled: false,
         destructive: true,
       });
     }
+
+    // 🆕 NY: Copy action (alltid tilgjengelig)
+    actions.push({
+      type: 'copy' as const,
+      label: 'Copy',
+      icon: ClipboardIcon,
+      onPress: handleCopyMessage,
+      disabled: false,
+    });
    
     return actions;
   };
@@ -507,7 +570,7 @@ export default function MessageAttachmentsNative({
                 onToggleBlur={() => toggleBlur(attachments[0].fileUrl)}
                 galleryInfo={attachments.length > 1 ? `1/${attachments.length}` : undefined}
                 isMapped={isMapped}
-                // Pass reaction handler props
+                // 🔧 FORBEDRET: Pass alle reaction handler props
                 message={message}
                 currentUser={currentUser}
                 onReply={onReply}
@@ -541,7 +604,7 @@ export default function MessageAttachmentsNative({
                     onToggleBlur={() => toggleBlur(attachment.fileUrl)}
                     galleryInfo={galleryInfo}
                     isMapped={isMapped}
-                    // Pass reaction handler props
+                    // 🔧 FORBEDRET: Pass alle reaction handler props
                     message={message}
                     currentUser={currentUser}
                     onReply={onReply}

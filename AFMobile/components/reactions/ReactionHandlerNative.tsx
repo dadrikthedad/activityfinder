@@ -1,4 +1,4 @@
-// ReactionHandlerNative.tsx - Forbedret for optimistiske meldinger
+// ReactionHandlerNative.tsx - Forbedret for optimistiske meldinger + reply på egne meldinger
 import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
@@ -152,7 +152,9 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       return;
     }
 
+    // 🔧 BEKREFTET: Lukk menyen og utfør reply
     onReply(message);
+    setShowMenu(false); // Eksplisitt lukking av menyen
   };
 
   const handleDelete = () => {
@@ -171,9 +173,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   const getQuickActions = () => {
     const actions = [];
    
-    // Reply action (for other people's messages)
-    // 🔧 FORBEDRET: Reply krever server-ID
-    if (message && onReply && currentUserId !== message.sender?.id) {
+    // 🔧 ENDRET: Reply action for ALLE meldinger (både egne og andres)
+    if (message && onReply) {
       actions.push({
         type: 'reply' as const,
         label: 'Reply',
@@ -183,7 +184,7 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       });
     }
    
-    // Delete action (for own messages)  
+    // Delete action (kun for egne meldinger)  
     // 🔧 FORBEDRET: Sletting kan gjøres lokalt
     if (message && onDelete && currentUserId === message.sender?.id && !message.isDeleted) {
       actions.push({

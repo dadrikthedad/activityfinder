@@ -456,3 +456,4 @@ export const getDisplayFileName = (fileName: string, maxLength: number = 30): st
   
   return `${nameWithoutExt.substring(0, availableLength)}...${extension}`;
 };
+
