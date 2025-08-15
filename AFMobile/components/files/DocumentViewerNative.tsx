@@ -1,4 +1,4 @@
-// components/common/DocumentViewerNative.tsx - Updated to show file extension instead of message
+// components/common/DocumentViewerNative.tsx - Fixed Text Component Error
 import React, { useState, useEffect } from 'react';
 import { 
   Modal, 
@@ -23,7 +23,7 @@ interface DocumentViewerContentProps {
   onClose: () => void;
   onShare?: (file: RNFile) => void;
   onDownload?: (file: RNFile) => void;
-  useModal?: boolean; // Control behavior differences between Modal and Screen
+  useModal?: boolean;
 }
 
 interface DocumentViewerNativeProps extends DocumentViewerContentProps {
@@ -53,7 +53,6 @@ const INLINE_VIEWABLE_EXTENSIONS = [
 ];
 
 const canViewInline = (file: RNFile): boolean => {
-  // Decode URL-encoded filename (in case it wasn't decoded earlier)
   const decodedFileName = decodeURIComponent(file.name);
   const fileInfo = getFileTypeInfo(file.type, decodedFileName);
   const extension = '.' + decodedFileName.toLowerCase().split('.').pop();
@@ -68,7 +67,7 @@ const canViewInline = (file: RNFile): boolean => {
   );
 };
 
-// 🆕 NEW: Get file extension for display
+// Get file extension for display
 const getFileExtension = (fileName: string): string => {
   const decodedFileName = decodeURIComponent(fileName);
   const extension = decodedFileName.split('.').pop()?.toUpperCase();
@@ -81,7 +80,7 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   onClose,
   onShare,
   onDownload,
-  useModal = true // Default to Modal behavior for backwards compatibility
+  useModal = true
 }) => {
   const [fileContent, setFileContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -91,9 +90,8 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   const fileInfo = getFileTypeInfo(file.type, file.name);
   const icon = getFileIcon(file.name, file.type);
   const canShow = canViewInline(file);
-  const fileExtension = getFileExtension(file.name); // 🆕 NEW: Get file extension
+  const fileExtension = getFileExtension(file.name);
   
-  // 🐛 DEBUG - sjekk canShow verdien
   console.log('📄 DocumentViewer canShow:', {
     fileName: file.name,
     canShow,
@@ -101,7 +99,7 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
     loading,
     error,
     useModal,
-    fileExtension // 🆕 NEW: Log file extension
+    fileExtension
   });
 
   // Last inn filinnhold hvis det kan vises inline
@@ -116,13 +114,11 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
         let content = '';
         
         if (file.uri.startsWith('http')) {
-          // Last ned fra URL
           console.log('🌐 Loading content from URL:', file.uri.substring(0, 100) + '...');
           const response = await fetch(file.uri);
           content = await response.text();
           console.log('✅ Content loaded, length:', content.length);
         } else {
-          // Les lokal fil
           console.log('📱 Loading content from local file:', file.uri);
           content = await FileSystem.readAsStringAsync(file.uri);
           console.log('✅ Local content loaded, length:', content.length);
@@ -156,7 +152,6 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
 
   const handleOpenFile = async () => {
     try {
-      // Du må implementere confirmModal hook i din app
       const confirmModal = {
         confirm: async (options: { title?: string; message: string }) => {
           return new Promise<boolean>((resolve) => {
@@ -195,26 +190,30 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   const getColorByCategory = () => {
     switch (fileInfo.category) {
       case 'pdf':
-        return '#dc2626'; // Red
+        return '#dc2626';
       case 'document':
-        return '#2563eb'; // Blue
+        return '#2563eb';
       case 'spreadsheet':
-        return '#16a34a'; // Green
+        return '#16a34a';
       case 'presentation':
-        return '#ea580c'; // Orange
+        return '#ea580c';
       case 'code':
-        return '#7c3aed'; // Purple
+        return '#7c3aed';
       case 'config':
-        return '#059669'; // Emerald
+        return '#059669';
       case 'data':
-        return '#db2777'; // Pink
+        return '#db2777';
       default:
-        return '#6b7280'; // Gray
+        return '#6b7280';
     }
   };
 
   const getSyntaxHighlighting = (content: string, fileName: string): React.ReactNode => {
-    // Enkel syntax highlighting basert på filtype
+    // 🔧 FIX: Ensure content is not empty
+    if (!content || content.trim() === '') {
+      return <Text style={styles.textContent}>No content available</Text>;
+    }
+    
     const extension = fileName.toLowerCase().split('.').pop();
     
     if (extension === 'json') {
@@ -240,7 +239,7 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
 
       {/* Header */}
       <ViewerHeaderNative
-        title={decodeURIComponent(file.name)} // 🔧 UPDATED: Decode filename in header too
+        title={decodeURIComponent(file.name)}
         onClose={onClose}
         onDownload={onDownload ? handleDownload : undefined}
         onShare={onShare ? handleShare : undefined}
@@ -248,7 +247,7 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
         showDownload={!!onDownload}
         showShare={!!onShare}
         isDownloading={isDownloading}
-        theme="light" // 🎨 Light theme for DocumentViewer
+        theme="light"
       />
 
       {/* Content Container */}
@@ -260,18 +259,19 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
           </Text>
           
           <Text style={styles.fileName} numberOfLines={2}>
-            {decodeURIComponent(file.name)} {/* 🔧 UPDATED: Decode filename */}
+            {decodeURIComponent(file.name)}
           </Text>
           
           <View style={styles.fileDetails}>
-            <Text style={styles.fileType}>{fileExtension}</Text> {/* 🔧 UPDATED: Show file extension */}
+            <Text style={styles.fileType}>{fileExtension}</Text>
           </View>
           
-          {!canShow && (
+          {/* 🔧 FIX: Change from && to ternary operator */}
+          {!canShow ? (
             <Text style={styles.message}>
               This {fileExtension} file cannot be previewed. Tap "Open" to view it in another app.
-            </Text> // 🔧 UPDATED: Custom message with file type
-          )}
+            </Text>
+          ) : null}
           
           {/* Category badge */}
           <View style={[styles.categoryBadge, { backgroundColor: getColorByCategory() }]}>
@@ -281,22 +281,24 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
           </View>
         </View>
         
-        {/* File content hvis det kan vises inline */}
-        {canShow && (
+        {/* 🔧 FIX: File content with proper conditional rendering */}
+        {canShow ? (
           <View style={styles.contentContainer}>
-            
-            {loading && (
+            {/* 🔧 FIX: Loading state */}
+            {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={getColorByCategory()} />
                 <Text style={styles.loadingText}>Loading...</Text>
               </View>
-            )}
+            ) : null}
             
-            {error && (
+            {/* 🔧 FIX: Error state */}
+            {error ? (
               <Text style={styles.errorText}>{error}</Text>
-            )}
+            ) : null}
             
-            {!loading && !error && fileContent && (
+            {/* 🔧 FIX: Content display */}
+            {!loading && !error && fileContent ? (
               <ScrollView 
                 style={styles.fileContentScrollView} 
                 showsVerticalScrollIndicator={true}
@@ -304,9 +306,9 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
               >
                 {getSyntaxHighlighting(fileContent, file.name)}
               </ScrollView>
-            )}
+            ) : null}
           </View>
-        )}
+        ) : null}
         
         {/* Actions */}
         <View style={styles.actions}>
@@ -366,11 +368,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   
-  // Modal content styles
   modalContent: {
     backgroundColor: 'white',
     margin: 20,
-    marginTop: 80, // Space for header
+    marginTop: 80,
     borderRadius: 12,
     padding: 20,
     maxWidth: 380,
@@ -384,11 +385,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   
-  // Screen content styles
   screenContent: {
     flex: 1,
     backgroundColor: 'white',
-    paddingTop: 80, // Space for header
+    paddingTop: 80,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
@@ -416,17 +416,8 @@ const styles = StyleSheet.create({
   fileType: {
     fontSize: 12,
     color: '#6b7280',
-    fontWeight: '600', // 🎨 Make file type more prominent
-    textTransform: 'uppercase', // 🎨 Consistent with attachment display
-  },
-  separator: {
-    fontSize: 12,
-    color: '#d1d5db',
-    marginHorizontal: 8,
-  },
-  fileSize: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   message: {
     fontSize: 14,
@@ -447,14 +438,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     marginBottom: 20,
-    flex: 1, // 🚀 Ta all tilgjengelig plass
-    minHeight: 200, // Minimum høyde for innhold
-  },
-  contentHeader: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
+    flex: 1,
+    minHeight: 200,
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -475,8 +460,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e5e7eb',
     borderRadius: 8,
-    flex: 1, // 🚀 Bruk all tilgjengelig plass
-    minHeight: 200, // Minimum høyde
+    flex: 1,
+    minHeight: 200,
   },
   fileContentContainer: {
     padding: 12,
@@ -503,7 +488,7 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: 12,
-    marginTop: 'auto', // Push to bottom
+    marginTop: 'auto',
   },
   primaryButton: {
     backgroundColor: '#1C6B1C',

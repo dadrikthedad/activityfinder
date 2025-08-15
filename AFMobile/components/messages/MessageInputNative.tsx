@@ -1,3 +1,4 @@
+// components/messages/MessageInputNative.tsx - Refactored with AttachmentPreview
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -11,9 +12,9 @@ import {
   Modal,
   ActionSheetIOS,
   ScrollView,
-  Image as ImageReact,
+  AppState,
 } from 'react-native';
-import { Camera, Image as ImageLucid, FileText, Plus, X, ArrowBigRight, MessageCircleReply   } from 'lucide-react-native';
+import { Camera, Image as ImageLucid, FileText, Plus, ArrowBigRight } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
@@ -23,10 +24,12 @@ import { useChatStore } from '@/store/useChatStore';
 import { getDraftFor, saveDraftFor, clearDraftFor } from '@/utils/draft/draft';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { ReplyPreviewNative } from './ReplyPreviewNative';
-import { RNFile, validateFiles, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
-import FileViewerNative from '../files/FileViewerNative';
-import { AppState } from 'react-native';
-import {launchCamera } from 'react-native-image-picker';
+import { RNFile, validateFiles } from '@/utils/files/FileFunctions';
+import { launchCamera } from 'react-native-image-picker';
+
+// Import our new components
+import { AttachmentPreview } from '../files/AttachmentPreview';
+import { useAttachmentViewer } from '../files/AttachmentViewer';
 
 interface MessageInputNativeProps {
   receiverId?: number;
@@ -56,14 +59,19 @@ export default function MessageInputNative({
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<RNFile[]>([]);
   const [showActionsModal, setShowActionsModal] = useState(false);
-  // Removed showActions state - always show the plus button
-  const [showFileViewer, setShowFileViewer] = useState(false);
-  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  
   const { send, error } = useSendMessage(onMessageSent);
   const inputRef = useRef<TextInput>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const user = useCurrentUser();
+
+  // Use AttachmentViewer hook for file opening
+  const { openFile } = useAttachmentViewer({
+    files: selectedFiles,
+    isMapped: false
+  });
 
   const currentConversation = useChatStore((state) =>
     state.conversations.find((c) => c.id === conversationId)
@@ -121,14 +129,13 @@ export default function MessageInputNative({
 
     // Create optimistic attachments
     const optimisticAttachments: AttachmentDto[] = selectedFiles.map((file, index) => ({
-      fileUrl: '', // Tomt for optimistic
+      fileUrl: '',
       fileType: file.type,
       fileName: file.name,
       fileSize: file.size,
-      // Optimistic fields
       isOptimistic: true,
       optimisticId: `opt_att_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
-      localUri: file.uri, // For preview i React Native
+      localUri: file.uri,
       isUploading: true,
       uploadError: null,
     }));
@@ -145,7 +152,7 @@ export default function MessageInputNative({
       text: trimmed || null,
       sentAt: new Date().toISOString(),
       conversationId: conversationId || -1,
-      attachments: optimisticAttachments, // Vis filene umiddelbart med lokal URI
+      attachments: optimisticAttachments,
       reactions: [],
       parentMessageId: replyingTo?.id || null,
       parentMessageText: replyingTo?.text || null,
@@ -159,7 +166,7 @@ export default function MessageInputNative({
       useChatStore.getState().addMessage(optimisticMessage);
     }
 
-    // Clear input and files immediately (for god UX)
+    // Clear input and files immediately
     setText("");
     setSelectedFiles([]);
     onClearReply?.();
@@ -182,7 +189,7 @@ export default function MessageInputNative({
       const result = await send(messageData);
       
       if (!result) {
-        // Update optimistic message and all attachments with error
+        // Update optimistic message and attachments with error
         if (conversationId) {
           useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
             ...optimisticMessage,
@@ -190,7 +197,6 @@ export default function MessageInputNative({
             sendError: "Failed to send message"
           });
           
-          // Update all attachments with error
           optimisticAttachments.forEach(attachment => {
             if (attachment.optimisticId) {
               useChatStore.getState().updateAttachmentUploadStatus(
@@ -226,7 +232,6 @@ export default function MessageInputNative({
           sendError: err.message || "Send failed"
         });
         
-        // Update all attachments with error
         optimisticAttachments.forEach(attachment => {
           if (attachment.optimisticId) {
             useChatStore.getState().updateAttachmentUploadStatus(
@@ -249,9 +254,6 @@ export default function MessageInputNative({
   };
 
   // Handle camera action
-  // Handle camera action
-
-  const [isCameraActive, setIsCameraActive] = useState(false);
   const handleOpenCamera = async () => {
     if (isCameraActive) return;
     
@@ -274,7 +276,6 @@ export default function MessageInputNative({
           return;
         }
         
-        // ✅ RIKTIG FIX: Sjekk asset og uri separat
         const asset = response.assets?.[0];
         if (!asset || !asset.uri) {
           console.log('❌ No valid asset or URI received');
@@ -282,9 +283,8 @@ export default function MessageInputNative({
           return;
         }
         
-        // Her vet TypeScript at asset.uri er definitivt string (ikke undefined)
         const file: RNFile = {
-          uri: asset.uri, // ✅ Ingen TypeScript error
+          uri: asset.uri,
           type: asset.type || 'image/jpeg',
           name: asset.fileName || `camera_${Date.now()}.jpg`,
           size: asset.fileSize
@@ -296,20 +296,19 @@ export default function MessageInputNative({
       }
     );
   };
+
   // Handle image picker
   const handlePickImage = async () => {
     setShowActionsModal(false);
     
-    // Request media library permissions
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Photo library permission is required to select images.');
       return;
     }
 
-    // Launch image picker med ny array-basert API
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'], // NY SYNTAKS - array av strings
+      mediaTypes: ['images', 'videos'],
       allowsEditing: false,
       quality: 0.8,
       allowsMultipleSelection: true,
@@ -317,7 +316,6 @@ export default function MessageInputNative({
 
     if (!result.canceled && result.assets.length > 0) {
       const files: RNFile[] = result.assets.map((asset, index) => {
-        // Better video detection - only consider it video if it actually has video indicators
         const hasVideoExtension = asset.uri.includes('.mp4') || asset.uri.includes('.mov') || asset.uri.includes('.avi');
         const hasVideoType = asset.type?.includes('video');
         const hasVideoDuration = asset.duration != null && asset.duration > 0;
@@ -325,9 +323,7 @@ export default function MessageInputNative({
         
         let mimeType: string = asset.type || '';
         
-        // Fix MIME type based on actual content type
         if (mimeType === 'image' || (mimeType === '' && !isVideo)) {
-          // It's an image - detect specific type from filename if possible
           const fileName = asset.fileName || '';
           if (fileName.toLowerCase().includes('.png')) {
             mimeType = 'image/png';
@@ -336,10 +332,10 @@ export default function MessageInputNative({
           } else if (fileName.toLowerCase().includes('.webp')) {
             mimeType = 'image/webp';
           } else {
-            mimeType = 'image/jpeg'; // Default for images
+            mimeType = 'image/jpeg';
           }
         } else if (mimeType === 'video' || (mimeType === '' && isVideo)) {
-          mimeType = 'video/mp4'; // Default for videos
+          mimeType = 'video/mp4';
         }
         
         const fileExtension = isVideo ? 'mp4' : 'jpg';
@@ -352,9 +348,7 @@ export default function MessageInputNative({
         };
       });
       
-      // Debug logging to see what we're getting
-      console.log('📷 Library files selected:', files.map(f => ({ name: f.name, type: f.type, uri: f.uri.substring(0, 50) + '...' })));
-      
+      console.log('📷 Library files selected:', files.map(f => ({ name: f.name, type: f.type })));
       setSelectedFiles(prev => [...prev, ...files]);
     }
   };
@@ -379,7 +373,6 @@ export default function MessageInputNative({
         }));
         
         setSelectedFiles(prev => [...prev, ...files]);
-        // Plus button always visible - no need to hide
       }
     } catch (err) {
       console.error('Error picking file:', err);
@@ -414,17 +407,14 @@ export default function MessageInputNative({
     }
   };
 
-  // Remove showActions function - not needed anymore
-
   // Remove file from selection
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Open file viewer
-  const openFileViewer = (index: number) => {
-    setSelectedFileIndex(index);
-    setShowFileViewer(true);
+  // Handle file preview press - use AttachmentViewer logic
+  const handleFilePreviewPress = (index: number) => {
+    openFile(index);
   };
 
   // Load draft when conversation changes
@@ -457,10 +447,8 @@ export default function MessageInputNative({
     const handleAppStateChange = (nextAppState: string) => {
       console.log('📱 MessageInput - App state changed to:', nextAppState);
       
-      // Hvis appen kommer tilbake fra bakgrunnen, vent litt før vi tillater ny interaksjon
       if (nextAppState === 'active') {
         console.log('🔄 App became active in MessageInput');
-        // Kan legge til logikk her hvis nødvendig
       }
     };
 
@@ -480,123 +468,6 @@ export default function MessageInputNative({
     return "Write a message...";
   };
 
-  // File preview component with smart filename truncation
-  const FilePreview = ({ file, index }: { file: RNFile; index: number }) => {
-    const fileInfo = getFileTypeInfo(file.type, file.name);
-    const isImage = fileInfo.category === 'image';
-    const isVideo = fileInfo.category === 'video';
-    const isPreviewable = isImage || isVideo;
-    
-    // Debug logging for file categorization
-    console.log(`📋 File ${index}:`, {
-      name: file.name,
-      type: file.type,
-      category: fileInfo.category,
-      isPreviewable,
-      icon: fileInfo.icon
-    });
-    
-    // Smart filename truncation - always keep extension
-    const getDisplayFileName = (fileName: string, maxLength: number = 15) => {
-      if (fileName.length <= maxLength) return fileName;
-      
-      const parts = fileName.split('.');
-      if (parts.length < 2) {
-        // No extension, just truncate
-        return fileName.substring(0, maxLength - 3) + '...';
-      }
-      
-      const extension = parts.pop()!; // Get extension
-      const nameWithoutExt = parts.join('.');
-      const maxNameLength = maxLength - extension.length - 4; // -4 for "..." and "."
-      
-      if (maxNameLength <= 0) {
-        // If extension is too long, just show extension
-        return '...' + extension;
-      }
-      
-      return nameWithoutExt.substring(0, maxNameLength) + '...' + extension;
-    };
-    
-    return (
-      <TouchableOpacity 
-        style={[
-          styles.filePreview,
-          isPreviewable && styles.filePreviewClickable
-        ]}
-        onPress={() => isPreviewable ? openFileViewer(index) : undefined}
-        activeOpacity={isPreviewable ? 0.7 : 1}
-      >
-        {/* Remove button - top right corner */}
-        <TouchableOpacity
-          style={styles.removeFileButton}
-          onPress={() => removeFile(index)}
-          hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
-        >
-          <View style={styles.removeFileButtonInner}>
-            <X size={12} color="white" />
-          </View>
-        </TouchableOpacity>
-
-        <View style={styles.filePreviewContent}>
-          {/* Media preview section */}
-          <View style={styles.mediaPreviewSection}>
-            {isImage && file.uri ? (
-              <View style={styles.imagePreviewContainer}>
-                <ImageReact
-                  source={{ uri: file.uri }}
-                  style={styles.imagePreview}
-                  resizeMode="cover"
-                />
-                <View style={styles.imageOverlay}>
-                  <Text style={styles.imageOverlayText}>🖼️</Text>
-                </View>
-              </View>
-            ) : isVideo ? (
-              <View style={styles.videoPreviewContainer}>
-                {/* Show actual video frame as background */}
-                <ImageReact
-                  source={{ uri: file.uri }}
-                  style={styles.videoThumbnail}
-                  resizeMode="cover"
-                />
-                {/* Play button overlay */}
-                <View style={styles.playOverlay}>
-                  <View style={styles.playButton}>
-                    <Text style={styles.playIcon}>▶️</Text>
-                  </View>
-                </View>
-                {/* Video indicator overlay */}
-                <View style={styles.videoIndicator}>
-                  <Text style={styles.videoIndicatorText}>🎥</Text>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.documentIconContainer}>
-                <Text style={styles.fileIcon}>{fileInfo.icon}</Text>
-              </View>
-            )}
-          </View>
-          
-          {/* File info section */}
-          <View style={styles.fileInfoSection}>
-            <Text style={styles.fileName} numberOfLines={1}>
-              {getDisplayFileName(file.name)}
-            </Text>
-            {file.size && (
-              <Text style={styles.fileSize}>
-                {formatFileSize(file.size)}
-              </Text>
-            )}
-            {isPreviewable && (
-              <Text style={styles.previewHint}>Tap to preview</Text>
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <View style={styles.container}>
       {/* Reply Preview */}
@@ -607,18 +478,56 @@ export default function MessageInputNative({
         />
       )}
 
-      {/* File Previews */}
+      {/* 🆕 NEW: File Previews using AttachmentPreview */}
       {selectedFiles.length > 0 && (
         <View style={styles.filePreviewContainer}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filePreviewScrollContent}
-          >
-            {selectedFiles.map((file, index) => (
-              <FilePreview key={`${file.uri}-${index}`} file={file} index={index} />
-            ))}
-          </ScrollView>
+          {selectedFiles.length === 1 ? (
+            // Single file - centered, larger
+            <View style={styles.singleFileContainer}>
+              <AttachmentPreview
+                file={selectedFiles[0]}
+                index={0}
+                totalCount={selectedFiles.length}
+                size="medium"
+                showRemoveButton={true}
+                showGalleryIndicator={false}
+                showFileNameFooter={true}
+                onPress={() => handleFilePreviewPress(0)}
+                onRemove={() => removeFile(0)}
+                isBlurred={false}
+                isUploading={false}
+                uploadError={null}
+                disabled={false}
+              />
+            </View>
+          ) : (
+            // Multiple files - horizontal scroll like MessageAttachmentsNative
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filePreviewScrollContent}
+              style={styles.filePreviewScroll}
+            >
+              {selectedFiles.map((file, index) => (
+                <AttachmentPreview
+                  key={`${file.uri}-${index}`}
+                  file={file}
+                  index={index}
+                  totalCount={selectedFiles.length}
+                  size="small"
+                  showRemoveButton={true}
+                  showGalleryIndicator={true}
+                  showFileNameFooter={true}
+                  onPress={() => handleFilePreviewPress(index)}
+                  onRemove={() => removeFile(index)}
+                  isBlurred={false}
+                  isUploading={false}
+                  uploadError={null}
+                  disabled={false}
+                />
+              ))}
+            </ScrollView>
+          )}
         </View>
       )}
 
@@ -631,7 +540,7 @@ export default function MessageInputNative({
 
       {/* Input Row */}
       <View style={styles.inputContainer}>
-        {/* Actions button - always show plus */}
+        {/* Actions button */}
         {!isBlocked && (
           <TouchableOpacity
             style={styles.actionButton}
@@ -701,20 +610,6 @@ export default function MessageInputNative({
           </View>
         </TouchableOpacity>
       </Modal>
-
-      {/* File Viewer */}
-      {showFileViewer && selectedFiles.length > 0 && (
-        <FileViewerNative
-          visible={showFileViewer}
-          file={selectedFiles[selectedFileIndex]}
-          files={selectedFiles}
-          initialIndex={selectedFileIndex}
-          onClose={() => {
-            setShowFileViewer(false);
-            setSelectedFileIndex(0);
-          }}
-        />
-      )}
     </View>
   );
 }
@@ -779,11 +674,6 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#9CA3AF',
   },
-  sendButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   
   // Modal styles
   modalOverlay: {
@@ -811,156 +701,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // File preview styles
+  // 🆕 NEW: File preview styles using AttachmentPreview
   filePreviewContainer: {
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  singleFileContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  filePreviewScroll: {
+    marginHorizontal: -4,
   },
   filePreviewScrollContent: {
     paddingHorizontal: 4,
     gap: 8,
-  },
-  filePreview: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    width: 120,
-    height: 140, // Added fixed height for more space
-    position: 'relative',
-  },
-  filePreviewClickable: {
-    borderColor: '#1C6B1C',
-    borderWidth: 2,
-  },
-  removeFileButton: {
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    zIndex: 10,
-    backgroundColor: 'transparent',
-  },
-  removeFileButtonInner: {
-    backgroundColor: '#DC2626',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  filePreviewContent: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  mediaPreviewSection: {
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  imagePreviewContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  imagePreview: {
-    width: '100%',
-    height: '100%',
-  },
-  imageOverlay: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderRadius: 3,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
-  },
-  imageOverlayText: {
-    fontSize: 8,
-    color: 'white',
-  },
-  videoPreviewContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  videoThumbnail: {
-    width: '100%',
-    height: '100%',
-  },
-  videoIndicator: {
-    position: 'absolute',
-    top: 4,
-    left: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  videoIndicatorText: {
-    fontSize: 10,
-  },
-  playOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  playButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playIcon: {
-    fontSize: 18,
-    marginLeft: 2, // Slight adjustment for visual centering
-  },
-  documentIconContainer: {
-    width: 80,
-    height: 80,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  fileIcon: {
-    fontSize: 28,
-  },
-  fileInfoSection: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  fileName: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#374151',
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  fileSize: {
-    fontSize: 9,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 1,
-  },
-  previewHint: {
-    fontSize: 8,
-    color: '#1C6B1C',
-    fontStyle: 'italic',
-    textAlign: 'center',
+    flexDirection: 'row',
   },
 });
