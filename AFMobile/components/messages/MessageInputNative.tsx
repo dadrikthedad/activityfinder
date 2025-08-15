@@ -1,4 +1,3 @@
-// components/messages/MessageInputNative.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -26,6 +25,8 @@ import { useCurrentUser } from '@/store/useUserCacheStore';
 import { ReplyPreviewNative } from './ReplyPreviewNative';
 import { RNFile, validateFiles, getFileTypeInfo, formatFileSize } from '@/utils/files/FileFunctions';
 import FileViewerNative from '../files/FileViewerNative';
+import { AppState } from 'react-native';
+import {launchCamera, MediaType, ImagePickerResponse} from 'react-native-image-picker';
 
 interface MessageInputNativeProps {
   receiverId?: number;
@@ -248,38 +249,53 @@ export default function MessageInputNative({
   };
 
   // Handle camera action
-  const handleOpenCamera = async () => {
-    setShowActionsModal(false);
-    
-    // Request camera permissions
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera permission is required to take photos.');
-      return;
-    }
+  // Handle camera action
 
-    // Launch camera
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
+  const [isCameraActive, setIsCameraActive] = useState(false);
+const handleOpenCamera = async () => {
+  if (isCameraActive) return;
+  
+  setIsCameraActive(true);
+  setShowActionsModal(false);
+  
+  console.log('🎯 Opening camera with react-native-image-picker...');
+  
+  launchCamera(
+    {
+      mediaType: 'photo',
+      quality: 0.7,
+    },
+    (response) => {
+      console.log('📱 Camera response:', { didCancel: response.didCancel, hasAssets: !!response.assets });
+      
+      if (response.didCancel || response.errorMessage) {
+        console.log('❌ Camera cancelled or error:', response.errorMessage);
+        setIsCameraActive(false);
+        return;
+      }
+      
+      // ✅ RIKTIG FIX: Sjekk asset og uri separat
+      const asset = response.assets?.[0];
+      if (!asset || !asset.uri) {
+        console.log('❌ No valid asset or URI received');
+        setIsCameraActive(false);
+        return;
+      }
+      
+      // Her vet TypeScript at asset.uri er definitivt string (ikke undefined)
       const file: RNFile = {
-        uri: asset.uri,
+        uri: asset.uri, // ✅ Ingen TypeScript error
         type: asset.type || 'image/jpeg',
-        name: `camera_${Date.now()}.jpg`,
+        name: asset.fileName || `camera_${Date.now()}.jpg`,
         size: asset.fileSize
       };
       
+      console.log('✅ Camera file created:', file.name);
       setSelectedFiles(prev => [...prev, file]);
-      // Plus button always visible - no need to hide
+      setIsCameraActive(false);
     }
-  };
-
+  );
+};
   // Handle image picker
   const handlePickImage = async () => {
     setShowActionsModal(false);
@@ -291,9 +307,9 @@ export default function MessageInputNative({
       return;
     }
 
-    // Launch image picker
+    // Launch image picker med ny array-basert API
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All, // Allow images and videos
+      mediaTypes: ['images', 'videos'], // NY SYNTAKS - array av strings
       allowsEditing: false,
       quality: 0.8,
       allowsMultipleSelection: true,
@@ -340,7 +356,6 @@ export default function MessageInputNative({
       console.log('📷 Library files selected:', files.map(f => ({ name: f.name, type: f.type, uri: f.uri.substring(0, 50) + '...' })));
       
       setSelectedFiles(prev => [...prev, ...files]);
-      // Plus button always visible - no need to hide
     }
   };
 
@@ -437,6 +452,24 @@ export default function MessageInputNative({
       }, 100);
     }
   }, [conversationId, autoFocus]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      console.log('📱 MessageInput - App state changed to:', nextAppState);
+      
+      // Hvis appen kommer tilbake fra bakgrunnen, vent litt før vi tillater ny interaksjon
+      if (nextAppState === 'active') {
+        console.log('🔄 App became active in MessageInput');
+        // Kan legge til logikk her hvis nødvendig
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
 
   const displayError = conversationError || error;
 
