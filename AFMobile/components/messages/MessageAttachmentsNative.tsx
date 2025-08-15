@@ -24,6 +24,7 @@ import { RootStackNavigationProp } from '@/types/navigation';
 import { useChatStore } from '@/store/useChatStore';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { Play } from 'lucide-react-native';
+import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
@@ -93,15 +94,15 @@ const AttachmentItemNative = ({
     (attachment.isUploading || attachment.uploadError)
   );
 
-  // Image attachment
-  if (isImage) {
-    return (
-      <TouchableOpacity
-        style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
-        onPress={onPress}
-        activeOpacity={0.8}
-        disabled={showUploadStatus} // 🔧 Kun disable under upload, ikke etter mapping
-      >
+  return (
+    <TouchableOpacity
+      style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+      disabled={showUploadStatus}
+    >
+      {/* BILDE INNHOLD */}
+      {isImage && (
         <Image
           source={{ uri: imageUri }}
           style={[
@@ -111,183 +112,101 @@ const AttachmentItemNative = ({
           ]}
           resizeMode="cover"
         />
-        
-        {/* 🆕 Upload status overlay - kun vis hvis ikke mapped */}
-        {showUploadStatus && (
-          <View style={styles.uploadStatusOverlay}>
-            {attachment.isUploading && (
-              <>
-                <ActivityIndicator size="small" color="#1C6B1C" />
-                <Text style={styles.uploadStatusText}>Uploading...</Text>
-              </>
-            )}
-            {attachment.uploadError && (
-              <>
-                <Text style={styles.uploadErrorIcon}>❌</Text>
-                <Text style={styles.uploadStatusText}>Upload failed</Text>
-              </>
-            )}
-          </View>
-        )}
-        
-        {/* 🔧 Show normal overlays when not uploading OR when mapped */}
-        {!showUploadStatus && (
-          <>
-            {/* Blur overlay */}
-            {isBlurred && (
-              <View style={styles.blurOverlay}>
-                <Text style={styles.blurText}>👁️</Text>
-                <Text style={styles.blurSubtext}>Tap to view</Text>
-              </View>
-            )}
+      )}
 
-            {/* Gallery indicator */}
-            {galleryInfo && !isBlurred && (
-              <View style={styles.galleryIndicator}>
-                <Text style={styles.galleryText}>{galleryInfo}</Text>
-              </View>
-            )}
-
-            {/* File name overlay */}
-            {attachment.fileName && !isBlurred && (
-              <View style={styles.fileNameOverlay}>
-                <Text style={styles.fileNameText} numberOfLines={1}>
-                  {getDisplayFileName(attachment.fileName, 20)}
-                </Text>
-              </View>
-            )}
-          </>
-        )}
-      </TouchableOpacity>
-    );
-  }
-
-  // Video attachment - updated for expo-video
-  if (isVideo) {
-    const videoUri = imageUri;
-    
-    return (
-      <TouchableOpacity
-        style={[styles.imageContainer, { width: itemSize, height: itemSize }]}
-        onPress={onPress}
-        activeOpacity={0.8}
-        disabled={showUploadStatus}
-      >
+      {/* VIDEO INNHOLD */}
+      {isVideo && (
         <View style={styles.videoContainer}>
-          {/* Try to show first frame of video - only if we have a valid URI */}
-          {!showUploadStatus && videoUri ? (
-            <VideoPreview uri={videoUri} isBlurred={isBlurred} />
+          {!showUploadStatus && imageUri ? (
+            <VideoPreview uri={imageUri} isBlurred={isBlurred} />
           ) : (
-            // Only show placeholder if no video URI or uploading
             <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
               <Text style={styles.videoIcon}>🎥</Text>
               <Text style={styles.placeholderText}>Video</Text>
             </View>
           )}
+        </View>
+      )}
+
+      {/* DOKUMENT INNHOLD */}
+      {!isImage && !isVideo && (
+        <View style={styles.documentContentContainer}>
+          <View style={styles.documentIconCentered}>
+            <Text style={styles.documentIconTextLarge}>{fileInfo.icon}</Text>
+          </View>
           
-          {/* Upload status overlay */}
-          {showUploadStatus && (
-            <View style={styles.uploadStatusOverlay}>
-              {attachment.isUploading && (
-                <>
-                  <ActivityIndicator size="small" color="#1C6B1C" />
-                  <Text style={styles.uploadStatusText}>Uploading video...</Text>
-                </>
-              )}
-              {attachment.uploadError && (
-                <>
-                  <Text style={styles.uploadErrorIcon}>❌</Text>
-                  <Text style={styles.uploadStatusText}>Upload failed</Text>
-                </>
-              )}
-            </View>
-          )}
-          
-          {/* Video overlays - only show if not uploading */}
-          {!showUploadStatus && (
+          <View style={styles.documentInfoCentered}>
+            <Text style={styles.documentNameCentered} numberOfLines={2}>
+              {getDisplayFileName(attachment.fileName || 'Unnamed file', 15)}
+            </Text>
+            <Text style={styles.documentTypeCentered} numberOfLines={1}>
+              {attachment.fileType?.split('/')[1] || 'file'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* 🆕 FELLES OVERLAYS - gjelder alle typer */}
+      
+      {/* Upload status overlay */}
+      {showUploadStatus && (
+        <View style={styles.uploadStatusOverlay}>
+          {attachment.isUploading && (
             <>
-              {/* Blur overlay */}
-              {isBlurred && (
-                <View style={styles.blurOverlay}>
-                  <Text style={styles.blurText}>🎬</Text>
-                  <Text style={styles.blurSubtext}>Tap to view</Text>
-                </View>
-              )}
-
-              {/* Play button overlay - always visible for videos */}
-              {!isBlurred && (
-                <View style={styles.playOverlay}>
-                  <View style={styles.playButton}>
-                    <Play size={20} color="white" fill="white" />
-                  </View>
-                </View>
-              )}
-
-              {/* Gallery indicator for multiple videos */}
-              {galleryInfo && !isBlurred && (
-                <View style={styles.galleryIndicator}>
-                  <Text style={styles.galleryText}>{galleryInfo}</Text>
-                </View>
-              )}
-
-              {/* File name overlay */}
-              {attachment.fileName && !isBlurred && (
-                <View style={styles.fileNameOverlay}>
-                  <Text style={styles.fileNameText} numberOfLines={1}>
-                    {getDisplayFileName(attachment.fileName, 20)}
-                  </Text>
-                </View>
-              )}
+              <ActivityIndicator size="small" color="#1C6B1C" />
+              <Text style={styles.uploadStatusText}>
+                {isVideo ? 'Uploading video...' : 'Uploading...'}
+              </Text>
+            </>
+          )}
+          {attachment.uploadError && (
+            <>
+              <Text style={styles.uploadErrorIcon}>❌</Text>
+              <Text style={styles.uploadStatusText}>Upload failed</Text>
             </>
           )}
         </View>
-      </TouchableOpacity>
-    );
-  }
+      )}
 
-  // Document/other file types
-  // Document/other file types
-return (
-  <TouchableOpacity
-    style={[
-      styles.documentContainer,
-      // 🆕 For horisontal scroll - fast width som media
-      totalCount > 1 && styles.documentContainerHorizontal
-    ]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <View style={styles.documentIcon}>
-      <Text style={styles.documentIconText}>{fileInfo.icon}</Text>
-    </View>
-    
-    <View style={[
-      styles.documentInfo,
-      totalCount > 1 && styles.documentInfoHorizontal
-    ]}>
-      <Text style={[
-        styles.documentName,
-        totalCount > 1 && styles.documentNameHorizontal
-      ]} numberOfLines={totalCount > 1 ? 3 : 2}>
-        {attachment.fileName || 'Unnamed file'}
-      </Text>
-      <Text style={styles.documentType}>
-        {attachment.fileType || 'Unknown type'}
-      </Text>
-    </View>
-    
-    {/* Gallery indicator for documents in horizontal scroll */}
-    {galleryInfo && totalCount > 1 && (
-      <View style={styles.documentGalleryIndicator}>
-        <Text style={styles.galleryText}>{galleryInfo}</Text>
-      </View>
-    )}
-    
-    <View style={styles.documentIndicator}>
-      <Text style={styles.documentIndicatorText}>📎</Text>
-    </View>
-  </TouchableOpacity>
-);
+      {/* Normal overlays - kun hvis ikke uploading */}
+      {!showUploadStatus && (
+        <>
+          {/* Blur overlay */}
+          {isBlurred && (
+            <View style={styles.blurOverlay}>
+              <Text style={styles.blurText}>
+                {isVideo ? '🎬' : '👁️'}
+              </Text>
+              <Text style={styles.blurSubtext}>Tap to view</Text>
+            </View>
+          )}
+
+          {/* Play button overlay - kun for videoer */}
+          {isVideo && !isBlurred && (
+            <View style={styles.playOverlay}>
+              <View style={styles.playButton}>
+                <Play size={20} color="white" fill="white" />
+              </View>
+            </View>
+          )}
+
+          {/* Gallery indicator */}
+          {galleryInfo && !isBlurred && (
+            <View style={styles.galleryIndicator}>
+              <Text style={styles.galleryText}>{galleryInfo}</Text>
+            </View>
+          )}
+          
+          {/* 🎯 FELLES FileNameFooterPreview - KUN ÉN STED! */}
+          <FileNameFooterPreview 
+            fileName={attachment.fileName} 
+            maxLength={48}
+            isBlurred={isBlurred} 
+          />
+        </>
+      )}
+    </TouchableOpacity>
+  );
 };
 
 
@@ -518,11 +437,6 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 8,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
   imageContainer: {
     borderRadius: 8,
     overflow: 'hidden',
@@ -584,19 +498,6 @@ const styles = StyleSheet.create({
   blurToggleText: {
     fontSize: 12,
   },
-  fileNameOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#1C6B1C',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  fileNameText: {
-    fontSize: 10,
-    color: 'white',
-  },
   videoContainer: {
     width: '100%',
     height: '100%',
@@ -641,61 +542,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  playIcon: {
-    fontSize: 16,
-  },
-  moreOverlay: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moreText: {
-    fontSize: 18,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  moreSubtext: {
-    fontSize: 12,
-    color: 'white',
-    marginTop: 2,
-  },
-  documentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  documentIcon: {
-    marginRight: 12,
-  },
-  documentIconText: {
-    fontSize: 24,
-  },
-  documentInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  documentName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 2,
-  },
-  documentType: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  documentIndicator: {
-    padding: 4,
-  },
-  documentIndicatorText: {
-    fontSize: 16,
-    color: '#9CA3AF',
-  },
   summary: {
     marginTop: 8,
     paddingTop: 8,
@@ -735,16 +581,6 @@ const styles = StyleSheet.create({
   uploadingImage: {
     opacity: 0.8,
   },
-  uploadingDocument: {
-    opacity: 0.8,
-    backgroundColor: '#F3F4F6',
-  },
-  documentUploadStatus: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
   videoPreview: {
     position: 'absolute',
     top: 0,
@@ -771,33 +607,43 @@ const styles = StyleSheet.create({
   singleImageContainer: {
     alignItems: 'center',
   },
-  documentContainerHorizontal: {
-    width: itemSize,
-    height: itemSize,
-    flexDirection: 'column',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+  documentContentContainer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F9FAFB', // Lys bakgrunn for dokumenter
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
   },
-  documentInfoHorizontal: {
+  documentIconCentered: {
     flex: 1,
-    marginRight: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 8,
+  },
+  documentIconTextLarge: {
+    fontSize: 40, // Større ikon
+    opacity: 0.8,
+  },
+  documentInfoCentered: {
+    paddingHorizontal: 8,
+    paddingBottom: 24, // Plass for overlay nederst
     alignItems: 'center',
   },
-  documentNameHorizontal: {
-    fontSize: 12,
+  documentNameCentered: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#374151',
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: 13,
+    marginBottom: 2,
   },
-  documentGalleryIndicator: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
+  documentTypeCentered: {
+    fontSize: 9,
+    color: '#6B7280',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    fontWeight: '500',
   },
 });
 
