@@ -97,6 +97,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   const duration = player.duration > 0 ? player.duration * 1000 : 0; // Convert to milliseconds, handle NaN
   const position = dragState.isDragging ? dragState.position : currentPlaybackTime;
   const isNearEnd = duration > 0 && position >= duration * 0.95;
+  const [isVideoEnded, setIsVideoEnded] = useState(false);
 
   // Orientation handling
   useEffect(() => {
@@ -159,13 +160,17 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
 
   // Listen to time updates for progress - FIXED with seek protection
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    // Stop processing timeUpdate if video has ended
+    if (isVideoEnded) {
+      return;
+    }
+    
     // Only update position if not dragging to prevent bouncing
     if (!dragState.isDragging) {
       const timeInMs = currentTime * 1000; // Convert to milliseconds
       
       // Ignore timeUpdate events shortly after manual seeking to prevent bouncing
       if (lastSeekTime !== null && Math.abs(timeInMs - lastSeekTime) > 500) {
-        console.log('Ignoring timeUpdate bounce - Expected:', lastSeekTime/1000, 'Got:', currentTime);
         return;
       }
       
@@ -175,7 +180,6 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       }
       
       setCurrentPlaybackTime(timeInMs);
-      console.log('Time update:', currentTime, 'seconds, duration:', player.duration);
     }
   });
 
@@ -191,11 +195,12 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
 
   // Listen for when video reaches end
   useEventListener(player, 'playToEnd', () => {
-    console.log('Video reached end:', currentVideo.name);
-    // Force UI update for end state
-    setIsVideoReady(true);
-    manageControlsTimeout(true);
-  });
+  console.log('Video reached end:', currentVideo.name);
+  setIsVideoEnded(true); // Mark video as ended
+  // Force UI update for end state
+  setIsVideoReady(true);
+  manageControlsTimeout(true);
+});
 
   // Consolidated timeout management
   const manageControlsTimeout = (show: boolean) => {
@@ -208,25 +213,27 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
 
   // Toggle play/pause with restart functionality - fixed for expo-video
   const togglePlayPause = () => {
-    if (dragState.isDragging) return;
+  if (dragState.isDragging) return;
 
-    try {
-      if (isPlaying) {
-        player.pause();
-        console.log('Pausing video');
-      } else {
-        if (isNearEnd) {
-          console.log('Restarting video from beginning');
-          player.currentTime = 0;
-        }
-        player.play();
-        console.log('Playing video');
+  try {
+    if (isPlaying) {
+      player.pause();
+      console.log('Pausing video');
+    } else {
+      if (isNearEnd || isVideoEnded) {
+        console.log('Restarting video from beginning');
+        player.currentTime = 0;
+        setIsVideoEnded(false); // Reset end state when restarting
+        setCurrentPlaybackTime(0);
       }
-      manageControlsTimeout(true);
-    } catch (error) {
-      console.error('Error toggling play/pause:', error);
+      player.play();
+      console.log('Playing video');
     }
-  };
+    manageControlsTimeout(true);
+  } catch (error) {
+    console.error('Error toggling play/pause:', error);
+  }
+};
 
   // Pan responder for seeking
   const panResponder = PanResponder.create({
@@ -274,6 +281,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       // Update position immediately to prevent bouncing
       setCurrentPlaybackTime(finalPosition);
       setLastSeekTime(finalPosition); // Mark this as our seek target
+      setIsVideoEnded(false);
       
       // Clear drag state
       setDragState({
@@ -324,6 +332,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
       // Update position immediately to prevent bouncing
       setCurrentPlaybackTime(newPosition);
       setLastSeekTime(newPosition); // Mark this as our seek target
+      setIsVideoEnded(false);
       
       console.log('Seeking to:', newPosition / 1000, 'seconds');
       player.currentTime = newPosition / 1000; // Convert to seconds
@@ -344,6 +353,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
     // Reset state for new video
     setCurrentIndex(newIndex);
     setIsVideoReady(false);
+    setIsVideoEnded(false);
     setDragState({
       isDragging: false,
       position: 0,
@@ -384,6 +394,7 @@ const VideoViewerContent: React.FC<VideoViewerContentProps> = ({
   // Reset state when video changes - also reset seek protection
   useEffect(() => {
     setIsVideoReady(false);
+    setIsVideoEnded(false);
     setCurrentPlaybackTime(0); // Reset playback time
     setLastSeekTime(null); // Reset seek protection
     setDragState({
@@ -735,5 +746,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: -40,
     marginLeft: -40,
+    zIndex: 30,
+    elevation: 30,
   },
 });
