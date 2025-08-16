@@ -10,7 +10,7 @@ import {
   Alert,
   ScrollView,
 } from 'react-native';
-import { X, Search, Trash2, Users, Image, Bell, Archive } from 'lucide-react-native';
+import { X, Search, Trash2, Image, Bell } from 'lucide-react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { useDeleteConversation } from '@/hooks/messages/useDeleteConversation';
@@ -22,6 +22,7 @@ interface MessageSettingsModalNativeProps {
   visible: boolean;
   onClose: () => void;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
+  onOpenSearch?: () => void;
 }
 
 interface MenuItemProps {
@@ -73,6 +74,7 @@ export function MessageSettingsModalNative({
   visible,
   onClose,
   onShowUserPopover,
+  onOpenSearch,
 }: MessageSettingsModalNativeProps) {
   const currentConversationId = useChatStore((s) => s.currentConversationId);
   const currentConversation = useChatStore((s) => 
@@ -113,9 +115,8 @@ export function MessageSettingsModalNative({
   };
 
   const handleSearchMessages = () => {
-    const searchMode = useChatStore.getState().searchMode;
-    useChatStore.getState().setSearchMode(!searchMode);
-    onClose();
+    onClose(); // Lukk settings modal
+    onOpenSearch?.(); // Aktiver søkemodus
   };
 
   const handleViewMedia = () => {
@@ -128,18 +129,6 @@ export function MessageSettingsModalNative({
     // TODO: Implement notification settings
     console.log('Notification settings');
     onClose();
-  };
-
-  const handleArchiveConversation = () => {
-    // TODO: Implement archive functionality
-    Alert.alert(
-      "Archive Conversation",
-      "This conversation will be moved to your archived chats.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Archive", onPress: () => console.log('Archive conversation') }
-      ]
-    );
   };
 
   const handleParticipantClick = (participant: UserSummaryDTO) => {
@@ -177,7 +166,7 @@ export function MessageSettingsModalNative({
           {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {isGroup ? 'Group Settings' : 'Conversation Settings'}
+              {isGroup ? 'Group Settings' : 'Settings for this conversation'}
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <X size={24} color="white" />
@@ -220,14 +209,14 @@ export function MessageSettingsModalNative({
               <MenuItem
                 icon={<Image size={20} color="#1C6B1C" />}
                 title="Media & files"
-                subtitle="Photos, videos and documents"
+                subtitle="Photos, videos and documents - COMING SOON"
                 onPress={handleViewMedia}
               />
               
               <MenuItem
                 icon={<Bell size={20} color="#1C6B1C" />}
                 title="Notifications"
-                subtitle="Customize notification settings"
+                subtitle="Customize notification settings - COMING SOON"
                 onPress={handleNotificationSettings}
               />
             </View>
@@ -252,18 +241,12 @@ export function MessageSettingsModalNative({
             {/* Danger Zone */}
             <View style={styles.sectionDivider} />
             <View style={styles.section}>
-              <MenuItem
-                icon={<Archive size={20} color="#F59E0B" />}
-                title="Archive conversation"
-                subtitle="Hide this conversation"
-                onPress={handleArchiveConversation}
-              />
               
               {!isGroup && currentConversationId && (
                 <MenuItem
-                  icon={<Trash2 size={20} color="#DC2626" />}
+                  icon={<Trash2 size={20} color="#FFFFFF" />}
                   title={isDeleting ? 'Deleting...' : 'Delete conversation'}
-                  subtitle="This action cannot be undone"
+                  subtitle="You will not receive more messages from this user, unless you open up the conversation again."
                   onPress={handleDeleteConversation}
                   destructive={true}
                   disabled={isDeleting}
@@ -339,10 +322,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   destructiveItem: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#9CA3AF',
   },
   destructiveText: {
-    color: '#DC2626',
+    color: '#FFFFFF',
   },
   disabledItem: {
     opacity: 0.5,

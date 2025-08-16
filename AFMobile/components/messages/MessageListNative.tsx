@@ -36,6 +36,9 @@ interface MessageListNativeProps {
   onRetryMessage?: (message: MessageDTO) => void;
   onDeleteFailedMessage?: (message: MessageDTO) => void;
   conversationParticipants?: UserSummaryDTO[];
+  isSearchMode?: boolean;
+  searchQuery?: string;
+  searchLoading?: boolean;
 }
 
 interface MessageItemProps {
@@ -48,6 +51,8 @@ interface MessageItemProps {
   onDeleteFailed?: (message: MessageDTO) => void;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
   onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
+  isSearchResult?: boolean;
+  searchQuery?: string;
 }
 
 // Memoized MessageItem for better performance
@@ -60,7 +65,9 @@ const MessageItemNative = React.memo(({
   onRetry,
   onDeleteFailed,
   onShowUserPopover,
-  onShowReactionUsers
+  onShowReactionUsers,
+  isSearchResult = false,
+  searchQuery = '',
 }: MessageItemProps) => {
   const isMine = currentUser?.id === message.sender?.id;
   const isOptimistic = message.isOptimistic;
@@ -125,6 +132,31 @@ const MessageItemNative = React.memo(({
     }
   }, [message?.reactions, onShowReactionUsers]);
 
+  const renderMessageText = useCallback((text: string) => {
+  if (!isSearchResult || !searchQuery.trim()) {
+    return (
+      <Text style={[styles.messageText, isMine && styles.myMessageText]}>
+        {text}
+      </Text>
+    );
+  }
+
+  const parts = text.split(new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+  
+  return (
+    <Text style={[styles.messageText, isMine && styles.myMessageText]}>
+      {parts.map((part, index) => 
+        part.toLowerCase() === searchQuery.toLowerCase() ? (
+          <Text key={index} style={styles.highlightedSearchText}>{part}</Text>
+        ) : (
+          part // Returner bare string for å arve styling fra parent
+        )
+      )}
+    </Text>
+  );
+}, [isSearchResult, searchQuery, isMine]);
+
+
   // 🔧 FIX: Wrap content in a container to control layout flow
   const messageContent = (
     <View style={styles.messageWrapper}>
@@ -182,9 +214,7 @@ const MessageItemNative = React.memo(({
 
         {message.text && !message.isDeleted && (
           <View style={[styles.messageContent, isMine && styles.myMessageContent]}>
-            <Text style={[styles.messageText, isMine && styles.myMessageText]}>
-              {message.text}
-            </Text>
+            {renderMessageText(message.text)}
           </View>
         )}
 
@@ -296,8 +326,11 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   onRetryMessage,
   onDeleteFailedMessage,
   conversationParticipants = [],
+  isSearchMode = false,
+  searchQuery = '',
+  searchLoading = false,
 }, ref) => {
-  const { liveMessages } = useChatStore();
+  const { liveMessages, searchResults } = useChatStore();
   const rawConversationId = useChatStore((state) => state.currentConversationId);
   const conversationId = rawConversationId ?? -1;
 
@@ -343,11 +376,20 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   });
 
   const live = useMemo(() => {
+    if (isSearchMode) {
+      return []; // Ingen live meldinger i søkemodus
+    }
     return liveMessages[conversationId] || [];
-  }, [liveMessages, conversationId]);
+  }, [liveMessages, conversationId, isSearchMode]);
 
   // Combine and sort messages
   const displayedMessages = useMemo(() => {
+    if (isSearchMode) {
+      return searchResults.sort((a, b) => 
+        new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()
+      );
+    }
+
     const messageMap = new Map();
     
     // Add cached messages first
@@ -362,7 +404,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
 
     return Array.from(messageMap.values())
       .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
-  }, [messages, live]);
+  }, [messages, live, isSearchMode, searchResults]);
 
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const currentConversation = useChatStore((state) =>
@@ -405,7 +447,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   }, [deleteMessage, confirm]);
 
   // Render message with stable callback
-  const renderMessage = useCallback(({ item }: { item: MessageDTO }) => (
+   const renderMessage = useCallback(({ item }: { item: MessageDTO }) => (
     <MessageItemNative
       message={item}
       currentUser={currentUser}
@@ -418,11 +460,21 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
       onShowReactionUsers={(emoji, reactions) => 
         showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants)
       }
+      // Nye props for søkehighlighting
+      isSearchResult={isSearchMode}
+      searchQuery={searchQuery}
     />
-  ), [currentUser, isLocked, onReply, handleDeleteMessage, onRetryMessage, onDeleteFailedMessage, onShowUserPopover, showReactionUsers, conversationParticipants]);
+  ), [
+    currentUser, isLocked, onReply, handleDeleteMessage, onRetryMessage, 
+    onDeleteFailedMessage, onShowUserPopover, showReactionUsers, 
+    conversationParticipants, isSearchMode, searchQuery
+  ]);
+
 
   // Infinite scroll with throttling
   const handleLoadMoreSmooth = useCallback(async () => {
+    if (isSearchMode) return;
+
     const now = Date.now();
     if (now - lastLoadMoreTime.current < LOAD_MORE_THROTTLE_MS) {
       console.log(`⏳ Load more throttled (${now - lastLoadMoreTime.current}ms since last)`);
@@ -448,7 +500,39 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
         setIsLoadingMore(false);
       }, 500);
     }
-  }, [hasMore, loading, isLoadingMore, loadMore]);
+  }, [hasMore, loading, isLoadingMore, loadMore, isSearchMode]);
+
+  const ListEmptyComponent = useMemo(() => {
+  // Søkemodus - vis ikke loading når vi venter på søkeresultater
+  if (isSearchMode) {
+    if (searchLoading) {
+      return null; // Ikke vis loading spinner, ConversationScreen håndterer det
+    }
+    
+    if (searchQuery.length >= 2) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No messages found</Text>
+          <Text style={styles.emptySubtext}>Try a different search term</Text>
+        </View>
+      );
+    }
+    
+    return null; // Ikke vis noe når søket er tomt, ConversationScreen håndterer instruksjoner
+  }
+  
+  // Normal modus - kun vis når ikke laster
+  if (!loading && !isSearchMode) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No messages yet</Text>
+        <Text style={styles.emptySubtext}>Start the conversation!</Text>
+      </View>
+    );
+  }
+  
+  return null;
+}, [isSearchMode, searchLoading, searchQuery, loading]);
 
   // Calculate visible message index
   const getVisibleMessageIndex = useCallback(() => {
@@ -643,7 +727,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     );
   }
 
-  if (!isReady && displayedMessages.length === 0) {
+  if (!isReady && displayedMessages.length === 0 && !isSearchMode) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#1C6B1C" />
@@ -715,14 +799,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
           ) : null
         }
         
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No messages yet</Text>
-              <Text style={styles.emptySubtext}>Start the conversation!</Text>
-            </View>
-          ) : null
-        }
+        ListEmptyComponent={ListEmptyComponent}
         
         // Performance optimizations
         removeClippedSubviews={true}
@@ -1054,5 +1131,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignSelf: 'flex-end',  // Høyre side for mine meldinger
     maxWidth: '80%',
+  },
+  highlightedSearchText: {
+    backgroundColor: '#9CA3AF',
+    color: '#ffffffff',
+    fontWeight: '600',
   },
 });

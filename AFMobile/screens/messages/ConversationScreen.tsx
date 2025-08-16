@@ -10,8 +10,10 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  TextInput
 } from 'react-native';
-import { ArrowBigLeft, ArrowBigDown, Settings } from 'lucide-react-native';
+import { ArrowBigLeft, ArrowBigDown, Settings, Search, X } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { useChatStore } from '@/store/useChatStore';
@@ -23,6 +25,7 @@ import MessageListNative from '@/components/messages/MessageListNative';
 import MessageInputNative from '@/components/messages/MessageInputNative';
 import { MessageSettingsModalNative } from '@/components/messages/MessageSettingsModalNative';
 import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
+import { useSearchMessages } from '@/hooks/messages/useSearchMessages';
 
 interface MessageListRef {
   scrollToBottom: () => void;
@@ -40,9 +43,15 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   
   // Chat store state
   const { 
-    setCurrentConversationId, 
-    conversations,
+    searchMode,
+    setSearchMode,
+    searchResults,
+    setSearchResults     
   } = useChatStore();
+
+  const setCurrentConversationId = useChatStore(useCallback((state) => state.setCurrentConversationId, []));
+  const conversations = useChatStore(useCallback((state) => state.conversations, []));
+
   
   const currentConversation = conversations.find(c => c.id === conversationId);
   const pending = useChatStore(state => state.pendingMessageRequests);
@@ -53,6 +62,12 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   const [replyingTo, setReplyingTo] = useState<MessageDTO | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  const showSearch = searchMode;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+    const { loading, error, search, resetSearch } = useSearchMessages();
   
   // Ref for scroll to bottom functionality
   const messageListRef = useRef<MessageListRef>(null);
@@ -301,6 +316,45 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     navigation.goBack();
   }, [navigation]);
 
+
+
+// Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Perform search when debounced query changes
+  useEffect(() => {
+    if (!conversationId || !showSearch) return;
+
+    if (debouncedQuery.length >= 2) {
+      search(conversationId, debouncedQuery);
+    } else {
+      resetSearch();
+    }
+  }, [conversationId, debouncedQuery, showSearch]);
+
+  // Search handlers
+  const handleOpenSearch = useCallback(() => {
+    setSearchMode(true);
+    resetSearch();
+  }, [setSearchMode, resetSearch]);
+
+  const handleCloseSearch = useCallback(() => {
+    setSearchMode(false);
+    setSearchQuery('');
+    resetSearch();
+    Keyboard.dismiss();
+  }, [setSearchMode, resetSearch]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery('');
+    resetSearch();
+  }, [resetSearch]);
+
   // Loading states
   if (!isLoggedIn) {
     return (
@@ -321,42 +375,68 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
-      
-      {/* Header with integrated toolbar */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          {/* Back button */}
-          <TouchableOpacity
-            onPress={handleBack}
-            style={styles.backButton}
-          >
+  <SafeAreaView style={styles.container}>
+    <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
+    
+    {/* Header */}
+    <View style={styles.header}>
+      <View style={styles.headerContent}>
+        {/* Back/Close button */}
+        <TouchableOpacity
+          onPress={showSearch ? handleCloseSearch : handleBack}
+          style={styles.backButton}
+        >
+          {showSearch ? (
+            <X size={24} color="white" />
+          ) : (
             <ArrowBigLeft size={24} color="white" />
-          </TouchableOpacity>
-          
-          {/* Conversation info */}
-          <View style={styles.conversationInfo}>
-          <Text
-            style={[
-              styles.conversationTitle,
-              !currentConversation?.isGroup && styles.conversationTitleSingleLine
-            ]}
-            numberOfLines={1}
-          >
-            {getConversationTitle()}
-          </Text>
-
-          {currentConversation?.isGroup && (
-            <Text style={styles.conversationSubtitle}>
-              {getConversationSubtitle()}
-            </Text>
           )}
-        </View>
-          
-          {/* Toolbar buttons */}
+        </TouchableOpacity>
+        
+        {/* Title eller Search Input */}
+        {showSearch ? (
+          <View style={styles.searchInputContainer}>
+            <Search size={20} color="rgba(255, 255, 255, 0.7)" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search messages..."
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoFocus={true}
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+                <X size={16} color="rgba(255, 255, 255, 0.7)" />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.conversationInfo}>
+            <Text
+              style={[
+                styles.conversationTitle,
+                !currentConversation?.isGroup && styles.conversationTitleSingleLine
+              ]}
+              numberOfLines={1}
+            >
+              {getConversationTitle()}
+            </Text>
+            {currentConversation?.isGroup && (
+              <Text style={styles.conversationSubtitle}>
+                {getConversationSubtitle()}
+              </Text>
+            )}
+          </View>
+        )}
+        
+        {/* Toolbar buttons - vis kun når ikke søker */}
+        {!showSearch && (
           <View style={styles.toolbarButtons}>
-            {/* Scroll to bottom button - only show when not at bottom */}
+            
             {!atBottom && (
               <TouchableOpacity
                 style={styles.toolbarButton}
@@ -366,7 +446,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
               </TouchableOpacity>
             )}
             
-            {/* Settings button */}
             <TouchableOpacity
               style={styles.toolbarButton}
               onPress={handleOpenSettings}
@@ -374,50 +453,90 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
               <Settings size={20} color="#ffffffff" />
             </TouchableOpacity>
           </View>
-        </View>
+        )}
       </View>
+    </View>
 
-      {/* Warning banners */}
-      {currentConversation?.isPendingApproval && conversationId !== pendingLockedConversationId && (
-        <View style={styles.warningBanner}>
-          <Text style={styles.warningText}>
-            Message request sent. You can send a maximum of 5 messages the receiver will be able to see.
-          </Text>
-        </View>
-      )}
+    {/* Search Results Header */}
+    {showSearch && debouncedQuery.length >= 2 && (
+      <View style={styles.searchResultsHeader}>
+        <Text style={styles.searchResultsText}>
+          {loading ? "Searching..." : `${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
+          {debouncedQuery && ` for "${debouncedQuery}"`}
+        </Text>
+      </View>
+    )}
 
-      {pending.some((r) => r.conversationId === conversationId) &&
-        conversationId === pendingLockedConversationId && (
+    {/* Error State */}
+    {showSearch && error && (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    )}
+
+    
+    {/* Warning banners - vis kun når ikke søker */}
+    {!showSearch && (
+      <>
+        {currentConversation?.isPendingApproval && conversationId !== pendingLockedConversationId && (
           <View style={styles.warningBanner}>
             <Text style={styles.warningText}>
-              Approve the conversation to start sending messages.
+              Message request sent. You can send a maximum of 5 messages the receiver will be able to see.
             </Text>
           </View>
-      )}
+        )}
 
-      <KeyboardAvoidingView 
-        style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
-        {/* Message list - takes remaining space */}
-        <View style={styles.messageContainer}>
-          <MessageListNative
-            ref={messageListRef}
-            key={conversationId}
-            currentUser={currentUser}
-            onShowUserPopover={showUserPopover}
-            conversationVisible={true}
-            onScrollPositionChange={setAtBottom}
-            onReply={handleReply}
-            onConversationError={setConversationError}
-            onRetryMessage={handleRetryMessage}
-            onDeleteFailedMessage={handleDeleteFailedMessage}
-            conversationParticipants={currentConversation?.participants || []} 
-          />
-        </View>
+        {pending.some((r) => r.conversationId === conversationId) &&
+          conversationId === pendingLockedConversationId && (
+            <View style={styles.warningBanner}>
+              <Text style={styles.warningText}>
+                Approve the conversation to start sending messages.
+              </Text>
+            </View>
+        )}
+      </>
+    )}
 
-        {/* Message input - at bottom */}
+    <KeyboardAvoidingView 
+      style={styles.content}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+
+      {/* Search Instructions */}
+    {showSearch && debouncedQuery.length < 2 && !loading && (
+      <View style={styles.instructionsContainer}>
+        <Search size={48} color="#D1D5DB" />
+        <Text style={styles.instructionsTitle}>Search Messages</Text>
+        <Text style={styles.instructionsText}>
+          Type at least 2 characters to search through this conversation
+        </Text>
+      </View>
+    )}
+
+      {/* Message list - viser enten vanlige meldinger eller søkeresultater */}
+      <View style={styles.messageContainer}>
+        <MessageListNative
+          ref={messageListRef}
+          key={`${conversationId}-${showSearch ? 'search' : 'normal'}`}
+          currentUser={currentUser}
+          onShowUserPopover={showUserPopover}
+          conversationVisible={!showSearch} // Deaktiver live updates når søker
+          onScrollPositionChange={setAtBottom}
+          onReply={handleReply}
+          onConversationError={setConversationError}
+          onRetryMessage={handleRetryMessage}
+          onDeleteFailedMessage={handleDeleteFailedMessage}
+          conversationParticipants={currentConversation?.participants || []}
+          // Nye props for søk
+          isSearchMode={showSearch}
+          searchQuery={debouncedQuery}
+          searchLoading={loading}
+        />
+      </View>
+
+      {/* Message input - skjul under søk */}
+      {!showSearch && (
         <View style={styles.inputContainer}>
           <MessageInputNative
             receiverId={undefined}
@@ -435,17 +554,20 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
             autoFocus={false}
           />
         </View>
-      </KeyboardAvoidingView>
+      )}
+    </KeyboardAvoidingView>
 
-      {/* Settings Modal */}
+    {/* Settings Modal - vis kun når ikke søker */}
+    {!showSearch && (
       <MessageSettingsModalNative
         visible={showSettingsModal}
         onClose={handleCloseSettings}
         onShowUserPopover={showUserPopover}
+        onOpenSearch={handleOpenSearch}
       />
-    </SafeAreaView>
-  );
-}
+    )}
+  </SafeAreaView>
+)};
 
 const styles = StyleSheet.create({
   container: {
@@ -536,5 +658,72 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: 0,
     paddingBottom: 2
+  },
+  searchInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginHorizontal: 8,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: 'white',
+    paddingVertical: 0,
+  },
+  clearButton: {
+    padding: 4,
+    marginLeft: 4,
+  },
+  searchResultsHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1C6B1C',
+  },
+  searchResultsText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  errorContainer: {
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FECACA',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+  instructionsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: 'white',
+  },
+  instructionsTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  instructionsText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
   },
 });

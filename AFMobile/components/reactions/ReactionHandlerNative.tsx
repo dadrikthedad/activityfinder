@@ -51,6 +51,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
   const messageRef = useRef<View>(null);
   const getActualMessageId = useChatStore((state) => state.getActualMessageId);
   const optimisticToServerIdMap = useChatStore((state) => state.optimisticToServerIdMap);
+
+  const setSearchMode = useChatStore(state => state.setSearchMode);
   
 
   // 🔧 FORBEDRET: Mer presis sjekk for om meldingen kan håndteres
@@ -152,7 +154,8 @@ export const ReactionHandlerNative: React.FC<ReactionHandlerNativeProps> = ({
       return;
     }
 
-    // 🔧 BEKREFTET: Lukk menyen og utfør reply
+    // Lukk menyen og utfør reply
+    setSearchMode(false);
     onReply(message);
     setShowMenu(false); // Eksplisitt lukking av menyen
   };
