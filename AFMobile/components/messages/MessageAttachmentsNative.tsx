@@ -1,4 +1,4 @@
-// components/messages/MessageAttachmentsNative.tsx - Refactored with AttachmentPreview and AttachmentViewer
+// components/messages/MessageAttachmentsNative.tsx - Fixed spacing issues
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -59,6 +59,13 @@ interface DocumentAttachmentItemProps {
 const { width: screenWidth } = Dimensions.get('window');
 const itemSize = Math.min((screenWidth - 32) / 1.5, 250);
 
+// 🔧 HEIGHT CALCULATION CONSTANTS
+const DOCUMENT_ITEM_HEIGHT = 100;
+const DOCUMENT_PADDING = 16;
+const MEDIA_ITEM_HEIGHT = itemSize;
+const FILENAME_FOOTER_HEIGHT = 40;
+const GALLERY_SUMMARY_HEIGHT = 60;
+
 // 🆕 NEW: Compact Document Attachment Component using AttachmentPreview
 const DocumentAttachmentItem: React.FC<DocumentAttachmentItemProps> = ({ 
   attachment, 
@@ -109,7 +116,7 @@ const DocumentAttachmentItem: React.FC<DocumentAttachmentItemProps> = ({
     if (!canUseReactionHandler) return;
     
     // Measure attachment position for menu
-    attachmentRef.current?.measure((x, y, width, height, pageX, pageY) => {
+    attachmentRef.current?.measure((width, height, pageX, pageY) => {
       setMenuPosition({ x: pageX, y: pageY, width, height });
     });
 
@@ -351,6 +358,7 @@ export default function MessageAttachmentsNative({
       (attachment.isUploading || attachment.uploadError)
     );
     
+    // 🔧 FIX: Block only while actively uploading or on error
     if (showUploadStatus) {
       if (attachment.uploadError) {
         Alert.alert(
@@ -359,8 +367,12 @@ export default function MessageAttachmentsNative({
           [{ text: 'OK' }]
         );
       }
+      // Block opening while uploading (before SignalR mapping)
       return;
     }
+    
+    // ✅ Allow opening optimistic attachments after SignalR mapping
+    // (attachment.isOptimistic && isMapped) or regular attachments
     
     const isCurrentlyBlurred = isLocked && blurredAttachments.has(attachment.fileUrl);
     
@@ -382,13 +394,19 @@ export default function MessageAttachmentsNative({
 
   // Long press handler for reaction menu
   const createLongPressHandler = (attachment: AttachmentDto, index: number) => {
+    const showUploadStatus = Boolean(
+      attachment.isOptimistic && 
+      !isMapped && 
+      (attachment.isUploading || attachment.uploadError)
+    );
+
+    // 🔧 FIX: Allow reactions on optimistic attachments after SignalR mapping
     const canUseReactionHandler = Boolean(
       message && 
       currentUser && 
       !message.isDeleted && 
       !isLocked && 
-      !attachment.isUploading &&
-      !attachment.uploadError
+      !showUploadStatus // Only block while actively uploading
     );
 
     if (!canUseReactionHandler) return undefined;
@@ -481,56 +499,61 @@ export default function MessageAttachmentsNative({
     return parts.length > 0 ? `(${parts.join(', ')})` : '';
   };
 
-  // Render documents with compact layout if all are documents
+  // 🔧 FIX: Render documents with fixed height containers
   if (allAttachmentsAreDocuments) {
     return (
-      <View style={styles.container}>
-        <View style={styles.documentSection}>
+      <View>
+        <View>
           {attachments.length === 1 ? (
-            // Single document - full width
-            <DocumentAttachmentItem
-              key={`single-document-${attachments[0].fileUrl}`}
-              attachment={attachments[0]}
-              index={0}
-              totalCount={attachments.length}
-              onPress={() => handleAttachmentPress(attachments[0], 0)}
-              isLocked={isLocked}
-              isMapped={isMapped}
-              // Pass reaction handler props
-              message={message}
-              currentUser={currentUser}
-              onReply={onReply}
-              onDelete={onDelete}
-              onShowUserPopover={onShowUserPopover}
-              onShowReactionUsers={onShowReactionUsers}
-            />
+            // Single document - full width with fixed height
+            <View style={{ minHeight: DOCUMENT_ITEM_HEIGHT }}>
+              <DocumentAttachmentItem
+                key={`single-document-${attachments[0].fileUrl}`}
+                attachment={attachments[0]}
+                index={0}
+                totalCount={attachments.length}
+                onPress={() => handleAttachmentPress(attachments[0], 0)}
+                isLocked={isLocked}
+                isMapped={isMapped}
+                // Pass reaction handler props
+                message={message}
+                currentUser={currentUser}
+                onReply={onReply}
+                onDelete={onDelete}
+                onShowUserPopover={onShowUserPopover}
+                onShowReactionUsers={onShowReactionUsers}
+              />
+            </View>
           ) : (
-            // Multiple documents - horizontal scroll
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.documentHorizontalGrid}
-              style={styles.documentHorizontalScroll}
-            >
-              {attachments.map((attachment, index) => (
-                <DocumentAttachmentItem
-                  key={`document-${index}-${attachment.fileUrl}`}
-                  attachment={attachment}
-                  index={index}
-                  totalCount={attachments.length}
-                  onPress={() => handleAttachmentPress(attachment, index)}
-                  isLocked={isLocked}
-                  isMapped={isMapped}
-                  // Pass reaction handler props
-                  message={message}
-                  currentUser={currentUser}
-                  onReply={onReply}
-                  onDelete={onDelete}
-                  onShowUserPopover={onShowUserPopover}
-                  onShowReactionUsers={onShowReactionUsers}
-                />
-              ))}
-            </ScrollView>
+            // Multiple documents - horizontal scroll with fixed height
+            <View style={styles.documentHorizontalScrollContainer}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.documentHorizontalGrid}
+                style={styles.documentHorizontalScroll}
+                nestedScrollEnabled={true}
+              >
+                {attachments.map((attachment, index) => (
+                  <DocumentAttachmentItem
+                    key={`document-${index}-${attachment.fileUrl}`}
+                    attachment={attachment}
+                    index={index}
+                    totalCount={attachments.length}
+                    onPress={() => handleAttachmentPress(attachment, index)}
+                    isLocked={isLocked}
+                    isMapped={isMapped}
+                    // Pass reaction handler props
+                    message={message}
+                    currentUser={currentUser}
+                    onReply={onReply}
+                    onDelete={onDelete}
+                    onShowUserPopover={onShowUserPopover}
+                    onShowReactionUsers={onShowReactionUsers}
+                  />
+                ))}
+              </ScrollView>
+            </View>
           )}
         </View>
 
@@ -557,11 +580,70 @@ export default function MessageAttachmentsNative({
     );
   }
 
-  // Use original layout for mixed content or media-only with AttachmentPreview
+  // 🔧 NEW: Better content type analysis for height calculation
+  const getContentTypes = () => {
+    const contentTypes = {
+      largeMedia: 0,  // Images/videos that will be shown large
+      smallMedia: 0,  // Images/videos that will be shown small
+      documents: 0    // Non-media files
+    };
+
+    attachments.forEach(att => {
+      const fileInfo = getFileTypeInfo(att.fileType, att.fileName);
+      const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+      
+      if (isMedia) {
+        if (attachments.length === 1) {
+          contentTypes.largeMedia++;
+        } else {
+          contentTypes.smallMedia++;
+        }
+      } else {
+        contentTypes.documents++;
+      }
+    });
+
+    return contentTypes;
+  };
+
+  const contentTypes = getContentTypes();
+
+  // 🔧 FIX: More precise height calculation based on actual content
+  const calculateContainerHeight = () => {
+    if (attachments.length === 1) {
+      // Single attachment - let AttachmentPreview handle its own height naturally
+      return undefined;
+    }
+
+    // For multiple items, calculate based on the tallest content type present
+    let maxHeight = 0;
+
+    // Small media items (in horizontal scroll)
+    if (contentTypes.smallMedia > 0) {
+      // AttachmentPreview "medium" size is typically around 120-150px
+      maxHeight = Math.max(maxHeight, 150);
+    }
+
+    // Document items (in horizontal scroll)  
+    if (contentTypes.documents > 0) {
+      maxHeight = Math.max(maxHeight, DOCUMENT_ITEM_HEIGHT);
+    }
+
+    // Add some padding if we have mixed content
+    if (contentTypes.smallMedia > 0 && contentTypes.documents > 0) {
+      maxHeight += 10; // Extra padding for mixed content
+    }
+
+    return maxHeight > 0 ? maxHeight : undefined;
+  };
+
+  const containerHeight = calculateContainerHeight();
+
+  // 🔧 FIX: Use original layout for mixed content or media-only with smarter height containers
   return (
-    <View style={styles.container}>
+    <View>
       {attachments.length > 0 && (
-        <View style={styles.section}>
+        <View>
           {attachments.length === 1 ? (
             <View style={styles.singleImageContainer}>
               {/* 🔧 FIX: Calculate upload status for single attachment */}
@@ -592,43 +674,56 @@ export default function MessageAttachmentsNative({
               })()}
             </View>
           ) : (
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalGrid}
-              style={styles.horizontalScroll}
-            >
-              {attachments.map((attachment, index) => {
-                const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
-                const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
-                const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
+            // 🔧 FIX: Multiple attachments with smarter height container
+            <View style={containerHeight ? { 
+              height: containerHeight,
+              // 🔧 Remove debugging border
+            } : undefined}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalGrid}
+                style={[
+                  styles.horizontalScroll,
+                  // 🔧 Remove the red debug border
+                ]}
+                nestedScrollEnabled={true}
+              >
+                {attachments.map((attachment, index) => {
+                  const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+                  const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+                  const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
 
-                // 🔧 FIX: Calculate upload status properly
-                const showUploadStatus = Boolean(
-                  attachment.isOptimistic && 
-                  !isMapped && 
-                  (attachment.isUploading || attachment.uploadError)
-                );
+                  // 🔧 FIX: Calculate upload status properly
+                  const showUploadStatus = Boolean(
+                    attachment.isOptimistic && 
+                    !isMapped && 
+                    (attachment.isUploading || attachment.uploadError)
+                  );
 
-                return (
-                  <AttachmentPreview
-                    key={`combined-${index}-${attachment.fileUrl}`}
-                    attachment={attachment}
-                    index={index}
-                    totalCount={attachments.length}
-                    size="medium"
-                    showGalleryIndicator={true}
-                    showFileNameFooter={true}
-                    onPress={() => handleAttachmentPress(attachment, index)}
-                    onLongPress={createLongPressHandler(attachment, index)}
-                    isBlurred={isCurrentlyBlurred}
-                    isUploading={attachment.isUploading && showUploadStatus} // 🔧 FIX: Only show when actually uploading
-                    uploadError={showUploadStatus ? attachment.uploadError : null} // 🔧 FIX: Only show error when uploading
-                    disabled={showUploadStatus}
-                  />
-                );
-              })}
-            </ScrollView>
+                  // 🔧 FIX: Use appropriate size for content type
+                  const itemSize = isMedia ? "medium" : "small";
+
+                  return (
+                    <AttachmentPreview
+                      key={`combined-${index}-${attachment.fileUrl}`}
+                      attachment={attachment}
+                      index={index}
+                      totalCount={attachments.length}
+                      size={itemSize}
+                      showGalleryIndicator={true}
+                      showFileNameFooter={isMedia} // Only show footer for media
+                      onPress={() => handleAttachmentPress(attachment, index)}
+                      onLongPress={createLongPressHandler(attachment, index)}
+                      isBlurred={isCurrentlyBlurred}
+                      isUploading={attachment.isUploading && showUploadStatus}
+                      uploadError={showUploadStatus ? attachment.uploadError : null}
+                      disabled={showUploadStatus}
+                    />
+                  );
+                })}
+              </ScrollView>
+            </View>
           )}
         </View>
       )}
@@ -675,16 +770,8 @@ export default function MessageAttachmentsNative({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 8,
   },
-  section: {
-    marginBottom: 8,
-  },
-  // Document section styles
-  documentSection: {
-    gap: 8,
-    marginBottom: 8,
-  },
+  
   documentWrapper: {
     // Wrapper for measuring
   },
@@ -694,11 +781,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#1C6B1C',
-    padding: 12,
     alignItems: 'center',
-    minHeight: 100,
-    width: screenWidth - 130, // Full width for single document
-    minWidth: Math.min(screenWidth - 150, 280), // Minimum width for scrolling documents
+    height: DOCUMENT_ITEM_HEIGHT, // ✅ Fixed height
+    width: screenWidth - 130,
+    minWidth: Math.min(screenWidth - 150, 280),
   },
   documentContainerUploading: {
     opacity: 0.7,
@@ -728,15 +814,13 @@ const styles = StyleSheet.create({
     color: '#1C6B1C',
     textTransform: 'uppercase',
     fontWeight: '500',
-    marginBottom: 2, // 🆕 NEW: Add margin for spacing
+    marginBottom: 2,
   },
-  // 🆕 NEW: Document size styles
   documentSize: {
     fontSize: 11,
     color: '#6B7280',
     fontWeight: '400',
   },
-  // Document gallery indicator styles
   documentGalleryIndicator: {
     position: 'absolute',
     top: 8,
@@ -754,7 +838,11 @@ const styles = StyleSheet.create({
   documentWithReactions: {
     // Wrapper for document with reaction menu
   },
-  // Document horizontal scroll styles
+  
+  // 🔧 FIX: Fixed height containers for horizontal scrolling
+  documentHorizontalScrollContainer: {
+    height: DOCUMENT_ITEM_HEIGHT + 16, // Container height + margin
+  },
   documentHorizontalScroll: {
     marginHorizontal: -4,
   },
@@ -762,12 +850,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 8,
     flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  // 🔧 FIX: Removed debug border and made more flexible
+  horizontalScroll: {
+    marginHorizontal: -4,
+    // Removed borderWidth and borderColor for debug
+  },
+  horizontalGrid: {
+    paddingHorizontal: 4,
+    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  singleImageContainer: {
+    alignItems: 'center',
   },
   summary: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    minHeight: GALLERY_SUMMARY_HEIGHT,
   },
   summaryText: {
     fontSize: 12,
@@ -777,16 +881,5 @@ const styles = StyleSheet.create({
   summarySubtext: {
     fontSize: 11,
     color: '#9CA3AF',
-  },
-  horizontalScroll: {
-    marginHorizontal: -4,
-  },
-  horizontalGrid: {
-    paddingHorizontal: 4,
-    gap: 8,
-    flexDirection: 'row',
-  },
-  singleImageContainer: {
-    alignItems: 'center',
   },
 });

@@ -1,4 +1,3 @@
-// components/messages/MessageListNative.tsx - Cleaned version
 import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import {
   View,
@@ -126,122 +125,127 @@ const MessageItemNative = React.memo(({
     }
   }, [message?.reactions, onShowReactionUsers]);
 
+  // 🔧 FIX: Wrap content in a container to control layout flow
   const messageContent = (
-    <View
-      style={[
-        styles.messageContainer,
-        isMine ? styles.myMessageContainer : styles.otherMessageContainer,
-        isOptimistic && hasSendError && styles.errorMessageContainer,
-      ]}
-    >
-      <View style={[styles.messageHeader, isMine && styles.myMessageHeader]}>
-        {!isMine && message.sender && (
-          <TouchableOpacity onPress={handleAvatarPress}>
+    <View style={styles.messageWrapper}>
+      <View
+        style={[
+          styles.messageContainer,
+          isMine ? styles.myMessageContainer : styles.otherMessageContainer,
+          isOptimistic && hasSendError && styles.errorMessageContainer,
+        ]}
+      >
+        <View style={[styles.messageHeader, isMine && styles.myMessageHeader]}>
+          {!isMine && message.sender && (
+            <TouchableOpacity onPress={handleAvatarPress}>
+              <MiniAvatarNative
+                imageUrl={message.sender.profileImageUrl ?? "/default-avatar.png"}
+                size={24}
+              />
+            </TouchableOpacity>
+          )}
+          
+          <View style={[styles.senderInfo, isMine && styles.mySenderInfo]}>
+            <Text style={[styles.senderName, isMine && styles.mySenderName]}>
+              {isMine ? "You" : message.sender?.fullName ?? "Unknown"}
+            </Text>
+            <Text style={styles.messageTime}>
+              {formatSentDate(message.sentAt)}
+            </Text>
+          </View>
+
+          {isMine && (
             <MiniAvatarNative
-              imageUrl={message.sender.profileImageUrl ?? "/default-avatar.png"}
+              imageUrl={currentUser?.profileImageUrl ?? "/default-avatar.png"}
               size={24}
             />
-          </TouchableOpacity>
-        )}
-        
-        <View style={[styles.senderInfo, isMine && styles.mySenderInfo]}>
-          <Text style={[styles.senderName, isMine && styles.mySenderName]}>
-            {isMine ? "You" : message.sender?.fullName ?? "Unknown"}
-          </Text>
-          <Text style={styles.messageTime}>
-            {formatSentDate(message.sentAt)}
-          </Text>
+          )}
         </View>
 
-        {isMine && (
-          <MiniAvatarNative
-            imageUrl={currentUser?.profileImageUrl ?? "/default-avatar.png"}
-            size={24}
-          />
-        )}
-      </View>
-
-      {message.parentMessageId && (message.parentMessageText || message.parentSender) && (
-        <View style={[styles.replyPreview, isMine && styles.myReplyPreview]}>
-          <View style={styles.replyContent}>
-            <Text style={styles.replyLabel}>
-              Reply to {message.parentSender?.fullName ?? "Someone"}
-            </Text>
-            {message.parentMessageText && (
-              <Text style={styles.replyText} numberOfLines={2}>
-                {message.parentMessageText.length > 100 
-                  ? `${message.parentMessageText.substring(0, 100)}...`
-                  : message.parentMessageText
-                }
+        {message.parentMessageId && (message.parentMessageText || message.parentSender) && (
+          <View style={[styles.replyPreview, isMine && styles.myReplyPreview]}>
+            <View style={styles.replyContent}>
+              <Text style={styles.replyLabel}>
+                Reply to {message.parentSender?.fullName ?? "Someone"}
               </Text>
-            )}
+              {message.parentMessageText && (
+                <Text style={styles.replyText} numberOfLines={2}>
+                  {message.parentMessageText.length > 100 
+                    ? `${message.parentMessageText.substring(0, 100)}...`
+                    : message.parentMessageText
+                  }
+                </Text>
+              )}
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {message.text && !message.isDeleted && (
-        <View style={[styles.messageContent, isMine && styles.myMessageContent]}>
-          <Text style={[styles.messageText, isMine && styles.myMessageText]}>
-            {message.text}
-          </Text>
-        </View>
-      )}
+        {message.text && !message.isDeleted && (
+          <View style={[styles.messageContent, isMine && styles.myMessageContent]}>
+            <Text style={[styles.messageText, isMine && styles.myMessageText]}>
+              {message.text}
+            </Text>
+          </View>
+        )}
 
-      {message.isDeleted && (
-        <View style={[
-          styles.deletedMessageContainer, 
-          isMine && styles.myDeletedMessageContainer
-        ]}>
-          <Text style={styles.deletedMessageText}>This message has been deleted</Text>
-        </View>
-      )}
+        {message.isDeleted && (
+          <View style={[
+            styles.deletedMessageContainer, 
+            isMine && styles.myDeletedMessageContainer
+          ]}>
+            <Text style={styles.deletedMessageText}>This message has been deleted</Text>
+          </View>
+        )}
 
-      {message.attachments && message.attachments.length > 0 && (
-      <View style={[styles.attachmentsContainer, isMine && styles.myAttachmentsContainer]}>
-        <MessageAttachmentsNative
-          attachments={message.attachments}
-          isLocked={isLocked}
-          isMapped={isMapped}
-          // Nye props for reaction handler
-          message={message}
-          currentUser={currentUser}
-          onReply={onReply}
-          onDelete={onDelete}
-          onShowUserPopover={onShowUserPopover}
-          onShowReactionUsers={onShowReactionUsers}
-        />
+        {/* 🔧 FIX: Move attachments container to ensure proper flow */}
+        {message.attachments && message.attachments.length > 0 && (
+          <View style={[styles.attachmentsContainer, isMine && styles.myAttachmentsContainer]}>
+            <MessageAttachmentsNative
+              attachments={message.attachments}
+              isLocked={isLocked}
+              isMapped={isMapped}
+              // Nye props for reaction handler
+              message={message}
+              currentUser={currentUser}
+              onReply={onReply}
+              onDelete={onDelete}
+              onShowUserPopover={onShowUserPopover}
+              onShowReactionUsers={onShowReactionUsers}
+            />
+          </View>
+        )}
+
+        {isOptimistic && hasSendError && (
+          <View style={styles.errorActionsContainer}>
+            <View style={styles.errorInfo}>
+              <Text style={styles.errorText}>❌ {message.sendError}</Text>
+            </View>
+            <View style={styles.errorButtons}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => onRetry?.(message)}
+              >
+                <Text style={styles.retryButtonText}>🔄 Retry</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => onDeleteFailed?.(message)}
+              >
+                <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {shouldShowSending && (
+          <View style={styles.sendingIndicator}>
+            <ActivityIndicator size="small" color="#6B7280" />
+            <Text style={styles.sendingText}>Sending...</Text>
+          </View>
+        )}
       </View>
-    )}
 
-      {isOptimistic && hasSendError && (
-        <View style={styles.errorActionsContainer}>
-          <View style={styles.errorInfo}>
-            <Text style={styles.errorText}>❌ {message.sendError}</Text>
-          </View>
-          <View style={styles.errorButtons}>
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => onRetry?.(message)}
-            >
-              <Text style={styles.retryButtonText}>🔄 Retry</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => onDeleteFailed?.(message)}
-            >
-              <Text style={styles.deleteButtonText}>🗑️ Delete</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {shouldShowSending && (
-        <View style={styles.sendingIndicator}>
-          <ActivityIndicator size="small" color="#6B7280" />
-          <Text style={styles.sendingText}>Sending...</Text>
-        </View>
-      )}
-
+      {/* 🔧 FIX: Move reactions outside messageContainer but inside messageWrapper */}
       {groupedReactions.length > 0 && (
         <View style={[styles.reactionsContainer, isMine && styles.myReactionsContainer]}>
           {groupedReactions.map((reaction, index) => (
@@ -781,10 +785,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
   },
-  messageContainer: {
+  // 🔧 FIX: New wrapper to contain the entire message structure
+  messageWrapper: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginVertical: 2,
+  },
+  messageContainer: {
+    // Removed paddingHorizontal/paddingVertical since they're now in messageWrapper
   },
   loadingText: {
     fontSize: 16,
@@ -965,16 +973,17 @@ const styles = StyleSheet.create({
   attachmentsContainer: {
     alignSelf: 'flex-start',
     maxWidth: '90%',
-    marginTop: 4,
+    marginTop: 2,
   },
   myAttachmentsContainer: {
     alignSelf: 'flex-end',
   },
+  // 🔧 FIX: Updated reactions container styling to follow the natural flow
   reactionsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 4,
-    marginTop: 8,
+    marginTop: 2, // Reduced from 8 to 4 since it's now right after content
     alignSelf: 'flex-start',
   },
   myReactionsContainer: {
@@ -1038,7 +1047,7 @@ const styles = StyleSheet.create({
     color: 'white',
     opacity: 0.8,
   },
-    myDeletedMessageContainer: {
+  myDeletedMessageContainer: {
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
     paddingHorizontal: 12,
