@@ -46,7 +46,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     searchMode,
     setSearchMode,
     searchResults,
-    setSearchResults     
   } = useChatStore();
 
   const setCurrentConversationId = useChatStore(useCallback((state) => state.setCurrentConversationId, []));
@@ -337,12 +336,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     }
   }, [conversationId, debouncedQuery, showSearch]);
 
-  // Search handlers
-  const handleOpenSearch = useCallback(() => {
-    setSearchMode(true);
-    resetSearch();
-  }, [setSearchMode, resetSearch]);
-
   const handleCloseSearch = useCallback(() => {
     setSearchMode(false);
     setSearchQuery('');
@@ -502,33 +495,32 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-
       {/* Search Instructions */}
-    {showSearch && debouncedQuery.length < 2 && !loading && (
-      <View style={styles.instructionsContainer}>
-        <Search size={48} color="#D1D5DB" />
-        <Text style={styles.instructionsTitle}>Search Messages</Text>
-        <Text style={styles.instructionsText}>
-          Type at least 2 characters to search through this conversation
-        </Text>
-      </View>
-    )}
+      {showSearch && debouncedQuery.length < 2 && !loading && (
+        <View style={styles.instructionsContainer}>
+          <Search size={48} color="#D1D5DB" />
+          <Text style={styles.instructionsTitle}>Search Messages</Text>
+          <Text style={styles.instructionsText}>
+            Type at least 2 characters to search through this conversation
+          </Text>
+        </View>
+      )}
 
-      {/* Message list - viser enten vanlige meldinger eller søkeresultater */}
+      {/* Message list - alltid vis, men med conditional styling hvis nødvendig */}
+      {/* 🗑️ Fjern kompleks conditional rendering */}
       <View style={styles.messageContainer}>
         <MessageListNative
           ref={messageListRef}
           key={`${conversationId}-${showSearch ? 'search' : 'normal'}`}
           currentUser={currentUser}
           onShowUserPopover={showUserPopover}
-          conversationVisible={!showSearch} // Deaktiver live updates når søker
+          conversationVisible={!showSearch}
           onScrollPositionChange={setAtBottom}
           onReply={handleReply}
           onConversationError={setConversationError}
           onRetryMessage={handleRetryMessage}
           onDeleteFailedMessage={handleDeleteFailedMessage}
           conversationParticipants={currentConversation?.participants || []}
-          // Nye props for søk
           isSearchMode={showSearch}
           searchQuery={debouncedQuery}
           searchLoading={loading}
@@ -563,7 +555,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
         visible={showSettingsModal}
         onClose={handleCloseSettings}
         onShowUserPopover={showUserPopover}
-        onOpenSearch={handleOpenSearch}
       />
     )}
   </SafeAreaView>

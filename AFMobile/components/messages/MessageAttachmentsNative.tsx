@@ -67,6 +67,8 @@ export default function MessageAttachmentsNative({
     isMapped
   });
 
+  const setSearchMode = useChatStore(state => state.setSearchMode);
+
   // Reaction menu state
   const [showReactionMenu, setShowReactionMenu] = useState(false);
   const [selectedAttachmentIndex, setSelectedAttachmentIndex] = useState(-1);
@@ -162,6 +164,7 @@ export default function MessageAttachmentsNative({
 
   const handleReply = () => {
     if (!message || !onReply) return;
+    setSearchMode(false);
     onReply(message);
     setShowReactionMenu(false);
   };

@@ -22,7 +22,6 @@ interface MessageSettingsModalNativeProps {
   visible: boolean;
   onClose: () => void;
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
-  onOpenSearch?: () => void;
 }
 
 interface MenuItemProps {
@@ -74,7 +73,6 @@ export function MessageSettingsModalNative({
   visible,
   onClose,
   onShowUserPopover,
-  onOpenSearch,
 }: MessageSettingsModalNativeProps) {
   const currentConversationId = useChatStore((s) => s.currentConversationId);
   const currentConversation = useChatStore((s) => 
@@ -85,6 +83,8 @@ export function MessageSettingsModalNative({
   
   const { deleteConversationMutation, isDeleting } = useDeleteConversation();
   const { userId: currentUserId } = useAuth();
+
+  const setSearchMode = useChatStore(state => state.setSearchMode);
 
   const handleDeleteConversation = () => {
     if (!currentConversationId || isGroup) return;
@@ -116,7 +116,7 @@ export function MessageSettingsModalNative({
 
   const handleSearchMessages = () => {
     onClose(); // Lukk settings modal
-    onOpenSearch?.(); // Aktiver søkemodus
+    setSearchMode(true); // Aktiver søkemodus
   };
 
   const handleViewMedia = () => {
