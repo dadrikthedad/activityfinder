@@ -40,6 +40,8 @@ export interface AttachmentPreviewProps {
   isUploading?: boolean;
   uploadError?: string | null;
   disabled?: boolean;
+
+  borderColor?: string;
 }
 
 // Video Preview Component for thumbnails
@@ -110,6 +112,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   isUploading = false,
   uploadError = null,
   disabled = false,
+  borderColor = '#1C6B1C',
 }) => {
   const attachmentRef = useRef<View>(null);
   const sizeConfig = getSizeConfig(size);
@@ -177,7 +180,8 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
         styles.container,
         { 
           width: sizeConfig.containerSize, 
-          height: sizeConfig.containerSize 
+          height: sizeConfig.containerSize,
+          borderColor: borderColor,
         },
         disabled && styles.containerDisabled
       ]}
@@ -353,10 +357,9 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 const styles = StyleSheet.create({
   container: {
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: 'visible',
     backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: '#1C6B1C',
     position: 'relative',
   },
   containerDisabled: {
@@ -369,10 +372,11 @@ const styles = StyleSheet.create({
     top: -6,
     right: -6,
     zIndex: 10,
+    elevation: 10,
     backgroundColor: 'transparent',
   },
   removeButtonInner: {
-    backgroundColor: '#DC2626',
+    backgroundColor: '#9CA3AF',
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -386,6 +390,7 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+    borderRadius: 8,
   },
   blurredImage: {
     opacity: 0.3,
@@ -399,6 +404,8 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 8
   },
   videoPreview: {
     position: 'absolute',
@@ -408,6 +415,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   videoPlaceholder: {
     width: '100%',
@@ -415,9 +424,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#1F2937',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   blurredVideo: {
     opacity: 0.3,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   videoIcon: {
     fontSize: 32,
@@ -437,6 +450,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     flexDirection: 'column',
+    borderRadius: 8,
   },
   documentIconSection: {
     marginBottom: 8,
@@ -489,6 +503,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 8,
   },
   blurText: {
     fontSize: 24,
@@ -509,6 +524,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 8,
   },
   playButton: {
     backgroundColor: '#1C6B1C',

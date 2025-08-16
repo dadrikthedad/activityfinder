@@ -77,6 +77,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(28, 107, 28, 0.9)', // 🎨 Slightly transparent for better readability
     paddingHorizontal: 4,
     paddingVertical: 3, // 🎨 Slightly more padding for size text
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
   },
   fileNameText: {
     fontSize: 10,

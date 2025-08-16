@@ -498,6 +498,7 @@ export default function MessageInputNative({
                 isUploading={false}
                 uploadError={null}
                 disabled={false}
+                borderColor="white"
               />
             </View>
           ) : (
@@ -524,6 +525,7 @@ export default function MessageInputNative({
                   isUploading={false}
                   uploadError={null}
                   disabled={false}
+                  borderColor="white"
                 />
               ))}
             </ScrollView>
@@ -704,6 +706,7 @@ const styles = StyleSheet.create({
   // 🆕 NEW: File preview styles using AttachmentPreview
   filePreviewContainer: {
     marginBottom: 12,
+    
   },
   singleFileContainer: {
     alignItems: 'center',
@@ -711,6 +714,8 @@ const styles = StyleSheet.create({
   },
   filePreviewScroll: {
     marginHorizontal: -4,
+    overflow: 'visible',
+    borderRadius: 8,
   },
   filePreviewScrollContent: {
     paddingHorizontal: 4,
