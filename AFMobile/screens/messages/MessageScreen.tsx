@@ -42,7 +42,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
   
   // Animation for collapse
-  const [animatedHeight] = useState(new Animated.Value(isPendingCollapsed ? 0 : 200));
+  const [animatedHeight] = useState(new Animated.Value(isPendingCollapsed ? 0 : 220));
 
   // Handle conversation selection - navigate to individual conversation
   const handleSelectConversation = useCallback((conversationId: number) => {
@@ -95,10 +95,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
    if (!isBootstrapped) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Meldinger</Text>
-        </View>
-
         <View style={[styles.content, { justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color="#1C6B1C" />
           <Text style={{ fontSize: 16, color: '#6B7280', marginTop: 8 }}>
@@ -111,12 +107,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Meldinger</Text>
-      </View>
-
       <View style={styles.content}>
         {/* Pending Requests Section - Collapsible */}
         {shouldShowPendingSection && (

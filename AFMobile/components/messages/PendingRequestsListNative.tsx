@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Check, X } from 'lucide-react-native';
 import { usePendingMessageRequests } from '@/hooks/messages/usePendingMessageRequests';
 import { useApproveMessageRequest } from '@/hooks/messages/useApproveMessageRequest';
 import { useRejectMessageRequest } from '@/hooks/messages/useRejectMessageRequest';
@@ -16,17 +17,20 @@ import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { ConversationListItemNative } from './ConversationListItemNative';
 import { useChatStore } from '@/store/useChatStore';
+import ButtonNative from '@/components/common/ButtonNative';
 
 interface PendingRequestsListNativeProps {
   limit?: number;
   showMoreLink?: boolean;
   onSelectConversation: (conversationId: number) => void;
+  onShowMore?: () => void; // Ny prop for "Se mer" funksjonalitet
 }
 
 export function PendingRequestsListNative({
   limit,
   showMoreLink = false,
   onSelectConversation,
+  onShowMore,
 }: PendingRequestsListNativeProps) {
   const { 
     requests, 
@@ -96,43 +100,49 @@ export function PendingRequestsListNative({
 
     return (
       <View style={styles.pendingRequestContainer}>
-        <ConversationListItemNative
-          user={{
-            id: r.isGroup ? r.conversationId ?? 0 : r.senderId,
-            fullName: r.isGroup ? r.groupName ?? "Gruppe" : r.senderName,
-            profileImageUrl: r.isGroup
-              ? r.groupImageUrl || null
-              : r.profileImageUrl || null,
-          }}
-          isClickable={true}
-          isPendingApproval={true}
-          onClick={() => {
-            console.log("✅ Clicked on conversation:", r.conversationId);
-            if (r.conversationId) {
-              onSelectConversation(r.conversationId);
-            }
-          }}
-          isGroup={r.isGroup || false}
-          memberCount={memberCount}
-          participants={participants}
-        />
-        
-        {/* Action buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.approveButton]}
-            onPress={() => handleApprove(r)}
-            disabled={approving || rejecting}
-          >
-            <Text style={styles.actionButtonText}>✔</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.rejectButton]}
-            onPress={() => handleReject(r)}
-            disabled={approving || rejecting}
-          >
-            <Text style={styles.actionButtonText}>✖</Text>
-          </TouchableOpacity>
+        {/* Hovedcontainer med samtale og knapper side ved side */}
+        <View style={styles.conversationWithActions}>
+          {/* Samtalekortet - tar opp mesteparten av plassen */}
+          <View style={styles.conversationSection}>
+            <ConversationListItemNative
+              user={{
+                id: r.isGroup ? r.conversationId ?? 0 : r.senderId,
+                fullName: r.isGroup ? r.groupName ?? "Gruppe" : r.senderName,
+                profileImageUrl: r.isGroup
+                  ? r.groupImageUrl || null
+                  : r.profileImageUrl || null,
+              }}
+              isClickable={true}
+              isPendingApproval={true}
+              onClick={() => {
+                console.log("✅ Clicked on conversation:", r.conversationId);
+                if (r.conversationId) {
+                  onSelectConversation(r.conversationId);
+                }
+              }}
+              isGroup={r.isGroup || false}
+              memberCount={memberCount}
+              participants={participants}
+            />
+          </View>
+          
+          {/* Action buttons til høyre */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.approveButton]}
+              onPress={() => handleApprove(r)}
+              disabled={approving || rejecting}
+            >
+              <Check size={20} color="white" strokeWidth={3} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.rejectButton]}
+              onPress={() => handleReject(r)}
+              disabled={approving || rejecting}
+            >
+              <X size={20} color="white" strokeWidth={3} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -166,7 +176,7 @@ export function PendingRequestsListNative({
 
   return (
     <View style={styles.pendingContainer}>
-      <Text style={styles.pendingHeader}>Ventende forespørsler</Text>
+      <Text style={styles.pendingHeader}>You have {requests.length} conversations that are pending:</Text>
       <FlatList
         data={visibleRequests}
         renderItem={renderPendingRequest}
@@ -176,9 +186,15 @@ export function PendingRequestsListNative({
       />
       
       {showMoreLink && requests.length > (limit ?? 0) && (
-        <TouchableOpacity style={styles.showMoreButton}>
-          <Text style={styles.showMoreText}>See more</Text>
-        </TouchableOpacity>
+        <View style={styles.showMoreContainer}>
+          <ButtonNative
+            text="See more"
+            onPress={onShowMore || (() => {})}
+            variant="primary"
+            size="small"
+            style={{ alignSelf: 'center' }}
+          />
+        </View>
       )}
     </View>
   );
@@ -186,52 +202,49 @@ export function PendingRequestsListNative({
 
 const styles = StyleSheet.create({
   pendingContainer: {
-    paddingVertical: 8,
   },
   pendingHeader: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
     paddingHorizontal: 16,
-    paddingVertical: 8,
   },
   pendingRequestContainer: {
-    marginBottom: 16,
+  },
+  conversationWithActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  conversationSection: {
+    flex: 1, // Tar opp mesteparten av plassen
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 8,
-    paddingLeft: 60, // Align with conversation content
-    paddingRight: 16,
-    marginTop: 4,
+    alignItems: 'center',
   },
   actionButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   approveButton: {
     backgroundColor: '#1C6B1C',
   },
   rejectButton: {
-    backgroundColor: '#6B7280',
+    backgroundColor: '#9CA3AF',
   },
-  actionButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  showMoreButton: {
+  showMoreContainer: {
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  showMoreText: {
-    color: '#1C6B1C',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'right',
+    paddingTop: 8,
   },
   loadingContainer: {
     justifyContent: 'center',
