@@ -10,6 +10,8 @@ public class MessageAttachment
         public string FileUrl { get; set; } = null!;
         // Filtype for å ha kontroll over hvordan fil det er: F.eks. "image/png", "video/mp4", "application/pdf"
         public string FileType { get; set; } = null!; 
+        
+        public long? FileSize { get; set; }
         // Navnet på filen må vises
         public string? FileName { get; set; }
         // For å referere til selve beskjeden

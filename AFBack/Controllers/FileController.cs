@@ -257,7 +257,8 @@ public class FileController : BaseController
             {
                 FileUrl = uploadedFileUrls[index],
                 FileType = file.ContentType,
-                FileName = file.FileName
+                FileName = file.FileName,
+                FileSize = file.Length
             }).ToList();
             
             // ✅ Send melding

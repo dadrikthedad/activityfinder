@@ -15,4 +15,5 @@ public class AttachmentDto
     public string FileUrl { get; set; } = null!;
     public string FileType { get; set; } = null!;
     public string? FileName { get; set; }
+    public long? FileSize { get; set; }
 }

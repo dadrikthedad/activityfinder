@@ -506,7 +506,9 @@ public class MessageService : IMessageService
                     {
                         FileUrl = a.FileUrl,
                         FileType = a.FileType,
-                        FileName = a.FileName
+                        FileName = a.FileName,
+                        FileSize = a.FileSize
+                        
                     }).ToList(),
             Reactions = message.IsDeleted ? new List<ReactionDTO>() :
                 message.Reactions.Select(r => new ReactionDTO
@@ -1174,7 +1176,8 @@ public class MessageService : IMessageService
             {
                 FileUrl = a.FileUrl,
                 FileType = a.FileType,
-                FileName = a.FileName
+                FileName = a.FileName,
+                FileSize = a.FileSize 
             }).ToList() ?? new List<MessageAttachment>()
         };
     }
@@ -1224,7 +1227,8 @@ public class MessageService : IMessageService
                         {
                             FileUrl = a.FileUrl,
                             FileType = a.FileType,
-                            FileName = a.FileName
+                            FileName = a.FileName,
+                            FileSize = a.FileSize 
                         })
                         .ToList(),
 
