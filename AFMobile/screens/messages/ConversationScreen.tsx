@@ -533,8 +533,8 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
   },
   conversationTitleSingleLine: {
-  marginTop: 0,
-  marginBottom: 0,
-  paddingBottom: 2
-},
+    marginTop: 0,
+    marginBottom: 0,
+    paddingBottom: 2
+  },
 });

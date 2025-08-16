@@ -1,4 +1,4 @@
-// components/attachments/AttachmentPreview.tsx - Reusable attachment preview component
+// components/attachments/AttachmentPreview.tsx - Enhanced with more document info
 import React, { useRef } from 'react';
 import {
   View,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { X, Play, File } from 'lucide-react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
-import { RNFile, getFileTypeInfo, getDisplayFileName } from '@/utils/files/FileFunctions';
+import { RNFile, getFileTypeInfo, getDisplayFileName, formatFileSize } from '@/utils/files/FileFunctions';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 
@@ -63,22 +63,24 @@ const VideoPreview: React.FC<{ uri: string; isBlurred?: boolean }> = ({ uri, isB
   );
 };
 
-// Size configurations
+// Enhanced size configurations with more space for document info
 const getSizeConfig = (size: 'small' | 'medium' | 'large') => {
   switch (size) {
     case 'small':
       return {
         containerSize: 100,
-        iconSize: 32,
-        fontSize: 10,
-        maxNameLength: 12,
+        iconSize: 24,
+        fontSize: 9,
+        maxNameLength: 15,
+        documentPadding: 6,
       };
     case 'large':
       return {
         containerSize: Math.min((screenWidth - 32) / 1.5, 250),
-        iconSize: 40,
-        fontSize: 11,
-        maxNameLength: 40,
+        iconSize: 48,
+        fontSize: 13,
+        maxNameLength: 50,
+        documentPadding: 16,
       };
     case 'medium':
     default:
@@ -86,7 +88,8 @@ const getSizeConfig = (size: 'small' | 'medium' | 'large') => {
         containerSize: 140,
         iconSize: 36,
         fontSize: 11,
-        maxNameLength: 15,
+        maxNameLength: 25,
+        documentPadding: 12,
       };
   }
 };
@@ -138,6 +141,10 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   
   // Show upload status
   const showUploadStatus = Boolean(isUploading || uploadError);
+
+  // Get file extension and formatted size
+  const fileExtension = normalizedData.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
+  const formattedSize = normalizedData.size ? formatFileSize(normalizedData.size) : '';
 
   const handlePress = () => {
     if (disabled || showUploadStatus) return;
@@ -220,20 +227,60 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
         </View>
       )}
 
-      {/* DOCUMENT CONTENT */}
+      {/* ENHANCED DOCUMENT CONTENT */}
       {isDocument && (
-        <View style={styles.documentContainer}>
+        <View style={[styles.documentContainer, { padding: sizeConfig.documentPadding }]}>
+          {/* Icon Section */}
           <View style={styles.documentIconSection}>
-            <File size={sizeConfig.iconSize} color="#6B7280" />
+            <File size={sizeConfig.iconSize} color="#1C6B1C" />
           </View>
           
+          {/* Enhanced Info Section */}
           <View style={styles.documentInfoSection}>
-            <Text style={[styles.documentName, { fontSize: sizeConfig.fontSize }]} numberOfLines={2}>
-              {getDisplayFileName(decodeURIComponent(normalizedData.fileName), sizeConfig.maxNameLength)}
+            {/* File Name - Multiple lines for longer names */}
+            <Text 
+              style={[
+                styles.documentName, 
+                { 
+                  fontSize: sizeConfig.fontSize,
+                  lineHeight: sizeConfig.fontSize + 2
+                }
+              ]} 
+              numberOfLines={size === 'large' ? 4 : 3}
+            >
+              {decodeURIComponent(normalizedData.fileName || 'Unknown file')}
             </Text>
-            <Text style={[styles.documentType, { fontSize: sizeConfig.fontSize - 1 }]} numberOfLines={1}>
-              {normalizedData.fileName?.split('.').pop()?.toUpperCase() || 'FILE'}
-            </Text>
+            
+            {/* File Type and Size Row */}
+            <View style={styles.documentMetaRow}>
+              <Text 
+                style={[
+                  styles.documentType, 
+                  { fontSize: sizeConfig.fontSize - 1 }
+                ]} 
+                numberOfLines={1}
+              >
+                {fileExtension}
+              </Text>
+              
+              {/* File Size */}
+              {formattedSize && (
+                <>
+                  <Text style={[styles.documentSeparator, { fontSize: sizeConfig.fontSize - 1 }]}>
+                    •
+                  </Text>
+                  <Text 
+                    style={[
+                      styles.documentSize, 
+                      { fontSize: sizeConfig.fontSize - 1 }
+                    ]} 
+                    numberOfLines={1}
+                  >
+                    {formattedSize}
+                  </Text>
+                </>
+              )}
+            </View>
           </View>
         </View>
       )}
@@ -382,33 +429,53 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   
-  // Document styles
+  // Enhanced document styles
   documentContainer: {
     width: '100%',
     height: '100%',
     backgroundColor: '#F9FAFB',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    padding: 8,
+    flexDirection: 'column',
   },
   documentIconSection: {
     marginBottom: 8,
+    flexShrink: 0, // Don't shrink the icon
   },
   documentInfoSection: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     width: '100%',
   },
   documentName: {
     fontWeight: '600',
     color: '#374151',
     textAlign: 'center',
-    lineHeight: 14,
-    marginBottom: 2,
+    marginBottom: 6,
+    width: '100%',
+  },
+  documentMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    width: '100%',
   },
   documentType: {
-    color: '#6B7280',
+    color: '#1C6B1C',
     textAlign: 'center',
     textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  documentSeparator: {
+    color: '#9CA3AF',
+    marginHorizontal: 4,
+    fontWeight: '500',
+  },
+  documentSize: {
+    color: '#6B7280',
+    textAlign: 'center',
     fontWeight: '500',
   },
   
