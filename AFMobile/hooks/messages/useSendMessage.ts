@@ -9,13 +9,8 @@ import {
 } from "@shared/types/MessageDTO";
 import { useCurrentUser } from "@/store/useUserCacheStore";
 import { useChatStore } from "@/store/useChatStore";
+import { RNFile } from "@/utils/files/FileFunctions";
 
-// React Native file type (matching RNFile from service)
-interface RNFile {
-  uri: string;
-  type: string;
-  name: string;
-}
 
 // Native-specific DTO for React Native file messages
 interface MessageWithFilesNative {
