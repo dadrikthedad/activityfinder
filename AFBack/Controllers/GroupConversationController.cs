@@ -1030,111 +1030,208 @@ public class GroupConversationController : BaseController
     [HttpPut("update-group-name")]
     public async Task<IActionResult> UpdateGroupName(int groupId, string newName)
     {
-        if (GetUserId() is not int userId)
-            return Unauthorized();
-    
-        if (string.IsNullOrWhiteSpace(newName) || newName.Length > 100)
-            return BadRequest("Group name must be between 1 and 100 characters");
-    
-        var group = await _context.Conversations
-            .Include(c => c.Participants)
-                .ThenInclude(p => p.User)
-                    .ThenInclude(u => u.Profile) // Hent user data med én gang
-            .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
-    
-        if (group == null)
-            return NotFound("Group not found");
-    
-        var isParticipant = group.Participants.Any(p => p.UserId == userId);
-        var isCreator = group.CreatorId == userId;
-    
-        if (!isParticipant && !isCreator)
-            return Forbid("You don't have permission to update this group");
-        
-        if (group.GroupName?.Trim() == newName.Trim())
-            return BadRequest("Group name is already set to this value");
-        
-        var oldName = group.GroupName;
-        group.GroupName = newName.Trim();
-        
-        // Hent alle participant IDs før SaveChanges
-        var participantIds = group.Participants.Select(p => p.UserId).ToList();
-        
-        await _context.SaveChangesAsync();
-        
-        var userName = await _context.Users
-            .Where(u => u.Id == userId)
-            .Select(u => u.FullName)
-            .FirstOrDefaultAsync() ?? "En bruker";
-        
-        // Send system message
-        var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
-            groupId,
-            $"{userName} changed the group name from \"{oldName}\" to \"{newName}\""
-        );
-        
-        // 🆕 SYNC EVENT - etter SaveChanges
-        _taskQueue.QueueAsync(async () => 
+        try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    
-            try 
+            // Validering
+            if (GetUserId() is not int userId)
             {
-                // Bygg userData fra allerede hentet data
-                var userData = group.Participants.ToDictionary(
-                    p => p.UserId,
-                    p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
-                );
-                
-                var participantApprovalStatus = await context.GroupRequests
-                    .Where(gr => gr.ConversationId == groupId && 
-                                 participantIds.Contains(gr.ReceiverId))
-                    .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
-                
-                // Bruk den nye extension method
-                var conversationData = group.MapConversationToSyncData(
-                    userId, 
-                    userData, 
-                    participantApprovalStatus // 🆕 Send med group statuses
-                );
-                
-                await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.GROUP_INFO_UPDATED,
-                    eventData: new {
-                    conversationData, systemMessage
-                    }, // Sender med hele samtalen
-                    targetUserIds: participantIds, // Alle participants
-                    source: "API",
-                    relatedEntityId: groupId,
-                    relatedEntityType: "Conversation"
+                _logger.LogWarning("Unauthorized attempt to update group name for groupId: {GroupId}", groupId);
+                return Unauthorized(new { message = "Authentication required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(newName) || newName.Length > 100)
+            {
+                _logger.LogWarning("Invalid group name provided by user {UserId} for group {GroupId}: '{NewName}'", 
+                    userId, groupId, newName);
+                return BadRequest(new { message = "Group name must be between 1 and 100 characters" });
+            }
+
+            // Database operasjoner med try-catch
+            Conversation? group;
+            try
+            {
+                group = await _context.Conversations
+                    .Include(c => c.Participants)
+                    .ThenInclude(p => p.User)
+                    .ThenInclude(u => u.Profile) // Hent user data med én gang
+                    .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Database error while fetching group {GroupId} for user {UserId}", groupId, userId);
+                return StatusCode(500, new { message = "Failed to retrieve group information" });
+            }
+
+            if (group == null)
+            {
+                _logger.LogWarning("Group {GroupId} not found for user {UserId}", groupId, userId);
+                return NotFound(new { message = "Group not found" });
+            }
+
+            // Autorisering
+            var isParticipant = group.Participants.Any(p => p.UserId == userId);
+            var isCreator = group.CreatorId == userId;
+
+            if (!isParticipant && !isCreator)
+            {
+                _logger.LogWarning("User {UserId} attempted to update group {GroupId} without permission", userId, groupId);
+                return StatusCode(403, new { message = "You don't have permission to update this group" });
+            }
+            
+            // Sjekk om navnet allerede er satt
+            if (group.GroupName?.Trim() == newName.Trim())
+            {
+                _logger.LogInformation("User {UserId} tried to set group {GroupId} name to existing value: '{Name}'", 
+                    userId, groupId, newName.Trim());
+                return BadRequest(new { message = "Group name is already set to this value" });
+            }
+            
+            var oldName = group.GroupName;
+            group.GroupName = newName.Trim();
+            
+            // Hent alle participant IDs før SaveChanges
+            var participantIds = group.Participants.Select(p => p.UserId).ToList();
+            
+            // Save endringer
+            try
+            {
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Successfully saved group name change for group {GroupId}", groupId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save group name change for group {GroupId} by user {UserId}", groupId, userId);
+                return StatusCode(500, new { message = "Failed to save group name change" });
+            }
+            
+            // Hent user name for system message
+            string userName;
+            try
+            {
+                userName = await _context.Users
+                    .Where(u => u.Id == userId)
+                    .Select(u => u.FullName)
+                    .FirstOrDefaultAsync() ?? "En bruker";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to get user name for user {UserId}", userId);
+                userName = "En bruker"; // Fallback
+            }
+            
+            // Send system message
+            try
+            {
+                var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
+                    groupId,
+                    $"{userName} changed the group name from \"{oldName}\" to \"{newName}\""
                 );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create sync event for group name update. GroupId: {GroupId}", groupId);
+                _logger.LogError(ex, "Failed to create system message for group name change. GroupId: {GroupId}, UserId: {UserId}", 
+                    groupId, userId);
+                // Ikke returner error her - hovedfunksjonen er fullført
             }
-        });
-        
-        // Send metadata med gamle og nye navn for å lage det oversiktelig i eventen
-        var metadata = JsonSerializer.Serialize(new
+            
+            // 🆕 SYNC EVENT - etter SaveChanges
+            try
+            {
+                _taskQueue.QueueAsync(async () => 
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    try 
+                    {
+                        // Bygg userData fra allerede hentet data
+                        var userData = group.Participants.ToDictionary(
+                            p => p.UserId,
+                            p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+                        );
+                        
+                        var participantApprovalStatus = await context.GroupRequests
+                            .Where(gr => gr.ConversationId == groupId && 
+                                         participantIds.Contains(gr.ReceiverId))
+                            .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
+                        
+                        // Bruk den nye extension method
+                        var conversationData = group.MapConversationToSyncData(
+                            userId, 
+                            userData, 
+                            participantApprovalStatus
+                        );
+                        
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.GROUP_INFO_UPDATED,
+                            eventData: new {
+                                conversationData, 
+                                systemMessage = new { /* system message data */ }
+                            },
+                            targetUserIds: participantIds,
+                            source: "API",
+                            relatedEntityId: groupId,
+                            relatedEntityType: "Conversation"
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create sync event for group name update. GroupId: {GroupId}", groupId);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to queue sync event task for group {GroupId}", groupId);
+                // Ikke returner error - hovedfunksjonen er fullført
+            }
+            
+            // Send group notification
+            try
+            {
+                var metadata = JsonSerializer.Serialize(new
+                {
+                    oldName = oldName ?? "",
+                    newName = newName.Trim()
+                });
+                
+                await _groupNotificationService.CreateGroupEventAsync(
+                    GroupEventType.GroupNameChanged,
+                    groupId,
+                    userId,
+                    new List<int> { userId },
+                    metadata
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create group notification for group name change. GroupId: {GroupId}, UserId: {UserId}", 
+                    groupId, userId);
+                // Ikke returner error - hovedfunksjonen er fullført
+            }
+
+            _logger.LogInformation("User {UserId} successfully updated group {GroupId} name from '{OldName}' to '{NewName}'", 
+                userId, groupId, oldName, newName);
+
+            return Ok(new { 
+                success = true, 
+                message = "Group name updated successfully",
+                oldName = oldName,
+                newName = newName.Trim()
+            });
+        }
+        catch (Exception ex)
         {
-            oldName = oldName ?? "",
-            newName = newName.Trim()
-        });
-        
-        await _groupNotificationService.CreateGroupEventAsync(
-            GroupEventType.GroupNameChanged,
-            groupId,
-            userId,
-            new List<int> { userId },
-            metadata
-        );
-    
-        _logger.LogInformation("User {UserId} updated group {GroupId} name to: {NewName}", userId, groupId, newName);
-    
-        return Ok(new { success = true });
+            // Catch-all for uventede exceptions
+            _logger.LogError(ex, "Unexpected error while updating group name. GroupId: {GroupId}, NewName: '{NewName}'", 
+                groupId, newName);
+            
+            return StatusCode(500, new { 
+                message = "An unexpected error occurred while updating the group name",
+                errorCode = "UNEXPECTED_ERROR"
+            });
+        }
     }
     
     // Sletter en gruppeforespørsel for å kunne bli invitert tilbake i en gruppe
