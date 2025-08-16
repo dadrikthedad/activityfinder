@@ -19,5 +19,6 @@ public interface IMessageService
         int skip = 0, int take = 50);
 
     Task<MessageResponseDTO> SoftDeleteMessageAsync(int messageId, int userId);
+    Task<MessageResponseDTO> MapToResponseDtoOptimized(int messageId);
 
 }

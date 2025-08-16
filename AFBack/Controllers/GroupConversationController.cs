@@ -26,11 +26,11 @@ public class GroupConversationController : BaseController
     private readonly MessageNotificationService _messageNotificationService;
     private readonly ILogger<GroupConversationController> _logger;
     private readonly GroupNotificationService _groupNotificationService;
-    private readonly MessageService _messageService;
+    private readonly IMessageService _messageService;
 
 
 
-    public GroupConversationController(ApplicationDbContext context, ILogger<GroupConversationController> logger, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, MessageService messageService)
+    public GroupConversationController(ApplicationDbContext context, ILogger<GroupConversationController> logger, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IMessageService messageService)
     {
         _logger = logger;
         _context = context;
