@@ -2,6 +2,7 @@
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RNFile } from '@/utils/files/FileFunctions';
+import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 
 // Define all your app screens and their parameters here
 export type RootStackParamList = {
@@ -16,12 +17,16 @@ export type RootStackParamList = {
   Weather: undefined;
   MessagesScreen: undefined;
   ConversationScreen: { conversationId: number }; // Added with optional conversationId param
-   MediaViewer: {  // 👈 LEGG TIL DENNE
+   MediaViewer: {
     files: RNFile[];
     initialIndex: number;
     conversationId?: number;
   };
   Notifications: undefined;
+  GroupSettingsScreen: {
+    user: UserSummaryDTO;
+    conversationId: number;
+  };
 };
 
 // Navigation prop types for each screen
@@ -55,6 +60,11 @@ export type MediaViewerScreenNavigationProp = StackNavigationProp<
   'MediaViewer'
 >;
 
+export type GroupSettingsScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'GroupSettingsScreen'
+>;
+
 // Route prop types for each screen (if you need route params)
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
@@ -62,6 +72,7 @@ export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type MessagesScreenRouteProp = RouteProp<RootStackParamList, 'MessagesScreen'>;
 export type ConversationScreenRouteProp = RouteProp<RootStackParamList, 'ConversationScreen'>;
 export type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
+export type GroupSettingsScreenRouteProp = RouteProp<RootStackParamList, 'GroupSettingsScreen'>;
 
 // Generic navigation prop (useful for components that can navigate to multiple screens)
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

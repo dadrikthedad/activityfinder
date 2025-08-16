@@ -4,8 +4,8 @@ import {
   View,
   Text,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
+  ScrollView
 } from 'react-native';
 import { UserSummaryDTO, GroupRequestStatus } from '@shared/types/UserSummaryDTO';
 import MiniAvatarNative from '../common/MiniAvatarNative';
@@ -21,12 +21,12 @@ export function ParticipantsListNative({
   onParticipantClick,
   showGroupRequestStatus = false,
 }: ParticipantsListNativeProps) {
-  
+ 
   const getStatusInfo = (participant: UserSummaryDTO) => {
     if (!showGroupRequestStatus) return null;
-    
+   
     const status = participant.groupRequestStatus;
-    
+   
     if (status === "Creator" || status === GroupRequestStatus.Creator) {
       return { text: "(creator)", color: "#16A34A" };
     }
@@ -47,11 +47,12 @@ export function ParticipantsListNative({
     ? [...participants].sort((a, b) => getStatusOrder(a.groupRequestStatus) - getStatusOrder(b.groupRequestStatus))
     : participants;
 
-  const renderParticipant = ({ item: participant }: { item: UserSummaryDTO }) => {
+  const renderParticipant = (participant: UserSummaryDTO) => {
     const statusInfo = getStatusInfo(participant);
-    
+   
     return (
       <TouchableOpacity
+        key={participant.id.toString()}
         style={styles.participantItem}
         onPress={() => onParticipantClick(participant)}
       >
@@ -61,7 +62,7 @@ export function ParticipantsListNative({
           alt={participant.fullName}
           withBorder={false}
         />
-        
+       
         <View style={styles.participantInfo}>
           <Text style={styles.participantName} numberOfLines={1}>
             {participant.fullName}
@@ -77,25 +78,24 @@ export function ParticipantsListNative({
   };
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={sortedParticipants}
-        renderItem={renderParticipant}
-        keyExtractor={(item) => item.id.toString()}
-        style={styles.participantsList}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
-  );
+  <View style={styles.container}>
+    <ScrollView 
+      style={styles.participantsList}
+      showsVerticalScrollIndicator={false}
+      nestedScrollEnabled={true}
+    >
+      {sortedParticipants.map(renderParticipant)}
+    </ScrollView>
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
-// ParticipantsListNative styles
   container: {
     maxHeight: 200,
   },
   participantsList: {
-    flexGrow: 0,
+    // Fjernet flexGrow siden vi ikke bruker FlatList lenger
   },
   participantItem: {
     flexDirection: 'row',

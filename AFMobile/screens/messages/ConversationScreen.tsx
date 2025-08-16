@@ -555,6 +555,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
         visible={showSettingsModal}
         onClose={handleCloseSettings}
         onShowUserPopover={showUserPopover}
+        navigation={navigation}
       />
     )}
   </SafeAreaView>

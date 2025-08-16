@@ -1,4 +1,4 @@
-// components/messages/MessageSettingsModalNative.tsx - Forbedret versjon
+// components/messages/MessageSettingsModalNative.tsx - Oppdatert med navigasjon
 import React from 'react';
 import {
   View,
@@ -21,6 +21,7 @@ import MiniAvatarNative from '../common/MiniAvatarNative';
 interface MessageSettingsModalNativeProps {
   visible: boolean;
   onClose: () => void;
+  navigation: any; // Legg til navigation prop
   onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
 }
 
@@ -72,6 +73,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
 export function MessageSettingsModalNative({
   visible,
   onClose,
+  navigation,
   onShowUserPopover,
 }: MessageSettingsModalNativeProps) {
   const currentConversationId = useChatStore((s) => s.currentConversationId);
@@ -138,6 +140,7 @@ export function MessageSettingsModalNative({
     onClose();
   };
 
+  // Oppdatert: Naviger til GroupSettingsScreen isteden for å vise popover
   const handleGroupHeaderClick = () => {
     if (!isGroup || !currentConversation || !currentConversationId) return;
     
@@ -147,10 +150,13 @@ export function MessageSettingsModalNative({
       profileImageUrl: currentConversation.groupImageUrl || "/default-group.png",
     };
     
-    if (onShowUserPopover) {
-      onShowUserPopover(groupUser, { x: 0, y: 0 });
-    }
-    onClose();
+    onClose(); // Lukk modal først
+    
+    // Naviger til GroupSettingsScreen
+    navigation.navigate('GroupSettingsScreen', {
+      user: groupUser,
+      conversationId: currentConversationId,
+    });
   };
 
   return (
@@ -174,7 +180,7 @@ export function MessageSettingsModalNative({
           </View>
 
           <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            {/* Group Header */}
+            {/* Group Header - Nå med navigasjon til GroupSettingsScreen */}
             {isGroup && currentConversation && (
               <>
                 <TouchableOpacity style={styles.groupHeader} onPress={handleGroupHeaderClick}>
@@ -189,7 +195,7 @@ export function MessageSettingsModalNative({
                       {currentConversation.groupName || "Navnløs gruppe"}
                     </Text>
                     <Text style={styles.groupSubtitle}>
-                      {participants.length} participants
+                      Tap to edit group settings
                     </Text>
                   </View>
                 </TouchableOpacity>

@@ -24,6 +24,7 @@ import { ModalProvider } from './context/ModalContext';
 import * as GestureHandler from 'react-native-gesture-handler';
 import MediaViewerScreen from './screens/files/MediaViewerScreen';
 import { useChatStore } from './store/useChatStore'; 
+import GroupSettingsScreen from './screens/messages/GroupSettingsScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -126,6 +127,11 @@ function AuthenticatedApp() {
                     },
                   }),
                 }}
+              />
+              <Stack.Screen 
+                name="GroupSettingsScreen" 
+                component={GroupSettingsScreen}
+                options={{ headerShown: false }} // Vi har egen header
               />
           </>
         ) : (
