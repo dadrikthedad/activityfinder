@@ -26,6 +26,7 @@ import MediaViewerScreen from './screens/files/MediaViewerScreen';
 import { useChatStore } from './store/useChatStore'; 
 import GroupSettingsScreen from './screens/messages/GroupSettingsScreen';
 import NewConversationScreen from './screens/messages/NewConversationScreen';
+import MessageNotificationScreen from './screens/messages/MessageNotificationScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -140,18 +141,14 @@ function AuthenticatedApp() {
                 options={{
                   presentation: 'modal', // Dette gjør den til modal
                   headerShown: false,
-                  cardStyleInterpolator: ({ current: { progress } }) => ({
-                    cardStyle: {
-                      transform: [
-                        {
-                          translateY: progress.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [300, 0], // Slide up animation
-                          }),
-                        },
-                      ],
-                    },
-                  }),
+                }}
+              />
+              <Stack.Screen
+                name="MessageNotificationScreen"
+                component={MessageNotificationScreen}
+                options={{
+                  presentation: 'modal', // Dette gjør den til modal
+                  headerShown: false,
                 }}
               />
           </>

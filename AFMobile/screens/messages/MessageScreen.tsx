@@ -117,7 +117,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
 
   // Handle bell/notifications
   const handleNotifications = useCallback(() => {
-    navigation.navigate('NotificationsScreen');
+    navigation.navigate('MessageNotificationScreen');
   }, [navigation]);
 
   // Handle Android back button
