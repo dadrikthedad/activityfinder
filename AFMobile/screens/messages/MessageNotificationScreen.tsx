@@ -22,11 +22,12 @@ import { shouldShowSenderName } from '@/utils/messages/shouldShowSenderName';
 import ButtonNative from '@/components/common/ButtonNative';
 import AppHeader from '@/components/common/AppHeader';
 import { ArrowBigLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { useMarkConversationNotificationsAsRead } from '@/hooks/messages/useMarkConversationNotificationAsRead';
 
 export default function MessageNotificationScreen() {
   const navigation = useNavigation<MessageNotificationScreenNavigationProp>();
   const notifications = useMessageNotificationStore((s) => s.messageNotifications);
-  const { markOneAsRead, markAllAsRead, loading: markAllLoading } = useMessageNotificationActions();
+  const { markAllAsRead, loading: markAllLoading } = useMessageNotificationActions();
   const setScrollToMessageId = useChatStore((s) => s.setScrollToMessageId);
   const hasLoaded = useMessageNotificationStore((s) => s.hasLoadedNotifications);
   const { showModal, hideModal } = useModal();
@@ -34,29 +35,16 @@ export default function MessageNotificationScreen() {
   // State for tracking which notifications are expanded
   const [expandedNotifications, setExpandedNotifications] = useState<Set<number>>(new Set());
 
-  const totalNotifications = useMessageNotificationStore((s) => s.messageNotifications.length);
-
-  const handleNotificationPress = useCallback((n: MessageNotificationDTO) => {
+ const handleNotificationPress = useCallback((n: MessageNotificationDTO) => {
     // Hvis samtalen er avslått, ikke gjør noe
-    if (n.isConversationRejected) {
-      return;
+    if (n.isConversationRejected || !n.conversationId) {
+        return;
     }
 
-    if (!n.isRead) {
-      markOneAsRead(n.id);
-      if (n.conversationId) {
-        setScrollToMessageId(n.messageId ?? null);
-        // Navigate to chat screen
-        navigation.navigate('ConversationScreen', { conversationId: n.conversationId });
-      }
-    } else {
-      if (n.conversationId) {
-        setScrollToMessageId(n.messageId ?? null);
-        // Navigate to chat screen
-        navigation.navigate('ConversationScreen', { conversationId: n.conversationId });
-      }
-    }
-  }, [markOneAsRead, setScrollToMessageId, navigation]);
+    // Set scroll target og naviger til samtalen
+    setScrollToMessageId(n.messageId ?? null);
+    navigation.navigate('ConversationScreen', { conversationId: n.conversationId });
+    }, [setScrollToMessageId, navigation]);
 
   const toggleExpanded = useCallback((notificationId: number) => {
     setExpandedNotifications(prev => {
@@ -196,14 +184,21 @@ export default function MessageNotificationScreen() {
       <FlatList
         data={notifications}
         renderItem={renderNotificationItem}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={(item, index) => {
+            // 🔧 Sikker keyExtractor som håndterer undefined IDs
+            if (item?.id != null) {
+            return item.id.toString();
+            }
+            // Fallback til index hvis ID mangler
+            return `notification-${index}`;
+        }}
         ListEmptyComponent={renderEmptyState}
         contentContainerStyle={[
-          styles.listContent,
-          notifications.length === 0 && styles.emptyListContent
+            styles.listContent,
+            notifications.length === 0 && styles.emptyListContent
         ]}
         showsVerticalScrollIndicator={false}
-      />
+        />
 
       {/* Mark all as read button - outside FlatList */}
       {notifications.length > 0 && (

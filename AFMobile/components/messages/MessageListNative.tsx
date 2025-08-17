@@ -21,6 +21,8 @@ import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { useReactionUsersModal } from '@/components/reactions/ReactionUsersModal';
 import { ReactionDTO } from '@shared/types/MessageDTO';
+import { useMarkConversationNotificationsAsRead } from '@/hooks/messages/useMarkConversationNotificationAsRead';
+import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 
 interface MessageListNativeRef {
   scrollToBottom: () => void;
@@ -357,6 +359,11 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   const { showReactionUsers } = useReactionUsersModal();
   const { confirm } = useConfirmModalNative();
 
+   const { markAsReadForConversation } = useMarkConversationNotificationsAsRead();
+   const unreadConversationIds = useChatStore(state => state.unreadConversationIds);
+   const [isCurrentlyAtBottom, setIsCurrentlyAtBottom] = useState(true);
+   const { markAsReadForConversation: updateLocalNotificationRead } = useMessageNotificationStore.getState();
+
   const {
     messages,
     loadMore,
@@ -550,20 +557,21 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
 
   // Handle scroll events
   const handleScroll = useCallback((event: any) => {
-    if (!isInitialized) return;
+  if (!isInitialized) return;
 
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     
     currentScrollPosition.current = contentOffset.y;
     
     const isAtBottom = contentOffset.y <= 50;
+
+    setIsCurrentlyAtBottom(isAtBottom);
     onScrollPositionChange?.(isAtBottom);
 
     if (isAtBottom && showNewMessageBanner) {
       setShowNewMessageBanner(false);
       setNewMessageCount(0);
     }
-
 
     // Update visible message index
     lastVisibleMessageIndex.current = getVisibleMessageIndex();
@@ -582,8 +590,36 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
         handleLoadMoreSmooth();
       }, 300);
     }
-  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex, showNewMessageBanner]);
+  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex, showNewMessageBanner, markAsReadForConversation]);
 
+  useEffect(() => {
+  if (!conversationId || conversationId === -1 || !conversationVisible || isSearchMode || !isInitialized) {
+    return;
+  }
+
+  // Sjekk om denne samtalen er markert som ulest OG vi er i bunnen
+  const isConversationUnread = unreadConversationIds.includes(conversationId);
+  
+  if (isConversationUnread && isCurrentlyAtBottom) {
+    console.log(`📖 Conversation ${conversationId} is unread and user is at bottom - marking as read`);
+    
+    // Mark conversation as read (your existing logic)
+    markAsReadForConversation(conversationId);
+    
+    // NEW: Also update local notifications for this conversation
+    updateLocalNotificationRead(conversationId); // <- Nå sender vi conversationId i stedet for å iterere
+  }
+}, [
+  unreadConversationIds,
+  isCurrentlyAtBottom,
+  conversationId,
+  conversationVisible,
+  isSearchMode,
+  isInitialized,
+  markAsReadForConversation,
+  updateLocalNotificationRead
+]);
+  
   // Reset state when conversation changes
   useEffect(() => {
     if (conversationId && conversationId !== -1) {

@@ -18,6 +18,7 @@ import { ChevronUp, ChevronDown, Plus, Search, Bell, ArrowBigLeft } from 'lucide
 import { useAuth } from '@/context/AuthContext';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { useChatStore } from '@/store/useChatStore';
+import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import ConversationListNative from '@/components/messages/ConversationListNative';
 import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
 import { PendingRequestsListNative } from '@/components/messages/PendingRequestsListNative';
@@ -36,6 +37,11 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
 
   const { setCurrentConversationId } = useChatStore();
+  
+  // Notification store - get unread count
+  const unreadNotificationCount = useMessageNotificationStore(
+    (state) => state.messageNotifications.filter((n) => !n.isRead).length
+  );
   
   // Pending collapse state - from store
   const isPendingCollapsed = useChatStore(state => state.isPendingCollapsed);
@@ -177,6 +183,19 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
       );
     }
   }, [handleSelectConversation, currentUser, navigation]);
+
+  // Notification Badge Component
+  const NotificationBadge = ({ count }: { count: number }) => {
+    if (count === 0) return null;
+    
+    return (
+      <View style={styles.badge}>
+        <Text style={styles.badgeText}>
+          {count > 99 ? '99+' : count.toString()}
+        </Text>
+      </View>
+    );
+  };
 
   // Redirect to login if not authenticated
   if (!isLoggedIn) {
@@ -341,9 +360,10 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
 
           <TouchableOpacity
             onPress={handleNotifications}
-            style={styles.footerButton}
+            style={[styles.footerButton, styles.notificationButton]}
           >
             <Bell size={24} color="white" />
+            <NotificationBadge count={unreadNotificationCount} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -482,6 +502,30 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     backgroundColor: '#1C6B1C',
+  },
+  // Notification specific styles
+  notificationButton: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: 2,
+    borderColor: '#1C6B1C',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   // Search overlay styles
   searchOverlay: {

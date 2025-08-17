@@ -26,7 +26,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import type { RootStackParamList } from '@shared/types/navigation';
+import type { RootStackParamList } from '@/types/navigation';
 
 interface MobileNavbarNativeProps {
   onNavigateToMessages?: () => void;
@@ -200,14 +200,6 @@ export default function MobileNavbarNative({
                     <Text style={styles.menuItemText}>Messages</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('About')}
-                    style={styles.menuItem}
-                  >
-                    <Info size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>About Us</Text>
-                  </TouchableOpacity>
-
                   <View style={styles.separator} />
 
                   {/* Settings */}
@@ -247,22 +239,6 @@ export default function MobileNavbarNative({
                   >
                     <Home size={18} color="#374151" />
                     <Text style={styles.menuItemText}>Home</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('Weather')}
-                    style={styles.menuItem}
-                  >
-                    <Cloud size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Backend Check</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('About')}
-                    style={styles.menuItem}
-                  >
-                    <Info size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>About Us</Text>
                   </TouchableOpacity>
 
                   <View style={styles.separator} />
