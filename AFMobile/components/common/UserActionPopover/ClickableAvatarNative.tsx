@@ -1,21 +1,21 @@
-// components/common/ClickableAvatar.tsx
+// components/common/ClickableAvatarNative.tsx
 import React from "react";
 import { TouchableOpacity, StyleSheet } from "react-native";
 import MiniAvatarNative from "../MiniAvatarNative";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
-import { useUserActionPopoverStore } from "@/store/useUserActionPopoverStore";
+import { useUserActionPopover } from "@/context/UserActionPopoverContext"; // 👈 ADDED
 import { useCurrentUser } from "@/store/useUserCacheStore";
 
 interface ClickableAvatarNativeProps {
   user: UserSummaryDTO;
   size?: number;
-  style?: any; // React Native style instead of className
+  style?: any;
   isGroup?: boolean;
   participants?: UserSummaryDTO[];
   onLeaveGroup?: () => void;
   conversationId?: number;
   isPendingRequest?: boolean;
-  navigation?: any; // Added navigation prop
+  navigation?: any; // Still needed for GroupSettings navigation
 }
 
 export default function ClickableAvatarNative({
@@ -27,11 +27,15 @@ export default function ClickableAvatarNative({
   onLeaveGroup,
   conversationId,
   isPendingRequest = false,
-  navigation, // New prop
+  navigation,
 }: ClickableAvatarNativeProps) {
   const currentUser = useCurrentUser();
+  const { showPopover } = useUserActionPopover(); // 👈 USE CONTEXT
 
-  const handlePress = () => {
+  const handlePress = (event: any) => {
+    // Get touch position for popover placement
+    const { pageX, pageY } = event.nativeEvent;
+    
     // If it's a group and we have navigation and conversationId, navigate to GroupSettings
     if (isGroup && navigation && conversationId && currentUser) {
       navigation.navigate('GroupSettingsScreen', {
@@ -40,15 +44,15 @@ export default function ClickableAvatarNative({
       });
       return;
     }
-
-    // Otherwise, show the popover as before
-    const position = { x: 0, y: 0 }; // Default position
-   
-    useUserActionPopoverStore.getState().show({
+    
+    // Otherwise, show the popover using context
+    console.log('🎯 ClickableAvatar clicked for:', user.fullName);
+    
+    showPopover({
       user,
-      position,
+      position: { x: pageX || 100, y: pageY || 100 },
       isGroup,
-      participants,
+      participants: participants || [],
       onLeaveGroup,
       conversationId,
       isPendingRequest,

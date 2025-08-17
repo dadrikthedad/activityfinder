@@ -3,7 +3,7 @@ import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useModal } from "@/context/ModalContext";
 import { useCallback } from "react";
-import GroupSettingsModalNative from "@/components/groupmessages/GroupSettingsModalNative";
+import GroupSettingsScreen from "@/screens/messages/GroupSettingsScreen";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import MiniAvatarNative from "../MiniAvatarNative";
 import ButtonNative from "../ButtonNative";

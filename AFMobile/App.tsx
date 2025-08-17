@@ -28,6 +28,7 @@ import GroupSettingsScreen from './screens/messages/GroupSettingsScreen';
 import NewConversationScreen from './screens/messages/NewConversationScreen';
 import MessageNotificationScreen from './screens/messages/MessageNotificationScreen';
 import TrashcanScreen from './screens/messages/TrashcanScreen';
+import { UserActionPopoverProvider } from './context/UserActionPopoverContext';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -66,8 +67,10 @@ function AppContent() {
     <NavigationContainer>
       <AuthProvider>
         <ModalProvider> 
-          <AppInitializer />
-          <AuthenticatedApp />
+          <UserActionPopoverProvider>
+            <AppInitializer />
+            <AuthenticatedApp />
+          </UserActionPopoverProvider>
         </ModalProvider>
       </AuthProvider>
     </NavigationContainer>

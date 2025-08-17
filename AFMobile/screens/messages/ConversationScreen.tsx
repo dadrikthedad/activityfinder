@@ -27,6 +27,7 @@ import MessageInputNative from '@/components/messages/MessageInputNative';
 import { MessageSettingsModalNative } from '@/components/messages/MessageSettingsModalNative';
 import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
 import { useSearchMessages } from '@/hooks/messages/useSearchMessages';
+import { useUserActionPopover } from '@/context/UserActionPopoverContext';
 
 interface MessageListRef {
   scrollToBottom: () => void;
@@ -67,10 +68,11 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
 
-    const { loading, error, search, resetSearch } = useSearchMessages();
-  
+  const { loading, error, search, resetSearch } = useSearchMessages();
   // Ref for scroll to bottom functionality
   const messageListRef = useRef<MessageListRef>(null);
+
+  const { showPopover } = useUserActionPopover();
   
   const { send } = useSendMessage();
   
@@ -174,36 +176,19 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
       conversationId?: number;
     },
   ) => {
-    // For mobile, show an action sheet instead of popover
-    const options = [];
+    console.log('👤 Showing user popover for:', user.fullName);
     
-    if (groupData?.isGroup) {
-      options.push('View Group Info');
-      if (groupData.onLeaveGroup) {
-        options.push('Leave Group');
-      }
-    } else {
-      options.push('View Profile');
-      options.push('Send Message');
-    }
-    
-    options.push('Cancel');
-    
-    Alert.alert(
-      user.fullName || 'User',
-      'Choose an action',
-      options.map((option, index) => ({
-        text: option,
-        style: option === 'Cancel' ? 'cancel' : 'default',
-        onPress: () => {
-          if (option === 'Leave Group' && groupData?.onLeaveGroup) {
-            groupData.onLeaveGroup();
-          }
-          // Handle other actions as needed
-        }
-      }))
-    );
-  }, []);
+    // Use the context to show the popover
+    showPopover({
+      user,
+      position: pos,
+      isGroup: groupData?.isGroup || false,
+      participants: groupData?.participants || [],
+      onLeaveGroup: groupData?.onLeaveGroup,
+      conversationId: groupData?.conversationId,
+      isPendingRequest: groupData?.isPendingRequest || false,
+    });
+  }, [showPopover]);
 
   // Reply handler
   const handleReply = useCallback((message: MessageDTO) => {
@@ -295,7 +280,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   // Get conversation title for header
   const getConversationTitle = () => {
-    if (!currentConversation) return "Laster samtale...";
+    if (!currentConversation) return "Pending conversation";
     
     if (currentConversation.isGroup) {
       return currentConversation.groupName || "Navnløs gruppe";

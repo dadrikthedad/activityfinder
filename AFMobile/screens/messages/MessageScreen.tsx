@@ -1,4 +1,4 @@
-// screens/MessagesScreen.tsx
+// screens/MessagesScreen.tsx - Updated with Context instead of Store
 import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -25,6 +25,7 @@ import { PendingRequestsListNative } from '@/components/messages/PendingRequests
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useConversationSearch } from '@/hooks/messages/useSearchConversations';
 import { ConversationDTO } from '@shared/types/ConversationDTO';
+import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 
 interface MessagesScreenProps {
   navigation: any;
@@ -374,29 +375,17 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* NO LONGER NEED TO RENDER POPOVER HERE - Context handles it! */}
     </SafeAreaView>
   );
 }
 
+// Styles remain exactly the same...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
-  },
-  header: {
-    backgroundColor: '#1C6B1C',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
   },
   content: {
     flex: 1,
@@ -503,7 +492,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#1C6B1C',
   },
-  // Notification specific styles
   notificationButton: {
     position: 'relative',
   },
@@ -527,13 +515,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  // Search overlay styles
   searchOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    bottom: 80, // Leave space for footer
+    bottom: 80,
     backgroundColor: 'white',
     zIndex: 1000,
   },
@@ -584,30 +571,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B7280',
     textAlign: 'center',
-  },
-  searchResultItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  searchResultContent: {
-    flex: 1,
-  },
-  searchResultTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  searchResultSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  searchResultTime: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 2,
   },
 });
