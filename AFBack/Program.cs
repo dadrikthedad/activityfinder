@@ -8,6 +8,7 @@ using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using AFBack.Services;
 using DotNetEnv;
@@ -101,6 +102,7 @@ builder.Services.AddControllers(options =>
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
@@ -156,6 +158,7 @@ builder.Services.AddAuthentication("Bearer").AddJwtBearer(options =>
 builder.Services.AddSignalR()
     .AddJsonProtocol(options =>
     {
+        options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; 
         options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
