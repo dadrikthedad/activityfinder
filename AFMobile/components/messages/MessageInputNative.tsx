@@ -1,4 +1,4 @@
-// components/messages/MessageInputNative.tsx - Refactored with AttachmentPreview
+// components/messages/MessageInputNative.tsx - Refactored to use AttachmentPicker
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -7,16 +7,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
-  ActionSheetIOS,
   ScrollView,
   AppState,
 } from 'react-native';
-import { Camera, Image as ImageLucid, FileText, Plus, ArrowBigRight } from 'lucide-react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+import { ArrowBigRight } from 'lucide-react-native';
 import { useSendMessage } from '@/hooks/messages/useSendMessage';
 import { MessageDTO, AttachmentDto } from '@shared/types/MessageDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
@@ -25,11 +19,11 @@ import { getDraftFor, saveDraftFor, clearDraftFor } from '@/utils/draft/draft';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { ReplyPreviewNative } from './ReplyPreviewNative';
 import { RNFile, validateFiles } from '@/utils/files/FileFunctions';
-import { launchCamera } from 'react-native-image-picker';
 
 // Import our new components
 import { AttachmentPreview } from '../files/AttachmentPreview';
 import { useAttachmentViewer } from '../files/AttachmentViewer';
+import { AttachmentPicker } from '../files/filepicker/AttachmentPicker';
 
 interface MessageInputNativeProps {
   receiverId?: number;
@@ -58,8 +52,6 @@ export default function MessageInputNative({
 }: MessageInputNativeProps) {
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<RNFile[]>([]);
-  const [showActionsModal, setShowActionsModal] = useState(false);
-  const [isCameraActive, setIsCameraActive] = useState(false);
   
   const { send, error } = useSendMessage(onMessageSent);
   const inputRef = useRef<TextInput>(null);
@@ -106,6 +98,11 @@ export default function MessageInputNative({
     if (conversationId) {
       saveDraftFor(conversationId, newText);
     }
+  };
+
+  // Handle file selection from AttachmentPicker
+  const handleFilesSelected = (files: RNFile[]) => {
+    setSelectedFiles(prev => [...prev, ...files]);
   };
 
   const handleSend = async () => {
@@ -253,160 +250,6 @@ export default function MessageInputNative({
     }
   };
 
-  // Handle camera action
-  const handleOpenCamera = async () => {
-    if (isCameraActive) return;
-    
-    setIsCameraActive(true);
-    setShowActionsModal(false);
-    
-    console.log('🎯 Opening camera with react-native-image-picker...');
-    
-    launchCamera(
-      {
-        mediaType: 'photo',
-        quality: 0.7,
-      },
-      (response) => {
-        console.log('📱 Camera response:', { didCancel: response.didCancel, hasAssets: !!response.assets });
-        
-        if (response.didCancel || response.errorMessage) {
-          console.log('❌ Camera cancelled or error:', response.errorMessage);
-          setIsCameraActive(false);
-          return;
-        }
-        
-        const asset = response.assets?.[0];
-        if (!asset || !asset.uri) {
-          console.log('❌ No valid asset or URI received');
-          setIsCameraActive(false);
-          return;
-        }
-        
-        const file: RNFile = {
-          uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || `camera_${Date.now()}.jpg`,
-          size: asset.fileSize
-        };
-        
-        console.log('✅ Camera file created:', file.name);
-        setSelectedFiles(prev => [...prev, file]);
-        setIsCameraActive(false);
-      }
-    );
-  };
-
-  // Handle image picker
-  const handlePickImage = async () => {
-    setShowActionsModal(false);
-    
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library permission is required to select images.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
-      allowsEditing: false,
-      quality: 0.8,
-      allowsMultipleSelection: true,
-    });
-
-    if (!result.canceled && result.assets.length > 0) {
-      const files: RNFile[] = result.assets.map((asset, index) => {
-        const hasVideoExtension = asset.uri.includes('.mp4') || asset.uri.includes('.mov') || asset.uri.includes('.avi');
-        const hasVideoType = asset.type?.includes('video');
-        const hasVideoDuration = asset.duration != null && asset.duration > 0;
-        const isVideo = hasVideoType || (hasVideoExtension && hasVideoDuration);
-        
-        let mimeType: string = asset.type || '';
-        
-        if (mimeType === 'image' || (mimeType === '' && !isVideo)) {
-          const fileName = asset.fileName || '';
-          if (fileName.toLowerCase().includes('.png')) {
-            mimeType = 'image/png';
-          } else if (fileName.toLowerCase().includes('.gif')) {
-            mimeType = 'image/gif';
-          } else if (fileName.toLowerCase().includes('.webp')) {
-            mimeType = 'image/webp';
-          } else {
-            mimeType = 'image/jpeg';
-          }
-        } else if (mimeType === 'video' || (mimeType === '' && isVideo)) {
-          mimeType = 'video/mp4';
-        }
-        
-        const fileExtension = isVideo ? 'mp4' : 'jpg';
-        
-        return {
-          uri: asset.uri,
-          type: mimeType,
-          name: asset.fileName || `${isVideo ? 'video' : 'image'}_${Date.now()}_${index}.${fileExtension}`,
-          size: asset.fileSize
-        };
-      });
-      
-      console.log('📷 Library files selected:', files.map(f => ({ name: f.name, type: f.type })));
-      setSelectedFiles(prev => [...prev, ...files]);
-    }
-  };
-
-  // Handle file picker
-  const handlePickFile = async () => {
-    setShowActionsModal(false);
-    
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-        multiple: true,
-      });
-
-      if (!result.canceled && result.assets.length > 0) {
-        const files: RNFile[] = result.assets.map(asset => ({
-          uri: asset.uri,
-          type: asset.mimeType || 'application/octet-stream',
-          name: asset.name,
-          size: asset.size
-        }));
-        
-        setSelectedFiles(prev => [...prev, ...files]);
-      }
-    } catch (err) {
-      console.error('Error picking file:', err);
-      Alert.alert('Error', 'Failed to pick file');
-    }
-  };
-
-  // Show actions menu
-  const handleShowActionsMenu = () => {
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options: ['Take Photo', 'Choose from Library', 'Select File', 'Cancel'],
-          cancelButtonIndex: 3,
-        },
-        (buttonIndex) => {
-          switch (buttonIndex) {
-            case 0:
-              handleOpenCamera();
-              break;
-            case 1:
-              handlePickImage();
-              break;
-            case 2:
-              handlePickFile();
-              break;
-          }
-        }
-      );
-    } else {
-      setShowActionsModal(true);
-    }
-  };
-
   // Remove file from selection
   const removeFile = (index: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
@@ -478,7 +321,7 @@ export default function MessageInputNative({
         />
       )}
 
-      {/* 🆕 NEW: File Previews using AttachmentPreview */}
+      {/* File Previews using AttachmentPreview */}
       {selectedFiles.length > 0 && (
         <View style={styles.filePreviewContainer}>
           {selectedFiles.length === 1 ? (
@@ -542,14 +385,22 @@ export default function MessageInputNative({
 
       {/* Input Row */}
       <View style={styles.inputContainer}>
-        {/* Actions button */}
+        {/* 🆕 NEW: AttachmentPicker replaces the old plus button and modal logic */}
         {!isBlocked && (
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleShowActionsMenu}
-          >
-            <Plus size={24} color="#ffffffff" />
-          </TouchableOpacity>
+          <AttachmentPicker
+            onFilesSelected={handleFilesSelected}
+            disabled={isBlocked}
+            allowMultipleImages={true}
+            allowVideos={true}
+            allowDocuments={true}
+            imageQuality={0.7}
+            cameraQuality={0.7}
+            modalTitle="Choose Attachment"
+            accentColor="#1C6B1C"
+            buttonBackgroundColor="#1C6B1C"
+            buttonColor="#ffffff"
+            buttonSize={24}
+          />
         )}
         
         <TextInput
@@ -581,37 +432,6 @@ export default function MessageInputNative({
           <ArrowBigRight size={24} color="#ffffffff" />
         </TouchableOpacity>
       </View>
-
-      {/* Actions Modal for Android */}
-      <Modal
-        visible={showActionsModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowActionsModal(false)}
-      >
-        <TouchableOpacity 
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowActionsModal(false)}
-        >
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.modalOption} onPress={handleOpenCamera}>
-              <Camera size={24} color="#1C6B1C" />
-              <Text style={styles.modalOptionText}>Take Photo</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.modalOption} onPress={handlePickImage}>
-              <ImageLucid size={24} color="#1C6B1C" />
-              <Text style={styles.modalOptionText}>Choose from Library</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.modalOption} onPress={handlePickFile}>
-              <FileText size={24} color="#1C6B1C" />
-              <Text style={styles.modalOptionText}>Select File</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 }
@@ -636,15 +456,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 8,
-  },
-  actionButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#1C6B1C',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 40,
-    height: 40,
   },
   textInput: {
     flex: 1,
@@ -676,37 +487,10 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: '#9CA3AF',
   },
-  
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-  },
-  modalOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    gap: 16,
-  },
-  modalOptionText: {
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '500',
-  },
 
-  // 🆕 NEW: File preview styles using AttachmentPreview
+  // File preview styles using AttachmentPreview
   filePreviewContainer: {
     marginBottom: 12,
-    
   },
   singleFileContainer: {
     alignItems: 'center',

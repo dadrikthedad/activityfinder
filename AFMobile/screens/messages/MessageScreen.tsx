@@ -1,5 +1,5 @@
 // screens/MessagesScreen.tsx
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -41,8 +41,12 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
  
   const shouldShowPendingSection = !hasLoadedPending || pending.length > 0;
   
-  // Animation for collapse
-  const [animatedHeight] = useState(new Animated.Value(isPendingCollapsed ? 0 : 220));
+  // For dynamisk høyde basert på innhold
+  const [contentHeight, setContentHeight] = useState(225); // Start med en fornuftig standardverdi
+  const [animatedHeight] = useState(new Animated.Value(isPendingCollapsed ? 0 : 1));
+  
+  // Referanse til innholdet for å måle høyde
+  const contentRef = useRef<View>(null);
 
   // Handle conversation selection - navigate to individual conversation
   const handleSelectConversation = useCallback((conversationId: number) => {
@@ -55,13 +59,21 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
     navigation.navigate('ConversationScreen', { conversationId });
   }, [navigation, setCurrentConversationId]);
 
+  // Callback for å måle innholdets høyde - bruker en skjult kopi for å alltid ha riktig høyde
+  const onContentLayout = useCallback((event: any) => {
+    const { height } = event.nativeEvent.layout;
+    if (height > 0) {
+      setContentHeight(height);
+    }
+  }, []);
+
   // Toggle pending section with animation
   const togglePending = useCallback(() => {
     const newCollapsed = !isPendingCollapsed;
     setIsPendingCollapsed(newCollapsed);
     
     Animated.timing(animatedHeight, {
-      toValue: newCollapsed ? 0 : 200,
+      toValue: newCollapsed ? 0 : 1,
       duration: 300,
       useNativeDriver: false,
     }).start();
@@ -111,8 +123,30 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
         {/* Pending Requests Section - Collapsible */}
         {shouldShowPendingSection && (
           <View style={styles.pendingSection}>
-            {/* Pending Content - with smooth collapse animation */}
-            <Animated.View style={[styles.pendingContent, { height: animatedHeight }]}>
+            {/* Skjult kopi av innholdet for å måle høyde */}
+            <View 
+              style={[styles.pendingInner, styles.hiddenMeasurement]}
+              onLayout={onContentLayout}
+            >
+              <PendingRequestsListNative
+                limit={2}
+                showMoreLink={true}
+                onSelectConversation={handleSelectConversation}
+              />
+            </View>
+            
+            {/* Synlig animert innhold */}
+            <Animated.View 
+              style={[
+                styles.pendingContent, 
+                { 
+                  height: animatedHeight.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, contentHeight],
+                  }),
+                }
+              ]}
+            >
               <View style={styles.pendingInner}>
                 <PendingRequestsListNative
                   limit={2}
@@ -231,6 +265,11 @@ const styles = StyleSheet.create({
   },
   pendingInner: {
     padding: 16,
+  },
+  hiddenMeasurement: {
+    position: 'absolute',
+    opacity: 0,
+    zIndex: -1,
   },
   toggleContainer: {
     alignItems: 'center',

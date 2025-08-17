@@ -364,9 +364,6 @@ export default function MessageAttachmentsNative({
           <Text style={styles.summaryText}>
             {attachments.length} files total {getFileTypesSummary()}
           </Text>
-          <Text style={styles.summarySubtext}>
-            Tap any file to view or download
-          </Text>
         </View>
       )}
 
@@ -435,9 +432,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 2,
-  },
-  summarySubtext: {
-    fontSize: 11,
-    color: '#9CA3AF',
   },
 });

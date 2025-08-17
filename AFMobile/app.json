@@ -26,7 +26,10 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.dadrikthedad.AFMobile"
+      "package": "com.dadrikthedad.AFMobile",
+      "largeHeap": true,
+      "enableProguardInReleaseBuilds": false,
+      "minSdkVersion": 23
     },
     "web": {
       "favicon": "./assets/favicon.png"
