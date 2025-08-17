@@ -118,49 +118,6 @@ export default function GroupSettingsScreen({
     setShowInviteModal(false);
   };
 
-  const handleParticipantClick = (participant: UserSummaryDTO) => {
-    // Use a basic position since we don't have exact coordinates in this context
-    const position = { x: 100, y: 100 };
-    
-    // Create group data for the popover
-    const groupData = currentConversation?.isGroup ? {
-      isGroup: true,
-      participants: currentConversation.participants,
-      conversationId: conversationId,
-      isPendingRequest: false,
-      onLeaveGroup: undefined,
-    } : undefined;
-
-    const options = ['View Profile', 'Send Message'];
-    
-    if (groupData?.isGroup && participant.id !== user.id) {
-      options.push('Remove from Group');
-    }
-    
-    options.push('Cancel');
-    
-    Alert.alert(
-      participant.fullName,
-      `What would you like to do?`,
-      options.map((option) => ({
-        text: option,
-        style: option === 'Cancel' ? 'cancel' : 'default',
-        onPress: () => {
-          switch (option) {
-            case 'View Profile':
-              console.log('Navigate to profile for:', participant.fullName);
-              break;
-            case 'Send Message':
-              console.log('Send message to:', participant.fullName);
-              break;
-            case 'Remove from Group':
-              console.log('Remove from group:', participant.fullName);
-              break;
-          }
-        }
-      }))
-    );
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -287,7 +244,6 @@ export default function GroupSettingsScreen({
             
             <ParticipantsListNative
               participants={currentConversation.participants}
-              onParticipantClick={handleParticipantClick}
               showGroupRequestStatus={true}
             />
           </View>
