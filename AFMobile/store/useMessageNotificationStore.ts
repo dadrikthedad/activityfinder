@@ -104,16 +104,47 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
         
 
       markAsReadForConversation: (conversationId: number) => {
-        set((state) => {
-          const updated = state.messageNotifications.map((n) =>
-            n.conversationId === conversationId
-              ? { ...n, isRead: true, readAt: new Date().toISOString() }
-              : n
-          );
+  console.log('🔍 markAsReadForConversation called with conversationId:', conversationId);
+  
+  set((state) => {
+    // Debug: Se hvilke notifikasjoner vi har for denne samtalen
+    const conversationNotifications = state.messageNotifications.filter(n => n.conversationId === conversationId);
+    
+    console.log('📋 Found notifications for conversation:', conversationNotifications.map(n => ({ 
+      id: n.id, 
+      type: n.type, 
+      conversationId: n.conversationId,
+      isRead: n.isRead,
+      messagePreview: n.messagePreview?.substring(0, 50) + '...'
+    })));
 
-          return { messageNotifications: updated };
-        });
-      },
+    // Debug: Se hvilke som er GroupEvent spesifikt
+    const groupEvents = conversationNotifications.filter(n => n.type === 'GroupEvent');
+    console.log('🎭 GroupEvent notifications found:', groupEvents.length, groupEvents.map(n => ({
+      id: n.id,
+      isRead: n.isRead,
+      eventCount: n.eventCount,
+      groupName: n.groupName
+    })));
+
+    const updated = state.messageNotifications.map((n) =>
+      n.conversationId === conversationId
+        ? { ...n, isRead: true, readAt: new Date().toISOString() }
+        : n
+    );
+
+    // Debug: Se hva som ble oppdatert
+    const updatedConversationNotifications = updated.filter(n => n.conversationId === conversationId);
+    console.log('✅ After update - notifications now marked as read:', updatedConversationNotifications.map(n => ({
+      id: n.id,
+      type: n.type,
+      isRead: n.isRead,
+      readAt: n.readAt
+    })));
+
+    return { messageNotifications: updated };
+  });
+},
 
       updateNotificationsForRejectedConversation: (conversationId: number) => {
         set((state) => ({

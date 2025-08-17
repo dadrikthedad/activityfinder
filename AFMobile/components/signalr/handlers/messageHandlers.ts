@@ -19,18 +19,21 @@ type SyncPendingConversationFunction = (conversationId: number, forceRefresh?: b
 export const handleMessage = async (
   message: MessageDTO,
   userId: number | null,
-  currentConversationId: number | null,
-  showMessages: boolean,
+  currentConversationId: number | null, // Dette kan være utdatert
+  showMessages: boolean, // Dette kan være utdatert
   ensureConversationExists: (conversationId: number, shouldCache?: boolean) => Promise<void>,
 ) => {
   console.log("💬 Mottatt melding via useChatHub:", message);
   const {
     addMessage,
     registerOptimisticMapping,
-    registerOptimisticAttachmentMapping, // 🆕 Legg til denne
+    registerOptimisticAttachmentMapping,
     updateConversationTimestamp,
     conversations,
-    liveMessages
+    liveMessages,
+    // 🆕 Hent den faktiske tilstanden fra store
+    currentConversationId: actualCurrentConversationId,
+    isAtBottom
   } = useChatStore.getState();
  
   try {
@@ -90,12 +93,14 @@ export const handleMessage = async (
   const conversation = conversations.find(c => c.id === message.conversationId);
   const userIdAsNumber = userId ?? null;
  
-  if (
-    message.senderId !== userIdAsNumber &&
-    (!showMessages || message.conversationId !== currentConversationId) &&
+  // 🔧 FIX: Bruk faktisk store-tilstand i stedet for parametere
+  const isInCurrentConversation = message.conversationId === actualCurrentConversationId;
+  const shouldShowToast = message.senderId !== userIdAsNumber &&
+    (!isInCurrentConversation || !isAtBottom) && // 🆕 Sjekk faktisk tilstand
     !message.isSilent &&
-    !message.isSystemMessage
-  ) {
+    !message.isSystemMessage;
+
+  if (shouldShowToast) {
     showNotificationToastNative({
       senderName: message.sender?.fullName ?? "ukjent",
       messagePreview: truncateText(message.text),

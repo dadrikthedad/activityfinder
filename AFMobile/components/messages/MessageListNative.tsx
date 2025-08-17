@@ -359,10 +359,12 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   const { showReactionUsers } = useReactionUsersModal();
   const { confirm } = useConfirmModalNative();
 
-   const { markAsReadForConversation } = useMarkConversationNotificationsAsRead();
-   const unreadConversationIds = useChatStore(state => state.unreadConversationIds);
-   const [isCurrentlyAtBottom, setIsCurrentlyAtBottom] = useState(true);
-   const { markAsReadForConversation: updateLocalNotificationRead } = useMessageNotificationStore.getState();
+  const [isCurrentlyAtBottom, setIsCurrentlyAtBottom] = useState(true);
+
+  const { markAsReadForConversation } = useMarkConversationNotificationsAsRead();
+  const markConversationAsReadLocally = useChatStore(state => state.markConversationAsReadLocally);
+
+
 
   const {
     messages,
@@ -590,34 +592,36 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
         handleLoadMoreSmooth();
       }, 300);
     }
-  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex, showNewMessageBanner, markAsReadForConversation]);
+  }, [isInitialized, hasMore, loading, isLoadingMore, handleLoadMoreSmooth, onScrollPositionChange, getVisibleMessageIndex, showNewMessageBanner]);
 
-  useEffect(() => {
-  if (!conversationId || conversationId === -1 || !conversationVisible || isSearchMode || !isInitialized) {
+  const hasMarkedAsRead = useRef(new Set<number>());
+
+useEffect(() => {
+  if (!conversationVisible || !isCurrentlyAtBottom || !conversationId || conversationId === -1) {
     return;
   }
 
-  // Sjekk om denne samtalen er markert som ulest OG vi er i bunnen
-  const isConversationUnread = unreadConversationIds.includes(conversationId);
-  
-  if (isConversationUnread && isCurrentlyAtBottom) {
-    console.log(`📖 Conversation ${conversationId} is unread and user is at bottom - marking as read`);
-    
-    // Mark conversation as read (your existing logic)
-    markAsReadForConversation(conversationId);
-    
-    // NEW: Also update local notifications for this conversation
-    updateLocalNotificationRead(conversationId); // <- Nå sender vi conversationId i stedet for å iterere
+  // Ikke kjør hvis vi allerede har markert denne samtalen som lest
+  if (hasMarkedAsRead.current.has(conversationId)) {
+    return;
   }
+
+  console.log(`📖 User entered conversation ${conversationId} - marking as read (first time)`);
+  
+  // Markér at vi har behandlet denne samtalen
+  hasMarkedAsRead.current.add(conversationId);
+  
+  // Kall server API
+  markAsReadForConversation(conversationId);
+  
+  // Oppdater lokalt
+  markConversationAsReadLocally(conversationId);
 }, [
-  unreadConversationIds,
-  isCurrentlyAtBottom,
-  conversationId,
   conversationVisible,
-  isSearchMode,
-  isInitialized,
+  conversationId,
+  isCurrentlyAtBottom,
   markAsReadForConversation,
-  updateLocalNotificationRead
+  markConversationAsReadLocally
 ]);
   
   // Reset state when conversation changes
@@ -716,12 +720,16 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     onConversationError?.(error);
   }, [error, onConversationError]);
   
-  // Cleanup timers on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
+      // Cleanup timers
       if (loadMoreThrottleRef.current) {
         clearTimeout(loadMoreThrottleRef.current);
       }
+      
+      // Cleanup ref
+      hasMarkedAsRead.current.clear();
     };
   }, []);
 
