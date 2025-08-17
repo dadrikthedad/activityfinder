@@ -19,14 +19,14 @@ import {
   User, 
   Settings, 
   Home, 
-  Cloud, 
-  Info 
+  Trash2
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '@/types/navigation';
+import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 
 interface MobileNavbarNativeProps {
   onNavigateToMessages?: () => void;
@@ -41,9 +41,14 @@ export default function MobileNavbarNative({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   
-  // Notification state for badge
+  // General notification state for bell badge
   const notifications = useNotificationStore((s) => s.notifications);
   const unreadNotifications = notifications.filter((n) => !n.isRead).length;
+  
+  // Message notification state for chat badge
+  const unreadMessageNotifications = useMessageNotificationStore(
+    (state) => state.messageNotifications.filter((n) => !n.isRead).length
+  );
 
   const handleToggleMenu = useCallback(() => {
     setIsMenuOpen(prev => !prev);
@@ -105,6 +110,13 @@ export default function MobileNavbarNative({
               style={styles.iconButton}
             >
               <MessageSquare size={20} color="white" />
+              {unreadMessageNotifications > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unreadMessageNotifications > 99 ? "99+" : unreadMessageNotifications.toString()}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
 
@@ -200,8 +212,16 @@ export default function MobileNavbarNative({
                     <Text style={styles.menuItemText}>Messages</Text>
                   </TouchableOpacity>
 
-                  <View style={styles.separator} />
+                  <TouchableOpacity
+                    onPress={() => handleNavigation('TrashcanScreen')}
+                    style={styles.menuItem}
+                  >
+                    <Trash2 size={18} color="#374151" />
+                    <Text style={styles.menuItemText}>Trashcan</Text>
+                  </TouchableOpacity>
 
+                  <View style={styles.separator} />
+                  
                   {/* Settings */}
                   <TouchableOpacity
                     onPress={() => handleNavigation('EditProfile')}
@@ -219,6 +239,8 @@ export default function MobileNavbarNative({
                     <Text style={styles.menuItemText}>Settings</Text>
                   </TouchableOpacity>
 
+                  
+
                   <View style={styles.separator} />
 
                   {/* Logout */}
@@ -226,7 +248,7 @@ export default function MobileNavbarNative({
                     onPress={handleLogout}
                     style={[styles.menuItem, styles.logoutItem]}
                   >
-                    <LogIn size={18} color="#dc2626" />
+                    <LogIn size={18} color="white" />
                     <Text style={styles.logoutText}>Log Out</Text>
                   </TouchableOpacity>
                 </>
@@ -302,7 +324,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#dc2626',
+    backgroundColor: '#9CA3AF',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -375,11 +397,11 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   logoutItem: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#9CA3AF',
   },
   logoutText: {
     fontSize: 16,
-    color: '#dc2626',
+    color: 'white',
   },
   loginText: {
     fontSize: 16,

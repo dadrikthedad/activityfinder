@@ -48,14 +48,14 @@ export function useConfirmModalNative() {
                 style={[styles.button, styles.cancelButton]}
                 onPress={() => handleClose(false)}
               >
-                <Text style={styles.cancelButtonText}>Avbryt</Text>
+                <Text style={styles.cancelButtonText}>Decline</Text>
               </TouchableOpacity>
              
               <TouchableOpacity
                 style={[styles.button, styles.confirmButton]}
                 onPress={() => handleClose(true)}
               >
-                <Text style={styles.confirmButtonText}>Bekreft</Text>
+                <Text style={styles.confirmButtonText}>Confirm</Text>
               </TouchableOpacity>
             </View>
           </View>

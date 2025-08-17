@@ -7,12 +7,12 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { Check, X } from 'lucide-react-native';
 import { usePendingMessageRequests } from '@/hooks/messages/usePendingMessageRequests';
 import { useApproveMessageRequest } from '@/hooks/messages/useApproveMessageRequest';
 import { useRejectMessageRequest } from '@/hooks/messages/useRejectMessageRequest';
+import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { ConversationListItemNative } from './ConversationListItemNative';
@@ -41,6 +41,7 @@ export function PendingRequestsListNative({
   
   const { approve, loading: approving } = useApproveMessageRequest();
   const { reject, loading: rejecting } = useRejectMessageRequest();
+  const { confirm } = useConfirmModalNative();
   
   const conversations = useChatStore((s) => s.conversations);
 
@@ -50,26 +51,20 @@ export function PendingRequestsListNative({
     const requestType = r.isGroup ? "group invitation" : "message request";
     const actionText = r.isGroup ? "decline" : "reject";
 
-    Alert.alert(
-      r.isGroup ? "Decline Group Invitation" : "Reject Message Request",
-      `Are you sure you want to ${actionText} the ${requestType} from ${r.senderName}${r.isGroup && r.groupName ? ` to join ${r.groupName}` : ''}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: actionText.charAt(0).toUpperCase() + actionText.slice(1), 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await reject(r.senderId, r.conversationId!, r.isGroup || false);
-              removeRequest(r.conversationId!);
-            } catch (error) {
-              console.error('❌ Error rejecting request:', error);
-              Alert.alert("Error", "Failed to reject request. Please try again.");
-            }
-          }
-        }
-      ]
-    );
+    const confirmed = await confirm({
+      title: r.isGroup ? "Decline Group Invitation" : "Reject Message Request",
+      message: `Are you sure you want to ${actionText} the ${requestType} from ${r.senderName}${r.isGroup && r.groupName ? ` to join ${r.groupName}` : ''}?`
+    });
+
+    if (confirmed) {
+      try {
+        await reject(r.senderId, r.conversationId!, r.isGroup || false);
+        removeRequest(r.conversationId!);
+      } catch (error) {
+        console.error('❌ Error rejecting request:', error);
+        // You might want to show another modal or toast for errors
+      }
+    }
   };
 
   const handleApprove = async (r: MessageRequestDTO) => {
@@ -80,7 +75,7 @@ export function PendingRequestsListNative({
         removeRequest(r.conversationId);
       } catch (error) {
         console.error('❌ Error approving request:', error);
-        Alert.alert("Error", "Failed to approve request. Please try again.");
+        // You might want to show another modal or toast for errors
       }
     }
   };

@@ -27,6 +27,7 @@ import { useChatStore } from './store/useChatStore';
 import GroupSettingsScreen from './screens/messages/GroupSettingsScreen';
 import NewConversationScreen from './screens/messages/NewConversationScreen';
 import MessageNotificationScreen from './screens/messages/MessageNotificationScreen';
+import TrashcanScreen from './screens/messages/TrashcanScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -108,6 +109,15 @@ function AuthenticatedApp() {
                 </>
               )}
             </Stack.Screen>
+            <Stack.Screen name="TrashcanScreen">
+              {({ navigation }) => (
+                <>
+                  <MobileNavbarNative />
+                  <TrashcanScreen navigation={navigation} />
+                </>
+              )}
+            </Stack.Screen>
+
            
             {/* Sider UTEN navbar (fullscreen) */}
             <Stack.Screen
