@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
+  StatusBar,
+  Keyboard,
 } from 'react-native';
 import { showNotificationToastNative } from '@/components/toast/NotificationToastNative';
 import { LocalToastType } from '@/components/toast/NotificationToastNative';
@@ -243,7 +245,7 @@ export default function InviteUsersModalNative({
           <View style={styles.existingParticipantsContainer}>
             <FlatList
               horizontal
-              data={existingParticipants.slice(0, 10)}
+              data={existingParticipants}
               renderItem={({ item: participant }) => (
                 <View style={styles.existingParticipantChip}>
                   <MiniAvatarNative
@@ -259,11 +261,6 @@ export default function InviteUsersModalNative({
               contentContainerStyle={styles.existingParticipantsList}
               showsHorizontalScrollIndicator={false}
             />
-            {existingParticipants.length > 10 && (
-              <Text style={styles.moreParticipantsText}>
-                +{existingParticipants.length - 10} more
-              </Text>
-            )}
           </View>
         );
 

@@ -103,10 +103,9 @@ export const useAttachmentViewer = ({
     }
 
     // Check if it's uploading (for optimistic attachments)
-    const isUploading = attachments?.[index]?.isUploading;
     const uploadError = attachments?.[index]?.uploadError;
     
-    if (isUploading || uploadError) {
+    if (uploadError) {
       if (uploadError) {
         Alert.alert(
           'Upload Failed', 
@@ -241,7 +240,7 @@ export const createAttachmentPressHandler = () => {
     const showUploadStatus = Boolean(
       attachment.isOptimistic && 
       !isMapped && 
-      (attachment.isUploading || attachment.uploadError)
+      (attachment.uploadError)
     );
     
     if (showUploadStatus) {

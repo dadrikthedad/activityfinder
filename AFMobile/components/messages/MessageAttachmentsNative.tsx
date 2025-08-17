@@ -96,8 +96,7 @@ export default function MessageAttachmentsNative({
   const handleAttachmentPress = (attachment: AttachmentDto, index: number) => {
     const showUploadStatus = Boolean(
       attachment.isOptimistic && 
-      !isMapped && 
-      (attachment.isUploading || attachment.uploadError)
+      (attachment.uploadError)
     );
     
     if (showUploadStatus) {

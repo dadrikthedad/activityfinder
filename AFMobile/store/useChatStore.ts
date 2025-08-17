@@ -365,77 +365,84 @@ export const useChatStore = create<ChatStore>()(
           }),
 
       updateMessageReactions: (reaction: ReactionDTO) =>
-        set((state) => {
-          console.log("🔁 Oppdaterer reaction i store:", reaction);
-          
-          // 🔧 Oppdatert updateMessages som håndterer både direkte ID og optimistic mapping
-          const updateMessages = (messages: MessageDTO[]) =>
-            messages.map((m) => {
-              // Sjekk om denne meldingen er target for reaksjonen
-              const isDirectMatch = m.id === reaction.messageId;
-              const isOptimisticMatch = m.isOptimistic && 
-                state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId;
-              
-              if (!isDirectMatch && !isOptimisticMatch) return m;
-              
-              console.log(`🎯 Updating reactions for message:`, {
-                messageId: m.id,
-                isOptimistic: m.isOptimistic,
-                optimisticId: m.optimisticId,
-                reactionMessageId: reaction.messageId,
-                matchType: isDirectMatch ? 'direct' : 'optimistic'
-              });
+  set((state) => {
+    console.log("🔁 Oppdaterer reaction i store:", reaction);
+    
+    // 🆕 VALIDERING: Sjekk at reaction har gyldig messageId
+    if (!reaction.messageId) {
+      console.error("❌ Reaction has undefined messageId, skipping update:", reaction);
+      return state; // Returner uendret state
+    }
+    
+    // 🔧 Oppdatert updateMessages som håndterer både direkte ID og optimistic mapping
+    const updateMessages = (messages: MessageDTO[]) =>
+      messages.map((m) => {
+        // Sjekk om denne meldingen er target for reaksjonen
+        const isDirectMatch = m.id === reaction.messageId;
+        const isOptimisticMatch = m.isOptimistic && 
+          state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId;
+        
+        if (!isDirectMatch && !isOptimisticMatch) return m;
+        
+        console.log(`🎯 Updating reactions for message:`, {
+          messageId: m.id,
+          isOptimistic: m.isOptimistic,
+          optimisticId: m.optimisticId,
+          reactionMessageId: reaction.messageId,
+          matchType: isDirectMatch ? 'direct' : 'optimistic'
+        });
 
-              const existing = m.reactions ?? [];
-              
-              // 🔧 ORIGINAL LOGIKK: Fjern alle reaksjoner fra samme bruker først
-              const filtered = existing.filter((r) => r.userId !== reaction.userId);
-              
-              // Så legg til ny reaksjon hvis den ikke er fjernet
-              if (!reaction.isRemoved) {
-                filtered.push(reaction);
-              }
-              
-              return { ...m, reactions: filtered };
-            });
+        const existing = m.reactions ?? [];
+        
+        // 🔧 ORIGINAL LOGIKK: Fjern alle reaksjoner fra samme bruker først
+        const filtered = existing.filter((r) => r.userId !== reaction.userId);
+        
+        // Så legg til ny reaksjon hvis den ikke er fjernet
+        if (!reaction.isRemoved) {
+          filtered.push(reaction);
+        }
+        
+        return { ...m, reactions: filtered };
+      });
 
-          const liveMessages = { ...state.liveMessages };
-          const cachedMessages = { ...state.cachedMessages };
+    const liveMessages = { ...state.liveMessages };
+    const cachedMessages = { ...state.cachedMessages };
 
-          // Oppdater liveMessages
-          for (const [convId, msgs] of Object.entries(state.liveMessages)) {
-            // Sjekk både direkte match og optimistic mapping
-            const hasTargetMessage = msgs.some((m) => 
-              m.id === reaction.messageId || 
-              (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
-            );
-            
-            if (hasTargetMessage) {
-              liveMessages[+convId] = updateMessages(msgs);
-              console.log(`📝 Updated liveMessages for conversation ${convId}`);
-            }
-          }
+    // Oppdater liveMessages
+    for (const [convId, msgs] of Object.entries(state.liveMessages)) {
+      // Sjekk både direkte match og optimistic mapping
+      const hasTargetMessage = msgs.some((m) => 
+        m.id === reaction.messageId || 
+        (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
+      );
+      
+      if (hasTargetMessage) {
+        liveMessages[+convId] = updateMessages(msgs);
+        console.log(`📝 Updated liveMessages for conversation ${convId}`);
+      }
+    }
 
-          // Oppdater cachedMessages  
-          for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
-            // Sjekk både direkte match og optimistic mapping
-            const hasTargetMessage = msgs.some((m) => 
-              m.id === reaction.messageId || 
-              (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
-            );
-            
-            if (hasTargetMessage) {
-              cachedMessages[+convId] = updateMessages(msgs);
-              console.log(`💾 Updated cachedMessages for conversation ${convId}`);
-            }
-          }
+    // Oppdater cachedMessages  
+    for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
+      // Sjekk både direkte match og optimistic mapping
+      const hasTargetMessage = msgs.some((m) => 
+        m.id === reaction.messageId || 
+        (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
+      );
+      
+      if (hasTargetMessage) {
+        cachedMessages[+convId] = updateMessages(msgs);
+        console.log(`💾 Updated cachedMessages for conversation ${convId}`);
+      }
+    }
 
-          return {
-            liveMessages,
-            cachedMessages,
-            reactionsVersion: state.reactionsVersion + 1,
-          };
-        }),
+    return {
+      liveMessages,
+      cachedMessages,
+      reactionsVersion: state.reactionsVersion + 1,
+    };
+  }),
+  
       setCachedMessages: (conversationId, messages) =>
         set((state) => ({
           cachedMessages: {

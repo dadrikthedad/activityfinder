@@ -143,14 +143,14 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   const imageUri = normalizedData.isOptimistic ? normalizedData.localUri : normalizedData.fileUrl;
   
   // Show upload status
-  const showUploadStatus = Boolean(isUploading || uploadError);
+  const showUploadStatus = Boolean(uploadError);
 
   // Get file extension and formatted size
   const fileExtension = normalizedData.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
   const formattedSize = normalizedData.size ? formatFileSize(normalizedData.size) : '';
 
   const handlePress = () => {
-    if (disabled || showUploadStatus) return;
+    if (disabled) return;
     
     if (isBlurred) {
       // Handle blur toggle if needed
