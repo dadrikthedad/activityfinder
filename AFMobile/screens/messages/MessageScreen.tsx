@@ -179,6 +179,7 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
             selectedId={null}
             onSelect={handleSelectConversation}
             currentUser={currentUser}
+            navigation={navigation}
           />
         </View>
 

@@ -4,7 +4,8 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useUploadGroupImageNative } from '@/hooks/files/useUploadGroupImageNative';
 import { useChatStore } from '@/store/useChatStore';
 import { useUpdateGroupName } from '@/hooks/messages/useUpdateGroupName';
-import * as ImagePicker from 'expo-image-picker';
+import { useAttachmentPicker } from '@/components/files/filepicker/useAttachmentPicker';
+import { RNFile } from '@/utils/files/FileFunctions';
 
 interface UseGroupSettingsPopoverNativeProps {
   user: UserSummaryDTO;
@@ -40,60 +41,62 @@ export function useGroupSettingsPopoverNative({
   // Display name - use updated name from store if available
   const displayName = currentConversation?.groupName || user.fullName;
 
-  // Group image handlers - React Native version
-  const handleImageUpload = useCallback(
-    async (asset: ImagePicker.ImagePickerAsset) => {
-      try {
-        console.log('🔄 Uploading group image:', asset.uri);
-        
-        // Convert ImagePicker asset to format expected by upload function
-        const imageData = {
-          uri: asset.uri,
-          type: asset.type || 'image/jpeg',
-          name: asset.fileName || 'group-image.jpg',
-        };
-
-        const imageUrl = await uploadGroupImage(imageData, conversationId);
-        console.log('✅ Got imageUrl from API:', imageUrl);
-
-        if (imageUrl) {
-          setGroupImageUrl(imageUrl);
-          console.log('📝 Set groupImageUrl to:', imageUrl);
-
-          // Update store immediately
-          updateConversation(conversationId, { groupImageUrl: imageUrl });
-          console.log('🏪 Updated conversation in store:', conversationId);
-        }
-      } catch (err) {
-        console.error('Failed to upload group image:', err);
-      }
-    },
-    [uploadGroupImage, conversationId, updateConversation]
-  );
-
-  const triggerImageUpload = useCallback(async () => {
-    // Request permissions
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  // Handle file selection from AttachmentPicker
+  const handleFilesSelected = useCallback(async (files: RNFile[]) => {
+    if (files.length === 0) return;
     
-    if (status !== 'granted') {
-      alert('Sorry, we need camera roll permissions to change the group image!');
-      return;
+    const file = files[0]; // Take first file (should be an image)
+    
+    try {
+      console.log('🔄 Uploading group image:', file.uri);
+      
+      // Convert RNFile to format expected by upload function
+      const imageData = {
+        uri: file.uri,
+        type: file.type,
+        name: file.name,
+      };
+
+      const imageUrl = await uploadGroupImage(imageData, conversationId);
+      console.log('✅ Got imageUrl from API:', imageUrl);
+
+      if (imageUrl) {
+        setGroupImageUrl(imageUrl);
+        console.log('📝 Set groupImageUrl to:', imageUrl);
+
+        // Update store immediately
+        updateConversation(conversationId, { groupImageUrl: imageUrl });
+        console.log('🏪 Updated conversation in store:', conversationId);
+      }
+    } catch (err) {
+      console.error('Failed to upload group image:', err);
     }
+  }, [uploadGroupImage, conversationId, updateConversation]);
 
-    // Launch image picker
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+  // Use AttachmentPicker hook
+  const {
+    showPicker,
+    showModal,
+    setShowModal,
+    handleCamera,
+    handleImagePicker,
+    handleDocumentPicker,
+  } = useAttachmentPicker({
+    onFilesSelected: handleFilesSelected,
+    allowMultipleImages: false, // Kun ett bilde for gruppebildet
+    allowVideos: false, // Ikke tillat videoer for gruppebilde
+    allowDocuments: false, // Ikke tillat dokumenter for gruppebilde
+    imageQuality: 0.7, // God kvalitet for gruppebilde
+    cameraQuality: 0.7, // God kvalitet for kamera
+  });
 
-    if (!result.canceled && result.assets?.[0]) {
-      await handleImageUpload(result.assets[0]);
-    }
-  }, [handleImageUpload]);
+  // Group image handlers - React Native version using AttachmentPicker
+  const triggerImageUpload = useCallback(() => {
+    // Use the AttachmentPicker instead of direct ImagePicker
+    showPicker();
+  }, [showPicker]);
 
-  // Group name handlers (same as web version)
+  // Group name handlers (same as before)
   const handleStartEditGroupName = useCallback(() => {
     setTempGroupName(currentConversation?.groupName || user.fullName || '');
     setIsEditingGroupName(true);
@@ -131,8 +134,14 @@ export function useGroupSettingsPopoverNative({
     groupImageUrl,
     uploadingImage,
     uploadError,
-    handleImageUpload,
     triggerImageUpload,
+
+    // AttachmentPicker states
+    showModal,
+    setShowModal,
+    handleCamera,
+    handleImagePicker,
+    handleDocumentPicker,
 
     // Group name
     isEditingGroupName,

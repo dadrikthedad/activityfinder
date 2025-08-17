@@ -7,17 +7,17 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  ScrollView,
   StyleSheet,
-  StatusBar,
-  Alert,
-  Keyboard,
 } from 'react-native';
+import { showNotificationToastNative } from '@/components/toast/NotificationToastNative';
+import { LocalToastType } from '@/components/toast/NotificationToastNative';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useUserSearchForGroupInvite } from '@/hooks/search/useUserSearchForGroupInvite';
 import { useGroupRequests } from '@/hooks/messages/useGroupRequests';
 import MiniAvatarNative from '@/components/common/MiniAvatarNative';
 import ButtonNative from '@/components/common/ButtonNative';
+import AppHeader from '@/components/common/AppHeader';
+import { X } from 'lucide-react-native';
 
 interface InviteUsersModalNativeProps {
   visible: boolean;
@@ -81,98 +81,74 @@ export default function InviteUsersModalNative({
         console.log('✅ Invitasjoner sendt:', response);
         onInvitesSent?.(response);
         
-        Alert.alert(
-          'Success',
-          `Sent invitations to ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''}`,
-          [{ text: 'OK', onPress: onClose }]
-        );
+        // Show success toast
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Invitations Sent!",
+          customBody: `Successfully invited ${selectedUsers.length} user${selectedUsers.length > 1 ? 's' : ''} to ${groupName}`,
+          position: 'top'
+        });
+        
+        // Close modal after short delay
+        setTimeout(() => {
+          onClose();
+        }, 1000);
       }
     } catch (err) {
       console.error('❌ Feil ved sending av invitasjoner:', err);
-      Alert.alert('Error', 'Failed to send invitations. Please try again.');
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: "Failed to send invitations. Please try again.",
+        position: 'top'
+      });
     }
   };
 
-  const renderSearchResult = ({ item: user, index }: { item: UserSummaryDTO; index: number }) => (
-    <TouchableOpacity
-      style={styles.searchResultItem}
-      onPress={() => handleAddUser(user)}
-    >
-      <MiniAvatarNative
-        imageUrl={user.profileImageUrl ?? '/default-avatar.png'}
-        alt={user.fullName}
-        size={40}
-        withBorder
-      />
-      <Text style={styles.searchResultName}>{user.fullName}</Text>
-    </TouchableOpacity>
-  );
+  // Create sections data for FlatList
+  const createSectionsData = () => {
+    const sections: any[] = [];
+    
+    // Search section (header er nå separat)
+    sections.push({ type: 'search' });
+    
+    // Search results section
+    if (query) {
+      if (loading) {
+        sections.push({ type: 'loading' });
+      } else if (filteredResults.length === 0) {
+        sections.push({ type: 'no-results' });
+      } else {
+        filteredResults.forEach(user => {
+          sections.push({ type: 'search-result', data: user });
+        });
+      }
+    }
+    
+    // Selected users section
+    if (selectedUsers.length > 0) {
+      sections.push({ type: 'selected-header' });
+      sections.push({ type: 'selected-users' });
+    }
+    
+    // Existing participants section
+    if (existingParticipants.length > 0) {
+      sections.push({ type: 'existing-header' });
+      sections.push({ type: 'existing-participants' });
+    }
+    
+    // Error section
+    if (error) {
+      sections.push({ type: 'error' });
+    }
+    
+    return sections;
+  };
 
-  const renderSelectedUser = ({ item: user }: { item: UserSummaryDTO }) => (
-    <View style={styles.selectedUserChip}>
-      <MiniAvatarNative
-        imageUrl={user.profileImageUrl ?? '/default-avatar.png'}
-        alt={user.fullName}
-        size={24}
-        withBorder={false}
-      />
-      <Text style={styles.selectedUserName}>{user.fullName}</Text>
-      <TouchableOpacity
-        onPress={() => handleRemoveUser(user.id)}
-        style={styles.removeButton}
-      >
-        <Text style={styles.removeButtonText}>✕</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderExistingParticipant = ({ item: participant }: { item: UserSummaryDTO }) => (
-    <View style={styles.existingParticipantChip}>
-      <MiniAvatarNative
-        imageUrl={participant.profileImageUrl ?? '/default-avatar.png'}
-        alt={participant.fullName}
-        size={20}
-        withBorder={false}
-      />
-      <Text style={styles.existingParticipantName}>{participant.fullName}</Text>
-    </View>
-  );
-
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-          
-          <Text style={styles.headerTitle}>Invite to {groupName}</Text>
-          
-          <TouchableOpacity
-            onPress={handleSendInvitations}
-            style={[
-              styles.sendButton,
-              (selectedUsers.length === 0 || isLoading) && styles.sendButtonDisabled
-            ]}
-            disabled={selectedUsers.length === 0 || isLoading}
-          >
-            <Text style={[
-              styles.sendButtonText,
-              (selectedUsers.length === 0 || isLoading) && styles.sendButtonTextDisabled
-            ]}>
-              {isLoading ? 'Sending...' : `Send (${selectedUsers.length})`}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-          {/* Search Input */}
+  const renderSectionItem = ({ item }: { item: any }) => {
+    switch (item.type) {
+      case 'search':
+        return (
           <View style={styles.searchSection}>
             <TextInput
               ref={searchInputRef}
@@ -184,78 +160,161 @@ export default function InviteUsersModalNative({
               autoFocus
             />
           </View>
+        );
 
-          {/* Search Results */}
-          {query && (
-            <View style={styles.searchResults}>
-              {loading && (
-                <View style={styles.loadingContainer}>
-                  <Text style={styles.loadingText}>Loading...</Text>
+      case 'loading':
+        return (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        );
+
+      case 'no-results':
+        return (
+          <View style={styles.noResultsContainer}>
+            <Text style={styles.noResultsText}>No users found</Text>
+          </View>
+        );
+
+      case 'search-result':
+        return (
+          <TouchableOpacity
+            style={styles.searchResultItem}
+            onPress={() => handleAddUser(item.data)}
+          >
+            <MiniAvatarNative
+              imageUrl={item.data.profileImageUrl ?? '/default-avatar.png'}
+              alt={item.data.fullName}
+              size={40}
+              withBorder
+            />
+            <Text style={styles.searchResultName}>{item.data.fullName}</Text>
+          </TouchableOpacity>
+        );
+
+      case 'selected-header':
+        return (
+          <View style={styles.sectionHeaderContainer}>
+            <Text style={styles.sectionTitle}>Selected Users ({selectedUsers.length})</Text>
+          </View>
+        );
+
+      case 'selected-users':
+        return (
+          <View style={styles.selectedUsersContainer}>
+            <FlatList
+              horizontal
+              data={selectedUsers}
+              renderItem={({ item: user }) => (
+                <View style={styles.selectedUserChip}>
+                  <MiniAvatarNative
+                    imageUrl={user.profileImageUrl ?? '/default-avatar.png'}
+                    alt={user.fullName}
+                    size={24}
+                    withBorder={false}
+                  />
+                  <Text style={styles.selectedUserName}>{user.fullName}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleRemoveUser(user.id)}
+                    style={styles.removeButton}
+                  >
+                    <Text style={styles.removeButtonText}>✕</Text>
+                  </TouchableOpacity>
                 </View>
               )}
-              
-              {!loading && filteredResults.length === 0 && (
-                <View style={styles.noResultsContainer}>
-                  <Text style={styles.noResultsText}>No users found</Text>
+              keyExtractor={item => item.id.toString()}
+              contentContainerStyle={styles.selectedUsersList}
+              showsHorizontalScrollIndicator={false}
+            />
+          </View>
+        );
+
+      case 'existing-header':
+        return (
+          <View style={styles.sectionHeaderContainer}>
+            <Text style={styles.sectionTitle}>
+              Current Members ({existingParticipants.length})
+            </Text>
+          </View>
+        );
+
+      case 'existing-participants':
+        return (
+          <View style={styles.existingParticipantsContainer}>
+            <FlatList
+              horizontal
+              data={existingParticipants.slice(0, 10)}
+              renderItem={({ item: participant }) => (
+                <View style={styles.existingParticipantChip}>
+                  <MiniAvatarNative
+                    imageUrl={participant.profileImageUrl ?? '/default-avatar.png'}
+                    alt={participant.fullName}
+                    size={20}
+                    withBorder={false}
+                  />
+                  <Text style={styles.existingParticipantName}>{participant.fullName}</Text>
                 </View>
               )}
-              
-              {!loading && filteredResults.length > 0 && (
-                <FlatList
-                  data={filteredResults}
-                  renderItem={renderSearchResult}
-                  keyExtractor={item => item.id.toString()}
-                  style={styles.resultsList}
-                  keyboardShouldPersistTaps="handled"
-                />
-              )}
-            </View>
-          )}
-
-          {/* Selected Users */}
-          {selectedUsers.length > 0 && (
-            <View style={styles.selectedSection}>
-              <Text style={styles.sectionTitle}>Selected Users ({selectedUsers.length})</Text>
-              <FlatList
-                horizontal
-                data={selectedUsers}
-                renderItem={renderSelectedUser}
-                keyExtractor={item => item.id.toString()}
-                contentContainerStyle={styles.selectedUsersList}
-                showsHorizontalScrollIndicator={false}
-              />
-            </View>
-          )}
-
-          {/* Existing Participants */}
-          {existingParticipants.length > 0 && (
-            <View style={styles.existingSection}>
-              <Text style={styles.sectionTitle}>
-                Current Members ({existingParticipants.length})
+              keyExtractor={item => item.id.toString()}
+              contentContainerStyle={styles.existingParticipantsList}
+              showsHorizontalScrollIndicator={false}
+            />
+            {existingParticipants.length > 10 && (
+              <Text style={styles.moreParticipantsText}>
+                +{existingParticipants.length - 10} more
               </Text>
-              <FlatList
-                horizontal
-                data={existingParticipants.slice(0, 10)} // Limit to first 10
-                renderItem={renderExistingParticipant}
-                keyExtractor={item => item.id.toString()}
-                contentContainerStyle={styles.existingParticipantsList}
-                showsHorizontalScrollIndicator={false}
-              />
-              {existingParticipants.length > 10 && (
-                <Text style={styles.moreParticipantsText}>
-                  +{existingParticipants.length - 10} more
-                </Text>
-              )}
-            </View>
-          )}
+            )}
+          </View>
+        );
 
-          {/* Error Display */}
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-        </ScrollView>
+      case 'error':
+        return (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        {/* App Header */}
+        <AppHeader
+          title={`Invite to ${groupName}`}
+          onBackPress={onClose}
+          backIcon={X}
+        />
+        
+        <FlatList
+          data={createSectionsData()}
+          renderItem={renderSectionItem}
+          keyExtractor={(item, index) => `${item.type}-${index}`}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+        />
+        
+        {/* Send Button at bottom */}
+        {selectedUsers.length > 0 && (
+          <View style={styles.sendButtonContainer}>
+            <ButtonNative
+              text={isLoading ? 'Sending...' : `Send Invitations (${selectedUsers.length})`}
+              onPress={handleSendInvitations}
+              variant="primary"
+              disabled={selectedUsers.length === 0 || isLoading}
+              fullWidth
+            />
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -266,54 +325,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 50,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  cancelButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
-  sendButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#1C6B1C',
-    borderRadius: 8,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#d1d5db',
-  },
-  sendButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
-  },
-  sendButtonTextDisabled: {
-    color: '#9ca3af',
-  },
   content: {
-    flex: 1,
+    paddingBottom: 20,
+  },
+  sendButtonContainer: {
     paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
   },
   searchSection: {
+    paddingHorizontal: 16,
     paddingVertical: 16,
   },
   searchInput: {
@@ -324,14 +348,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: '#f9fafb',
-  },
-  searchResults: {
-    maxHeight: 300,
-    borderWidth: 1,
-    borderColor: '#1C6B1C',
-    borderRadius: 8,
-    backgroundColor: 'white',
-    marginBottom: 16,
   },
   loadingContainer: {
     padding: 20,
@@ -347,13 +363,11 @@ const styles = StyleSheet.create({
   noResultsText: {
     color: '#6b7280',
   },
-  resultsList: {
-    maxHeight: 280,
-  },
   searchResultItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
     gap: 12,
@@ -362,14 +376,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#1f2937',
   },
-  selectedSection: {
-    marginBottom: 20,
+  sectionHeaderContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 12,
+  },
+  selectedUsersContainer: {
+    paddingHorizontal: 16,
   },
   selectedUsersList: {
     paddingBottom: 8,
@@ -397,8 +415,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  existingSection: {
-    marginBottom: 20,
+  existingParticipantsContainer: {
+    paddingHorizontal: 16,
   },
   existingParticipantsList: {
     paddingBottom: 8,
@@ -429,6 +447,7 @@ const styles = StyleSheet.create({
     borderColor: '#fecaca',
     borderRadius: 8,
     padding: 12,
+    marginHorizontal: 16,
     marginBottom: 16,
   },
   errorText: {

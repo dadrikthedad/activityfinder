@@ -27,9 +27,8 @@ export enum LocalToastType {
   CustomSystemNotice = "CustomSystemNotice",
   FriendInvAccepted = "FriendRequestAccepted",
   MsgRequestAcceptedLocally = "MsgRequestAcceptedLocally",
-  FileDownloaded = "FileDownloaded"
+  FileDownloaded = "FileDownloaded",
 }
-
 
 export type ToastType = NotificationType | LocalToastType;
 
@@ -48,8 +47,11 @@ interface NotificationToastProps {
   affectedUserNames?: string[];
   affectedUsers?: UserSummaryDTO[];
   attachments?: AttachmentDto[];
-  position?: 'top' | 'bottom';  // 👈 Legg til denne
-  offset?: number; 
+  position?: 'top' | 'bottom';
+  offset?: number; // For lokalisjonen
+  // Nye props for CustomSystemNotice
+  customTitle?: string;
+  customBody?: string;
 }
 
 export function showNotificationToastNative(props: NotificationToastProps) {
@@ -94,7 +96,9 @@ function NotificationToastComponent({
     groupEventType,
     affectedUserNames,
     affectedUsers,
-    attachments
+    attachments,
+    customTitle,
+    customBody
   } = props;
 
   const handleNotificationClick = () => {
@@ -136,6 +140,11 @@ function NotificationToastComponent({
 
   const getTitle = (): string => {
     const groupNameText = groupName ?? "a group";
+
+    // Handle CustomSystemNotice
+    if (type === LocalToastType.CustomSystemNotice) {
+      return customTitle || messagePreview || "System Notice";
+    }
 
     if (type === NotificationType.GroupEvent && groupEventType) {
       switch (groupEventType) {
@@ -203,6 +212,11 @@ function NotificationToastComponent({
     let mainMessage = "";
     let attachmentInfo = "";
 
+    // Handle CustomSystemNotice
+    if (type === LocalToastType.CustomSystemNotice) {
+      return customBody || "";
+    }
+
     switch (type) {
       case NotificationType.MessageReaction:
       case LocalToastType.MessageReactionChanged:
@@ -212,7 +226,7 @@ function NotificationToastComponent({
         mainMessage = messagePreview ?? "";
         break;
       case LocalToastType.FileDownloaded:
-          return 'Download complete';
+        return 'Download complete';
       default:
         return "";
     }
@@ -237,14 +251,13 @@ function NotificationToastComponent({
                          type === NotificationType.GroupEvent ||
                          type === NotificationType.GroupDisbanded;
 
-                         
   const shouldShowButtons = (): boolean => {
     switch (type) {
       case LocalToastType.FileDownloaded:
       case LocalToastType.CustomSystemNotice:
-        return false; // 👈 Ingen knapper for disse typene
+        return false; // Ingen knapper for disse typene
       default:
-        return true;  // 👈 Vis knapper for alle andre
+        return true;  // Vis knapper for alle andre
     }
   };
 
@@ -252,12 +265,11 @@ function NotificationToastComponent({
     switch (type) {
       case LocalToastType.FileDownloaded:
       case LocalToastType.CustomSystemNotice:
-        return false; // 👈 Ingen avatar for disse typene
+        return false; // Ingen avatar for disse typene
       default:
-        return true;  // 👈 Vis avatar for alle andre
+        return true;  // Vis avatar for alle andre
     }
   };
-  
 
   return (
     <TouchableOpacity 
@@ -277,17 +289,17 @@ function NotificationToastComponent({
             />
           )}
 
-           <View style={[
-              styles.textContainer,
-              !shouldShowAvatar() && styles.textContainerCentered // 👈 Legg til conditional style
-            ]}>
-              <Text style={[
-                styles.title,
-                !shouldShowAvatar() && styles.titleCentered // 👈 Og her også
-              ]} numberOfLines={2}>
-                {getTitle()}
-              </Text>
-            </View>
+          <View style={[
+            styles.textContainer,
+            !shouldShowAvatar() && styles.textContainerCentered
+          ]}>
+            <Text style={[
+              styles.title,
+              !shouldShowAvatar() && styles.titleCentered
+            ]} numberOfLines={2}>
+              {getTitle()}
+            </Text>
+          </View>
 
           {showGroupImages && (
             <MiniAvatarNative
@@ -303,30 +315,30 @@ function NotificationToastComponent({
         {getBody() && (
           <Text style={[
             styles.body,
-            !shouldShowAvatar() && styles.bodyCentered // 👈 Legg til conditional style
+            !shouldShowAvatar() && styles.bodyCentered
           ]} numberOfLines={3}>
             {getBody()}
           </Text>
         )}
 
         {/* Action buttons */}
-         {shouldShowButtons() && (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={[styles.button, styles.openButton]}
-            onPress={handleNotificationClick}
-          >
-            <Text style={styles.buttonText}>Open</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.button, styles.closeButton]}
-            onPress={hide}
-          >
-            <Text style={styles.buttonText}>Close</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {shouldShowButtons() && (
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={[styles.button, styles.openButton]}
+              onPress={handleNotificationClick}
+            >
+              <Text style={styles.buttonText}>Open</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.button, styles.closeButton]}
+              onPress={hide}
+            >
+              <Text style={styles.buttonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -363,7 +375,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 999999,
     zIndex: 999999,
-    
   },
   header: {
     flexDirection: 'row',
@@ -390,7 +401,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',  
     justifyContent: 'center',
   },
-  
   titleCentered: {
     textAlign: 'center',
   },

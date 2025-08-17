@@ -16,6 +16,7 @@ interface ConversationListItemNativeProps {
   isGroup?: boolean;
   memberCount?: number;
   participants?: UserSummaryDTO[];
+  navigation?: any; // Added navigation prop
 }
 
 export const ConversationListItemNative = ({
@@ -29,14 +30,15 @@ export const ConversationListItemNative = ({
   isGroup = false,
   memberCount,
   participants,
+  navigation, // New prop
 }: ConversationListItemNativeProps) => {
   const conversations = useChatStore((s) => s.conversations);
   const conversation = isGroup ? conversations.find(c => c.id === user.id) : null;
   const storeParticipants = conversation?.participants || [];
-  
+ 
   // ✅ PRIORITER: Bruk eksplisitt participants hvis gitt, ellers fall tilbake til store
   const finalParticipants = participants || storeParticipants;
-  
+ 
   const getItemStyle = () => {
     if (selected) {
       return [styles.conversationItem, styles.selectedItem];
@@ -62,8 +64,9 @@ export const ConversationListItemNative = ({
           participants={finalParticipants}
           isPendingRequest={isPendingApproval}
           conversationId={typeof user.id === 'number' ? user.id : undefined}
+          navigation={navigation} // Pass navigation prop
         />
-        
+       
         {/* Unread indicator */}
         {hasUnread && (
           <View style={styles.unreadDot} />
@@ -77,7 +80,7 @@ export const ConversationListItemNative = ({
             {user.fullName}
           </Text>
         </View>
-        
+       
         {/* Subtitle: memberCount for groups, or custom subtitle */}
         {isGroup && memberCount ? (
           <Text style={styles.subtitle} numberOfLines={1}>

@@ -1,4 +1,4 @@
-// components/messages/MessageSettingsModalNative.tsx - Oppdatert med navigasjon
+// components/messages/MessageSettingsModalNative.tsx - Oppdatert med navigasjon og confirmModal
 import React from 'react';
 import {
   View,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  Alert,
   ScrollView,
 } from 'react-native';
 import { X, Search, Trash2, Image, Bell } from 'lucide-react-native';
@@ -15,6 +14,7 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { useDeleteConversation } from '@/hooks/messages/useDeleteConversation';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmModalNative } from '@/hooks/useConfirmModalNative'; // Import av useConfirmModalNative
 import { ParticipantsListNative } from './ParticipantsListNative';
 import MiniAvatarNative from '../common/MiniAvatarNative';
 
@@ -85,35 +85,35 @@ export function MessageSettingsModalNative({
   
   const { deleteConversationMutation, isDeleting } = useDeleteConversation();
   const { userId: currentUserId } = useAuth();
+  const { confirm } = useConfirmModalNative(); // Legg til useConfirmModalNative hook
 
   const setSearchMode = useChatStore(state => state.setSearchMode);
 
-  const handleDeleteConversation = () => {
+  const handleDeleteConversation = async () => {
     if (!currentConversationId || isGroup) return;
     
     const otherParticipant = participants.find(p => p.id !== currentUserId);
     const conversationName = otherParticipant?.fullName || "this conversation";
     const isPending = currentConversation?.isPendingApproval;
     
-    Alert.alert(
-      isPending ? "Remove Pending Request" : "Delete Conversation",
-      `Are you sure you want to ${isPending ? 'remove the pending conversation request with' : 'delete the conversation with'} ${conversationName}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: isPending ? "Remove" : "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteConversationMutation(currentConversationId);
-              onClose();
-            } catch (error) {
-              console.error('Failed to delete conversation:', error);
-            }
-          }
-        }
-      ]
-    );
+    // Bytt ut Alert med useConfirmModalNative
+    const confirmed = await confirm({
+      title: isPending ? "Remove Pending Request" : "Delete Conversation",
+      message: (
+        <Text style={styles.confirmMessage}>
+          Are you sure you want to {isPending ? 'remove the pending conversation request with' : 'delete the conversation with'} <Text style={styles.conversationName}>{conversationName}</Text>?
+        </Text>
+      )
+    });
+
+    if (confirmed) {
+      try {
+        await deleteConversationMutation(currentConversationId);
+        onClose();
+      } catch (error) {
+        console.error('Failed to delete conversation:', error);
+      }
+    }
   };
 
   const handleSearchMessages = () => {
@@ -375,5 +375,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#374151',
+  },
+  // Nye stiler for confirm modal meldingen
+  confirmMessage: {
+    fontSize: 16,
+    color: '#374151',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  conversationName: {
+    fontWeight: '600',
+    color: '#1C6B1C',
   },
 });

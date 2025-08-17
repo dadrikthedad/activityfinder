@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C6B1C',
   },
   primaryDisabled: {
-    backgroundColor: '#a7f3d0',
+    backgroundColor: '#144B14',
   },
   primaryText: {
     color: 'white',
@@ -164,10 +164,10 @@ const styles = StyleSheet.create({
 
   // Danger variant (Red)
   danger: {
-    backgroundColor: '#dc2626',
+    backgroundColor: '#9CA3AF',
   },
   dangerDisabled: {
-    backgroundColor: '#fca5a5',
+    backgroundColor: '#2E2E2E',
   },
   dangerText: {
     color: 'white',

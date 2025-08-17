@@ -1,5 +1,6 @@
 // screens/GroupSettingsScreen.tsx
-import React from 'react';
+// screens/GroupSettingsScreen.tsx
+import React, { useState} from 'react';
 import {
   View,
   Text,
@@ -15,9 +16,13 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupSettingsPopoverNative } from '@/components/groupmessages/useGroupSettingsPopoverNative';
 import ButtonNative from '@/components/common/ButtonNative';
-import { ChevronLeft, Camera } from 'lucide-react-native';
+import { ArrowBigLeft, Camera } from 'lucide-react-native';
 import { ParticipantsListNative } from '@/components/messages/ParticipantsListNative';
-import * as ImagePicker from 'expo-image-picker';
+import { AttachmentPickerModal } from '@/components/files/filepicker/AttachmentPickerModal';
+import { useLeaveGroup } from '@/hooks/messages/useLeaveGroup';
+import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
+import AppHeader from '@/components/common/AppHeader';
+import InviteUsersModalNative from '@/components/messages/InviteUsersModalNative';
 
 interface GroupSettingsScreenProps {
   route: {
@@ -44,8 +49,14 @@ export default function GroupSettingsScreen({
     groupImageUrl,
     uploadingImage,
     uploadError,
-    handleImageUpload,
     triggerImageUpload,
+    // AttachmentPicker states
+    showModal,
+    setShowModal,
+    handleCamera,
+    handleImagePicker,
+    handleDocumentPicker,
+    // Group name states
     isEditingGroupName,
     tempGroupName,
     updatingGroupName,
@@ -58,39 +69,53 @@ export default function GroupSettingsScreen({
   } = useGroupSettingsPopoverNative({
     user,
     conversationId,
-    onClose: () => navigation.goBack(), // Naviger tilbake isteden for å lukke modal
+    onClose: () => navigation.goBack(),
   });
 
-  const handleImagePress = async () => {
-    Alert.alert(
-      'Change Group Image',
-      'Choose an option',
-      [
-        { text: 'Camera', onPress: () => pickImage('camera') },
-        { text: 'Photo Library', onPress: () => pickImage('library') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  // Leave group functionality
+  const { leaveGroupMutation, isLeavingGroup, error: leaveGroupError } = useLeaveGroup();
+  const { confirm } = useConfirmModalNative();
+
+  // Invite users modal state
+  const [showInviteModal, setShowInviteModal] = useState(false);
+
+  // Handle image press - now uses AttachmentPicker
+  const handleImagePress = () => {
+    triggerImageUpload();
   };
 
-  const pickImage = async (source: 'camera' | 'library') => {
-    const options: ImagePicker.ImagePickerOptions = {
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    };
+  // Handle leave group with confirmation
+  const handleLeaveGroup = async () => {
+    const confirmed = await confirm({
+      title: 'Leave Group',
+      message: 'Are you sure you want to leave this group? You will no longer receive messages from this group.',
+    });
 
-    let result;
-    if (source === 'camera') {
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync(options);
+    if (confirmed) {
+      try {
+        await leaveGroupMutation(conversationId);
+        // Navigate back to MessagesScreen after leaving
+        navigation.navigate('MessagesScreen');
+      } catch (err) {
+        // Error is already handled in the hook
+        Alert.alert('Error', 'Failed to leave group. Please try again.');
+      }
     }
+  };
 
-    if (!result.canceled && result.assets?.[0]) {
-      await handleImageUpload(result.assets[0]);
-    }
+  // Handle invite users
+  const handleInviteUsers = () => {
+    setShowInviteModal(true);
+  };
+
+  const handleInviteModalClose = () => {
+    setShowInviteModal(false);
+  };
+
+  const handleInvitesSent = (response: unknown) => {
+    console.log('✅ Invitations sent successfully:', response);
+    // Optionally refresh participants list or show success message
+    setShowInviteModal(false);
   };
 
   const handleParticipantClick = (participant: UserSummaryDTO) => {
@@ -102,16 +127,14 @@ export default function GroupSettingsScreen({
       isGroup: true,
       participants: currentConversation.participants,
       conversationId: conversationId,
-      isPendingRequest: false, // You might want to check this based on your logic
-      onLeaveGroup: undefined, // Add leave group logic if needed
+      isPendingRequest: false,
+      onLeaveGroup: undefined,
     } : undefined;
 
-    // For now, let's use a simple Alert since we don't have the exact showUserPopover implementation
-    // You can replace this with proper modal/sheet implementation later
     const options = ['View Profile', 'Send Message'];
     
     if (groupData?.isGroup && participant.id !== user.id) {
-      options.push('Remove from Group'); // Only if current user has permission
+      options.push('Remove from Group');
     }
     
     options.push('Cancel');
@@ -125,17 +148,12 @@ export default function GroupSettingsScreen({
         onPress: () => {
           switch (option) {
             case 'View Profile':
-              // Navigate to user profile
               console.log('Navigate to profile for:', participant.fullName);
-              // navigation.navigate('UserProfile', { userId: participant.id });
               break;
             case 'Send Message':
-              // Navigate to direct conversation
               console.log('Send message to:', participant.fullName);
-              // Handle direct message navigation
               break;
             case 'Remove from Group':
-              // Handle remove from group
               console.log('Remove from group:', participant.fullName);
               break;
           }
@@ -146,19 +164,12 @@ export default function GroupSettingsScreen({
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()} 
-          style={styles.backButton}
-        >
-          <ChevronLeft size={24} color="#ffffff" />
-        </TouchableOpacity>
-        
-        <Text style={styles.headerTitle}>Group Settings</Text>
-        
-        <View style={styles.headerSpacer} />
-      </View>
+      {/* Header using AppHeader component */}
+      <AppHeader
+        title="Group Settings"
+        onBackPress={() => navigation.goBack()}
+        backIcon={ArrowBigLeft}
+      />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Group Image */}
@@ -181,6 +192,10 @@ export default function GroupSettingsScreen({
           
           {uploadError && (
             <Text style={styles.errorText}>{uploadError}</Text>
+          )}
+          
+          {leaveGroupError && (
+            <Text style={styles.errorText}>{leaveGroupError}</Text>
           )}
         </View>
 
@@ -230,7 +245,7 @@ export default function GroupSettingsScreen({
             <ButtonNative
               text="Change Group Name"
               onPress={handleStartEditGroupName}
-              variant="outline"
+              variant="primary"
               fullWidth
               style={styles.actionButton}
             />
@@ -238,10 +253,27 @@ export default function GroupSettingsScreen({
             <ButtonNative
               text="Change Group Image"
               onPress={handleImagePress}
-              variant="outline"
+              variant="primary"
               fullWidth
               style={styles.actionButton}
               disabled={uploadingImage}
+            />
+            
+            <ButtonNative
+              text="Invite Users"
+              onPress={handleInviteUsers}
+              variant="primary"
+              fullWidth
+              style={styles.actionButton}
+            />
+            
+            <ButtonNative
+              text={isLeavingGroup ? "Leaving Group..." : "Leave Group"}
+              onPress={handleLeaveGroup}
+              variant="danger"
+              fullWidth
+              style={styles.leaveGroupButton}
+              disabled={isLeavingGroup}
             />
           </View>
         )}
@@ -261,6 +293,28 @@ export default function GroupSettingsScreen({
           </View>
         )}
       </ScrollView>
+
+      {/* AttachmentPickerModal */}
+      <AttachmentPickerModal
+        visible={showModal}
+        onClose={() => setShowModal(false)}
+        onCamera={handleCamera}
+        onImagePicker={handleImagePicker}
+        onDocumentPicker={handleDocumentPicker}
+        showDocuments={false}
+        title="Change Group Image"
+        accentColor="#1C6B1C"
+      />
+
+      {/* Invite Users Modal */}
+      <InviteUsersModalNative
+        visible={showInviteModal}
+        conversationId={conversationId}
+        groupName={displayName}
+        existingParticipants={currentConversation?.participants || []}
+        onClose={handleInviteModalClose}
+        onInvitesSent={handleInvitesSent}
+      />
     </SafeAreaView>
   );
 }
@@ -376,6 +430,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginBottom: 8,
+    backgroundColor: '#1C6B1C'
   },
   errorText: {
     color: '#dc2626',
@@ -393,5 +448,8 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 16,
     paddingHorizontal: 4,
+  },
+  leaveGroupButton: {
+    marginBottom: 8, // Extra space before leave group button
   },
 });

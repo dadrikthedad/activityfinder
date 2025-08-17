@@ -21,6 +21,7 @@ interface ConversationListNativeProps {
   onSelect: (conversationId: number) => void;
   currentUser: UserSummaryDTO | null;
   conversations?: ConversationDTO[];
+  navigation?: any;
 }
 
 export default function ConversationListNative({
@@ -28,6 +29,7 @@ export default function ConversationListNative({
   onSelect,
   currentUser,
   conversations: propConversations,
+  navigation,
 }: ConversationListNativeProps) {
   const { conversations: storeConversations } = useChatStore();
   const { loadMore, loading, hasMore } = usePaginatedConversations();
@@ -74,6 +76,7 @@ export default function ConversationListNative({
           isGroup={true}
           memberCount={conv.participants.length}
           participants={conv.participants}
+          navigation={navigation} 
         />
       );
     }
