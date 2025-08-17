@@ -11,7 +11,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  TextInput
+  TextInput,
+  BackHandler 
 } from 'react-native';
 import { ArrowBigLeft, ArrowBigDown, Settings, Search, X } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -312,8 +313,26 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   // Handle back navigation
   const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
+  // Reset til MessagesScreen - konsistent oppførsel uansett hvor vi kom fra
+  navigation.reset({
+    index: 0,
+    routes: [{ name: 'MessagesScreen' }],
+  });
+}, [navigation]);
+
+// Legg til denne useEffect for Android tilbakeknapp
+useEffect(() => {
+  const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+    // Håndter Android tilbakeknapp - samme oppførsel som handleBack
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MessagesScreen' }],
+    });
+    return true; // Prevent default back action
+  });
+
+  return () => backHandler.remove();
+}, [navigation]);
 
 
 

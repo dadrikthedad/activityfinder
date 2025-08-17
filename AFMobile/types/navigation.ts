@@ -13,8 +13,6 @@ export type RootStackParamList = {
   Profile: undefined;
   EditProfile: undefined;
   Settings: undefined;
-  About: undefined;
-  Weather: undefined;
   MessagesScreen: undefined;
   ConversationScreen: { conversationId: number }; // Added with optional conversationId param
    MediaViewer: {
@@ -27,6 +25,7 @@ export type RootStackParamList = {
     user: UserSummaryDTO;
     conversationId: number;
   };
+  NewConversationScreen: undefined;
 };
 
 // Navigation prop types for each screen
@@ -65,6 +64,11 @@ export type GroupSettingsScreenNavigationProp = StackNavigationProp<
   'GroupSettingsScreen'
 >;
 
+export type NewConversationScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'NewConversationScreen'
+>;
+
 // Route prop types for each screen (if you need route params)
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
@@ -73,6 +77,7 @@ export type MessagesScreenRouteProp = RouteProp<RootStackParamList, 'MessagesScr
 export type ConversationScreenRouteProp = RouteProp<RootStackParamList, 'ConversationScreen'>;
 export type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
 export type GroupSettingsScreenRouteProp = RouteProp<RootStackParamList, 'GroupSettingsScreen'>;
+export type NewConversationScreenRouteProp = RouteProp<RootStackParamList, 'NewConversationScreen'>;
 
 // Generic navigation prop (useful for components that can navigate to multiple screens)
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

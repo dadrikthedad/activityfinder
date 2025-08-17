@@ -25,6 +25,7 @@ import * as GestureHandler from 'react-native-gesture-handler';
 import MediaViewerScreen from './screens/files/MediaViewerScreen';
 import { useChatStore } from './store/useChatStore'; 
 import GroupSettingsScreen from './screens/messages/GroupSettingsScreen';
+import NewConversationScreen from './screens/messages/NewConversationScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -132,6 +133,26 @@ function AuthenticatedApp() {
                 name="GroupSettingsScreen" 
                 component={GroupSettingsScreen}
                 options={{ headerShown: false }} // Vi har egen header
+              />
+              <Stack.Screen
+                name="NewConversationScreen"
+                component={NewConversationScreen}
+                options={{
+                  presentation: 'modal', // Dette gjør den til modal
+                  headerShown: false,
+                  cardStyleInterpolator: ({ current: { progress } }) => ({
+                    cardStyle: {
+                      transform: [
+                        {
+                          translateY: progress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [300, 0], // Slide up animation
+                          }),
+                        },
+                      ],
+                    },
+                  }),
+                }}
               />
           </>
         ) : (

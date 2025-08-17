@@ -84,7 +84,7 @@ export const ConversationListItemNative = ({
         {/* Subtitle: memberCount for groups, or custom subtitle */}
         {isGroup && memberCount ? (
           <Text style={styles.subtitle} numberOfLines={1}>
-            {memberCount} medlemmer
+            {memberCount === 1 ? '1 member' : `${memberCount} members`}
           </Text>
         ) : subtitle ? (
           <Text style={styles.subtitle} numberOfLines={1}>

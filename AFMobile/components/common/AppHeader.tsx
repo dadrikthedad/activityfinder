@@ -1,7 +1,7 @@
 // components/common/AppHeader.tsx
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { LucideIcon } from 'lucide-react-native';
+import { ArrowBigLeft, LucideIcon } from 'lucide-react-native';
 
 interface AppHeaderProps {
   title: string;
@@ -36,7 +36,7 @@ export default function AppHeader({
             onPress={onBackPress}
             style={styles.backButton}
           >
-            <BackIcon size={24} color="white" />
+            <ArrowBigLeft size={24} color="white" />
           </TouchableOpacity>
         )}
 
