@@ -19,6 +19,7 @@ interface UserActionPopoverNativeProps {
   isPendingRequest?: boolean;
   conversationId?: number;
   onRemoveSuccess?: () => void;
+  closeModalOnAction?: boolean; 
 }
 
 export default function UserActionPopoverNative(props: UserActionPopoverNativeProps) {
@@ -32,7 +33,8 @@ export default function UserActionPopoverNative(props: UserActionPopoverNativePr
     onLeaveGroup, 
     isPendingRequest = false,
     conversationId,
-    onRemoveSuccess
+    onRemoveSuccess,
+    closeModalOnAction = true,
   } = props;
   const navigation = useNavigation();
   
@@ -59,13 +61,14 @@ export default function UserActionPopoverNative(props: UserActionPopoverNativePr
   } = useUserActionPopoverNative({
     user,
     onRemoveSuccess,
-    onCloseDropdown: onClose,
+    onCloseDropdown: closeModalOnAction ? onClose : undefined,
     onLeaveGroup,
     isGroup,
     participants,
     conversationId,
     isSimplified: false,
-    navigation // Pass navigation to hook
+    navigation, // Pass navigation to hook
+    closeModalOnAction,
   });
 
   // Calculate position for popover
@@ -118,7 +121,8 @@ export default function UserActionPopoverNative(props: UserActionPopoverNativePr
                   onOpenInviteWindow={isGroup ? handleInviteUsers : undefined}
                   onSendMessageFromNested={handleSendMessageFromNested}
                   conversationId={conversationId}
-                  navigation={navigation} // 👈 SEND NAVIGATION PROP
+                  navigation={navigation}
+                  closeModalOnAction={closeModalOnAction}
                 />
               </View>
             </TouchableWithoutFeedback>

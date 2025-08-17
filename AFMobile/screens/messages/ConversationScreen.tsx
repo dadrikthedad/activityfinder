@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TouchableOpacity,
   StatusBar,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Keyboard,
@@ -558,7 +557,6 @@ useEffect(() => {
       <MessageSettingsModalNative
         visible={showSettingsModal}
         onClose={handleCloseSettings}
-        onShowUserPopover={showUserPopover}
         navigation={navigation}
       />
     )}

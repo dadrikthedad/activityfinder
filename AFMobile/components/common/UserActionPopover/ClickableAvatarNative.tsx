@@ -16,6 +16,7 @@ interface ClickableAvatarNativeProps {
   conversationId?: number;
   isPendingRequest?: boolean;
   navigation?: any; // Still needed for GroupSettings navigation
+  closeModalOnAction?: boolean;
 }
 
 export default function ClickableAvatarNative({
@@ -28,6 +29,7 @@ export default function ClickableAvatarNative({
   conversationId,
   isPendingRequest = false,
   navigation,
+  closeModalOnAction = true,
 }: ClickableAvatarNativeProps) {
   const currentUser = useCurrentUser();
   const { showPopover } = useUserActionPopover(); // 👈 USE CONTEXT
@@ -56,6 +58,7 @@ export default function ClickableAvatarNative({
       onLeaveGroup,
       conversationId,
       isPendingRequest,
+      closeModalOnAction,
     });
   };
 

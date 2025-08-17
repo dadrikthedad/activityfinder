@@ -11,6 +11,7 @@ interface UserPopoverData {
   onLeaveGroup?: () => void;
   isPendingRequest?: boolean;
   conversationId?: number;
+  closeModalOnAction?: boolean; // 👈 NEW PROP
 }
 
 interface UserActionPopoverContextType {
@@ -63,6 +64,7 @@ export function UserActionPopoverProvider({ children }: UserActionPopoverProvide
           onLeaveGroup={popoverState.data.onLeaveGroup}
           isPendingRequest={popoverState.data.isPendingRequest}
           conversationId={popoverState.data.conversationId}
+          closeModalOnAction={popoverState.data.closeModalOnAction} // 👈 PASS THROUGH
         />
       )}
     </UserActionPopoverContext.Provider>

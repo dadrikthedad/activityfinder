@@ -40,6 +40,7 @@ interface Props {
   onOpenInviteWindow?: (conversationId?: number, participants?: UserSummaryDTO[]) => void;
   isLeavingGroup?: boolean;
   navigation?: any; // 👈 NAVIGATION PROP
+  closeModalOnAction?: boolean;
 }
 
 export default function UserActionPopoverContentNative({
@@ -66,6 +67,7 @@ export default function UserActionPopoverContentNative({
   isLeavingGroup,
   conversationId,
   navigation, // 👈 NAVIGATION PROP
+  closeModalOnAction = true,
 }: Props) {
 
   // Get current group name from store for groups

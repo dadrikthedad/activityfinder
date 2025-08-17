@@ -22,7 +22,6 @@ interface MessageSettingsModalNativeProps {
   visible: boolean;
   onClose: () => void;
   navigation: any; // Legg til navigation prop
-  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
 }
 
 interface MenuItemProps {
@@ -74,7 +73,6 @@ export function MessageSettingsModalNative({
   visible,
   onClose,
   navigation,
-  onShowUserPopover,
 }: MessageSettingsModalNativeProps) {
   const currentConversationId = useChatStore((s) => s.currentConversationId);
   const currentConversation = useChatStore((s) => 
@@ -133,12 +131,6 @@ export function MessageSettingsModalNative({
     onClose();
   };
 
-  const handleParticipantClick = (participant: UserSummaryDTO) => {
-    if (onShowUserPopover) {
-      onShowUserPopover(participant, { x: 0, y: 0 });
-    }
-    onClose();
-  };
 
   // Oppdatert: Naviger til GroupSettingsScreen isteden for å vise popover
   const handleGroupHeaderClick = () => {
@@ -238,7 +230,6 @@ export function MessageSettingsModalNative({
                 </View>
                 <ParticipantsListNative
                   participants={participants}
-                  onParticipantClick={handleParticipantClick}
                   showGroupRequestStatus={true}
                 />
               </>

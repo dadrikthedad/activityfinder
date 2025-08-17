@@ -3,25 +3,28 @@ import React from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   ScrollView
 } from 'react-native';
 import { UserSummaryDTO, GroupRequestStatus } from '@shared/types/UserSummaryDTO';
-import MiniAvatarNative from '../common/MiniAvatarNative';
+import ClickableAvatarNative from '../common/UserActionPopover/ClickableAvatarNative';// 👈 CHANGED
 
 interface ParticipantsListNativeProps {
   participants: UserSummaryDTO[];
-  onParticipantClick: (participant: UserSummaryDTO) => void;
+  onParticipantClick?: (participant: UserSummaryDTO) => void; // 👈 LEGACY - kept for backward compatibility
   showGroupRequestStatus?: boolean;
+  closeModalOnAction?: boolean; // 👈 Controls if popover should close parent modal
+  navigation?: any; // 👈 ADDED for ClickableAvatarNative
 }
 
 export function ParticipantsListNative({
   participants,
-  onParticipantClick,
+  onParticipantClick, // Legacy callback - still works but not needed
   showGroupRequestStatus = false,
+  closeModalOnAction = true,
+  navigation, // 👈 ADDED
 }: ParticipantsListNativeProps) {
- 
+
   const getStatusInfo = (participant: UserSummaryDTO) => {
     if (!showGroupRequestStatus) return null;
    
@@ -47,24 +50,35 @@ export function ParticipantsListNative({
     ? [...participants].sort((a, b) => getStatusOrder(a.groupRequestStatus) - getStatusOrder(b.groupRequestStatus))
     : participants;
 
+  const handleLegacyClick = (participant: UserSummaryDTO) => {
+    // Call legacy callback if provided (for backward compatibility)
+    if (onParticipantClick) {
+      onParticipantClick(participant);
+    }
+  };
+
   const renderParticipant = (participant: UserSummaryDTO) => {
     const statusInfo = getStatusInfo(participant);
    
     return (
-      <TouchableOpacity
-        key={participant.id.toString()}
-        style={styles.participantItem}
-        onPress={() => onParticipantClick(participant)}
-      >
-        <MiniAvatarNative
-          imageUrl={participant.profileImageUrl ?? "/default-avatar.png"}
+      <View key={participant.id.toString()} style={styles.participantItem}>
+        {/* Use ClickableAvatarNative instead of MiniAvatarNative + TouchableOpacity */}
+        <ClickableAvatarNative
+          user={participant}
           size={showGroupRequestStatus ? 32 : 24}
-          alt={participant.fullName}
-          withBorder={false}
+          isGroup={false}
+          participants={[]}
+          isPendingRequest={false}
+          closeModalOnAction={closeModalOnAction} // 👈 PASS THROUGH
+          navigation={navigation} // 👈 PASS THROUGH
         />
        
         <View style={styles.participantInfo}>
-          <Text style={styles.participantName} numberOfLines={1}>
+          <Text 
+            style={styles.participantName} 
+            numberOfLines={1}
+            onPress={() => handleLegacyClick(participant)} // 👈 LEGACY SUPPORT
+          >
             {participant.fullName}
           </Text>
           {statusInfo && (
@@ -73,21 +87,21 @@ export function ParticipantsListNative({
             </Text>
           )}
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
   return (
-  <View style={styles.container}>
-    <ScrollView 
-      style={styles.participantsList}
-      showsVerticalScrollIndicator={false}
-      nestedScrollEnabled={true}
-    >
-      {sortedParticipants.map(renderParticipant)}
-    </ScrollView>
-  </View>
-);
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.participantsList}
+        showsVerticalScrollIndicator={false}
+        nestedScrollEnabled={true}
+      >
+        {sortedParticipants.map(renderParticipant)}
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

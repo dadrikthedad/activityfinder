@@ -30,6 +30,7 @@ interface UseUserActionPopoverProps {
   isNested?: boolean;
   // React Native specific
   navigation?: NavigationProp;
+  closeModalOnAction?: boolean;
 }
 
 export function useUserActionPopoverNative({
@@ -45,6 +46,7 @@ export function useUserActionPopoverNative({
   navigation, // React Native navigation
   isGroup = false,
   participants = [], // Add this with default value
+  closeModalOnAction = true,
 }: UseUserActionPopoverProps) {
   const { userId: currentUserId } = useAuth();
 
@@ -81,24 +83,27 @@ export function useUserActionPopoverNative({
   
 
   const handleClose = useCallback(() => {
+    // Always clean up popover state
     if (!isSimplified && !isNested) {
-      // Full cleanup for main popover
       setShowNewMessageWindow(false);
       setNewMessageInitialReceiver(undefined);
       setShowInviteUsersWindow(false);
     }
 
-    // Call appropriate close callback
-    if (onClose) {
-      onClose(); // Legacy API
-    } else if (onCloseDropdown) {
-      onCloseDropdown(); // New API
+    // Only call parent close callbacks if closeModalOnAction is true
+    if (closeModalOnAction) {
+      if (onClose) {
+        onClose(); // Legacy API
+      } else if (onCloseDropdown) {
+        onCloseDropdown(); // New API
+      }
     }
   }, [
     isSimplified,
     isNested,
     onClose,
-    onCloseDropdown
+    onCloseDropdown,
+    closeModalOnAction, // 👈 ADDED to dependencies
   ]);
 
   // Core handlers
