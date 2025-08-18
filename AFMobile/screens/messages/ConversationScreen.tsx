@@ -71,7 +71,7 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   // Ref for scroll to bottom functionality
   const messageListRef = useRef<MessageListRef>(null);
 
-  const { showPopover } = useUserActionPopover();
+  const { showPopover, hidePopover, visible: isPopoverVisible } = useUserActionPopover();
   
   const { send } = useSendMessage();
   
@@ -177,7 +177,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   ) => {
     console.log('👤 Showing user popover for:', user.fullName);
     
-    // Use the context to show the popover
     showPopover({
       user,
       position: pos,
@@ -291,34 +290,9 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   // Get conversation subtitle for header
   const getConversationSubtitle = () =>
-  currentConversation?.isGroup
-    ? `${currentConversation.participants.length} members`
-    : "";
-
-  // Handle back navigation
-  const handleBack = useCallback(() => {
-  // Reset til MessagesScreen - konsistent oppførsel uansett hvor vi kom fra
-  navigation.reset({
-    index: 0,
-    routes: [{ name: 'MessagesScreen' }],
-  });
-}, [navigation]);
-
-// Legg til denne useEffect for Android tilbakeknapp
-useEffect(() => {
-  const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-    // Håndter Android tilbakeknapp - samme oppførsel som handleBack
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'MessagesScreen' }],
-    });
-    return true; // Prevent default back action
-  });
-
-  return () => backHandler.remove();
-}, [navigation]);
-
-
+    currentConversation?.isGroup
+      ? `${currentConversation.participants.length} members`
+      : "";
 
 // Debounce search query
   useEffect(() => {
@@ -350,6 +324,55 @@ useEffect(() => {
     setSearchQuery('');
     resetSearch();
   }, [resetSearch]);
+
+  const handleBack = useCallback(() => {
+      // Priority order: lukk det mest "fremme" først
+      
+      // 1. Search mode (høyest prioritet)
+      if (showSearch) {
+        console.log('🔍 Closing search mode instead of navigating back');
+        handleCloseSearch();
+        return;
+      }
+      
+      // 2. UserActionPopover (sjekk Context state)
+      if (isPopoverVisible) {
+        console.log('👤 Closing user popover instead of navigating back');
+        hidePopover();
+        return;
+      }
+      
+      // 3. Settings modal
+      if (showSettingsModal) {
+        console.log('⚙️ Closing settings modal instead of navigating back');
+        setShowSettingsModal(false);
+        return;
+      }
+      
+      // 4. Ingen aktive overlays - trygt å navigere tilbake
+      console.log('✅ No active overlays - navigating back to MessagesScreen');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MessagesScreen' }],
+      });
+    }, [
+      showSearch,
+      isPopoverVisible, // 👈 BRUKER CONTEXT STATE
+      showSettingsModal,
+      handleCloseSearch,
+      hidePopover, // 👈 BRUKER CONTEXT HANDLER
+      navigation
+    ]);
+
+  // Android back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleBack();
+      return true; // Prevent default back action
+    });
+
+    return () => backHandler.remove();
+  }, [handleBack]);
 
   // Loading states
   if (!isLoggedIn) {

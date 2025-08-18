@@ -2,10 +2,12 @@
 import { useAuth } from "@/context/AuthContext";
 import { removeFriend } from "@/services/friends/removeFriend";
 import { useState } from "react";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 export function useRemoveFriend() {
     const { token } = useAuth();
     const [removing, setRemoving] = useState(false);
+     const setUserFriendStatus = useUserCacheStore(state => state.setUserFriendStatus);
   
     const handleRemoveFriend = async (friendId: number, onSuccess?: () => void) => {
       if (!token) return;
@@ -13,6 +15,7 @@ export function useRemoveFriend() {
       try {
         setRemoving(true);
         await removeFriend(friendId, token);
+        setUserFriendStatus(friendId, false, false); // Not friend, not blocked
         onSuccess?.(); // Kjør callback hvis suksess
       } catch (err) {
         console.error("❌ Failed to remove friend:", err);

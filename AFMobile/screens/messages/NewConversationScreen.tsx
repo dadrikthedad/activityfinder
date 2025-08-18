@@ -23,23 +23,33 @@ import { useUploadGroupImageNative } from '@/hooks/files/useUploadGroupImageNati
 import { useAttachmentPicker } from '@/components/files/filepicker/useAttachmentPicker';
 import { RNFile } from '@/utils/files/FileFunctions';
 import { AttachmentPickerModal } from '@/components/files/filepicker/AttachmentPickerModal';
+import { RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '@/types/navigation';
 
 interface NewConversationScreenProps {
   navigation: NewConversationScreenNavigationProp;
+  route: RouteProp<RootStackParamList, 'NewConversationScreen'>; // Legg til route
 }
-
 export default function NewConversationScreen({
   navigation,
+  route,
 }: NewConversationScreenProps) {
+  const { initialReceiver } = route.params || {};
+
   const { query, setQuery, results, loading } = useUserSearch();
-  const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>([]);
+  const [selectedUsers, setSelectedUsers] = useState<UserSummaryDTO[]>(
+    initialReceiver ? [initialReceiver] : [] // Sett initial receiver hvis den finnes
+  );
+
+
   const [groupName, setGroupName] = useState('');
   const [groupImageUrl, setGroupImageUrl] = useState<string | null>(null);
   
   const { setCurrentConversationId } = useChatStore();
   const searchInputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-  const isGroupMode = selectedUsers.length > 1;
+  const isPresetMode = !!initialReceiver;
+  const isGroupMode = selectedUsers.length > 1 && !isPresetMode;
 
   // Group image upload functionality
   const { upload: uploadGroupImage, uploading: uploadingImage, error: uploadError } = useUploadGroupImageNative();
@@ -98,11 +108,14 @@ export default function NewConversationScreen({
 
   // Reset state when component mounts
   useEffect(() => {
-    setQuery('');
-    setSelectedUsers([]);
-    setGroupName('');
-    setGroupImageUrl(null);
-  }, [setQuery]);
+    if (!initialReceiver) {
+      setQuery('');
+      setSelectedUsers([]);
+      setGroupName('');
+      setGroupImageUrl(null);
+    }
+    // Hvis vi har initialReceiver, ikke reset selectedUsers
+  }, [initialReceiver, setQuery]);
 
   // Filter out already selected users
   const filteredResults = results.filter(
@@ -118,8 +131,12 @@ export default function NewConversationScreen({
   }, [selectedUsers, setQuery]);
 
   const handleRemoveUser = useCallback((userId: number) => {
+    if (initialReceiver && userId === initialReceiver.id) {
+      // Ikke tillat fjerning av forhåndsvalgt bruker
+      return;
+    }
     setSelectedUsers(prev => prev.filter(user => user.id !== userId));
-  }, []);
+  }, [initialReceiver]);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -155,7 +172,7 @@ export default function NewConversationScreen({
     return (
       <View style={styles.selectedSection}>
         <Text style={styles.sectionTitle}>
-          {isGroupMode ? 'Group Members' : 'To:'} ({selectedUsers.length})
+          {isPresetMode ? 'To:' : isGroupMode ? 'Group Members' : 'To:'} ({selectedUsers.length})
         </Text>
         <ScrollView
           horizontal
@@ -173,15 +190,52 @@ export default function NewConversationScreen({
               <Text style={styles.selectedUserName} numberOfLines={1}>
                 {user.fullName}
               </Text>
-              <TouchableOpacity
-                onPress={() => handleRemoveUser(user.id)}
-                style={styles.removeButton}
-              >
-                <Text style={styles.removeButtonText}>✕</Text>
-              </TouchableOpacity>
+              {/* Skjul remove-knapp for forhåndsvalgt bruker */}
+              {!(isPresetMode && user.id === initialReceiver?.id) && (
+                <TouchableOpacity
+                  onPress={() => handleRemoveUser(user.id)}
+                  style={styles.removeButton}
+                >
+                  <Text style={styles.removeButtonText}>✕</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ))}
         </ScrollView>
+        
+        {/* Vis info i preset mode */}
+        {isPresetMode && (
+          <Text style={styles.presetModeInfo}>
+            Sending message to {initialReceiver?.fullName}
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  // Skjul søk i preset mode (eller gjør det optional)
+  const renderSearchSection = () => {
+    if (isPresetMode) {
+      return (
+        <View style={styles.searchSection}>
+          <Text style={styles.presetTitle}>
+            New Message to {initialReceiver?.fullName}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.searchSection}>
+        <TextInput
+          ref={searchInputRef}
+          style={styles.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search people to message..."
+          placeholderTextColor="#9ca3af"
+          autoFocus={!isPresetMode} // Ikke auto-focus i preset mode
+        />
       </View>
     );
   };
@@ -265,15 +319,13 @@ export default function NewConversationScreen({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        {/* Header using AppHeader */}
         <AppHeader
-          title="New Message"
+          title={isPresetMode ? "New Message" : "New Message"}
           onBackPress={handleBack}
           backIcon={ArrowLeft}
           showBorder={true}
         />
 
-        {/* Main Content - scrollable area */}
         <View style={styles.content}>
           <ScrollView
             ref={scrollViewRef}
@@ -281,98 +333,48 @@ export default function NewConversationScreen({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {/* Search Input */}
-            <View style={styles.searchSection}>
-              <TextInput
-                ref={searchInputRef}
-                style={styles.searchInput}
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search people to message..."
-                placeholderTextColor="#9ca3af"
-                autoFocus
-              />
-            </View>
+            {/* Oppdatert søkeseksjon */}
+            {renderSearchSection()}
 
-            {/* Search Results - moved to right under search input */}
-            {renderSearchResults()}
+            {/* Søkeresultater - kun hvis ikke preset mode */}
+            {!isPresetMode && renderSearchResults()}
 
-            {/* Selected Users */}
+            {/* Valgte brukere */}
             {renderSelectedUsers()}
 
-            {/* Group Name Input (if group mode) */}
-            {isGroupMode && (
-              <View style={styles.groupNameSection}>
-                <Text style={styles.sectionTitle}>Group Name (Optional)</Text>
-                <TextInput
-                  style={styles.groupNameInput}
-                  value={groupName}
-                  onChangeText={setGroupName}
-                  placeholder="Enter group name..."
-                  placeholderTextColor="#9ca3af"
-                  maxLength={100}
-                />
-              </View>
-            )}
-
-            {/* Group Image Section (if group mode) */}
-            {isGroupMode && (
-              <View style={styles.groupImageSection}>
-                <Text style={styles.sectionTitle}>Group Image (Optional)</Text>
-                
-                <View style={styles.groupImageContainer}>
-                  {groupImageUrl ? (
-                    <View style={styles.imageWithRemove}>
-                      <MiniAvatarNative
-                        imageUrl={groupImageUrl}
-                        alt="Group"
-                        size={80}
-                        withBorder={true}
-                      />
-                      <TouchableOpacity
-                        onPress={removeGroupImage}
-                        style={styles.removeImageButton}
-                      >
-                        <Text style={styles.removeImageText}>✕</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <View style={styles.emptyImageContainer}>
-                      <Camera size={32} color="#9ca3af" />
-                    </View>
-                  )}
-                  
-                  <TouchableOpacity
-                    onPress={showImagePicker}
-                    style={styles.imageUploadButton}
-                    disabled={uploadingImage}
-                  >
-                    <Plus size={16} color="#ffffff" />
-                    <Text style={styles.imageUploadButtonText}>
-                      {uploadingImage ? 'Uploading...' : groupImageUrl ? 'Change' : 'Add Image'}
-                    </Text>
-                  </TouchableOpacity>
+            {/* Gruppeinformasjon - kun hvis ikke preset mode */}
+            {!isPresetMode && isGroupMode && (
+              <>
+                <View style={styles.groupNameSection}>
+                  <Text style={styles.sectionTitle}>Group Name (Optional)</Text>
+                  <TextInput
+                    style={styles.groupNameInput}
+                    value={groupName}
+                    onChangeText={setGroupName}
+                    placeholder="Enter group name..."
+                    placeholderTextColor="#9ca3af"
+                    maxLength={100}
+                  />
                 </View>
 
-                {uploadError && (
-                  <Text style={styles.uploadErrorText}>Failed to upload image</Text>
-                )}
-              </View>
-            )}
+                <View style={styles.groupImageSection}>
+                  {/* Gruppebilde-logikk her */}
+                </View>
 
-            {/* Group Info - moved inside ScrollView */}
-            {renderGroupInfo()}
+                {renderGroupInfo()}
+              </>
+            )}
           </ScrollView>
         </View>
 
-        {/* Fixed Message Input - always at bottom */}
+        {/* Message input */}
         {selectedUsers.length > 0 && (
           <View style={styles.fixedMessageInputContainer}>
             <NewMessageInputNative
               receiverId={!isGroupMode ? selectedUsers[0]?.id : undefined}
-              selectedUsers={selectedUsers}
-              groupName={groupName || undefined}
-              groupImageUrl={groupImageUrl}
+              selectedUsers={isGroupMode ? selectedUsers : undefined}
+              groupName={!isPresetMode && isGroupMode ? (groupName || undefined) : undefined}
+              groupImageUrl={!isPresetMode && isGroupMode ? groupImageUrl : undefined}
               shouldFocus={false}
               onMessageSent={handleMessageSent}
               onGroupCreated={handleGroupCreated}
@@ -381,17 +383,19 @@ export default function NewConversationScreen({
         )}
       </KeyboardAvoidingView>
 
-      {/* AttachmentPickerModal for group image */}
-      <AttachmentPickerModal
-        visible={showImageModal}
-        onClose={() => setShowImageModal(false)}
-        onCamera={handleCamera}
-        onImagePicker={handleImagePicker}
-        onDocumentPicker={handleDocumentPicker}
-        title="Choose Group Image"
-        showDocuments={false}
-        accentColor="#1C6B1C"
-      />
+      {/* AttachmentPickerModal - kun hvis ikke preset mode */}
+      {!isPresetMode && (
+        <AttachmentPickerModal
+          visible={showImageModal}
+          onClose={() => setShowImageModal(false)}
+          onCamera={handleCamera}
+          onImagePicker={handleImagePicker}
+          onDocumentPicker={handleDocumentPicker}
+          title="Choose Group Image"
+          showDocuments={false}
+          accentColor="#1C6B1C"
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -609,5 +613,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
+  },
+  presetModeInfo: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  presetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+    textAlign: 'center',
   },
 });

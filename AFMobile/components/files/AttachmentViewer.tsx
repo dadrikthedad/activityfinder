@@ -41,10 +41,15 @@ export const useAttachmentViewer = ({
   attachments,
   files,
   isMapped = false,
+  viewerOptions = {}, // NEW: Add viewer options
 }: {
   attachments?: AttachmentDto[];
   files?: RNFile[];
   isMapped?: boolean;
+  viewerOptions?: {
+    showDownload?: boolean;
+    showShare?: boolean;
+  };
 }) => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
@@ -132,7 +137,8 @@ export const useAttachmentViewer = ({
       navigation.navigate('MediaViewer', {
         files: normalizedFiles,
         initialIndex: index,
-        conversationId: undefined
+        conversationId: undefined,
+        viewerOptions,
       });
       return;
     }

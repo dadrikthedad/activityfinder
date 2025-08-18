@@ -10,24 +10,31 @@ export type RootStackParamList = {
   Signup: undefined;
   SignUp: undefined; // Alternative name used in navbar
   Home: undefined;
-  Profile: undefined;
+  Profile: { id: string };
   EditProfile: undefined;
   Settings: undefined;
   MessagesScreen: undefined;
   ConversationScreen: { conversationId: number }; // Added with optional conversationId param
-   MediaViewer: {
+  MediaViewer: {
     files: RNFile[];
     initialIndex: number;
     conversationId?: number;
+    viewerOptions?: {
+      showDownload?: boolean;
+      showShare?: boolean;
+    };
   };
   Notifications: undefined;
   GroupSettingsScreen: {
     user: UserSummaryDTO;
     conversationId: number;
   };
-  NewConversationScreen: undefined;
+  NewConversationScreen: {
+    initialReceiver?: UserSummaryDTO;
+  };
   MessageNotificationScreen: undefined;
   TrashcanScreen: undefined;
+  EditProfileScreen: undefined;
 };
 
 // Navigation prop types for each screen
@@ -44,6 +51,16 @@ export type SignupScreenNavigationProp = StackNavigationProp<
 export type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'Home'
+>;
+
+export type ProfileScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'Profile'
+>;
+
+export type EditProfileScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'EditProfileScreen'
 >;
 
 export type MessageScreenNavigationProp = StackNavigationProp<
@@ -85,6 +102,8 @@ export type TrashcanScreenNavigationProp = StackNavigationProp<
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
+export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
+export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;
 export type MessagesScreenRouteProp = RouteProp<RootStackParamList, 'MessagesScreen'>;
 export type ConversationScreenRouteProp = RouteProp<RootStackParamList, 'ConversationScreen'>;
 export type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;

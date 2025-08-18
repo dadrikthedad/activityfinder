@@ -1,332 +1,546 @@
-// Profilen til en bruker som viser både brukerens profil, en annens bruker sin profil og profilen via editprofile. Henter all info fra PublicProfileDTO
-"use client";
-import React from "react";
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ScrollView,
+  Linking,
+} from "react-native";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
-import FormButton from "@/components/FormButton";
+import ButtonNative from "@/components/common/ButtonNative";
 import { useAuth } from "@/context/AuthContext";
-import { updateBio, updateWebsites } from "@/services/profile";
-import ProfileNavButton from "@/components/settings/ProfileNavButton";
-import { PlusCircle } from "lucide-react";
+import { updateBio, updateWebsites } from "@/services/profile/profile";
+import { PlusCircle, Trash2 } from "lucide-react-native";
 
 interface Props {
-  profile: Partial<PublicProfileDTO>; //Henter info fra PublicProfileDTO
-  showEmail?: boolean; // For å vise epost
-  isEditable?: boolean; // For å skille mellom om vi er på editprofile eller en annens profil for å endre profilen
-  refetchProfile?: () => Promise<void>; // Henter profilen igjen ved en endring
+  profile: Partial<PublicProfileDTO>;
+  showEmail?: boolean;
+  isEditable?: boolean;
+  refetchProfile?: () => Promise<void>;
 }
 
-  export default function ProfileInfoCard({
-    profile,
-    isEditable = false,
-    refetchProfile,
-  }: Props) {
-    const [editingBio, setEditingBio] = useState(false); // Bool for å se om vi er er i redigeringsmodus på bio
-    const [bioText, setBioText] = useState(profile?.bio ?? ""); // Innholdet i bioen
-    const [bioSaved, setBioSaved] = useState(false); // Vises om en endringer har vært vellykket
-    const { token } = useAuth();
-    const [editingWebsites, setEditingWebsites] = useState(false); // Bool for å se om vi er er i redigeringsmodus på websites
-    const [websiteList, setWebsiteList] = useState<string[]>(profile?.websites || []); // Innholdet til websites i en liste
-    const [websitesSaved, setWebsitesSaved] = useState(false); // Vises om en endringer har vært vellykket
-    const lastInputRef = useRef<HTMLInputElement | null>(null);
-        
+// Reusable InfoRow component
+const InfoRow = ({ label, value }: { label: string; value: string | number }) => (
+  <View style={styles.infoRow}>
+    <Text style={styles.label}>{label}:</Text>
+    <Text style={styles.value}>{value}</Text>
+  </View>
+);
+
+export default function ProfileInfoCardNative({
+  profile,
+  isEditable = false,
+  refetchProfile,
+}: Props) {
+  // Editing states
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioText, setBioText] = useState(profile?.bio ?? "");
+  const [bioSaved, setBioSaved] = useState(false);
+  const [editingWebsites, setEditingWebsites] = useState(false);
+  const [websiteList, setWebsiteList] = useState<string[]>(profile?.websites || []);
+  const [websitesSaved, setWebsitesSaved] = useState(false);
   
-    const isEmpty = (value: unknown): boolean => { // Sjekker om verdien er tom eller null. Da skjuler vi bioen eller websites listen.
-        if (value === null || value === undefined) return true;
-        if (typeof value === "string" && value.trim() === "") return true;
-        if (Array.isArray(value) && value.length === 0) return true;
-        return false;
-      };
-      // Her lagrer vi Bio til API etter den er validert.
-      const saveBio = async () => {
-        if (!token) return;
-        try {
-          await updateBio(bioText, token);
-          setBioSaved(true);
-          setTimeout(() => setBioSaved(false), 2000);
-          setEditingBio(false);
-    
-          if (refetchProfile) {
-            await refetchProfile(); // Henter oppdatert profil etter lagring
-          }
-        } catch (err) {
-          console.error("❌ Failed to update bio:", err);
-        }
+  const { token } = useAuth();
+  const lastInputRef = useRef<TextInput | null>(null);
+
+  // Utility functions
+  const isEmpty = (value: unknown): boolean => {
+    if (value === null || value === undefined) return true;
+    if (typeof value === "string" && value.trim() === "") return true;
+    if (Array.isArray(value) && value.length === 0) return true;
+    return false;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("no-NO", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  // Bio functions
+  const saveBio = async () => {
+    if (!token) return;
+    try {
+      await updateBio(bioText, token);
+      setBioSaved(true);
+      setTimeout(() => setBioSaved(false), 2000);
+      setEditingBio(false);
+
+      if (refetchProfile) {
+        await refetchProfile();
       }
-      // Her lagrer vi websites til API etter den er validert.
-      const saveWebsites = async () => {
-        if (!token) return;
-        const cleanedWebsites = websiteList.filter((url) => url.trim() !== "");
-        try {
-          await updateWebsites(cleanedWebsites, token);
-          setWebsitesSaved(true);
-          setTimeout(() => setWebsitesSaved(false), 2000);
-          setEditingWebsites(false);
-          if (refetchProfile) await refetchProfile();
-        } catch (err) {
-          console.error("❌ Failed to update websites:", err);
-        }
+    } catch (err) {
+      console.error("❌ Failed to update bio:", err);
+      Alert.alert("Error", "Failed to update bio. Please try again.");
+    }
+  };
+
+  const cancelBioEdit = () => {
+    setEditingBio(false);
+    setBioText(profile?.bio ?? "");
+  };
+
+  // Website functions
+  const saveWebsites = async () => {
+    if (!token) return;
+    const cleanedWebsites = websiteList.filter((url) => url.trim() !== "");
+    try {
+      await updateWebsites(cleanedWebsites, token);
+      setWebsitesSaved(true);
+      setTimeout(() => setWebsitesSaved(false), 2000);
+      setEditingWebsites(false);
+      if (refetchProfile) await refetchProfile();
+    } catch (err) {
+      console.error("❌ Failed to update websites:", err);
+      Alert.alert("Error", "Failed to update websites. Please try again.");
+    }
+  };
+
+  const cancelWebsiteEdit = () => {
+    setEditingWebsites(false);
+    setWebsiteList(profile?.websites || []);
+  };
+
+  const handleWebsitePress = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "Cannot open this URL");
       }
+    } catch (error) {
+      Alert.alert("Error", "Failed to open website");
+    }
+  };
 
-      console.log("👀 Gender:", profile.gender, "ShowGender setting:", profile.showGender);
+  const addWebsiteField = () => {
+    setWebsiteList([...websiteList, ""]);
+    setTimeout(() => {
+      lastInputRef.current?.focus();
+    }, 100);
+  };
 
+  const removeWebsiteField = (index: number) => {
+    const updated = websiteList.filter((_, i) => i !== index);
+    setWebsiteList(updated);
+  };
 
-  return (
-    <div className="bg-white dark:bg-[#1e2122] shadow-md rounded-xl p-6 space-y-2 mt-6 border-2 border-[#1C6B1C]">
-      <h2 className="text-xl font-semibold mb-2 ">Profile</h2>
-      {/* Profilinfo - navn, dato etc */}
-      {!isEmpty(profile.fullName) && <p><strong>Name:</strong> {profile.fullName}</p>}
-      
+  const updateWebsiteField = (index: number, value: string) => {
+    const updated = [...websiteList];
+    updated[index] = value;
+    setWebsiteList(updated);
+  };
 
-      {profile?.showAge && typeof profile.age === "number" && (
-        <p>
-          <strong>Age:</strong> {profile.age}
-        </p>
-      )}
-      {profile?.showGender && !isEmpty(profile.gender) && (
-          <p><strong>Gender:</strong> {profile.gender}</p>
+  // Render functions for different sections
+  const renderBasicInfo = () => {
+    const hasAnyBasicInfo = !isEmpty(profile.fullName) || 
+      (profile?.showAge && typeof profile.age === "number") ||
+      (profile?.showGender && !isEmpty(profile.gender)) ||
+      !isEmpty(profile?.country) ||
+      (profile?.showPostalCode && !isEmpty(profile.postalCode)) ||
+      (profile?.showBirthday && profile?.dateOfBirth) ||
+      (profile?.showEmail && !isEmpty(profile.contactEmail)) ||
+      (profile?.showPhone && !isEmpty(profile.contactPhone));
+
+    if (!hasAnyBasicInfo) return null;
+
+    return (
+      <>
+        {!isEmpty(profile.fullName) && (
+          <InfoRow label="Name" value={profile.fullName!} />
         )}
-    
-      {!isEmpty(profile?.country) && (
-        <p>
-          <strong>From:</strong> {profile.country}
-          {profile.showRegion && !isEmpty(profile.region) && `, ${profile.region}`}
-        </p>
-)}
-      {profile?.showPostalCode && !isEmpty(profile.postalCode) && (
-          <p><strong>Postal Code:</strong> {profile.postalCode}</p>
+
+        {profile?.showAge && typeof profile.age === "number" && (
+          <InfoRow label="Age" value={profile.age} />
         )}
-      
+
+        {profile?.showGender && !isEmpty(profile.gender) && (
+          <InfoRow label="Gender" value={profile.gender!} />
+        )}
+
+        {!isEmpty(profile?.country) && (
+          <InfoRow 
+            label="From" 
+            value={
+              profile.country! + 
+              (profile.showRegion && !isEmpty(profile.region) ? `, ${profile.region}` : "")
+            } 
+          />
+        )}
+
+        {profile?.showPostalCode && !isEmpty(profile.postalCode) && (
+          <InfoRow label="Postal Code" value={profile.postalCode!} />
+        )}
+
         {profile?.showBirthday && profile?.dateOfBirth && (
-        <p>
-          <strong>Birthday:</strong>{" "}
-          {new Date(profile.dateOfBirth).toLocaleDateString("no-NO", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
-      )}
+          <InfoRow label="Birthday" value={formatDate(profile.dateOfBirth)} />
+        )}
 
         {profile?.showEmail && !isEmpty(profile.contactEmail) && (
-                  <p><strong>Email:</strong> {profile.contactEmail}</p>
-                )}
-              {profile?.showPhone && !isEmpty(profile.contactPhone) && (
-                  <p><strong>Phone:</strong> {profile.contactPhone}</p>
-                )}
-      {/* Stats */}
-      <div className="mt-8" />
-          {profile?.showStats && (
-            <>
-              <h2 className="text-xl font-semibold mb-2">Stats</h2>
-              {!isEmpty(profile.totalLikesGiven) && (
-                <p><strong>Likes Given:</strong> {profile.totalLikesGiven}</p>
-              )}
-              {!isEmpty(profile.totalLikesRecieved) && (
-                <p><strong>Likes Received:</strong> {profile.totalLikesRecieved}</p>
-              )}
-              {!isEmpty(profile.totalCommentsMade) && (
-                <p><strong>Comments Made:</strong> {profile.totalCommentsMade}</p>
-              )}
-              {!isEmpty(profile.totalMessagesRecieved) && (
-                <p><strong>Messages Received:</strong> {profile.totalMessagesRecieved}</p>
-              )}
-              {!isEmpty(profile.totalMessagesSendt) && (
-                <p><strong>Messages Sendt:</strong> {profile.totalMessagesSendt}</p>
-              )}
-            </>
-          )}
+          <InfoRow label="Email" value={profile.contactEmail!} />
+        )}
 
-       {/* Bio-felt med inline redigering */}
-       {(isEditable || (profile.bio && profile.bio.trim() !== "")) && (
-       <div className="mt-6">
-        <h2 className="text-xl font-semibold mb-2">About Me</h2>
+        {profile?.showPhone && !isEmpty(profile.contactPhone) && (
+          <InfoRow label="Phone" value={profile.contactPhone!} />
+        )}
+      </>
+    );
+  };
+
+  const renderStats = () => {
+    if (!profile?.showStats) return null;
+
+    const hasAnyStats = !isEmpty(profile.totalLikesGiven) ||
+      !isEmpty(profile.totalLikesRecieved) ||
+      !isEmpty(profile.totalCommentsMade) ||
+      !isEmpty(profile.totalMessagesRecieved) ||
+      !isEmpty(profile.totalMessagesSendt);
+
+    if (!hasAnyStats) return null;
+
+    return (
+      <View style={styles.statsSection}>
+        <Text style={styles.sectionTitle}>Stats</Text>
+        
+        {!isEmpty(profile.totalLikesGiven) && (
+          <InfoRow label="Likes Given" value={profile.totalLikesGiven!} />
+        )}
+
+        {!isEmpty(profile.totalLikesRecieved) && (
+          <InfoRow label="Likes Received" value={profile.totalLikesRecieved!} />
+        )}
+
+        {!isEmpty(profile.totalCommentsMade) && (
+          <InfoRow label="Comments Made" value={profile.totalCommentsMade!} />
+        )}
+
+        {!isEmpty(profile.totalMessagesRecieved) && (
+          <InfoRow label="Messages Received" value={profile.totalMessagesRecieved!} />
+        )}
+
+        {!isEmpty(profile.totalMessagesSendt) && (
+          <InfoRow label="Messages Sent" value={profile.totalMessagesSendt!} />
+        )}
+      </View>
+    );
+  };
+
+  const renderBio = () => {
+    const hasBio = profile.bio && profile.bio.trim() !== "";
+    
+    if (!isEditable && !hasBio) return null;
+
+    return (
+      <View style={styles.bioSection}>
+        <Text style={styles.sectionTitle}>About Me</Text>
+        
         {isEditable ? (
           editingBio ? (
-            <>
-              <textarea
+            <View>
+              <TextInput
                 value={bioText}
-                onChange={(e) => setBioText(e.target.value)}
-                onInput={(e) => {
-                    const target = e.currentTarget;
-                    target.style.height = "auto"; // Reset height
-                    target.style.height = `${target.scrollHeight}px`; // Set to scroll height
-                }}
+                onChangeText={setBioText}
                 maxLength={1000}
-                className="w-full px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-600 resize-none overflow-hidden"
+                multiline
+                style={styles.bioInput}
                 placeholder="Write your bio here (max 1000 characters)..."
-                />
-              <div className="flex gap-3 mt-2">
-                <FormButton
+                placeholderTextColor="#666"
+              />
+              <View style={styles.buttonRow}>
+                <ButtonNative
                   text={bioSaved ? "Saved ✅" : "Save"}
-                  type="button"
-                  onClick={saveBio}
-                  className="px-6 py-2"
+                  onPress={saveBio}
+                  variant="primary"
+                  style={styles.actionButton}
                 />
-                <FormButton
+                <ButtonNative
                   text="Cancel"
-                  type="button"
-                  onClick={() => {
-                    setEditingBio(false);
-                    setBioText(profile?.bio ?? "");
-                  }}
-                  className="px-6 py-2 bg-gray-500 hover:bg-gray-600"
+                  onPress={cancelBioEdit}
+                  variant="secondary"
+                  style={styles.actionButton}
                 />
-              </div>
-            </>
+              </View>
+            </View>
           ) : (
-            <>
-              <p className="whitespace-pre-wrap">{profile?.bio || ""}</p>
-              <div className="flex justify-center mt-2">
-                <FormButton
-                    text="Edit About Me"
-                    type="button"
-                    onClick={() => setEditingBio(true)}
-                    className="text-sm"
+            <View>
+              <Text style={styles.bioText}>{profile?.bio || "No bio added yet."}</Text>
+              <View style={styles.centerButton}>
+                <ButtonNative
+                  text="Edit About Me"
+                  onPress={() => setEditingBio(true)}
+                  variant="outline"
+                  style={styles.editButton}
                 />
-                </div>
-            </>
+              </View>
+            </View>
           )
         ) : (
-          <p className="whitespace-pre-wrap">{profile?.bio || ""}</p>
+          <Text style={styles.bioText}>{profile?.bio}</Text>
         )}
-      </div>
-      )}
-      {profile?.showWebsites && (
-  <div className="mt-6">
-    <h2 className="text-xl font-semibold mb-2">Websites</h2>
-  {isEditable ? (
-    editingWebsites ? (
-      <>
-      {websiteList.length === 0 ? (
-        <ProfileNavButton
-         text="Add website"
-         variant="small"
-         onClick={() => setWebsiteList([""])}
-        />
-) : (
-  websiteList.map((url, idx) => (
-    <div key={idx} className="flex items-center gap-2 w-full">
-      <input
-        type="text"
-        ref={idx === websiteList.length - 1 ? lastInputRef : null}
-        className="flex-1 px-4 py-2 rounded-md bg-gray-800 text-white border border-gray-600"
-        value={url}
-        onChange={(e) => {
-          const updated = [...websiteList];
-          updated[idx] = e.target.value;
-          setWebsiteList(updated);
-        }}
-        onBlur={(e) => {
-          const updated = [...websiteList];
-          updated[idx] = e.target.value;
-          setWebsiteList(updated);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const updated = [...websiteList];
-            updated[idx] = e.currentTarget.value;
-            setWebsiteList([...updated, ""]);
-            setTimeout(() => {
-              lastInputRef.current?.focus();
-            }, 10); // forsinker litt for at feltet skal rendres først
-          }
-        }}
-        placeholder="https://example.com"
-      />
-      {idx === websiteList.length - 1 && (
-        <button
-          type="button"
-          onClick={() => {
-            setWebsiteList([...websiteList, ""]);
-            setTimeout(() => {
-              lastInputRef.current?.focus();
-            }, 10);
-          }}
-          className="text-green-400 hover:text-green-600 text-sm"
-          title="Add new website"
-        >
-          <PlusCircle size={20} className="text-green-400 hover:text-green-600" />
-        </button>
-      )}
+      </View>
+    );
+  };
 
-      
-      <button
-        type="button"
-        onClick={() => {
-          const updated = websiteList.filter((_, i) => i !== idx);
-          setWebsiteList(updated);
-        }}
-        tabIndex={-1}
-        className="text-red-400 hover:text-red-600 text-sm"
-        title="Remove this website"
-      >
-        🗑️
-      </button>
-    </div>
-  ))
-)}
-{/* Knappene Save og Cancel*/}
-<div className="mt-4" />
-        <div className="flex gap-4">
-          <FormButton
-            text={websitesSaved ? "Saved ✅" : "Save"}
-            type="button"
-            onClick={saveWebsites}
-            className="px-6 py-2"
-          />
-          <FormButton
-            text="Cancel"
-            type="button"
-            onClick={() => {
-              setEditingWebsites(false);
-              setWebsiteList(profile?.websites || []);
-            }}
-            className="px-6 py-2 bg-gray-500 hover:bg-gray-600"
-          />
-        </div>
-      </>
-    ) : (
-      <>
-        {profile?.websites && profile.websites.length > 0 ? (
-          <ul className="list-disc list-inside text-blue-400">
-            {profile.websites.map((url, index) => (
-              <li key={index}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                  {url}
-                </a>
-              </li>
-            ))}
-          </ul>
+  const renderWebsites = () => {
+    if (!profile?.showWebsites) return null;
+
+    const hasWebsites = profile?.websites && profile.websites.length > 0;
+
+    return (
+      <View style={styles.websitesSection}>
+        <Text style={styles.sectionTitle}>Websites</Text>
+        
+        {isEditable ? (
+          editingWebsites ? (
+            <View>
+              {websiteList.length === 0 ? (
+                <ButtonNative
+                  text="Add website"
+                  onPress={() => setWebsiteList([""])}
+                  variant="outline"
+                  style={styles.addWebsiteButton}
+                />
+              ) : (
+                <ScrollView style={styles.websiteInputContainer}>
+                  {websiteList.map((url, idx) => (
+                    <View key={idx} style={styles.websiteInputRow}>
+                      <TextInput
+                        ref={idx === websiteList.length - 1 ? lastInputRef : null}
+                        style={styles.websiteInput}
+                        value={url}
+                        onChangeText={(text) => updateWebsiteField(idx, text)}
+                        placeholder="https://example.com"
+                        placeholderTextColor="#666"
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                      />
+                      
+                      {idx === websiteList.length - 1 && (
+                        <TouchableOpacity
+                          onPress={addWebsiteField}
+                          style={styles.iconButton}
+                        >
+                          <PlusCircle size={20} color="#22C55E" />
+                        </TouchableOpacity>
+                      )}
+                      
+                      <TouchableOpacity
+                        onPress={() => removeWebsiteField(idx)}
+                        style={styles.iconButton}
+                      >
+                        <Trash2 size={20} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+              
+              <View style={styles.buttonRow}>
+                <ButtonNative
+                  text={websitesSaved ? "Saved ✅" : "Save"}
+                  onPress={saveWebsites}
+                  variant="primary"
+                  style={styles.actionButton}
+                />
+                <ButtonNative
+                  text="Cancel"
+                  onPress={cancelWebsiteEdit}
+                  variant="secondary"
+                  style={styles.actionButton}
+                />
+              </View>
+            </View>
+          ) : (
+            <View>
+              {hasWebsites ? (
+                <View style={styles.websiteList}>
+                  {profile.websites!.map((url, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => handleWebsitePress(url)}
+                      style={styles.websiteItem}
+                    >
+                      <Text style={styles.websiteLink}>• {url}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyText}>No websites added yet.</Text>
+              )}
+              <View style={styles.centerButton}>
+                <ButtonNative
+                  text="Edit Websites"
+                  onPress={() => setEditingWebsites(true)}
+                  variant="outline"
+                  style={styles.editButton}
+                />
+              </View>
+            </View>
+          )
         ) : (
-          <p className="text-sm text-gray-400 italic">No websites added yet.</p>
+          hasWebsites && (
+            <View style={styles.websiteList}>
+              {profile.websites!.map((url, index) => (
+                <TouchableOpacity
+                  key={index}
+                  onPress={() => handleWebsitePress(url)}
+                  style={styles.websiteItem}
+                >
+                  <Text style={styles.websiteLink}>• {url}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )
         )}
-        <div className="flex justify-center mt-2">
-          <FormButton
-            text="Edit Websites"
-            type="button"
-            onClick={() => setEditingWebsites(true)}
-            className="text-sm"
-          />
-        </div>
-      </>
-    )
-  ) : (
-    profile?.websites && profile.websites.length > 0 && (
-            <ul className="list-disc list-inside text-blue-400">
-                {profile.websites.map((url, index) => (
-                <li key={index}>
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    {url}
-                    </a>
-                </li>
-                ))}
-            </ul>
-      )
-        )}
-      </div>
-    )}
-    </div>
+      </View>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.sectionTitle}>Profile</Text>
+      
+      {renderBasicInfo()}
+      {renderStats()}
+      {renderBio()}
+      {renderWebsites()}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 2,
+    borderColor: '#1C6B1C',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#145214',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    flexWrap: 'wrap',
+  },
+  label: {
+    fontWeight: '600',
+    color: '#333',
+    minWidth: 80,
+  },
+  value: {
+    color: '#666',
+    flex: 1,
+  },
+  statsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  bioSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  bioText: {
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  bioInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#333',
+    minHeight: 80,
+    textAlignVertical: 'top',
+    backgroundColor: '#f8f9fa',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  actionButton: {
+    flex: 1,
+  },
+  centerButton: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  editButton: {
+    paddingHorizontal: 24,
+  },
+  websitesSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopColor: '#e5e7eb',
+    borderTopWidth: 1,
+  },
+  addWebsiteButton: {
+    alignSelf: 'flex-start',
+  },
+  websiteInputContainer: {
+    maxHeight: 200,
+  },
+  websiteInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  websiteInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#f8f9fa',
+  },
+  iconButton: {
+    padding: 4,
+  },
+  websiteList: {
+    marginBottom: 12,
+  },
+  websiteItem: {
+    paddingVertical: 4,
+  },
+  websiteLink: {
+    color: '#2563EB',
+    fontSize: 16,
+  },
+  emptyText: {
+    color: '#999',
+    fontStyle: 'italic',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+});

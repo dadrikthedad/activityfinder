@@ -11,7 +11,6 @@ import ClickableAvatarNative from '../common/UserActionPopover/ClickableAvatarNa
 
 interface ParticipantsListNativeProps {
   participants: UserSummaryDTO[];
-  onParticipantClick?: (participant: UserSummaryDTO) => void; // 👈 LEGACY - kept for backward compatibility
   showGroupRequestStatus?: boolean;
   closeModalOnAction?: boolean; // 👈 Controls if popover should close parent modal
   navigation?: any; // 👈 ADDED for ClickableAvatarNative
@@ -19,7 +18,6 @@ interface ParticipantsListNativeProps {
 
 export function ParticipantsListNative({
   participants,
-  onParticipantClick, // Legacy callback - still works but not needed
   showGroupRequestStatus = false,
   closeModalOnAction = true,
   navigation, // 👈 ADDED
@@ -50,12 +48,6 @@ export function ParticipantsListNative({
     ? [...participants].sort((a, b) => getStatusOrder(a.groupRequestStatus) - getStatusOrder(b.groupRequestStatus))
     : participants;
 
-  const handleLegacyClick = (participant: UserSummaryDTO) => {
-    // Call legacy callback if provided (for backward compatibility)
-    if (onParticipantClick) {
-      onParticipantClick(participant);
-    }
-  };
 
   const renderParticipant = (participant: UserSummaryDTO) => {
     const statusInfo = getStatusInfo(participant);
@@ -77,7 +69,6 @@ export function ParticipantsListNative({
           <Text 
             style={styles.participantName} 
             numberOfLines={1}
-            onPress={() => handleLegacyClick(participant)} // 👈 LEGACY SUPPORT
           >
             {participant.fullName}
           </Text>

@@ -11,12 +11,14 @@ interface UserPopoverData {
   onLeaveGroup?: () => void;
   isPendingRequest?: boolean;
   conversationId?: number;
-  closeModalOnAction?: boolean; // 👈 NEW PROP
+  closeModalOnAction?: boolean;
 }
 
 interface UserActionPopoverContextType {
   showPopover: (data: UserPopoverData) => void;
   hidePopover: () => void;
+  visible: boolean; // 👈 ADDED - expose visible state
+  data: UserPopoverData | null; // 👈 ADDED - expose data if needed
 }
 
 const UserActionPopoverContext = createContext<UserActionPopoverContextType | undefined>(undefined);
@@ -49,7 +51,14 @@ export function UserActionPopoverProvider({ children }: UserActionPopoverProvide
   };
 
   return (
-    <UserActionPopoverContext.Provider value={{ showPopover, hidePopover }}>
+    <UserActionPopoverContext.Provider 
+      value={{ 
+        showPopover, 
+        hidePopover,
+        visible: popoverState.visible, // 👈 EXPOSE visible state
+        data: popoverState.data, // 👈 EXPOSE data if needed
+      }}
+    >
       {children}
       
       {/* Render popover when visible */}
@@ -64,7 +73,7 @@ export function UserActionPopoverProvider({ children }: UserActionPopoverProvide
           onLeaveGroup={popoverState.data.onLeaveGroup}
           isPendingRequest={popoverState.data.isPendingRequest}
           conversationId={popoverState.data.conversationId}
-          closeModalOnAction={popoverState.data.closeModalOnAction} // 👈 PASS THROUGH
+          closeModalOnAction={popoverState.data.closeModalOnAction}
         />
       )}
     </UserActionPopoverContext.Provider>

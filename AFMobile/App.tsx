@@ -29,6 +29,8 @@ import NewConversationScreen from './screens/messages/NewConversationScreen';
 import MessageNotificationScreen from './screens/messages/MessageNotificationScreen';
 import TrashcanScreen from './screens/messages/TrashcanScreen';
 import { UserActionPopoverProvider } from './context/UserActionPopoverContext';
+import ProfileScreen from './screens/profile/ProfileScreen';
+import EditProfileScreen from './screens/profile/EditProfileScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -109,6 +111,22 @@ function AuthenticatedApp() {
                 <>
                   <MobileNavbarNative />
                   <MessagesScreen navigation={navigation} />
+                </>
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="Profile">
+              {({ route }) => (
+                <>
+                  <MobileNavbarNative />
+                  <ProfileScreen />
+                </>
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="EditProfileScreen">
+              {({ route }) => (
+                <>
+                  <MobileNavbarNative />
+                  <ProfileScreen />
                 </>
               )}
             </Stack.Screen>

@@ -20,7 +20,7 @@ export default function MediaViewerScreen() {
   const navigation = useNavigation<MediaViewerScreenNavigationProp>();
   const route = useRoute<MediaViewerScreenRouteProp>();
   
-  const { files, initialIndex, conversationId } = route.params;
+  const { files, initialIndex, conversationId, viewerOptions  } = route.params;
   
   // Download hook fra MessageAttachmentsNative
   const { 
@@ -85,8 +85,8 @@ export default function MediaViewerScreen() {
           images={imageFiles}
           initialIndex={Math.max(0, imageIndex)}
           onClose={handleClose}
-          onDownload={handleDownload}
-          onShare={handleShare}
+          onDownload={viewerOptions?.showDownload !== false ? handleDownload : undefined}
+          onShare={viewerOptions?.showShare !== false ? handleShare : undefined}
           useModal={false} // Important: use screen mode, not modal mode
         />
         

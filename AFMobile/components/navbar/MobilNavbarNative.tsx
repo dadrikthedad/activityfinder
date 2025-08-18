@@ -9,6 +9,9 @@ import {
   StatusBar,
   SafeAreaView,
   ScrollView,
+  TextInput,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { 
   Bell, 
@@ -19,7 +22,8 @@ import {
   User, 
   Settings, 
   Home, 
-  Trash2
+  Trash2,
+  Search // ✅ Added Search icon
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -27,6 +31,9 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '@/types/navigation';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
+import { useUserSearch } from '@/hooks/useUserSearch'; // ✅ Import the search hook
+import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
+import { useCurrentUser } from '@/store/useUserCacheStore';
 
 interface MobileNavbarNativeProps {
   onNavigateToMessages?: () => void;
@@ -39,7 +46,13 @@ export default function MobileNavbarNative({
 }: MobileNavbarNativeProps) {
   const { isLoggedIn, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false); // ✅ Search mode state
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+
+  const currentUser = useCurrentUser();
+  
+  // ✅ Use the search hook
+  const { query, setQuery, results, loading } = useUserSearch();
   
   // General notification state for bell badge
   const notifications = useNotificationStore((s) => s.notifications);
@@ -58,6 +71,25 @@ export default function MobileNavbarNative({
     setIsMenuOpen(false);
   }, []);
 
+  // ✅ Search mode handlers
+  const handleToggleSearch = useCallback(() => {
+    setIsSearchMode(prev => {
+      if (prev) {
+        // Exiting search mode - clear search
+        setQuery("");
+      }
+      return !prev;
+    });
+  }, [setQuery]);
+
+  const handleUserSelect = useCallback((user: UserSummaryDTO) => {
+    // Navigate to user's profile
+    navigation.navigate('Profile', { id: user.id.toString() });
+    // Exit search mode
+    setIsSearchMode(false);
+    setQuery("");
+  }, [navigation, setQuery]);
+
   const handleNavigation = useCallback(
   <T extends keyof RootStackParamList>(screenName: T, params?: RootStackParamList[T]) => {
     handleCloseMenu();
@@ -75,7 +107,6 @@ export default function MobileNavbarNative({
     if (onNavigateToMessages) {
       onNavigateToMessages();
     } else {
-      // Navigate to MessagesScreen instead of Messages
       handleNavigation('MessagesScreen');
     }
   }, [onNavigateToMessages, handleNavigation]);
@@ -84,11 +115,22 @@ export default function MobileNavbarNative({
     if (onNavigateToNotifications) {
       onNavigateToNotifications();
     } else {
-      // Open notifications modal using ModalContext
-      // You can implement this with useModal hook
       handleNavigation('Notifications');
     }
   }, [onNavigateToNotifications, handleNavigation]);
+
+  // ✅ Render user search result item
+  const renderUserItem = ({ item }: { item: UserSummaryDTO }) => (
+    <TouchableOpacity
+      style={styles.userItem}
+      onPress={() => handleUserSelect(item)}
+    >
+      <View style={styles.userAvatar}>
+        <User size={20} color="#374151" />
+      </View>
+      <Text style={styles.userName}>{item.fullName}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <>
@@ -96,60 +138,119 @@ export default function MobileNavbarNative({
       <View style={styles.navbar}>
         <StatusBar barStyle="light-content" backgroundColor="#1C6B1C" />
         
-        {/* Logo */}
-        <TouchableOpacity onPress={() => handleNavigation('Home')}>
-          <Text style={styles.logo}>Magee.no</Text>
-        </TouchableOpacity>
-
-        {/* Right side icons */}
-        <View style={styles.rightIcons}>
-          {/* Messages Icon - only visible when logged in */}
-          {isLoggedIn && (
+        {isSearchMode ? (
+          // ✅ Search Mode Layout
+          <>
+            <View style={styles.searchContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search users..."
+                placeholderTextColor="#9CA3AF"
+                value={query}
+                onChangeText={setQuery}
+                autoFocus
+              />
+            </View>
             <TouchableOpacity
-              onPress={handleMessagesPress}
+              onPress={handleToggleSearch}
               style={styles.iconButton}
             >
-              <MessageSquare size={20} color="white" />
-              {unreadMessageNotifications > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {unreadMessageNotifications > 99 ? "99+" : unreadMessageNotifications.toString()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* Notifications Icon - only visible when logged in */}
-          {isLoggedIn && (
-            <TouchableOpacity
-              onPress={handleNotificationsPress}
-              style={styles.iconButton}
-            >
-              <Bell size={20} color="white" />
-              {unreadNotifications > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {unreadNotifications > 99 ? "99+" : unreadNotifications.toString()}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* Menu Button */}
-          <TouchableOpacity
-            onPress={handleToggleMenu}
-            style={styles.iconButton}
-          >
-            {isMenuOpen ? (
               <X size={20} color="white" />
-            ) : (
-              <Menu size={20} color="white" />
-            )}
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+          </>
+        ) : (
+          // ✅ Normal Mode Layout
+          <>
+            {/* Logo */}
+            <TouchableOpacity onPress={() => handleNavigation('Home')}>
+              <Text style={styles.logo}>Magee.no</Text>
+            </TouchableOpacity>
+
+            {/* Right side icons */}
+            <View style={styles.rightIcons}>
+              {/* Search Icon - only visible when logged in */}
+              {isLoggedIn && (
+                <TouchableOpacity
+                  onPress={handleToggleSearch}
+                  style={styles.iconButton}
+                >
+                  <Search size={20} color="white" />
+                </TouchableOpacity>
+              )}
+
+              {/* Messages Icon - only visible when logged in */}
+              {isLoggedIn && (
+                <TouchableOpacity
+                  onPress={handleMessagesPress}
+                  style={styles.iconButton}
+                >
+                  <MessageSquare size={20} color="white" />
+                  {unreadMessageNotifications > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {unreadMessageNotifications > 99 ? "99+" : unreadMessageNotifications.toString()}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* Notifications Icon - only visible when logged in */}
+              {isLoggedIn && (
+                <TouchableOpacity
+                  onPress={handleNotificationsPress}
+                  style={styles.iconButton}
+                >
+                  <Bell size={20} color="white" />
+                  {unreadNotifications > 0 && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {unreadNotifications > 99 ? "99+" : unreadNotifications.toString()}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+
+              {/* Menu Button */}
+              <TouchableOpacity
+                onPress={handleToggleMenu}
+                style={styles.iconButton}
+              >
+                {isMenuOpen ? (
+                  <X size={20} color="white" />
+                ) : (
+                  <Menu size={20} color="white" />
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
+
+      {/* ✅ Search Results Dropdown */}
+      {isSearchMode && query.trim() && (
+        <View style={styles.searchResults}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#1C6B1C" />
+              <Text style={styles.loadingText}>Searching...</Text>
+            </View>
+          ) : results.length > 0 ? (
+            <FlatList
+              data={results}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={renderUserItem}
+              style={styles.resultsList}
+              showsVerticalScrollIndicator={false}
+            />
+          ) : (
+            <View style={styles.noResultsContainer}>
+              <Text style={styles.noResultsText}>No users found</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Slide-out Menu Modal */}
       <Modal
@@ -185,7 +286,14 @@ export default function MobileNavbarNative({
                 <>
                   {/* Logged in user - Profile first */}
                   <TouchableOpacity
-                    onPress={() => handleNavigation('Profile')}
+                    onPress={() => {
+                      if (currentUser?.id) {
+                        handleNavigation('Profile', { id: currentUser.id.toString() });
+                      } else {
+                        // Fallback hvis ingen current user
+                        console.warn('No current user found for profile navigation');
+                      }
+                    }}
                     style={styles.menuItem}
                   >
                     <User size={18} color="#374151" />
@@ -238,8 +346,6 @@ export default function MobileNavbarNative({
                     <Settings size={18} color="#374151" />
                     <Text style={styles.menuItemText}>Settings</Text>
                   </TouchableOpacity>
-
-                  
 
                   <View style={styles.separator} />
 
@@ -337,6 +443,75 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
+  // ✅ Search-related styles
+  searchContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  searchInput: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    color: '#374151',
+  },
+  searchResults: {
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    maxHeight: 300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  resultsList: {
+    maxHeight: 300,
+  },
+  userItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+    gap: 12,
+  },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userName: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  noResultsContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  noResultsText: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  // Existing modal styles...
   modalOverlay: {
     flex: 1,
     flexDirection: 'row',
