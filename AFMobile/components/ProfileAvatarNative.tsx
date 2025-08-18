@@ -11,10 +11,11 @@ import {
 import ButtonNative from "@/components/common/buttons/ButtonNative";
 import { useUploadProfileImage } from "@/hooks/files/useUploadProfileImage";
 import { useAuth } from "@/context/AuthContext";
-import { useAttachmentPicker } from "@/components/files/filepicker/useAttachmentPicker";
+import { AttachmentPicker } from "./files/filepicker/AttachmentPicker";
 import useAttachmentViewer from "./files/AttachmentViewer";
 import { RNFile } from "@/utils/files/FileFunctions";
 import SpinnerNative from "@/components/common/SpinnerNative";
+import { showNotificationToastNative, LocalToastType } from "./toast/NotificationToastNative";
 
 interface Props {
   imageUrl: string;
@@ -32,7 +33,7 @@ export default function ProfileAvatarNative({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<RNFile | null>(null);
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [imageHasLoaded, setImageHasLoaded] = useState(false); // ✅ Track if image has loaded once
   const { userId } = useAuth();
 
   const {
@@ -45,7 +46,7 @@ export default function ProfileAvatarNative({
   // Create file object for AttachmentViewer
   const profileImageFile: RNFile = {
     uri: previewUrl || imageUrl,
-    type: 'image/jpeg', // Default to jpeg, could be improved to detect actual type
+    type: 'image/jpeg',
     name: 'Profile Picture',
     size: 0,
   };
@@ -54,8 +55,24 @@ export default function ProfileAvatarNative({
   const { openFile } = useAttachmentViewer({
     files: [profileImageFile],
     viewerOptions: {
-      showDownload: false, // Skjul download for profilbilde
-      showShare: false,    // Skjul share for profilbilde
+      showDownload: false,
+      showShare: false,
+    }
+  });
+
+  // ✅ Create separate viewer for preview image
+  const previewFile: RNFile | null = selectedFile ? {
+    uri: selectedFile.uri,
+    type: selectedFile.type,
+    name: selectedFile.name,
+    size: selectedFile.size,
+  } : null;
+
+  const { openFile: openPreviewFile } = useAttachmentViewer({
+    files: previewFile ? [previewFile] : [],
+    viewerOptions: {
+      showDownload: false,
+      showShare: false,
     }
   });
 
@@ -69,33 +86,26 @@ export default function ProfileAvatarNative({
       console.log('🔄 Selected profile image:', file.uri);
       setSelectedFile(file);
       setPreviewUrl(file.uri);
-      setShowUploadModal(true); // Show upload confirmation modal
+      // ✅ No modal - just update the preview directly
     } catch (err) {
       console.error('Failed to process selected image:', err);
-      Alert.alert("Error", "Failed to process selected image. Please try again.");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Image Error",
+        customBody: "Failed to process selected image. Please try again.",
+        position: 'top'
+      });
     }
   }, []);
 
-  // Use AttachmentPicker hook
-  const {
-    showPicker,
-    showModal: showAttachmentModal,
-    setShowModal: setShowAttachmentModal,
-    handleCamera,
-    handleImagePicker,
-    handleDocumentPicker,
-  } = useAttachmentPicker({
-    onFilesSelected: handleFilesSelected,
-    allowMultipleImages: false,
-    allowVideos: false,
-    allowDocuments: false,
-    imageQuality: 0.8,
-    cameraQuality: 0.8,
-  });
-
   const handleUpload = async () => {
     if (!selectedFile || !userId) {
-      Alert.alert("Error", "No image selected or user not authenticated.");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Upload Error",
+        customBody: "No image selected or user not authenticated.",
+        position: 'top'
+      });
       return;
     }
 
@@ -120,59 +130,79 @@ export default function ProfileAvatarNative({
       }
     } catch (err) {
       console.error('Failed to upload profile image:', err);
-      Alert.alert("Error", "Failed to upload profile picture. Please try again.");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Upload Failed",
+        customBody: "Failed to upload profile picture. Please try again.",
+        position: 'top'
+      });
     }
   };
 
-  const handleCloseUploadModal = () => {
-    setShowUploadModal(false);
+  // ✅ Reset imageHasLoaded when imageUrl changes (new image)
+  useEffect(() => {
+    setImageHasLoaded(false);
+  }, [imageUrl]);
+
+  // ✅ Handle cancel - reset to original state
+  const handleCancel = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     resetUpload();
   };
 
-  const triggerImageUpload = useCallback(() => {
-    showPicker();
-  }, [showPicker]);
+  const handleCloseUploadModal = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    resetUpload();
+  };
 
   // Handle avatar press - open fullscreen view
   const handleAvatarPress = () => {
-    openFile(0); // Open the profile image in AttachmentViewer
+    openFile(0);
   };
 
-  useEffect(() => {
-    setImgLoading(true);
-  }, [imageUrl]);
+  // Handle preview image press - open fullscreen view of selected image
+  const handlePreviewPress = () => {
+    if (selectedFile && previewFile) {
+      openPreviewFile(0);
+    }
+  };
+
+  // ✅ FIX: Kun vis loading hvis bildet ikke har blitt lastet før
+  const handleImageLoadStart = () => {
+    if (!imageHasLoaded) {
+      setImgLoading(true);
+    }
+  };
 
   const handleImageLoaded = () => {
     setImgLoading(false);
+    setImageHasLoaded(true); // ✅ Mark that image has loaded successfully
   };
 
   const handleImageError = () => {
     setImgLoading(false);
+    setImageHasLoaded(false); // ✅ Reset on error so we can try loading again
     console.warn('Failed to load profile image:', imageUrl);
   };
 
   const displayImageUrl = previewUrl || imageUrl;
-
   const borderWidth = 4;
 
   const getImageSource = (url: string | null | undefined) => {
-    // Handle null/undefined
     if (!url || url.trim() === '') {
-      return require('@/assets/images/default-avatar.png'); // Adjust path to your actual asset
+      return require('@/assets/images/default-avatar.png');
     }
     
-    // Handle local default paths
     if (url.startsWith('/default-avatar') || url === '/default-avatar.png') {
-      return require('@/assets/images/default-avatar.png'); // Adjust path to your actual asset
+      return require('@/assets/images/default-avatar.png');
     }
     
     if (url.startsWith('/default-group') || url === '/default-group.png') {
-      return require('@/assets/images/default-group.png'); // Adjust path to your actual asset
+      return require('@/assets/images/default-group.png');
     }
     
-    // Handle regular URLs
     return { uri: url };
   };
 
@@ -199,16 +229,6 @@ export default function ProfileAvatarNative({
           ]}
           activeOpacity={0.8}
         >
-          {imgLoading && (
-            <View style={[
-              styles.loadingOverlay, 
-              { 
-                borderRadius: size / 2,
-              }
-            ]}>
-              <SpinnerNative />
-            </View>
-          )}
           <Image
             source={getImageSource(displayImageUrl)}
             style={[
@@ -219,65 +239,52 @@ export default function ProfileAvatarNative({
                 borderRadius: size / 2,
               }
             ]}
+            onLoadStart={handleImageLoadStart}
             onLoad={handleImageLoaded}
             onError={handleImageError}
             resizeMode="cover"
           />
+          {/* ✅ FIX: Flytt loading overlay til etter Image og bruk absolute positioning */}
+          {imgLoading && (
+            <View style={[
+              styles.loadingOverlay, 
+              { 
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+              }
+            ]}>
+              <SpinnerNative />
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Edit Button */}
+      {/* Edit Button with AttachmentPicker using ButtonNative */}
       {isEditable && (
         <View style={styles.editButtonContainer}>
-          <ButtonNative
-            text="Edit Profile Picture"
-            onPress={triggerImageUpload}
-            variant="outline"
-            size="small"
-          />
-        </View>
-      )}
-
-      {/* Upload Confirmation Modal (only shown when file is selected) */}
-      {selectedFile && (
-        <Modal
-          visible={showUploadModal}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={handleCloseUploadModal}
-        >
-          <View style={styles.uploadModalOverlay}>
-            <TouchableOpacity 
-              style={styles.uploadModalBackground} 
-              onPress={handleCloseUploadModal}
-              activeOpacity={1}
+          {!selectedFile ? (
+            // ✅ Show "Edit Profile Picture" when no file selected
+            <AttachmentPicker
+              onFilesSelected={handleFilesSelected}
+              allowMultipleImages={false}
+              allowVideos={false}
+              allowDocuments={true}
+              imageQuality={0.8}
+              cameraQuality={0.8}
+              modalTitle="Select Profile Picture"
+              useNativeButton={true}
+              buttonText="Edit Profile Picture"
+              nativeButtonProps={{
+                variant: "primary",
+                size: "medium",
+                style: styles.editButton,
+              }}
             />
-            <View style={styles.uploadModalContent}>
-              {/* Preview Image */}
-              <View style={styles.previewContainer}>
-                <Image
-                  source={{ uri: selectedFile.uri }}
-                  style={styles.previewImage}
-                  resizeMode="cover"
-                />
-              </View>
-
-              <Text style={styles.confirmText}>
-                Save this as your new profile picture?
-              </Text>
-
-              {selectedFile && (
-                <Text style={styles.fileName}>
-                  {selectedFile.name}
-                </Text>
-              )}
-              
-              {uploadError && (
-                <Text style={styles.errorText}>{uploadError}</Text>
-              )}
-
-              {/* Action Buttons */}
-              <View style={styles.buttonContainer}>
+          ) : (
+            // ✅ Show Save/Cancel/Change buttons when file is selected
+            <View style={styles.actionButtonsContainer}>
+              <View style={styles.actionButtonRow}>
                 <ButtonNative
                   text={uploading ? "Saving..." : "Save"}
                   onPress={handleUpload}
@@ -285,62 +292,40 @@ export default function ProfileAvatarNative({
                   disabled={uploading}
                   loading={uploading}
                   loadingText="Saving..."
-                  style={styles.actionButton}
+                  style={styles.actionButtonHalf}
                 />
                 <ButtonNative
                   text="Cancel"
-                  onPress={handleCloseUploadModal}
+                  onPress={handleCancel}
                   variant="secondary"
-                  style={styles.actionButton}
+                  style={styles.actionButtonHalf}
                 />
               </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {/* AttachmentPicker Modal */}
-      <Modal
-        visible={showAttachmentModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowAttachmentModal(false)}
-      >
-        <View style={styles.attachmentModalOverlay}>
-          <TouchableOpacity 
-            style={styles.attachmentModalBackground} 
-            onPress={() => setShowAttachmentModal(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.attachmentModalContent}>
-            <Text style={styles.attachmentModalTitle}>Select Image Source</Text>
-            
-            <View style={styles.attachmentButtonContainer}>
-              <ButtonNative
-                text="Camera"
-                onPress={handleCamera}
-                variant="primary"
-                fullWidth
-                style={styles.attachmentButton}
-              />
-              <ButtonNative
-                text="Photo Library"
-                onPress={handleImagePicker}
-                variant="outline"
-                fullWidth
-                style={styles.attachmentButton}
-              />
-              <ButtonNative
-                text="Cancel"
-                onPress={() => setShowAttachmentModal(false)}
-                variant="secondary"
-                fullWidth
-                style={styles.attachmentButton}
+              
+              {uploadError && (
+                <Text style={styles.errorText}>{uploadError}</Text>
+              )}
+              
+              <AttachmentPicker
+                onFilesSelected={handleFilesSelected}
+                allowMultipleImages={false}
+                allowVideos={false}
+                allowDocuments={true}
+                imageQuality={0.8}
+                cameraQuality={0.8}
+                modalTitle="Change Profile Picture"
+                useNativeButton={true}
+                buttonText="Change Image"
+                nativeButtonProps={{
+                  variant: "secondary",
+                  size: "medium",
+                  style: styles.changeImageButton,
+                }}
               />
             </View>
-          </View>
+          )}
         </View>
-      </Modal>
+      )}
     </>
   );
 }
@@ -356,11 +341,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    backgroundColor: '#1C6B1C', // Border fargen som bakgrunn
+    backgroundColor: '#1C6B1C',
     position: 'relative',
   },
   borderContainer: {
-    backgroundColor: '#1C6B1C', // Border fargen
+    backgroundColor: '#1C6B1C',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -372,11 +357,15 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  // ✅ FIX: Bruk absolute positioning for loading overlay
   loadingOverlay: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    zIndex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
   },
   avatarImage: {
     backgroundColor: '#f0f0f0',
@@ -384,98 +373,34 @@ const styles = StyleSheet.create({
   editButtonContainer: {
     marginTop: 16,
     alignItems: 'center',
+    width: '100%', // Ensure full width for button
   },
-
-  // Upload confirmation modal
-  uploadModalOverlay: {
+  editButton: {
+    minWidth: 180, // Set a minimum width for consistency
+    alignSelf: 'center', 
+  },
+  // ✅ New styles for action buttons when image is selected
+  actionButtonsContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionButtonRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  actionButtonHalf: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  uploadModalBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  uploadModalContent: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 20,
-    width: '90%',
-    maxWidth: 400,
-  },
-  previewContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  previewImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    borderColor: '#1C6B1C',
-  },
-  confirmText: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 12,
-    color: '#1f2937',
-  },
-  fileName: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 16,
+  changeImageButton: {
+    minWidth: 160,
+    alignSelf: 'center',
   },
   errorText: {
     fontSize: 14,
     color: '#EF4444',
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  
-  // AttachmentPicker Modal styles
-  attachmentModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  attachmentModalBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  attachmentModalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 40,
-  },
-  attachmentModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#1f2937',
-  },
-  attachmentButtonContainer: {
-    gap: 12,
-  },
-  attachmentButton: {
-    marginBottom: 0,
+    marginBottom: 8,
   },
 });

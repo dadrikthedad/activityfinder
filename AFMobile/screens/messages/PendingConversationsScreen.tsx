@@ -1,39 +1,35 @@
-// components/messages/PendingRequestsListNative.tsx
-import React, { useState } from 'react';
+// screens/PendingConversationsScreen.tsx
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SafeAreaView,
   TouchableOpacity,
   ActivityIndicator,
+  BackHandler,
+  FlatList,
 } from 'react-native';
-import { Check, X } from 'lucide-react-native';
+import { ArrowBigLeft, Check, X } from 'lucide-react-native';
+import { useAuth } from '@/context/AuthContext';
+import { useChatStore } from '@/store/useChatStore';
 import { usePendingMessageRequests } from '@/hooks/messages/usePendingMessageRequests';
 import { useApproveMessageRequest } from '@/hooks/messages/useApproveMessageRequest';
 import { useRejectMessageRequest } from '@/hooks/messages/useRejectMessageRequest';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
-import { ConversationListItemNative } from './ConversationListItemNative';
-import { useChatStore } from '@/store/useChatStore';
-import ButtonNative from '@/components/common/buttons/ButtonNative';
+import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
+import SpinnerNative from '@/components/common/SpinnerNative';
 
-interface PendingRequestsListNativeProps {
-  limit?: number;
-  showMoreLink?: boolean;
-  onSelectConversation: (conversationId: number) => void;
-  onShowMore?: () => void; // Ny prop for "Se mer" funksjonalitet
+interface PendingConversationsScreenProps {
   navigation: any;
 }
 
-export function PendingRequestsListNative({
-  limit,
-  showMoreLink = false,
-  onSelectConversation,
-  onShowMore,
-  navigation
-}: PendingRequestsListNativeProps) {
+export default function PendingConversationsScreen({ navigation }: PendingConversationsScreenProps) {
+  const { isLoggedIn } = useAuth();
+  const { setCurrentConversationId } = useChatStore();
+  
   const { 
     requests, 
     isLoading, 
@@ -51,6 +47,33 @@ export function PendingRequestsListNative({
   
   const conversations = useChatStore((s) => s.conversations);
 
+  // Handle back navigation
+  const handleGoBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  // Handle Android back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleGoBack();
+      return true; // Prevent default back action
+    });
+
+    return () => backHandler.remove();
+  }, [handleGoBack]);
+
+  // Handle conversation selection - navigate to individual conversation
+  const handleSelectConversation = useCallback((conversationId: number) => {
+    console.log('🎯 PendingConversationsScreen: Setting conversation ID before navigation:', conversationId);
+    
+    // Set conversation ID immediately
+    setCurrentConversationId(conversationId);
+    
+    // Navigate to conversation
+    navigation.navigate('ConversationScreen', { conversationId });
+  }, [navigation, setCurrentConversationId]);
+
+  // Handle reject request
   const handleReject = async (r: MessageRequestDTO) => {
     if (r.conversationId == null) return;
 
@@ -71,7 +94,6 @@ export function PendingRequestsListNative({
         removeRequest(r.conversationId!);
       } catch (error) {
         console.error('❌ Error rejecting request:', error);
-        // You might want to show another modal or toast for errors
       } finally {
         setProcessingRequestId(null);
         setProcessingType(null);
@@ -79,6 +101,7 @@ export function PendingRequestsListNative({
     }
   };
 
+  // Handle approve request
   const handleApprove = async (r: MessageRequestDTO) => {
     if (r.conversationId !== null && r.conversationId !== undefined) {
       setProcessingRequestId(r.conversationId);
@@ -90,7 +113,6 @@ export function PendingRequestsListNative({
         removeRequest(r.conversationId);
       } catch (error) {
         console.error('❌ Error approving request:', error);
-        // You might want to show another modal or toast for errors
       } finally {
         setProcessingRequestId(null);
         setProcessingType(null);
@@ -103,6 +125,7 @@ export function PendingRequestsListNative({
     return processingRequestId === conversationId;
   };
 
+  // Render pending request item
   const renderPendingRequest = ({ item: r }: { item: MessageRequestDTO }) => {
     const conversationFromStore = r.conversationId ? conversations.find(c => c.id === r.conversationId) : null;
     const storeParticipants = conversationFromStore?.participants || [];
@@ -131,9 +154,9 @@ export function PendingRequestsListNative({
           </View>
         )}
         
-        {/* Hovedcontainer med samtale og knapper side ved side */}
+        {/* Main container with conversation and action buttons side by side */}
         <View style={[styles.conversationWithActions, isProcessing && styles.processingRequest]}>
-          {/* Samtalekortet - tar opp mesteparten av plassen */}
+          {/* Conversation card - takes up most of the space */}
           <View style={styles.conversationSection}>
             <ConversationListItemNative
               user={{
@@ -149,7 +172,7 @@ export function PendingRequestsListNative({
                 if (!isProcessing) {
                   console.log("✅ Clicked on conversation:", r.conversationId);
                   if (r.conversationId) {
-                    onSelectConversation(r.conversationId);
+                    handleSelectConversation(r.conversationId);
                   }
                 }
               }}
@@ -160,7 +183,7 @@ export function PendingRequestsListNative({
             />
           </View>
           
-          {/* Action buttons til høyre */}
+          {/* Action buttons to the right */}
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[
@@ -198,85 +221,167 @@ export function PendingRequestsListNative({
     );
   };
 
+  // Show full screen spinner when initially loading or when all requests are being processed
   if (isLoading && requests.length === 0) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#1C6B1C" />
-      </View>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={handleGoBack}
+            style={styles.backButton}
+          >
+            <ArrowBigLeft size={24} color="#1C6B1C" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Pending Requests</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        
+        <SpinnerNative text="Loading requests..." />
+      </SafeAreaView>
     );
   }
 
-  if (error) {
+  // Redirect to login if not authenticated
+  if (!isLoggedIn) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loginPrompt}>
+          <Text style={styles.loginTitle}>Logg inn for å se forespørsler</Text>
+          <Text style={styles.loginSubtitle}>
+            Du må være innlogget för å få tilgang til meldingsforespørsler.
+          </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Login')}
+            style={styles.loginButton}
+          >
+            <Text style={styles.loginButtonText}>Logg inn</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
-
-  if (!requests || requests.length === 0) {
-    return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No requests.</Text>
-      </View>
-    );
-  }
-
-  const visibleRequests = limit ? requests.slice(0, limit) : requests;
 
   return (
-    <View style={styles.pendingContainer}>
-      <Text style={styles.pendingHeader}>You have {requests.length} conversations that are pending:</Text>
-      <FlatList
-        data={visibleRequests}
-        renderItem={renderPendingRequest}
-        keyExtractor={(item) => `${item.senderId}-${item.conversationId ?? "privat"}`}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!processingRequestId} // Disable scrolling when processing
-      />
-      
-      {showMoreLink && requests.length > (limit ?? 0) && (
-        <View style={styles.showMoreContainer}>
-          <ButtonNative
-            text="See more"
-            onPress={onShowMore || (() => {})}
-            variant="primary"
-            size="small"
-            style={{ alignSelf: 'center' }}
-            disabled={!!processingRequestId} // Disable "See more" button when processing
-          />
-        </View>
-      )}
-    </View>
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={handleGoBack}
+          style={styles.backButton}
+        >
+          <ArrowBigLeft size={24} color="#1C6B1C" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{requests.length} {requests.length === 1 ? 'request' : 'requests'} pending</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        {error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorTitle}>Error Loading Requests</Text>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : !requests || requests.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No Pending Requests</Text>
+            <Text style={styles.emptyText}>
+              You don't have any pending message requests or group invitations at the moment.
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Requests list */}
+            <FlatList
+              data={requests}
+              renderItem={renderPendingRequest}
+              keyExtractor={(item) => `${item.senderId}-${item.conversationId ?? "private"}`}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContainer}
+              scrollEnabled={!processingRequestId} // Disable scrolling when processing
+            />
+          </>
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  pendingContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
-  pendingHeader: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 40, // Same width as back button to center title
+  },
+  content: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  countHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F9FAFB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    alignItems: 'center', // Sentrer innholdet
+  },
+  countText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#111827',
-    paddingHorizontal: 16,
+    textAlign: 'center', // Sentrer teksten
+  },
+  listContainer: {
+    paddingVertical: 8,
   },
   pendingRequestContainer: {
+    backgroundColor: 'white',
     position: 'relative',
   },
   conversationWithActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   processingRequest: {
     opacity: 0.6,
   },
   conversationSection: {
-    flex: 1, // Tar opp mesteparten av plassen
+    flex: 1, // Takes up most of the space
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
+    paddingHorizontal: 8,
   },
   actionButton: {
     width: 36,
@@ -329,30 +434,87 @@ const styles = StyleSheet.create({
     color: '#1C6B1C',
     fontWeight: '500',
   },
-  showMoreContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
   loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6B7280',
   },
   errorContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 40,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   errorText: {
-    fontSize: 14,
-    color: '#DC2626',
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
   },
   emptyContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  loginPrompt: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#F9FAFB',
+  },
+  loginTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  loginSubtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginBottom: 24,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  loginButton: {
+    backgroundColor: '#1C6B1C',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  loginButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

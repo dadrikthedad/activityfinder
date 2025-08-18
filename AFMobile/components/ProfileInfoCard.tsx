@@ -275,7 +275,7 @@ export default function ProfileInfoCardNative({
                 <ButtonNative
                   text="Edit About Me"
                   onPress={() => setEditingBio(true)}
-                  variant="outline"
+                  variant="primary"
                   style={styles.editButton}
                 />
               </View>
@@ -327,7 +327,7 @@ export default function ProfileInfoCardNative({
                           onPress={addWebsiteField}
                           style={styles.iconButton}
                         >
-                          <PlusCircle size={20} color="#22C55E" />
+                          <PlusCircle size={20} color="#1C6B1C" />
                         </TouchableOpacity>
                       )}
                       
@@ -335,7 +335,7 @@ export default function ProfileInfoCardNative({
                         onPress={() => removeWebsiteField(idx)}
                         style={styles.iconButton}
                       >
-                        <Trash2 size={20} color="#EF4444" />
+                        <Trash2 size={20} color="#9CA3AF" />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -378,7 +378,7 @@ export default function ProfileInfoCardNative({
                 <ButtonNative
                   text="Edit Websites"
                   onPress={() => setEditingWebsites(true)}
-                  variant="outline"
+                  variant="primary"
                   style={styles.editButton}
                 />
               </View>

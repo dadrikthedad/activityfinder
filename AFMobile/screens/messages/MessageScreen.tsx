@@ -1,4 +1,4 @@
-// screens/MessagesScreen.tsx - Updated with Context instead of Store
+// screens/MessagesScreen.tsx - Updated with navigation to PendingConversationsScreen
 import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -82,6 +82,11 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
     // Deretter naviger
     navigation.navigate('ConversationScreen', { conversationId });
   }, [navigation, setCurrentConversationId, isSearchActive, setQuery]);
+
+  // NEW: Handle navigation to PendingConversationsScreen
+  const handleShowMorePending = useCallback(() => {
+    navigation.navigate('PendingConversationsScreen');
+  }, [navigation]);
 
   // Callback for å måle innholdets høyde
   const onContentLayout = useCallback((event: any) => {
@@ -297,6 +302,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
                     limit={2}
                     showMoreLink={true}
                     onSelectConversation={handleSelectConversation}
+                    onShowMore={handleShowMorePending} // UPDATED: Now navigates to PendingConversationsScreen
+                    navigation={navigation}
                   />
                 </View>
                 
@@ -317,6 +324,8 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
                       limit={2}
                       showMoreLink={true}
                       onSelectConversation={handleSelectConversation}
+                      onShowMore={handleShowMorePending} // UPDATED: Now navigates to PendingConversationsScreen
+                      navigation={navigation}
                     />
                   </View>
                 </Animated.View>
@@ -375,8 +384,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* NO LONGER NEED TO RENDER POPOVER HERE - Context handles it! */}
     </SafeAreaView>
   );
 }

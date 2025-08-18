@@ -47,10 +47,6 @@ export default function PublicProfileViewNative({
   const [friendRequestSent, setFriendRequestSent] = useState(false);
   const isActuallyOwner = isOwner || (userId === profile.userId);
 
-  const imageUrl = profile.profileImageUrl && profile.profileImageUrl.trim() !== "" 
-  ? profile.profileImageUrl 
-  : null;
-
   // Handle new message navigation
   const handleShowNewMessage = useCallback(() => {
     const receiver: UserSummaryDTO = {
@@ -125,13 +121,13 @@ export default function PublicProfileViewNative({
                   <ButtonNative
                     text="Back to Profile"
                     onPress={() => navigation.navigate('Profile', { id: profile.userId.toString() })}
-                    variant="outline"
+                    variant="secondary"
                     fullWidth
                   />
                   <ButtonNative
                     text="Settings"
-                    onPress={() => navigation.navigate('Settings')}
-                    variant="secondary"
+                    onPress={() => navigation.navigate('ProfileSettingsScreen')}
+                    variant="primary"
                     fullWidth
                   />
                 </>
@@ -139,14 +135,14 @@ export default function PublicProfileViewNative({
                 <>
                   <ButtonNative
                     text="Edit Profile"
-                    onPress={() => navigation.navigate('EditProfile')}
+                    onPress={() => navigation.navigate('EditProfileScreen')}
                     variant="primary"
                     fullWidth
                   />
                   <ButtonNative
                     text="Settings"
-                    onPress={() => navigation.navigate('Settings')}
-                    variant="secondary"
+                    onPress={() => navigation.navigate('ProfileSettingsScreen')}
+                    variant="primary"
                     fullWidth
                   />
                 </>

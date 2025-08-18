@@ -141,7 +141,7 @@ export default function MediaViewerScreen() {
   // For all other file types - use DocumentViewerNative in SCREEN mode
   return (
     <>
-      <StatusBar backgroundColor="white" barStyle="dark-content" translucent={true}/>
+      <StatusBar backgroundColor="white" barStyle="dark-content"/>
       <DocumentViewerContent
         file={currentFile}
         onClose={handleClose}

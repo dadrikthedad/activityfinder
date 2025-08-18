@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, Text, Alert } from 'react-native';
 import { getUserProfile } from '@/services/profile/profile';
 import { useAuth } from '@/context/AuthContext';
 import { PublicProfileDTO } from '@shared/types/PublicProfileDTO';
 import PublicProfileViewNative from '@/components/profile/PublicProfileViewNative';
 import SpinnerNative from '@/components/common/SpinnerNative';
+import ButtonNative from '@/components/common/buttons/ButtonNative';
 
 export default function EditProfileScreen() {
   const { token, userId } = useAuth();
@@ -58,28 +59,32 @@ export default function EditProfileScreen() {
 
   // Show error state
   if (error || !profile) {
-    return (
-      <View style={styles.centeredContainer}>
-        <View style={styles.errorContainer}>
-          {/* Add your error UI here */}
-        </View>
-      </View>
-    );
-  }
-
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
-      <PublicProfileViewNative
-        profile={profile}
-        isEditable={true}
-        isOwner={true}
-      />
-    </ScrollView>
+    <View style={styles.centeredContainer}>
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>
+          {error || 'Failed to load profile'}
+        </Text>
+        <ButtonNative
+          text="Try Again"
+          onPress={() => window.location.reload()}
+          variant="primary"
+        />
+      </View>
+    </View>
   );
+}
+
+// Normal render - flytt denne utenfor error-blokken
+return (
+  <View style={styles.container}>
+    <PublicProfileViewNative
+      profile={profile}
+      isEditable={true}
+      isOwner={true}
+    />
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
@@ -102,5 +107,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+    errorText: {
+    fontSize: 16,
+    color: '#dc2626', // Tailwind red-600
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    fontWeight: '500',
+    lineHeight: 24,
   },
 });

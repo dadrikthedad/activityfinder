@@ -4,12 +4,12 @@ import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
 import ImageViewerNative from "../files/ImageViewerNative";
 
 interface MiniAvatarProps {
-  imageUrl: string;
+  imageUrl: string | null; // Endret til å akseptere null
   size?: number;
   alt?: string;
   withBorder?: boolean;
   enlargeable?: boolean;
-  isGroup?: boolean; // New prop to determine if this is a group avatar
+  isGroup?: boolean;
 }
 
 export default function MiniAvatarNative({
@@ -18,14 +18,14 @@ export default function MiniAvatarNative({
   alt = "Profile avatar",
   withBorder = true,
   enlargeable = false,
-  isGroup = false, // Default to false for backwards compatibility
+  isGroup = false,
 }: MiniAvatarProps) {
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   // Calculate border width
   const borderWidth = 1;
-  
+ 
   // Calculate image size (smaller than container to show border)
   const imageSize = size - (borderWidth * 2);
  
@@ -45,9 +45,9 @@ export default function MiniAvatarNative({
     return Image.resolveAssetSource(require('../../assets/images/default-avatar.png')).uri;
   };
 
-  // Use local default if imageUrl is empty, is a default path, or if there's an error
-  const shouldUseDefault = !imageUrl || 
-                          imageUrl === "/default-avatar.png" || 
+  // Use local default if imageUrl is empty, null, is a default path, or if there's an error
+  const shouldUseDefault = !imageUrl ||
+                          imageUrl === "/default-avatar.png" ||
                           imageUrl === "/default-group.png" ||
                           imageUrl.startsWith('/default-') ||
                           hasError;
@@ -82,7 +82,7 @@ export default function MiniAvatarNative({
         source={
           shouldUseDefault
             ? getDefaultImageSource()
-            : { uri: imageUrl }
+            : { uri: imageUrl! } // Non-null assertion siden vi sjekker shouldUseDefault først
         }
         style={imageStyle}
         onError={handleImageError}
@@ -98,20 +98,18 @@ export default function MiniAvatarNative({
           {imageComponent}
         </TouchableOpacity>
        
-        {/* Bruker Modal versjon av ImageViewerNative - perfekt for avatarer */}
         <ImageViewerNative
           visible={showImageViewer}
           images={[{
             uri: shouldUseDefault
               ? getDefaultImageUri()
-              : imageUrl,
+              : imageUrl!,
             name: alt,
             type: 'image/jpeg',
             size: undefined
           }]}
           initialIndex={0}
           onClose={() => setShowImageViewer(false)}
-          // Ingen onDownload eller onShare for avatarer - bare visning
         />
       </>
     );
@@ -145,4 +143,4 @@ const styles = StyleSheet.create({
   image: {
     resizeMode: 'cover',
   },
-});
+}); 

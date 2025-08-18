@@ -105,7 +105,7 @@ export default function ProfileFriendListNative({
   };
 
   const handleSeeAllFriends = () => {
-    navigation.navigate('Friends');
+    navigation.navigate('FriendScreen');
   };
 
   if (loading) {
@@ -181,6 +181,7 @@ export default function ProfileFriendListNative({
             onPress={handleSeeAllFriends}
             variant="primary"
             size="medium"
+            fullWidth={true}
           />
         </View>
       )}
@@ -279,7 +280,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    alignItems: 'center',
+    justifyContent: 'center',
+    // Fjern alignItems: 'center'
     backgroundColor: '#ffffff',
     borderBottomLeftRadius: 8,
     borderBottomRightRadius: 8,

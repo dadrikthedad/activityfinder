@@ -346,7 +346,7 @@ export default function MobileNavbarNative({
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={() => handleNavigation('Settings')}
+                    onPress={() => handleNavigation('ProfileSettingsScreen')}
                     style={styles.menuItem}
                   >
                     <Settings size={18} color="#374151" />

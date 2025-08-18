@@ -1,10 +1,10 @@
-// components/common/ButtonNative.tsx - Central button system
+// components/common/ButtonNative.tsx - Oppdatert med dots variant
 import React from "react";
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from "react-native";
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, View } from "react-native";
 
 export interface ButtonNativeProps {
   /** Button text */
-  text: string;
+  text?: string;
   /** Press handler */
   onPress: () => void;
   /** Button variant */
@@ -13,7 +13,8 @@ export interface ButtonNativeProps {
     | "secondary"   // Gray secondary button  
     | "danger"      // Red danger button
     | "outline"     // Outline button
-    | "ghost";      // Text-only button
+    | "ghost"       // Text-only button
+    | "dots";       // Three dots in rounded square
   /** Button size */
   size?: 
     | "small"       // 28px height
@@ -77,6 +78,11 @@ export default function ButtonNative({
           container: styles.ghost,
           text: isDisabled ? styles.ghostTextDisabled : styles.ghostText,
         };
+      case "dots":
+        return {
+          container: isDisabled ? styles.dotsDisabled : styles.dots,
+          text: styles.dotsText,
+        };
       default:
         return {
           container: styles.primary,
@@ -87,6 +93,19 @@ export default function ButtonNative({
 
   // Get size styles
   const getSizeStyles = () => {
+    if (variant === "dots") {
+      // Dots variant is always square and small
+      switch (size) {
+        case "small":
+          return { width: 28, height: 28, paddingHorizontal: 0, fontSize: 14 };
+        case "large":
+          return { width: 40, height: 40, paddingHorizontal: 0, fontSize: 18 };
+        case "medium":
+        default:
+          return { width: 32, height: 32, paddingHorizontal: 0, fontSize: 16 };
+      }
+    }
+    
     switch (size) {
       case "small":
         return { height: 32, paddingHorizontal: 16, fontSize: 14 };
@@ -106,8 +125,8 @@ export default function ButtonNative({
     variantStyles.container,
     {
       height: sizeStyles.height,
-      paddingHorizontal: sizeStyles.paddingHorizontal,
-      ...(fullWidth ? { width: '100%' as const } : { alignSelf: 'flex-start' as const }),
+      ...(variant === "dots" ? { width: sizeStyles.width } : { paddingHorizontal: sizeStyles.paddingHorizontal }),
+      ...(fullWidth && variant !== "dots" ? { width: '100%' as const } : { alignSelf: 'flex-start' as const }),
     },
     style,
   ]);
@@ -117,6 +136,24 @@ export default function ButtonNative({
     { fontSize: sizeStyles.fontSize },
     textStyle,
   ]);
+
+  // Render dots for dots variant
+  if (variant === "dots") {
+    return (
+      <TouchableOpacity
+        style={containerStyle}
+        onPress={onPress}
+        disabled={isDisabled}
+        activeOpacity={isDisabled ? 1 : 0.7}
+      >
+        <View style={styles.dotsContainer}>
+          <View style={[styles.dot, isDisabled && styles.dotDisabled]} />
+          <View style={[styles.dot, isDisabled && styles.dotDisabled]} />
+          <View style={[styles.dot, isDisabled && styles.dotDisabled]} />
+        </View>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
@@ -205,5 +242,38 @@ const styles = StyleSheet.create({
   ghostTextDisabled: {
     color: '#9ca3af',
     fontWeight: '600',
+  },
+
+  // Dots variant
+  dots: {
+    backgroundColor: '#1C6B1C',
+    borderRadius: 6,
+    minWidth: 0, // Override base minWidth
+  },
+  dotsDisabled: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 6,
+    minWidth: 0,
+  },
+  dotsText: {
+    color: 'white',
+  },
+  
+  // Dots styling
+  dotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '60%', // Takes up 60% of button width
+    backgroundColor: '#FFFFFF',
+  },
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#6b7280',
+  },
+  dotDisabled: {
+    backgroundColor: '#d1d5db',
   },
 });

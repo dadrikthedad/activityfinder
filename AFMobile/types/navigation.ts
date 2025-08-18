@@ -38,6 +38,9 @@ export type RootStackParamList = {
   MessageNotificationScreen: undefined;
   TrashcanScreen: undefined;
   EditProfileScreen: undefined;
+  ProfileSettingsScreen: undefined;
+  PendingConversationsScreen: undefined;
+  FriendScreen: undefined;
 };
 
 // Navigation prop types for each screen
@@ -66,6 +69,11 @@ export type EditProfileScreenNavigationProp = StackNavigationProp<
   'EditProfileScreen'
 >;
 
+export type ProfileSettingsScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'ProfileSettingsScreen'
+>;
+
 export type MessageScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'MessagesScreen'
@@ -74,6 +82,11 @@ export type MessageScreenNavigationProp = StackNavigationProp<
 export type ConversationScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'ConversationScreen'
+>;
+
+export type PendingConversationsScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'PendingConversationsScreen'
 >;
 
 export type MediaViewerScreenNavigationProp = StackNavigationProp<
@@ -101,19 +114,27 @@ export type TrashcanScreenNavigationProp = StackNavigationProp<
   'TrashcanScreen'
 >;
 
+export type FriendScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'FriendScreen'
+>;
+
 // Route prop types for each screen (if you need route params)
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;
+export type ProfileSettingsScreenRouteProp = RouteProp<RootStackParamList, 'ProfileSettingsScreen'>;
 export type MessagesScreenRouteProp = RouteProp<RootStackParamList, 'MessagesScreen'>;
 export type ConversationScreenRouteProp = RouteProp<RootStackParamList, 'ConversationScreen'>;
+export type PendingConversationsScreenRouteProp = RouteProp<RootStackParamList, 'PendingConversationsScreen'>;
 export type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
 export type GroupSettingsScreenRouteProp = RouteProp<RootStackParamList, 'GroupSettingsScreen'>;
 export type NewConversationScreenRouteProp = RouteProp<RootStackParamList, 'NewConversationScreen'>;
 export type MessageNotificationScreenRouteProp = RouteProp<RootStackParamList, 'MessageNotificationScreen'>;
 export type TrashcanScreenRouteProp = RouteProp<RootStackParamList, 'TrashcanScreen'>;
+export type FriendScreenRouteProp = RouteProp<RootStackParamList, 'FriendScreen'>;
 
 // Generic navigation prop (useful for components that can navigate to multiple screens)
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

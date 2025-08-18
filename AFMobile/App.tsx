@@ -31,6 +31,10 @@ import TrashcanScreen from './screens/messages/TrashcanScreen';
 import { UserActionPopoverProvider } from './context/UserActionPopoverContext';
 import ProfileScreen from './screens/profile/ProfileScreen';
 import EditProfileScreen from './screens/profile/EditProfileScreen';
+import ProfileSettingsScreen from './screens/profile/ProfileSettingsScreen';
+import PendingConversationsScreen from './screens/messages/PendingConversationsScreen';
+import FriendScreen from './screens/friends/FriendScreen';
+
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -122,11 +126,27 @@ function AuthenticatedApp() {
                 </>
               )}
             </Stack.Screen>
+            <Stack.Screen name="PendingConversationsScreen">
+              {({ navigation  }) => (
+                <>
+                  <MobileNavbarNative />
+                  <PendingConversationsScreen navigation={navigation} /> 
+                </>
+              )}
+            </Stack.Screen>
             <Stack.Screen name="EditProfileScreen">
               {({ route }) => (
                 <>
                   <MobileNavbarNative />
-                  <ProfileScreen />
+                  <EditProfileScreen />
+                </>
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="ProfileSettingsScreen">
+              {({ route }) => (
+                <>
+                  <MobileNavbarNative />
+                  <ProfileSettingsScreen />
                 </>
               )}
             </Stack.Screen>
@@ -135,6 +155,14 @@ function AuthenticatedApp() {
                 <>
                   <MobileNavbarNative />
                   <TrashcanScreen navigation={navigation} />
+                </>
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="FriendScreen">
+              {({ navigation }) => (
+                <>
+                  <MobileNavbarNative />
+                  <FriendScreen navigation={navigation} />
                 </>
               )}
             </Stack.Screen>

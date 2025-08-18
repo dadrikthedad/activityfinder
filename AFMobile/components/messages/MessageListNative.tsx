@@ -96,15 +96,6 @@ const MessageItemNative = React.memo(({
     );
   }
 
-  const handleAvatarPress = useCallback(() => {
-    if (message.sender && !isMine) {
-      // Navigate directly to profile instead of showing popover
-      navigation.push('Profile', {
-        id: message.sender.id.toString()
-      });
-    }
-  }, [message.sender, isMine, navigation]);
-
   const existingReactions = message.reactions || [];
 
   const groupedReactions = useMemo(() => {
@@ -193,10 +184,9 @@ const MessageItemNative = React.memo(({
           </View>
 
           {isMine && currentUser && (
-            <ClickableAvatarNative
-              user={currentUser}
+            <MiniAvatarNative
+              imageUrl={currentUser.profileImageUrl}
               size={24}
-              navigation={navigation}
             />
           )}
         </View>
