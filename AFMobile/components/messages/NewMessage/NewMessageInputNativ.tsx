@@ -18,8 +18,8 @@ import { SendGroupRequestsResponseDTO } from '@shared/types/SendGroupRequestsDTO
 import { useConversationUpdate } from '@/hooks/common/useConversationUpdate';
 import { useApproveMessageRequest } from '@/hooks/messages/useApproveMessageRequest';
 import { RNFile, validateFiles } from '@/utils/files/FileFunctions';
-import { showNotificationToastNative } from '../toast/NotificationToastNative';
-import { LocalToastType } from '../toast/NotificationToastNative';
+import { showNotificationToastNative } from '../../toast/NotificationToastNative';
+import { LocalToastType } from '../../toast/NotificationToastNative';
 
 // Import attachment components - COMMENTED OUT FOR NOW
 // import { AttachmentPreview } from '../files/AttachmentPreview';

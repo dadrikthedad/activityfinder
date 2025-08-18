@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useAuth } from "@/context/AuthContext";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "@/components/common/buttons/ButtonNative";
 import { HomeScreenNavigationProp } from "@shared/types/navigation";
 import { useNavigation } from "@react-navigation/native";
 

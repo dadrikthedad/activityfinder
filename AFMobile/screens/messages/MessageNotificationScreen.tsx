@@ -19,7 +19,7 @@ import { useMessageNotificationStore } from '@/store/useMessageNotificationStore
 import { useModal } from '@/context/ModalContext';
 import { formatNotificationTextNative } from '@/utils/messages/FormatNotificationsTextNative';
 import { shouldShowSenderName } from '@/utils/messages/shouldShowSenderName';
-import ButtonNative from '@/components/common/ButtonNative';
+import ButtonNative from '@/components/common/buttons/ButtonNative';
 import AppHeader from '@/components/common/AppHeader';
 import { ArrowBigLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { useMarkConversationNotificationsAsRead } from '@/hooks/messages/useMarkConversationNotificationAsRead';

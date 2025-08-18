@@ -17,7 +17,7 @@ import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { ConversationListItemNative } from './ConversationListItemNative';
 import { useChatStore } from '@/store/useChatStore';
-import ButtonNative from '@/components/common/ButtonNative';
+import ButtonNative from '@/components/common/buttons/ButtonNative';
 
 interface PendingRequestsListNativeProps {
   limit?: number;

@@ -17,7 +17,7 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useUserSearchForGroupInvite } from '@/hooks/search/useUserSearchForGroupInvite';
 import { useGroupRequests } from '@/hooks/messages/useGroupRequests';
 import MiniAvatarNative from '@/components/common/MiniAvatarNative';
-import ButtonNative from '@/components/common/ButtonNative';
+import ButtonNative from '@/components/common/buttons/ButtonNative';
 import AppHeader from '@/components/common/AppHeader';
 import { X } from 'lucide-react-native';
 

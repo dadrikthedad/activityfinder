@@ -34,6 +34,7 @@ import { useMessageNotificationStore } from '@/store/useMessageNotificationStore
 import { useUserSearch } from '@/hooks/useUserSearch'; // ✅ Import the search hook
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useCurrentUser } from '@/store/useUserCacheStore';
+import MiniAvatarNative from '@/components/common/MiniAvatarNative'; // ✅ Import MiniAvatarNative
 
 interface MobileNavbarNativeProps {
   onNavigateToMessages?: () => void;
@@ -119,16 +120,21 @@ export default function MobileNavbarNative({
     }
   }, [onNavigateToNotifications, handleNavigation]);
 
-  // ✅ Render user search result item
+  // ✅ Render user search result item with MiniAvatarNative (like NewConversationScreen)
   const renderUserItem = ({ item }: { item: UserSummaryDTO }) => (
     <TouchableOpacity
       style={styles.userItem}
       onPress={() => handleUserSelect(item)}
     >
-      <View style={styles.userAvatar}>
-        <User size={20} color="#374151" />
+      <MiniAvatarNative
+        imageUrl={item.profileImageUrl ?? '/default-avatar.png'}
+        alt={item.fullName}
+        size={48}
+        withBorder
+      />
+      <View style={styles.userInfo}>
+        <Text style={styles.userName}>{item.fullName}</Text>
       </View>
-      <Text style={styles.userName}>{item.fullName}</Text>
     </TouchableOpacity>
   );
 
@@ -228,7 +234,7 @@ export default function MobileNavbarNative({
         )}
       </View>
 
-      {/* ✅ Search Results Dropdown */}
+      {/* ✅ Search Results Dropdown - Updated to match NewConversationScreen style */}
       {isSearchMode && query.trim() && (
         <View style={styles.searchResults}>
           {loading ? (
@@ -481,6 +487,7 @@ const styles = StyleSheet.create({
   resultsList: {
     maxHeight: 300,
   },
+  // ✅ Updated user item styles to match NewConversationScreen
   userItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -490,18 +497,13 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f3f4f6',
     gap: 12,
   },
-  userAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-    justifyContent: 'center',
+  userInfo: {
+    flex: 1,
   },
   userName: {
     fontSize: 16,
-    color: '#374151',
     fontWeight: '500',
+    color: '#1f2937',
   },
   noResultsContainer: {
     paddingVertical: 20,

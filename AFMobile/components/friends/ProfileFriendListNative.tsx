@@ -10,7 +10,7 @@ import { useFriends } from "@/hooks/useFriends";
 import { useFriendsOfUser } from "@/hooks/useFriendsOfUser";
 import { useIsUserFriend } from "@/store/useUserCacheStore";
 import ClickableAvatarNative from "@/components/common/UserActionPopover/ClickableAvatarNative";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "@/components/common/buttons/ButtonNative";
 import SpinnerNative from "@/components/common/SpinnerNative";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";

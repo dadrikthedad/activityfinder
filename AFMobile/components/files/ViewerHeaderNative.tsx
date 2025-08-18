@@ -1,8 +1,9 @@
 // components/common/ViewerHeaderNative.tsx - Enhanced med theme support
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
-import { Download, X, Share } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { Download, Share } from 'lucide-react-native';
 import { RNFile } from '@/utils/files/FileFunctions';
+import CloseButtonNative from '../common/buttons/CloseButtonNative';
 
 interface ViewerHeaderNativeProps {
   title: string;
@@ -29,17 +30,17 @@ export default function ViewerHeaderNative({
   isDownloading = false,
   theme = 'dark' // DEFAULT: Dark theme for backwards compatibility
 }: ViewerHeaderNativeProps) {
-  
+ 
   const isDark = theme === 'dark';
   const isLight = theme === 'light';
-  
+ 
   // Dynamic colors based on theme
   const iconColor = isDark ? 'white' : '#ffffffff';
   const textColor = isDark ? 'white' : '#374151';
   const subtitleColor = isDark ? 'rgba(255, 255, 255, 0.7)' : '#6b7280';
   const buttonBackgroundColor = isDark ? '#1C6B1C' : '#1C6B1C';
   const headerBackgroundColor = isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(255, 255, 255, 0.95)';
-
+  
   const handleDownload = async () => {
     if (!currentFile || !onDownload) return;
    
@@ -49,13 +50,13 @@ export default function ViewerHeaderNative({
       console.error('Download failed:', error);
     }
   };
-
+  
   const handleShare = () => {
     if (onShare && currentFile) {
       onShare(currentFile);
     }
   };
-
+  
   return (
     <View style={[
       styles.header,
@@ -98,13 +99,13 @@ export default function ViewerHeaderNative({
           </TouchableOpacity>
         )}
        
-        {/* Lukk-knapp */}
-        <TouchableOpacity 
-          style={[styles.headerButton, { backgroundColor: buttonBackgroundColor }]} 
+        {/* Lukk-knapp - Nå bruker CloseButtonNative */}
+        <CloseButtonNative
           onPress={onClose}
-        >
-          <X size={20} color={iconColor} />
-        </TouchableOpacity>
+          theme={theme}
+          size={44}
+          iconSize={20}
+        />
       </View>
     </View>
   );

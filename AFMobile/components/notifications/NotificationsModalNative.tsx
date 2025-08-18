@@ -14,7 +14,7 @@ import {
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useFriendRequestHandler } from '@/hooks/friends/useFriendInvitationsHandler';
 import type { NotificationDTO } from '@shared/types/NotificationEventDTO';
-import ButtonNative from '@/components/common/ButtonNative';
+import ButtonNative from '@/components/common/buttons/ButtonNative';
 
 interface NotificationsModalNativeProps {
   visible: boolean;

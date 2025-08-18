@@ -8,7 +8,7 @@ import {
   Modal,
   Alert,
 } from "react-native";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "@/components/common/buttons/ButtonNative";
 import { useUploadProfileImage } from "@/hooks/files/useUploadProfileImage";
 import { useAuth } from "@/context/AuthContext";
 import { useAttachmentPicker } from "@/components/files/filepicker/useAttachmentPicker";

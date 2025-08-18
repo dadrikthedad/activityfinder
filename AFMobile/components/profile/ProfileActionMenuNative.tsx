@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
 } from "react-native";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "../common/buttons/ButtonNative";
 import { useConfirmModalNative } from "@/hooks/useConfirmModalNative";
 
 interface Props {
@@ -58,26 +58,6 @@ export default function ProfileActionMenuNative({
     }, 100);
   };
 
-  const handleIgnoreUser = async () => {
-    setShowMenu(false);
-    setTimeout(async () => {
-      const confirmed = await confirm({
-        title: "Ignore User",
-        message: "You will stop receiving notifications from this user. They won't know you've ignored them."
-      });
-      
-      if (confirmed) {
-        console.log("🙈 Ignore user confirmed");
-        // TODO: Implement ignore functionality
-        
-        // Show success confirmation
-        await confirm({
-          title: "Success",
-          message: "You are now ignoring this user."
-        });
-      }
-    }, 100);
-  };
 
   const handleReportUser = async () => {
     setShowMenu(false);
@@ -156,7 +136,7 @@ export default function ProfileActionMenuNative({
         onRequestClose={closeMenu}
       >
         <View style={styles.modalOverlay}>
-          {/* Background Touch Area */}
+          {/* Background Touch Area - Now transparent */}
           <TouchableOpacity 
             style={styles.modalBackground} 
             onPress={closeMenu}
@@ -168,10 +148,18 @@ export default function ProfileActionMenuNative({
             <View style={styles.actionSheet}>
               {/* Header */}
               <View style={styles.header}>
-                <Text style={styles.headerTitle}>User Actions</Text>
-                <Text style={styles.headerSubtitle}>
-                  Choose an action for this user
-                </Text>
+                {/* Left spacer for centering */}
+                <View style={styles.headerSpacer} />
+                
+                {/* Centered content */}
+                <View style={styles.headerContent}>
+                  <Text style={styles.headerTitle}>More Options</Text>
+                </View>
+                
+                {/* Right side with close button */}
+                <TouchableOpacity onPress={closeMenu} style={styles.closeButton}>
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Action Buttons */}
@@ -191,16 +179,7 @@ export default function ProfileActionMenuNative({
                 <ButtonNative
                   text="Block User"
                   onPress={handleBlockUser}
-                  variant="outline"
-                  fullWidth
-                  style={styles.actionButton}
-                />
-
-                {/* Ignore User */}
-                <ButtonNative
-                  text="Ignore User"
-                  onPress={handleIgnoreUser}
-                  variant="outline"
+                  variant="danger"
                   fullWidth
                   style={styles.actionButton}
                 />
@@ -209,20 +188,9 @@ export default function ProfileActionMenuNative({
                 <ButtonNative
                   text="Report User"
                   onPress={handleReportUser}
-                  variant="outline"
+                  variant="danger"
                   fullWidth
                   style={styles.actionButton}
-                />
-              </View>
-
-              {/* Cancel Button */}
-              <View style={styles.cancelContainer}>
-                <ButtonNative
-                  text="Cancel"
-                  onPress={closeMenu}
-                  variant="secondary"
-                  fullWidth
-                  size="large"
                 />
               </View>
             </View>
@@ -236,7 +204,7 @@ export default function ProfileActionMenuNative({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
   modalBackground: {
@@ -253,17 +221,38 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 16,
     minHeight: 200,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+        borderWidth: 1,
+    borderColor: '#1C6B1C'
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 24,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  headerContent: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 18,
@@ -271,21 +260,23 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 4,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#1C6B1C',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: {
+    fontSize: 18,
+    color: '#ffffffff',
+    fontWeight: '600',
   },
   actionButtonsContainer: {
     gap: 12,
-    marginBottom: 20,
   },
   actionButton: {
-    marginBottom: 0, // Override default margin
-  },
-  cancelContainer: {
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    marginBottom: 0,
   },
 });

@@ -16,7 +16,7 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useUserSearch } from '@/hooks/useUserSearch';
 import MiniAvatarNative from '@/components/common/MiniAvatarNative';
 import AppHeader from '@/components/common/AppHeader';
-import NewMessageInputNative from '@/components/messages/NewMessageInputNativ';
+import NewMessageInputNative from '@/components/messages/NewMessage/NewMessageInputNativ';
 import { NewConversationScreenNavigationProp } from '@/types/navigation';
 import { useChatStore } from '@/store/useChatStore';
 import { useUploadGroupImageNative } from '@/hooks/files/useUploadGroupImageNative';

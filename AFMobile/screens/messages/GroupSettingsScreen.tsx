@@ -15,7 +15,7 @@ import {
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { useGroupSettingsPopoverNative } from '@/components/groupmessages/useGroupSettingsPopoverNative';
-import ButtonNative from '@/components/common/ButtonNative';
+import ButtonNative from '@/components/common/buttons/ButtonNative';
 import { ArrowBigLeft, Camera } from 'lucide-react-native';
 import { ParticipantsListNative } from '@/components/messages/ParticipantsListNative';
 import { AttachmentPickerModal } from '@/components/files/filepicker/AttachmentPickerModal';

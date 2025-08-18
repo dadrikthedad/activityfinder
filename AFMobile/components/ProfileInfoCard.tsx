@@ -10,7 +10,7 @@ import {
   Linking,
 } from "react-native";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "@/components/common/buttons/ButtonNative";
 import { useAuth } from "@/context/AuthContext";
 import { updateBio, updateWebsites } from "@/services/profile/profile";
 import { PlusCircle, Trash2 } from "lucide-react-native";

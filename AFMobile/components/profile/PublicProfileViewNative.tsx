@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { getUserProfile } from "@/services/profile/profile";
 import ProfileInfoCardNative from "@/components/ProfileInfoCard";
 import ProfileAvatar from "@/components/ProfileAvatarNative";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "@/components/common/buttons/ButtonNative";
 import ProfileActionMenuNative from "@/components/profile/ProfileActionMenuNative";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import { useIsUserFriend } from "@/store/useUserCacheStore";
@@ -319,7 +319,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   friendsSection: {
-    marginTop: 40,
     width: '100%',
   },
   friendsTitle: {

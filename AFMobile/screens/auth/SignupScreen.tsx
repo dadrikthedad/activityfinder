@@ -13,7 +13,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import FormFieldNative from "@/components/common/FormFieldNative";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
-import ButtonNative from "@/components/common/ButtonNative";
+import ButtonNative from "@/components/common/buttons/ButtonNative";
 
 // Type for navigation
 type NavigationProps = {

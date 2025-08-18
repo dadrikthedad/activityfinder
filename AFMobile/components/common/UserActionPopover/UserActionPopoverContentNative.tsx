@@ -6,10 +6,10 @@ import { useCallback } from "react";
 import GroupSettingsScreen from "@/screens/messages/GroupSettingsScreen";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import MiniAvatarNative from "../MiniAvatarNative";
-import ButtonNative from "../ButtonNative";
+import ButtonNative from "../buttons/ButtonNative";
 import DropdownButtonNative from "../DropdownButtonNative";
 import InviteUsersModalNative from "@/components/messages/InviteUsersModalNative";
-import NewMessageModalNative from "@/components/messages/NewMessageModalNative";
+import NewMessageModalNative from "@/components/messages/NewMessage/NewMessageModalNative";
 
 interface Props {
   user: UserSummaryDTO;
