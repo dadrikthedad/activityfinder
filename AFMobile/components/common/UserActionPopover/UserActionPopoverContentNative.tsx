@@ -1,4 +1,4 @@
-// UserActionPopoverContentNative.tsx - Updated for ModalContext
+/* // UserActionPopoverContentNative.tsx - Updated for ModalContext
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
 import { useModal } from "@/context/ModalContext";
@@ -7,7 +7,7 @@ import GroupSettingsScreen from "@/screens/messages/GroupSettingsScreen";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import MiniAvatarNative from "../MiniAvatarNative";
 import ButtonNative from "../buttons/ButtonNative";
-import DropdownButtonNative from "../DropdownButtonNative";
+import DropdownButtonNative from "./DropdownButtonNative";
 import InviteUsersModalNative from "@/components/messages/InviteUsersModalNative";
 import NewMessageModalNative from "@/components/messages/NewMessage/NewMessageModalNative";
 
@@ -166,13 +166,11 @@ export default function UserActionPopoverContentNative({
 
   return (
     <View style={styles.container}>
-      {/* Close button */}
       <TouchableOpacity style={styles.closeButton} onPress={onClose}>
         <Text style={styles.closeButtonText}>✕</Text>
       </TouchableOpacity>
 
       <View style={styles.content}>
-        {/* Profile Section */}
         <View style={styles.profileSection}>
           <MiniAvatarNative
             imageUrl={displayImage}
@@ -187,13 +185,10 @@ export default function UserActionPopoverContentNative({
             )}
           </View>
         </View>
-
-        {/* Action Buttons */}
         <View style={styles.buttonContainer}>
           {isGroup ? (
             // Group Actions
             <>
-              {/* Participants */}
               <ButtonNative
                 text={`View Members (${participants.length})`}
                 onPress={handleShowParticipants}
@@ -202,7 +197,7 @@ export default function UserActionPopoverContentNative({
                 fullWidth={true}
               />
 
-              {/* Invite Users - show only if not pending request */}
+
               {onOpenInviteWindow && !isPendingRequest && (
                 <ButtonNative
                   text="Invite Users"
@@ -213,7 +208,6 @@ export default function UserActionPopoverContentNative({
                 />
               )}
 
-              {/* Group Settings - only show if NOT pending */}
               {!isPendingRequest && (
                 <ButtonNative
                   text="Group Settings"
@@ -224,7 +218,6 @@ export default function UserActionPopoverContentNative({
                 />
               )}
 
-              {/* Leave Group - show only if NOT pending request */}
               {onLeaveGroup && !isPendingRequest && (
                 <ButtonNative
                   text={isLeavingGroup ? "Leaving..." : "Leave Group"}
@@ -250,7 +243,6 @@ export default function UserActionPopoverContentNative({
 
               {!isOwner && (
                 <>
-                  {/* Hide Send Message if user has blocked us */}
                   {!hasBlockedMe && !isBlocked && (
                     <ButtonNative
                       text="Send Message"
@@ -353,4 +345,4 @@ const styles = StyleSheet.create({
   buttonContainer: {
     gap: 12,
   },
-});
+}); */

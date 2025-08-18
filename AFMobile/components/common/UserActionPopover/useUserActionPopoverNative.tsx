@@ -1,4 +1,4 @@
-// hooks/useUserActionPopover.ts - Comprehensive hook with all UserActionPopover logic
+/* // hooks/useUserActionPopover.ts - Comprehensive hook with all UserActionPopover logic
 import { useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirmRemoveFriend } from "@/hooks/useConfirmRemoveFriend";
@@ -277,7 +277,7 @@ export function useUserActionPopoverNative({
 
   const CombinedConfirmDialogs = useCallback(() => (
     <>
-      {/* All confirm dialogs now handled internally by useConfirmModal */}
+      {/* All confirm dialogs now handled internally by useConfirmModal }
     </>
   ), []);
 
@@ -328,4 +328,4 @@ export function useUserActionPopoverNative({
     // Stack Navigation handlers
     handleInviteUsers,
   };
-}
+} */

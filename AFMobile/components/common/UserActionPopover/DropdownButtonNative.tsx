@@ -1,7 +1,7 @@
-// components/common/DropdownButtonNative.tsx - Alert-based dropdown
+/* // components/common/DropdownButtonNative.tsx - Alert-based dropdown
 import React from "react";
 import { Alert } from "react-native";
-import ButtonNative from "./buttons/ButtonNative";
+import ButtonNative from "../buttons/ButtonNative";
 
 interface Action {
   label: string;
@@ -61,4 +61,4 @@ export default function DropdownButtonNative({
       style={style}
     />
   );
-}
+} */

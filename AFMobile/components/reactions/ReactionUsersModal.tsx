@@ -10,15 +10,16 @@ import {
 import { ReactionDTO } from '@shared/types/MessageDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useModal } from '@/context/ModalContext';
-import MiniAvatarNative from '../common/MiniAvatarNative';
+import ClickableAvatarNative from '../common/ClickableAvatarNative';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '@/types/navigation';
 
 interface ReactionUsersModalProps {
-  emoji: string; // Dette brukes ikke lenger, men beholder for bakoverkompatibilitet
   reactions: ReactionDTO[];
   visible: boolean;
   onClose: () => void;
-  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
   conversationParticipants?: UserSummaryDTO[];
+  navigation: StackNavigationProp<RootStackParamList>; // Add navigation as required prop
 }
 
 interface GroupedReaction {
@@ -27,12 +28,11 @@ interface GroupedReaction {
 }
 
 export const ReactionUsersModal: React.FC<ReactionUsersModalProps> = ({
-  emoji, // Ikke brukt lenger, men beholder for bakoverkompatibilitet
   reactions,
   visible,
   onClose,
-  onShowUserPopover,
-  conversationParticipants = []
+  conversationParticipants = [],
+  navigation // Receive navigation from parent
 }) => {
   // Grupper reaksjoner etter emoji og filtrer ut removed reactions
   const groupedReactions = React.useMemo(() => {
@@ -83,20 +83,23 @@ export const ReactionUsersModal: React.FC<ReactionUsersModalProps> = ({
   // Beregn totalt antall personer som har reagert
   const totalReactions = groupedReactions.reduce((sum, group) => sum + group.users.length, 0);
 
-  // Håndter bruker-klikk
-  const handleUserPress = (user: UserSummaryDTO) => {
-    if (onShowUserPopover) {
-      // Vis popover i sentrum av skjermen
-      onShowUserPopover(user, { x: 150, y: 300 });
-      
-      // Lukk modal etter å ha åpnet popover
-      onClose();
-    }
-  };
-
   if (!visible || groupedReactions.length === 0) {
     return null;
   }
+
+  const handleAvatarPress = (user: UserSummaryDTO) => {
+    console.log('🎯 ReactionUsersModal: Navigating to profile for:', user.fullName);
+    
+    // Close modal first, then navigate
+    onClose();
+    
+    // Use setTimeout to ensure modal close animation completes
+    setTimeout(() => {
+      navigation.push('Profile', {
+        id: user.id.toString()
+      });
+    }, 200); // Slightly longer delay for smoother transition
+  };
 
   return (
     <View style={styles.modalContainer}>
@@ -124,18 +127,17 @@ export const ReactionUsersModal: React.FC<ReactionUsersModalProps> = ({
             
             {/* Brukere for denne emoji-en */}
             {group.users.map((user) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 key={`${group.emoji}-${user.id}`}
                 style={styles.userItem}
-                onPress={() => {
-                  console.log('🖱️ User pressed:', user.fullName);
-                  handleUserPress(user);
-                }}
+                onPress={() => handleAvatarPress(user)}
                 activeOpacity={0.7}
               >
-                <MiniAvatarNative
-                  imageUrl={user.profileImageUrl || "/default-avatar.png"}
+                <ClickableAvatarNative
+                  user={user}
                   size={32}
+                  navigation={navigation}
+                  onPress={() => handleAvatarPress(user)} // Override default behavior
                 />
                 <Text style={styles.userName}>{user.fullName}</Text>
               </TouchableOpacity>
@@ -157,19 +159,22 @@ export const useReactionUsersModal = () => {
   const { showModal, hideModal } = useModal();
 
   const showReactionUsers = (
-    emoji: string, 
     reactions: ReactionDTO[], 
-    onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void,
-    conversationParticipants?: UserSummaryDTO[]
+    conversationParticipants?: UserSummaryDTO[],
+    navigation?: StackNavigationProp<RootStackParamList> // Add navigation parameter
   ) => {
+    if (!navigation) {
+      console.error('Navigation object is required for ReactionUsersModal');
+      return;
+    }
+
     const modalContent = (
       <ReactionUsersModal
-        emoji={emoji}
         reactions={reactions}
         visible={true}
         onClose={hideModal}
-        onShowUserPopover={onShowUserPopover}
         conversationParticipants={conversationParticipants}
+        navigation={navigation} // Pass navigation to modal
       />
     );
 

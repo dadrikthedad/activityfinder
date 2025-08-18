@@ -143,28 +143,28 @@ export default function NewConversationScreen({
   }, [navigation]);
 
   const handleMessageSent = useCallback((message: any) => {
-    console.log('✅ Message sent:', message);
-    if (message.conversationId) {
-      // Set conversation ID in store
-      setCurrentConversationId(message.conversationId);
-      // Navigate to conversation
-      navigation.navigate('ConversationScreen', { 
-        conversationId: message.conversationId 
-      });
-    }
-  }, [navigation, setCurrentConversationId]);
+  console.log('✅ Message sent:', message);
+  if (message.conversationId) {
+    setCurrentConversationId(message.conversationId);
+    // Legg til fromNewMessage parameter
+    navigation.navigate('ConversationScreen', { 
+      conversationId: message.conversationId,
+      fromNewMessage: true // 👈 LEGG TIL DENNE
+    });
+  }
+}, [navigation, setCurrentConversationId]);
 
-  const handleGroupCreated = useCallback((response: any) => {
-    console.log('✅ Group created:', response);
-    if (response.conversationId) {
-      // Set conversation ID in store
-      setCurrentConversationId(response.conversationId);
-      // Navigate to conversation
-      navigation.navigate('ConversationScreen', { 
-        conversationId: response.conversationId 
-      });
-    }
-  }, [navigation, setCurrentConversationId]);
+const handleGroupCreated = useCallback((response: any) => {
+  console.log('✅ Group created:', response);
+  if (response.conversationId) {
+    setCurrentConversationId(response.conversationId);
+    // Legg til fromNewMessage parameter
+    navigation.navigate('ConversationScreen', { 
+      conversationId: response.conversationId,
+      fromNewMessage: true // 👈 LEGG TIL DENNE
+    });
+  }
+}, [navigation, setCurrentConversationId]);
 
   const renderSelectedUsers = () => {
     if (selectedUsers.length === 0) return null;

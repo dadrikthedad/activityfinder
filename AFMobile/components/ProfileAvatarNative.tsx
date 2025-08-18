@@ -157,6 +157,25 @@ export default function ProfileAvatarNative({
 
   const borderWidth = 4;
 
+  const getImageSource = (url: string | null | undefined) => {
+    // Handle null/undefined
+    if (!url || url.trim() === '') {
+      return require('@/assets/images/default-avatar.png'); // Adjust path to your actual asset
+    }
+    
+    // Handle local default paths
+    if (url.startsWith('/default-avatar') || url === '/default-avatar.png') {
+      return require('@/assets/images/default-avatar.png'); // Adjust path to your actual asset
+    }
+    
+    if (url.startsWith('/default-group') || url === '/default-group.png') {
+      return require('@/assets/images/default-group.png'); // Adjust path to your actual asset
+    }
+    
+    // Handle regular URLs
+    return { uri: url };
+  };
+
   return (
     <>
       {/* Profile Avatar - Outer container for border */}
@@ -191,7 +210,7 @@ export default function ProfileAvatarNative({
             </View>
           )}
           <Image
-            source={{ uri: displayImageUrl }}
+            source={getImageSource(displayImageUrl)}
             style={[
               styles.avatarImage, 
               { 

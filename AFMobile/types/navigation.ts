@@ -14,7 +14,10 @@ export type RootStackParamList = {
   EditProfile: undefined;
   Settings: undefined;
   MessagesScreen: undefined;
-  ConversationScreen: { conversationId: number }; // Added with optional conversationId param
+  ConversationScreen: { 
+    conversationId: number;
+    fromNewMessage?: boolean; // 👈 LEGG TIL DENNE
+  };// Added with optional conversationId param
   MediaViewer: {
     files: RNFile[];
     initialIndex: number;

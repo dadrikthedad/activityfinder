@@ -3,7 +3,7 @@
 "use client";
 import { useFriendRequestHandler } from "@/hooks/friends/useFriendInvitationsHandler";
 import FriendRequestButtons from "./FriendRequestButtons";
-import ClickableAvatarNative from "../common/UserActionPopover/ClickableAvatarNative";
+import ClickableAvatarNative from "../common/ClickableAvatarNative";
 import Card from "@/components/common/CardNative";
 import { useFriendInvitations } from "@/hooks/useFriendInvitations";
 

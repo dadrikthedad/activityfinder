@@ -26,7 +26,7 @@ import MessageInputNative from '@/components/messages/MessageInputNative';
 import { MessageSettingsModalNative } from '@/components/messages/MessageSettingsModalNative';
 import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
 import { useSearchMessages } from '@/hooks/messages/useSearchMessages';
-import { useUserActionPopover } from '@/context/UserActionPopoverContext';
+import { useModal } from '@/context/ModalContext';
 
 interface MessageListRef {
   scrollToBottom: () => void;
@@ -38,7 +38,7 @@ interface ConversationScreenProps {
 }
 
 export default function ConversationScreen({ route, navigation }: ConversationScreenProps) {
-  const { conversationId } = route.params; 
+  const { conversationId, fromNewMessage = false } = route.params; 
   const { isLoggedIn } = useAuth();
   const currentUser = useCurrentUser();
   
@@ -51,6 +51,8 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   const setCurrentConversationId = useChatStore(useCallback((state) => state.setCurrentConversationId, []));
   const conversations = useChatStore(useCallback((state) => state.conversations, []));
+
+  const { isModalOpen } = useModal();
 
   
   const currentConversation = conversations.find(c => c.id === conversationId);
@@ -70,8 +72,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   const { loading, error, search, resetSearch } = useSearchMessages();
   // Ref for scroll to bottom functionality
   const messageListRef = useRef<MessageListRef>(null);
-
-  const { showPopover, hidePopover, visible: isPopoverVisible } = useUserActionPopover();
   
   const { send } = useSendMessage();
   
@@ -163,30 +163,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     }
   }, [hasConversationError, conversationId]);
 
-  // User popover handler (adapted for mobile - could use bottom sheet or modal)
-  const showUserPopover = useCallback((
-    user: UserSummaryDTO,
-    pos: { x: number; y: number },
-    groupData?: {
-      isGroup: boolean;
-      participants: UserSummaryDTO[];
-      onLeaveGroup?: () => void;
-      isPendingRequest?: boolean;
-      conversationId?: number;
-    },
-  ) => {
-    console.log('👤 Showing user popover for:', user.fullName);
-    
-    showPopover({
-      user,
-      position: pos,
-      isGroup: groupData?.isGroup || false,
-      participants: groupData?.participants || [],
-      onLeaveGroup: groupData?.onLeaveGroup,
-      conversationId: groupData?.conversationId,
-      isPendingRequest: groupData?.isPendingRequest || false,
-    });
-  }, [showPopover]);
 
   // Reply handler
   const handleReply = useCallback((message: MessageDTO) => {
@@ -326,43 +302,70 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   }, [resetSearch]);
 
   const handleBack = useCallback(() => {
-      // Priority order: lukk det mest "fremme" først
+    // Priority order: lukk det mest "fremme" først
+    
+    // 1. Sjekk om vi har navigert til andre skjermer fra denne (høyest prioritet)
+    if (navigation.canGoBack()) {
+      const state = navigation.getState();
+      const currentRoute = state.routes[state.index];
       
-      // 1. Search mode (høyest prioritet)
-      if (showSearch) {
-        console.log('🔍 Closing search mode instead of navigating back');
-        handleCloseSearch();
+      // Hvis vi ikke er på ConversationScreen, gå tilbake (f.eks. Profile fra modal)
+      if (currentRoute.name !== 'ConversationScreen') {
+        console.log('📱 Not on ConversationScreen - going back one level');
+        navigation.goBack();
         return;
       }
-      
-      // 2. UserActionPopover (sjekk Context state)
-      if (isPopoverVisible) {
-        console.log('👤 Closing user popover instead of navigating back');
-        hidePopover();
-        return;
-      }
-      
-      // 3. Settings modal
-      if (showSettingsModal) {
-        console.log('⚙️ Closing settings modal instead of navigating back');
-        setShowSettingsModal(false);
-        return;
-      }
-      
-      // 4. Ingen aktive overlays - trygt å navigere tilbake
-      console.log('✅ No active overlays - navigating back to MessagesScreen');
+    }
+    
+    // 2. Any Modal
+    if (isModalOpen) {
+      console.log('📱 Modal is open - letting modal handle back button');
+      return;
+    }
+    
+    // 3. Search mode
+    if (showSearch) {
+      console.log('🔍 Closing search mode');
+      handleCloseSearch();
+      return;
+    }
+    
+    // 4. Settings modal
+    if (showSettingsModal) {
+      console.log('⚙️ Closing settings modal');
+      setShowSettingsModal(false);
+      return;
+    }
+    
+    // 5. Sjekk om vi kom fra NewConversationScreen
+    if (fromNewMessage) {
+      console.log('🏠 Came from NewConversationScreen - going to MessagesScreen');
       navigation.reset({
         index: 0,
         routes: [{ name: 'MessagesScreen' }],
       });
-    }, [
-      showSearch,
-      isPopoverVisible, // 👈 BRUKER CONTEXT STATE
-      showSettingsModal,
-      handleCloseSearch,
-      hidePopover, // 👈 BRUKER CONTEXT HANDLER
-      navigation
-    ]);
+      return;
+    }
+    
+    // 6. Standard navigation
+    if (navigation.canGoBack()) {
+      console.log('⬅️ Going back one level');
+      navigation.goBack();
+    } else {
+      console.log('🏠 No back history - going to MessagesScreen');
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'MessagesScreen' }],
+      });
+    }
+  }, [
+    navigation,
+    isModalOpen,
+    showSearch,
+    showSettingsModal,
+    handleCloseSearch,
+    fromNewMessage // 👈 LEGG TIL DENNE
+  ]);
 
   // Android back button
   useEffect(() => {
@@ -539,7 +542,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
           ref={messageListRef}
           key={`${conversationId}-${showSearch ? 'search' : 'normal'}`}
           currentUser={currentUser}
-          onShowUserPopover={showUserPopover}
           conversationVisible={!showSearch}
           onScrollPositionChange={setAtBottom}
           onReply={handleReply}
@@ -563,7 +565,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
               setReplyingTo(null);
             }}
             atBottom={atBottom}
-            onShowUserPopover={showUserPopover}
             replyingTo={replyingTo}
             onClearReply={() => setReplyingTo(null)}
             isDisabled={hasConversationError}

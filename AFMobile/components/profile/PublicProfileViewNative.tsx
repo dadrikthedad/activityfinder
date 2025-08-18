@@ -10,7 +10,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { getUserProfile } from "@/services/profile/profile";
 import ProfileInfoCardNative from "@/components/ProfileInfoCard";
-import ProfileAvatar from "@/components/ProfileAvatarNative";
+import ProfileAvatarNative from "@/components/ProfileAvatarNative";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
 import ProfileActionMenuNative from "@/components/profile/ProfileActionMenuNative";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
@@ -47,10 +47,9 @@ export default function PublicProfileViewNative({
   const [friendRequestSent, setFriendRequestSent] = useState(false);
   const isActuallyOwner = isOwner || (userId === profile.userId);
 
-  const imageUrl =
-    profile.profileImageUrl?.trim() !== ""
-      ? profile.profileImageUrl
-      : "/default-avatar.png";
+  const imageUrl = profile.profileImageUrl && profile.profileImageUrl.trim() !== "" 
+  ? profile.profileImageUrl 
+  : null;
 
   // Handle new message navigation
   const handleShowNewMessage = useCallback(() => {
@@ -100,6 +99,7 @@ export default function PublicProfileViewNative({
       refetchProfile();
     }
   }, [reloadCounter, isEditable, refetchProfile]);
+  
 
   // ✅ Create sections for FlatList
   const renderContent = () => {
@@ -107,8 +107,8 @@ export default function PublicProfileViewNative({
       <View style={styles.contentContainer}>
         {/* Header with Avatar, Name and Actions */}
         <View style={styles.headerSection}>
-          <ProfileAvatar
-            imageUrl={imageUrl ?? "/default-avatar.png"}
+          <ProfileAvatarNative
+            imageUrl={profile.profileImageUrl ?? "/default-avatar.png"}
             isEditable={isEditable}
             refetchProfile={refetchProfile}
           />

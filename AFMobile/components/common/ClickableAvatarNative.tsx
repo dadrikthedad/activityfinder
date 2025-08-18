@@ -1,9 +1,8 @@
 // components/common/ClickableAvatarNative.tsx
 import React from "react";
 import { TouchableOpacity, StyleSheet } from "react-native";
-import MiniAvatarNative from "../MiniAvatarNative";
+import MiniAvatarNative from "./MiniAvatarNative";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
-import { useUserActionPopover } from "@/context/UserActionPopoverContext"; // 👈 ADDED
 import { useCurrentUser } from "@/store/useUserCacheStore";
 
 interface ClickableAvatarNativeProps {
@@ -15,8 +14,9 @@ interface ClickableAvatarNativeProps {
   onLeaveGroup?: () => void;
   conversationId?: number;
   isPendingRequest?: boolean;
-  navigation?: any; // Still needed for GroupSettings navigation
+  navigation?: any; // Make optional since we might use onPress instead
   closeModalOnAction?: boolean;
+  onPress?: () => void; // Add the custom onPress prop
 }
 
 export default function ClickableAvatarNative({
@@ -30,35 +30,37 @@ export default function ClickableAvatarNative({
   isPendingRequest = false,
   navigation,
   closeModalOnAction = true,
+  onPress, // Add onPress to destructuring
 }: ClickableAvatarNativeProps) {
   const currentUser = useCurrentUser();
-  const { showPopover } = useUserActionPopover(); // 👈 USE CONTEXT
+  
+  const handlePress = () => {
+    // If custom onPress is provided, use that instead
+    if (onPress) {
+      onPress();
+      return;
+    }
 
-  const handlePress = (event: any) => {
-    // Get touch position for popover placement
-    const { pageX, pageY } = event.nativeEvent;
-    
-    // If it's a group and we have navigation and conversationId, navigate to GroupSettings
-    if (isGroup && navigation && conversationId && currentUser) {
+    // Check if navigation is available for default behavior
+    if (!navigation) {
+      console.error('ClickableAvatarNative: navigation prop is required when onPress is not provided');
+      return;
+    }
+
+    // If it's a group and we have conversationId, navigate to GroupSettings
+    if (isGroup && conversationId) {
       navigation.navigate('GroupSettingsScreen', {
-        user: currentUser,
+        user: user, // Send the group data, not currentUser
         conversationId: conversationId,
       });
       return;
     }
     
-    // Otherwise, show the popover using context
-    console.log('🎯 ClickableAvatar clicked for:', user.fullName);
-    
-    showPopover({
-      user,
-      position: { x: pageX || 100, y: pageY || 100 },
-      isGroup,
-      participants: participants || [],
-      onLeaveGroup,
-      conversationId,
-      isPendingRequest,
-      closeModalOnAction,
+    // For individual users, use push to allow multiple profile screens
+    console.log('🎯 ClickableAvatar clicked for:', user.fullName, 'ID:', user.id);
+   
+    navigation.push('Profile', {
+      id: user.id.toString()
     });
   };
 
@@ -73,6 +75,7 @@ export default function ClickableAvatarNative({
         size={size}
         alt={user.fullName}
         withBorder={true}
+        isGroup={isGroup} // Pass isGroup prop to MiniAvatarNative
       />
     </TouchableOpacity>
   );

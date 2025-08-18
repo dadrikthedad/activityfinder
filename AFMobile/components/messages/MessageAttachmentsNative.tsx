@@ -34,7 +34,6 @@ interface MessageAttachmentsNativeProps {
   currentUser?: UserSummaryDTO | null;
   onReply?: (message: MessageDTO) => void;
   onDelete?: (message: MessageDTO) => void;
-  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
   onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
 }
 
@@ -49,8 +48,6 @@ export default function MessageAttachmentsNative({
   currentUser,
   onReply,
   onDelete,
-  onShowUserPopover,
-  onShowReactionUsers
 }: MessageAttachmentsNativeProps) {
   const [blurredAttachments, setBlurredAttachments] = useState<Set<string>>(
     new Set(isLocked ? attachments

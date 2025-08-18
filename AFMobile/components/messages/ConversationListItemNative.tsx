@@ -3,7 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
-import ClickableAvatarNative from '../common/UserActionPopover/ClickableAvatarNative';
+import ClickableAvatarNative from '../common/ClickableAvatarNative'; // Fixed import path
 
 interface ConversationListItemNativeProps {
   user: UserSummaryDTO;
@@ -59,7 +59,7 @@ export const ConversationListItemNative = ({
       <View style={styles.avatarContainer}>
         <ClickableAvatarNative
           user={user}
-          size={40}
+          size={50}
           isGroup={isGroup}
           participants={finalParticipants}
           isPendingRequest={isPendingApproval}
@@ -72,7 +72,6 @@ export const ConversationListItemNative = ({
           <View style={styles.unreadDot} />
         )}
       </View>
-
       {/* Content */}
       <View style={styles.conversationContent}>
         <View style={styles.nameContainer}>

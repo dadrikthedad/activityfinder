@@ -14,14 +14,13 @@ import { ConversationDTO } from '@shared/types/ConversationDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { usePaginatedConversations } from '@/hooks/messages/getMyConversations';
 import { ConversationListItemNative } from './ConversationListItemNative'; // Import from separate file
-import { take } from '@/hooks/messages/getMyConversations'; // Import take constant
 
 interface ConversationListNativeProps {
   selectedId: number | null;
   onSelect: (conversationId: number) => void;
   currentUser: UserSummaryDTO | null;
   conversations?: ConversationDTO[];
-  navigation?: any;
+  navigation: any; // Made required since we need it for avatar clicks
 }
 
 export default function ConversationListNative({
@@ -76,7 +75,7 @@ export default function ConversationListNative({
           isGroup={true}
           memberCount={conv.participants.length}
           participants={conv.participants}
-          navigation={navigation} 
+          navigation={navigation} // Added navigation prop
         />
       );
     }
@@ -91,6 +90,7 @@ export default function ConversationListNative({
         hasUnread={hasUnread}
         onClick={() => onSelect(conv.id)}
         isGroup={false}
+        navigation={navigation} // Added navigation prop
       />
     );
   };

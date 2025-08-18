@@ -9,7 +9,7 @@ import {
 import { useFriends } from "@/hooks/useFriends";
 import { useFriendsOfUser } from "@/hooks/useFriendsOfUser";
 import { useIsUserFriend } from "@/store/useUserCacheStore";
-import ClickableAvatarNative from "@/components/common/UserActionPopover/ClickableAvatarNative";
+import ClickableAvatarNative from "../common/ClickableAvatarNative"; // Updated import path
 import ButtonNative from "@/components/common/buttons/ButtonNative";
 import SpinnerNative from "@/components/common/SpinnerNative";
 import { useNavigation } from "@react-navigation/native";
@@ -32,12 +32,14 @@ const FriendItem = React.memo(({
   showFriendBadge?: boolean;
 }) => {
   const isFriend = useIsUserFriend(friend.friend.id);
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>(); // Add navigation hook
   
   return (
     <View style={styles.friendItem}>
       <ClickableAvatarNative
         user={friend.friend}
         size={60}
+        navigation={navigation} // Pass navigation prop
       />
      
       <View style={styles.friendTextContainer}>

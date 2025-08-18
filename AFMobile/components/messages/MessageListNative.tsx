@@ -22,7 +22,10 @@ import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { useReactionUsersModal } from '@/components/reactions/ReactionUsersModal';
 import { ReactionDTO } from '@shared/types/MessageDTO';
 import { useMarkConversationNotificationsAsRead } from '@/hooks/messages/useMarkConversationNotificationAsRead';
-import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
+import ClickableAvatarNative from '../common/ClickableAvatarNative';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '@/types/navigation';
 
 interface MessageListNativeRef {
   scrollToBottom: () => void;
@@ -30,7 +33,6 @@ interface MessageListNativeRef {
 
 interface MessageListNativeProps {
   currentUser: UserSummaryDTO | null;
-  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
   conversationVisible: boolean;
   onScrollPositionChange?: (atBottom: boolean) => void;
   onReply?: (message: MessageDTO) => void;
@@ -51,10 +53,10 @@ interface MessageItemProps {
   onDelete?: (message: MessageDTO) => void;
   onRetry?: (message: MessageDTO) => void;
   onDeleteFailed?: (message: MessageDTO) => void;
-  onShowUserPopover?: (user: UserSummaryDTO, pos: { x: number; y: number }) => void;
-  onShowReactionUsers?: (emoji: string, reactions: ReactionDTO[]) => void;
+  onShowReactionUsers?: (reactions: ReactionDTO[]) => void;
   isSearchResult?: boolean;
   searchQuery?: string;
+  navigation: StackNavigationProp<RootStackParamList>;
 }
 
 // Memoized MessageItem for better performance
@@ -66,10 +68,10 @@ const MessageItemNative = React.memo(({
   onDelete,
   onRetry,
   onDeleteFailed,
-  onShowUserPopover,
   onShowReactionUsers,
   isSearchResult = false,
   searchQuery = '',
+  navigation,
 }: MessageItemProps) => {
   const isMine = currentUser?.id === message.sender?.id;
   const isOptimistic = message.isOptimistic;
@@ -95,10 +97,13 @@ const MessageItemNative = React.memo(({
   }
 
   const handleAvatarPress = useCallback(() => {
-    if (message.sender && !isMine && onShowUserPopover) {
-      onShowUserPopover(message.sender, { x: 0, y: 0 });
+    if (message.sender && !isMine) {
+      // Navigate directly to profile instead of showing popover
+      navigation.push('Profile', {
+        id: message.sender.id.toString()
+      });
     }
-  }, [message.sender, isMine, onShowUserPopover]);
+  }, [message.sender, isMine, navigation]);
 
   const existingReactions = message.reactions || [];
 
@@ -130,7 +135,7 @@ const MessageItemNative = React.memo(({
 
   const handleReactionPress = useCallback((emoji: string) => {
     if (message?.reactions) {
-      onShowReactionUsers?.(emoji, message.reactions);
+      onShowReactionUsers?.(message.reactions);
     }
   }, [message?.reactions, onShowReactionUsers]);
 
@@ -171,12 +176,11 @@ const MessageItemNative = React.memo(({
       >
         <View style={[styles.messageHeader, isMine && styles.myMessageHeader]}>
           {!isMine && message.sender && (
-            <TouchableOpacity onPress={handleAvatarPress}>
-              <MiniAvatarNative
-                imageUrl={message.sender.profileImageUrl ?? "/default-avatar.png"}
-                size={24}
-              />
-            </TouchableOpacity>
+            <ClickableAvatarNative
+              user={message.sender}
+              size={24}
+              navigation={navigation}
+            />
           )}
           
           <View style={[styles.senderInfo, isMine && styles.mySenderInfo]}>
@@ -188,10 +192,11 @@ const MessageItemNative = React.memo(({
             </Text>
           </View>
 
-          {isMine && (
-            <MiniAvatarNative
-              imageUrl={currentUser?.profileImageUrl ?? "/default-avatar.png"}
+          {isMine && currentUser && (
+            <ClickableAvatarNative
+              user={currentUser}
               size={24}
+              navigation={navigation}
             />
           )}
         </View>
@@ -236,13 +241,12 @@ const MessageItemNative = React.memo(({
               attachments={message.attachments}
               isLocked={isLocked}
               isMapped={isMapped}
-              // Nye props for reaction handler
+              // Updated props for reaction handler - removed onShowUserPopover
               message={message}
               currentUser={currentUser}
               onReply={onReply}
               onDelete={onDelete}
-              onShowUserPopover={onShowUserPopover}
-              onShowReactionUsers={onShowReactionUsers}
+
             />
           </View>
         )}
@@ -320,7 +324,6 @@ MessageItemNative.displayName = 'MessageItemNative';
 
 const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, MessageListNativeProps> = ({
   currentUser,
-  onShowUserPopover,
   conversationVisible,
   onScrollPositionChange,
   onReply,
@@ -332,6 +335,9 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
   searchQuery = '',
   searchLoading = false,
 }, ref) => {
+  // Add navigation hook
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+  
   const { liveMessages, searchResults } = useChatStore();
   const rawConversationId = useChatStore((state) => state.currentConversationId);
   const conversationId = rawConversationId ?? -1;
@@ -465,9 +471,9 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
       onDelete={handleDeleteMessage}
       onRetry={onRetryMessage}
       onDeleteFailed={onDeleteFailedMessage}
-      onShowUserPopover={onShowUserPopover}
-      onShowReactionUsers={(emoji, reactions) => 
-        showReactionUsers(emoji, reactions, onShowUserPopover, conversationParticipants)
+      navigation={navigation} // Pass navigation instead of onShowUserPopover
+      onShowReactionUsers={(reactions) => 
+        showReactionUsers(reactions, conversationParticipants, navigation)
       }
       // Nye props for søkehighlighting
       isSearchResult={isSearchMode}
@@ -475,7 +481,7 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
     />
   ), [
     currentUser, isLocked, onReply, handleDeleteMessage, onRetryMessage, 
-    onDeleteFailedMessage, onShowUserPopover, showReactionUsers, 
+    onDeleteFailedMessage, navigation, showReactionUsers, // Replace onShowUserPopover with navigation
     conversationParticipants, isSearchMode, searchQuery
   ]);
 

@@ -118,6 +118,25 @@ export default function GroupSettingsScreen({
     setShowInviteModal(false);
   };
 
+  const getGroupImageSource = (url: string | null | undefined) => {
+    // Handle null/undefined
+    if (!url || url.trim() === '') {
+      return require('@/assets/images/default-group.png'); // Adjust path to your actual asset
+    }
+    
+    // Handle local default paths
+    if (url.startsWith('/default-group') || url === '/default-group.png') {
+      return require('@/assets/images/default-group.png'); // Adjust path to your actual asset
+    }
+    
+    if (url.startsWith('/default-avatar') || url === '/default-avatar.png') {
+      return require('@/assets/images/default-avatar.png'); // Adjust path to your actual asset
+    }
+    
+    // Handle regular URLs
+    return { uri: url };
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -133,9 +152,7 @@ export default function GroupSettingsScreen({
         <View style={styles.imageSection}>
           <TouchableOpacity onPress={handleImagePress} style={styles.imageContainer}>
             <Image
-              source={{
-                uri: groupImageUrl || user.profileImageUrl || '/default-group.png',
-              }}
+              source={getGroupImageSource(groupImageUrl)}
               style={styles.groupImage}
             />
             <View style={styles.imageOverlay}>
@@ -158,7 +175,7 @@ export default function GroupSettingsScreen({
 
         {/* Group Name Section */}
         <View style={styles.nameSection}>
-          <Text style={styles.currentNameLabel}>Current Name:</Text>
+          <Text style={styles.currentNameLabel}>Group Name:</Text>
           <Text style={styles.currentName}>{displayName}</Text>
         </View>
 
@@ -395,7 +412,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   participantsSection: {
-    marginTop: 32,
     paddingBottom: 40,
   },
   sectionTitle: {

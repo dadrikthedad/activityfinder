@@ -1,4 +1,4 @@
-// components/common/UserActionPopoverNative.tsx
+/* // components/common/UserActionPopoverNative.tsx
 import React from "react";
 import { Modal, View, TouchableWithoutFeedback, StyleSheet, Dimensions } from "react-native";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
@@ -142,4 +142,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-});
+}); */

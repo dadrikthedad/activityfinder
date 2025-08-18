@@ -7,21 +7,23 @@ import {
   ScrollView
 } from 'react-native';
 import { UserSummaryDTO, GroupRequestStatus } from '@shared/types/UserSummaryDTO';
-import ClickableAvatarNative from '../common/UserActionPopover/ClickableAvatarNative';// 👈 CHANGED
+import ClickableAvatarNative from '../common/ClickableAvatarNative';
+import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '@/types/navigation';
 
 interface ParticipantsListNativeProps {
   participants: UserSummaryDTO[];
   showGroupRequestStatus?: boolean;
-  closeModalOnAction?: boolean; // 👈 Controls if popover should close parent modal
-  navigation?: any; // 👈 ADDED for ClickableAvatarNative
+  closeModalOnAction?: boolean; // Controls if popover should close parent modal
 }
 
 export function ParticipantsListNative({
   participants,
   showGroupRequestStatus = false,
   closeModalOnAction = true,
-  navigation, // 👈 ADDED
 }: ParticipantsListNativeProps) {
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>(); // Add navigation hook
 
   const getStatusInfo = (participant: UserSummaryDTO) => {
     if (!showGroupRequestStatus) return null;
@@ -48,7 +50,6 @@ export function ParticipantsListNative({
     ? [...participants].sort((a, b) => getStatusOrder(a.groupRequestStatus) - getStatusOrder(b.groupRequestStatus))
     : participants;
 
-
   const renderParticipant = (participant: UserSummaryDTO) => {
     const statusInfo = getStatusInfo(participant);
    
@@ -61,13 +62,13 @@ export function ParticipantsListNative({
           isGroup={false}
           participants={[]}
           isPendingRequest={false}
-          closeModalOnAction={closeModalOnAction} // 👈 PASS THROUGH
-          navigation={navigation} // 👈 PASS THROUGH
+          closeModalOnAction={closeModalOnAction}
+          navigation={navigation}
         />
        
         <View style={styles.participantInfo}>
-          <Text 
-            style={styles.participantName} 
+          <Text
+            style={styles.participantName}
             numberOfLines={1}
           >
             {participant.fullName}

@@ -24,6 +24,7 @@ interface PendingRequestsListNativeProps {
   showMoreLink?: boolean;
   onSelectConversation: (conversationId: number) => void;
   onShowMore?: () => void; // Ny prop for "Se mer" funksjonalitet
+  navigation: any;
 }
 
 export function PendingRequestsListNative({
@@ -31,6 +32,7 @@ export function PendingRequestsListNative({
   showMoreLink = false,
   onSelectConversation,
   onShowMore,
+  navigation
 }: PendingRequestsListNativeProps) {
   const { 
     requests, 
@@ -118,6 +120,7 @@ export function PendingRequestsListNative({
               isGroup={r.isGroup || false}
               memberCount={memberCount}
               participants={participants}
+              navigation={navigation}
             />
           </View>
           
