@@ -1,4 +1,4 @@
-// AFMobile/services/imageService.ts
+// AFMobile/services/fileService.ts
 import { postFormDataRequest } from "@/services/baseService";
 import { API_BASE_URL } from "@/constants/routes";
 import { UploadAttachmentsRequestDTO } from "@shared/types/MessageDTO";
@@ -12,60 +12,72 @@ interface RNFile {
 }
 
 // Upload profilbilde
-export async function uploadProfileImage(file: RNFile): Promise<string> {
+export async function uploadProfileImage(file: RNFile | "delete"): Promise<string | null> {
   const formData = new FormData();
-  formData.append("file", {
-    uri: file.uri,
-    type: file.type,
-    name: file.name,
-  } as any);
- 
-  const url = `${API_BASE_URL}/api/file/upload-profile-image`;
-  const response = await postFormDataRequest<{ imageUrl: string }>(url, formData);
- 
-  if (!response) {
-    throw new Error("Failed to upload profile image");
+  
+  if (file === "delete") {
+    // Send delete-kommando
+    formData.append('action', 'delete');
+  } else {
+    // Normal upload
+    formData.append("file", {
+      uri: file.uri,
+      type: file.type,
+      name: file.name,
+    } as any);
   }
  
-  return response.imageUrl;
+  const url = `${API_BASE_URL}/api/file/upload-profile-image`;
+  const response = await postFormDataRequest<{ imageUrl: string | null }>(url, formData);
+ 
+  if (!response) {
+    throw new Error("Failed to process profile image");
+  }
+ 
+  return response.imageUrl; // null for delete, string for upload
 }
 
 // Upload gruppebilde
 export async function uploadGroupImage(
-  file: RNFile,
+  file: RNFile | "delete",
   groupId?: number
-): Promise<string> {
+): Promise<string | null> {
   const formData = new FormData();
-  formData.append("file", {
-    uri: file.uri,
-    type: file.type,
-    name: file.name,
-  } as any);
-
-  console.log("🔍 SERVICE: uploadGroupImage called with groupId:", groupId);
  
+  if (file === "delete") {
+    // Send delete-kommando
+    formData.append('action', 'delete');
+    console.log("🗑️ SERVICE: uploadGroupImage delete operation for groupId:", groupId);
+  } else {
+    // Normal upload
+    formData.append("file", {
+      uri: file.uri,
+      type: file.type,
+      name: file.name,
+    } as any);
+    console.log("🔍 SERVICE: uploadGroupImage upload operation for groupId:", groupId);
+  }
+
   if (groupId) {
     formData.append("groupId", groupId.toString());
     console.log("🔍 SERVICE: Added groupId to FormData:", groupId.toString());
   } else {
-    console.log("🔍 SERVICE: No groupId provided, creating temp file");
+    console.log("🔍 SERVICE: No groupId provided");
   }
  
-  // 🔧 Test: Send groupId som query parameter i stedet
-  const url = groupId
-    ? `${API_BASE_URL}/api/file/upload-group-image?groupId=${groupId}`
-    : `${API_BASE_URL}/api/file/upload-group-image`;
- 
+  // FIXED: Use the correct file endpoint instead of profile
+  const url = `${API_BASE_URL}/api/file/upload-group-image`;
   console.log("🔍 SERVICE: Final URL:", url);
  
-  const response = await postFormDataRequest<{ imageUrl: string }>(url, formData);
+  const response = await postFormDataRequest<{ imageUrl: string | null }>(url, formData);
  
   if (!response) {
-    throw new Error("Failed to upload group image");
+    throw new Error("Failed to process group image");
   }
  
-  return response.imageUrl;
+  return response.imageUrl; // null for delete, string for upload
 }
+
 
 // Send melding med vedlegg (tilpasset for RN)
 export async function uploadMessageAttachments(data: Omit<UploadAttachmentsRequestDTO, 'files'> & { files: RNFile[] }): Promise<MessageDTO> {

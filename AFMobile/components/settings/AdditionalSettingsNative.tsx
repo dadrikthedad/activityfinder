@@ -13,6 +13,7 @@ import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import CheckboxFieldNative from "./CheckboxFieldNative";
 import ButtonNative from "../common/buttons/ButtonNative";
 import CloseButtonNative from "../common/buttons/CloseButtonNative";
+import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
 
 interface Props {
   initialValues: Partial<Pick<
@@ -84,10 +85,24 @@ export default function AdditionalSettingsNative({ initialValues, onSave }: Prop
 
       await onSave(updated);
       setSuccess(true);
-      Alert.alert("Success", "Settings saved successfully!");
+      
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Settings Saved!",
+        customBody: "Your preferences have been saved successfully",
+        position: 'top'
+      });
+      
     } catch (err) {
       console.error("❌ Kunne ikke lagre innstillinger:", err);
-      Alert.alert("Error", "Failed to save settings. Please try again.");
+      
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: "Failed to save settings. Please try again.",
+        position: 'top'
+      });
+      
     } finally {
       setSaving(false);
       setTimeout(() => setSuccess(false), 2000);

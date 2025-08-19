@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { Camera, Image as ImageLucid, FileText } from 'lucide-react-native';
+import { Camera, Image as ImageLucid, FileText, Trash2 } from 'lucide-react-native';
 
 interface AttachmentPickerModalProps {
   visible: boolean;
@@ -17,6 +17,10 @@ interface AttachmentPickerModalProps {
   showDocuments?: boolean;
   title?: string;
   accentColor?: string;
+  // NEW: Remove functionality
+  showRemove?: boolean;
+  onRemove?: () => void;
+  removeText?: string;
 }
 
 export const AttachmentPickerModal: React.FC<AttachmentPickerModalProps> = ({
@@ -27,8 +31,17 @@ export const AttachmentPickerModal: React.FC<AttachmentPickerModalProps> = ({
   onDocumentPicker,
   showDocuments = true,
   title = "Choose Attachment",
-  accentColor = "#1C6B1C"
+  accentColor = "#1C6B1C",
+  // NEW props with defaults
+  showRemove = false,
+  onRemove,
+  removeText = "Remove Image"
 }) => {
+  const handleRemove = () => {
+    onRemove?.();
+    onClose(); // Close modal after remove action
+  };
+
   return (
     <Modal
       visible={visible}
@@ -36,7 +49,7 @@ export const AttachmentPickerModal: React.FC<AttachmentPickerModalProps> = ({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.modalOverlay}
         activeOpacity={1}
         onPress={onClose}
@@ -47,31 +60,47 @@ export const AttachmentPickerModal: React.FC<AttachmentPickerModalProps> = ({
               <Text style={styles.modalTitle}>{title}</Text>
             </View>
           )}
-          
-          <TouchableOpacity 
-            style={styles.modalOption} 
+         
+          <TouchableOpacity
+            style={styles.modalOption}
             onPress={onCamera}
           >
             <Camera size={24} color={accentColor} />
             <Text style={styles.modalOptionText}>Take Photo</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.modalOption} 
+         
+          <TouchableOpacity
+            style={styles.modalOption}
             onPress={onImagePicker}
           >
             <ImageLucid size={24} color={accentColor} />
             <Text style={styles.modalOptionText}>Choose from Library</Text>
           </TouchableOpacity>
-          
+         
           {showDocuments && (
-            <TouchableOpacity 
-              style={styles.modalOption} 
+            <TouchableOpacity
+              style={styles.modalOption}
               onPress={onDocumentPicker}
             >
               <FileText size={24} color={accentColor} />
               <Text style={styles.modalOptionText}>Select File</Text>
             </TouchableOpacity>
+          )}
+
+          {/* NEW: Remove option */}
+          {showRemove && onRemove && (
+            <>
+              <View style={styles.separator} />
+              <TouchableOpacity
+                style={styles.modalOption}
+                onPress={handleRemove}
+              >
+                <Trash2 size={24} color="#EF4444" />
+                <Text style={[styles.modalOptionText, styles.removeText]}>
+                  {removeText}
+                </Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </TouchableOpacity>
@@ -115,5 +144,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     fontWeight: '500',
+  },
+  // NEW styles
+  separator: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  removeText: {
+    color: '#EF4444',
   },
 });

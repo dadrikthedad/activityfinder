@@ -5,8 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Modal,
-  Alert,
 } from "react-native";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
 import { useUploadProfileImage } from "@/hooks/files/useUploadProfileImage";
@@ -16,6 +14,7 @@ import useAttachmentViewer from "./files/AttachmentViewer";
 import { RNFile } from "@/utils/files/FileFunctions";
 import SpinnerNative from "@/components/common/SpinnerNative";
 import { showNotificationToastNative, LocalToastType } from "./toast/NotificationToastNative";
+import { useConfirmModalNative } from "@/hooks/useConfirmModalNative";
 
 interface Props {
   imageUrl: string;
@@ -33,8 +32,10 @@ export default function ProfileAvatarNative({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<RNFile | null>(null);
-  const [imageHasLoaded, setImageHasLoaded] = useState(false); // ✅ Track if image has loaded once
+  const [imageHasLoaded, setImageHasLoaded] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const { userId } = useAuth();
+  const { confirm } = useConfirmModalNative();
 
   const {
     upload: uploadProfileImage,
@@ -60,7 +61,7 @@ export default function ProfileAvatarNative({
     }
   });
 
-  // ✅ Create separate viewer for preview image
+  // Create separate viewer for preview image
   const previewFile: RNFile | null = selectedFile ? {
     uri: selectedFile.uri,
     type: selectedFile.type,
@@ -86,7 +87,6 @@ export default function ProfileAvatarNative({
       console.log('🔄 Selected profile image:', file.uri);
       setSelectedFile(file);
       setPreviewUrl(file.uri);
-      // ✅ No modal - just update the preview directly
     } catch (err) {
       console.error('Failed to process selected image:', err);
       showNotificationToastNative({
@@ -112,21 +112,20 @@ export default function ProfileAvatarNative({
     try {
       console.log('🔄 Uploading profile image:', selectedFile.uri);
       
-      // Convert RNFile to format expected by upload function
-      const imageData = {
-        uri: selectedFile.uri,
-        type: selectedFile.type,
-        name: selectedFile.name,
-      };
-
-      const uploadedUrl = await uploadProfileImage(imageData);
+      // Pass the RNFile directly to uploadProfileImage
+      const uploadedUrl = await uploadProfileImage(selectedFile);
       console.log('✅ Profile image uploaded successfully:', uploadedUrl);
 
       if (uploadedUrl) {
         // Refresh profile to get updated image
         await refetchProfile?.();
         handleCloseUploadModal();
-        Alert.alert("Success", "Profile picture updated successfully!");
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Success",
+          customBody: "Profile picture updated successfully!",
+          position: 'top'
+        });
       }
     } catch (err) {
       console.error('Failed to upload profile image:', err);
@@ -139,12 +138,46 @@ export default function ProfileAvatarNative({
     }
   };
 
-  // ✅ Reset imageHasLoaded when imageUrl changes (new image)
+  // Function to handle removing profile image using existing upload method
+  const handleRemoveImage = async () => {
+    const confirmed = await confirm({
+      title: "Remove Profile Picture",
+      message: "Are you sure you want to remove your profile picture? This will set it back to the default avatar."
+    });
+
+    if (!confirmed) return;
+
+    setIsRemoving(true);
+    try {
+      // Use existing upload method with "delete" string to remove image
+      await uploadProfileImage("delete");
+      await refetchProfile?.();
+      
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Success",
+        customBody: "Profile picture removed successfully!",
+        position: 'top'
+      });
+    } catch (err) {
+      console.error('Failed to remove profile image:', err);
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: "Failed to remove profile picture. Please try again.",
+        position: 'top'
+      });
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  // Reset imageHasLoaded when imageUrl changes (new image)
   useEffect(() => {
     setImageHasLoaded(false);
   }, [imageUrl]);
 
-  // ✅ Handle cancel - reset to original state
+  // Handle cancel - reset to original state
   const handleCancel = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -169,7 +202,7 @@ export default function ProfileAvatarNative({
     }
   };
 
-  // ✅ FIX: Kun vis loading hvis bildet ikke har blitt lastet før
+  // Loading state management
   const handleImageLoadStart = () => {
     if (!imageHasLoaded) {
       setImgLoading(true);
@@ -178,12 +211,12 @@ export default function ProfileAvatarNative({
 
   const handleImageLoaded = () => {
     setImgLoading(false);
-    setImageHasLoaded(true); // ✅ Mark that image has loaded successfully
+    setImageHasLoaded(true);
   };
 
   const handleImageError = () => {
     setImgLoading(false);
-    setImageHasLoaded(false); // ✅ Reset on error so we can try loading again
+    setImageHasLoaded(false);
     console.warn('Failed to load profile image:', imageUrl);
   };
 
@@ -205,6 +238,14 @@ export default function ProfileAvatarNative({
     
     return { uri: url };
   };
+
+  // Check if user has a custom profile image (not default)
+  const hasCustomImage = imageUrl && 
+    !imageUrl.startsWith('/default-avatar') && 
+    imageUrl !== '/default-avatar.png' &&
+    !imageUrl.startsWith('/default-group') && 
+    imageUrl !== '/default-group.png' &&
+    imageUrl.trim() !== '';
 
   return (
     <>
@@ -244,8 +285,8 @@ export default function ProfileAvatarNative({
             onError={handleImageError}
             resizeMode="cover"
           />
-          {/* ✅ FIX: Flytt loading overlay til etter Image og bruk absolute positioning */}
-          {imgLoading && (
+          {/* Loading overlay */}
+          {(imgLoading || isRemoving) && (
             <View style={[
               styles.loadingOverlay, 
               { 
@@ -264,25 +305,40 @@ export default function ProfileAvatarNative({
       {isEditable && (
         <View style={styles.editButtonContainer}>
           {!selectedFile ? (
-            // ✅ Show "Edit Profile Picture" when no file selected
-            <AttachmentPicker
-              onFilesSelected={handleFilesSelected}
-              allowMultipleImages={false}
-              allowVideos={false}
-              allowDocuments={true}
-              imageQuality={0.8}
-              cameraQuality={0.8}
-              modalTitle="Select Profile Picture"
-              useNativeButton={true}
-              buttonText="Edit Profile Picture"
-              nativeButtonProps={{
-                variant: "primary",
-                size: "medium",
-                style: styles.editButton,
-              }}
-            />
+            <View style={styles.defaultActionsContainer}>
+              {/* Edit Profile Picture Button */}
+              <AttachmentPicker
+                onFilesSelected={handleFilesSelected}
+                allowMultipleImages={false}
+                allowVideos={false}
+                allowDocuments={true}
+                imageQuality={0.8}
+                cameraQuality={0.8}
+                modalTitle="Select Profile Picture"
+                useNativeButton={true}
+                buttonText="Edit Profile Picture"
+                nativeButtonProps={{
+                  variant: "primary",
+                  size: "medium",
+                  style: styles.editButton,
+                }}
+              />
+
+              {/* Remove Picture Button - only show if user has custom image */}
+              {hasCustomImage && (
+                <ButtonNative
+                  text={isRemoving ? "Removing..." : "Remove Picture"}
+                  onPress={handleRemoveImage}
+                  variant="secondary"
+                  size="medium"
+                  disabled={isRemoving}
+                  loading={isRemoving}
+                  style={styles.removeButton}
+                />
+              )}
+            </View>
           ) : (
-            // ✅ Show Save/Cancel/Change buttons when file is selected
+            // Show Save/Cancel/Change buttons when file is selected
             <View style={styles.actionButtonsContainer}>
               <View style={styles.actionButtonRow}>
                 <ButtonNative
@@ -357,7 +413,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  // ✅ FIX: Bruk absolute positioning for loading overlay
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -373,13 +428,24 @@ const styles = StyleSheet.create({
   editButtonContainer: {
     marginTop: 16,
     alignItems: 'center',
-    width: '100%', // Ensure full width for button
+    width: '100%',
+  },
+  // New container for default actions (edit + remove)
+  defaultActionsContainer: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
   },
   editButton: {
-    minWidth: 180, // Set a minimum width for consistency
+    minWidth: 180,
     alignSelf: 'center', 
   },
-  // ✅ New styles for action buttons when image is selected
+  // Updated style for remove button - same size as edit button
+  removeButton: {
+    minWidth: 180, // Same as editButton
+    alignSelf: 'center',
+  },
+  // Existing styles for action buttons when image is selected
   actionButtonsContainer: {
     width: '100%',
     alignItems: 'center',

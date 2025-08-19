@@ -5,7 +5,6 @@ import { AttachmentPickerModal } from './AttachmentPickerModal';
 import { AttachmentPickerButton } from './AttachmentPickerButton';
 import ButtonNative, { ButtonNativeProps } from '@/components/common/buttons/ButtonNative';
 
-
 interface AttachmentPickerProps extends UseAttachmentPickerOptions {
   // Original button props (for backward compatibility)
   disabled?: boolean;
@@ -14,15 +13,20 @@ interface AttachmentPickerProps extends UseAttachmentPickerOptions {
   buttonBackgroundColor?: string;
   buttonStyle?: ViewStyle;
   buttonIcon?: React.ReactNode;
-  
+ 
   // Modal props
   modalTitle?: string;
   accentColor?: string;
-  
-  // NEW: ButtonNative integration
+ 
+  // ButtonNative integration
   useNativeButton?: boolean;
   nativeButtonProps?: Partial<ButtonNativeProps>;
   buttonText?: string;
+
+  // NEW: Remove functionality
+  showRemove?: boolean;
+  onRemove?: () => void;
+  removeText?: string;
 }
 
 export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
@@ -35,12 +39,17 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
   buttonIcon,
   modalTitle,
   accentColor = "#1C6B1C",
-  
-  // NEW props
+ 
+  // ButtonNative props
   useNativeButton = false,
   nativeButtonProps,
   buttonText = "Add Attachment",
-  
+
+  // NEW: Remove props
+  showRemove = false,
+  onRemove,
+  removeText = "Remove Image",
+ 
   allowDocuments = true,
   ...pickerOptions
 }) => {
@@ -66,7 +75,6 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
         />
       );
     }
-
     return (
       <AttachmentPickerButton
         onPress={showPicker}
@@ -93,6 +101,10 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
         showDocuments={allowDocuments}
         title={modalTitle}
         accentColor={accentColor}
+        // NEW: Remove props
+        showRemove={showRemove}
+        onRemove={onRemove}
+        removeText={removeText}
       />
     </>
   );

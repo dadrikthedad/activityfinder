@@ -1,5 +1,4 @@
 // screens/GroupSettingsScreen.tsx
-// screens/GroupSettingsScreen.tsx
 import React, { useState} from 'react';
 import {
   View,
@@ -66,6 +65,8 @@ export default function GroupSettingsScreen({
     setTempGroupName,
     groupNameError,
     displayName,
+    // Add function to handle image removal
+    removeGroupImage,
   } = useGroupSettingsPopoverNative({
     user,
     conversationId,
@@ -82,6 +83,22 @@ export default function GroupSettingsScreen({
   // Handle image press - now uses AttachmentPicker
   const handleImagePress = () => {
     triggerImageUpload();
+  };
+
+  // Handle remove group image with confirmation
+  const handleRemoveGroupImage = async () => {
+    const confirmed = await confirm({
+      title: 'Remove Group Image',
+      message: 'Are you sure you want to remove the group image? This will set it back to the default group image.',
+    });
+
+    if (confirmed) {
+      try {
+        await removeGroupImage();
+      } catch (err) {
+        Alert.alert('Error', 'Failed to remove group image. Please try again.');
+      }
+    }
   };
 
   // Handle leave group with confirmation
@@ -137,6 +154,15 @@ export default function GroupSettingsScreen({
     return { uri: url };
   };
 
+  // Check if group has a custom image (not default)
+  const hasCustomGroupImage = Boolean(
+    groupImageUrl && 
+    groupImageUrl.trim() !== '' &&
+    !groupImageUrl.startsWith('/default-group') && 
+    groupImageUrl !== '/default-group.png' &&
+    !groupImageUrl.startsWith('/default-avatar') && 
+    groupImageUrl !== '/default-avatar.png'
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -277,6 +303,10 @@ export default function GroupSettingsScreen({
         showDocuments={false}
         title="Change Group Image"
         accentColor="#1C6B1C"
+        // NEW: Add remove functionality
+        showRemove={hasCustomGroupImage}
+        onRemove={handleRemoveGroupImage}
+        removeText="Remove Group Image"
       />
 
       {/* Invite Users Modal */}

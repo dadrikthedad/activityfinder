@@ -1,4 +1,4 @@
-// hooks/useUploadGroupImage.ts
+// hooks/files/useUploadGroupImageNative.ts
 "use client";
 import { useState } from "react";
 import { uploadGroupImage } from "@/services/files/fileService";
@@ -14,7 +14,10 @@ export function useUploadGroupImageNative() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const upload = async (file: FileUpload, groupId?: number): Promise<string | null> => {
+  const upload = async (
+    file: FileUpload | "delete", 
+    groupId?: number
+  ): Promise<string | null> => {
     setUploading(true);
     setError(null);
    

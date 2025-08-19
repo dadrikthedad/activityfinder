@@ -1,4 +1,4 @@
-// ModalContext.tsx - Oppdatert med bottom sheet støtte
+// ModalContext.tsx - Oppdatert med bedre støtte for modal størrelser
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import {
   Modal,
@@ -16,7 +16,7 @@ interface ModalContextType {
     blurBackground?: boolean;
     position?: { x: number; y: number };
     dismissOnBackdrop?: boolean;
-    type?: 'center' | 'bottom'; // Nytt alternativ
+    type?: 'center' | 'bottom';
   }) => void;
   hideModal: () => void;
   isModalOpen: boolean;
@@ -29,7 +29,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [blurBackground, setBlurBackground] = useState(true);
   const [dismissOnBackdrop, setDismissOnBackdrop] = useState(true);
   const [modalPosition, setModalPosition] = useState<{ x: number; y: number } | null>(null);
-  const [modalType, setModalType] = useState<'center' | 'bottom'>('center'); // Nytt state
+  const [modalType, setModalType] = useState<'center' | 'bottom'>('center');
  
   const isModalOpen = modalContent !== null;
 
@@ -43,7 +43,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setBlurBackground(options?.blurBackground !== false);
     setModalPosition(options?.position ?? null);
     setDismissOnBackdrop(options?.dismissOnBackdrop !== false);
-    setModalType(options?.type ?? 'center'); // Sett modal type
+    setModalType(options?.type ?? 'center');
   };
 
   const hideModal = () => {
@@ -69,10 +69,25 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
     
     if (modalType === 'bottom') {
-      return [styles.bottomContent, { opacity: isModalOpen ? 1 : 0 }]; // Forhindrer flash
+      return [styles.bottomContent, { opacity: isModalOpen ? 1 : 0 }];
     }
     
+    // For center modaler, la innholdet selv bestemme størrelsen
     return styles.centeredContent;
+  };
+
+  const getOverlayStyle = () => {
+    const baseStyle = [
+      styles.overlay,
+      blurBackground && styles.blurBackground,
+    ];
+
+    if (modalType === 'bottom') {
+      return [...baseStyle, styles.bottomOverlay];
+    }
+
+    // For center modaler, bruk full flex og la innholdet sentres naturlig
+    return [...baseStyle, styles.centerOverlay];
   };
 
   return (
@@ -82,16 +97,12 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       <Modal
         visible={isModalOpen}
         transparent={true}
-        animationType={modalType === 'bottom' ? 'slide' : 'fade'} // Forskjellig animasjon
+        animationType={modalType === 'bottom' ? 'slide' : 'fade'}
         onRequestClose={hideModal}
         statusBarTranslucent={true}
       >
         <TouchableWithoutFeedback onPress={handleBackdropPress}>
-          <View style={[
-            styles.overlay,
-            blurBackground && styles.blurBackground,
-            modalType === 'bottom' && styles.bottomOverlay // Ny style for bottom
-          ]}>
+          <View style={getOverlayStyle()}>
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
               <View style={getContainerStyle()}>
                 {modalContent}
@@ -116,20 +127,30 @@ export const useModal = (): ModalContextType => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   blurBackground: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  centeredContent: {
+  
+  // Overlay for center modaler
+  centerOverlay: {
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 20, // Gi litt padding på sidene
   },
-  // Nye styles for bottom sheet
+  
+  centeredContent: {
+    // La innholdet bestemme sin egen størrelse
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%', // Ta tilgjengelig bredde
+    maxWidth: 500, // Men ikke mer enn dette
+  },
+  
+  // Styles for bottom sheet (uendret)
   bottomOverlay: {
     justifyContent: 'flex-end',
-    alignItems: 'stretch', // Tar full bredde
+    alignItems: 'stretch',
   },
   bottomContent: {
     width: '100%',

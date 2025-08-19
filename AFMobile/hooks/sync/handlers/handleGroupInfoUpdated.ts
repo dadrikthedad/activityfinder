@@ -5,8 +5,11 @@ import { ConversationDTO } from "@shared/types/ConversationDTO";
 import { MessageDTO } from "@shared/types/MessageDTO";
 
 interface GroupInfoUpdatedEventData {
-  conversation: ConversationDTO;
+  // Support both formats
+  conversation?: ConversationDTO;
+  conversationData?: ConversationDTO;
   message?: MessageDTO;
+  systemMessage?: MessageDTO;
 }
 
 /**
@@ -17,22 +20,53 @@ export const handleGroupInfoUpdated = async (
   eventData: GroupInfoUpdatedEventData,
   currentUserId: number | null,
 ) => {
+  // 🔍 DEBUG: Log raw event data
+  console.log("🍌 BANAN handleGroupInfoUpdated eventData:", {
+    eventData: eventData,
+    keys: Object.keys(eventData),
+    hasConversation: !!eventData.conversation,
+    hasConversationData: !!eventData.conversationData,
+    hasMessage: !!eventData.message,
+    hasSystemMessage: !!eventData.systemMessage
+  });
+
   const { pendingMessageRequests, updatePendingRequest, addMessage, addConversation } = useChatStore.getState();
  
-  // Siden eventData alltid har conversation property nå
-  const conversation = eventData.conversation;
+  // Handle both event formats - prioritize 'conversation' but fallback to 'conversationData'
+  const conversation = eventData.conversation || eventData.conversationData;
+  const message = eventData.message || eventData.systemMessage;
+  
+  // 🔍 DEBUG: Log extracted data
+  console.log("🔍 DEBUG extracted data:", {
+    conversation: conversation ? { id: conversation.id, groupName: conversation.groupName } : null,
+    message: message ? { id: message.id, text: message.text } : null,
+    currentUserId: currentUserId
+  });
+ 
+  if (!conversation) {
+    console.error('❌ No conversation data found in GROUP_INFO_UPDATED event');
+    return;
+  }
+  
   const currentUserParticipant = conversation.participants
     .find((p: UserSummaryDTO) => p.id === currentUserId);
+    
+  console.log("🍌 BANAN user participant:", {
+    currentUserParticipant: currentUserParticipant,
+    groupRequestStatus: currentUserParticipant?.groupRequestStatus
+  });
  
   try {
     if (currentUserParticipant?.groupRequestStatus === 'Accepted' ||
-        currentUserParticipant?.groupRequestStatus === 'Creator') {
+        currentUserParticipant?.groupRequestStatus === 'Creator' ||
+        currentUserParticipant?.groupRequestStatus === 'Approved') {
       // Godkjent bruker - full handleMessageSync
       console.log(`✅ User ${currentUserId} is approved - using full sync`);
        
       // Sjekk om message eksisterer før vi sender den
-      if (eventData.message) {
-        await handleMessageSync(eventData.message, conversation);
+      if (message) {
+        console.log("🍌 BANAN: Calling handleMessageSync with:", { message, conversation });
+        await handleMessageSync(message, conversation);
       } else {
         // Kun conversation update uten system message
         console.log(`ℹ️ No system message - only updating conversation`);
@@ -49,10 +83,10 @@ export const handleGroupInfoUpdated = async (
      
       // Legg til system message HVIS pending conversation eksisterer i pendingMessageRequests
       const pendingExists = pendingMessageRequests.some(req => req.conversationId === conversation.id);
-      if (eventData.message && pendingExists) {
+      if (message && pendingExists) {
         console.log(`💬 Adding system message to existing pending conversation ${conversation.id}`);
-        addMessage(eventData.message);
-      } else if (eventData.message) {
+        addMessage(message);
+      } else if (message) {
         console.log(`⏭️ Skipping system message - pending conversation ${conversation.id} not found in pending requests`);
       }
     }

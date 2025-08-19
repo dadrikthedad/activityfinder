@@ -27,8 +27,8 @@ export function useGroupSettingsPopoverNative({
 
   // Group image state and hooks
   const { upload: uploadGroupImage, uploading: uploadingImage, error: uploadError } = useUploadGroupImageNative();
-  const [groupImageUrl, setGroupImageUrl] = useState<string | null>(
-    currentConversation?.groupImageUrl || user.profileImageUrl
+  const [groupImageUrl, setGroupImageUrl] = useState<string | undefined>(
+    currentConversation?.groupImageUrl || undefined
   );
 
   // Group name state and hooks
@@ -70,6 +70,28 @@ export function useGroupSettingsPopoverNative({
       }
     } catch (err) {
       console.error('Failed to upload group image:', err);
+    }
+  }, [uploadGroupImage, conversationId, updateConversation]);
+
+  // Handle group image removal
+  const removeGroupImage = useCallback(async () => {
+    try {
+      console.log('🗑️ Removing group image for conversation:', conversationId);
+      
+      // Call upload function with "delete" action
+      const result = await uploadGroupImage("delete", conversationId);
+      console.log('✅ Group image removed successfully:', result);
+
+      // Set to undefined (default image) - consistent with ConversationDTO
+      setGroupImageUrl(undefined);
+      
+      // Update store immediately
+      updateConversation(conversationId, { groupImageUrl: undefined });
+      console.log('🏪 Updated conversation in store with undefined image:', conversationId);
+      
+    } catch (err) {
+      console.error('Failed to remove group image:', err);
+      throw err; // Re-throw so calling component can handle error
     }
   }, [uploadGroupImage, conversationId, updateConversation]);
 
@@ -135,6 +157,7 @@ export function useGroupSettingsPopoverNative({
     uploadingImage,
     uploadError,
     triggerImageUpload,
+    removeGroupImage, // Add this new function
 
     // AttachmentPicker states
     showModal,

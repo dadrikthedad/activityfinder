@@ -5,12 +5,10 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
-  Modal,
-  ScrollView,
-  SafeAreaView,
 } from "react-native";
 import { FieldName, validateSingleField } from "@shared/utils/validators";
 import ButtonNative from "../common/buttons/ButtonNative";
+import SelectModalNative from "../common/modal/SelectModalNative";
 
 interface EditableSelectFieldProps {
   name: FieldName;
@@ -32,7 +30,6 @@ export default function EditableSelectFieldNative({
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPicker, setShowPicker] = useState(false);
 
   const handleSave = async () => {
     const validationError = validateSingleField(name, selectedValue);
@@ -61,12 +58,10 @@ export default function EditableSelectFieldNative({
     setSelectedValue(value);
     setEditing(false);
     setError(null);
-    setShowPicker(false);
   };
 
   const handleOptionSelect = (optionValue: string) => {
     setSelectedValue(optionValue);
-    setShowPicker(false);
     setError(null);
   };
 
@@ -92,19 +87,27 @@ export default function EditableSelectFieldNative({
       <View style={styles.valueContainer}>
         {editing ? (
           <View style={styles.selectContainer}>
-            <TouchableOpacity
-              style={[
-                styles.selectButton,
-                error ? styles.selectButtonError : styles.selectButtonNormal
-              ]}
-              onPress={() => setShowPicker(true)}
-              disabled={isSaving}
-            >
-              <Text style={styles.selectButtonText}>
-                {getDisplayLabel(selectedValue)}
-              </Text>
-              <Text style={styles.selectButtonArrow}>▼</Text>
-            </TouchableOpacity>
+            {/* Use the new SelectModalNative component */}
+            <SelectModalNative
+              title={`Select ${label}`}
+              options={options}
+              selectedValue={selectedValue}
+              onSelect={handleOptionSelect}
+              customTrigger={
+                <TouchableOpacity
+                  style={[
+                    styles.selectButton,
+                    error ? styles.selectButtonError : styles.selectButtonNormal
+                  ]}
+                  disabled={isSaving}
+                >
+                  <Text style={styles.selectButtonText}>
+                    {getDisplayLabel(selectedValue)}
+                  </Text>
+                  <Text style={styles.selectButtonArrow}>▼</Text>
+                </TouchableOpacity>
+              }
+            />
             
             {error && (
               <Text style={styles.errorText}>{error}</Text>
@@ -156,53 +159,6 @@ export default function EditableSelectFieldNative({
           />
         )}
       </View>
-
-      {/* Custom Picker Modal */}
-      <Modal
-        visible={showPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <SafeAreaView style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select {label}</Text>
-                <TouchableOpacity
-                  onPress={() => setShowPicker(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Text style={styles.modalCloseText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <ScrollView style={styles.optionsList}>
-                {options.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.optionItem,
-                      selectedValue === option.value && styles.optionItemSelected
-                    ]}
-                    onPress={() => handleOptionSelect(option.value)}
-                  >
-                    <Text style={[
-                      styles.optionText,
-                      selectedValue === option.value && styles.optionTextSelected
-                    ]}>
-                      {option.label}
-                    </Text>
-                    {selectedValue === option.value && (
-                      <Text style={styles.optionCheckmark}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </SafeAreaView>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -309,84 +265,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
-  },
-  
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  
-  modalContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    margin: 20,
-    maxHeight: '80%',
-    width: '90%',
-    maxWidth: 400,
-  },
-  
-  modalContent: {
-    flex: 1,
-  },
-  
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  
-  modalCloseButton: {
-    padding: 4,
-  },
-  
-  modalCloseText: {
-    fontSize: 18,
-    color: '#6b7280',
-  },
-  
-  optionsList: {
-    flex: 1,
-  },
-  
-  optionItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  
-  optionItemSelected: {
-    backgroundColor: '#f0f9ff',
-  },
-  
-  optionText: {
-    fontSize: 16,
-    color: '#111827',
-    flex: 1,
-  },
-  
-  optionTextSelected: {
-    color: '#1C6B1C',
-    fontWeight: '500',
-  },
-  
-  optionCheckmark: {
-    fontSize: 16,
-    color: '#1C6B1C',
-    fontWeight: 'bold',
   },
 });

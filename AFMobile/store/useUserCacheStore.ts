@@ -97,38 +97,49 @@ export const useUserCacheStore = create<UserCacheStore>()(
       getSettings: () => get().settings,
       
       // --- Core actions ---
-      setUser: (user: UserSummaryDTO) => 
+      setUser: (user: UserSummaryDTO) =>
         set(state => {
-            const existingUser = state.users[user.id];
-            const now = Date.now();
-            
-            // Legg til timestamp hvis mangler
-            const userWithTimestamp = {
+          const existingUser = state.users[user.id];
+          const now = Date.now();
+          
+          // Legg til timestamp hvis mangler
+          const userWithTimestamp = {
             ...user,
             lastUpdated: user.lastUpdated || now
-            };
-            
-            // Smart merge hvis eksisterende bruker finnes
-            if (existingUser) {
+          };
+          
+          // Smart merge hvis eksisterende bruker finnes
+          if (existingUser) {
             // Kun overskrive hvis nyere data
             if (!existingUser.lastUpdated || 
                 userWithTimestamp.lastUpdated >= existingUser.lastUpdated) {
-                return {
+              console.log(`👤 setUser: Updating existing user ${user.id} (${user.fullName}) - new timestamp: ${userWithTimestamp.lastUpdated}, old: ${existingUser.lastUpdated || 'none'}`);
+              
+              // 🆕 Log relationship changes specifically
+              if (existingUser.isFriend !== userWithTimestamp.isFriend) {
+                console.log(`🤝 setUser: Friend status changed for ${user.fullName}: ${existingUser.isFriend} → ${userWithTimestamp.isFriend}`);
+              }
+              if (existingUser.isBlocked !== userWithTimestamp.isBlocked) {
+                console.log(`🚫 setUser: Block status changed for ${user.fullName}: ${existingUser.isBlocked} → ${userWithTimestamp.isBlocked}`);
+              }
+              
+              return {
                 users: { ...state.users, [user.id]: userWithTimestamp },
                 lastUpdated: Date.now()
-                };
+              };
             } else {
-                // Behold eksisterende (nyere)
-                console.log(`👤 setUser: Keeping existing user ${user.id} (newer timestamp)`);
-                return state;
+              // Behold eksisterende (nyere)
+              console.log(`👤 setUser: Keeping existing user ${user.id} (${user.fullName}) - existing is newer (${existingUser.lastUpdated} vs ${userWithTimestamp.lastUpdated})`);
+              return state;
             }
-            }
-            
-            // Ny bruker
-            return {
+          }
+          
+          // Ny bruker
+          console.log(`👤 setUser: Adding new user ${user.id} (${user.fullName}) - friend: ${userWithTimestamp.isFriend}, blocked: ${userWithTimestamp.isBlocked}`);
+          return {
             users: { ...state.users, [user.id]: userWithTimestamp },
             lastUpdated: Date.now()
-            };
+          };
         }),
 
 

@@ -14,7 +14,7 @@ import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useNotificationStore } from "@/store/useNotificationStore";
 import MiniAvatarNative from "../common/MiniAvatarNative";
 import { GroupEventType } from "@shared/types/GroupNotificationUpdateDTO";
-import { formatUserListNative } from "../../utils/messages/NotificationsUserListFormatterNative";
+import { formatUserListNative } from '@/utils/messages/NotificationsUserListFormatterNative';
 import { AttachmentDto } from "@shared/types/MessageDTO";
 import { getAttachmentSummary } from "./ToastFunctions";
 import { useNavigation } from '@react-navigation/native';
@@ -168,7 +168,7 @@ function NotificationToastComponent({
         case GroupEventType.MemberRemoved:
           return `${senderDisplayName} removed ${formatUserListNative(affectedUsers)} from ${groupNameText}`;
         case GroupEventType.GroupNameChanged:
-          return `${senderDisplayName} changed the name of ${groupNameText}`;
+          return `${senderDisplayName} changed the name to ${groupNameText}`;
         case GroupEventType.GroupImageChanged:
           return `${senderDisplayName} changed the image of ${groupNameText}`;
         case GroupEventType.GroupCreated:

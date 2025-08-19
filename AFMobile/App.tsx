@@ -34,11 +34,21 @@ import EditProfileScreen from './screens/profile/EditProfileScreen';
 import ProfileSettingsScreen from './screens/profile/ProfileSettingsScreen';
 import PendingConversationsScreen from './screens/messages/PendingConversationsScreen';
 import FriendScreen from './screens/friends/FriendScreen';
+import appInsights from './AppInsights';
+import Logger from './Logger';
 
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
+
+  useEffect(() => {
+    Logger.info('Application Insights initialized', {
+      platform: 'react-native',
+      appVersion: '1.0.0'
+    });
+  }, []);
+
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'background') {

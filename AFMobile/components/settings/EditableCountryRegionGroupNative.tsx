@@ -4,16 +4,16 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
   ScrollView,
   SafeAreaView,
-  Dimensions,
+  TextInput,
 } from "react-native";
 import { validateSingleField } from "@shared/utils/validators";
 import ButtonNative from "../common/buttons/ButtonNative";
 import CloseButtonNative from "../common/buttons/CloseButtonNative";
 import { showNotificationToastNative } from "../toast/NotificationToastNative";
 import { LocalToastType } from "../toast/NotificationToastNative";
+import { useModal } from "@/context/ModalContext";
 
 interface EditableCountryRegionGroupProps {
   country: string;
@@ -27,7 +27,99 @@ interface EditableCountryRegionGroupProps {
   onCancel: () => void;
 }
 
-const { height: screenHeight } = Dimensions.get('window');
+// Searchable Select Modal Component
+function SearchableSelectModal({
+  title,
+  options,
+  selectedValue,
+  onSelect,
+  onClose,
+  placeholder = "Search...",
+}: {
+  title: string;
+  options: { label: string; value: string }[];
+  selectedValue: string;
+  onSelect: (value: string) => void;
+  onClose: () => void;
+  placeholder?: string;
+}) {
+  const [searchText, setSearchText] = useState("");
+
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes(searchText.toLowerCase())
+  );
+
+  const handleSelect = (value: string) => {
+    onClose();
+    setTimeout(() => {
+      onSelect(value);
+    }, 100);
+  };
+
+  return (
+    <View style={styles.modalContainer}>
+      <SafeAreaView style={styles.modalContent}>
+        {/* Header */}
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <CloseButtonNative 
+            onPress={onClose}
+            theme="light"
+            size={32}
+            iconSize={16}
+          />
+        </View>
+
+        {/* Search Input */}
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder={placeholder}
+            value={searchText}
+            onChangeText={setSearchText}
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+        </View>
+
+        {/* Options List */}
+        <ScrollView 
+          style={styles.optionsList}
+          showsVerticalScrollIndicator={true}
+          keyboardShouldPersistTaps="handled"
+        >
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.optionItem,
+                  selectedValue === option.value && styles.optionItemSelected
+                ]}
+                onPress={() => handleSelect(option.value)}
+              >
+                <Text style={[
+                  styles.optionText,
+                  selectedValue === option.value && styles.optionTextSelected
+                ]}>
+                  {option.label}
+                </Text>
+                {selectedValue === option.value && (
+                  <Text style={styles.optionCheckmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.noResultsContainer}>
+              <Text style={styles.noResultsText}>No results found</Text>
+            </View>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </View>
+  );
+}
 
 export default function EditableCountryRegionGroupNative({
   country,
@@ -46,16 +138,14 @@ export default function EditableCountryRegionGroupNative({
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [showRegionPicker, setShowRegionPicker] = useState(false);
+  
+  const { showModal, hideModal } = useModal();
 
   const handleCancel = () => {
     setSelectedCountry(country);
     setSelectedRegion(region);
     setEditing(false);
     setError(null);
-    setShowCountryPicker(false);
-    setShowRegionPicker(false);
     onCancel();
   };
 
@@ -113,11 +203,46 @@ export default function EditableCountryRegionGroupNative({
     setEditing(true);
   };
 
+  const showCountryPicker = () => {
+    showModal(
+      <SearchableSelectModal
+        title="Select Country"
+        options={countries}
+        selectedValue={selectedCountry}
+        onSelect={handleCountrySelect}
+        onClose={hideModal}
+        placeholder="Search countries..."
+      />,
+      {
+        blurBackground: true,
+        dismissOnBackdrop: true,
+        type: 'center'
+      }
+    );
+  };
+
+  const showRegionPicker = () => {
+    showModal(
+      <SearchableSelectModal
+        title="Select Region"
+        options={regions}
+        selectedValue={selectedRegion}
+        onSelect={handleRegionSelect}
+        onClose={hideModal}
+        placeholder="Search regions..."
+      />,
+      {
+        blurBackground: true,
+        dismissOnBackdrop: true,
+        type: 'center'
+      }
+    );
+  };
+
   const handleCountrySelect = async (countryValue: string) => {
     setSelectedCountry(countryValue);
     setSelectedRegion(""); // Reset region when country changes
     onTempCountryChange(countryValue);
-    setShowCountryPicker(false);
     setError(null);
     
     // Fetch regions for new country
@@ -127,7 +252,6 @@ export default function EditableCountryRegionGroupNative({
   const handleRegionSelect = (regionValue: string) => {
     setSelectedRegion(regionValue);
     onTempRegionChange(regionValue);
-    setShowRegionPicker(false);
     setError(null);
   };
 
@@ -172,7 +296,7 @@ export default function EditableCountryRegionGroupNative({
             {/* Country Picker */}
             <TouchableOpacity
               style={[styles.pickerButton, styles.pickerButtonNormal]}
-              onPress={() => setShowCountryPicker(true)}
+              onPress={showCountryPicker}
               disabled={isSaving}
             >
               <Text style={styles.pickerButtonText}>
@@ -184,7 +308,7 @@ export default function EditableCountryRegionGroupNative({
             {/* Region Picker */}
             <TouchableOpacity
               style={[styles.pickerButton, styles.pickerButtonNormal]}
-              onPress={() => setShowRegionPicker(true)}
+              onPress={showRegionPicker}
               disabled={isSaving || !selectedCountry}
             >
               <Text style={[
@@ -218,147 +342,43 @@ export default function EditableCountryRegionGroupNative({
 
       {/* Buttons */}
       <View style={styles.buttonsContainer}>
-  {saved ? (
-    <ButtonNative
-      text="✓ Saved"
-      onPress={() => {}}
-      variant="primary"
-      size="small"
-      disabled={true}
-    />
-  ) : editing ? (
-    <View style={styles.editingButtons}>
-      <ButtonNative
-        text={isSaving ? "Saving..." : "Save"}
-        onPress={handleSave}
-        variant="primary"
-        size="small"
-        loading={isSaving}
-        disabled={isSaving || selectedRegion === ""}
-        // Fjern fullWidth her
-      />
-      <ButtonNative
-        text="Cancel"
-        onPress={handleCancel}
-        variant="secondary"
-        size="small"
-        disabled={isSaving}
-        // Fjern fullWidth her
-      />
+        {saved ? (
+          <ButtonNative
+            text="✓ Saved"
+            onPress={() => {}}
+            variant="primary"
+            size="small"
+            disabled={true}
+          />
+        ) : editing ? (
+          <View style={styles.editingButtons}>
+            <ButtonNative
+              text={isSaving ? "Saving..." : "Save"}
+              onPress={handleSave}
+              variant="primary"
+              size="small"
+              loading={isSaving}
+              disabled={isSaving || selectedRegion === ""}
+            />
+            <ButtonNative
+              text="Cancel"
+              onPress={handleCancel}
+              variant="secondary"
+              size="small"
+              disabled={isSaving}
+            />
           </View>
-  ) : (
-    <View style={styles.singleButtonContainer}>
-      <ButtonNative
-        text="Edit"
-        onPress={handleEditClick}
-        variant="primary"
-        size="small"
-      />
-    </View>
-  )}
+        ) : (
+          <View style={styles.singleButtonContainer}>
+            <ButtonNative
+              text="Edit"
+              onPress={handleEditClick}
+              variant="primary"
+              size="small"
+            />
+          </View>
+        )}
       </View>
-
-      {/* Country Picker Modal */}
-      <Modal
-        visible={showCountryPicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowCountryPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Country</Text>
-                <CloseButtonNative 
-                  onPress={() => setShowCountryPicker(false)}
-                  theme="light"
-                  size={32}
-                  iconSize={16}
-                />
-              </View>
-              
-              <ScrollView 
-                style={styles.optionsList}
-                contentContainerStyle={styles.optionsListContent}
-                showsVerticalScrollIndicator={true}
-              >
-                {countries.map((country) => (
-                  <TouchableOpacity
-                    key={country.value}
-                    style={[
-                      styles.optionItem,
-                      selectedCountry === country.value && styles.optionItemSelected
-                    ]}
-                    onPress={() => handleCountrySelect(country.value)}
-                  >
-                    <Text style={[
-                      styles.optionText,
-                      selectedCountry === country.value && styles.optionTextSelected
-                    ]}>
-                      {country.label}
-                    </Text>
-                    {selectedCountry === country.value && (
-                      <Text style={styles.optionCheckmark}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Region Picker Modal */}
-      <Modal
-        visible={showRegionPicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowRegionPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Region</Text>
-                <CloseButtonNative 
-                  onPress={() => setShowRegionPicker(false)}
-                  theme="light"
-                  size={32}
-                  iconSize={16}
-                />
-              </View>
-              
-              <ScrollView 
-                style={styles.optionsList}
-                contentContainerStyle={styles.optionsListContent}
-                showsVerticalScrollIndicator={true}
-              >
-                {regions.map((region) => (
-                  <TouchableOpacity
-                    key={region.value}
-                    style={[
-                      styles.optionItem,
-                      selectedRegion === region.value && styles.optionItemSelected
-                    ]}
-                    onPress={() => handleRegionSelect(region.value)}
-                  >
-                    <Text style={[
-                      styles.optionText,
-                      selectedRegion === region.value && styles.optionTextSelected
-                    ]}>
-                      {region.label}
-                    </Text>
-                    {selectedRegion === region.value && (
-                      <Text style={styles.optionCheckmark}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -457,7 +477,7 @@ const styles = StyleSheet.create({
   },
   
   buttonsContainer: {
-    alignItems: 'center', // Add this to ensure full width
+    alignItems: 'center',
   },
 
   editingButtons: {
@@ -467,24 +487,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
     
-  // Fixed Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  singleButtonContainer: {
+    flexDirection: 'row',
   },
-  
+
+  // Modal styles
   modalContainer: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    height: screenHeight * 0.7, // 70% of screen height
+    borderRadius: 12,
+    minHeight: 500,
+    maxHeight: '85%',
     width: '100%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   
   modalContent: {
     flex: 1,
-    paddingBottom: 20,
   },
   
   modalHeader: {
@@ -494,7 +519,6 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
   },
   
   modalTitle: {
@@ -502,13 +526,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
+
+  // Search input styles
+  searchContainer: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+
+  searchInput: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    color: '#111827',
+  },
   
   optionsList: {
     flex: 1,
-  },
-  
-  optionsListContent: {
-    paddingBottom: 20,
   },
   
   optionItem: {
@@ -541,7 +578,16 @@ const styles = StyleSheet.create({
     color: '#1C6B1C',
     fontWeight: 'bold',
   },
-    singleButtonContainer: {
-    flexDirection: 'row',
+
+  // No results state
+  noResultsContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+
+  noResultsText: {
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
   },
 });

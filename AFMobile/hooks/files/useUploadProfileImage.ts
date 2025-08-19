@@ -1,5 +1,3 @@
-// hooken for å oppdatere profilbilde, brukes i editprofile og profileavatar
-// sjekker autentisering, setter loading-state, kaller uploadProfileImage (fra services/profile.ts), lagrer bilde-URL og returnerer den. fanger og viser feil og stopper uploading til slutt
 "use client";
 import { useState } from "react";
 import { uploadProfileImage } from "@/services/files/fileService";
@@ -15,7 +13,8 @@ export function useUploadProfileImage() {
   const [error, setError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
-  const upload = async (file: FileUpload): Promise<string | null> => {
+  // Oppdater til å akseptere både FileUpload og "delete" string
+  const upload = async (file: FileUpload | "delete"): Promise<string | null> => {
     setUploading(true);
     setError(null);
     setImageUrl(null);
