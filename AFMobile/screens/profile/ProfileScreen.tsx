@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Alert, Text  } from 'react-native';
+import { View, StyleSheet, Alert, Text } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import { getUserProfile } from '@/services/profile/profile';
 import { useAuth } from '@/context/AuthContext';
@@ -7,6 +7,7 @@ import { PublicProfileDTO } from '@shared/types/PublicProfileDTO';
 import PublicProfileViewNative from '@/components/profile/PublicProfileViewNative';
 import SpinnerNative from '@/components/common/SpinnerNative';
 import { ProfileScreenRouteProp } from '@/types/navigation';
+import { useIsUserBlocked } from '@/store/useUserCacheStore';
 
 export default function ProfileScreen() {
   const route = useRoute<ProfileScreenRouteProp>();
@@ -17,7 +18,14 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<PublicProfileDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
   const isOwner = currentUserId === userId;
+  
+  // ✅ Check if this user has blocked the current user
+  const isBlockedByUser = useIsUserBlocked(currentUserId!);
+  
+  // ✅ Determine if profile should be public (not blocked by the user we're viewing)
+  const publicProfile = !isBlockedByUser;
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -43,7 +51,7 @@ export default function ProfileScreen() {
         setLoading(false);
       }
     };
-
+    
     if (userId && token) {
       fetchProfile();
     } else {
@@ -63,23 +71,24 @@ export default function ProfileScreen() {
 
   // Show error state
   if (error || !profile) {
-  return (
-    <View style={styles.centeredContainer}>
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>
-          {error || "Failed to load profile"}
-        </Text>
+    return (
+      <View style={styles.centeredContainer}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            {error || "Failed to load profile"}
+          </Text>
+        </View>
       </View>
-    </View>
-  );
-}
-{/* ✅ Changed from ScrollView to View */}
+    );
+  }
+
   return (
-    <View style={styles.container}> 
+    <View style={styles.container}>
       <PublicProfileViewNative
         profile={profile}
         isEditable={false}
         isOwner={isOwner}
+        publicProfile={publicProfile}
       />
     </View>
   );
@@ -90,7 +99,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  // ✅ Removed contentContainer since no ScrollView
   centeredContainer: {
     flex: 1,
     justifyContent: 'center',

@@ -1,4 +1,4 @@
-// hooks/useUnblockUser.ts
+// hooks/block/useUnblockUser.ts
 import { useState } from 'react';
 import { unblockUser } from '@/services/block/blockService';
 import { useUserCacheStore } from '@/store/useUserCacheStore'; 

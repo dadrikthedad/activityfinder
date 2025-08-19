@@ -10,6 +10,7 @@ import {
   Platform,
   SafeAreaView,
   Alert,
+  Image
 } from 'react-native';
 import { ArrowLeft, Camera, Plus } from 'lucide-react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
@@ -25,6 +26,9 @@ import { RNFile } from '@/utils/files/FileFunctions';
 import { AttachmentPickerModal } from '@/components/files/filepicker/AttachmentPickerModal';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '@/types/navigation';
+import useAttachmentViewer from '@/components/files/AttachmentViewer';
+import { showNotificationToastNative, LocalToastType } from '@/components/toast/NotificationToastNative';
+
 
 interface NewConversationScreenProps {
   navigation: NewConversationScreenNavigationProp;
@@ -106,6 +110,27 @@ export default function NewConversationScreen({
     setGroupImageUrl(null);
   }, []);
 
+  // Hook for å håndtere fullskjerm visning av gruppebilde
+  const { openFiles } = useAttachmentViewer({
+    files: groupImageUrl ? [{
+      uri: groupImageUrl,
+      type: 'image/jpeg', // eller gjett typen basert på URL
+      name: 'Group Image',
+      size: 0, // ukjent størrelse
+    }] : [],
+    viewerOptions: {
+      showDownload: true,
+      showShare: true,
+    }
+  });
+
+  // Funksjon for å åpne gruppebilde i fullskjerm
+  const openGroupImageFullscreen = useCallback(() => {
+    if (groupImageUrl) {
+      openFiles(0); // Åpne første (og eneste) fil
+    }
+  }, [groupImageUrl, openFiles]);
+
   // Reset state when component mounts
   useEffect(() => {
     if (!initialReceiver) {
@@ -142,17 +167,47 @@ export default function NewConversationScreen({
     navigation.goBack();
   }, [navigation]);
 
-  const handleMessageSent = useCallback((message: any) => {
-  console.log('✅ Message sent:', message);
-  if (message.conversationId) {
-    setCurrentConversationId(message.conversationId);
-    // Legg til fromNewMessage parameter
-    navigation.navigate('ConversationScreen', { 
-      conversationId: message.conversationId,
-      fromNewMessage: true // 👈 LEGG TIL DENNE
+ const handleMessageSent = useCallback((message: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`🔥 handleMessageSent called at ${timestamp}`, {
+    messageId: message?.id,
+    conversationId: message?.conversationId,
+    isPresetMode,
+    initialReceiverName: initialReceiver?.fullName
+  });
+  
+  if (isPresetMode) {
+    console.log('📱 Preset mode - showing toast and navigating back');
+    
+    showNotificationToastNative({
+      type: LocalToastType.CustomSystemNotice,
+      customTitle: "Message Sent",
+      customBody: `Your message has been sent to ${initialReceiver?.fullName}! 💬`,
+      position: 'top'
     });
+    
+    setTimeout(() => {
+      console.log('📱 About to navigate back...');
+      navigation.goBack();
+    }, 100);
+  } else {
+    if (message.conversationId) {
+      setCurrentConversationId(message.conversationId);
+      navigation.navigate('ConversationScreen', { 
+        conversationId: message.conversationId,
+        fromNewMessage: true
+      });
+    }
   }
-}, [navigation, setCurrentConversationId]);
+}, [navigation, setCurrentConversationId, isPresetMode, initialReceiver]); 
+
+useEffect(() => {
+  console.log('🔄 NewConversationScreen re-rendered', {
+    isPresetMode,
+    selectedUsersLength: selectedUsers.length,
+    initialReceiverName: initialReceiver?.fullName
+  });
+}, [isPresetMode, selectedUsers.length, initialReceiver]);
 
 const handleGroupCreated = useCallback((response: any) => {
   console.log('✅ Group created:', response);
@@ -275,6 +330,55 @@ const handleGroupCreated = useCallback((response: any) => {
     );
   };
 
+  const renderGroupImageSection = () => {
+    if (!isGroupMode) return null;
+
+    return (
+      <View style={styles.groupImageSection}>
+        <Text style={styles.sectionTitle}>Group Image (Optional)</Text>
+        <View style={styles.groupImageContainer}>
+          {groupImageUrl ? (
+            <View style={styles.imageWithRemove}>
+              <TouchableOpacity onPress={openGroupImageFullscreen}>
+                <Image
+                  source={{ uri: groupImageUrl }}
+                  style={{ width: 80, height: 80, borderRadius: 40 }}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.removeImageButton}
+                onPress={removeGroupImage}
+              >
+                <Text style={styles.removeImageText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyImageContainer}>
+              <Plus size={24} color="#6b7280" />
+            </View>
+          )}
+          
+          <TouchableOpacity
+            style={styles.imageUploadButton}
+            onPress={showImagePicker}
+            disabled={uploadingImage}
+          >
+            <Camera size={16} color="#ffffff" />
+            <Text style={styles.imageUploadButtonText}>
+              {uploadingImage ? 'Uploading...' : 'Choose Image'}
+            </Text>
+          </TouchableOpacity>
+          
+          {uploadError && (
+            <Text style={styles.uploadErrorText}>
+              Error uploading image. Please try again.
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   const renderSearchResults = () => {
     if (!query) return null;
 
@@ -357,9 +461,7 @@ const handleGroupCreated = useCallback((response: any) => {
                   />
                 </View>
 
-                <View style={styles.groupImageSection}>
-                  {/* Gruppebilde-logikk her */}
-                </View>
+                {renderGroupImageSection()}
 
                 {renderGroupInfo()}
               </>

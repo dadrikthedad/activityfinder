@@ -18,6 +18,7 @@ import { formatUserListNative } from "../../utils/messages/NotificationsUserList
 import { AttachmentDto } from "@shared/types/MessageDTO";
 import { getAttachmentSummary } from "./ToastFunctions";
 import { useNavigation } from '@react-navigation/native';
+import { RootStackNavigationProp } from '@/types/navigation';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -109,21 +110,25 @@ function NotificationToastComponent({
       case NotificationType.MessageRequest:
       case NotificationType.GroupRequest:
       case NotificationType.GroupEvent:
+      case LocalToastType.MessageReactionChanged:
         if (conversationId != null) {
           if (!showMessages) setShowMessages(true);
           openConversation(conversationId);
           setTimeout(() => setScrollToMessageId(messageId ?? null), 200);
-          // Navigate to chat screen
-          (navigation as any).navigate('Chat', { conversationId });
+          
+          // Navigate to ConversationScreen with proper parameters
+           (navigation as any).navigate('ConversationScreen', {
+            conversationId: conversationId,
+          });
         }
         break;
       case NotificationType.GroupDisbanded:
         if (!showMessages) setShowMessages(true);
-        (navigation as any).navigate('Chat');
+        (navigation as any).navigate('MessageNotificaitonScreen');
         break;
       case LocalToastType.FriendRequestReceived:
         setShowNotificationDropdown(true);
-        (navigation as any).navigate('Notifications');
+        (navigation as any).navigate('FriendScreen');
         break;
       case LocalToastType.FriendInvAccepted:
         if (relatedUser?.id) {

@@ -50,7 +50,7 @@ export default function NewMessageInputNative({
   const inputRef = useRef<TextInput>(null);
 
   // Hooks for both scenarios
-  const { send, error: messageError } = useSendMessage(onMessageSent);
+  const { send, error } = useSendMessage(onMessageSent); 
   const {
     sendGroupInvitations,
     isLoading: groupRequestLoading,
@@ -150,7 +150,6 @@ export default function NewMessageInputNative({
             logPrefix: '📨',
           });
         }
-        onMessageSent?.(result);
       }).catch(() => {
         // Restore inputs on error
         setText(sendingText);
@@ -214,7 +213,7 @@ export default function NewMessageInputNative({
     }
   }, [shouldFocus]);
 
-  const currentError = messageError || groupRequestError;
+  const currentError = error || groupRequestError;
 
   if (currentError) {
     return (

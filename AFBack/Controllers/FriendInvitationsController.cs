@@ -381,7 +381,7 @@ public class FriendInvitationsController : ControllerBase
                     invitation.Id, invitation.SenderId, invitation.ReceiverId);
             }
         });
-        return Ok("Friend request declined.");
+        return Ok(new { message = "Friend request declined." });
     }
     
     // GET: Hent status mellom to brukere

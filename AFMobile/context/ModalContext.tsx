@@ -1,23 +1,22 @@
-// ModalContext.tsx Brukes for å tilate at modaler kan poppe opp uansett hvor og når på skjermen. Brukes til å bekrefte å slette en venn både på en profilside samt i Friends siden. Brukes i layout.tsx
-// AFMobile/context/ModalContext.tsx
-// Brukes for å tilate at modaler kan poppe opp uansett hvor og når på skjermen.
+// ModalContext.tsx - Oppdatert med bottom sheet støtte
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { 
-  Modal, 
-  View, 
-  TouchableWithoutFeedback, 
-  StyleSheet, 
+import {
+  Modal,
+  View,
+  TouchableWithoutFeedback,
+  StyleSheet,
   Dimensions,
-  StatusBar 
+  StatusBar
 } from 'react-native';
 import { toastConfig } from '@/components/toast/NotificationToastNative';
 import Toast from 'react-native-toast-message';
 
 interface ModalContextType {
-  showModal: (content: ReactNode, options?: { 
-    blurBackground?: boolean; 
+  showModal: (content: ReactNode, options?: {
+    blurBackground?: boolean;
     position?: { x: number; y: number };
     dismissOnBackdrop?: boolean;
+    type?: 'center' | 'bottom'; // Nytt alternativ
   }) => void;
   hideModal: () => void;
   isModalOpen: boolean;
@@ -30,23 +29,27 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [blurBackground, setBlurBackground] = useState(true);
   const [dismissOnBackdrop, setDismissOnBackdrop] = useState(true);
   const [modalPosition, setModalPosition] = useState<{ x: number; y: number } | null>(null);
-  
+  const [modalType, setModalType] = useState<'center' | 'bottom'>('center'); // Nytt state
+ 
   const isModalOpen = modalContent !== null;
 
-  const showModal = (content: ReactNode, options?: { 
-    blurBackground?: boolean; 
+  const showModal = (content: ReactNode, options?: {
+    blurBackground?: boolean;
     position?: { x: number; y: number };
     dismissOnBackdrop?: boolean;
+    type?: 'center' | 'bottom';
   }) => {
     setModalContent(content);
     setBlurBackground(options?.blurBackground !== false);
     setModalPosition(options?.position ?? null);
     setDismissOnBackdrop(options?.dismissOnBackdrop !== false);
+    setModalType(options?.type ?? 'center'); // Sett modal type
   };
 
   const hideModal = () => {
     setModalContent(null);
     setModalPosition(null);
+    setModalType('center');
   };
 
   const handleBackdropPress = () => {
@@ -55,38 +58,48 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
+  // Velg riktig container style basert på modal type
+  const getContainerStyle = () => {
+    if (modalPosition) {
+      return {
+        position: 'absolute' as const,
+        left: modalPosition.x,
+        top: modalPosition.y
+      };
+    }
+    
+    if (modalType === 'bottom') {
+      return [styles.bottomContent, { opacity: isModalOpen ? 1 : 0 }]; // Forhindrer flash
+    }
+    
+    return styles.centeredContent;
+  };
+
   return (
     <ModalContext.Provider value={{ showModal, hideModal, isModalOpen }}>
       {children}
-      
+     
       <Modal
         visible={isModalOpen}
         transparent={true}
-        animationType="fade"
+        animationType={modalType === 'bottom' ? 'slide' : 'fade'} // Forskjellig animasjon
         onRequestClose={hideModal}
         statusBarTranslucent={true}
       >
         <TouchableWithoutFeedback onPress={handleBackdropPress}>
           <View style={[
             styles.overlay,
-            blurBackground && styles.blurBackground
+            blurBackground && styles.blurBackground,
+            modalType === 'bottom' && styles.bottomOverlay // Ny style for bottom
           ]}>
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={[
-                modalPosition 
-                  ? { 
-                      position: 'absolute',
-                      left: modalPosition.x,
-                      top: modalPosition.y 
-                    }
-                  : styles.centeredContent
-              ]}>
+              <View style={getContainerStyle()}>
                 {modalContent}
               </View>
             </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
-          <Toast config={toastConfig} />
+        <Toast config={toastConfig} />
       </Modal>
     </ModalContext.Provider>
   );
@@ -112,5 +125,14 @@ const styles = StyleSheet.create({
   centeredContent: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  // Nye styles for bottom sheet
+  bottomOverlay: {
+    justifyContent: 'flex-end',
+    alignItems: 'stretch', // Tar full bredde
+  },
+  bottomContent: {
+    width: '100%',
+    justifyContent: 'flex-end',
   },
 });

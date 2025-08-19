@@ -23,7 +23,8 @@ import {
   Settings, 
   Home, 
   Trash2,
-  Search // ✅ Added Search icon
+  Search,
+  Users
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -327,6 +328,14 @@ export default function MobileNavbarNative({
                   </TouchableOpacity>
 
                   <TouchableOpacity
+                    onPress={() => handleNavigation('FriendScreen')}
+                    style={styles.menuItem}
+                  >
+                    <Users size={18} color="#374151" />
+                    <Text style={styles.menuItemText}>Friends</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
                     onPress={() => handleNavigation('TrashcanScreen')}
                     style={styles.menuItem}
                   >
@@ -520,7 +529,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   menuPanel: {
     width: 320,
@@ -538,8 +546,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#1C6B1C',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 16,
+    paddingVertical: 12,
   },
   menuTitle: {
     fontSize: 18,

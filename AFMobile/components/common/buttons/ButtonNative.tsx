@@ -265,13 +265,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '60%', // Takes up 60% of button width
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1C6B1C',
   },
   dot: {
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: '#6b7280',
+    backgroundColor: '#ffffffff',
   },
   dotDisabled: {
     backgroundColor: '#d1d5db',

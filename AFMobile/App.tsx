@@ -126,6 +126,14 @@ function AuthenticatedApp() {
                 </>
               )}
             </Stack.Screen>
+            <Stack.Screen name="NotificationScreen">
+              {({ navigation }) => (
+                <>
+                  <MobileNavbarNative />
+                  <NotificationScreen navigation={navigation} />
+                </>
+              )}
+            </Stack.Screen>
             <Stack.Screen name="PendingConversationsScreen">
               {({ navigation  }) => (
                 <>
@@ -198,7 +206,6 @@ function AuthenticatedApp() {
                 name="NewConversationScreen"
                 component={NewConversationScreen}
                 options={{
-                  presentation: 'modal', // Dette gjør den til modal
                   headerShown: false,
                 }}
               />

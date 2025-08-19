@@ -13,13 +13,13 @@ export const handleNotification = async (
   token: string | null
 ) => {
   console.log("🔔 Notification received via useChatHub:", evt);
-  
-  const { 
-    addNotification, 
-    addFriendRequest, 
-    setFriendRequestTotalCount, 
+ 
+  const {
+    addNotification,
+    addFriendRequest,
+    setFriendRequestTotalCount,
     friendRequestTotalCount,
-    notifications: notificationsRef 
+    notifications: notificationsRef
   } = useNotificationStore.getState();
 
   try {
@@ -41,12 +41,16 @@ export const handleNotification = async (
 
     if (evt.type === "FriendInvAccepted") {
       addNotification(evt);
-
       if (evt.relatedUser) {
-        const { setUser } = useUserCacheStore.getState(); // 🔄 Bruk setUser i stedet
+        // ✅ Bruk setUserFriendStatus i stedet for setUser
+        const { setUserFriendStatus, setUser } = useUserCacheStore.getState();
         
+        // Først sørg for at brukeren eksisterer i cache
         setUser(evt.relatedUser);
         
+        // Deretter sett vennestatus eksplisitt
+        setUserFriendStatus(evt.relatedUser.id, true);
+       
         console.log('🤝 Friend added to user cache:', evt.relatedUser.fullName);
         showNotificationToastNative({
           senderName: evt.relatedUser.fullName ?? "Someone",
@@ -54,7 +58,6 @@ export const handleNotification = async (
           relatedUser: evt.relatedUser,
         });
       }
-
       if (evt.conversationId) {
         await finalizeConversationApproval(evt.conversationId);
       }
@@ -75,7 +78,6 @@ export const handleNotification = async (
     if (!token) return;
     const full = await getNotificationById(evt.id, token);
     if (full) addNotification(full);
-
   } catch (err) {
     console.error("❌ Realtime-handler feilet:", err);
   }
