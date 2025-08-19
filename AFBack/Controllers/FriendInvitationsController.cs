@@ -119,14 +119,15 @@ public class FriendInvitationsController : BaseController
         try
         {
             FriendInvitation acceptedInvitation;
+            int originalSenderId, originalReceiverId; // 🆕 Track original sender/receiver
             
             if (existingInvitation != null)
             {
                 // Oppdater eksisterende pending invitation
                 existingInvitation.Status = InvitationStatus.Accepted;
                 acceptedInvitation = existingInvitation;
-                senderId = existingInvitation.ReceiverId; // Den som svarer
-                receiverId = existingInvitation.SenderId; // Den opprinnelige senderen
+                originalSenderId = existingInvitation.ReceiverId; // Den som svarer
+                originalReceiverId = existingInvitation.SenderId; // Den opprinnelige senderen
             }
             else
             {
@@ -139,29 +140,36 @@ public class FriendInvitationsController : BaseController
                     SentAt = DateTime.UtcNow
                 };
                 _context.FriendInvitations.Add(acceptedInvitation);
+                originalSenderId = senderId.Value;
+                originalReceiverId = receiverId.Value;
             }
 
             // Opprett vennskap
             var friendship = new Friends
             {
-                UserId = senderId.Value,
-                FriendId = receiverId.Value,
+                UserId = originalSenderId,
+                FriendId = originalReceiverId,
                 CreatedAt = DateTime.UtcNow
             };
             _context.Friends.Add(friendship);
 
             // Håndter eksisterende meldingsforespørsel
-            var conversationId = await HandleExistingMessageRequest(senderId.Value, receiverId.Value);
+            var conversationId = await HandleExistingMessageRequest(originalSenderId, originalReceiverId);
 
             await _context.SaveChangesAsync();
 
-            // Send notifikasjon og sync events (samme som vanlig accept)
-            await SendNotificationAndSyncEvents(acceptedInvitation, conversationId, senderId.Value, receiverId.Value, isAutoAccept: true);
+            // 🆕 Hent brukerdata FØR sync events (med oppdatert relationship status)
+            var friendUserSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                _context, originalReceiverId, originalSenderId);
+
+            // Send notifikasjon og sync events (kun én gang!)
+            await SendNotificationAndSyncEvents(acceptedInvitation, conversationId, originalSenderId, originalReceiverId, isAutoAccept: true);
 
             return Ok(new { 
                 message = reason,
                 autoAccepted = true,
-                conversationId = conversationId
+                conversationId = conversationId,
+                friendUser = friendUserSummary // Den nye vennen
             });
         }
         catch (Exception ex)
@@ -478,6 +486,7 @@ public class FriendInvitationsController : BaseController
 
             // Send notifikasjon og sync events (samme logikk som auto-accept)
             await SendNotificationAndSyncEvents(invitation, conversationId, invitation.ReceiverId, invitation.SenderId, isAutoAccept: true);
+            
 
             return Ok(new { 
                 message = "Friend request accepted.",
