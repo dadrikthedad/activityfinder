@@ -262,7 +262,7 @@ public class SyncService
                 {
                     Id = e.Id,
                     EventType = e.EventType,
-                    EventData = e.EventData,
+                    EventData = ReserializeEventData(e.EventData), // 👈 Transform her
                     CreatedAt = e.CreatedAt,
                     Source = e.Source,
                     RelatedEntityId = e.RelatedEntityId,
@@ -287,6 +287,28 @@ public class SyncService
         {
             _logger.LogError(ex, "Failed to get sync events for user {UserId}", userId);
             throw;
+        }
+    }
+    
+    private static string ReserializeEventData(string eventData)
+    {
+        if (string.IsNullOrEmpty(eventData))
+            return eventData;
+        
+        try
+        {
+            // Parse the JSON string back to object
+            var jsonObject = JsonSerializer.Deserialize<object>(eventData);
+        
+            // Re-serialize with camelCase
+            return JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+        }
+        catch
+        {
+            return eventData; // Return original if parsing fails
         }
     }
     
