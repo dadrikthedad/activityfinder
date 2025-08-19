@@ -109,10 +109,10 @@ public class FileController : BaseController
     }
     
     [HttpPost("upload-group-image")]
-    public async Task<IActionResult> UploadGroupImage(IFormFile? file = null, int? groupId = null, [FromForm] string? action = null)
+    public async Task<IActionResult> UploadGroupImage([FromForm] UploadGroupImageDTO request)
     {
         _logger.LogInformation("🔵 UploadGroupImage called - file: {FileName}, groupId: {GroupId}, action: {Action}", 
-            file?.FileName, groupId, action);
+            request.File?.FileName, request.GroupId, request.Action);
         
         if (GetUserId() is not int userId)
         {
@@ -127,22 +127,22 @@ public class FileController : BaseController
         
         try
         {
-            if (groupId.HasValue)
+            if (request.GroupId.HasValue)
             {
-                _logger.LogInformation("🔍 Looking for group {GroupId}", groupId.Value);
+                _logger.LogInformation("🔍 Looking for group {GroupId}", request.GroupId.Value);
                 
                 group = await _context.Conversations
                     .Include(c => c.Participants)
-                    .FirstOrDefaultAsync(c => c.Id == groupId.Value && c.IsGroup);
+                    .FirstOrDefaultAsync(c => c.Id == request.GroupId.Value && c.IsGroup);
                 
                 if (group == null)
                 {
-                    _logger.LogWarning("❌ Group {GroupId} not found", groupId.Value);
+                    _logger.LogWarning("❌ Group {GroupId} not found", request.GroupId.Value);
                     return NotFound("Group not found");
                 }
 
                 _logger.LogInformation("✅ Found group {GroupId} with {ParticipantCount} participants", 
-                    groupId.Value, group.Participants.Count);
+                    request.GroupId.Value, group.Participants.Count);
 
                 var isParticipant = group.Participants.Any(p => p.UserId == userId);
                 var isCreator = group.CreatorId == userId;
@@ -152,7 +152,7 @@ public class FileController : BaseController
                 
                 if (!isParticipant && !isCreator)
                 {
-                    _logger.LogWarning("❌ User {UserId} has no permission for group {GroupId}", userId, groupId.Value);
+                    _logger.LogWarning("❌ User {UserId} has no permission for group {GroupId}", userId, request.GroupId.Value);
                     return Forbid("You don't have permission to modify this group");
                 }
                 
@@ -160,11 +160,15 @@ public class FileController : BaseController
                 participantIds = group.Participants.Select(p => p.UserId).ToList();
                 _logger.LogInformation("📊 Participant IDs: [{ParticipantIds}]", string.Join(", ", participantIds));
             }
+            else
+            {
+                _logger.LogInformation("⚠️ No groupId provided - creating temporary file");
+            }
 
             string imageUrl = null;
 
             // Sjekk om det er en delete-operasjon
-            if (action == "delete")
+            if (request.Action == "delete")
             {
                 _logger.LogInformation("🗑️ Delete operation detected");
                 imageUrl = null;
@@ -174,15 +178,16 @@ public class FileController : BaseController
                 _logger.LogInformation("📤 Upload operation detected");
                 
                 // Normal upload-operasjon - sjekk at fil er oppgitt
-                if (file == null)
+                if (request.File == null)
                 {
                     _logger.LogWarning("❌ No file provided for upload");
                     return BadRequest(new { message = "No file provided for upload" });
                 }
 
-                _logger.LogInformation("📁 File received: {FileName}, size: {FileSize} bytes", file.FileName, file.Length);
+                _logger.LogInformation("📁 File received: {FileName}, size: {FileSize} bytes", 
+                    request.File.FileName, request.File.Length);
 
-                var (isValid, errorMessage) = _fileService.ValidateImage(file);
+                var (isValid, errorMessage) = _fileService.ValidateImage(request.File);
                 if (!isValid)
                 {
                     _logger.LogWarning("❌ File validation failed: {ErrorMessage}", errorMessage);
@@ -191,14 +196,14 @@ public class FileController : BaseController
 
                 _logger.LogInformation("✅ File validation passed");
 
-                imageUrl = await _fileService.UploadFileAsync(file, "group-pictures");
+                imageUrl = await _fileService.UploadFileAsync(request.File, "group-pictures");
                 _logger.LogInformation("✅ File uploaded successfully: {ImageUrl}", imageUrl);
             }
 
             // Oppdater gruppe hvis det er eksisterende
-            if (groupId.HasValue && group != null)
+            if (request.GroupId.HasValue && group != null)
             {
-                _logger.LogInformation("💾 Updating group {GroupId} in database", groupId.Value);
+                _logger.LogInformation("💾 Updating group {GroupId} in database", request.GroupId.Value);
                 group.GroupImageUrl = imageUrl;
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("✅ Group updated in database");
@@ -210,22 +215,78 @@ public class FileController : BaseController
                     .FirstOrDefaultAsync() ?? "En bruker";
                 _logger.LogInformation("✅ Got user name: {UserName}", userName);
 
-                var actionText = action == "delete" ? "removed" : "changed";
+                var actionText = request.Action == "delete" ? "removed" : "changed";
                 
                 _logger.LogInformation("📝 Creating system message for action: {ActionText}", actionText);
                 var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
-                    groupId.Value,
+                    request.GroupId.Value,
                     $"{userName} has {actionText} the group image"
                 );
                 _logger.LogInformation("✅ System message created with ID: {MessageId}", systemMessage.Id);
 
                 _logger.LogInformation("🔄 Queueing background task for sync events");
-                // Background task code here...
+                _taskQueue.QueueAsync(async () => 
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    try 
+                    {
+                        // Fixed background task code from earlier
+                        var groupWithUsers = await context.Conversations
+                            .Include(c => c.Participants)
+                                .ThenInclude(p => p.User)
+                                    .ThenInclude(u => u.Profile)
+                            .FirstOrDefaultAsync(c => c.Id == request.GroupId.Value);
+
+                        if (groupWithUsers == null)
+                        {
+                            _logger.LogWarning("❌ Could not find group {GroupId} in background task", request.GroupId.Value);
+                            return;
+                        }
+
+                        var userData = groupWithUsers.Participants
+                            .Where(p => p.User != null)
+                            .ToDictionary(
+                                p => p.UserId,
+                                p => (p.User.FullName ?? "Unknown User", p.User.Profile?.ProfileImageUrl)
+                            );
+                        
+                        _logger.LogInformation("📊 Created userData for {UserCount} participants", userData.Count);
+                        
+                        var participantApprovalStatus = await context.GroupRequests
+                            .Where(gr => gr.ConversationId == request.GroupId.Value && 
+                                         participantIds.Contains(gr.ReceiverId))
+                            .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
+
+                        var conversationData = groupWithUsers.MapConversationToSyncData(
+                            userId, 
+                            userData, 
+                            participantApprovalStatus
+                        );
+                        
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.GROUP_INFO_UPDATED,
+                            eventData: new {conversationData, systemMessage},
+                            targetUserIds: participantIds,
+                            source: "API",
+                            relatedEntityId: request.GroupId.Value,
+                            relatedEntityType: "Conversation"
+                        );
+                        
+                        _logger.LogInformation("✅ Sync event created successfully for group {GroupId}", request.GroupId.Value);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "❌ Failed to create sync event for group image update. GroupId: {GroupId}", request.GroupId.Value);
+                    }
+                });
 
                 _logger.LogInformation("🔔 Creating group notification");
                 await _groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupImageChanged,
-                    groupId.Value,
+                    request.GroupId.Value,
                     userId,
                     new List<int> { userId }
                 );
@@ -237,7 +298,7 @@ public class FileController : BaseController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ EXCEPTION in UploadGroupImage for user {UserId}, groupId {GroupId}", userId, groupId);
+            _logger.LogError(ex, "❌ EXCEPTION in UploadGroupImage for user {UserId}, groupId {GroupId}", userId, request.GroupId);
             return StatusCode(500, new { message = "Failed to process image", error = ex.Message });
         }
     }
