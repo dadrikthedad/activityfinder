@@ -58,6 +58,12 @@ public class FriendInvitationsController : BaseController
         {
             return BadRequest("You cannot send a friend request to yourself.");
         }
+        
+        var blockingCheck = await CheckBlockingStatus(userId.Value, dto.ReceiverId, "send");
+        if (blockingCheck != null)
+        {
+            return blockingCheck;
+        }
 
         // Sjekk om de allerede er venner
         var existingFriendship = await _context.Friends
@@ -332,6 +338,39 @@ public class FriendInvitationsController : BaseController
         }
     }
     
+    private async Task<IActionResult> CheckBlockingStatus(int userId, int targetUserId, string context = "send")
+    {
+        // Sjekk om vi har blokkert dem
+        var weBlockedThem = await _context.UserBlock
+            .FirstOrDefaultAsync(b => b.BlockerId == userId && b.BlockedUserId == targetUserId);
+    
+        if (weBlockedThem != null)
+        {
+            return context switch
+            {
+                "send" => BadRequest("You cannot send a friend request to a user you have blocked."),
+                "accept" => BadRequest("You cannot accept a friend request from a user you have blocked."),
+                _ => BadRequest("You cannot interact with a user you have blocked.")
+            };
+        }
+
+        // Sjekk om de har blokkert oss
+        var theyBlockedUs = await _context.UserBlock
+            .FirstOrDefaultAsync(b => b.BlockerId == targetUserId && b.BlockedUserId == userId);
+    
+        if (theyBlockedUs != null)
+        {
+            return context switch
+            {
+                "send" => BadRequest("This user has a private profile and is not accepting friend requests."),
+                "accept" => BadRequest("This friend request is no longer available."),
+                _ => BadRequest("This user has a private profile.")
+            };
+        }
+
+        return null; // Ingen blokkering funnet
+    }
+    
     /* ---------- HENT ÉN INVITASJON ---------- */
     [HttpGet("{id:int}")]
     public async Task<ActionResult<FriendInvitationDTO>> GetInvitationById(int id)
@@ -402,6 +441,7 @@ public class FriendInvitationsController : BaseController
         {
             return Unauthorized(new { message = "Invalid user ID in token." });
         }
+        
     
         var invitation = await _context.FriendInvitations.FindAsync(id);
         if (invitation == null || invitation.Status != InvitationStatus.Pending)
@@ -410,6 +450,12 @@ public class FriendInvitationsController : BaseController
         // Kun mottaker av en forespørsel kan godta
         if (invitation.ReceiverId != userId)
             return Forbid("You are not authorized to accept this invitation.");
+        
+        var blockingCheck = await CheckBlockingStatus(userId, invitation.SenderId, "accept");
+        if (blockingCheck != null)
+        {
+            return blockingCheck;
+        }
 
         try
         {

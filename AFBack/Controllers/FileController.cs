@@ -107,16 +107,12 @@ public class FileController : BaseController
             return StatusCode(500, new { message = "Failed to process image" });
         }
     }
-
-   [HttpPost("upload-group-image")]
-    public async Task<IActionResult> UploadGroupImage(IFormFile file, int? groupId = null)
+    
+    [HttpPost("upload-group-image")]
+    public async Task<IActionResult> UploadGroupImage(IFormFile file = null, int? groupId = null, [FromForm] string action = null)
     {
         if (GetUserId() is not int userId)
             return Unauthorized();
-
-        var (isValid, errorMessage) = _fileService.ValidateImage(file);
-        if (!isValid)
-            return BadRequest(new { message = errorMessage });
 
         Conversation? group = null;
         List<int> participantIds = new();
@@ -134,7 +130,7 @@ public class FileController : BaseController
             var isCreator = group.CreatorId == userId;
             
             if (!isParticipant && !isCreator)
-                return Forbid("You don't have permission to upload image for this group");
+                return Forbid("You don't have permission to modify this group");
             
             // Hent participant IDs før SaveChanges
             participantIds = group.Participants.Select(p => p.UserId).ToList();
@@ -142,7 +138,30 @@ public class FileController : BaseController
 
         try
         {
-            var imageUrl = await _fileService.UploadFileAsync(file, "group-pictures");
+            string imageUrl = null;
+
+            // Sjekk om det er en delete-operasjon
+            if (action == "delete")
+            {
+                // Sett gruppebilde til null (default group image)
+                imageUrl = null;
+                _logger.LogInformation("User {UserId} removed group image for group {GroupId}", userId, groupId);
+            }
+            else
+            {
+                // Normal upload-operasjon - sjekk at fil er oppgitt
+                if (file == null)
+                {
+                    return BadRequest(new { message = "No file provided for upload" });
+                }
+
+                var (isValid, errorMessage) = _fileService.ValidateImage(file);
+                if (!isValid)
+                    return BadRequest(new { message = errorMessage });
+
+                imageUrl = await _fileService.UploadFileAsync(file, "group-pictures");
+                _logger.LogInformation("User {UserId} uploaded group image for group {GroupId}", userId, groupId);
+            }
 
             // Oppdater gruppe hvis det er eksisterende
             if (groupId.HasValue && group != null)
@@ -155,13 +174,13 @@ public class FileController : BaseController
                     .Select(u => u.FullName)
                     .FirstOrDefaultAsync() ?? "En bruker";
 
+                var actionText = action == "delete" ? "removed" : "changed";
                 var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
                     groupId.Value,
-                    $"{userName} has changed the group image"
+                    $"{userName} has {actionText} the group image"
                 );
 
-                
-                // 🆕 SYNC EVENT - etter SaveChanges
+                // Resten av sync event koden forblir det samme...
                 _taskQueue.QueueAsync(async () => 
                 {
                     using var scope = _scopeFactory.CreateScope();
@@ -170,29 +189,26 @@ public class FileController : BaseController
 
                     try 
                     {
-                        // Bygg userData fra allerede hentet data
                         var userData = group.Participants.ToDictionary(
                             p => p.UserId,
                             p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
                         );
                         
-                        // Hent group request statuses
                         var participantApprovalStatus = await context.GroupRequests
                             .Where(gr => gr.ConversationId == groupId.Value && 
                                          participantIds.Contains(gr.ReceiverId))
                             .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
         
-                        // Bruk den extension method for å få hele conversation data
                         var conversationData = group.MapConversationToSyncData(
                             userId, 
                             userData, 
-                            participantApprovalStatus // Send med group statuses
+                            participantApprovalStatus
                         );
                         
                         await syncService.CreateAndDistributeSyncEventAsync(
                             eventType: SyncEventTypes.GROUP_INFO_UPDATED,
                             eventData: new {conversationData, systemMessage},
-                            targetUserIds: participantIds, // Alle participants
+                            targetUserIds: participantIds,
                             source: "API",
                             relatedEntityId: groupId.Value,
                             relatedEntityType: "Conversation"
@@ -204,7 +220,6 @@ public class FileController : BaseController
                     }
                 });
 
-                
                 await _groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupImageChanged,
                     groupId.Value,
@@ -213,15 +228,15 @@ public class FileController : BaseController
                 );
             }
 
-            _logger.LogInformation("User {UserId} uploaded group image", userId);
             return Ok(new { imageUrl });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload group image for user {UserId}, groupId: {GroupId}", userId, groupId);
-            return StatusCode(500, new { message = "Failed to upload image" });
+            _logger.LogError(ex, "Failed to process group image for user {UserId}, groupId: {GroupId}", userId, groupId);
+            return StatusCode(500, new { message = "Failed to process image" });
         }
     }
+    
      // 🆕 Nytt endepunkt for message attachments
     [HttpPost("upload-message-attachments")]
     public async Task<IActionResult> UploadMessageAttachments([FromForm] UploadAttachmentsRequestDTO request)
