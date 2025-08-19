@@ -47,24 +47,37 @@ public class FileController : BaseController
     }
     
     [HttpPost("upload-profile-image")]
-    public async Task<IActionResult> UploadProfileImage(IFormFile file)
+    public async Task<IActionResult> UploadProfileImage(IFormFile file, [FromForm] string action = null)
     {
         if (GetUserId() is not int userId)
             return Unauthorized();
 
-        var (isValid, errorMessage) = _fileService.ValidateImage(file);
-        if (!isValid)
-            return BadRequest(new { message = errorMessage });
-
         try
         {
-            var imageUrl = await _fileService.UploadFileAsync(file, "profile-pictures");
-
-            // Oppdater profil i database
             var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
             if (profile == null) 
                 return NotFound("Profile not found");
-            
+
+            string imageUrl = null;
+
+            // Sjekk om det er en delete-operasjon
+            if (action == "delete")
+            {
+                // Sett profilbilde til null (default avatar)
+                imageUrl = null;
+                _logger.LogInformation("User {UserId} removed their profile picture", userId);
+            }
+            else
+            {
+                // Normal upload-operasjon
+                var (isValid, errorMessage) = _fileService.ValidateImage(file);
+                if (!isValid)
+                    return BadRequest(new { message = errorMessage });
+
+                imageUrl = await _fileService.UploadFileAsync(file, "profile-pictures");
+                _logger.LogInformation("User {UserId} uploaded a profile picture", userId);
+            }
+
             // Notify venner og blokkere om profilbilde-endring
             UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
                 _taskQueue,
@@ -80,14 +93,13 @@ public class FileController : BaseController
             profile.ProfileImageUrl = imageUrl;
             profile.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-            
-            _logger.LogInformation("User {UserId} uploaded a profile picture", userId);
+        
             return Ok(new { imageUrl });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload profile image for user {UserId}", userId);
-            return StatusCode(500, new { message = "Failed to upload image" });
+            _logger.LogError(ex, "Failed to process profile image for user {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to process image" });
         }
     }
 

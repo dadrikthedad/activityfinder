@@ -18,7 +18,7 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/friendinvitations")]
 [Authorize]
-public class FriendInvitationsController : ControllerBase
+public class FriendInvitationsController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
@@ -45,36 +45,132 @@ public class FriendInvitationsController : ControllerBase
     // POST: Send venneforespørsel
     [HttpPost]
     public async Task<IActionResult> SendInvitation([FromBody] SendFriendRequestDTO dto)
-    {   
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized(new { message = "Invalid user ID in token." });
+    {
+        var userId = GetUserId();
         
-        
-        // Hindre å legge til seg selv
-        if (userId == dto.ReceiverId)
-            return BadRequest("You can't send a friend request to yourself.");
-    
-        // Hindre ny forespørsel hvis det finnes en aktiv i noen retning
-        var existingPending = await _context.FriendInvitations
-            .AnyAsync(x =>
-                ((x.SenderId == userId && x.ReceiverId == dto.ReceiverId) ||
-                 (x.SenderId == dto.ReceiverId && x.ReceiverId == userId)) &&
-                x.Status == InvitationStatus.Pending);
-
-
-        if (existingPending)
+        if (userId == null)
         {
-            return BadRequest("A friend request is already pending between these users.");
+            return Unauthorized("User not authenticated.");
         }
-        // Sjekker om mottaker eksisterer
-        var receiverExists = await _context.Users.AnyAsync(u => u.Id == dto.ReceiverId);
-        if (!receiverExists)
-            return NotFound("Receiver not found.");
+        
+        // Valider at brukeren ikke sender til seg selv
+        if (userId == dto.ReceiverId)
+        {
+            return BadRequest("You cannot send a friend request to yourself.");
+        }
 
+        // Sjekk om de allerede er venner
+        var existingFriendship = await _context.Friends
+            .FirstOrDefaultAsync(f => 
+                (f.UserId == userId.Value && f.FriendId == dto.ReceiverId) ||
+                (f.UserId == dto.ReceiverId && f.FriendId == userId.Value));
+
+        if (existingFriendship != null)
+        {
+            return BadRequest("You are already friends with this user.");
+        }
+
+        // HENT EKSISTERENDE FORESPØRSEL (BEGGE RETNINGER)
+        var existingInvitation = await _context.FriendInvitations
+            .FirstOrDefaultAsync(x => 
+                (x.SenderId == userId.Value && x.ReceiverId == dto.ReceiverId) ||
+                (x.SenderId == dto.ReceiverId && x.ReceiverId == userId.Value));
+
+        // ANALYSER SCENARIOER
+        if (existingInvitation != null)
+        {
+            // Scenario 1: Vi har allerede sendt en pending forespørsel
+            if (existingInvitation.SenderId == userId.Value && existingInvitation.Status == InvitationStatus.Pending)
+            {
+                return BadRequest("You have already sent a friend request to this user.");
+            }
+            
+            // Scenario 2: Vi har tidligere fått avslag, kan ikke sende på nytt
+            if (existingInvitation.SenderId == userId.Value && existingInvitation.Status == InvitationStatus.Declined)
+            {
+                return BadRequest("You have already sent a friend request to this user.");
+            }
+            
+            // Scenario 3: Mottakeren har en pending forespørsel til oss - AUTO-ACCEPT
+            if (existingInvitation.SenderId == dto.ReceiverId && existingInvitation.Status == InvitationStatus.Pending)
+            {
+                return await HandleAutoAccept(existingInvitation, "Friend request automatically accepted - you accepted their pending request.");
+            }
+            
+            // Scenario 4: Vi declined tidligere, men sender nå (mutual interest) - AUTO-ACCEPT
+            if (existingInvitation.SenderId == dto.ReceiverId && existingInvitation.Status == InvitationStatus.Declined)
+            {
+                return await HandleAutoAccept(null, "Friend request sent and automatically accepted - mutual interest detected.", userId.Value, dto.ReceiverId);
+            }
+        }
+
+        // NORMAL SCENARIO - Send vanlig forespørsel
+        return await SendNormalInvitation(userId.Value, dto.ReceiverId);
+    }
+
+    private async Task<IActionResult> HandleAutoAccept(FriendInvitation existingInvitation, string reason, int? senderId = null, int? receiverId = null)
+    {
+        try
+        {
+            FriendInvitation acceptedInvitation;
+            
+            if (existingInvitation != null)
+            {
+                // Oppdater eksisterende pending invitation
+                existingInvitation.Status = InvitationStatus.Accepted;
+                acceptedInvitation = existingInvitation;
+                senderId = existingInvitation.ReceiverId; // Den som svarer
+                receiverId = existingInvitation.SenderId; // Den opprinnelige senderen
+            }
+            else
+            {
+                // Opprett ny accepted invitation
+                acceptedInvitation = new FriendInvitation
+                {
+                    SenderId = senderId.Value,
+                    ReceiverId = receiverId.Value,
+                    Status = InvitationStatus.Accepted,
+                    SentAt = DateTime.UtcNow
+                };
+                _context.FriendInvitations.Add(acceptedInvitation);
+            }
+
+            // Opprett vennskap
+            var friendship = new Friends
+            {
+                UserId = senderId.Value,
+                FriendId = receiverId.Value,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Friends.Add(friendship);
+
+            // Håndter eksisterende meldingsforespørsel
+            var conversationId = await HandleExistingMessageRequest(senderId.Value, receiverId.Value);
+
+            await _context.SaveChangesAsync();
+
+            // Send notifikasjon og sync events (samme som vanlig accept)
+            await SendNotificationAndSyncEvents(acceptedInvitation, conversationId, senderId.Value, receiverId.Value, isAutoAccept: true);
+
+            return Ok(new { 
+                message = reason,
+                autoAccepted = true,
+                conversationId = conversationId
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error while handling auto-accept friend invitation. SenderId: {SenderId}, ReceiverId: {ReceiverId}", senderId, receiverId);
+            return StatusCode(500, "An error occurred on the server.");
+        }
+    }
+
+    private async Task<IActionResult> SendNormalInvitation(int senderId, int receiverId)
+    {
         var invitation = new FriendInvitation
         {
-            SenderId = userId,
-            ReceiverId = dto.ReceiverId,
+            SenderId = senderId,
+            ReceiverId = receiverId,
             Status = InvitationStatus.Pending,
             SentAt = DateTime.UtcNow
         };
@@ -84,38 +180,143 @@ public class FriendInvitationsController : ControllerBase
             _context.FriendInvitations.Add(invitation);
             await _context.SaveChangesAsync();
 
-            await _notificationService.CreateNotificationAsync(
-                recipientUserId: dto.ReceiverId,
-                relatedUserId: userId,
-                type: NotificationEntityType.FriendInvitation,
-                friendInvitationId: invitation.Id
-            );
+            // Send notifikasjon og sync events (samme logikk som auto-accept, men for pending)
+            await SendNotificationAndSyncEvents(invitation, null, senderId, receiverId, isAutoAccept: false);
+
+            return Ok(new { message = "Friend request sent." });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error while handling friend invitation send to {ReceiverId} by {SenderId}", receiverId, senderId);
+            return StatusCode(500, "An error occurred on the server.");
+        }
+    }
+
+    private async Task<int?> HandleExistingMessageRequest(int userId, int receiverId)
+    {
+        var existingMessageRequest = await _context.MessageRequests
+            .Include(mr => mr.Conversation)
+            .FirstOrDefaultAsync(r => 
+                ((r.SenderId == userId && r.ReceiverId == receiverId) ||
+                 (r.SenderId == receiverId && r.ReceiverId == userId)) &&
+                !r.IsAccepted);
+
+        if (existingMessageRequest != null)
+        {
+            existingMessageRequest.IsAccepted = true;
+            existingMessageRequest.IsRejected = false;
             
-            // 🆕 SYNC EVENT - etter SaveChanges
+            if (existingMessageRequest.Conversation != null)
+            {
+                existingMessageRequest.Conversation.IsApproved = true;
+            }
+            
+            if (existingMessageRequest.ConversationId.HasValue)
+            {
+                await _context.AddCanSendAsync(userId, existingMessageRequest.ConversationId.Value, _msgCache, CanSendReason.Friendship);
+                await _context.AddCanSendAsync(receiverId, existingMessageRequest.ConversationId.Value, _msgCache, CanSendReason.Friendship);
+            }
+            
+            return existingMessageRequest.ConversationId;
+        }
+        
+        return null;
+    }
+
+    private async Task SendNotificationAndSyncEvents(FriendInvitation invitation, int? conversationId, int senderId, int receiverId, bool isAutoAccept)
+    {
+        if (isAutoAccept)
+        {
+            // For auto-accept: Send "accepted" notifikasjon
+            await _notificationService.CreateNotificationAsync(
+                recipientUserId: receiverId,
+                relatedUserId: senderId,
+                type: NotificationEntityType.FriendInvAccepted,
+                friendInvitationId: invitation.Id,
+                conversationId: conversationId
+            );
+
+            // Send FRIEND_ADDED sync events til begge brukere
             _taskQueue.QueueAsync(async () => 
             {
                 using var scope = _scopeFactory.CreateScope();
                 var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(); // Erstatt med din context-klasse
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                 try 
                 {
-                    // 🎯 Bruk den nye alt-i-ett metoden
+                    var senderSummaryForReceiver = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                        context, senderId, receiverId);
+                        
+                    var receiverSummaryForSender = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                        context, receiverId, senderId);
+
+                    if (senderSummaryForReceiver != null && receiverSummaryForSender != null)
+                    {
+                        // Event til mottakeren - legg til ny venn (senderen)
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.FRIEND_ADDED,
+                            eventData: new { 
+                                friendUser = senderSummaryForReceiver,
+                                conversationId = conversationId
+                            },
+                            singleUserId: receiverId,
+                            source: "API",
+                            relatedEntityId: senderId,
+                            relatedEntityType: "Friends"
+                        );
+
+                        // Event til senderen - legg til ny venn (mottakeren)  
+                        await syncService.CreateAndDistributeSyncEventAsync(
+                            eventType: SyncEventTypes.FRIEND_ADDED,
+                            eventData: new { 
+                                friendUser = receiverSummaryForSender,
+                                conversationId = conversationId
+                            },
+                            singleUserId: senderId,
+                            source: "API",
+                            relatedEntityId: receiverId,
+                            relatedEntityType: "Friends"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to create sync events for auto-accepted friend request. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
+                        invitation.Id, senderId, receiverId);
+                }
+            });
+        }
+        else
+        {
+            // For normal request: Send "invitation received" notifikasjon
+            await _notificationService.CreateNotificationAsync(
+                recipientUserId: receiverId,
+                relatedUserId: senderId,
+                type: NotificationEntityType.FriendInvitation,
+                friendInvitationId: invitation.Id
+            );
+            
+            // Send FRIEND_REQUEST_RECEIVED sync event til mottakeren
+            _taskQueue.QueueAsync(async () => 
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                try 
+                {
                     var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                        context, 
-                        userId, // senderId
-                        dto.ReceiverId // currentUserId (mottakerens perspektiv)
-                    );
+                        context, senderId, receiverId);
                     
                     if (senderSummary != null)
                     {
                         var invitationDto = invitation.ToFriendInvitationDto(senderSummary);
 
-                        // Sync event til mottakeren om ny vennforespørsel
                         await syncService.CreateAndDistributeSyncEventAsync(
                             eventType: SyncEventTypes.FRIEND_REQUEST_RECEIVED,
-                            eventData: invitationDto, // Send hele DTO-en!
-                            singleUserId: dto.ReceiverId,
+                            eventData: invitationDto,
+                            singleUserId: receiverId,
                             source: "API",
                             relatedEntityId: invitation.Id,
                             relatedEntityType: "FriendInvitation"
@@ -125,18 +326,10 @@ public class FriendInvitationsController : ControllerBase
                 catch (Exception ex)
                 {
                     Log.Error(ex, "Failed to create sync event for friend request. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
-                        invitation.Id, userId, dto.ReceiverId);
+                        invitation.Id, senderId, receiverId);
                 }
             });
-
-            return Ok(new { message = "Friend request sent." });
         }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error while handling friend invitation send to {ReceiverId} by {SenderId}", dto.ReceiverId, userId);
-            return StatusCode(500, "An error occurred on the server.");
-        }
-        
     }
     
     /* ---------- HENT ÉN INVITASJON ---------- */
@@ -209,133 +402,48 @@ public class FriendInvitationsController : ControllerBase
         {
             return Unauthorized(new { message = "Invalid user ID in token." });
         }
-        
+    
         var invitation = await _context.FriendInvitations.FindAsync(id);
         if (invitation == null || invitation.Status != InvitationStatus.Pending)
             return NotFound("Invitation not found or already handled.");
-        
+    
         // Kun mottaker av en forespørsel kan godta
         if (invitation.ReceiverId != userId)
             return Forbid("You are not authorized to accept this invitation.");
 
-        invitation.Status = InvitationStatus.Accepted;
-
-        // Opprett faktisk vennskap
-        var newFriend = new Friends
+        try
         {
-            UserId = invitation.SenderId,
-            FriendId = invitation.ReceiverId,
-            CreatedAt = DateTime.UtcNow
-        };
+            // Oppdater invitation status
+            invitation.Status = InvitationStatus.Accepted;
 
-        _context.Friends.Add(newFriend);
-        
-        
-        // Sjekk om det allerede finnes en meldingsforespørsel
-        var existingMessageRequest = await _context.MessageRequests
-            .Include(mr => mr.Conversation)
-            .FirstOrDefaultAsync(r => 
-                ((r.SenderId == invitation.SenderId && r.ReceiverId == invitation.ReceiverId) ||
-                 (r.SenderId == invitation.ReceiverId && r.ReceiverId == invitation.SenderId)) &&
-                !r.IsAccepted);
-
-        int? conversationId = null;
-
-
-        if (existingMessageRequest != null)
-        {
-            // Oppdater eksisterende meldingsforespørsel
-            existingMessageRequest.IsAccepted = true;
-            existingMessageRequest.IsRejected = false;
-            conversationId = existingMessageRequest.ConversationId;
-            
-            // Sett samtalen til godkjent
-            if (existingMessageRequest.Conversation != null)
+            // Opprett vennskap
+            var friendship = new Friends
             {
-                existingMessageRequest.Conversation.IsApproved = true;
-            }
-            
-            // Legg til i CanSend hvis de allerede har en samtale gående
-            if (conversationId.HasValue)
-            {
-                await _context.AddCanSendAsync(invitation.SenderId, conversationId.Value, _msgCache, CanSendReason.Friendship);
-                await _context.AddCanSendAsync(invitation.ReceiverId, conversationId.Value, _msgCache, CanSendReason.Friendship);
-            }
-            
+                UserId = invitation.SenderId,
+                FriendId = invitation.ReceiverId,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Friends.Add(friendship);
+
+            // Håndter eksisterende meldingsforespørsel (samme logikk som SendInvitation)
+            var conversationId = await HandleExistingMessageRequest(invitation.SenderId, invitation.ReceiverId);
+
+            await _context.SaveChangesAsync();
+
+            // Send notifikasjon og sync events (samme logikk som auto-accept)
+            await SendNotificationAndSyncEvents(invitation, conversationId, invitation.ReceiverId, invitation.SenderId, isAutoAccept: true);
+
+            return Ok(new { 
+                message = "Friend request accepted.",
+                conversationId = conversationId
+            });
         }
-        
-        
-
-        await _context.SaveChangesAsync();
-        
-        // SYNC EVENTS - etter SaveChanges
-        _taskQueue.QueueAsync(async () => 
+        catch (Exception ex)
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            try 
-            {
-                // 📝 Hent UserSummary for begge brukere fra hver sitt perspektiv
-                var senderSummaryForReceiver = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                    context, invitation.SenderId, invitation.ReceiverId);
-                    
-                var receiverSummaryForSender = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                    context, invitation.ReceiverId, invitation.SenderId);
-
-                if (senderSummaryForReceiver != null && receiverSummaryForSender != null)
-                {
-
-                    // Event til mottakeren - legg til ny venn (senderen)
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.FRIEND_ADDED,
-                        eventData: new { 
-                            friendUser = senderSummaryForReceiver, // 🎯 Den som sendte forespørselen
-                            conversationId = conversationId
-                        },
-                        singleUserId: invitation.ReceiverId,
-                        source: "API",
-                        relatedEntityId: invitation.SenderId,
-                        relatedEntityType: "Friends"
-                    );
-
-                    // Event til senderen - legg til ny venn (mottakeren)  
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.FRIEND_ADDED,
-                        eventData: new { 
-                            friendUser = receiverSummaryForSender, // 🎯 Den som godkjente forespørselen
-                            conversationId = conversationId
-                        },
-                        singleUserId: invitation.SenderId,
-                        source: "API",
-                        relatedEntityId: invitation.ReceiverId,
-                        relatedEntityType: "Friends"
-                    );
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error(ex, "Failed to create sync events for friend request acceptance. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
-                    invitation.Id, invitation.SenderId, invitation.ReceiverId);
-            }
-        });
-        
-        await _notificationService.CreateNotificationAsync(
-            recipientUserId: invitation.SenderId,
-            relatedUserId: invitation.ReceiverId,
-            type: NotificationEntityType.FriendInvAccepted,
-            friendInvitationId: invitation.Id,
-            conversationId: conversationId
-        );
-        
-        var responseData = new 
-        { 
-            message = "Friend request accepted.",
-            conversationId,
-        };
-
-        return Ok(responseData);
+            Log.Error(ex, "Error while accepting friend invitation. InvitationId: {InvitationId}, SenderId: {SenderId}, ReceiverId: {ReceiverId}", 
+                invitation.Id, invitation.SenderId, invitation.ReceiverId);
+            return StatusCode(500, "An error occurred on the server.");
+        }
     }
 
     // PATCH: Avslå forespørsel
