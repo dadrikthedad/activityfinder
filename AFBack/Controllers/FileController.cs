@@ -47,7 +47,7 @@ public class FileController : BaseController
     }
     
     [HttpPost("upload-profile-image")]
-    public async Task<IActionResult> UploadProfileImage(IFormFile file, [FromForm] string action = null)
+    public async Task<IActionResult> UploadProfileImage(IFormFile file = null, [FromForm] string action = null)
     {
         if (GetUserId() is not int userId)
             return Unauthorized();
@@ -69,7 +69,12 @@ public class FileController : BaseController
             }
             else
             {
-                // Normal upload-operasjon
+                // Normal upload-operasjon - sjekk at fil er oppgitt
+                if (file == null)
+                {
+                    return BadRequest(new { message = "No file provided for upload" });
+                }
+
                 var (isValid, errorMessage) = _fileService.ValidateImage(file);
                 if (!isValid)
                     return BadRequest(new { message = errorMessage });
@@ -93,7 +98,7 @@ public class FileController : BaseController
             profile.ProfileImageUrl = imageUrl;
             profile.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-        
+            
             return Ok(new { imageUrl });
         }
         catch (Exception ex)
