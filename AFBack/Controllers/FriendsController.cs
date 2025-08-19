@@ -170,6 +170,20 @@ public class FriendsController : ControllerBase
         
         var removedUserId = friendship.UserId;
         var removedFriendId = friendship.FriendId;
+        
+        // SLETT ALLE RELATERTE FRIEND INVITATIONS (begge retninger)
+        var existingInvitations = await _context.FriendInvitations
+            .Where(inv => 
+                (inv.SenderId == userId && inv.ReceiverId == friendId) ||
+                (inv.SenderId == friendId && inv.ReceiverId == userId))
+            .ToListAsync();
+
+        if (existingInvitations.Any())
+        {
+            Log.Information("Removing {Count} friend invitations between users {UserId} and {FriendId}", 
+                existingInvitations.Count, userId, friendId);
+            _context.FriendInvitations.RemoveRange(existingInvitations);
+        }
 
 
         _context.Friends.Remove(friendship);
