@@ -327,7 +327,7 @@ public class GroupConversationController : BaseController
         using var scope = _scopeFactory.CreateScope();
         var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
         var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
-        var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); // 🆕
+        var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
@@ -353,9 +353,7 @@ public class GroupConversationController : BaseController
         
         MessageResponseDTO? systemMessageInvitedUsersToExistingConv = null;
 
-        
-
-        // Lag systemmelding for invitasjoner til eksisterende gruppe
+        // 🆕 Lag systemmelding for invitasjoner til eksisterende gruppe
         if (isExistingGroup && groupRequests.Any())
         {
             // Hent inviter navn
@@ -388,22 +386,12 @@ public class GroupConversationController : BaseController
             }
             
             // Lag systemmelding (inkluderer automatisk SignalR)
-            systemMessageInvitedUsersToExistingConv = await notifSvc.CreateSystemMessageAsync(conversationId, systemMessageText, excludeUserIds: invitedUserIds);
-            
-            await syncService.CreateAndDistributeSyncEventAsync(
-                eventType: SyncEventTypes.GROUP_INFO_UPDATED,
-                eventData: new {
-                    conversationData = memberConversationData, 
-                    systemMessage = systemMessageInvitedUsersToExistingConv 
-                },
-                targetUserIds: existingMemberIds,
-                source: "API",
-                relatedEntityId: conversation.Id,
-                relatedEntityType: "Conversation"
+            systemMessageInvitedUsersToExistingConv = await notifSvc.CreateSystemMessageAsync(
+                conversationId, 
+                systemMessageText, 
+                excludeUserIds: invitedUserIds
             );
         }
-        
-        
 
         // 1️⃣ Opprett GroupEvent for invitasjoner (til godkjente medlemmer)
         if (isExistingGroup)
@@ -474,7 +462,7 @@ public class GroupConversationController : BaseController
             Console.WriteLine($"🔁 Sent GroupParticipantsUpdated to existing pending members: {string.Join(", ", existingPendingUserIds)}");
         }
         
-        // SYNC EVENTS (flyttet fra hovedmetoden)
+        // SYNC EVENTS
         try 
         {
             // Hvis ny gruppe ble opprettet
@@ -542,7 +530,7 @@ public class GroupConversationController : BaseController
                 );
             }
 
-            // 🆕 Send GROUP_INFO_UPDATED til ALLE eksisterende og pending medlemmer (UTENFOR foreach)
+            // 🆕 Send GROUP_INFO_UPDATED til ALLE eksisterende og pending medlemmer
             if (isExistingGroup && systemMessageInvitedUsersToExistingConv != null)
             {
                 // Hent existing pending user IDs som integers
@@ -564,7 +552,7 @@ public class GroupConversationController : BaseController
                             conversation = memberConversationData,
                             message = systemMessageInvitedUsersToExistingConv
                         },
-                        targetUserIds: allRelevantUserIds, // 🆕 Alle eksisterende + pending
+                        targetUserIds: allRelevantUserIds,
                         source: "API",
                         relatedEntityId: conversation.Id,
                         relatedEntityType: "Conversation"
