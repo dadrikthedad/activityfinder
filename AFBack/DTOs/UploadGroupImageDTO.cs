@@ -4,7 +4,6 @@ namespace AFBack.DTOs;
 
 public class UploadGroupImageDTO
 {
-    [Required]
     public IFormFile? File { get; set; }
         
     public int? GroupId { get; set; }

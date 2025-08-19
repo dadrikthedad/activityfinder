@@ -24,7 +24,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 // For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
-var appInsightsKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
+var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
 
 // Et serilog objekt som logger og skriver til konsollen og en fil på PCen. Kan logges til JSON og diverse, berdre ytelse osv.
 builder.Host.UseSerilog((context, services, configuration) =>
@@ -40,9 +40,9 @@ builder.Host.UseSerilog((context, services, configuration) =>
     }
 
     // Azure Application Insights (anbefalt for produksjon)
-    if (!string.IsNullOrEmpty(appInsightsKey))
+    if (!string.IsNullOrEmpty(appInsightsConnectionString))
     {
-        logConfig.WriteTo.ApplicationInsights(appInsightsKey, TelemetryConverter.Traces);
+        logConfig.WriteTo.ApplicationInsights(appInsightsConnectionString, TelemetryConverter.Traces);
     }
 
     logConfig.WriteTo.Logger(lc => lc
@@ -104,8 +104,11 @@ builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
 
 
 //Betingelse for denne miljøvariabelen.
-if (!string.IsNullOrEmpty(appInsightsKey))
-    builder.Services.AddApplicationInsightsTelemetry(appInsightsKey);
+if (!string.IsNullOrEmpty(appInsightsConnectionString))
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = appInsightsConnectionString;
+    });
 
 
 // Denne koden gjør at API-et kan håndtere HTTP-orespørsler som GET, POST, PUT og DELETE. Nødvendig for at ASP.NET CORE skal håndtere API.
