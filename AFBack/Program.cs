@@ -22,19 +22,35 @@ using Microsoft.AspNetCore.SignalR;
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
 
+
+// For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
+var appInsightsKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
+
 // Et serilog objekt som logger og skriver til konsollen og en fil på PCen. Kan logges til JSON og diverse, berdre ytelse osv.
 builder.Host.UseSerilog((context, services, configuration) =>
 {
-    configuration
+    var logConfig = configuration
         .ReadFrom.Configuration(context.Configuration)
-        .WriteTo.Console()
-        .WriteTo.File("logs/myapp.log", rollingInterval: RollingInterval.Day)
-        .WriteTo.Logger(lc => lc
+        .WriteTo.Console(); // ✅ Viktig for Azure App Service logs
+
+    // Kun logg til fil i development
+    if (context.HostingEnvironment.IsDevelopment())
+    {
+        logConfig.WriteTo.File("logs/myapp.log", rollingInterval: RollingInterval.Day);
+    }
+
+    // Azure Application Insights (anbefalt for produksjon)
+    if (!string.IsNullOrEmpty(appInsightsKey))
+    {
+        logConfig.WriteTo.ApplicationInsights(appInsightsKey, TelemetryConverter.Traces);
+    }
+
+    logConfig.WriteTo.Logger(lc => lc
             .Filter.ByIncludingOnly(logEvent =>
                 logEvent.Properties.ContainsKey("SourceContext") &&
                 logEvent.Properties["SourceContext"].ToString().Contains("UserHub"))
-            .WriteTo.File("logs/notifications.log", rollingInterval: RollingInterval.Day)
-        );
+            .WriteTo.Console() // Endre fra File til Console for Azure
+    );
 });
 
 // Fjerner Microsoft standard logging.
@@ -85,8 +101,7 @@ builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
     }));
 
 
-// For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
-var appInsightsKey = Environment.GetEnvironmentVariable("APPINSIGHTS_INSTRUMENTATIONKEY");
+
 
 //Betingelse for denne miljøvariabelen.
 if (!string.IsNullOrEmpty(appInsightsKey))
