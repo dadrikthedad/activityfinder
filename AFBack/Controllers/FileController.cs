@@ -175,11 +175,14 @@ public class FileController : BaseController
                     .FirstOrDefaultAsync() ?? "En bruker";
 
                 var actionText = action == "delete" ? "removed" : "changed";
+
                 var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
                     groupId.Value,
                     $"{userName} has {actionText} the group image"
                 );
 
+                _logger.LogInformation("✅ System message created with ID: {MessageId}", systemMessage.Id);
+                
                 // Resten av sync event koden forblir det samme...
                 _taskQueue.QueueAsync(async () => 
                 {
@@ -189,17 +192,34 @@ public class FileController : BaseController
 
                     try 
                     {
-                        var userData = group.Participants.ToDictionary(
-                            p => p.UserId,
-                            p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
-                        );
+                        // 🔧 FIX: Hent conversation med User data fra ny context
+                        var groupWithUsers = await context.Conversations
+                            .Include(c => c.Participants)
+                                .ThenInclude(p => p.User)
+                                    .ThenInclude(u => u.Profile)
+                            .FirstOrDefaultAsync(c => c.Id == groupId.Value);
+
+                        if (groupWithUsers == null)
+                        {
+                            Console.WriteLine($"❌ Could not find group {groupId.Value} in background task");
+                            return;
+                        }
+
+                        var userData = groupWithUsers.Participants
+                            .Where(p => p.User != null) // Filter out null Users
+                            .ToDictionary(
+                                p => p.UserId,
+                                p => (p.User.FullName ?? "Unknown User", p.User.Profile?.ProfileImageUrl)
+                            );
+                        
+                        Console.WriteLine($"📊 Created userData for {userData.Count} participants");
                         
                         var participantApprovalStatus = await context.GroupRequests
                             .Where(gr => gr.ConversationId == groupId.Value && 
                                          participantIds.Contains(gr.ReceiverId))
                             .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status.ToString());
-        
-                        var conversationData = group.MapConversationToSyncData(
+
+                        var conversationData = groupWithUsers.MapConversationToSyncData(
                             userId, 
                             userData, 
                             participantApprovalStatus
@@ -213,10 +233,12 @@ public class FileController : BaseController
                             relatedEntityId: groupId.Value,
                             relatedEntityType: "Conversation"
                         );
+                        
+                        Console.WriteLine($"✅ Sync event created successfully for group {groupId.Value}");
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to create sync event for group image update. GroupId: {GroupId}", groupId.Value);
+                        Console.WriteLine($"❌ Failed to create sync event for group image update. GroupId: {groupId.Value}, Error: {ex.Message}");
                     }
                 });
 

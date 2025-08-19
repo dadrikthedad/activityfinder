@@ -32,6 +32,8 @@ public class MessageNotificationService
     
     public async Task<MessageResponseDTO> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
     {
+        Console.WriteLine($"🔵 Creating system message for conversation {conversationId}: {messageText}");
+        
         var systemMessage = new Message
         {
             ConversationId = conversationId,
@@ -46,16 +48,22 @@ public class MessageNotificationService
 
         // Oppdater samtalen
         var conversation = await _context.Conversations
-            .Include(c => c.Participants) // Include participants for SignalR
+            .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.Id == conversationId);
             
         if (conversation != null)
         {
             conversation.LastMessageSentAt = systemMessage.SentAt;
+            Console.WriteLine($"✅ Found conversation with {conversation.Participants.Count} participants");
+        }
+        else
+        {
+            Console.WriteLine($"❌ Conversation {conversationId} not found!");
         }
 
-        // 🆕 Lagre først så vi får message.Id
+        // Lagre først så vi får message.Id
         await _context.SaveChangesAsync();
+        Console.WriteLine($"💾 System message saved with ID: {systemMessage.Id}");
         
         var response = new MessageResponseDTO
         {
@@ -66,23 +74,43 @@ public class MessageNotificationService
             SentAt = systemMessage.SentAt,
             ConversationId = systemMessage.ConversationId,
             IsSystemMessage = true,
-            IsSilent = false, // Systemmeldinger vises, men ingen toast
-            // Attachments = new List<AttachmentDto>(),
+            IsSilent = false,
             Reactions = new List<ReactionDTO>()
         };
 
         // Send SystemMessage over SignalR til alle deltakere
         if (conversation != null)
         {
-            // Brukere å sende til
-            var participantIds = conversation.Participants
-                .Where(p => excludeUserIds == null || !excludeUserIds.Contains(p.UserId))
-                .Select(p => p.UserId.ToString());
+            try
+            {
+                // 🔧 FIX: Add null checking and filtering
+                var participantIds = conversation.Participants
+                    .Where(p => p.UserId > 0) // Ensure valid UserId
+                    .Where(p => excludeUserIds == null || !excludeUserIds.Contains(p.UserId))
+                    .Select(p => p.UserId.ToString())
+                    .Where(id => !string.IsNullOrEmpty(id)) // Extra safety
+                    .ToList();
 
-            
-            // Send til alle deltakere
-            await _hubContext.Clients.Users(participantIds)
-                .SendAsync("ReceiveMessage", response);
+                Console.WriteLine($"📡 Sending system message to {participantIds.Count} participants: [{string.Join(", ", participantIds)}]");
+
+                if (participantIds.Any())
+                {
+                    // Send til alle deltakere
+                    await _hubContext.Clients.Users(participantIds)
+                        .SendAsync("ReceiveMessage", response);
+                        
+                    Console.WriteLine("✅ System message sent via SignalR");
+                }
+                else
+                {
+                    Console.WriteLine("⚠️ No valid participants to send SignalR message to");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Failed to send SignalR message for system message {systemMessage.Id}: {ex.Message}");
+                // Don't rethrow - system message is already saved
+            }
         }
         
         return response;
