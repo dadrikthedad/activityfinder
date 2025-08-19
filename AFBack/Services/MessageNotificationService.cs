@@ -32,7 +32,8 @@ public class MessageNotificationService
     
     public async Task<MessageResponseDTO> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
     {
-        Console.WriteLine($"🔵 Creating system message for conversation {conversationId}: {messageText}");
+        _logger.LogInformation("🔍 SYSTEM_MESSAGE: Creating system message for conversation {ConversationId}: {MessageText}", 
+            conversationId, messageText);
         
         var systemMessage = new Message
         {
@@ -54,16 +55,17 @@ public class MessageNotificationService
         if (conversation != null)
         {
             conversation.LastMessageSentAt = systemMessage.SentAt;
-            Console.WriteLine($"✅ Found conversation with {conversation.Participants.Count} participants");
+            _logger.LogInformation("🔍 SYSTEM_MESSAGE: Found conversation {ConversationId} with {ParticipantCount} participants", 
+                conversationId, conversation.Participants.Count);
         }
         else
         {
-            Console.WriteLine($"❌ Conversation {conversationId} not found!");
+            _logger.LogWarning("🔍 SYSTEM_MESSAGE: Conversation {ConversationId} not found!", conversationId);
         }
 
         // Lagre først så vi får message.Id
         await _context.SaveChangesAsync();
-        Console.WriteLine($"💾 System message saved with ID: {systemMessage.Id}");
+        _logger.LogInformation("🔍 SYSTEM_MESSAGE: System message saved with ID: {MessageId}", systemMessage.Id);
         
         var response = new MessageResponseDTO
         {
@@ -91,7 +93,8 @@ public class MessageNotificationService
                     .Where(id => !string.IsNullOrEmpty(id)) // Extra safety
                     .ToList();
 
-                Console.WriteLine($"📡 Sending system message to {participantIds.Count} participants: [{string.Join(", ", participantIds)}]");
+                _logger.LogInformation("🔍 SYSTEM_MESSAGE: Sending system message {MessageId} to {ParticipantCount} participants: [{ParticipantIds}]", 
+                    systemMessage.Id, participantIds.Count, string.Join(", ", participantIds));
 
                 if (participantIds.Any())
                 {
@@ -99,16 +102,19 @@ public class MessageNotificationService
                     await _hubContext.Clients.Users(participantIds)
                         .SendAsync("ReceiveMessage", response);
                         
-                    Console.WriteLine("✅ System message sent via SignalR");
+                    _logger.LogInformation("🔍 SYSTEM_MESSAGE: Successfully sent system message {MessageId} via SignalR", 
+                        systemMessage.Id);
                 }
                 else
                 {
-                    Console.WriteLine("⚠️ No valid participants to send SignalR message to");
+                    _logger.LogWarning("🔍 SYSTEM_MESSAGE: No valid participants to send SignalR message to for conversation {ConversationId}", 
+                        conversationId);
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Failed to send SignalR message for system message {systemMessage.Id}: {ex.Message}");
+                _logger.LogError(ex, "🔍 SYSTEM_MESSAGE_ERROR: Failed to send SignalR message for system message {MessageId} in conversation {ConversationId}", 
+                    systemMessage.Id, conversationId);
                 // Don't rethrow - system message is already saved
             }
         }
