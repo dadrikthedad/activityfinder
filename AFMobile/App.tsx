@@ -36,6 +36,7 @@ import PendingConversationsScreen from './screens/messages/PendingConversationsS
 import FriendScreen from './screens/friends/FriendScreen';
 import appInsights from './AppInsights';
 import Logger from './Logger';
+import NotificationScreen from './screens/notification/NotificationScreen';
 
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -57,7 +58,10 @@ function AppContent() {
         const currentConversationId = store.currentConversationId;
         
         if (currentConversationId) {
-          console.log('🧹 App backgrounded - cleaning conversation:', currentConversationId);
+          Logger.info('App backgrounded - cleaning conversation', {
+            conversationId: currentConversationId,
+            action: 'cleanup'
+          });
           
           // All-in-one cleanup for current conversation
           store.convertOptimisticToReal(currentConversationId);
@@ -74,8 +78,9 @@ function AppContent() {
     return () => {
       subscription?.remove();
       stopChatConnection().catch(err =>
-        console.error('Error stopping SignalR connection on app close:', err)
-      );
+            Logger.error('Error stopping SignalR connection on app close', err, {
+      context: 'app_shutdown'
+    }))
     };
   }, []);
 
@@ -223,7 +228,6 @@ function AuthenticatedApp() {
                 name="MessageNotificationScreen"
                 component={MessageNotificationScreen}
                 options={{
-                  presentation: 'modal', // Dette gjør den til modal
                   headerShown: false,
                 }}
               />

@@ -370,7 +370,6 @@ export const useChatStore = create<ChatStore>()(
     
     // 🆕 VALIDERING: Sjekk at reaction har gyldig messageId
     if (!reaction.messageId) {
-      console.error("❌ Reaction has undefined messageId, skipping update:", reaction);
       return state; // Returner uendret state
     }
     

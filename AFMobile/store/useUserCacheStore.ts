@@ -26,7 +26,7 @@ interface UserCacheStore {
   getSettings: () => UserSettingsDTO | null;
   
   // Core actions
-  setUser: (user: UserSummaryDTO) => void;
+  setUser: (user: Partial<UserSummaryDTO> & { id: number }) => void;
   setUsers: (users: UserSummaryDTO[]) => void;
   getUser: (userId: number) => UserSummaryDTO | null;
   updateUser: (userId: number, updates: Partial<UserSummaryDTO>) => void;
@@ -97,48 +97,71 @@ export const useUserCacheStore = create<UserCacheStore>()(
       getSettings: () => get().settings,
       
       // --- Core actions ---
-      setUser: (user: UserSummaryDTO) =>
+      setUser: (user: Partial<UserSummaryDTO> & { id: number }) =>
         set(state => {
           const existingUser = state.users[user.id];
           const now = Date.now();
-          
-          // Legg til timestamp hvis mangler
-          const userWithTimestamp = {
-            ...user,
-            lastUpdated: user.lastUpdated || now
-          };
-          
-          // Smart merge hvis eksisterende bruker finnes
+      
+          // 🔧 Bruk existing user's name hvis ikke oppgitt
+          const displayName = user.fullName || existingUser?.fullName || `User ${user.id}`;
+          console.log(`👤 setUser: ${displayName} (ID: ${user.id})`);
+      
           if (existingUser) {
-            // Kun overskrive hvis nyere data
-            if (!existingUser.lastUpdated || 
-                userWithTimestamp.lastUpdated >= existingUser.lastUpdated) {
-              console.log(`👤 setUser: Updating existing user ${user.id} (${user.fullName}) - new timestamp: ${userWithTimestamp.lastUpdated}, old: ${existingUser.lastUpdated || 'none'}`);
-              
-              // 🆕 Log relationship changes specifically
-              if (existingUser.isFriend !== userWithTimestamp.isFriend) {
-                console.log(`🤝 setUser: Friend status changed for ${user.fullName}: ${existingUser.isFriend} → ${userWithTimestamp.isFriend}`);
-              }
-              if (existingUser.isBlocked !== userWithTimestamp.isBlocked) {
-                console.log(`🚫 setUser: Block status changed for ${user.fullName}: ${existingUser.isBlocked} → ${userWithTimestamp.isBlocked}`);
-              }
-              
-              return {
-                users: { ...state.users, [user.id]: userWithTimestamp },
-                lastUpdated: Date.now()
-              };
+            // 🔧 SMART MERGE: Preserve existing data, only update what's provided AND not null/undefined
+            const mergedUser = {
+              ...existingUser,           // Start with existing user
+              ...user,                   // Apply new data
+              // Only update if explicitly provided AND not null/undefined
+              fullName: (user.fullName !== undefined && user.fullName !== null) ? user.fullName : existingUser.fullName,
+              profileImageUrl: user.profileImageUrl !== undefined ? user.profileImageUrl : existingUser.profileImageUrl,
+              isFriend: user.isFriend !== undefined ? user.isFriend : existingUser.isFriend,
+              isBlocked: user.isBlocked !== undefined ? user.isBlocked : existingUser.isBlocked,
+              hasBlockedMe: user.hasBlockedMe !== undefined ? user.hasBlockedMe : existingUser.hasBlockedMe,
+              lastUpdated: now
+            };
+        
+            // Log what changed
+            const friendChanged = existingUser.isFriend !== mergedUser.isFriend;
+            const blockChanged = existingUser.isBlocked !== mergedUser.isBlocked;
+            const nameChanged = existingUser.fullName !== mergedUser.fullName;
+            const imageChanged = existingUser.profileImageUrl !== mergedUser.profileImageUrl;
+            const hasBlockedMeChanged = existingUser.hasBlockedMe !== mergedUser.hasBlockedMe;
+        
+            if (friendChanged || blockChanged || nameChanged || imageChanged || hasBlockedMeChanged) {
+              console.log(`setUser   📝 Changes detected:`);
+              if (friendChanged) console.log(`setUser      🤝 Friend: ${existingUser.isFriend} → ${mergedUser.isFriend}`);
+              if (blockChanged) console.log(`setUser      🚫 Block: ${existingUser.isBlocked} → ${mergedUser.isBlocked}`);
+              if (hasBlockedMeChanged) console.log(`setUser      🚷 HasBlockedMe: ${existingUser.hasBlockedMe} → ${mergedUser.hasBlockedMe}`);
+              if (nameChanged) console.log(`setUser      👤 Name: ${existingUser.fullName} → ${mergedUser.fullName}`);
+              if (imageChanged) console.log(`setUser      🖼️ Image: ${existingUser.profileImageUrl ? 'had image' : 'no image'} → ${mergedUser.profileImageUrl ? 'has image' : 'no image'}`);
             } else {
-              // Behold eksisterende (nyere)
-              console.log(`👤 setUser: Keeping existing user ${user.id} (${user.fullName}) - existing is newer (${existingUser.lastUpdated} vs ${userWithTimestamp.lastUpdated})`);
-              return state;
+              console.log(`setUser   📝 No changes detected`);
             }
+        
+            return {
+              users: { ...state.users, [user.id]: mergedUser },
+              lastUpdated: now
+            };
           }
-          
-          // Ny bruker
-          console.log(`👤 setUser: Adding new user ${user.id} (${user.fullName}) - friend: ${userWithTimestamp.isFriend}, blocked: ${userWithTimestamp.isBlocked}`);
+      
+          // Ny bruker - krever minimum data
+          if (!user.fullName) {
+            console.warn(`setUser   ⚠️ Adding new user without fullName - this might cause issues`);
+          }
+        
+          console.log(`setUser   ➕ Adding new user: friend=${user.isFriend}, blocked=${user.isBlocked}`);
           return {
-            users: { ...state.users, [user.id]: userWithTimestamp },
-            lastUpdated: Date.now()
+            users: {
+              ...state.users,
+              [user.id]: {
+                // Sett defaults for required felter hvis de mangler
+                fullName: user.fullName || `User ${user.id}`,
+                profileImageUrl: user.profileImageUrl ?? null,
+                ...user,
+                lastUpdated: now
+              }
+            },
+            lastUpdated: now
           };
         }),
 

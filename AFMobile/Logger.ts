@@ -1,9 +1,9 @@
 import appInsights from './AppInsights';
 
 interface LogContext {
-  userId?: string;
-  conversationId?: string;
-  messageId?: string;
+  userId?: string | number;
+  conversationId?: string | number;
+  messageId?: string | number;
   action?: string;
   screen?: string;
   error?: string;
@@ -17,33 +17,42 @@ class Logger {
   static info(message: string, context?: LogContext) {
     console.log(`ℹ️ ${message}`, context);
     
-    appInsights.trackEvent('app_log_info', {
-      message,
-      ...context,
-      level: 'info',
-      timestamp: new Date().toISOString()
+    appInsights.trackEvent({
+      name: 'app_log_info',
+      properties: {
+        message,
+        ...context,
+        level: 'info',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
   static warn(message: string, context?: LogContext) {
     console.warn(`⚠️ ${message}`, context);
     
-    appInsights.trackEvent('app_log_warn', {
-      message,
-      ...context,
-      level: 'warning',
-      timestamp: new Date().toISOString()
+    appInsights.trackEvent({
+      name: 'app_log_warn',
+      properties: {
+        message,
+        ...context,
+        level: 'warning',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
   static error(message: string, error?: Error, context?: LogContext) {
     console.error(`❌ ${message}`, error, context);
     
-    appInsights.trackException(error || new Error(message), {
-      message,
-      ...context,
-      level: 'error',
-      timestamp: new Date().toISOString()
+    appInsights.trackException({
+      exception: error || new Error(message),
+      properties: {
+        message,
+        ...context,
+        level: 'error',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
@@ -51,44 +60,56 @@ class Logger {
   static trackUser(action: string, context?: LogContext) {
     console.log(`👤 User action: ${action}`, context);
     
-    appInsights.trackEvent('user_action', {
-      action,
-      ...context,
-      category: 'user',
-      timestamp: new Date().toISOString()
+    appInsights.trackEvent({
+      name: 'user_action',
+      properties: {
+        action,
+        ...context,
+        category: 'user',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
   static trackMessage(action: string, context?: LogContext) {
     console.log(`💬 Message: ${action}`, context);
     
-    appInsights.trackEvent('message_action', {
-      action,
-      ...context,
-      category: 'message',
-      timestamp: new Date().toISOString()
+    appInsights.trackEvent({
+      name: 'message_action',
+      properties: {
+        action,
+        ...context,
+        category: 'message',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
   static trackConversation(action: string, context?: LogContext) {
     console.log(`💭 Conversation: ${action}`, context);
     
-    appInsights.trackEvent('conversation_action', {
-      action,
-      ...context,
-      category: 'conversation',
-      timestamp: new Date().toISOString()
+    appInsights.trackEvent({
+      name: 'conversation_action',
+      properties: {
+        action,
+        ...context,
+        category: 'conversation',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
   static trackSignalR(action: string, context?: LogContext) {
     console.log(`📡 SignalR: ${action}`, context);
     
-    appInsights.trackEvent('signalr_action', {
-      action,
-      ...context,
-      category: 'signalr',
-      timestamp: new Date().toISOString()
+    appInsights.trackEvent({
+      name: 'signalr_action',
+      properties: {
+        action,
+        ...context,
+        category: 'signalr',
+        timestamp: new Date().toISOString()
+      }
     });
   }
 
@@ -107,9 +128,13 @@ class Logger {
   static trackPerformance(action: string, duration: number, context?: LogContext) {
     console.log(`⚡ Performance: ${action} took ${duration}ms`, context);
     
-    appInsights.trackMetric(`performance_${action}`, duration, {
-      ...context,
-      timestamp: new Date().toISOString()
+    appInsights.trackMetric({
+      name: `performance_${action}`,
+      average: duration,
+      properties: {
+        ...context,
+        timestamp: new Date().toISOString()
+      }
     });
   }
 

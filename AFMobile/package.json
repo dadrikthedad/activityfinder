@@ -11,6 +11,7 @@
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.1.8",
     "@microsoft/applicationinsights-react-native": "^4.3.7",
+    "@microsoft/applicationinsights-web": "^3.3.9",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.1.17",
@@ -32,6 +33,7 @@
     "nativewind": "^4.1.23",
     "react": "19.0.0",
     "react-native": "0.79.5",
+    "react-native-device-info": "^14.0.4",
     "react-native-emoji-modal": "^0.2.4",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-image-picker": "^8.2.1",

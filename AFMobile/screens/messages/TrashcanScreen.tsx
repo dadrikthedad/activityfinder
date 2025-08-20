@@ -8,11 +8,13 @@ import {
 import { Trash2 } from 'lucide-react-native';
 import { useGetDeletedConversations } from '@/hooks/messages/useGetDeletedConversations';
 import { useGetRejectedConversations } from '@/hooks/messages/useGetRejectedConversations';
+import { useGetRejectedFriendInvitations } from '@/hooks/friends/useGetRejectedFriendInvitations';
 import { useUserCacheStore, useBlockedUsers } from '@/store/useUserCacheStore';
 import { useAuth } from '@/context/AuthContext';
 import BlockedUsersSection from '@/components/trashcan/BlockedUsersSection';
 import DeletedConversationsSection from '@/components/trashcan/DeletedConversationsSection';
 import RejectedConversationsSection from '@/components/trashcan/RejectedConversationsSection';
+import RejectedFriendInvitationsSection from '@/components/trashcan/RejectedFriendInvitationsSection';
 
 interface TrashcanScreenProps {
   navigation: any;
@@ -36,6 +38,13 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
     error: rejectedError, 
     refetch: refetchRejected 
   } = useGetRejectedConversations();
+
+  const {
+    rejectedInvitations,
+    isLoading: rejectedInvitationsLoading,
+    error: rejectedInvitationsError,
+    refetch: refetchRejectedInvitations
+  } = useGetRejectedFriendInvitations();
   
   // ✅ FIX: Use useMemo to cache the filtered array and prevent infinite re-renders
   const allUsers = useUserCacheStore(state => state.users);
@@ -65,19 +74,25 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
   const isCompletelyEmpty = useMemo(() => {
     return !deletedLoading && 
            !rejectedLoading && 
+           !rejectedInvitationsLoading &&
            deletedConversations.length === 0 && 
            rejectedConversations.length === 0 && 
+           rejectedInvitations.length === 0 &&
            blockedUsers.length === 0 && 
            !deletedError && 
-           !rejectedError;
+           !rejectedError &&
+           !rejectedInvitationsError;
   }, [
     deletedLoading, 
     rejectedLoading, 
+    rejectedInvitationsLoading,
     deletedConversations.length, 
     rejectedConversations.length, 
+    rejectedInvitations.length,
     blockedUsers.length, 
     deletedError, 
-    rejectedError
+    rejectedError,
+    rejectedInvitationsError
   ]);
 
   return (
@@ -120,6 +135,17 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
               navigation={navigation}
               onSuccess={showSuccessMessage}
               onError={showErrorMessage}
+            />
+
+            {/* ✅ Rejected Friend Invitations Section */}
+            <RejectedFriendInvitationsSection
+              rejectedInvitations={rejectedInvitations}
+              isLoading={rejectedInvitationsLoading}
+              error={rejectedInvitationsError}
+              navigation={navigation}
+              onSuccess={showSuccessMessage}
+              onError={showErrorMessage}
+              onRefetch={refetchRejectedInvitations}
             />
 
             {/* ✅ Deleted Conversations Section */}

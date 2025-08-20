@@ -19,3 +19,11 @@ export async function getFriendInvitationById(id: number, token: string) {
   const url = `${API_BASE_URL}/api/friendinvitations/${id}`;
   return await fetchWithAuth<FriendInvitationDTO>(url, {}, token);
 }
+
+export async function getRejectedFriendInvitations(
+  token: string
+): Promise<FriendInvitationDTO[]> {
+  const url = `${API_BASE_URL}/api/friendinvitations/rejected`;
+  const data = await fetchWithAuth<FriendInvitationDTO[]>(url, {}, token);
+  return data ?? [];
+}

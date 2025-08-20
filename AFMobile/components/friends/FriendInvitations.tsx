@@ -6,14 +6,16 @@ import {
   FlatList,
   StyleSheet,
   TouchableOpacity,
-  Dimensions
+  Dimensions,
+  TextInput
 } from 'react-native';
-import { useFriendRequestHandler } from '@/hooks/friends/useFriendInvitationsHandler';
+import { useFriendRequestHandlerNative } from '@/hooks/friends/useFriendInvitationsHandlerNative';
 import { useFriendInvitations } from '@/hooks/useFriendInvitations';
 import { useUserCacheStore } from '@/store/useUserCacheStore';
 import ClickableAvatarNative from '@/components/common/ClickableAvatarNative';
 import { FriendInvitationDTO } from '@shared/types/FriendInvitationDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
+import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
 
 // Interface for ghost invitation (akseptert invitasjon som vises i 10 sek)
 interface GhostInvitation {
@@ -27,19 +29,28 @@ interface FriendInvitationsProps {
   navigation: any;
   maxHeight?: string | number; // For å kontrollere høyde
   showHeader?: boolean; // Om vi skal vise "Friend requests" header
+  maxItems?: number; // Nytt: maksimalt antall invitasjoner som vises
+  showViewAllButton?: boolean; // Nytt: om vi skal vise "Se alle" knapp
+  onViewAll?: () => void; // Nytt: callback for når "Se alle" trykkes
+  showSearchField?: boolean; // Nytt: viser eget søkefelt for friend requests
 }
 
 export default function FriendInvitations({ 
   navigation, 
   maxHeight = '35%', 
-  showHeader = true 
+  showHeader = true,
+  maxItems,
+  showViewAllButton = false,
+  onViewAll,
+  showSearchField = false
 }: FriendInvitationsProps) {
   const [ghostInvitations, setGhostInvitations] = useState<GhostInvitation[]>([]);
+  const [localSearchTerm, setLocalSearchTerm] = useState("");
   const screenHeight = Dimensions.get('window').height;
 
   // Hooks
   const { invitations, loading: loadingInvitations } = useFriendInvitations();
-  const { handleResponse, handlingId } = useFriendRequestHandler();
+  const { handleResponse, handlingId } = useFriendRequestHandlerNative();
   const setUserFriendStatus = useUserCacheStore(state => state.setUserFriendStatus);
 
   // Clean up expired ghost invitations every second
@@ -91,6 +102,13 @@ export default function FriendInvitations({
       await handleResponse(invitationId, "accept");
       
       console.log('✅ Friend request accepted successfully');
+
+      showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Friend Request Accepted",
+          customBody: `You are now friends with ${invitation.userSummary.fullName}!`,
+          position: 'top'
+        });
       
     } catch (error) {
       console.error('Error accepting invitation:', error);
@@ -117,6 +135,17 @@ export default function FriendInvitations({
     ...invitations.map(inv => ({ type: 'real' as const, data: inv })),
     ...ghostInvitations.map(ghost => ({ type: 'ghost' as const, data: ghost }))
   ];
+
+  // Apply search filter if search field is shown and there's a search term
+  const filteredInvitations = showSearchField && localSearchTerm ? 
+    allInvitations.filter(item => {
+      const name = item.data.userSummary?.fullName?.toLowerCase() || '';
+      return name.includes(localSearchTerm.toLowerCase());
+    }) : allInvitations;
+
+  // Apply maxItems limit if specified
+  const displayedInvitations = maxItems ? filteredInvitations.slice(0, maxItems) : filteredInvitations;
+  const hasMoreInvitations = maxItems && filteredInvitations.length > maxItems;
 
   // Render individual invitation item
   const renderInvitation = ({ item }: { item: { type: 'real' | 'ghost', data: any } }) => {
@@ -212,6 +241,42 @@ export default function FriendInvitations({
     return null;
   }
 
+  // Show empty state when searching with no results
+  if (showSearchField && localSearchTerm && filteredInvitations.length === 0 && allInvitations.length > 0) {
+    const calculatedMaxHeight = typeof maxHeight === 'string' 
+      ? screenHeight * (parseFloat(maxHeight.replace('%', '')) / 100)
+      : maxHeight;
+
+    return (
+      <View style={[styles.container, { maxHeight: calculatedMaxHeight }]}>
+        {showHeader && (
+          <View style={styles.header}>
+            <Text style={styles.headerText}>Friend requests</Text>
+          </View>
+        )}
+        
+        {showSearchField && (
+          <View style={styles.searchSection}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search friend requests..."
+              placeholderTextColor="#9CA3AF"
+              value={localSearchTerm}
+              onChangeText={setLocalSearchTerm}
+            />
+          </View>
+        )}
+        
+        <View style={styles.emptySearchState}>
+          <Text style={styles.emptySearchText}>No friend requests found</Text>
+          <Text style={styles.emptySearchSubtext}>
+            Try searching for a different name
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const calculatedMaxHeight = typeof maxHeight === 'string' 
     ? screenHeight * (parseFloat(maxHeight.replace('%', '')) / 100)
     : maxHeight;
@@ -224,14 +289,42 @@ export default function FriendInvitations({
         </View>
       )}
       
+      {/* Search Section - only shown if showSearchField is true */}
+      {showSearchField && (
+        <View style={styles.searchSection}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search friend requests..."
+            placeholderTextColor="#9CA3AF"
+            value={localSearchTerm}
+            onChangeText={setLocalSearchTerm}
+          />
+        </View>
+      )}
+      
       <FlatList
-        data={allInvitations}
+        data={displayedInvitations}
         keyExtractor={(item) => `${item.type}-${item.data.id}`}
         renderItem={renderInvitation}
         showsVerticalScrollIndicator={true}
         ItemSeparatorComponent={() => <View />}
         contentContainerStyle={styles.listContainer}
       />
+
+      {/* View All Button */}
+      {showViewAllButton && hasMoreInvitations && (
+        <View style={styles.viewAllButtonContainer}>
+          <TouchableOpacity
+            style={styles.viewAllButton}
+            onPress={onViewAll}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.viewAllButtonText}>
+              View all {showSearchField && localSearchTerm ? filteredInvitations.length : allInvitations.length} friend requests
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -373,5 +466,75 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 14,
     fontWeight: '600',
+  },
+
+  // New styles for View All button
+  viewAllButtonContainer: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+
+  viewAllButton: {
+    backgroundColor: '#1C6B1C',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  viewAllButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+
+  // Empty search state styles
+  emptySearchState: {
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+
+  emptySearchText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginBottom: 4,
+  },
+
+  emptySearchSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+
+  // Search section styles
+  searchSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+
+  searchInput: {
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
 });

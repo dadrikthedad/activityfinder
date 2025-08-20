@@ -12,7 +12,7 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useNotificationStore } from '@/store/useNotificationStore';
-import { useFriendRequestHandler } from '@/hooks/friends/useFriendInvitationsHandler';
+import { useFriendRequestHandlerNative } from '@/hooks/friends/useFriendInvitationsHandlerNative';
 import type { NotificationDTO } from '@shared/types/NotificationEventDTO';
 import ButtonNative from '@/components/common/buttons/ButtonNative';
 
@@ -31,7 +31,7 @@ export default function NotificationsModalNative({
   // Data from store
   const invitations = useNotificationStore((s) => s.friendRequests);
   const notifications = useNotificationStore((s) => s.notifications);
-  const { handleResponse, handlingId } = useFriendRequestHandler();
+  const { handleResponse, handlingId } = useFriendRequestHandlerNative();
   const totalFriendRequests = useNotificationStore((s) => s.friendRequestTotalCount);
 
   const handleNavigateToProfile = useCallback((userId: number) => {

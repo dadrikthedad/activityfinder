@@ -12,6 +12,8 @@ import {
   TextInput,
   FlatList,
   ActivityIndicator,
+  Animated,
+  Dimensions,
 } from 'react-native';
 import { 
   Bell, 
@@ -32,10 +34,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { RootStackParamList } from '@/types/navigation';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
-import { useUserSearch } from '@/hooks/useUserSearch'; // ✅ Import the search hook
+import { useUserSearch } from '@/hooks/useUserSearch';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useCurrentUser } from '@/store/useUserCacheStore';
-import MiniAvatarNative from '@/components/common/MiniAvatarNative'; // ✅ Import MiniAvatarNative
+import MiniAvatarNative from '@/components/common/MiniAvatarNative';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface MobileNavbarNativeProps {
   onNavigateToMessages?: () => void;
@@ -48,36 +52,55 @@ export default function MobileNavbarNative({
 }: MobileNavbarNativeProps) {
   const { isLoggedIn, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSearchMode, setIsSearchMode] = useState(false); // ✅ Search mode state
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [slideAnim] = useState(new Animated.Value(SCREEN_WIDTH)); // Start helt til høyre
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   const currentUser = useCurrentUser();
   
-  // ✅ Use the search hook
   const { query, setQuery, results, loading } = useUserSearch();
   
-  // General notification state for bell badge
   const notifications = useNotificationStore((s) => s.notifications);
   const unreadNotifications = notifications.filter((n) => !n.isRead).length;
   
-  // Message notification state for chat badge
   const unreadMessageNotifications = useMessageNotificationStore(
     (state) => state.messageNotifications.filter((n) => !n.isRead).length
   );
 
   const handleToggleMenu = useCallback(() => {
-    setIsMenuOpen(prev => !prev);
-  }, []);
+    if (!isMenuOpen) {
+      // Åpne menu - slide inn fra høyre
+      setIsMenuOpen(true);
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_WIDTH * 0.15, // Slide til 15% fra venstre (85% bredde)
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      // Lukk menu - slide ut til høyre
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_WIDTH,
+        duration: 300,
+        useNativeDriver: false,
+      }).start(() => {
+        setIsMenuOpen(false);
+      });
+    }
+  }, [isMenuOpen, slideAnim]);
 
   const handleCloseMenu = useCallback(() => {
-    setIsMenuOpen(false);
-  }, []);
+    Animated.timing(slideAnim, {
+      toValue: SCREEN_WIDTH,
+      duration: 300,
+      useNativeDriver: false,
+    }).start(() => {
+      setIsMenuOpen(false);
+    });
+  }, [slideAnim]);
 
-  // ✅ Search mode handlers
   const handleToggleSearch = useCallback(() => {
     setIsSearchMode(prev => {
       if (prev) {
-        // Exiting search mode - clear search
         setQuery("");
       }
       return !prev;
@@ -85,9 +108,7 @@ export default function MobileNavbarNative({
   }, [setQuery]);
 
   const handleUserSelect = useCallback((user: UserSummaryDTO) => {
-    // Navigate to user's profile
     navigation.navigate('Profile', { id: user.id.toString() });
-    // Exit search mode
     setIsSearchMode(false);
     setQuery("");
   }, [navigation, setQuery]);
@@ -95,7 +116,7 @@ export default function MobileNavbarNative({
   const handleNavigation = useCallback(
   <T extends keyof RootStackParamList>(screenName: T, params?: RootStackParamList[T]) => {
     handleCloseMenu();
-    (navigation as any).navigate(screenName, params);;
+    (navigation as any).navigate(screenName, params);
   },
   [handleCloseMenu, navigation]
 );
@@ -117,11 +138,10 @@ export default function MobileNavbarNative({
     if (onNavigateToNotifications) {
       onNavigateToNotifications();
     } else {
-      handleNavigation('Notifications');
+      handleNavigation('NotificationScreen');
     }
   }, [onNavigateToNotifications, handleNavigation]);
 
-  // ✅ Render user search result item with MiniAvatarNative (like NewConversationScreen)
   const renderUserItem = ({ item }: { item: UserSummaryDTO }) => (
     <TouchableOpacity
       style={styles.userItem}
@@ -146,7 +166,6 @@ export default function MobileNavbarNative({
         <StatusBar barStyle="light-content" backgroundColor="#1C6B1C" />
         
         {isSearchMode ? (
-          // ✅ Search Mode Layout
           <>
             <View style={styles.searchContainer}>
               <TextInput
@@ -166,16 +185,12 @@ export default function MobileNavbarNative({
             </TouchableOpacity>
           </>
         ) : (
-          // ✅ Normal Mode Layout
           <>
-            {/* Logo */}
             <TouchableOpacity onPress={() => handleNavigation('Home')}>
               <Text style={styles.logo}>Magee.no</Text>
             </TouchableOpacity>
 
-            {/* Right side icons */}
             <View style={styles.rightIcons}>
-              {/* Search Icon - only visible when logged in */}
               {isLoggedIn && (
                 <TouchableOpacity
                   onPress={handleToggleSearch}
@@ -185,7 +200,6 @@ export default function MobileNavbarNative({
                 </TouchableOpacity>
               )}
 
-              {/* Messages Icon - only visible when logged in */}
               {isLoggedIn && (
                 <TouchableOpacity
                   onPress={handleMessagesPress}
@@ -202,7 +216,6 @@ export default function MobileNavbarNative({
                 </TouchableOpacity>
               )}
 
-              {/* Notifications Icon - only visible when logged in */}
               {isLoggedIn && (
                 <TouchableOpacity
                   onPress={handleNotificationsPress}
@@ -219,7 +232,6 @@ export default function MobileNavbarNative({
                 </TouchableOpacity>
               )}
 
-              {/* Menu Button */}
               <TouchableOpacity
                 onPress={handleToggleMenu}
                 style={styles.iconButton}
@@ -235,7 +247,7 @@ export default function MobileNavbarNative({
         )}
       </View>
 
-      {/* ✅ Search Results Dropdown - Updated to match NewConversationScreen style */}
+      {/* Search Results Dropdown */}
       {isSearchMode && query.trim() && (
         <View style={styles.searchResults}>
           {loading ? (
@@ -259,10 +271,10 @@ export default function MobileNavbarNative({
         </View>
       )}
 
-      {/* Slide-out Menu Modal */}
+      {/* Slide-out Menu Modal - Animert fra høyre */}
       <Modal
         visible={isMenuOpen}
-        animationType="slide"
+        animationType="none" // Bruker vår egen animasjon
         transparent={true}
         onRequestClose={handleCloseMenu}
       >
@@ -274,138 +286,139 @@ export default function MobileNavbarNative({
             activeOpacity={1}
           />
           
-          {/* Menu Panel */}
-          <SafeAreaView style={styles.menuPanel}>
-            {/* Menu Header */}
-            <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>Menu</Text>
-              <TouchableOpacity
-                onPress={handleCloseMenu}
-                style={styles.closeButton}
-              >
-                <X size={20} color="white" />
-              </TouchableOpacity>
-            </View>
+          {/* Animert Menu Panel */}
+          <Animated.View 
+            style={[
+              styles.menuPanel,
+              {
+                transform: [{ translateX: slideAnim }]
+              }
+            ]}
+          >
+            <SafeAreaView style={styles.menuContent}>
+              {/* Menu Header */}
+              <View style={styles.menuHeader}>
+                <Text style={styles.menuTitle}>Menu</Text>
+                <TouchableOpacity
+                  onPress={handleCloseMenu}
+                  style={styles.closeButton}
+                >
+                  <X size={20} color="white" />
+                </TouchableOpacity>
+              </View>
 
-            {/* Menu Content */}
-            <ScrollView style={styles.menuContent} showsVerticalScrollIndicator={false}>
-              {isLoggedIn ? (
-                <>
-                  {/* Logged in user - Profile first */}
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (currentUser?.id) {
-                        handleNavigation('Profile', { id: currentUser.id.toString() });
-                      } else {
-                        // Fallback hvis ingen current user
-                        console.warn('No current user found for profile navigation');
-                      }
-                    }}
-                    style={styles.menuItem}
-                  >
-                    <User size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>My Profile</Text>
-                  </TouchableOpacity>
+              {/* Menu Content */}
+              <ScrollView style={styles.menuScrollContent} showsVerticalScrollIndicator={false}>
+                {isLoggedIn ? (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (currentUser?.id) {
+                          handleNavigation('Profile', { id: currentUser.id.toString() });
+                        } else {
+                          console.warn('No current user found for profile navigation');
+                        }
+                      }}
+                      style={styles.menuItem}
+                    >
+                      <User size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>My Profile</Text>
+                    </TouchableOpacity>
 
-                  <View style={styles.separator} />
+                    <View style={styles.separator} />
 
-                  {/* Navigation links */}
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('Home')}
-                    style={styles.menuItem}
-                  >
-                    <Home size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Home</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('Home')}
+                      style={styles.menuItem}
+                    >
+                      <Home size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Home</Text>
+                    </TouchableOpacity>
 
-                  {/* Messages menu item for logged in users */}
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('MessagesScreen')}
-                    style={styles.menuItem}
-                  >
-                    <MessageSquare size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Messages</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('MessagesScreen')}
+                      style={styles.menuItem}
+                    >
+                      <MessageSquare size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Messages</Text>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('FriendScreen')}
-                    style={styles.menuItem}
-                  >
-                    <Users size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Friends</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('FriendScreen')}
+                      style={styles.menuItem}
+                    >
+                      <Users size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Friends</Text>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('TrashcanScreen')}
-                    style={styles.menuItem}
-                  >
-                    <Trash2 size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Trashcan</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('TrashcanScreen')}
+                      style={styles.menuItem}
+                    >
+                      <Trash2 size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Trashcan</Text>
+                    </TouchableOpacity>
 
-                  <View style={styles.separator} />
-                  
-                  {/* Settings */}
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('EditProfile')}
-                    style={styles.menuItem}
-                  >
-                    <User size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Edit Profile</Text>
-                  </TouchableOpacity>
+                    <View style={styles.separator} />
+                    
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('EditProfile')}
+                      style={styles.menuItem}
+                    >
+                      <User size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Edit Profile</Text>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('ProfileSettingsScreen')}
-                    style={styles.menuItem}
-                  >
-                    <Settings size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Settings</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('ProfileSettingsScreen')}
+                      style={styles.menuItem}
+                    >
+                      <Settings size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Settings</Text>
+                    </TouchableOpacity>
 
-                  <View style={styles.separator} />
+                    <View style={styles.separator} />
 
-                  {/* Logout */}
-                  <TouchableOpacity
-                    onPress={handleLogout}
-                    style={[styles.menuItem, styles.logoutItem]}
-                  >
-                    <LogIn size={18} color="white" />
-                    <Text style={styles.logoutText}>Log Out</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  {/* Not logged in - navigation links first */}
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('Home')}
-                    style={styles.menuItem}
-                  >
-                    <Home size={18} color="#374151" />
-                    <Text style={styles.menuItemText}>Home</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleLogout}
+                      style={[styles.menuItem, styles.logoutItem]}
+                    >
+                      <LogIn size={18} color="white" />
+                      <Text style={styles.logoutText}>Log Out</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('Home')}
+                      style={styles.menuItem}
+                    >
+                      <Home size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Home</Text>
+                    </TouchableOpacity>
 
-                  <View style={styles.separator} />
+                    <View style={styles.separator} />
 
-                  {/* Login and signup */}
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('Login')}
-                    style={styles.menuItem}
-                  >
-                    <LogIn size={18} color="#1C6B1C" />
-                    <Text style={styles.loginText}>Log In</Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('Login')}
+                      style={styles.menuItem}
+                    >
+                      <LogIn size={18} color="#1C6B1C" />
+                      <Text style={styles.loginText}>Log In</Text>
+                    </TouchableOpacity>
 
-                  <TouchableOpacity
-                    onPress={() => handleNavigation('Signup')}
-                    style={[styles.menuItem, styles.signupItem]}
-                  >
-                    <User size={18} color="white" />
-                    <Text style={styles.signupText}>Create Account</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
-          </SafeAreaView>
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('Signup')}
+                      style={[styles.menuItem, styles.signupItem]}
+                    >
+                      <User size={18} color="white" />
+                      <Text style={styles.signupText}>Create Account</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </ScrollView>
+            </SafeAreaView>
+          </Animated.View>
         </View>
       </Modal>
     </>
@@ -458,7 +471,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: 'bold',
   },
-  // ✅ Search-related styles
   searchContainer: {
     flex: 1,
     marginRight: 12,
@@ -496,7 +508,6 @@ const styles = StyleSheet.create({
   resultsList: {
     maxHeight: 300,
   },
-  // ✅ Updated user item styles to match NewConversationScreen
   userItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -522,23 +533,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  // Existing modal styles...
+  // Oppdaterte modal styles for høyre-til-venstre slide
   modalOverlay: {
     flex: 1,
-    flexDirection: 'row',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent backdrop
   },
   backdrop: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   menuPanel: {
-    width: 320,
-    maxWidth: '85%',
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: '85%', // Tar 85% av skjermen
+    maxWidth: 320,
     backgroundColor: 'white',
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 8,
+  },
+  menuContent: {
+    flex: 1,
   },
   menuHeader: {
     flexDirection: 'row',
@@ -557,7 +579,7 @@ const styles = StyleSheet.create({
     padding: 4,
     borderRadius: 4,
   },
-  menuContent: {
+  menuScrollContent: {
     flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 16,

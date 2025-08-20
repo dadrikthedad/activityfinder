@@ -1,4 +1,4 @@
-// FriendScreen.tsx - Med blokkering/unblokkering funksjonalitet
+// FriendScreen.tsx - Med søk i FriendInvitations
 import React, { useState, useCallback } from "react";
 import { 
   View, 
@@ -365,11 +365,12 @@ export default function FriendScreen({ navigation }: FriendScreenProps) {
 
   return (
     <View style={styles.container}>
-      {/* Friend Invitations Component */}
+      {/* Friend Invitations Component - Now with separate search field */}
       <FriendInvitations 
         navigation={navigation}
         maxHeight="35%"
         showHeader={true}
+        showSearchField={true}
       />
 
       {/* Friends Header Section */}
@@ -377,7 +378,7 @@ export default function FriendScreen({ navigation }: FriendScreenProps) {
         <Text style={styles.friendsHeaderText}>Friends</Text>
       </View>
 
-      {/* Search Section */}
+      {/* Search Section - Now only for friends */}
       <View style={styles.searchSection}>
         <TextInput
           style={styles.searchInput}
