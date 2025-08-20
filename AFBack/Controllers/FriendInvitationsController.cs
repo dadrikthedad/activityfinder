@@ -445,21 +445,32 @@ public class FriendInvitationsController : BaseController
     [HttpPatch("{id}/accept")]
     public async Task<IActionResult> AcceptInvitation(int id)
     {
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-        {
-            return Unauthorized(new { message = "Invalid user ID in token." });
-        }
-        
-    
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
         var invitation = await _context.FriendInvitations.FindAsync(id);
-        if (invitation == null || invitation.Status != InvitationStatus.Pending)
-            return NotFound("Invitation not found or already handled.");
-    
+        if (invitation == null)
+            return NotFound("Invitation not found.");
+
+        // Sjekk om forespørselen allerede er håndtert
+        if (invitation.Status == InvitationStatus.Accepted)
+            return BadRequest("Friend request has already been accepted.");
+
         // Kun mottaker av en forespørsel kan godta
-        if (invitation.ReceiverId != userId)
+        if (invitation.ReceiverId != userId.Value)
             return Forbid("You are not authorized to accept this invitation.");
         
-        var blockingCheck = await CheckBlockingStatus(userId, invitation.SenderId, "accept");
+        // Sjekk om de allerede er venner
+        var existingFriendship = await _context.Friends
+            .FirstOrDefaultAsync(f => 
+                (f.UserId == userId.Value && f.FriendId == invitation.SenderId) ||
+                (f.UserId == invitation.SenderId && f.FriendId == userId.Value));
+
+        if (existingFriendship != null)
+            return BadRequest("You are already friends with this user.");
+
+        var blockingCheck = await CheckBlockingStatus(userId.Value, invitation.SenderId, "accept");
         if (blockingCheck != null)
         {
             return blockingCheck;
@@ -467,7 +478,7 @@ public class FriendInvitationsController : BaseController
 
         try
         {
-            // Oppdater invitation status
+            // Oppdater invitation status (aksepter både pending og declined)
             invitation.Status = InvitationStatus.Accepted;
 
             // Opprett vennskap
@@ -479,18 +490,22 @@ public class FriendInvitationsController : BaseController
             };
             _context.Friends.Add(friendship);
 
-            // Håndter eksisterende meldingsforespørsel (samme logikk som SendInvitation)
+            // Håndter eksisterende meldingsforespørsel
             var conversationId = await HandleExistingMessageRequest(invitation.SenderId, invitation.ReceiverId);
 
             await _context.SaveChangesAsync();
 
-            // Send notifikasjon og sync events (samme logikk som auto-accept)
-            await SendNotificationAndSyncEvents(invitation, conversationId, invitation.ReceiverId, invitation.SenderId, isAutoAccept: true);
-            
+            // 🆕 Hent brukerdata FØR sync events (med oppdatert relationship status)
+            var friendUserSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                _context, invitation.SenderId, userId.Value);
+
+            // Send notifikasjon og sync events
+            await SendNotificationAndSyncEvents(invitation, conversationId, userId.Value, invitation.SenderId, isAutoAccept: true);
 
             return Ok(new { 
                 message = "Friend request accepted.",
-                conversationId = conversationId
+                conversationId = conversationId,
+                friendUser = friendUserSummary // Den nye vennen
             });
         }
         catch (Exception ex)
