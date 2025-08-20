@@ -575,4 +575,46 @@ public class FriendInvitationsController : BaseController
         });
     }
     
+    [HttpGet("rejected")]
+    public async Task<IActionResult> GetRejectedFriendInvitations()
+    {
+        var userId = GetUserId();
+        if (userId == null)
+            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+
+        // Hent avslåtte venneforespørsler hvor innlogget bruker er mottaker
+        var rejectedInvitations = await _context.FriendInvitations
+            .AsNoTracking()
+            .Where(fi => fi.ReceiverId == userId.Value &&  // <-- Endring her
+                         fi.Status == InvitationStatus.Declined)
+            .OrderByDescending(fi => fi.SentAt)
+            .ToListAsync();
+
+        // Bygg FriendInvitationDTO liste med UserSummary for hver sender
+        var rejectedInvitationsDTO = new List<FriendInvitationDTO>();
+
+        foreach (var invitation in rejectedInvitations)
+        {
+            // Hent UserSummary for senderen med relationship info
+            var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
+                _context, 
+                invitation.SenderId, 
+                userId.Value);
+
+            if (senderSummary != null)
+            {
+                rejectedInvitationsDTO.Add(new FriendInvitationDTO
+                {
+                    Id = invitation.Id,
+                    UserSummary = senderSummary,
+                    ReceiverId = invitation.ReceiverId,
+                    Status = invitation.Status.ToString(),
+                    SentAt = invitation.SentAt
+                });
+            }
+        }
+
+        return Ok(rejectedInvitationsDTO);
+    }
+    
 }

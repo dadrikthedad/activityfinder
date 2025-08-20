@@ -262,7 +262,7 @@ public class SyncService
                 {
                     Id = e.Id,
                     EventType = e.EventType,
-                    EventData = ReserializeEventData(e.EventData), // 👈 Transform her
+                    EventData = ReserializeEventData(e.EventData), // Pass eventType
                     CreatedAt = e.CreatedAt,
                     Source = e.Source,
                     RelatedEntityId = e.RelatedEntityId,
@@ -294,21 +294,18 @@ public class SyncService
     {
         if (string.IsNullOrEmpty(eventData))
             return eventData;
-        
+    
         try
         {
-            // Parse the JSON string back to object
-            var jsonObject = JsonSerializer.Deserialize<object>(eventData);
-        
-            // Re-serialize with camelCase
-            return JsonSerializer.Serialize(jsonObject, new JsonSerializerOptions
+            using var document = JsonDocument.Parse(eventData);
+            return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             });
         }
         catch
         {
-            return eventData; // Return original if parsing fails
+            return eventData;
         }
     }
     
