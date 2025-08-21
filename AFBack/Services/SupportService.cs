@@ -10,14 +10,18 @@ namespace AFBack.Services;
 public class SupportService
     {
         private readonly ApplicationDbContext _context;
-        
-        public SupportService(ApplicationDbContext context)
+        private readonly ILogger<SupportService> _logger; // Legg til denne
+    
+        public SupportService(ApplicationDbContext context, ILogger<SupportService> logger) // Legg til logger parameter
         {
             _context = context;
+            _logger = logger; // Legg til denne
         }
 
         public async Task<Guid> CreateReportAsync(ReportRequestDTO request, int? submittedByUserId)
         {
+            _logger.LogInformation("UPLATT - CreateReportAsync received UserId: {UserId}", submittedByUserId);
+
             var report = new Report
             {
                 Id = Guid.NewGuid(),
@@ -39,6 +43,9 @@ public class SupportService
 
             _context.Reports.Add(report);
             await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("UPLATT - Report saved with SubmittedByUserId: {SubmittedByUserId}", report.SubmittedByUserId);
+            
 
             return report.Id;
         }

@@ -25,14 +25,17 @@ public class SupportController : BaseController
     public async Task<IActionResult> SubmitReport([FromBody] ReportRequestDTO request)
     {
         if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            return BadRequest(ModelState);
 
         try
         {
-            // Bruk hjelpefunksjonen - returnerer null hvis ikke innlogget
             var userId = GetUserId();
+            _logger.LogInformation("UPLATT - Creating report - GetUserId returned: {UserId}", userId);
+        
             var reportId = await _supportService.CreateReportAsync(request, userId);
-                
+        
+            _logger.LogInformation("UPLATT - Report created with ID: {ReportId}, passed UserId: {UserId}", reportId, userId);
+        
             return Ok(new { 
                 ReportId = reportId, 
                 Message = "Report submitted successfully",
@@ -41,7 +44,6 @@ public class SupportController : BaseController
         }
         catch (Exception ex)
         {
-            // TODO: Log exception properly
             return StatusCode(500, new { Message = "An error occurred while processing your report" });
         }
     }
