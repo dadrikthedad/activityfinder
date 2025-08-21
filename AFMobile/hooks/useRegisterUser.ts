@@ -1,6 +1,6 @@
 // Denne brukes for å sende en ny bruker som API til backend etter opprettelse
 import { useState } from "react";
-import { RegisterUserPayload, registerUserAPI } from "@/services/user/user";
+import { RegisterUserPayload, registerUserAPI } from "@/services/user/signUpService";
 import { FormDataType } from "@shared/types/form";
 
 interface UseRegisterUserProps {

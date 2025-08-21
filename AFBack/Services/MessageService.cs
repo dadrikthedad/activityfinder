@@ -99,7 +99,7 @@ public class MessageService : IMessageService
                     .Select(p => new { p.UserId, p.HasDeleted })
                     .ToListAsync();
 
-                var blockedRelations = await _context.UserBlock
+                var blockedRelations = await _context.UserBlocks
                     .AsNoTracking() // 🆕 Glem ikke AsNoTracking
                     .Where(ub =>
                         (ub.BlockerId == senderId && ub.BlockedUserId == receiverId.Value) ||

@@ -9,12 +9,13 @@ import { Trash2 } from 'lucide-react-native';
 import { useGetDeletedConversations } from '@/hooks/messages/useGetDeletedConversations';
 import { useGetRejectedConversations } from '@/hooks/messages/useGetRejectedConversations';
 import { useGetRejectedFriendInvitations } from '@/hooks/friends/useGetRejectedFriendInvitations';
-import { useUserCacheStore, useBlockedUsers } from '@/store/useUserCacheStore';
+import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useAuth } from '@/context/AuthContext';
 import BlockedUsersSection from '@/components/trashcan/BlockedUsersSection';
 import DeletedConversationsSection from '@/components/trashcan/DeletedConversationsSection';
 import RejectedConversationsSection from '@/components/trashcan/RejectedConversationsSection';
 import RejectedFriendInvitationsSection from '@/components/trashcan/RejectedFriendInvitationsSection';
+import { showNotificationToastNative, LocalToastType } from '@/components/toast/NotificationToastNative';
 
 interface TrashcanScreenProps {
   navigation: any;
@@ -22,8 +23,6 @@ interface TrashcanScreenProps {
 
 export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
   const [deletedGroupRequestMessage, setDeletedGroupRequestMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const { 
     deletedConversations, 
@@ -54,15 +53,13 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
 
   const { userId: currentUserId } = useAuth();
 
-  // ✅ Shared message handlers
-  const showSuccessMessage = useCallback((message: string) => {
-    setSuccessMessage(message);
-    setTimeout(() => setSuccessMessage(null), 3000);
-  }, []);
-
-  const showErrorMessage = useCallback((message: string) => {
-    setErrorMessage(message);
-    setTimeout(() => setErrorMessage(null), 5000);
+  const showErrorToast = useCallback((message: string) => {
+    showNotificationToastNative({
+      type: LocalToastType.CustomSystemNotice,
+      customTitle: "Error",
+      customBody: message,
+      position: 'top'
+    });
   }, []);
 
   const handleDeletedGroupRequestMessage = useCallback((message: string) => {
@@ -98,23 +95,6 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Success Message */}
-        {(deletedGroupRequestMessage || successMessage) && (
-          <View style={styles.successMessage}>
-            <View style={styles.successIndicator} />
-            <Text style={styles.successText}>
-              {deletedGroupRequestMessage || successMessage}
-            </Text>
-          </View>
-        )}
-
-        {/* Error Message */}
-        {errorMessage && (
-          <View style={styles.errorMessage}>
-            <View style={styles.errorIndicator} />
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        )}
 
         {/* Show empty state if all sections are empty */}
         {isCompletelyEmpty ? (
@@ -133,8 +113,7 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
             <BlockedUsersSection
               blockedUsers={blockedUsers}
               navigation={navigation}
-              onSuccess={showSuccessMessage}
-              onError={showErrorMessage}
+              onError={showErrorToast}
             />
 
             {/* ✅ Rejected Friend Invitations Section */}
@@ -143,8 +122,7 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
               isLoading={rejectedInvitationsLoading}
               error={rejectedInvitationsError}
               navigation={navigation}
-              onSuccess={showSuccessMessage}
-              onError={showErrorMessage}
+              onError={showErrorToast}
               onRefetch={refetchRejectedInvitations}
             />
 
@@ -155,8 +133,7 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
               error={deletedError}
               currentUserId={currentUserId ?? undefined}
               navigation={navigation}
-              onSuccess={showSuccessMessage}
-              onError={showErrorMessage}
+              onError={showErrorToast}
               onRefetch={refetchDeleted}
             />
             
@@ -168,8 +145,7 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
               deleteError={null} // You might need to get this from useDeleteGroupRequest
               currentUserId={currentUserId ?? undefined}
               navigation={navigation}
-              onSuccess={showSuccessMessage}
-              onError={showErrorMessage}
+              onError={showErrorToast}
               onRefetch={refetchRejected}
               onDeletedGroupRequestMessage={handleDeletedGroupRequestMessage}
             />
@@ -189,49 +165,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 20,
-  },
-  successMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  successIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
-    marginRight: 8,
-  },
-  successText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#047857',
-  },
-  errorMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  errorIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#DC2626',
-    marginRight: 8,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#DC2626',
   },
   emptyTrashcanContainer: {
     flex: 1,

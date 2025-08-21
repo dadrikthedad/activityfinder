@@ -277,6 +277,7 @@ export default function PublicProfileViewNative({
                     isFriend={isFriend ?? false}
                     userId={profile.userId}
                     onRemoveFriend={handleRemove}
+                    userName={profile.fullName}
                   />
                 </View>
               </>

@@ -1,5 +1,5 @@
 // screens/auth/SignupScreen.tsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,89 +8,170 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import FormFieldNative from "@/components/common/FormFieldNative";
-import PasswordFieldNative from "@/components/common/PasswordFieldNative";
+
+// Components
 import ButtonNative from "@/components/common/buttons/ButtonNative";
 
-// Type for navigation
-type NavigationProps = {
-  navigate: (screen: string) => void;
-  goBack: () => void;
-};
+// Native field components
+import SignUpNameFieldsNative from "@/components/signup/SignUpNameFieldsNative";
+import SignUpContactFieldsNative from "@/components/signup/SignUpContactFieldsNative";
+import SignUpPasswordFieldsNative from "@/components/signup/SignUpPasswordFieldsNative";
+import SignUpLocationFieldsNative from "@/components/signup/SignUpLocationFieldsNative";
+import SignUpDemoFieldsNative from "@/components/signup/SignUpDemoFieldsNative";
+import SignUpPasswordSimpleFieldNative from "@/components/signup/SignUpPasswordSimpleFieldNative";
+
+// Hooks and utilities
+import { useFormHandlers } from "@/hooks/useFormHandlers";
+import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
+import { useRegisterUser } from "@/hooks/useRegisterUser";
+import { checkEmailAvailability } from "@/services/user/signUpService";
+import { handleSubmitNative } from "@/utils/form/handleSubmitNative";
+import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
+
+// Types
+import { SignupScreenNavigationProp } from "@/types/navigation";
 
 export default function SignupScreen() {
-  const navigation = useNavigation<NavigationProps>();
-  const [formData, setFormData] = React.useState({
-    name: "",
+  const navigation = useNavigation<SignupScreenNavigationProp>();
+  
+  const {
+    formData,
+    errors,
+    setErrors,
+    touchedFields,
+    setTouchedFields,
+    handleChange,
+    handleBlur,
+    validateAllFields,
+    message,
+    setMessage,
+    setFormData,
+  } = useFormHandlers({
+    firstName: "",
+    middleName: "",
+    lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
+    phone: "",
+    dateOfBirth: "",
+    country: "",
+    region: "",
+    postalCode: "",
+    gender: "",
   });
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [errors, setErrors] = React.useState<{[key: string]: string}>({});
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: "" }));
-    }
-  };
+  const [isRegistered, setIsRegistered] = useState(false);
 
-  const validateForm = (): boolean => {
-    const newErrors: {[key: string]: string} = {};
+  const {
+    countries,
+    regions,
+    countryCodes,
+    fetchRegionsForCountry,
+  } = useCountryAndRegion({
+    country: formData.country,
+    setFormData,
+    editing: true,
+  });
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Name is required";
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email address";
-    }
-
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Password must be at least 6 characters";
-    }
-
-    if (!formData.confirmPassword) {
-      newErrors.confirmPassword = "Please confirm your password";
-    } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSignup = async () => {
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
-    try {
-      // TODO: Implement signup logic with your API
-      console.log("Signup data:", formData);
+  // Hook for å registrere bruker
+  const { registerUser, isSubmitting } = useRegisterUser({
+    formData,
+    countryCodes,
+    setFormData,
+    setErrors,
+    setMessage,
+    onSuccess: () => {
+      // Show success toast
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Registration Successful!",
+        customBody: "Your account has been created successfully. Redirecting to login...",
+        position: 'top'
+      });
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Navigate to login or home based on your flow
-      navigation.navigate('Login');
-    } catch (error) {
-      console.error("Signup error:", error);
-    } finally {
-      setIsSubmitting(false);
+      // Set registered state after a short delay
+      setTimeout(() => {
+        setIsRegistered(true);
+      }, 1500);
+    },
+  });
+
+  // Show error as toast if there's an error message
+  useEffect(() => {
+    if (message) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Registration Error",
+        customBody: message,
+        position: 'top'
+      });
     }
+  }, [message]);
+
+  // Show general errors as toast
+  useEffect(() => {
+    if (errors["general"]) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: errors["general"],
+        position: 'top'
+      });
+    }
+  }, [errors]);
+
+  // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
+  const handleAttemptSubmit = () => {
+    handleSubmitNative({
+      formData,
+      setTouchedFields,
+      validateAllFields,
+      setErrors,
+      setMessage,
+      onSubmit: registerUser,
+      extraValidation: async () => {
+        const errors: Record<string, string> = {};
+        if (!formData.email) return errors; // skip API call
+
+        const normalizedEmail = formData.email.trim().toLowerCase();
+        const emailAvailable = await checkEmailAvailability(normalizedEmail);
+        if (!emailAvailable) {
+          errors.email = "An account with this email already exists.";
+        }
+        return errors;
+      },
+    });
   };
+
+  // Debug errors
+  useEffect(() => {
+    console.log("Akkurat nå, errors:", errors);
+  }, [errors]);
+
+  // Redirect til login etter registrering
+  useEffect(() => {
+    if (isRegistered) {
+      setTimeout(() => {
+        navigation.navigate('Login');
+      }, 500); // Shorter delay since we already showed the toast
+    }
+  }, [isRegistered, navigation]);
 
   const navigateToLogin = () => {
     navigation.navigate('Login');
+  };
+
+  const handleCountryChange = async (selectedCountry: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      country: selectedCountry,
+      region: "", // Reset region when country changes
+    }));
+
+    await fetchRegionsForCountry(selectedCountry);
   };
 
   return (
@@ -106,84 +187,87 @@ export default function SignupScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join ActivityFinder today</Text>
+            <Text style={styles.title}>Register</Text>
+            <Text style={styles.subtitle}>Create a new user.</Text>
           </View>
 
-          {/* Form */}
-          <View style={styles.form}>
-            <FormFieldNative
-              id="name"
-              label="Full Name"
-              value={formData.name}
-              onChangeText={(text) => handleInputChange('name', text)}
-              placeholder="Your full name"
-              disabled={isSubmitting}
-              error={errors.name}
-              touched={!!errors.name}
-              autoCapitalize="words"
+          {/* Form Grid Container */}
+          <View style={styles.formContainer}>
+            
+            {/* Name Fields */}
+            <SignUpNameFieldsNative
+              formData={formData}
+              handleChange={handleChange}
+              handleBlur={handleBlur}
+              errors={errors}
+              touchedFields={touchedFields}
             />
 
-            <FormFieldNative
-              id="email"
-              label="Email"
-              type="email"
-              value={formData.email}
-              onChangeText={(text) => handleInputChange('email', text)}
-              placeholder="Your email address"
-              disabled={isSubmitting}
-              error={errors.email}
-              touched={!!errors.email}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="email-address"
+            {/* Contact Fields */}
+            <SignUpContactFieldsNative
+              formData={formData}
+              handleChange={handleChange}
+              handleBlur={handleBlur}
+              errors={errors}
+              touchedFields={touchedFields}
             />
 
-            <PasswordFieldNative
-              id="password"
-              label="Password"
-              value={formData.password}
-              onChangeText={(text) => handleInputChange('password', text)}
-              placeholder="Create a password"
-              disabled={isSubmitting}
-              error={errors.password}
-              touched={!!errors.password}
+            {/* Password Fields */}
+            <SignUpPasswordSimpleFieldNative
+              formData={formData}
+              handleChange={handleChange}
+              handleBlur={handleBlur}
+              errors={errors}
+              touchedFields={touchedFields}
             />
 
-            <PasswordFieldNative
-              id="confirmPassword"
-              label="Confirm Password"
-              value={formData.confirmPassword}
-              onChangeText={(text) => handleInputChange('confirmPassword', text)}
-              placeholder="Confirm your password"
-              disabled={isSubmitting}
-              error={errors.confirmPassword}
-              touched={!!errors.confirmPassword}
+            {/* Location Fields */}
+            <SignUpLocationFieldsNative
+              formData={formData}
+              handleChange={handleChange}
+              handleBlur={handleBlur}
+              errors={errors}
+              touchedFields={touchedFields}
+              countries={countries}
+              regions={regions}
+              handleCountryChange={handleCountryChange}
             />
 
-            <ButtonNative
-              text="Create Account"
-              loadingText="Creating account..."
-              onPress={handleSignup}
-              loading={isSubmitting}
-              disabled={isSubmitting}
-              variant="primary"
-              size="large"
-              fullWidth
-              style={styles.signupButton}
+            {/* Demo Fields (Birthday & Postal) */}
+            <SignUpDemoFieldsNative
+              formData={formData}
+              handleChange={handleChange}
+              handleBlur={handleBlur}
+              errors={errors}
+              touchedFields={touchedFields}
             />
-          </View>
 
-          {/* Footer */}
-          <View style={styles.footer}>
-            <View style={styles.footerTextContainer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <TouchableOpacity 
-                onPress={navigateToLogin}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.linkText}>Login here!</Text>
-              </TouchableOpacity>
+            {/* Sign Up Button */}
+            <View style={styles.buttonContainer}>
+              <ButtonNative
+                text="Sign up"
+                loadingText="Submitting..."
+                onPress={handleAttemptSubmit}
+                loading={isSubmitting}
+                disabled={isSubmitting}
+                variant="primary"
+                size="large"
+                fullWidth
+                style={styles.signupButton}
+              />
+
+              {/* Login Navigation Button */}
+              <View style={styles.loginContainer}>
+                <Text style={styles.footerText}>Already have an account? </Text>
+                <ButtonNative
+                  text="Login here!"
+                  onPress={navigateToLogin}
+                  variant="ghost"
+                  size="medium"
+                  disabled={isSubmitting}
+                  textStyle={styles.loginButtonText}
+                />
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -221,31 +305,30 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
   },
-  form: {
+  formContainer: {
     flex: 1,
     maxWidth: 400,
     alignSelf: "center",
     width: "100%",
   },
-  signupButton: {
+  buttonContainer: {
     marginTop: 24,
-  },
-  footer: {
     alignItems: "center",
-    marginTop: 32,
+  },
+  signupButton: {
     marginBottom: 16,
   },
-  footerTextContainer: {
+  loginContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
   footerText: {
     fontSize: 14,
     color: "#6b7280",
   },
-  linkText: {
-    color: "#1C6B1C",
-    fontWeight: "600",
+  loginButtonText: {
     fontSize: 14,
+    fontWeight: "600",
   },
 });

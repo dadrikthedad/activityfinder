@@ -13,6 +13,7 @@ import { useRestoreConversation } from '@/hooks/messages/useRestoreConversation'
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
 import SearchInput from './SearchInput';
+import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
 
 interface DeletedConversationsSectionProps {
   deletedConversations: any[];
@@ -20,7 +21,6 @@ interface DeletedConversationsSectionProps {
   error: string | null;
   currentUserId?: number;
   navigation: any;
-  onSuccess: (message: string) => void;
   onError: (message: string) => void;
   onRefetch: () => void;
 }
@@ -31,7 +31,6 @@ export default function DeletedConversationsSection({
   error,
   currentUserId,
   navigation,
-  onSuccess,
   onError,
   onRefetch,
 }: DeletedConversationsSectionProps) {
@@ -66,23 +65,30 @@ export default function DeletedConversationsSection({
     });
   }, [deletedConversations, searchText, getOtherParticipant, currentUserId]);
 
-  const handleRestore = useCallback(async (conversationId: number) => {
-    const confirmed = await confirm({
-      title: 'Restore Conversation',
-      message: 'Are you sure you want to restore this conversation?'
-    });
+  const handleRestore = useCallback(async (conversationId: number, conversation: any) => {
+  const confirmed = await confirm({
+    title: 'Restore Conversation',
+    message: 'Are you sure you want to restore this conversation?'
+  });
 
-    if (confirmed) {
-      try {
-        await restoreConversationMutation(conversationId);
-        await onRefetch();
-        onSuccess('Conversation restored!');
-      } catch (error) {
-        console.error('❌ Could not restore conversation:', error);
-        onError('Could not restore conversation');
-      }
+  if (confirmed) {
+    try {
+      await restoreConversationMutation(conversationId);
+      await onRefetch();
+      
+      const otherParticipant = getOtherParticipant(conversation.participants, currentUserId);
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Conversation Restored",
+        customBody: `You can now message ${otherParticipant?.fullName || 'this user'} again!`,
+        position: 'top'
+      });
+    } catch (error) {
+      console.error('❌ Could not restore conversation:', error);
+      onError('Could not restore conversation');
     }
-  }, [confirm, restoreConversationMutation, onRefetch, onSuccess, onError]);
+  }
+}, [confirm, restoreConversationMutation, onRefetch, onError, getOtherParticipant, currentUserId]);
 
   const renderConversationItem = useCallback((conversation: any) => {
     const otherParticipant = getOtherParticipant(
@@ -120,7 +126,7 @@ export default function DeletedConversationsSection({
         
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            onPress={() => handleRestore(conversation.id)}
+            onPress={() => handleRestore(conversation.id, conversation)}
             disabled={isRestoring}
             style={[styles.button, styles.actionButton]}
           >

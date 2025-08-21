@@ -13,18 +13,17 @@ import { useUnblockUser } from '@/hooks/block/useUnblockUser';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import ClickableAvatarNative from '@/components/common/ClickableAvatarNative';
 import SearchInput from './SearchInput';
+import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
 
 interface BlockedUsersSectionProps {
   blockedUsers: UserSummaryDTO[];
   navigation: any;
-  onSuccess: (message: string) => void;
   onError: (message: string) => void;
 }
 
 export default function BlockedUsersSection({
   blockedUsers,
   navigation,
-  onSuccess,
   onError,
 }: BlockedUsersSectionProps) {
   const [searchText, setSearchText] = useState('');
@@ -51,14 +50,19 @@ export default function BlockedUsersSection({
         const result = await unblockUser(userId);
         
         if (result) {
-          onSuccess(`${userName} has been unblocked!`);
+          showNotificationToastNative({
+            type: LocalToastType.CustomSystemNotice,
+            customTitle: "User Unblocked",
+            customBody: `${userName} can now contact you again`,
+            position: 'top'
+          });
         }
       } catch (error) {
         console.error('❌ Could not unblock user:', error);
         onError('Could not unblock user');
       }
     }
-  }, [confirm, unblockUser, onSuccess, onError]);
+  }, [confirm, unblockUser, onError]);
 
   const renderBlockedUserItem = useCallback((user: UserSummaryDTO) => {
     return (

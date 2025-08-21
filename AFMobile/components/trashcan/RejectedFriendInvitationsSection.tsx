@@ -20,7 +20,6 @@ interface RejectedFriendInvitationsSectionProps {
   isLoading: boolean;
   error: string | null;
   navigation: any;
-  onSuccess: (message: string) => void;
   onError: (message: string) => void;
   onRefetch: () => void;
 }
@@ -30,7 +29,6 @@ export default function RejectedFriendInvitationsSection({
   isLoading,
   error,
   navigation,
-  onSuccess,
   onError,
   onRefetch,
 }: RejectedFriendInvitationsSectionProps) {
@@ -78,7 +76,7 @@ export default function RejectedFriendInvitationsSection({
         onError('Could not accept friend request');
       }
     }
-  }, [confirm, handleResponse, onSuccess, onError, onRefetch]);
+  }, [confirm, handleResponse, onError, onRefetch]);
 
   const renderRejectedInvitationItem = useCallback((invitation: FriendInvitationDTO) => {
     const isHandling = handlingId === invitation.id;

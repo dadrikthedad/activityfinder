@@ -1,6 +1,9 @@
+// components/signup/ContactFieldsNative.tsx
 // Epost og phone i signup
-import FormField from "@/components/FormField";
-import { FieldName } from "@/utils/validators";
+import React from "react";
+import { View, StyleSheet } from "react-native";
+import SignUpFormFieldNative from "./SignUpFormFieldNative";
+import { FieldName } from "@shared/utils/validators";
 import { FormDataType } from "@shared/types/form";
 
 interface Props {
@@ -11,7 +14,7 @@ interface Props {
   touchedFields: Partial<Record<FieldName, boolean>>;
 }
 
-export default function ContactFields({
+export default function SignUpContactFieldsNative({
   formData,
   handleChange,
   handleBlur,
@@ -19,34 +22,44 @@ export default function ContactFields({
   touchedFields,
 }: Props) {
   return (
-    <>
-      {/* 🔥 E-POST */}
-      <FormField
+    <View style={styles.container}>
+      {/* Email Field */}
+      <SignUpFormFieldNative
         id="email"
-        label="Email:"
+        label="Email"
         type="email"
         value={formData.email}
-        onChange={(e) => handleChange("email", e.target.value)}
+        onChangeText={(value) => handleChange("email", value)}
         onBlur={() => handleBlur("email")}
         error={errors.email}
         touched={touchedFields.email}
-        placeholder="Email"
+        placeholder="Your email address"
         tooltip="Required: Email. Only one user per email. Max characters: 100."
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
       />
 
-      {/* 🔥 Phone */}
-      <FormField
+      {/* Phone Field */}
+      <SignUpFormFieldNative
         id="phone"
-        label="Phonenumber (not required):"
+        label="Phone Number (optional)"
         type="tel"
         value={formData.phone ?? ""}
-        onChange={(e) => handleChange("phone", e.target.value)}
+        onChangeText={(value) => handleChange("phone", value)}
         onBlur={() => handleBlur("phone")}
         error={errors.phone}
         touched={touchedFields.phone}
-        placeholder="Phonenumber"
+        placeholder="Your phone number"
         tooltip="Not required: Must be a valid phonenumber. Might be used for verification later."
+        keyboardType="phone-pad"
       />
-    </>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    gap: 16, // Space between fields
+  },
+});

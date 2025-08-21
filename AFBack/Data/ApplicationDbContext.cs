@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using AFBack.Constants;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 namespace AFBack.Data;
@@ -34,13 +35,15 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<GroupEventAffectedUser> GroupEventAffectedUsers { get; set; }
     
-    public DbSet<UserBlocks> UserBlock { get; set; }
+    public DbSet<UserBlocks> UserBlocks { get; set; }
     
     public DbSet<CanSend> CanSend { get; set; }
     
     public DbSet<UserOnlineStatus> UserOnlineStatuses { get; set; }
     
     public DbSet<SyncEvent> SyncEvents { get; set; }
+    
+    public DbSet<Report> Reports { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -590,6 +593,89 @@ public class ApplicationDbContext : DbContext
                 .HasDatabaseName("IX_SyncEvent_RelatedEntity")
                 .HasFilter("\"RelatedEntityId\" IS NOT NULL"); // Conditional index
             
+        });
+        
+        modelBuilder.Entity<Report>(entity =>
+        {
+            // Primary key
+            entity.HasKey(r => r.Id);
+            
+            // Required fields
+            entity.Property(r => r.Type)
+                .IsRequired()
+                .HasConversion<int>(); // Lagrer enum som int
+                
+            entity.Property(r => r.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+                
+            entity.Property(r => r.Description)
+                .IsRequired()
+                .HasMaxLength(5000);
+                
+            entity.Property(r => r.SubmittedAt)
+                .IsRequired()
+                .HasDefaultValueSql("NOW()"); // PostgreSQL
+                
+            entity.Property(r => r.Priority)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(PriorityEnum.Medium);
+                
+            entity.Property(r => r.Status)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(ReportStatusEnum.Open);
+                
+            // Optional fields with max lengths
+            entity.Property(r => r.ReportedUserId)
+                .HasMaxLength(50);
+                
+            entity.Property(r => r.StepsToReproduce)
+                .HasMaxLength(2000);
+                
+            entity.Property(r => r.ExpectedBehavior)
+                .HasMaxLength(1000);
+                
+            entity.Property(r => r.ActualBehavior)
+                .HasMaxLength(1000);
+                
+            entity.Property(r => r.UserAgent)
+                .HasMaxLength(500);
+                
+            entity.Property(r => r.BrowserVersion)
+                .HasMaxLength(100);
+                
+            entity.Property(r => r.DeviceInfo)
+                .HasMaxLength(200);
+                
+            entity.Property(r => r.AssignedTo)
+                .HasMaxLength(100);
+                
+            entity.Property(r => r.Resolution)
+                .HasMaxLength(2000);
+                
+            entity.Property(r => r.AttachmentsJson)
+                .HasColumnType("text"); // PostgreSQL for JSON data
+                
+            // Indexes for performance
+            entity.HasIndex(r => r.Type)
+                .HasDatabaseName("IX_Report_Type");
+                
+            entity.HasIndex(r => r.Status)
+                .HasDatabaseName("IX_Report_Status");
+                
+            entity.HasIndex(r => r.SubmittedByUserId)
+                .HasDatabaseName("IX_Report_SubmittedByUserId");
+                
+            entity.HasIndex(r => r.SubmittedAt)
+                .HasDatabaseName("IX_Report_SubmittedAt");
+                
+            entity.HasIndex(r => new { r.Type, r.Status })
+                .HasDatabaseName("IX_Report_Type_Status");
+                
+            // Table name
+            entity.ToTable("Reports");
         });
 
 

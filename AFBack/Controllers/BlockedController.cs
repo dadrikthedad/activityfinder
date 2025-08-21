@@ -60,7 +60,7 @@ public class BlockedController : BaseController
          }
 
          // Sjekk om blokkeringen allerede eksisterer
-         var existingBlock = await _context.UserBlock
+         var existingBlock = await _context.UserBlocks
              .FirstOrDefaultAsync(ub => ub.BlockerId == currentUserId && ub.BlockedUserId == userId);
 
          if (existingBlock != null)
@@ -88,7 +88,7 @@ public class BlockedController : BaseController
              BlockedAt = DateTime.UtcNow
          };
 
-         _context.UserBlock.Add(userBlock);
+         _context.UserBlocks.Add(userBlock);
 
          // ✅ Fjern CanSend for begge brukere hvis 1-til-1 samtale eksisterer
          if (oneToOneConversation != null)
@@ -165,7 +165,7 @@ public class BlockedController : BaseController
         }
 
         // Finn eksisterende blokkering
-        var existingBlock = await _context.UserBlock
+        var existingBlock = await _context.UserBlocks
             .FirstOrDefaultAsync(ub => ub.BlockerId == currentUserId && ub.BlockedUserId == userId);
 
         if (existingBlock == null)
@@ -197,7 +197,7 @@ public class BlockedController : BaseController
                             .Contains(userId))
             .FirstOrDefaultAsync();
 
-        _context.UserBlock.Remove(existingBlock);
+        _context.UserBlocks.Remove(existingBlock);
 
         // Gjenopprett CanSend hvis forholdene tillater det
         if (oneToOneConversation != null && (areFriends || hasApprovedMessageRequest))

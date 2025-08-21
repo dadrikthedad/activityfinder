@@ -356,7 +356,7 @@ namespace AFBack.Services
                 .ToListAsync();
 
             // Get all blocked user relationships (bidirectional)
-            var blockRelationships = await context.UserBlock
+            var blockRelationships = await context.UserBlocks
                 .Where(b => b.BlockerId == userId || b.BlockedUserId == userId)
                 .Select(b => new { 
                     UserId = b.BlockerId == userId ? b.BlockedUserId : b.BlockerId,

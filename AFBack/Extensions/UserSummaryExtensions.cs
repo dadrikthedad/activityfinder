@@ -35,7 +35,7 @@ public static class UserSummaryExtensions
                            (f.UserId == targetUserId && f.FriendId == currentUserId));
 
         // Sjekk block relationships
-        var blockRelationships = await context.UserBlock
+        var blockRelationships = await context.UserBlocks
             .Where(b => (b.BlockerId == currentUserId && b.BlockedUserId == targetUserId) ||
                         (b.BlockerId == targetUserId && b.BlockedUserId == currentUserId))
             .Select(b => new { b.BlockerId, b.BlockedUserId })
@@ -73,7 +73,7 @@ public static class UserSummaryExtensions
                            (f.UserId == targetUserId && f.FriendId == currentUserId));
 
         // Sjekk block relationships (mer detaljert enn bootstrap)
-        var blockRelationships = await context.UserBlock
+        var blockRelationships = await context.UserBlocks
             .Where(b => (b.BlockerId == currentUserId && b.BlockedUserId == targetUserId) ||
                         (b.BlockerId == targetUserId && b.BlockedUserId == currentUserId))
             .Select(b => new { b.BlockerId, b.BlockedUserId })
@@ -119,7 +119,7 @@ public static class UserSummaryExtensions
                     .ToListAsync();
 
                 // Hent brukere som har blokkert denne brukeren
-                var blockerIds = await context.UserBlock
+                var blockerIds = await context.UserBlocks
                     .Where(ub => ub.BlockedUserId == userId)
                     .Select(ub => ub.BlockerId)
                     .ToListAsync();

@@ -144,7 +144,7 @@ public class GroupConversationController : BaseController
     
     private async Task<List<string>> CheckBlockedUsersAsyncOptimized(int senderId, List<int> recipientIds)
     {
-        var blockedUserNames = await _context.UserBlock
+        var blockedUserNames = await _context.UserBlocks
             .AsNoTracking()
             .Where(ub => recipientIds.Contains(ub.BlockerId) && 
                          ub.BlockedUserId == senderId)

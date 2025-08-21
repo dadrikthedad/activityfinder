@@ -14,6 +14,7 @@ import { useDeleteGroupRequest } from '@/hooks/messages/useDeleteGroupRequest';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
 import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
 import SearchInput from './SearchInput';
+import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
 
 interface RejectedConversationsSectionProps {
   rejectedConversations: any[];
@@ -22,7 +23,6 @@ interface RejectedConversationsSectionProps {
   deleteError: string | null;
   currentUserId?: number;
   navigation: any;
-  onSuccess: (message: string) => void;
   onError: (message: string) => void;
   onRefetch: () => void;
   onDeletedGroupRequestMessage: (message: string) => void;
@@ -35,7 +35,6 @@ export default function RejectedConversationsSection({
   deleteError,
   currentUserId,
   navigation,
-  onSuccess,
   onError,
   onRefetch,
   onDeletedGroupRequestMessage,
@@ -72,7 +71,7 @@ export default function RejectedConversationsSection({
     });
   }, [rejectedConversations, searchText, getOtherParticipant, currentUserId]);
 
-  const handleApprove = useCallback(async (conversationId: number) => {
+  const handleApprove = useCallback(async (conversationId: number, conversation: any) => {
     const confirmed = await confirm({
       title: 'Approve Conversation',
       message: 'Are you sure you want to approve this conversation?'
@@ -82,15 +81,22 @@ export default function RejectedConversationsSection({
       try {
         await approve(conversationId);
         await onRefetch();
-        onSuccess('Conversation approved!');
+        
+        const otherParticipant = getOtherParticipant(conversation.participants, currentUserId);
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Conversation Approved",
+          customBody: `You can now message ${otherParticipant?.fullName || 'this user'}!`,
+          position: 'top'
+        }); 
       } catch (error) {
         console.error('❌ Could not approve conversation:', error);
         onError('Could not approve conversation');
       }
     }
-  }, [confirm, approve, onRefetch, onSuccess, onError]);
+  }, [confirm, approve, onRefetch, onError, getOtherParticipant, currentUserId]);
 
-  const handleDeleteGroupRequest = useCallback(async (conversationId: number) => {
+  const handleDeleteGroupRequest = useCallback(async (conversationId: number, conversation: any) => {
     const confirmed = await confirm({
       title: 'Confirm deletion',
       message: 'Are you sure you want to delete this group request?'
@@ -101,17 +107,23 @@ export default function RejectedConversationsSection({
         const result = await deleteRequest(conversationId);
         await onRefetch();
         
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Group Request Deleted",
+          customBody: `Request for "${conversation.groupName || 'group'}" has been removed`,
+          position: 'top'
+        });
+        
         if (result?.message) {
           onDeletedGroupRequestMessage(result.message);
         }
         
-        onSuccess(result?.message || 'Group request deleted');
       } catch (error) {
         console.error('❌ Could not delete group request:', error);
         onError('Could not delete group request');
       }
     }
-  }, [confirm, deleteRequest, onRefetch, onSuccess, onError, onDeletedGroupRequestMessage]);
+  }, [confirm, deleteRequest, onRefetch, onError, onDeletedGroupRequestMessage]);
 
   const renderConversationItem = useCallback((conversation: any) => {
     const otherParticipant = getOtherParticipant(
@@ -150,7 +162,7 @@ export default function RejectedConversationsSection({
         <View style={styles.actionButtons}>
           {isGroup ? (
             <TouchableOpacity
-              onPress={() => handleDeleteGroupRequest(conversation.id)}
+              onPress={() => handleDeleteGroupRequest(conversation.id, conversation)}
               disabled={isDeletingGroupRequest}
               style={[styles.button, styles.actionButton]}
             >
@@ -165,7 +177,7 @@ export default function RejectedConversationsSection({
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              onPress={() => handleApprove(conversation.id)}
+              onPress={() => handleApprove(conversation.id, conversation)}
               disabled={isApproving}
               style={[styles.button, styles.actionButton]}
             >

@@ -349,7 +349,7 @@ public class FriendInvitationsController : BaseController
     private async Task<IActionResult> CheckBlockingStatus(int userId, int targetUserId, string context = "send")
     {
         // Sjekk om vi har blokkert dem
-        var weBlockedThem = await _context.UserBlock
+        var weBlockedThem = await _context.UserBlocks
             .FirstOrDefaultAsync(b => b.BlockerId == userId && b.BlockedUserId == targetUserId);
     
         if (weBlockedThem != null)
@@ -363,7 +363,7 @@ public class FriendInvitationsController : BaseController
         }
 
         // Sjekk om de har blokkert oss
-        var theyBlockedUs = await _context.UserBlock
+        var theyBlockedUs = await _context.UserBlocks
             .FirstOrDefaultAsync(b => b.BlockerId == targetUserId && b.BlockedUserId == userId);
     
         if (theyBlockedUs != null)

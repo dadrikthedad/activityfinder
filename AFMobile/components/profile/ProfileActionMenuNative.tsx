@@ -6,26 +6,32 @@ import { useUnblockUser } from "@/hooks/block/useUnblockUser";// You'll need to 
 import { useIsUserBlocked } from "@/store/useUserCacheStore";
 import { showNotificationToastNative } from "../toast/NotificationToastNative";
 import { LocalToastType } from "../toast/NotificationToastNative";
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RootStackParamList } from '@/types/navigation';
+import { useNavigation } from "@react-navigation/native";
 
 interface Props {
   isFriend: boolean;
   userId: number; // ✅ Add userId prop
   onRemoveFriend?: () => void;
+  userName?: string;
 }
 
 export default function ProfileActionMenuNative({
   isFriend,
   userId,
-  onRemoveFriend
+  onRemoveFriend,
+  userName
 }: Props) {
   const { confirm } = useConfirmModalNative();
   const { blockUser, isLoading: isBlocking } = useBlockUser();
   const { unblockUser, isLoading: isUnblocking } = useUnblockUser();
+  const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   
-  // ✅ Check if user is currently blocked
+  // Check if user is currently blocked
   const isBlocked = useIsUserBlocked(userId);
   
-  // ✅ Fjernet bekreftelse - overlater det til useConfirmRemoveFriend
+  // Fjernet bekreftelse - overlater det til useConfirmRemoveFriend
   const handleRemoveFriend = () => {
     onRemoveFriend?.();
   };
@@ -76,61 +82,16 @@ export default function ProfileActionMenuNative({
     }
   };
 
-  const handleReportUser = async () => {
-    // First confirm they want to report
-    const wantToReport = await confirm({
-      title: "Report User",
-      message: "Do you want to report this user for inappropriate behavior?"
-    });
-   
-    if (wantToReport) {
-      // Show reason selection - since we can't easily do multiple options with this modal,
-      // we'll ask for the most common reason first
-      const isSpam = await confirm({
-        title: "Report Reason",
-        message: "Is this user sending spam or unwanted messages?"
-      });
-     
-      if (isSpam) {
-        submitReport("spam");
-      } else {
-        const isHarassment = await confirm({
-          title: "Report Reason",
-          message: "Is this user harassing or bullying you or others?"
-        });
-       
-        if (isHarassment) {
-          submitReport("harassment");
-        } else {
-          const isInappropriate = await confirm({
-            title: "Report Reason",
-            message: "Is this user posting inappropriate content?"
-          });
-         
-          if (isInappropriate) {
-            submitReport("inappropriate");
-          } else {
-            submitReport("other");
-          }
-        }
-      }
-    }
-  };
-
-  const submitReport = async (reason: string) => {
-    console.log(`🚨 Report user for: ${reason}`);
-    // TODO: Implement report functionality
-   
-    // Show success confirmation with toast
-    showNotificationToastNative({
-      type: LocalToastType.CustomSystemNotice,
-      customTitle: "Report Submitted",
-      customBody: "Thank you for your report. We will review it shortly! 📝",
-      position: 'top'
+  const handleReportUser = () => {
+    navigation.navigate('ReportScreen', {
+      type: 'user',
+      userId: userId.toString(),
+      userName: userName || `User ${userId}`
     });
   };
 
-  // ✅ Create actions array with conditional block/unblock
+
+  // Create actions array with conditional block/unblock
   const actions = [
     ...(isFriend && onRemoveFriend ? [{
       label: "Remove Friend",

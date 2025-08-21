@@ -8,15 +8,14 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
-  TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useLogin } from "@/hooks/auth/useLogin";
 import FormFieldNative from "@/components/common/FormFieldNative";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
-import { LoginScreenNavigationProp } from "@shared/types/navigation";
+import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
+import { LoginScreenNavigationProp } from "@/types/navigation";
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();
@@ -45,19 +44,18 @@ export default function LoginScreen() {
     navigation.navigate('Signup');
   };
 
-  // Show error as alert if there's an error message
+  // Show error as toast if there's an error message
   React.useEffect(() => {
     if (errorMessage) {
-      Alert.alert(
-        "Login Error",
-        errorMessage,
-        [
-          {
-            text: "OK",
-            onPress: clearError,
-          },
-        ]
-      );
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Login Error",
+        customBody: errorMessage,
+        position: 'top'
+      });
+      
+      // Clear the error after showing the toast
+      clearError();
     }
   }, [errorMessage, clearError]);
 
@@ -114,23 +112,22 @@ export default function LoginScreen() {
               style={styles.loginButton}
             />
 
-            {/* Error message display (alternative to Alert) */}
-            {errorMessage && (
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            )}
+            {/* Signup Button */}
+            <View style={styles.signupContainer}>
+              <Text style={styles.footerText}>No account? </Text>
+              <ButtonNative
+                text="Sign up here!"
+                onPress={navigateToSignup}
+                variant="ghost"
+                size="medium"
+                disabled={isSubmitting}
+                textStyle={styles.signupButtonText}
+              />
+            </View>
           </View>
 
           {/* Footer */}
           <View style={styles.footer}>
-            <View style={styles.footerTextContainer}>
-              <Text style={styles.footerText}>No account? </Text>
-              <TouchableOpacity 
-                onPress={navigateToSignup}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.linkText}>Sign up here!</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -177,29 +174,23 @@ const styles = StyleSheet.create({
   loginButton: {
     marginTop: 24,
   },
-  errorText: {
-    color: "#dc2626",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 12,
-    paddingHorizontal: 16,
+  signupContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
   },
   footer: {
     alignItems: "center",
     marginTop: 32,
     marginBottom: 16,
   },
-  footerTextContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   footerText: {
     fontSize: 14,
     color: "#6b7280",
   },
-  linkText: {
-    color: "#1C6B1C",
-    fontWeight: "600",
+  signupButtonText: {
     fontSize: 14,
+    fontWeight: "600",
   },
 });

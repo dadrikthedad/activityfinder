@@ -37,12 +37,11 @@ import FriendScreen from './screens/friends/FriendScreen';
 import appInsights from './AppInsights';
 import Logger from './Logger';
 import NotificationScreen from './screens/notification/NotificationScreen';
-
+import ReportScreen from './screens/support/ReportScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
-
   useEffect(() => {
     Logger.info('Application Insights initialized', {
       platform: 'react-native',
@@ -78,9 +77,10 @@ function AppContent() {
     return () => {
       subscription?.remove();
       stopChatConnection().catch(err =>
-            Logger.error('Error stopping SignalR connection on app close', err, {
-      context: 'app_shutdown'
-    }))
+        Logger.error('Error stopping SignalR connection on app close', err, {
+          context: 'app_shutdown'
+        })
+      );
     };
   }, []);
 
@@ -89,7 +89,6 @@ function AppContent() {
       <AuthProvider>
         <ModalProvider> 
           <UserActionPopoverProvider>
-            <AppInitializer />
             <AuthenticatedApp />
           </UserActionPopoverProvider>
         </ModalProvider>
@@ -105,8 +104,12 @@ function AuthenticatedApp() {
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>
       <StatusBar style="auto" />
      
-      {/* 🚀 SignalR kun når bruker er logget inn */}
-      {isLoggedIn && <SignalRClientNative />}
+      {isLoggedIn && (
+        <>
+          <AppInitializer />
+          <SignalRClientNative />
+        </>
+      )}
      
       <Stack.Navigator
         screenOptions={{
@@ -150,7 +153,7 @@ function AuthenticatedApp() {
               )}
             </Stack.Screen>
             <Stack.Screen name="PendingConversationsScreen">
-              {({ navigation  }) => (
+              {({ navigation }) => (
                 <>
                   <MobileNavbarNative />
                   <PendingConversationsScreen navigation={navigation} /> 
@@ -190,7 +193,6 @@ function AuthenticatedApp() {
               )}
             </Stack.Screen>
 
-           
             {/* Sider UTEN navbar (fullscreen) */}
             <Stack.Screen
               name="ConversationScreen"
@@ -200,42 +202,45 @@ function AuthenticatedApp() {
               }}
             />
             <Stack.Screen
-                name="MediaViewer"
-                component={MediaViewerScreen}
-                options={{
-                  headerShown: false, // Gir modal-følelse
-                  cardStyleInterpolator: ({ current: { progress } }) => ({
-                    cardStyle: {
-                      opacity: progress,
-                      backgroundColor: 'black'
-                    },
-                  }),
-                }}
-              />
-              <Stack.Screen 
-                name="GroupSettingsScreen" 
-                component={GroupSettingsScreen}
-                options={{ headerShown: false }} // Vi har egen header
-              />
-              <Stack.Screen
-                name="NewConversationScreen"
-                component={NewConversationScreen}
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen
-                name="MessageNotificationScreen"
-                component={MessageNotificationScreen}
-                options={{
-                  headerShown: false,
-                }}
-              />
+              name="MediaViewer"
+              component={MediaViewerScreen}
+              options={{
+                headerShown: false, // Gir modal-følelse
+                cardStyleInterpolator: ({ current: { progress } }) => ({
+                  cardStyle: {
+                    opacity: progress,
+                    backgroundColor: 'black'
+                  },
+                }),
+              }}
+            />
+            <Stack.Screen 
+              name="GroupSettingsScreen" 
+              component={GroupSettingsScreen}
+              options={{ headerShown: false }} // Vi har egen header
+            />
+            <Stack.Screen
+              name="NewConversationScreen"
+              component={NewConversationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="MessageNotificationScreen"
+              component={MessageNotificationScreen}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen name="ReportScreen" component={ReportScreen} />
           </>
         ) : (
           <>
+            {/* 🔐 Auth screens - INGEN AppInitializer eller SignalR her */}
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen name="ReportScreen" component={ReportScreen} />
           </>
         )}
       </Stack.Navigator>

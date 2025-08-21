@@ -615,7 +615,7 @@ public class UserController : BaseController
         // ✅ Kun hent blocked relationships hvis innlogget
         if (currentUserId.HasValue)
         {
-            blockedUserIds = await _context.UserBlock
+            blockedUserIds = await _context.UserBlocks
                 .Where(b => b.BlockerId == currentUserId || b.BlockedUserId == currentUserId)
                 .Select(b => b.BlockerId == currentUserId ? b.BlockedUserId : b.BlockerId)
                 .ToListAsync();
@@ -660,7 +660,7 @@ public class UserController : BaseController
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
         // ✅ Hent blocked relationships
-        var blockedUserIds = await _context.UserBlock
+        var blockedUserIds = await _context.UserBlocks
             .Where(b => b.BlockerId == currentUserId || b.BlockedUserId == currentUserId)
             .Select(b => b.BlockerId == currentUserId ? b.BlockedUserId : b.BlockerId)
             .ToListAsync();
@@ -692,70 +692,6 @@ public class UserController : BaseController
             .ToListAsync();
 
         return Ok(results);
-    }
-    
-    // Hjelpe metode for å lage SyncEvent ved oppdatering av 
-    private void NotifyFriendsAndBlockersOfProfileUpdate(int userId, List<string> updatedFields, object additionalData = null)
-    {
-        _taskQueue.QueueAsync(async () => 
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            try 
-            {
-                // Hent alle venner (begge retninger)
-                var friendIds = await context.Friends
-                    .Where(f => f.UserId == userId || f.FriendId == userId)
-                    .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
-                    .ToListAsync();
-
-                // Hent brukere som har blokkert denne brukeren
-                var blockerIds = await context.UserBlock
-                    .Where(ub => ub.BlockedUserId == userId)
-                    .Select(ub => ub.BlockerId)
-                    .ToListAsync();
-
-                // Kombiner og fjern duplikater
-                var usersToNotify = friendIds.Union(blockerIds).ToList();
-
-                if (usersToNotify.Any())
-                {
-                    // Bygg event data
-                    var eventData = new Dictionary<string, object>
-                    {
-                        ["userId"] = userId,
-                        ["updatedFields"] = updatedFields,
-                        ["updatedAt"] = DateTime.UtcNow
-                    };
-
-                    // Legg til additional data hvis det finnes
-                    if (additionalData != null)
-                    {
-                        var properties = additionalData.GetType().GetProperties();
-                        foreach (var prop in properties)
-                        {
-                            eventData[prop.Name] = prop.GetValue(additionalData);
-                        }
-                    }
-
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.USER_PROFILE_UPDATED,
-                        eventData: eventData,
-                        targetUserIds: usersToNotify,
-                        source: "API",
-                        relatedEntityId: userId,
-                        relatedEntityType: "User"
-                    );
-                }
-            }
-            catch (Exception ex)
-            {
-                // Log error
-                Console.WriteLine($"Failed to create sync event for profile update. UserId: {userId}, Error: {ex.Message}");
-            }
-        });
     }
     
 }
