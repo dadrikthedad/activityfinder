@@ -293,7 +293,7 @@ export default function ProfileSettingsScreen() {
 
             <ButtonNative
                 text="Change Login Credentials"
-                onPress={() => navigation.navigate('ProfileSettingsScreen')}
+                onPress={() => navigation.navigate('SecurityCredsScreen')}
                 variant="primary"
                 size="large"
                 fullWidth

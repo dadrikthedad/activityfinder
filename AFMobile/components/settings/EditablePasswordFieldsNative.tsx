@@ -3,13 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
 } from "react-native";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import ButtonNative from "../common/buttons/ButtonNative";
 import { validateSingleField } from "@shared/utils/validators";
 import { updatePassword } from "@/services/user/security";
 import { useAuth } from "@/context/AuthContext";
+import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
 
 export default function EditablePasswordFieldsNative() {
   const [editing, setEditing] = useState(false);
@@ -25,20 +25,35 @@ export default function EditablePasswordFieldsNative() {
   const handleSave = async () => {
     if (!token) {
       setError("Not authenticated");
-      Alert.alert("Error", "Not authenticated");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: "Not authenticated",
+        position: 'top'
+      });
       return;
     }
 
     const passwordError = validateSingleField("password", newPassword);
     if (passwordError) {
       setError(passwordError);
-      Alert.alert("Validation Error", passwordError);
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Validation Error",
+        customBody: passwordError,
+        position: 'top'
+      });
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
-      Alert.alert("Error", "Passwords do not match.");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemError,
+        customTitle: "Error",
+        customBody: "Passwords do not match.",
+        position: 'top'
+      });
       return;
     }
 
@@ -52,7 +67,12 @@ export default function EditablePasswordFieldsNative() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      Alert.alert("Success", "Password updated successfully!");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Success",
+        customBody: "Password updated successfully!",
+        position: 'top'
+      });
     } catch (err: unknown) {
       let errorMessage = "Something went wrong.";
       
@@ -75,7 +95,12 @@ export default function EditablePasswordFieldsNative() {
       }
       
       setError(errorMessage);
-      Alert.alert("Error", errorMessage);
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: errorMessage,
+        position: 'top'
+      });
     } finally {
       setIsSaving(false);
     }
@@ -112,7 +137,7 @@ export default function EditablePasswordFieldsNative() {
             <ButtonNative
               text="Edit"
               onPress={() => setEditing(true)}
-              variant="outline"
+              variant="primary"
               size="small"
             />
           )}
@@ -164,10 +189,6 @@ export default function EditablePasswordFieldsNative() {
           error={error || undefined}
           touched={true}
         />
-
-        {error && (
-          <Text style={styles.errorText}>{error}</Text>
-        )}
 
         <View style={styles.editingButtons}>
           <ButtonNative
@@ -261,6 +282,8 @@ const styles = StyleSheet.create({
 
   buttonsContainer: {
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
 
   editingButtons: {

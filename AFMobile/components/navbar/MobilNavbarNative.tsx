@@ -26,7 +26,8 @@ import {
   Home, 
   Trash2,
   Search,
-  Users
+  Users,
+  Bug
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -362,7 +363,7 @@ export default function MobileNavbarNative({
                     <View style={styles.separator} />
                     
                     <TouchableOpacity
-                      onPress={() => handleNavigation('EditProfile')}
+                      onPress={() => handleNavigation('EditProfileScreen')}
                       style={styles.menuItem}
                     >
                       <User size={18} color="#374151" />
@@ -375,6 +376,16 @@ export default function MobileNavbarNative({
                     >
                       <Settings size={18} color="#374151" />
                       <Text style={styles.menuItemText}>Settings</Text>
+                    </TouchableOpacity>
+
+                    <View style={styles.separator} />
+
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('ReportScreen', { type: 'bug' })}
+                      style={styles.menuItem}
+                    >
+                      <Bug size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>Report a problem/issue</Text>
                     </TouchableOpacity>
 
                     <View style={styles.separator} />

@@ -35,6 +35,7 @@ export default function PasswordFieldNative({
   style,
 }: PasswordFieldNativeProps) {
   const [showPassword, setShowPassword] = useState(false);
+
   const showError = touched && !!error;
 
   const togglePasswordVisibility = () => {
@@ -89,6 +90,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#374151",
     marginBottom: 6,
+    textAlign: "center",
   },
   inputContainer: {
     position: "relative",
@@ -129,5 +131,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
     marginLeft: 4,
+    textAlign: "center",
   },
 });

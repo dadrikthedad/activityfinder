@@ -164,3 +164,75 @@ export async function validateFileOnServer(file: RNFile): Promise<{
   
   return response;
 }
+
+// ------------- REPORT --------------------
+export async function uploadReportAttachment(
+  reportId: string, 
+  file: RNFile
+): Promise<{
+  attachmentId: number;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+}> {
+  const formData = new FormData();
+  
+  // Legg til fil (RN format)
+  formData.append("file", {
+    uri: file.uri,
+    type: file.type,
+    name: file.name,
+  } as any);
+
+  const url = `${API_BASE_URL}/api/file/${reportId}/attachments`;
+  
+  const response = await postFormDataRequest<{
+    attachmentId: number;
+    fileUrl: string;
+    fileName: string;
+    fileSize: number;
+    fileType: string;
+    uploadedAt: string;
+  }>(url, formData);
+  
+  if (!response) {
+    throw new Error("Failed to upload report attachment");
+  }
+  
+  return response;
+}
+
+// Upload flere attachments til rapport
+export async function uploadMultipleReportAttachments(
+  reportId: string, 
+  files: RNFile[],
+  onProgress?: (uploaded: number, total: number) => void
+): Promise<Array<{
+  attachmentId: number;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
+}>> {
+  const results = [];
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    try {
+      console.log(`🔍 Uploading file ${i + 1}/${files.length}: ${file.name}`);
+      const result = await uploadReportAttachment(reportId, file);
+      results.push(result);
+      onProgress?.(i + 1, files.length);
+      console.log(`✅ File ${file.name} uploaded successfully`);
+    } catch (error) {
+      console.error(`❌ Failed to upload file ${file.name}:`, error);
+      // Du kan velge å kaste feilen eller fortsette med neste fil
+      throw error; // Stopper ved første feil
+    }
+  }
+  
+  return results;
+}

@@ -1,5 +1,14 @@
 import { ReportTypeEnum, PriorityEnum, ReportStatusEnum } from "./reportEnums";
 
+export interface AttachmentDTO {
+  id: number;
+  fileUrl: string;
+  fileName?: string;
+  fileType: string;
+  fileSize?: number;
+  uploadedAt: string;
+}
+
 export interface ReportRequestDTO {
   type: ReportTypeEnum;
   title: string;
@@ -12,7 +21,6 @@ export interface ReportRequestDTO {
   browserVersion?: string;
   deviceInfo?: string;
   priority?: PriorityEnum;
-  attachments?: string[];
 }
 
 export interface ReportResponseDTO {
@@ -33,5 +41,14 @@ export interface ReportResponseDTO {
   updatedAt?: string;
   assignedTo?: string;
   resolution?: string;
-  attachments?: string[];
+  attachments?: AttachmentDTO[];
+}
+
+export interface UploadAttachmentResponse {
+  attachmentId: number;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  uploadedAt: string;
 }

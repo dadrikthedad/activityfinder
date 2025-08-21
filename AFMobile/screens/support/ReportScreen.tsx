@@ -6,29 +6,26 @@ import {
   ScrollView,
   TextInput,
   SafeAreaView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { ArrowLeft, Paperclip, X } from 'lucide-react-native';
+import AppHeader from '@/components/common/AppHeader';
 import ButtonNative from '@/components/common/buttons/ButtonNative';
 import SelectModalNative from '@/components/common/modal/SelectModalNative';
-import CloseButtonNative from '@/components/common/buttons/CloseButtonNative';
-import { useSubmitBugReport } from '@/hooks/support/useSubmitBugReport';
-import { useSubmitUserReport } from '@/hooks/support/useSubmitUserReport';
-import { useSubmitCustomReport } from '@/hooks/support/useSubmitCustomReport';
-import { ReportTypeEnum, PriorityEnum } from '@shared/types/report/reportEnums';
+import { AttachmentPicker } from '@/components/files/filepicker/AttachmentPicker';
+import { useCompleteBugReport, useCompleteUserReport } from '@/hooks/support/useSpecializedCompleteHooks';
+import { PriorityEnum } from '@shared/types/report/reportEnums';
 import { RootStackParamList } from '@/types/navigation';
-import { getBrowserInfo } from '@/services/support/supportService';
+import { showNotificationToastNative, LocalToastType } from '@/components/toast/NotificationToastNative';
+import { RNFile } from '@/utils/files/FileFunctions';
+
 type ReportScreenRouteProp = RouteProp<RootStackParamList, 'ReportScreen'>;
 type ReportScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ReportScreen'>;
 
-interface ReportScreenParams {
-  type?: 'bug' | 'user';
-  userId?: string;
-  userName?: string;
-}
+
 
 export default function ReportScreen() {
   const route = useRoute<ReportScreenRouteProp>();
@@ -38,15 +35,11 @@ export default function ReportScreen() {
   const { type, userId, userName } = route.params || {};
   
   // Form state
-  const [reportType, setReportType] = useState<ReportTypeEnum>(
-    type === 'bug' ? ReportTypeEnum.BugReport : 
-    type === 'user' ? ReportTypeEnum.UserReport : 
-    ReportTypeEnum.Other
-  );
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<PriorityEnum>(PriorityEnum.Medium);
   const [isDetailedMode, setIsDetailedMode] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<RNFile[]>([]);
   
   // Detailed form fields
   const [stepsToReproduce, setStepsToReproduce] = useState('');
@@ -54,12 +47,19 @@ export default function ReportScreen() {
   const [actualBehavior, setActualBehavior] = useState('');
   
   // Hooks for submissions
-  const bugReportHook = useSubmitBugReport();
-  const userReportHook = useSubmitUserReport();
-  const customReportHook = useSubmitCustomReport();
+  const bugReportHook = useCompleteBugReport();
+  const userReportHook = useCompleteUserReport();
   
-  const isSubmitting = bugReportHook.isSubmitting || userReportHook.isSubmitting || customReportHook.isSubmitting;
-  const submitError = bugReportHook.error || userReportHook.error || customReportHook.error;
+  // Get current hook based on type
+  const getCurrentHook = () => {
+    return type === 'bug' ? bugReportHook : userReportHook;
+  };
+  
+  const currentHook = getCurrentHook();
+  const isSubmitting = currentHook.isProcessing;
+  const submitError = currentHook.error;
+  const currentStep = currentHook.currentStep;
+  const uploadProgress = currentHook.uploadProgress;
 
   // Set initial title based on type
   useEffect(() => {
@@ -70,14 +70,14 @@ export default function ReportScreen() {
     }
   }, [type, userName]);
 
-  // Options for dropdowns
-  const reportTypeOptions = [
-    { label: 'Bug Report', value: ReportTypeEnum.BugReport.toString() },
-    { label: 'User Report', value: ReportTypeEnum.UserReport.toString() },
-    { label: 'Feature Request', value: ReportTypeEnum.FeatureRequest.toString() },
-    { label: 'Other', value: ReportTypeEnum.Other.toString() },
-  ];
+  // Get header title based on type
+  const getHeaderTitle = () => {
+    if (type === 'bug') return 'Report Bug';
+    if (type === 'user') return 'Report User';
+    return 'Submit Report';
+  };
 
+  // Options for priority dropdown
   const priorityOptions = [
     { label: 'Low', value: PriorityEnum.Low.toString() },
     { label: 'Medium', value: PriorityEnum.Medium.toString() },
@@ -85,72 +85,108 @@ export default function ReportScreen() {
     { label: 'Critical', value: PriorityEnum.Critical.toString() },
   ];
 
-  // Get selected option labels
-  const getReportTypeLabel = () => {
-    const option = reportTypeOptions.find(opt => opt.value === reportType.toString());
-    return option?.label || 'Select Type';
-  };
-
   const getPriorityLabel = () => {
     const option = priorityOptions.find(opt => opt.value === priority.toString());
     return option?.label || 'Select Priority';
   };
 
+  // File attachment handlers
+  const handleFilesSelected = (files: RNFile[]) => {
+    setSelectedFiles(prev => [...prev, ...files]);
+    console.log('📎 Files selected:', files.map(f => f.name));
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   // Validation
   const isFormValid = () => {
-    return title.trim().length >= 3 && description.trim().length >= 10;
+    const titleValid = title.trim().length >= 3;
+    const descriptionValid = description.trim().length >= 10;
+    return titleValid && descriptionValid;
   };
 
   // Handle submit
   const handleSubmit = async () => {
+    console.log('Submit button pressed');
+    console.log('Form validation result:', isFormValid());
+    
     if (!isFormValid()) {
-      Alert.alert('Error', 'Please fill in both title (min 3 characters) and description (min 10 characters)');
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Validation Error",
+        customBody: "Please fill in both title and description (min 10 characters)",
+        position: 'top'
+      });
       return;
     }
 
     try {
-      if (reportType === ReportTypeEnum.BugReport) {
-        // Use bug report hook with auto browser info
-        await bugReportHook.submitBugReport(
+      let result;
+
+      if (type === 'bug') {
+        console.log('Submitting bug report with attachments...');
+        result = await bugReportHook.submitBugReportWithAttachments(
           title,
           description,
+          selectedFiles, // Attachments
           isDetailedMode ? stepsToReproduce : undefined,
           isDetailedMode ? expectedBehavior : undefined,
           isDetailedMode ? actualBehavior : undefined,
-          priority
+          isDetailedMode ? priority : PriorityEnum.Medium
         );
-      } else if (reportType === ReportTypeEnum.UserReport && userId) {
-        // Use user report hook
-        await userReportHook.submitUserReport(
+      } else if (type === 'user') {
+        console.log('Submitting user report with attachments...');
+        result = await userReportHook.submitUserReportWithAttachments(
           title,
           description,
-          userId,
+          userId || '',
+          selectedFiles, // Attachments
           priority
         );
-      } else {
-        // Use custom report hook for other types
-        const browserInfo = await getBrowserInfo();
-        await customReportHook.submitCustomReport({
-          type: reportType,
-          title,
-          description,
-          priority,
-          stepsToReproduce: isDetailedMode ? stepsToReproduce : undefined,
-          expectedBehavior: isDetailedMode ? expectedBehavior : undefined,
-          actualBehavior: isDetailedMode ? actualBehavior : undefined,
-          reportedUserId: reportType === ReportTypeEnum.UserReport ? userId : undefined,
-          ...browserInfo
-        });
       }
 
-      Alert.alert(
-        'Success',
-        'Your report has been submitted successfully. We will review it and get back to you.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      if (result) {
+        const attachmentText = selectedFiles.length > 0 
+          ? ` with ${selectedFiles.length} attachment${selectedFiles.length > 1 ? 's' : ''}`
+          : '';
+        
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Report Submitted",
+          customBody: `Your report has been submitted successfully${attachmentText}! We will review it and get back to you. ✅`,
+          position: 'top'
+        });
+
+        // Navigate back after a short delay to let user see the toast
+        setTimeout(() => {
+          navigation.goBack();
+        }, 1500);
+      }
+
     } catch (error) {
       console.error('Submit error:', error);
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Submission Failed",
+        customBody: "Failed to submit report. Please try again. ❌",
+        position: 'top'
+      });
+    }
+  };
+
+  // Get progress text based on current step
+  const getProgressText = () => {
+    switch (currentStep) {
+      case 'submitting':
+        return 'Submitting report...';
+      case 'uploading':
+        return `Uploading files... ${uploadProgress.toFixed(0)}%`;
+      case 'completed':
+        return 'Completed!';
+      default:
+        return isSubmitting ? 'Processing...' : '';
     }
   };
 
@@ -161,65 +197,55 @@ export default function ReportScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {type === 'bug' ? 'Report Bug' : 
-             type === 'user' ? `Report User` : 
-             'Submit Report'}
-          </Text>
-          <CloseButtonNative 
-            onPress={() => navigation.goBack()}
-            theme="light"
-            size={32}
-            iconSize={16}
-          />
-        </View>
+        {/* AppHeader */}
+        <AppHeader
+          title={getHeaderTitle()}
+          onBackPress={() => navigation.goBack()}
+          backIcon={ArrowLeft}
+          showBorder={true}
+        />
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Form Mode Toggle */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Report Mode</Text>
-            <View style={styles.modeToggle}>
-              <ButtonNative
-                text="Quick Report"
-                variant={!isDetailedMode ? "primary" : "outline"}
-                size="small"
-                onPress={() => setIsDetailedMode(false)}
-                style={styles.modeButton}
-              />
-              <ButtonNative
-                text="Detailed Report"
-                variant={isDetailedMode ? "primary" : "outline"}
-                size="small"
-                onPress={() => setIsDetailedMode(true)}
-                style={styles.modeButton}
-              />
+          {/* Progress indicator */}
+          {isSubmitting && (
+            <View style={styles.progressContainer}>
+              <Text style={styles.progressText}>{getProgressText()}</Text>
+              {currentStep === 'uploading' && (
+                <View style={styles.progressBar}>
+                  <View 
+                    style={[styles.progressFill, { width: `${uploadProgress}%` }]} 
+                  />
+                </View>
+              )}
             </View>
-            <Text style={styles.modeDescription}>
-              {isDetailedMode 
-                ? "Include additional details to help us better understand the issue"
-                : "Quick and simple - just title and description"
-              }
-            </Text>
-          </View>
+          )}
 
-          {/* Report Type (if not preset) */}
-          {!type && (
+          {/* Form Mode Toggle - Only show for bug reports */}
+          {type === 'bug' && (
             <View style={styles.section}>
-              <Text style={styles.label}>Report Type *</Text>
-              <SelectModalNative
-                title="Select Report Type"
-                options={reportTypeOptions}
-                selectedValue={reportType.toString()}
-                onSelect={(value) => setReportType(parseInt(value) as ReportTypeEnum)}
-                customTrigger={
-                  <View style={styles.selectTrigger}>
-                    <Text style={styles.selectText}>{getReportTypeLabel()}</Text>
-                    <Text style={styles.selectArrow}>▼</Text>
-                  </View>
+              <Text style={styles.sectionTitle}>Report Mode</Text>
+              <View style={styles.modeToggle}>
+                <ButtonNative
+                  text="Quick Report"
+                  variant={!isDetailedMode ? "primary" : "outline"}
+                  size="small"
+                  onPress={() => setIsDetailedMode(false)}
+                  style={styles.modeButton}
+                />
+                <ButtonNative
+                  text="Detailed Report"
+                  variant={isDetailedMode ? "primary" : "outline"}
+                  size="small"
+                  onPress={() => setIsDetailedMode(true)}
+                  style={styles.modeButton}
+                />
+              </View>
+              <Text style={styles.modeDescription}>
+                {isDetailedMode 
+                  ? "Include additional details to help us better understand the issue"
+                  : "Quick and simple - just title and description"
                 }
-              />
+              </Text>
             </View>
           )}
 
@@ -233,6 +259,7 @@ export default function ReportScreen() {
               placeholder="Brief description of the issue"
               maxLength={200}
               autoCapitalize="sentences"
+              editable={!isSubmitting}
             />
             <Text style={styles.charCount}>{title.length}/200</Text>
           </View>
@@ -250,12 +277,68 @@ export default function ReportScreen() {
               numberOfLines={6}
               textAlignVertical="top"
               autoCapitalize="sentences"
+              editable={!isSubmitting}
             />
             <Text style={styles.charCount}>{description.length}/5000</Text>
           </View>
 
-          {/* Detailed Fields (only in detailed mode) */}
-          {isDetailedMode && (
+          {/* Attachments */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Attachments (Optional)</Text>
+            <AttachmentPicker
+              onFilesSelected={handleFilesSelected}
+              allowMultipleImages={true}
+              allowVideos={false}
+              allowDocuments={true}
+              useNativeButton={true}
+              nativeButtonProps={{
+                variant: "outline",
+                size: "medium",
+                icon: Paperclip,
+                disabled: isSubmitting,
+              }}
+              buttonText="Add Files"
+              modalTitle="Add Report Attachments"
+            />
+            <Text style={styles.attachmentHint}>
+              You can attach images or PDF files to help explain the issue
+            </Text>
+            
+            {/* Selected files list */}
+            {selectedFiles.length > 0 && (
+              <View style={styles.filesList}>
+                <Text style={styles.filesHeader}>
+                  {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected:
+                </Text>
+                {selectedFiles.map((file, index) => (
+                  <View key={index} style={styles.fileItem}>
+                    <View style={styles.fileInfo}>
+                      <Text style={styles.fileName} numberOfLines={1}>
+                        {file.name}
+                      </Text>
+                      {file.size && (
+                        <Text style={styles.fileSize}>
+                          {(file.size / 1024 / 1024).toFixed(1)} MB
+                        </Text>
+                      )}
+                    </View>
+                    <ButtonNative
+                      text=""
+                      variant="outline"
+                      size="small"
+                      icon={X}
+                      onPress={() => removeFile(index)}
+                      disabled={isSubmitting}
+                      style={styles.removeButton}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Detailed Fields (only for bug reports in detailed mode) */}
+          {isDetailedMode && type === 'bug' && (
             <>
               {/* Priority */}
               <View style={styles.section}>
@@ -274,52 +357,53 @@ export default function ReportScreen() {
                 />
               </View>
 
-              {/* Bug-specific fields */}
-              {reportType === ReportTypeEnum.BugReport && (
-                <>
-                  <View style={styles.section}>
-                    <Text style={styles.label}>Steps to Reproduce</Text>
-                    <TextInput
-                      style={[styles.input, styles.textArea]}
-                      value={stepsToReproduce}
-                      onChangeText={setStepsToReproduce}
-                      placeholder="1. Go to..."
-                      maxLength={2000}
-                      multiline
-                      numberOfLines={4}
-                      textAlignVertical="top"
-                    />
-                  </View>
+              {/* Steps to Reproduce */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Steps to Reproduce</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={stepsToReproduce}
+                  onChangeText={setStepsToReproduce}
+                  placeholder="1. Go to...&#10;2. Click on...&#10;3. See error"
+                  maxLength={2000}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  editable={!isSubmitting}
+                />
+              </View>
 
-                  <View style={styles.section}>
-                    <Text style={styles.label}>Expected Behavior</Text>
-                    <TextInput
-                      style={[styles.input, styles.textArea]}
-                      value={expectedBehavior}
-                      onChangeText={setExpectedBehavior}
-                      placeholder="What should have happened?"
-                      maxLength={1000}
-                      multiline
-                      numberOfLines={3}
-                      textAlignVertical="top"
-                    />
-                  </View>
+              {/* Expected Behavior */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Expected Behavior</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={expectedBehavior}
+                  onChangeText={setExpectedBehavior}
+                  placeholder="What should have happened?"
+                  maxLength={1000}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  editable={!isSubmitting}
+                />
+              </View>
 
-                  <View style={styles.section}>
-                    <Text style={styles.label}>Actual Behavior</Text>
-                    <TextInput
-                      style={[styles.input, styles.textArea]}
-                      value={actualBehavior}
-                      onChangeText={setActualBehavior}
-                      placeholder="What actually happened?"
-                      maxLength={1000}
-                      multiline
-                      numberOfLines={3}
-                      textAlignVertical="top"
-                    />
-                  </View>
-                </>
-              )}
+              {/* Actual Behavior */}
+              <View style={styles.section}>
+                <Text style={styles.label}>Actual Behavior</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={actualBehavior}
+                  onChangeText={setActualBehavior}
+                  placeholder="What actually happened?"
+                  maxLength={1000}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                  editable={!isSubmitting}
+                />
+              </View>
             </>
           )}
 
@@ -338,7 +422,7 @@ export default function ReportScreen() {
           {submitError && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>
-                {submitError.message || 'An error occurred while submitting the report'}
+                {submitError || 'An error occurred while submitting the report'}
               </Text>
             </View>
           )}
@@ -347,14 +431,14 @@ export default function ReportScreen() {
         {/* Submit Button */}
         <View style={styles.footer}>
           <ButtonNative
-            text={isSubmitting ? "Submitting..." : "Submit Report"}
+            text={isSubmitting ? getProgressText() : "Submit Report"}
             onPress={handleSubmit}
             variant="primary"
             size="large"
             fullWidth
             disabled={!isFormValid() || isSubmitting}
             loading={isSubmitting}
-            loadingText="Submitting..."
+            loadingText={getProgressText()}
           />
         </View>
       </KeyboardAvoidingView>
@@ -369,21 +453,6 @@ const styles = StyleSheet.create({
   },
   keyboardAvoid: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
   },
   content: {
     flex: 1,
@@ -455,6 +524,76 @@ const styles = StyleSheet.create({
   selectArrow: {
     fontSize: 12,
     color: '#6b7280',
+  },
+  progressContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#374151',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#e5e7eb',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+    borderRadius: 2,
+  },
+  attachmentHint: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  filesList: {
+    marginTop: 12,
+  },
+  filesHeader: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  fileItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 8,
+  },
+  fileInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  fileName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+  },
+  fileSize: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  removeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   userInfo: {
     padding: 12,

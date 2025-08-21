@@ -1,4 +1,4 @@
-// SelectModalNative.tsx - Gjenbrukbar select modal komponent
+// SelectModalNative.tsx - Final fix
 import React from "react";
 import {
   View,
@@ -26,7 +26,7 @@ interface SelectModalNativeProps {
   /** Callback when option is selected */
   onSelect: (value: string) => void;
   /** Optional custom trigger component */
-  customTrigger?: React.ReactElement<{ onPress?: () => void }>;
+  customTrigger?: React.ReactElement<any>;
   /** Whether to blur the background (default: true) */
   blurBackground?: boolean;
   /** Whether modal can be dismissed by tapping backdrop (default: true) */
@@ -56,7 +56,7 @@ export default function SelectModalNative({
       {
         blurBackground,
         dismissOnBackdrop,
-        type: 'center' // Bruk center for select modal (ikke bottom som action sheet)
+        type: 'center'
       }
     );
   };
@@ -64,30 +64,33 @@ export default function SelectModalNative({
   const handleOptionSelect = (value: string) => {
     hideModal();
     
-    // Small delay to ensure modal closes before callback
     setTimeout(() => {
       onSelect(value);
     }, 100);
   };
 
-  // Render custom trigger if provided
+  // FIXED: Filter out string children (whitespace) and only render React elements
   if (customTrigger) {
-    return React.cloneElement(
-      customTrigger as React.ReactElement<{ onPress?: () => void }>, 
-      {
-        onPress: handleToggle
-      }
+    const triggerProps = customTrigger.props as any;
+    const validChildren = React.Children.toArray(triggerProps.children).filter(
+      (child) => React.isValidElement(child)
+    );
+
+    return (
+      <TouchableOpacity onPress={handleToggle}>
+        <View style={triggerProps.style}>
+          {validChildren}
+        </View>
+      </TouchableOpacity>
     );
   }
 
-  // Default trigger - can be customized as needed
   return (
     <TouchableOpacity onPress={handleToggle} style={styles.defaultTrigger}>
       <Text>Open Select</Text>
     </TouchableOpacity>
   );
 
-  // Select Modal Content Component
   function SelectModalContent({ 
     title, 
     options, 
@@ -104,7 +107,6 @@ export default function SelectModalNative({
     return (
       <View style={styles.modalContainer}>
         <SafeAreaView style={styles.modalContent}>
-          {/* Header */}
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{title}</Text>
             <CloseButtonNative 
@@ -115,7 +117,6 @@ export default function SelectModalNative({
             />
           </View>
 
-          {/* Options List */}
           <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
             {options.map((option) => (
               <TouchableOpacity
@@ -152,7 +153,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   
-  // Modal container
   modalContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 12,
@@ -160,9 +160,9 @@ const styles = StyleSheet.create({
     minHeight: 300,
     maxHeight: '80%',
     width: '90%',
-    minWidth: 320, // Minimum bredde
-    maxWidth: 500, // Økt maksimal bredde
-    alignSelf: 'center', // Sentrer modalen
+    minWidth: 320,
+    maxWidth: 500,
+    alignSelf: 'center',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -177,7 +177,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   
-  // Header
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -194,7 +193,6 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   
-  // Options list
   optionsList: {
     flex: 1,
     minHeight: 150,

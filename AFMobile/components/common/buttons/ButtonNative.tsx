@@ -1,4 +1,4 @@
-// components/common/ButtonNative.tsx - Oppdatert med dots variant
+// components/common/ButtonNative.tsx - Oppdatert med icon support
 import React from "react";
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, View } from "react-native";
 
@@ -32,6 +32,12 @@ export interface ButtonNativeProps {
   style?: ViewStyle;
   /** Custom text style override */
   textStyle?: TextStyle;
+  /** Icon component (Lucide icon) */
+  icon?: React.ComponentType<{ size?: number; color?: string }>;
+  /** Icon position */
+  iconPosition?: 'left' | 'right';
+  /** Icon size */
+  iconSize?: number;
 }
 
 export default function ButtonNative({
@@ -45,6 +51,9 @@ export default function ButtonNative({
   loadingText = "Loading...",
   style,
   textStyle,
+  icon: Icon,
+  iconPosition = 'left',
+  iconSize = 16,
 }: ButtonNativeProps) {
   
   const isDisabled = disabled || loading;
@@ -137,6 +146,8 @@ export default function ButtonNative({
     textStyle,
   ]);
 
+  const iconColor = variantStyles.text.color;
+
   // Render dots for dots variant
   if (variant === "dots") {
     return (
@@ -155,6 +166,7 @@ export default function ButtonNative({
     );
   }
 
+  // OPPDATERT: Ny return med icon support
   return (
     <TouchableOpacity
       style={containerStyle}
@@ -162,7 +174,23 @@ export default function ButtonNative({
       disabled={isDisabled}
       activeOpacity={isDisabled ? 1 : 0.7}
     >
-      <Text style={textStyles}>{displayText}</Text>
+      {/* Wrapper for content with icon */}
+      <View style={styles.contentContainer}>
+        {/* Left icon */}
+        {Icon && iconPosition === 'left' && (
+          <Icon size={iconSize} color={iconColor} />
+        )}
+        
+        {/* Text */}
+        {displayText && (
+          <Text style={textStyles}>{displayText}</Text>
+        )}
+        
+        {/* Right icon */}
+        {Icon && iconPosition === 'right' && (
+          <Icon size={iconSize} color={iconColor} />
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -173,6 +201,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 80,
+  },
+  
+  // NYTT: Content container for icon + text layout
+  contentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   
   // Primary variant (Green)

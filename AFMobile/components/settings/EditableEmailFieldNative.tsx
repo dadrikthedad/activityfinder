@@ -4,13 +4,14 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  Alert,
 } from "react-native";
 import { FieldName, validateSingleField } from "@shared/utils/validators";
 import ButtonNative from "../common/buttons/ButtonNative";
 import { useAuth } from "@/context/AuthContext";
 import { updateEmail } from "@/services/user/security";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
+import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
+
 
 interface EditableEmailFieldProps {
   email: string;
@@ -31,19 +32,34 @@ export default function EditableEmailFieldNative({ email, onEmailUpdated }: Edit
     const validationError = validateSingleField("email" as FieldName, inputValue);
     if (validationError) {
       setError(validationError);
-      Alert.alert("Validation Error", validationError);
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Validation Error",
+        customBody: validationError,
+        position: 'top'
+      });
       return;
     }
 
     if (!currentPassword || currentPassword.length < 4) {
       setError("Current password is required.");
-      Alert.alert("Error", "Current password is required.");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: "Current password is required.",
+        position: 'top'
+      });
       return; 
     }
 
     if (!token) {
       setError("Not authenticated");
-      Alert.alert("Error", "Not authenticated");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: "Not authenticated",
+        position: 'top'
+      });
       return;
     }
 
@@ -58,7 +74,12 @@ export default function EditableEmailFieldNative({ email, onEmailUpdated }: Edit
       setEditing(false);
       setError(null);
       setCurrentPassword("");
-      Alert.alert("Success", "Email updated successfully!");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Success",
+        customBody: "Email updated successfully!",
+        position: 'top'
+      });
       
     } catch (err: unknown) {
       let errorMessage = "Something went wrong.";
@@ -82,7 +103,12 @@ export default function EditableEmailFieldNative({ email, onEmailUpdated }: Edit
       }
       
       setError(errorMessage);
-      Alert.alert("Error", errorMessage);
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: "Error",
+        customBody: errorMessage,
+        position: 'top'
+      });
     } finally {
       setIsSaving(false);
     }
@@ -147,9 +173,6 @@ export default function EditableEmailFieldNative({ email, onEmailUpdated }: Edit
               style={styles.passwordField}
             />
 
-            {error && (
-              <Text style={styles.errorText}>{error}</Text>
-            )}
           </View>
         ) : (
           <View style={styles.displayValueContainer}>
@@ -224,7 +247,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   
   valueContainer: {
@@ -272,22 +295,17 @@ const styles = StyleSheet.create({
   
   inputError: {
     borderColor: '#ef4444',
+    textAlign: 'center',
   },
   
   passwordField: {
     marginBottom: 0, // Override default margin from PasswordFieldNative
   },
   
-  errorText: {
-    color: '#ef4444',
-    fontSize: 12,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  
   buttonsContainer: {
     alignItems: 'center',
     flexDirection: 'row',
+    justifyContent: 'center',
   },
 
   editingButtons: {

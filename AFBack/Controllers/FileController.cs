@@ -469,8 +469,6 @@ public class FileController : BaseController
         {
             var userId = GetUserId();
             
-            _logger.LogInformation(" UPLATT - Upload attempt - UserId: {UserId}, ReportId: {ReportId}", userId, reportId);
-            
             // Hent rapporten med eksisterende attachments
             var report = await _context.Reports
                 .Include(r => r.Attachments)
@@ -478,24 +476,16 @@ public class FileController : BaseController
             
             if (report == null)
                 return NotFound("Report not found");
-            
-            _logger.LogInformation("UPLATT - SubmittedByUserId: {SubmittedByUserId}, Current UserId: {UserId}", 
-                report.SubmittedByUserId, userId);
-            
 
             // OPPDATERT: Tilgangskontroll som håndterer anonymous rapporter
             if (report.SubmittedByUserId.HasValue)
             {
-                _logger.LogWarning(" UPLATT - Access denied - Report UserId: {ReportUserId}, Current UserId: {CurrentUserId}", 
-                    report.SubmittedByUserId, userId);
                 // Rapport har en eier - kun eieren kan legge til attachments
                 if (report.SubmittedByUserId != userId)
                     return StatusCode(403, new { message = "Access denied - you can only upload to your own reports" });
             }
             else
             {
-                _logger.LogWarning(" UPLATT - annot add attachments to anonymous reports - Report UserId: {ReportUserId}, Current UserId: {CurrentUserId}", 
-                    report.SubmittedByUserId, userId);
                 // Anonymous rapport - du kan ikke legge til attachments til anonymous rapporter
                 return StatusCode(403, new { message = "Cannot add attachments to anonymous reports" });
             }

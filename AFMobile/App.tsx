@@ -38,6 +38,7 @@ import appInsights from './AppInsights';
 import Logger from './Logger';
 import NotificationScreen from './screens/notification/NotificationScreen';
 import ReportScreen from './screens/support/ReportScreen';
+import SecurityCredsScreen from './screens/profile/SecurityCredsScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -234,6 +235,7 @@ function AuthenticatedApp() {
               }}
             />
             <Stack.Screen name="ReportScreen" component={ReportScreen} />
+            <Stack.Screen name="SecurityCredsScreen" component={SecurityCredsScreen} />
           </>
         ) : (
           <>

@@ -26,6 +26,7 @@ export enum LocalToastType {
   MessageReactionChanged = "MessageReactionChanged",
   FriendRequestReceived = "FriendRequestReceived",
   CustomSystemNotice = "CustomSystemNotice",
+  CustomSystemError = "CustomSystemError",
   FriendInvAccepted = "FriendRequestAccepted",
   MsgRequestAcceptedLocally = "MsgRequestAcceptedLocally",
   FileDownloaded = "FileDownloaded",
@@ -151,6 +152,10 @@ function NotificationToastComponent({
       return customTitle || messagePreview || "System Notice";
     }
 
+    if (type === LocalToastType.CustomSystemError) {
+      return customTitle || messagePreview || "System Notice";
+    }
+
     if (type === NotificationType.GroupEvent && groupEventType) {
       switch (groupEventType) {
         case GroupEventType.MemberInvited:
@@ -222,6 +227,10 @@ function NotificationToastComponent({
       return customBody || "";
     }
 
+    if (type === LocalToastType.CustomSystemError) {
+      return customBody || "";
+    }
+
     switch (type) {
       case NotificationType.MessageReaction:
       case LocalToastType.MessageReactionChanged:
@@ -260,6 +269,7 @@ function NotificationToastComponent({
     switch (type) {
       case LocalToastType.FileDownloaded:
       case LocalToastType.CustomSystemNotice:
+      case LocalToastType.CustomSystemError:
         return false; // Ingen knapper for disse typene
       default:
         return true;  // Vis knapper for alle andre
@@ -270,10 +280,18 @@ function NotificationToastComponent({
     switch (type) {
       case LocalToastType.FileDownloaded:
       case LocalToastType.CustomSystemNotice:
+      case LocalToastType.CustomSystemError:
         return false; // Ingen avatar for disse typene
       default:
         return true;  // Vis avatar for alle andre
     }
+  };
+
+  const getBorderColor = (): string => {
+    if (type === LocalToastType.CustomSystemError) {
+      return '#ef4444'; // Red border for errors
+    }
+    return '#1C6B1C'; // Default green border
   };
 
   return (
@@ -282,7 +300,10 @@ function NotificationToastComponent({
       onPress={shouldShowButtons() ? handleNotificationClick : undefined}
       activeOpacity={shouldShowButtons() ? 0.9 : 1}
     >
-      <View style={styles.content}>
+      <View style={[
+        styles.content,
+        { borderColor: getBorderColor() }
+      ]}>
         {/* Header with images */}
         <View style={styles.header}>
           {shouldShowAvatar() && (
