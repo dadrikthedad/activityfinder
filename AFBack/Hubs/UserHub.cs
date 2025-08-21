@@ -37,23 +37,73 @@ public class UserHub : Hub
         var capabilities = Context.GetHttpContext()?.Request.Query["capabilities"]
                          .FirstOrDefault()?.Split(',') ?? Array.Empty<string>();
 
-        // 🆕 Bruk WebSocket-spesifikk metode med ConnectionId
-        await _onlineService.SetWebSocketConnectedAsync(
-            userId, 
-            deviceId, 
-            Context.ConnectionId, 
-            platform, 
-            capabilities,
-            new { 
-                UserAgent = Context.GetHttpContext()?.Request.Headers["User-Agent"].FirstOrDefault(),
-                RemoteIpAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString(),
-                ConnectedAt = DateTime.UtcNow
+        try
+        {
+            // 🆕 Registrer connection og la UserOnlineService håndtere collision logic
+            var connectionResult = await _onlineService.SetWebSocketConnectedAsync(
+                userId, 
+                deviceId, 
+                Context.ConnectionId, 
+                platform, 
+                capabilities,
+                new { 
+                    UserAgent = Context.GetHttpContext()?.Request.Headers["User-Agent"].FirstOrDefault(),
+                    RemoteIpAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString(),
+                    ConnectedAt = DateTime.UtcNow
+                });
+
+            // 🆕 Sjekk om service returnerte collision info
+            if (connectionResult?.HasCollision == true && !string.IsNullOrEmpty(connectionResult.PreviousConnectionId))
+            {
+                _logger.Information($"🔀 SignalR: Device collision detected for user {userId}, device {deviceId}. Previous connection: {connectionResult.PreviousConnectionId}");
+                
+                // Send collision event til gamle connection
+                try
+                {
+                    await Clients.Client(connectionResult.PreviousConnectionId).SendAsync("DeviceCollision", 
+                        $"Same device connected from another location. Platform: {platform}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning(ex, $"Failed to send collision event to {connectionResult.PreviousConnectionId}");
+                }
+            }
+
+            // Legg til i grupper for messaging
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
+
+            // 🆕 Notify andre enheter hvis ønskelig (basert på connectionResult)
+            if (connectionResult?.OtherDeviceConnections?.Any() == true)
+            {
+                await Clients.Clients(connectionResult.OtherDeviceConnections).SendAsync("UserLoggedInElsewhere", new
+                {
+                    Message = $"You logged in from another device: {platform}",
+                    DeviceInfo = $"{platform} device",
+                    Timestamp = DateTime.UtcNow
+                });
+                
+                _logger.Information($"📱 SignalR: Notified {connectionResult.OtherDeviceConnections.Count} other devices about new login for user {userId}");
+            }
+
+            _logger.Information($"✅ SignalR: User {userId} connected on device {deviceId} ({platform}) with connection {Context.ConnectionId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, $"❌ SignalR: Error during connection setup for user {userId}");
+            
+            // Send error til client
+            await Clients.Caller.SendAsync("ConnectionError", new
+            {
+                Error = "Failed to establish connection",
+                Reason = ex.Message,
+                ShouldRetry = true
             });
+            
+            // Disconnect problematic connection
+            Context.Abort();
+            return;
+        }
 
-        // Legg til i en gruppe basert på userId for enkel messaging
-        await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId}");
-
-        _logger.Information($"✅ SignalR: Bruker {userId} tilkoblet på enhet {deviceId} ({platform}) med connection {Context.ConnectionId}");
         await base.OnConnectedAsync();
     }
 
@@ -66,19 +116,45 @@ public class UserHub : Hub
             var deviceId = Context.GetHttpContext()?.Request.Query["deviceId"].FirstOrDefault() 
                           ?? Context.ConnectionId;
 
-            // 🆕 Bruk WebSocket-spesifikk disconnection method
-            var disconnectionReason = exception?.Message ?? "Normal disconnection";
-            await _onlineService.SetWebSocketDisconnectedAsync(userId, deviceId, Context.ConnectionId, disconnectionReason);
-
-            _logger.Information($"🔌 SignalR: Bruker {userId} frakoblet fra enhet {deviceId} (connection {Context.ConnectionId})");
-            
-            if (exception != null)
+            try
             {
-                _logger.Warning(exception, $"⚠️ SignalR: Bruker {userId} frakoblet med feil på enhet {deviceId}");
+                // 🆕 Bruk WebSocket-spesifikk disconnection method
+                var disconnectionReason = exception?.Message ?? "Normal disconnection";
+                await _onlineService.SetWebSocketDisconnectedAsync(userId, deviceId, Context.ConnectionId, disconnectionReason);
+
+                _logger.Information($"🔌 SignalR: User {userId} disconnected from device {deviceId} (connection {Context.ConnectionId})");
+                
+                if (exception != null)
+                {
+                    _logger.Warning(exception, $"⚠️ SignalR: User {userId} disconnected with error from device {deviceId}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"❌ SignalR: Error during disconnection cleanup for user {userId}");
             }
         }
 
         await base.OnDisconnectedAsync(exception);
     }
-    
+
+    // 🆕 Ping/Health check method for client-side monitoring
+    public async Task<string> Ping()
+    {
+        return "pong";
+    }
+
+    // 🆕 Get connection info for debugging
+    public async Task<object> GetConnectionInfo()
+    {
+        var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        
+        return new
+        {
+            ConnectionId = Context.ConnectionId,
+            UserId = userIdClaim,
+            ConnectedAt = DateTime.UtcNow,
+            UserAgent = Context.GetHttpContext()?.Request.Headers["User-Agent"].FirstOrDefault()
+        };
+    }
 }

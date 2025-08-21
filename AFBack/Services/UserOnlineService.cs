@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.DTOs.Signalr;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -184,8 +185,10 @@ public class UserOnlineService
      /// <summary>
     /// Registrer WebSocket som tilkoblet for spesifikk enhet
     /// </summary>
-    public async Task SetWebSocketConnectedAsync(int userId, string deviceId, string connectionId, string platform = "web", string[] capabilities = null, object metadata = null)
+    public async Task<ConnectionResultDTO> SetWebSocketConnectedAsync(int userId, string deviceId, string connectionId, string platform = "web", string[] capabilities = null, object metadata = null)
     {
+        var result = new ConnectionResultDTO();
+        
         try
         {
             var existingStatus = await _context.UserOnlineStatuses
@@ -193,6 +196,18 @@ public class UserOnlineService
 
             var now = DateTime.UtcNow;
             var metadataJson = metadata != null ? JsonSerializer.Serialize(metadata) : null;
+
+            // 🆕 Sjekk for device collision
+            if (existingStatus != null && existingStatus.IsWebSocketConnected && 
+                !string.IsNullOrEmpty(existingStatus.ConnectionId) && 
+                existingStatus.ConnectionId != connectionId)
+            {
+                _logger.LogInformation("🔀 Device collision detected: User {UserId}, Device {DeviceId}, Old Connection: {OldConnectionId}, New Connection: {NewConnectionId}", 
+                    userId, deviceId, existingStatus.ConnectionId, connectionId);
+                    
+                result.HasCollision = true;
+                result.PreviousConnectionId = existingStatus.ConnectionId;
+            }
 
             if (existingStatus != null)
             {
@@ -228,13 +243,34 @@ public class UserOnlineService
                 _context.UserOnlineStatuses.Add(newStatus);
             }
 
+            // 🆕 Hent andre aktive connections for denne brukeren (på andre enheter)
+            var otherActiveConnections = await _context.UserOnlineStatuses
+                .Where(s => s.UserId == userId && 
+                           s.DeviceId != deviceId && 
+                           s.IsWebSocketConnected && 
+                           !string.IsNullOrEmpty(s.ConnectionId))
+                .Select(s => s.ConnectionId!)
+                .ToListAsync();
+
+            if (otherActiveConnections.Any())
+            {
+                result.OtherDeviceConnections = otherActiveConnections;
+                _logger.LogInformation("📱 Found {Count} other active devices for user {UserId}", 
+                    otherActiveConnections.Count, userId);
+            }
+
             await _context.SaveChangesAsync();
+            
             _logger.LogInformation("✅ WebSocket connected: User {UserId}, Device {DeviceId}, Connection {ConnectionId}", 
                 userId, deviceId, connectionId);
+                
+            return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to set WebSocket connected for user {UserId}, device {DeviceId}", userId, deviceId);
+            result.Success = false;
+            return result;
         }
     }
      
