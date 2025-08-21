@@ -18,16 +18,25 @@ export async function processSyncEventNative(event: SyncEventDTO): Promise<void>
     // Message events 
     // NEW_MESSAGE sender med hele convDTO og messageDTO slik at vi legger inn samtalen hvis den ikke er i store, og vi legger inn meldingen. -- FERDIG BACKEND OG FRONTEND!
     case 'NEW_MESSAGE':
-    case 'CONVERSATION_CREATED': {      // Brukes når vi oppretter en samtale/gruppe. Kun creator får denne, og vi legger til systemmeldingen etter samtalen -- FERDIG BACKEND OG FRONTEND!!
+    case 'CONVERSATION_CREATED': { // Brukes når vi oppretter en samtale/gruppe. Kun creator får denne, og vi legger til systemmeldingen etter samtalen -- FERDIG BACKEND OG FRONTEND!!
       // Hent message og conversation fra forskjellige strukturer
       const { message, systemMessage, conversation, conversationData } = eventData;
-  
-      // Samle alle meldinger som finnes
+      const { removePendingRequest, addConversation } = useChatStore.getState();
+      
+      const conversationToUse = conversation || conversationData;
+      
+      if (conversationToUse) {
+        // 🎯 Fjern fra pending hvis den finnes der (når samtale godkjennes)
+        removePendingRequest(conversationToUse.id);
+        
+        // Legg til i conversations
+        addConversation(conversationToUse);
+      }
+      
+      // Håndter meldinger som før...
       const messages = [];
       if (systemMessage) messages.push(systemMessage);
       if (message) messages.push(message);
-      
-      const conversationToUse = conversation || conversationData;
       
       if (messages.length > 0) {
         await handleMessageSync(messages, conversationToUse);
@@ -52,18 +61,29 @@ export async function processSyncEventNative(event: SyncEventDTO): Promise<void>
       break;
     }
       // Når vi mottar en MessageRequest fra en annen bruker. legger inn i pending listen. -- FERDIG BACKEND OG FRONTEND!
-    case 'REQUEST_RECEIVED': { // Vi mottar en gruppeforespørsel som legges inn i pending
+    case 'REQUEST_RECEIVED': {
       const { groupRequestData, messageRequestData, systemMessage, message } = eventData;
-      const { addPendingRequest, addMessage } = useChatStore.getState();
+      const { addPendingRequest, addMessage, conversations } = useChatStore.getState();
       
-      // 1. Legg til pending request (enten gruppe eller 1-1)
       const requestData = groupRequestData || messageRequestData;
+      
       if (requestData) {
-        addPendingRequest(requestData);
+        // 🎯 Sjekk om samtalen allerede eksisterer i conversations
+        const conversationExists = conversations.some(conv => 
+          conv.id === requestData.conversationId
+        );
+        
+        // Kun legg til i pending hvis samtalen IKKE allerede eksisterer
+        if (!conversationExists) {
+          addPendingRequest(requestData);
+          console.log('📥 Added request to pending list');
+        } else {
+          console.log('⚠️ Request received for existing conversation - ignoring pending request');
+        }
       }
       
-      // 2. Legg til alle meldinger som finnes
-      const messages = [systemMessage, message].filter(Boolean); // Fjern null/undefined
+      // Legg til meldinger uansett (systemMessage og message kan være relevante)
+      const messages = [systemMessage, message].filter(Boolean);
       for (const msg of messages) {
         await addMessage(msg);
       }

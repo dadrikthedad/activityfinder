@@ -12,6 +12,7 @@ import { useNotificationStore } from '@/store/useNotificationStore';
 import { useUserCacheStore, useFriends, useBlockedUsers } from '@/store/useUserCacheStore';
 import { useBootstrapDistributor } from "@/hooks/bootstrap/useBootstrapDistributor";
 import { useSyncNative } from "@/hooks/sync/useSyncNative";
+import { handleUserSwitch } from '@/utils/signalr/chatHub';
 
 export function AppInitializer() {
   const { userId, token } = useAuth();
@@ -67,6 +68,11 @@ export function AppInitializer() {
     // Ny bruker i samme sesjon? Reset alle stores
     if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
       console.log("🔄 BOOT: User switch detected, resetting all stores...");
+      
+      handleUserSwitch().catch(err => 
+        console.error('Failed to handle SignalR user switch:', err)
+      );
+
       useBootstrapStore.getState().reset();
       useChatStore.getState().reset();
       useMessageNotificationStore.getState().reset();

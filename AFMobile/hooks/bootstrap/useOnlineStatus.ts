@@ -5,7 +5,9 @@ import { markOnlineWithDefaults,
   markOfflineWithDefaults, 
   sendHeartbeatSafe,
  } from '@/services/bootstrap/onlineStatusService';
- import NetInfo from '@react-native-community/netinfo';
+import NetInfo from '@react-native-community/netinfo';
+// 🆕 Import SignalR heartbeat notifications
+import { notifyHeartbeatSuccess, notifyHeartbeatFailure } from '@/utils/signalr/chatHub';
 
 interface UseOnlineStatusReturn {
   isOnline: boolean;
@@ -57,17 +59,34 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
     }, delay);
   }, [isOnline, isConnecting]);
 
-  // Enhanced heartbeat with auto-recovery
-  const startHeartbeat = useCallback((intervalMs: number = 60000) => {
+  // 🔧 Enhanced heartbeat with SignalR integration
+  const startHeartbeat = useCallback((intervalMs: number = 30000) => { // 🔧 Changed to 30s to match your existing heartbeat
     if (heartbeatIntervalRef.current) {
       clearInterval(heartbeatIntervalRef.current);
     }
     
     heartbeatIntervalRef.current = setInterval(async () => {
-      const success = await sendHeartbeatSafe();
-      
-      if (!success) {
-        console.warn("⚠️ Heartbeat failed");
+      try {
+        const success = await sendHeartbeatSafe();
+        
+        if (success) {
+          // 🆕 Notify SignalR that heartbeat succeeded
+          notifyHeartbeatSuccess();
+          
+          // Reset retry count on successful heartbeat
+          retryCountRef.current = 0;
+          if (connectionError) {
+            setConnectionError(null);
+          }
+        } else {
+          throw new Error('Heartbeat failed');
+        }
+      } catch (error) {
+        console.warn("⚠️ Heartbeat failed:", error);
+        
+        // 🆕 Notify SignalR that heartbeat failed
+        notifyHeartbeatFailure(error);
+        
         retryCountRef.current++;
         
         // After 3 failed heartbeats, mark as offline but schedule recovery
@@ -81,12 +100,6 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
           if (shouldBeOnlineRef.current) {
             scheduleRecovery();
           }
-        }
-      } else {
-        // Reset retry count on successful heartbeat
-        retryCountRef.current = 0;
-        if (connectionError) {
-          setConnectionError(null);
         }
       }
     }, intervalMs);
@@ -113,7 +126,7 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       if (result) {
         console.log("✅ User marked as online successfully");
         setIsOnline(true);
-        startHeartbeat(60000);
+        startHeartbeat(30000); // 🔧 30 second interval
         retryCountRef.current = 0;
         
         // Clear any pending recovery
@@ -127,6 +140,10 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       
     } catch (error) {
       console.error("❌ Failed to mark user online:", error);
+      
+      // 🆕 Notify SignalR about the connection failure
+      notifyHeartbeatFailure(error);
+      
       setConnectionError(error instanceof Error ? error.message : "Failed to connect");
       setIsOnline(false);
       
@@ -230,6 +247,10 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
         setIsOnline(false);
         stopHeartbeat();
         setConnectionError("Network offline");
+        
+        // 🆕 Notify SignalR about network issues
+        notifyHeartbeatFailure(new Error('Network offline'));
+        
         // Note: shouldBeOnlineRef stays true - we'll recover when network returns
       }
     });

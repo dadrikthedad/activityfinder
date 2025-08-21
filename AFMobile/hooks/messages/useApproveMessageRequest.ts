@@ -15,7 +15,6 @@ export function useApproveMessageRequest() {
 
   const removeRequest = useChatStore((state) => state.removePendingRequest);
   const addConversation = useChatStore((state) => state.addConversation);
-  const setCurrentConversationId = useChatStore((s) => s.setCurrentConversationId);
   const setPendingLockedConversationId = useChatStore(
     (s) => s.setPendingLockedConversationId
   );
@@ -65,9 +64,7 @@ export function useApproveMessageRequest() {
       addConversation(updated);
     }
 
-    if (state.pendingLockedConversationId === conversationId) {
-      setCurrentConversationId(conversationId);
-    } else if (!state.unreadConversationIds.includes(conversationId)) {
+    if (!state.unreadConversationIds.includes(conversationId)) {
       state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
     }
 
@@ -85,7 +82,6 @@ export function useApproveMessageRequest() {
   }, [
     removeRequest,
     addConversation,
-    setCurrentConversationId,
     setPendingLockedConversationId,
     currentUserId
   ]);
