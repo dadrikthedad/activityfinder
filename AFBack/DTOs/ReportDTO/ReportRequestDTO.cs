@@ -34,6 +34,4 @@ public class ReportRequestDTO
     // Priority level
     public PriorityEnum Priority { get; set; } = PriorityEnum.Medium;
 
-    // Attachments (file paths eller base64 strings)
-    public List<string>? Attachments { get; set; }
 }

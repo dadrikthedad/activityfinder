@@ -457,6 +457,73 @@ public class FileController : BaseController
         }
     }
     
+    [HttpPost("{reportId}/attachments")]
+    public async Task<IActionResult> UploadReportAttachment(
+    Guid reportId, 
+    [FromForm] IFormFile file)
+    {
+        if (file == null)
+            return BadRequest(new { message = "No file provided" });
+
+        try
+        {
+            var userId = GetUserId();
+            
+            // Hent rapporten med eksisterende attachments
+            var report = await _context.Reports
+                .Include(r => r.Attachments)
+                .FirstOrDefaultAsync(r => r.Id == reportId);
+            
+            if (report == null)
+                return NotFound("Report not found");
+
+            // Sjekk tilgang - kun eieren kan legge til attachments
+            if (report.SubmittedByUserId != userId)
+                return Forbid("Access denied");
+
+            // Sjekk maksimalt antall attachments per rapport (f.eks. 5)
+            if (report.Attachments.Count >= 5)
+                return BadRequest(new { message = "Maximum number of attachments (5) reached" });
+
+            // Valider fil - bruk ValidateFile i stedet for ValidateImage
+            // (eller lag ValidateReportAttachment hvis du vil ha spesielle regler)
+            var (isValid, errorMessage) = _fileService.ValidateFile(file);
+            if (!isValid)
+                return BadRequest(new { message = errorMessage });
+
+            // Last opp fil
+            var fileUrl = await _fileService.UploadFileAsync(file, "report-attachments");
+            
+            // Opprett attachment record
+            var attachment = new ReportAttachment
+            {
+                ReportId = reportId,
+                FileUrl = fileUrl,
+                FileType = file.ContentType,
+                FileSize = file.Length,
+                FileName = file.FileName,
+                UploadedAt = DateTime.UtcNow
+            };
+
+            _context.ReportAttachments.Add(attachment);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { 
+                AttachmentId = attachment.Id,
+                FileUrl = fileUrl,
+                FileName = file.FileName,
+                FileSize = file.Length,
+                FileType = file.ContentType,
+                UploadedAt = attachment.UploadedAt
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload attachment for report {ReportId}", reportId);
+            return StatusCode(500, new { message = "Failed to upload attachment" });
+        }
+    }
+    
     // 🆕 Hjelpemetode for filvalidering (kan brukes av frontend)
     [HttpPost("validate-file")]
     public IActionResult ValidateFile(IFormFile file)

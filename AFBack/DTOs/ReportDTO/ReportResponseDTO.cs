@@ -1,4 +1,5 @@
 using AFBack.Constants;
+using AFBack.DTOs.Attachment;
 
 namespace AFBack.Models;
 
@@ -21,5 +22,5 @@ public class ReportResponseDTO
     public DateTime? UpdatedAt { get; set; }
     public string? AssignedTo { get; set; }
     public string? Resolution { get; set; }
-    public List<string>? Attachments { get; set; }
+    public List<AttachmentDTO>? Attachments { get; set; }
 }

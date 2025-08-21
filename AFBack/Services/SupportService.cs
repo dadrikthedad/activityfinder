@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AFBack.Constants;
 using AFBack.Data;
+using AFBack.DTOs.Attachment;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,10 +34,7 @@ public class SupportService
                 BrowserVersion = request.BrowserVersion,
                 DeviceInfo = request.DeviceInfo,
                 Priority = request.Priority,
-                Status = ReportStatusEnum.Open,
-                AttachmentsJson = request.Attachments != null && request.Attachments.Any() 
-                    ? JsonSerializer.Serialize(request.Attachments) 
-                    : null
+                Status = ReportStatusEnum.Open
             };
 
             _context.Reports.Add(report);
@@ -44,78 +42,17 @@ public class SupportService
 
             return report.Id;
         }
-
-        public async Task<ReportResponseDTO?> GetReportAsync(Guid reportId, int? currentUserId)
+        
+        private async Task<ReportResponseDTO> MapToResponseDTO(Report report)
         {
-            var report = await _context.Reports
-                .FirstOrDefaultAsync(r => r.Id == reportId);
-
-            if (report == null)
-                return null;
-
-            // Kun admin eller den som opprettet rapporten kan se den
-            // (Du kan justere denne logikken basert på dine behov)
-            if (report.SubmittedByUserId != null && 
-                currentUserId != report.SubmittedByUserId && 
-                !IsAdmin(currentUserId)) // Implementer IsAdmin logikk
+            // Last inn attachments hvis de ikke allerede er loaded
+            if (report.Attachments == null || !report.Attachments.Any())
             {
-                return null;
+                await _context.Entry(report)
+                    .Collection(r => r.Attachments)
+                    .LoadAsync();
             }
 
-            return MapToResponseDTO(report);
-        }
-
-        public async Task<List<ReportResponseDTO>> GetUserReportsAsync(int userId)
-        {
-            var reports = await _context.Reports
-                .Where(r => r.SubmittedByUserId == userId)
-                .OrderByDescending(r => r.SubmittedAt)
-                .ToListAsync();
-
-            return reports.Select(MapToResponseDTO).ToList();
-        }
-
-        public async Task<List<ReportResponseDTO>> GetAllReportsAsync(int page = 1, int pageSize = 20)
-        {
-            // For admin bruk
-            var reports = await _context.Reports
-                .OrderByDescending(r => r.SubmittedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return reports.Select(MapToResponseDTO).ToList();
-        }
-
-        public async Task<bool> UpdateReportStatusAsync(Guid reportId, ReportStatusEnum status, string? resolution = null, string? assignedTo = null)
-        {
-            // For admin bruk
-            var report = await _context.Reports.FindAsync(reportId);
-            if (report == null)
-                return false;
-
-            report.Status = status;
-            report.UpdatedAt = DateTime.UtcNow;
-            
-            if (!string.IsNullOrEmpty(resolution))
-                report.Resolution = resolution;
-                
-            if (!string.IsNullOrEmpty(assignedTo))
-                report.AssignedTo = assignedTo;
-
-            await _context.SaveChangesAsync();
-            return true;
-        }
-
-        private bool IsAdmin(int? userId)
-        {
-            // TODO: Implementer admin check logikk
-            // Kan sjekke bruker rolle i database eller claims
-            return false;
-        }
-
-        private ReportResponseDTO MapToResponseDTO(Report report)
-        {
             return new ReportResponseDTO
             {
                 Id = report.Id,
@@ -135,9 +72,87 @@ public class SupportService
                 UpdatedAt = report.UpdatedAt,
                 AssignedTo = report.AssignedTo,
                 Resolution = report.Resolution,
-                Attachments = !string.IsNullOrEmpty(report.AttachmentsJson) 
-                    ? JsonSerializer.Deserialize<List<string>>(report.AttachmentsJson) 
-                    : null
+                // OPPDATERT: Bruk ReportAttachment objekter i stedet for JSON
+                Attachments = report.Attachments?.Select(a => new AttachmentDTO
+                {
+                    Id = a.Id,
+                    FileUrl = a.FileUrl,
+                    FileName = a.FileName,
+                    FileType = a.FileType,
+                    FileSize = a.FileSize,
+                    UploadedAt = a.UploadedAt
+                }).ToList()
             };
         }
+
+        // public async Task<ReportResponseDTO?> GetReportAsync(Guid reportId, int? currentUserId)
+        // {
+        //     var report = await _context.Reports
+        //         .FirstOrDefaultAsync(r => r.Id == reportId);
+        //
+        //     if (report == null)
+        //         return null;
+        //
+        //     // Kun admin eller den som opprettet rapporten kan se den
+        //     // (Du kan justere denne logikken basert på dine behov)
+        //     if (report.SubmittedByUserId != null && 
+        //         currentUserId != report.SubmittedByUserId && 
+        //         !IsAdmin(currentUserId)) // Implementer IsAdmin logikk
+        //     {
+        //         return null;
+        //     }
+        //
+        //     return MapToResponseDTO(report);
+        // }
+        //
+        // public async Task<List<ReportResponseDTO>> GetUserReportsAsync(int userId)
+        // {
+        //     var reports = await _context.Reports
+        //         .Where(r => r.SubmittedByUserId == userId)
+        //         .OrderByDescending(r => r.SubmittedAt)
+        //         .ToListAsync();
+        //
+        //     return reports.Select(MapToResponseDTO).ToList();
+        // }
+
+        // public async Task<List<ReportResponseDTO>> GetAllReportsAsync(int page = 1, int pageSize = 20)
+        // {
+        //     // For admin bruk
+        //     var reports = await _context.Reports
+        //         .OrderByDescending(r => r.SubmittedAt)
+        //         .Skip((page - 1) * pageSize)
+        //         .Take(pageSize)
+        //         .ToListAsync();
+        //
+        //     return reports.Select(MapToResponseDTO).ToList();
+        // }
+
+        // public async Task<bool> UpdateReportStatusAsync(Guid reportId, ReportStatusEnum status, string? resolution = null, string? assignedTo = null)
+        // {
+        //     // For admin bruk
+        //     var report = await _context.Reports.FindAsync(reportId);
+        //     if (report == null)
+        //         return false;
+        //
+        //     report.Status = status;
+        //     report.UpdatedAt = DateTime.UtcNow;
+        //     
+        //     if (!string.IsNullOrEmpty(resolution))
+        //         report.Resolution = resolution;
+        //         
+        //     if (!string.IsNullOrEmpty(assignedTo))
+        //         report.AssignedTo = assignedTo;
+        //
+        //     await _context.SaveChangesAsync();
+        //     return true;
+        // }
+
+        // private bool IsAdmin(int? userId)
+        // {
+        //     // TODO: Implementer admin check logikk
+        //     // Kan sjekke bruker rolle i database eller claims
+        //     return false;
+        // }
+
+        
     }

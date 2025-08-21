@@ -44,6 +44,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<SyncEvent> SyncEvents { get; set; }
     
     public DbSet<Report> Reports { get; set; }
+    
+    public DbSet<ReportAttachment> ReportAttachments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -655,8 +657,15 @@ public class ApplicationDbContext : DbContext
             entity.Property(r => r.Resolution)
                 .HasMaxLength(2000);
                 
-            entity.Property(r => r.AttachmentsJson)
-                .HasColumnType("text"); // PostgreSQL for JSON data
+            // FJERNET: AttachmentsJson konfigurasjonen
+            // entity.Property(r => r.AttachmentsJson)
+            //     .HasColumnType("text"); 
+            
+            // Navigation property til ReportAttachments
+            entity.HasMany(r => r.Attachments)
+                .WithOne(a => a.Report)
+                .HasForeignKey(a => a.ReportId)
+                .OnDelete(DeleteBehavior.Cascade); // Når rapport slettes, slettes også alle attachments
                 
             // Indexes for performance
             entity.HasIndex(r => r.Type)
@@ -676,6 +685,42 @@ public class ApplicationDbContext : DbContext
                 
             // Table name
             entity.ToTable("Reports");
+        });
+        
+        modelBuilder.Entity<ReportAttachment>(entity =>
+        {
+            // Primary key
+            entity.HasKey(a => a.Id);
+    
+            // Required fields
+            entity.Property(a => a.FileUrl)
+                .IsRequired()
+                .HasMaxLength(500);
+        
+            entity.Property(a => a.FileType)
+                .IsRequired()
+                .HasMaxLength(100);
+        
+            entity.Property(a => a.UploadedAt)
+                .IsRequired()
+                .HasDefaultValueSql("NOW()");
+        
+            // Optional fields
+            entity.Property(a => a.FileName)
+                .HasMaxLength(255);
+        
+            // Foreign key relationship (allerede definert i Report konfigurasjonen, men kan være eksplisitt)
+            entity.HasOne(a => a.Report)
+                .WithMany(r => r.Attachments)
+                .HasForeignKey(a => a.ReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+        
+            // Index for performance på foreign key
+            entity.HasIndex(a => a.ReportId)
+                .HasDatabaseName("IX_ReportAttachment_ReportId");
+        
+            // Table name
+            entity.ToTable("ReportAttachments");
         });
 
 

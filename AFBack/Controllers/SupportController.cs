@@ -46,41 +46,41 @@ public class SupportController : BaseController
         }
     }
 
-    [HttpGet("report/{id}")]
-    public async Task<IActionResult> GetReport(Guid id)
-    {
-        try 
-        {
-            var userId = GetUserId();
-            var report = await _supportService.GetReportAsync(id, userId);
-                
-            if (report == null)
-                return NotFound(new { Message = "Report not found" });
-                
-            return Ok(report);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { Message = "An error occurred while retrieving the report" });
-        }
-    }
+    // [HttpGet("report/{id}")]
+    // public async Task<IActionResult> GetReport(Guid id)
+    // {
+    //     try 
+    //     {
+    //         var userId = GetUserId();
+    //         var report = await _supportService.GetReportAsync(id, userId);
+    //             
+    //         if (report == null)
+    //             return NotFound(new { Message = "Report not found" });
+    //             
+    //         return Ok(report);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return StatusCode(500, new { Message = "An error occurred while retrieving the report" });
+    //     }
+    // }
 
-    [HttpGet("my-reports")]
-    public async Task<IActionResult> GetMyReports()
-    {
-        try
-        {
-            var userId = GetUserId();
-            if (userId == null)
-                return Unauthorized(new { Message = "You must be logged in to view your reports" });
-                
-            var reports = await _supportService.GetUserReportsAsync(userId.Value);
-            return Ok(reports);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { Message = "An error occurred while retrieving reports" });
-        }
-    }
+    // [HttpGet("my-reports")]
+    // public async Task<IActionResult> GetMyReports()
+    // {
+    //     try
+    //     {
+    //         var userId = GetUserId();
+    //         if (userId == null)
+    //             return Unauthorized(new { Message = "You must be logged in to view your reports" });
+    //             
+    //         var reports = await _supportService.GetUserReportsAsync(userId.Value);
+    //         return Ok(reports);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return StatusCode(500, new { Message = "An error occurred while retrieving reports" });
+    //     }
+    // }
 }    
     

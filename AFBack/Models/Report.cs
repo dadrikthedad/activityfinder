@@ -54,7 +54,7 @@ public class Report
     public string? Resolution { get; set; } // Resolution notes
     
     // Attachments - du kan lagre som JSON string eller lage egen tabell
-    public string? AttachmentsJson { get; set; } // JSON serialized List<string>
+    public ICollection<ReportAttachment> Attachments { get; set; } = new List<ReportAttachment>();
     
     // Navigation properties hvis du bruker Entity Framework
     // public User? SubmittedByUser { get; set; }
