@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using AFBack.Constants;
+using AFBack.DTOs.Auth;
 using AFBack.Extensions;
 using Microsoft.AspNetCore.Authorization;
 
@@ -239,19 +240,21 @@ public class UserController : BaseController
                 
                 
                     // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
-                    return Ok(new
+                    var response = new RegisterResponseDTO
                     {
-                        message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
-                        userId = user.Id,
-                        email = user.Email,
-                        emailConfirmationRequired = true,
-                        verificationMethods = new 
+                        Message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
+                        UserId = user.Id,
+                        Email = user.Email,
+                        EmailConfirmationRequired = true,
+                        VerificationMethods = new VerificationMethodsDTO
                         {
-                            webLink = "Check your email and click the verification link",
-                            mobileCode = "Enter the 6-digit code shown in the email into the app",
-                            deepLink = "Click 'Open in App' from the email if using mobile"
+                            WebLink = "Check your email and click the verification link",
+                            MobileCode = "Enter the 6-digit code shown in the email into the app",
+                            DeepLink = "Click 'Open in App' from the email if using mobile"
                         }
-                    });
+                    };
+
+                    return Ok(response);
                 }
                 catch (DbUpdateException e)
                 {
