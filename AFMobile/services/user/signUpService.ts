@@ -1,5 +1,7 @@
 
 import { API_BASE_URL } from "@/constants/routes";
+import { RegisterResponse } from "@shared/types/auth/RegisterResponseDTO";
+import { RegisterUserPayload } from "@shared/types/auth/RegisterUserPayloadDTO";
 
 
 export async function checkEmailAvailability(email: string): Promise<boolean> {
@@ -40,27 +42,6 @@ export interface Country {
 export interface SelectOption {
   label: string;
   value: string;
-}
-
-// Type for registrering
-export interface RegisterUserPayload {
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  phone?: string;
-  dateOfBirth: string;
-  country: string;
-  region?: string;
-  postalCode?: string;
-  gender: string;
-}
-
-interface RegisterResponse {
-  message: string;
-  userId?: string;
 }
 
 // Henter land - bruker fetchWithAuth uten token (offentlig endpoint)
@@ -117,7 +98,7 @@ export async function fetchRegions(code: string): Promise<string[]> {
 export async function registerUserAPI(payload: RegisterUserPayload): Promise<RegisterResponse> {
   try {
     console.log("🟡 Registering user:", payload.email);
-    
+   
     const response = await fetch(`${API_BASE_URL}/api/user/register`, {
       method: "POST",
       headers: {
@@ -126,21 +107,28 @@ export async function registerUserAPI(payload: RegisterUserPayload): Promise<Reg
       body: JSON.stringify(payload),
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("🔴 Registration failed:", errorText);
+      console.error("🔴 Registration failed:", data);
       
-      try {
-        const errorJson = JSON.parse(errorText);
-        throw new Error(errorJson.message || 'Registration failed');
-      } catch {
-        throw new Error(errorText || 'Registration failed');
+      // Handle different types of errors (samme som web-versjonen)
+      if (data.errors) {
+        // Validation errors - format them nicely
+        const errorMessages = Object.entries(data.errors as Record<string, string[]>)
+          .map(([field, messages]) => 
+            `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`
+          )
+          .join('\n');
+        throw new Error(errorMessages);
+      } else {
+        // Single error message
+        throw new Error(data.message || "User registration failed");
       }
     }
-
-    const data = await response.json();
+    
     console.log("✅ User registered successfully");
-    return data;
+    return data as RegisterResponse;
   } catch (error) {
     console.error("❌ Error registering user:", error);
     throw error;

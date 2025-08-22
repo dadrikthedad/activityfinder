@@ -1,4 +1,4 @@
-// screens/auth/LoginScreen.tsx
+// screens/auth/LoginScreen.tsx - Oppdatert versjon
 import React from "react";
 import {
   View,
@@ -14,6 +14,7 @@ import { useLogin } from "@/hooks/auth/useLogin";
 import FormFieldNative from "@/components/common/FormFieldNative";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
+import OptionModalNative from "@/components/common/modal/OptionModalNative";
 import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
 import { LoginScreenNavigationProp } from "@/types/navigation";
 
@@ -28,12 +29,18 @@ export default function LoginScreen() {
     isSubmitting,
     handleLogin,
     clearError,
+    // *** NYE PROPERTIES FOR EMAIL VERIFICATION ***
+    showVerificationPrompt,
+    setShowVerificationPrompt,
+    resendingEmail,
+    handleResendVerificationEmail,
+    handleNavigateToVerification,
   } = useLogin();
 
   const onLoginPress = async () => {
     try {
       await handleLogin();
-      // AuthContext håndterer navigasjon automatisk
+      // AuthContext håndterer navigasjon automatisk hvis login er vellykket
     } catch (error) {
       // Error is already handled in the hook
       console.log("Login error handled by hook");
@@ -54,10 +61,42 @@ export default function LoginScreen() {
         position: 'top'
       });
       
-      // Clear the error after showing the toast
       clearError();
     }
   }, [errorMessage, clearError]);
+
+  // *** EMAIL VERIFICATION MODAL OPTIONS ***
+  const verificationOptions = [
+    {
+      label: "Verify Email Now",
+      value: "verify"
+    },
+    {
+      label: "Resend Verification Email", 
+      value: "resend"
+    }
+  ];
+
+  const handleVerificationAction = async (action: string) => {
+    switch (action) {
+      case "verify":
+        handleNavigateToVerification();
+        break;
+      case "resend":
+        await handleResendVerificationEmail();
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Email Sent!",
+          customBody: "Verification email has been sent to your inbox.",
+          position: 'top'
+        });
+        break;
+    }
+  };
+
+  const handleModalClose = () => {
+    setShowVerificationPrompt(false);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -85,7 +124,7 @@ export default function LoginScreen() {
               value={email}
               onChangeText={setEmail}
               placeholder="Your email"
-              disabled={isSubmitting}
+              disabled={isSubmitting || resendingEmail}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -97,15 +136,15 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               placeholder="Your password"
-              disabled={isSubmitting}
+              disabled={isSubmitting || resendingEmail}
             />
 
             <ButtonNative
               text="Logg inn"
-              loadingText="Logging in..."
+              loadingText={resendingEmail ? "Sending email..." : "Logging in..."}
               onPress={onLoginPress}
-              loading={isSubmitting}
-              disabled={isSubmitting}
+              loading={isSubmitting || resendingEmail}
+              disabled={isSubmitting || resendingEmail}
               variant="primary"
               size="large"
               fullWidth
@@ -120,7 +159,7 @@ export default function LoginScreen() {
                 onPress={navigateToSignup}
                 variant="ghost"
                 size="medium"
-                disabled={isSubmitting}
+                disabled={isSubmitting || resendingEmail}
                 textStyle={styles.signupButtonText}
               />
             </View>
@@ -128,9 +167,23 @@ export default function LoginScreen() {
 
           {/* Footer */}
           <View style={styles.footer}>
+            {/* Optionally add forgot password link here */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* *** EMAIL VERIFICATION MODAL - Vises automatisk når showVerificationPrompt er true *** */}
+      {showVerificationPrompt && (
+        <OptionModalNative
+          title="Email Verification Required"
+          options={verificationOptions}
+          onSelect={handleVerificationAction}
+          onClose={handleModalClose}
+          blurBackground={true}
+          dismissOnBackdrop={false} // Force user to make a choice
+          autoShow={true}
+        />
+      )}
     </SafeAreaView>
   );
 }

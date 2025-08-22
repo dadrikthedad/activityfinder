@@ -14,7 +14,7 @@ public class EmailController : BaseController
     private readonly UserService _userService;
     private readonly ILogger<EmailController> _logger;
     private readonly ApplicationDbContext _context;
-    
+
     public EmailController(EmailService emailService, UserService userService, ILogger<EmailController> logger, ApplicationDbContext context)
     {
         _context = context;
@@ -30,20 +30,21 @@ public class EmailController : BaseController
         {
             // *** OPPRETT HYBRID VERIFIKASJON TOKENS ***
             var (longToken, shortCode) = await _userService.CreateVerificationTokenAsync(request.Email);
-        
+
             if (longToken == null || shortCode == null)
             {
                 // Brukeren finnes ikke, men ikke avslør dette
                 return Ok(new { message = "If the email exists, a verification email has been sent.", success = true });
             }
-        
+
             // *** SEND EPOST MED BEGGE TOKENS ***
             var success = await _emailService.SendVerificationEmailAsync(request.Email, longToken, shortCode);
-        
+
             if (success)
             {
-                return Ok(new { 
-                    message = "Verification email sent with both web link and mobile code. Check your inbox!", 
+                return Ok(new
+                {
+                    message = "Verification email sent with both web link and mobile code. Check your inbox!",
                     success = true,
                     verificationMethods = new
                     {
@@ -53,7 +54,7 @@ public class EmailController : BaseController
                     }
                 });
             }
-        
+
             return BadRequest(new { message = "Could not send verification email", success = false });
         }
         catch (Exception ex)
@@ -68,7 +69,7 @@ public class EmailController : BaseController
         try
         {
             var isValid = await _userService.VerifyEmailTokenAsync(request.Token);
-            
+
             if (isValid)
             {
                 // Send velkomstepost
@@ -77,45 +78,19 @@ public class EmailController : BaseController
                 {
                     await _emailService.SendWelcomeEmailAsync(user.Email, user.FullName);
                 }
-                
-                return Ok(new { message = "Epostadresse verifisert!", success = true });
+
+                return Ok(new { message = "Email verified!", success = true });
             }
-            
-            return BadRequest(new { message = "Ugyldig eller utløpt verifikasjontoken", success = false });
+
+            return BadRequest(new { message = "Invaldig or expired verification code", success = false });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
+            return StatusCode(500, new { message = "Network error", error = ex.Message });
         }
     }
-    
-    [HttpPost("testPreview")]
-    public async Task<IActionResult> SendTestEmail([FromBody] TestEmailRequest request)
-    {
-        try
-        {
-            // Generer et test-token for forhåndsvisning
-            var testToken = Guid.NewGuid().ToString();
-        
-            var success = await _emailService.SendWelcomeEmailAsync(request.Email, testToken);
-    
-            if (success)
-            {
-                return Ok(new { 
-                    message = "💕 Romantisk epost sendt til Ine-Victoria! 💕", 
-                    success = true,
-                    testToken = testToken // Kan være nyttig for debugging
-                });
-            }
-    
-            return BadRequest(new { message = "Kunne ikke sende romantisk epost 💔", success = false });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Romantisk test feilet", error = ex.Message });
-        }
-    }
-    
+
+
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
@@ -123,22 +98,23 @@ public class EmailController : BaseController
         {
             // Opprett reset token
             var token = await _userService.CreatePasswordResetTokenAsync(request.Email);
-        
+
             if (token != null)
             {
                 // Send epost
                 var success = await _emailService.SendForgotPasswordEmailAsync(request.Email, token);
-            
+
                 if (!success)
                 {
                     return StatusCode(500, new { message = "Kunne ikke sende epost", success = false });
                 }
             }
-        
+
             // Returner alltid samme melding for sikkerhet (ikke avslør om eposten eksisterer)
-            return Ok(new { 
-                message = "Hvis epostadressen er registrert, vil du motta en reset-link", 
-                success = true 
+            return Ok(new
+            {
+                message = "Hvis epostadressen er registrert, vil du motta en reset-link",
+                success = true
             });
         }
         catch (Exception ex)
@@ -146,7 +122,7 @@ public class EmailController : BaseController
             return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
         }
     }
-    
+
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
@@ -154,20 +130,20 @@ public class EmailController : BaseController
         {
             // Valider token først
             var isValidToken = await _userService.ValidatePasswordResetTokenAsync(request.Token);
-        
+
             if (!isValidToken)
             {
                 return BadRequest(new { message = "Ugyldig eller utløpt reset-token", success = false });
             }
-        
+
             // Reset passordet
             var success = await _userService.ResetPasswordAsync(request.Token, request.NewPassword);
-        
+
             if (success)
             {
                 return Ok(new { message = "Passordet er oppdatert!", success = true });
             }
-        
+
             return BadRequest(new { message = "Kunne ikke oppdatere passordet", success = false });
         }
         catch (Exception ex)
@@ -175,14 +151,14 @@ public class EmailController : BaseController
             return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
         }
     }
-    
+
     [HttpGet("validate-reset-token/{token}")]
     public async Task<IActionResult> ValidateResetToken(string token)
     {
         try
         {
             var isValid = await _userService.ValidatePasswordResetTokenAsync(token);
-        
+
             return Ok(new { isValid = isValid });
         }
         catch (Exception ex)
@@ -190,7 +166,7 @@ public class EmailController : BaseController
             return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
         }
     }
-    
+
     [HttpPost("resend-verification")]
     public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequest request)
     {
@@ -210,13 +186,14 @@ public class EmailController : BaseController
         if (user.EmailConfirmed)
         {
             _logger.LogInformation("Resend verification requested for already verified email: {Email}", normalizedEmail);
-            return Ok(new { 
+            return Ok(new
+            {
                 message = "Your email is already verified. You can log in.",
-                alreadyVerified = true 
+                alreadyVerified = true
             });
         }
 
-        if (user.LastVerificationEmailSent.HasValue && 
+        if (user.LastVerificationEmailSent.HasValue &&
             user.LastVerificationEmailSent.Value.AddMinutes(2) > DateTime.UtcNow)
         {
             return BadRequest(new { message = "Please wait before requesting another verification email." });
@@ -227,11 +204,11 @@ public class EmailController : BaseController
             // *** GENERER BÅDE LANG TOKEN OG KORT KODE ***
             var newToken = Guid.NewGuid().ToString(); // For web/deep links
             var newCode = new Random().Next(100000, 999999).ToString(); // For manuell input
-            
+
             user.EmailConfirmationToken = newToken;
             user.EmailConfirmationCode = newCode; // Legg til kort kode
             user.LastVerificationEmailSent = DateTime.UtcNow;
-            
+
             await _context.SaveChangesAsync();
 
             // *** SEND BEGGE TOKENS TIL EMAIL SERVICE ***
@@ -240,7 +217,8 @@ public class EmailController : BaseController
             if (emailSent)
             {
                 _logger.LogInformation("Verification email resent successfully to {Email}", user.Email);
-                return Ok(new { 
+                return Ok(new
+                {
                     message = "A new verification email has been sent with both web link and mobile code. Please check your inbox.",
                     emailSent = true
                 });

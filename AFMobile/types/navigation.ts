@@ -8,7 +8,7 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
-  SignUp: undefined; // Alternative name used in navbar
+  VerificationScreen: { email: string };
   Home: undefined;
   Profile: { id: string };
   EditProfile: undefined;
@@ -59,6 +59,11 @@ export type LoginScreenNavigationProp = StackNavigationProp<
 export type SignupScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'Signup'
+>;
+
+export type VerificationScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'VerificationScreen'
 >;
 
 export type HomeScreenNavigationProp = StackNavigationProp<
@@ -145,6 +150,7 @@ export type ReportScreenNavigationProp = StackNavigationProp<
 // Route prop types for each screen (if you need route params)
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
+export type VerificationScreenRouteProp = RouteProp<RootStackParamList, 'VerificationScreen'>;
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;
