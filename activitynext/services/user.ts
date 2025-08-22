@@ -1,6 +1,8 @@
 // API kall til backend for å hente fetchCountries(), fetchRegions(), regiserUserApi() som brukes i Signup og getCurrentUser() som brukes i Securitycred
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth";
 import { User } from "@shared/types/UserDTO";
+import { RegisterResponse } from "@shared/types/auth/RegisterResponseDTO";
+import { RegisterUserPayload } from "@shared/types/auth/RegisterUserPayloadDTO";
 
 const isServer = typeof window === "undefined";
 
@@ -20,27 +22,6 @@ export interface SelectOption {
   label: string;
   value: string;
 }
-
-// Type for registrering
-export interface RegisterUserPayload {
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  phone?: string;
-  dateOfBirth: string;
-  country: string;
-  region?: string;
-  postalCode?: string;
-  gender: string;
-}
-
-interface RegisterResponse {
-  message: string;
-  userId?: string;
-} 
 // Henter land fra GetAllCountries() i backend som bruker countryservice.GetAllCountries()
 export async function fetchCountries(): Promise<Country[]> {
   try {
@@ -72,17 +53,38 @@ export async function registerUserAPI(payload: RegisterUserPayload): Promise<Reg
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-
+    
     const data = await res.json();
-
-    if (!res.ok) throw new Error(data.message || "User registration failed");
-
-    return data;
+    
+    if (!res.ok) {
+      // Handle different types of errors
+      if (data.errors) {
+        // Validation errors - format them nicely
+        const errorMessages = Object.entries(data.errors as Record<string, string[]>)
+          .map(([field, messages]) => 
+            `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`
+          )
+          .join('\n');
+        throw new Error(errorMessages);
+      } else {
+        // Single error message
+        throw new Error(data.message || "User registration failed");
+      }
+    }
+    
+    return data as RegisterResponse;
   } catch (error) {
     console.error("❌ Error registering user:", error);
     throw error;
   }
 }
+
+// Helper function to check if email verification is required
+export function requiresEmailVerification(response: RegisterResponse): boolean {
+  return response.emailConfirmationRequired === true;
+}
+
+
 // Henter brukeren vi er på, brukes i securitycred for endringer av passord og epost. Henter GetCurrentUser() fra backend
 export async function getCurrentUser(token: string): Promise<User> {
   try {

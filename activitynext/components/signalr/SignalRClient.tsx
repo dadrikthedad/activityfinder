@@ -1,6 +1,7 @@
 // SignalRClient.tsx - Refaktorert og ryddig
 "use client";
-
+import { useEffect } from "react";
+import { setAuthTokenGetter } from "@/utils/signalr/chatHub";
 import { useAuth } from "@/context/AuthContext";
 import { useChatStore } from "@/store/useChatStore";
 import { useStore } from "zustand";
@@ -31,6 +32,12 @@ import { ensureConversationExists } from "@/functions/SignalR/ensureConversation
 
 export default function SignalRClient() {
     const { token, userId } = useAuth();
+
+    useEffect(() => {
+        setAuthTokenGetter(() => token);
+    }, [token]);
+
+
     const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
     const showMessages = useChatStore.getState().showMessages;
 

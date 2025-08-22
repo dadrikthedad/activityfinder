@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import {AuthProvider} from "@/context/AuthContext";
 import { ModalProvider } from '@/context/ModalContext';
@@ -18,20 +18,21 @@ export const metadata: Metadata = {
   title: "Magee.no",
   description: "Takk for deg",
   // Mobile PWA metadata
-  themeColor: "#1C6B1C",
   applicationName: "Magee.no",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Magee.no",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-    viewportFit: "cover",
-  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#1C6B1C", // ✅ Flyttet hit fra metadata
 };
 
 export default function RootLayout({

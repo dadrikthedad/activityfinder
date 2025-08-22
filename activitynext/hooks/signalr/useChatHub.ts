@@ -1,7 +1,6 @@
 // Starter signalR tilkobling til ChatHub. Brukes i layout
 import { useEffect, useRef } from "react";
 import { createChatConnection } from "@/utils/signalr/chatHub";
-import * as signalR from "@microsoft/signalr";
 import { MessageDTO } from "@shared/types/MessageDTO";
 import { ReactionDTO } from "@shared/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@shared/types/MessageRequestCreatedDto";
@@ -12,6 +11,7 @@ import { GroupNotificationUpdateDTO } from "@shared/types/GroupNotificationUpdat
 import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
 import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
+import { startChatConnection } from "@/utils/signalr/chatHub";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
@@ -65,34 +65,38 @@ export function useChatHub(
   useEffect(() => { userBlockedUpdatedRef.current = onUserBlockedUpdated }, [onUserBlockedUpdated]);
 
   useEffect(() => {
-    const conn = createChatConnection();
+  const setupEventListeners = async () => {
+    if (typeof window === "undefined") return;
 
-    const startConnection = async () => {
-      if (typeof window === "undefined") return;
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.warn("⏳ Token not available yet, retrying in 1s...");
+      setTimeout(setupEventListeners, 1000);
+      return;
+    }
 
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.warn("⏳ Token not available yet, retrying in 1s...");
-        setTimeout(startConnection, 1000);
-        return;
-      }
+    try {
+      // Start connection med den nye funksjonen
+      await startChatConnection();
+      
+      const conn = createChatConnection();
+      if (!conn) return;
 
-      if (conn.state === signalR.HubConnectionState.Disconnected) {
-        try {
-          await conn.start();
-          console.log("✅ Connected to the hub");
+      console.log("✅ Setting up SignalR event listeners");
 
-          // Fjern alle tidligere event listeners
-          conn.off("ReceiveMessage");
-          conn.off("ReceiveReaction");
-          conn.off("MessageRequestApproved");
-          conn.off("MessageRequestCreated");
-          conn.off("GroupRequestCreated");
-          conn.off("GroupNotificationUpdated");
-          conn.off("MessageDeleted");
-          conn.off("ReceiveNotification");
-          conn.off("UserProfileUpdated");
-          conn.off("UserBlockedUpdated");
+      // Fjern alle tidligere event listeners
+      conn.off("ReceiveMessage");
+      conn.off("ReceiveReaction");
+      conn.off("MessageRequestApproved");
+      conn.off("MessageRequestCreated");
+      conn.off("GroupRequestCreated");
+      conn.off("GroupNotificationUpdated");
+      conn.off("MessageDeleted");
+      conn.off("ReceiveNotification");
+      conn.off("UserProfileUpdated");
+      conn.off("UserBlockedUpdated");
+      conn.off("GroupDisbanded");
+      conn.off("GroupParticipantsUpdated");
 
           conn.on("ReceiveMessage", (message: MessageDTO) => {
             messageRef.current?.(message);
@@ -191,24 +195,17 @@ export function useChatHub(
             userBlockedUpdatedRef.current?.(data);
           });
 
-        } catch (err) {
-          console.error("❌ SignalR Connection Error:", err);
-          setTimeout(startConnection, 2000);
-        }
-      }
-    };
+         } catch (error) {
+      console.error("❌ Failed to setup SignalR event listeners:", error);
+      // IKKE prøv igjen her - la chatHub.ts håndtere reconnect
+    }
+  };
 
-    startConnection();
+    setupEventListeners();
 
-    // 🆕 Lagt til reconnection logic (fra NotificationHub)
-    conn.onclose(() => {
-      console.warn("🔌 SignalR-tilkobling brutt. Prøver igjen om 2 sek...");
-      setTimeout(() => startConnection(), 2000);
-    });
-
-    return () => {
-      console.log("🛑 Stopping SignalR connection...");
-      conn.stop();
-    };
-  }, []); // ← viktig: kjør bare én gang
-}
+  // Cleanup function
+  return () => {
+    console.log("🛑 Cleaning up SignalR event listeners...");
+    // La chatHub.ts håndtere stopping
+  };
+}, [])};

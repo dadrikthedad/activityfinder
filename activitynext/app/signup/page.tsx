@@ -26,6 +26,7 @@ import LocationFields from "@/components/signup/LocationFields";
 import DemoFields from "@/components/signup/DemoFields";
 import FormButton from "@/components/FormButton";
 import { handleSubmit } from "@/utils/form/submitHandler";
+import { RegisterResponse } from "@shared/types/auth/RegisterResponseDTO";
 
 export default function Signup() {
   const {
@@ -59,6 +60,8 @@ export default function Signup() {
     const [isRegistered, setIsRegistered] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const router = useRouter();
+    const [registeredEmail, setRegisteredEmail] = useState<string>("");
+
     const {
       countries,
       regions,
@@ -76,7 +79,9 @@ export default function Signup() {
       setFormData,
       setErrors,
       setMessage,
-      onSuccess: () => {
+      onSuccess: (response: RegisterResponse) => { // 👈 Få response her
+        console.log("✅ Registration success:", response);
+        setRegisteredEmail(response.email); // Lagre email fra response
         setShowSuccessModal(true);
         setTimeout(() => {
           setShowSuccessModal(false);
@@ -116,14 +121,16 @@ export default function Signup() {
     useEffect(() => {
       console.log("Akkurat nå, errors:", errors);
     }, [errors]);
+    
   // Redirect til login etter registrering
-  useEffect(() => {
-    if (isRegistered) {
+    useEffect(() => {
+    if (isRegistered && registeredEmail) {
       setTimeout(() => {
-        router.replace("/login");
+        // Bruk email fra backend response i stedet for formData
+        router.replace(`/verification?email=${encodeURIComponent(registeredEmail)}`);
       }, 1000);
     }
-  }, [isRegistered, router]);
+  }, [isRegistered, router, registeredEmail]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-6 py-12 text-center">
