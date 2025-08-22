@@ -457,6 +457,7 @@ public class FileController : BaseController
         }
     }
     
+    [ApiExplorerSettings(IgnoreApi = true)]
     [HttpPost("{reportId}/attachments")]
     public async Task<IActionResult> UploadReportAttachment(
         Guid reportId, 

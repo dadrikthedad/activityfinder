@@ -7,33 +7,53 @@ public class FileUploadOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
-        var hasFileParameter = context.MethodInfo.GetParameters()
-            .Any(p => p.ParameterType == typeof(IFormFile) || 
-                      p.ParameterType == typeof(IFormFile[]));
+        var fileParameters = context.MethodInfo.GetParameters()
+            .Where(p => p.ParameterType == typeof(IFormFile) || 
+                        p.ParameterType == typeof(IFormFile[]) ||
+                        p.ParameterType == typeof(List<IFormFile>))
+            .ToList();
 
-        if (hasFileParameter)
+        if (!fileParameters.Any()) 
+            return;
+
+        // Opprett multipart/form-data schema
+        var properties = new Dictionary<string, OpenApiSchema>();
+        
+        foreach (var param in fileParameters)
         {
-            operation.RequestBody = new OpenApiRequestBody
+            properties[param.Name!] = new OpenApiSchema
             {
-                Content = new Dictionary<string, OpenApiMediaType>
+                Type = "string",
+                Format = "binary"
+            };
+        }
+
+        operation.RequestBody = new OpenApiRequestBody
+        {
+            Content = new Dictionary<string, OpenApiMediaType>
+            {
+                ["multipart/form-data"] = new OpenApiMediaType
                 {
-                    ["multipart/form-data"] = new OpenApiMediaType
+                    Schema = new OpenApiSchema
                     {
-                        Schema = new OpenApiSchema
-                        {
-                            Type = "object",
-                            Properties = new Dictionary<string, OpenApiSchema>
-                            {
-                                ["file"] = new OpenApiSchema
-                                {
-                                    Type = "string",
-                                    Format = "binary"
-                                }
-                            }
-                        }
+                        Type = "object",
+                        Properties = properties
                     }
                 }
-            };
+            }
+        };
+
+        // Fjern file-parameterne fra vanlige parametere (de håndteres i RequestBody)
+        if (operation.Parameters != null)
+        {
+            var parametersToRemove = operation.Parameters
+                .Where(p => fileParameters.Any(fp => fp.Name == p.Name))
+                .ToList();
+                
+            foreach (var param in parametersToRemove)
+            {
+                operation.Parameters.Remove(param);
+            }
         }
     }
 }

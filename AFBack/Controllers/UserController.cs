@@ -34,9 +34,10 @@ public class UserController : BaseController
     private readonly CountryService _countryService;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly EmailService _emailService;
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
-    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
+    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService)
     {
         _context = context;
         _countryService = countryService;
@@ -44,6 +45,7 @@ public class UserController : BaseController
         _authService = authService;
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
+        _emailService = emailService;
     }
     
     // Henter alle land:
@@ -104,7 +106,7 @@ public class UserController : BaseController
     // Task betyr at metoden er asynkron og vil returnere en verdi i fremtiden. IActionResult er typen returverdi, som betyr at vi returnerer en HTTP-respons.
     // FromBody betyr at vi skal hente data fra HTTP-requesten sin body, som da er JSON-formate.
     // UserRegisterDTO er klassen vi har laget som bekrefter igjen at all dataen er riktig og oppretter et objekt.
-    public async Task<IActionResult> RegisterUser([FromBody] UserRegisterDTO userDto)
+   public async Task<IActionResult> RegisterUser([FromBody] UserRegisterDTO userDto)
     {
         try
         {
@@ -159,6 +161,10 @@ public class UserController : BaseController
                     {
                         return BadRequest(new { message = "Invalid gender value." });
                     }
+
+                    // *** GENERER HYBRID VERIFIKASJONTOKEN ***
+                    var longToken = Guid.NewGuid().ToString(); // For web/deep links
+                    var shortCode = new Random().Next(100000, 999999).ToString(); // For manuell input
                 
                     //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
                     var user = new User
@@ -175,8 +181,15 @@ public class UserController : BaseController
                         Country = userDto.Country,
                         Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
                         PostalCode = userDto.PostalCode,
-                        Gender = userDto.Gender
+                        Gender = userDto.Gender,
+                        // *** LEGG TIL HYBRID VERIFIKASJONDATA ***
+                        EmailConfirmationToken = longToken,
+                        EmailConfirmationCode = shortCode,
+                        EmailConfirmed = false
                     };
+
+                    // Oppdater fullName
+                    user.UpdateFullName();
                 
                     // Oppretter en profil med brukerens info
                     var profile = new Profile
@@ -202,14 +215,42 @@ public class UserController : BaseController
                     await _context.SaveChangesAsync();
 
                     await transaction.CommitAsync();
+
+                    // *** SEND HYBRID VERIFIKASJONSEPOST ETTER VELLYKKET REGISTRERING ***
+                    try
+                    {
+                        var emailSent = await _emailService.SendVerificationEmailAsync(user.Email, longToken, shortCode);
+                        
+                        if (emailSent)
+                        {
+                            _logger.LogInformation("Verification email sent successfully to {Email}", user.Email);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Failed to send verification email to {Email}", user.Email);
+                            // Ikke returner feil her - brukeren er fortsatt registrert
+                        }
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger.LogError("Error sending verification email to {Email}: {Error}", user.Email, emailEx.Message);
+                        // Ikke returner feil her - brukeren er fortsatt registrert
+                    }
                 
                 
                     // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
                     return Ok(new
                     {
-                        message = "User registered successfully!",
+                        message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
                         userId = user.Id,
-                        email = user.Email
+                        email = user.Email,
+                        emailConfirmationRequired = true,
+                        verificationMethods = new 
+                        {
+                            webLink = "Check your email and click the verification link",
+                            mobileCode = "Enter the 6-digit code shown in the email into the app",
+                            deepLink = "Click 'Open in App' from the email if using mobile"
+                        }
                     });
                 }
                 catch (DbUpdateException e)
@@ -242,20 +283,29 @@ public class UserController : BaseController
     }
     
     // Her sjekker vi at brukeren 
-    [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] UserLoginDTO userLoginDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(new { message = "Invalid login requests." });
-        
+    
         string normalizedEmail = userLoginDto.Email.Trim().ToLowerInvariant();
-        
+    
         var token = await _authService.LoginAsync(normalizedEmail, userLoginDto.Password);
-        
+    
         if (token == null)
         {
             _logger.LogWarning("Failed login attempt for email: {Email}", userLoginDto.Email);
             return Unauthorized(new { message = "Invalid email or password." });
+        }
+    
+        // *** HÅNDTER UVERIFISERT EPOST ***
+        if (token == "EMAIL_NOT_VERIFIED")
+        {
+            return Unauthorized(new { 
+                message = "Please verify your email address before logging in. Check your inbox for the verification link.",
+                emailVerificationRequired = true,
+                email = normalizedEmail
+            });
         }
 
         try
@@ -267,16 +317,22 @@ public class UserController : BaseController
                 user.LastLoginCity = userLoginDto.City;
                 user.LastLoginRegion = userLoginDto.Region;
                 user.LastLoginCountry = userLoginDto.Country;
+                user.LastSeen = DateTime.UtcNow;
             }
 
             await _context.SaveChangesAsync();
+        
+            _logger.LogInformation("Successful login for user: {Email}", userLoginDto.Email);
         }
         catch (Exception e)
         {
             _logger.LogWarning("Could not save login location for {Email}: {Error}", userLoginDto.Email, e.Message);
         }
 
-        return Ok(new { token });
+        return Ok(new { 
+            token,
+            message = "Login successful"
+        });
     }
     
     

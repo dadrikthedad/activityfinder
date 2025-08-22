@@ -32,15 +32,22 @@ public class AuthService
         //Henter brukeren med eposten som er input fra brukeren. AsNoTracking betyr at vi bare skal lese data og ikke gjøre noen endringer.
         // SingleOrDefualtAsync gir en feil hvis denne asynk operasjonen oppdager flere eposter som ligner.
         var user = await _context.Users.AsNoTracking().SingleOrDefaultAsync(user => user.Email.ToLower() == email.ToLower());
-        //Feilmelding hvis passord er feil.
+    
+        //Feilmelding hvis bruker ikke eksisterer eller passord er feil.
         if (user == null || !user.VerifyPassword(password))
         {
             _logger.LogWarning("Failed login attempt for email: {Email}", email);
             return null;
         }
-        
-        // Hvis epost og passord stemmer, så lager vi en token og den gjør at vi ikke trenger å logge inn hver gang vi bytter internettside eller 
-        // endrer på noe. Den blir en kryptert streng.
+    
+        // *** SJEKK OM EPOST ER VERIFISERT ***
+        if (!user.EmailConfirmed)
+        {
+            _logger.LogWarning("Login attempt with unverified email: {Email}", email);
+            return "EMAIL_NOT_VERIFIED"; // Spesiell returverdi for uverifisert epost
+        }
+    
+        // Hvis epost og passord stemmer og epost er verifisert, så lager vi en token
         return GenerateJwtToken(user);
     }
     
