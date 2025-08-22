@@ -269,7 +269,9 @@ public class UserController : BaseController
         }
     }
     
+    
     // Her sjekker vi at brukeren 
+    [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] UserLoginDTO userLoginDto)
     {
         if (!ModelState.IsValid)
