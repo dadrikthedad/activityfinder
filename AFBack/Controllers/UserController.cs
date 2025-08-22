@@ -113,7 +113,6 @@ public class UserController : BaseController
         {
             _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
        
-        
             var countryName = _countryService.GetCountryNameFromCode(userDto.Country);
             if (countryName is null)
             {
@@ -124,13 +123,8 @@ public class UserController : BaseController
                 userDto.Country = countryName;
             }
         
-            // Denne sjekker at hvis vi prøver å registere en bruker, men den er i feil format eller ugyldig data, så får vi en feilmelding eller så hadde programmet kræsjet.
             if (!ModelState.IsValid)
             {   
-                // Henter ut alle errorene og lagrer det til en liste
-                // var errors = ModelState.Values.SelectMany(values => values.Errors).Select(error => error.ErrorMessage)
-                //     .ToList();
-
                 var errors = ModelState.ToDictionary(kvp => kvp.Key,
                     kvp => kvp.Value.Errors.Select(error => error.ErrorMessage).ToList());
 
@@ -138,13 +132,16 @@ public class UserController : BaseController
                 return BadRequest(new {message = $"Validation failed. Check errors.", errors});
             }
         
+            // *** GENERER TOKENS UTENFOR TRANSACTION ***
+            var longToken = Guid.NewGuid().ToString();
+            var shortCode = new Random().Next(100000, 999999).ToString();
+            
+            User savedUser;
+            
             using (var transaction = await _context.Database.BeginTransactionAsync())
             {
-            
-            
                 try
                 {   
-                    // Sjekk for at datoen vedkommene er født ikke er en dato som ikke finnes enda.
                     if (userDto.DateOfBirth > DateTime.UtcNow)
                     {
                         return BadRequest(new { message = "Date of birth cannot be in the future." });
@@ -155,19 +152,13 @@ public class UserController : BaseController
                         userDto.Region = null;
                     }
                 
-                    // Krypterer passordet med HashPassword. Umulig å konvertere det krypterte passordet tilbake, men hvis vi gir riktig passord så er det krypterte passordet likt.
                     string hashedPassword = BCrypt.HashPassword(userDto.Password);
                 
                     if (userDto.Gender.HasValue && !Enum.IsDefined(typeof(Gender), userDto.Gender.Value))
                     {
                         return BadRequest(new { message = "Invalid gender value." });
                     }
-
-                    // *** GENERER HYBRID VERIFIKASJONTOKEN ***
-                    var longToken = Guid.NewGuid().ToString(); // For web/deep links
-                    var shortCode = new Random().Next(100000, 999999).ToString(); // For manuell input
                 
-                    //Oppretter en ny bruker med dataen vi har fått fra JSON-filen
                     var user = new User
                     {
                         FirstName = userDto.FirstName,
@@ -176,23 +167,19 @@ public class UserController : BaseController
                         Email = userDto.Email.Trim().ToLowerInvariant(),
                         PasswordHash = hashedPassword,
                         Phone = userDto.Phone,
-                        // Sirker at DateOfBirth tolkes og lagres som UTC da Postgres krever det. SpecifyKind tolker verdien riktig for UTC.
                         DateOfBirth = DateTime.SpecifyKind(userDto.DateOfBirth, DateTimeKind.Utc),
                         CreatedAt = DateTime.UtcNow,
                         Country = userDto.Country,
                         Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
                         PostalCode = userDto.PostalCode,
                         Gender = userDto.Gender,
-                        // *** LEGG TIL HYBRID VERIFIKASJONDATA ***
                         EmailConfirmationToken = longToken,
                         EmailConfirmationCode = shortCode,
                         EmailConfirmed = false
                     };
 
-                    // Oppdater fullName
                     user.UpdateFullName();
                 
-                    // Oppretter en profil med brukerens info
                     var profile = new Profile
                     {
                         User = user,
@@ -200,68 +187,29 @@ public class UserController : BaseController
                         UpdatedAt = DateTime.UtcNow,
                     };
                 
-                    // Oppretter en innstillings profil samtidig
                     var settings = new UserSettings
                     {
                         User = user,
                         UserId = user.Id,
                     };
 
-                
-                    // Her gjør vi brukeren klar til å legges til i databasen, context er databasen og Users har vi definert i ApplicationDbContext. 
                     await _context.Users.AddAsync(user);
                     await _context.Profiles.AddAsync(profile);
                     await _context.UserSettings.AddAsync(settings);
-                    // Her lagrer vi brukeren til databasen.
                     await _context.SaveChangesAsync();
 
+                    // *** COMMIT TRANSACTION FØR EMAIL-SENDING ***
                     await transaction.CommitAsync();
-
-                    // *** SEND HYBRID VERIFIKASJONSEPOST ETTER VELLYKKET REGISTRERING ***
-                    try
-                    {
-                        var emailSent = await _emailService.SendVerificationEmailAsync(user.Email, longToken, shortCode);
-                        
-                        if (emailSent)
-                        {
-                            _logger.LogInformation("Verification email sent successfully to {Email}", user.Email);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("Failed to send verification email to {Email}", user.Email);
-                            // Ikke returner feil her - brukeren er fortsatt registrert
-                        }
-                    }
-                    catch (Exception emailEx)
-                    {
-                        _logger.LogError("Error sending verification email to {Email}: {Error}", user.Email, emailEx.Message);
-                        // Ikke returner feil her - brukeren er fortsatt registrert
-                    }
-                
-                
-                    // Ok er en metode som returnerer en HTTP 200 Ok-respons til klienten. Brukes når alt har gått bra.
-                    var response = new RegisterResponseDTO
-                    {
-                        Message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
-                        UserId = user.Id,
-                        Email = user.Email,
-                        EmailConfirmationRequired = true,
-                        VerificationMethods = new VerificationMethodsDTO
-                        {
-                            WebLink = "Check your email and click the verification link",
-                            MobileCode = "Enter the 6-digit code shown in the email into the app",
-                            DeepLink = "Click 'Open in App' from the email if using mobile"
-                        }
-                    };
-
-                    return Ok(response);
+                    
+                    // Store user reference for later use
+                    savedUser = user;
                 }
                 catch (DbUpdateException e)
                 {
                     await transaction.RollbackAsync();
 
                     if (e.InnerException is Npgsql.PostgresException postgresException && 
-                        postgresException.SqlState == "23505") // 23505 = Unique Violation
+                        postgresException.SqlState == "23505")
                     {
                         _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
                         return BadRequest(new { message = "Email is already registered." });
@@ -272,11 +220,47 @@ public class UserController : BaseController
                 }
                 catch (Exception e)
                 {
-                    _logger.LogError("Database connection failed: {Error}", e.Message);
                     await transaction.RollbackAsync();
+                    _logger.LogError("Database connection failed: {Error}", e.Message);
                     return StatusCode(500, new { message = "Database connection error. Please try again later." });
                 }
+            } // *** TRANSACTION ER NÅ FERDIG OG DISPOSED ***
+
+            // *** SEND EMAIL ETTER TRANSACTION ER FULLFØRT ***
+            bool emailSent = false;
+            try
+            {
+                emailSent = await _emailService.SendVerificationEmailAsync(savedUser.Email, longToken, shortCode);
+                
+                if (emailSent)
+                {
+                    _logger.LogInformation("Verification email sent successfully to {Email}", savedUser.Email);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to send verification email to {Email}", savedUser.Email);
+                }
             }
+            catch (Exception emailEx)
+            {
+                _logger.LogError("Error sending verification email to {Email}: {Error}", savedUser.Email, emailEx.Message);
+                // Email failure should not fail the registration
+            }
+            
+            // *** RETURNER ALLTID SUKSESS ***
+            return Ok(new
+            {
+                message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
+                userId = savedUser.Id,
+                email = savedUser.Email,
+                emailConfirmationRequired = true,
+                verificationMethods = new 
+                {
+                    webLink = "Check your email and click the verification link",
+                    mobileCode = "Enter the 6-digit code shown in the email into the app",
+                    deepLink = "Click 'Open in App' from the email if using mobile"
+                }
+            });
         }
         catch (Exception e)
         {
