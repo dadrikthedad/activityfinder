@@ -21,7 +21,6 @@ public class EmailService
    public string PreviewVerificationEmail(string toEmail, string verificationToken, string verificationCode)
     {
         var verificationLink = $"{_configuration["App:BaseUrl"]}/verify-email?token={verificationToken}";
-        var deepLink = $"koptr://verify-email?token={verificationToken}";
         var logoUrl = "https://activitystorage.blob.core.windows.net/static/LogoMedSegoeUIHvit.png";
 
         return $@"
@@ -48,7 +47,7 @@ public class EmailService
                             Thanks for signing up. Please verify your email address using one of the methods below:
                         </p>
 
-                        <!-- Web/App Button -->
+                        <!-- Web Button -->
                         <div style='text-align:center; margin:30px 0;'>
                             <h3 style='color:#2d3748; margin-bottom:15px;'>Option 1: Click to verify</h3>
                             <a href='{verificationLink}' style='
@@ -60,19 +59,7 @@ public class EmailService
                                 border-radius:6px;
                                 display:inline-block;
                                 font-weight:bold;
-                                margin-right:10px;
                             '>Verify on Web</a>
-                            
-                            <a href='{deepLink}' style='
-                                background-color:#2d3748;
-                                color:white;
-                                text-decoration:none;
-                                padding:14px 30px;
-                                font-size:16px;
-                                border-radius:6px;
-                                display:inline-block;
-                                font-weight:bold;
-                            '>Open in App</a>
                         </div>
 
                         <hr style='margin:30px 0; border: none; border-top: 1px solid #e2e8f0;'>
@@ -99,7 +86,7 @@ public class EmailService
                         <hr style='margin:30px 0; border: none; border-top: 1px solid #e2e8f0;'>
 
                         <p style='font-size:14px; color:#718096;'>
-                            If neither method works, paste this link into your browser:
+                            If the button doesn't work, paste this link into your browser:
                         </p>
                         <p style='font-size:13px; background:#edf2f7; padding:10px; border-radius:6px; word-break:break-all; font-family:monospace;'>
                             {verificationLink}
