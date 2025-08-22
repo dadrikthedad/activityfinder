@@ -6,6 +6,7 @@ import { handleNotificationCreated } from './handlers/handleNotificationCreated'
 import { handleGroupInfoUpdated } from './handlers/handleGroupInfoUpdated';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { NotificationDTO } from '@shared/types/NotificationEventDTO';
+import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 
 export async function processSyncEventNative(event: SyncEventDTO): Promise<void> {
   const eventData = JSON.parse(event.eventData);
@@ -13,6 +14,7 @@ export async function processSyncEventNative(event: SyncEventDTO): Promise<void>
   const currentUserId = useUserCacheStore.getState().currentUser?.id ?? null;
   const { updateMessageReactions, addConversation } = useChatStore.getState();
   const { updateUser, setUser } = useUserCacheStore.getState();
+  
   
   switch (event.eventType) {
     // Message events 
@@ -162,12 +164,33 @@ export async function processSyncEventNative(event: SyncEventDTO): Promise<void>
       await handleNotificationCreated(eventData);
       break;
 
+    case 'MARK_AS_READ': {
+      const { conversationId } = eventData;
+    
+      // MessageNotificationStore tar seg av alt - både notifikasjoner og ChatStore oppdatering
+      const { markAsReadForConversation } = useMessageNotificationStore.getState();
+      markAsReadForConversation(conversationId);
+        
+      console.log('📖 Marked conversation as read locally:', conversationId);
+      break;
+    }
+
+    case 'MARK_ALL_AS_READ': {
+      // MessageNotificationStore tar seg av alt - både notifikasjoner og ChatStore oppdatering
+      const { markAllAsRead } = useMessageNotificationStore.getState();
+      markAllAsRead();
+      
+      console.log('📖 Marked all notifications as read locally');
+      break;
+    }
+
     case 'NOTIFICATION_CREATED': {
       const { addNotification } = useNotificationStore.getState();
       addNotification(eventData as NotificationDTO);
       console.log('🔔 Notification added to store:', eventData);
       break;
     }
+
 
     default:
       console.warn('Unknown sync event type:', event.eventType);

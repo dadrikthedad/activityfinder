@@ -22,6 +22,8 @@ using Microsoft.AspNetCore.SignalR;
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
 
+Console.WriteLine($"ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
+
 
 // For logging. Azure har en addon som gjør at vi kan mode og da må vi lagre det som en miljøvariabel
 var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
@@ -202,6 +204,8 @@ builder.Services.AddHostedService<MaintenanceCleanupService>();
 builder.Services.AddScoped<SyncService>();
 builder.Services.AddScoped<NotificationSyncService>();
 builder.Services.AddScoped<SupportService>();
+builder.Services.AddScoped<EmailService, EmailService>();
+builder.Services.AddScoped<UserService, UserService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

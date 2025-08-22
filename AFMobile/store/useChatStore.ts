@@ -50,6 +50,7 @@ type ChatStore = {
   unreadConversationIds: number[];
   setUnreadConversationIds: (ids: number[]) => void;
   markConversationAsReadLocally: (conversationId: number) => void;
+  clearAllUnreadConversations: () => void;
   isAtBottom: boolean;
   setIsAtBottom: (value: boolean) => void;
   reactionsVersion: number;
@@ -232,6 +233,10 @@ export const useChatStore = create<ChatStore>()(
           unreadConversationIds: state.unreadConversationIds.filter((id) => id !== conversationId),
         }));
       },
+
+      clearAllUnreadConversations: () => {
+          set({ unreadConversationIds: [] });
+        },
 
       setConversations: (conversations) =>
         set(() => ({
