@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Models;
 using AFBack.Services;
@@ -16,12 +17,18 @@ public class MessageNotificationsController : BaseController
     private readonly ApplicationDbContext _context;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly GroupNotificationService _groupNotificationService;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<MessageNotificationsController> _logger;
 
-    public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService, GroupNotificationService groupNotificationService)
+    public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService, GroupNotificationService groupNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<MessageNotificationsController> logger)
     {
         _context = context;
         _messageNotificationService = notificationService;
         _groupNotificationService = groupNotificationService;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     
@@ -115,18 +122,50 @@ public class MessageNotificationsController : BaseController
             .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId == conversationId)
             .ToListAsync();
 
+        if (!unreadNotifications.Any())
+        {
+            return NoContent(); // Ingen uleste notifikasjoner å markere
+        }
+        
+        var readAt = DateTime.UtcNow;
+
         foreach (var n in unreadNotifications)
         {
             n.IsRead = true;
-            n.ReadAt = DateTime.UtcNow;
+            n.ReadAt = readAt;
         }
 
         await _context.SaveChangesAsync();
 
+        // Send sync event for å oppdatere frontend
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.MARK_AS_READ,
+                    eventData: new { 
+                        ConversationId = conversationId,
+                    },
+                    singleUserId: userId,
+                    source: "API",
+                    relatedEntityId: conversationId,
+                    relatedEntityType: "Conversation"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create MARK_AS_READ sync event for conversation {ConversationId}", conversationId);
+            }
+        });
+
         return NoContent();
     }
     
-    // setter alle notifikasjoner som lest
+    // Setter ALLe notifikasjoner som lest
     [HttpPost("mark-all-as-read")]
     public async Task<IActionResult> MarkAllAsRead()
     {
@@ -136,13 +175,43 @@ public class MessageNotificationsController : BaseController
             .Where(n => n.UserId == userId && !n.IsRead)
             .ToListAsync();
 
+        if (!unreadNotifications.Any())
+        {
+            return NoContent(); // Ingen uleste notifikasjoner å markere
+        }
+        
+        var readAt = DateTime.UtcNow;
         foreach (var n in unreadNotifications)
         {
             n.IsRead = true;
-            n.ReadAt = DateTime.UtcNow;
+            n.ReadAt = readAt; 
         }
 
         await _context.SaveChangesAsync();
+
+        // Send sync event for å oppdatere frontend
+        _taskQueue.QueueAsync(async () => 
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+
+            try 
+            {
+                await syncService.CreateAndDistributeSyncEventAsync(
+                    eventType: SyncEventTypes.MARK_ALL_AS_READ,
+                    eventData: new { Type = "all" },
+                    singleUserId: userId,
+                    source: "API",
+                    relatedEntityId: null, // Siden dette gjelder alle notifikasjoner
+                    relatedEntityType: "MessageNotification"
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create MARK_AS_READ sync event for all notifications");
+            }
+        });
+
         return NoContent();
     }
     

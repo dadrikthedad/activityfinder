@@ -29,6 +29,8 @@ public static class SyncEventTypes
     
     // Alle notificaitons er ferdig -- FERDIG FRONTEND TIL BACKEND!
     public const string MESSAGE_NOTIFICATION_CREATED = "MESSAGE_NOTIFICATION_CREATED";
+    public const string MARK_AS_READ = "MARK_AS_READ";
+    public const string MARK_ALL_AS_READ = "MARK_ALL_AS_READ";
     
     // Notifications til appen
     public const string NOTIFICATION_CREATED = "NOTIFICATION_CREATED";
