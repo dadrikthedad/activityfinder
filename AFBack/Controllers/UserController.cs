@@ -36,9 +36,11 @@ public class UserController : BaseController
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly EmailService _emailService;
+    private readonly UserService _userService;
+    private readonly EmailRateLimitService _emailRateLimitService;
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
-    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService)
+    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService, UserService userService, EmailRateLimitService emailRateLimitService)
     {
         _context = context;
         _countryService = countryService;
@@ -47,6 +49,8 @@ public class UserController : BaseController
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;
         _emailService = emailService;
+        _userService = userService;
+        _emailRateLimitService = emailRateLimitService;
     }
     
     // Henter alle land:
@@ -173,9 +177,16 @@ public class UserController : BaseController
                         Region = string.IsNullOrWhiteSpace(userDto.Region) ? null : userDto.Region,
                         PostalCode = userDto.PostalCode,
                         Gender = userDto.Gender,
+                        EmailConfirmed = false
+                    };
+
+                    // Opprett VerificationInfo separat
+                    var verificationInfo = new VerificationInfo
+                    {
+                        User = user,
                         EmailConfirmationToken = longToken,
                         EmailConfirmationCode = shortCode,
-                        EmailConfirmed = false
+                        LastVerificationEmailSent = DateTime.UtcNow
                     };
 
                     user.UpdateFullName();
@@ -183,19 +194,18 @@ public class UserController : BaseController
                     var profile = new Profile
                     {
                         User = user,
-                        UserId = user.Id,
                         UpdatedAt = DateTime.UtcNow,
                     };
                 
                     var settings = new UserSettings
                     {
                         User = user,
-                        UserId = user.Id,
                     };
 
                     await _context.Users.AddAsync(user);
                     await _context.Profiles.AddAsync(profile);
                     await _context.UserSettings.AddAsync(settings);
+                    await _context.VerificationInfos.AddAsync(verificationInfo);
                     await _context.SaveChangesAsync();
 
                     // *** COMMIT TRANSACTION FØR EMAIL-SENDING ***
@@ -227,13 +237,20 @@ public class UserController : BaseController
             } // *** TRANSACTION ER NÅ FERDIG OG DISPOSED ***
 
             // *** SEND EMAIL ETTER TRANSACTION ER FULLFØRT ***
+            // *** SEND EMAIL ETTER TRANSACTION ER FULLFØRT ***
             bool emailSent = false;
             try
             {
                 emailSent = await _emailService.SendVerificationEmailAsync(savedUser.Email, longToken, shortCode);
-                
+
                 if (emailSent)
                 {
+                    // Registrer for rate limiting (samme som i EmailController)
+                    _emailRateLimitService.RegisterVerificationEmailSent(savedUser.Email);
+        
+                    // Oppdater UserService timestamp
+                    await _userService.MarkVerificationEmailSentAsync(savedUser.Email);
+        
                     _logger.LogInformation("Verification email sent successfully to {Email}", savedUser.Email);
                 }
                 else

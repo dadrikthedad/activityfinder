@@ -76,10 +76,6 @@ public class User
     
     // Bool for å sjekke om epost er bekrefted samt en variabel for bekretelsen som må stemme.
     public bool EmailConfirmed { get; set; } = false;
-    public string? EmailConfirmationToken { get; set; }
-    public DateTime? LastVerificationEmailSent { get; set; }
-    
-    public string? EmailConfirmationCode { get; set; } 
     
     // Lagrer landet
     [Required]
@@ -129,10 +125,8 @@ public class User
     
     public ICollection<UserOnlineStatus> OnlineStatuses { get; set; } = new List<UserOnlineStatus>();
     
-    [MaxLength(255)]
-    public string? PasswordResetToken { get; set; }
-    public DateTime? PasswordResetTokenExpires { get; set; }
-
+    public VerificationInfo? VerificationInfo { get; set; }
+    
 }
 
 public enum Gender

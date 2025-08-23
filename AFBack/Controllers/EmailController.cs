@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using AFBack.Data;
 using AFBack.DTOs.Email;
+using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,14 +14,21 @@ public class EmailController : BaseController
 {
     private readonly EmailService _emailService;
     private readonly UserService _userService;
+    private readonly EmailRateLimitService _emailRateLimitService;
     private readonly ILogger<EmailController> _logger;
     private readonly ApplicationDbContext _context;
 
-    public EmailController(EmailService emailService, UserService userService, ILogger<EmailController> logger, ApplicationDbContext context)
+    public EmailController(
+        EmailService emailService, 
+        UserService userService, 
+        EmailRateLimitService emailRateLimitService,
+        ILogger<EmailController> logger, 
+        ApplicationDbContext context)
     {
         _context = context;
         _emailService = emailService;
         _userService = userService;
+        _emailRateLimitService = emailRateLimitService;
         _logger = logger;
     }
 
@@ -28,6 +37,31 @@ public class EmailController : BaseController
     {
         try
         {
+            // *** RATE LIMITING ***
+            var clientIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(request.Email, clientIp);
+
+            if (!isAllowed)
+            {
+                if (retryAfter.HasValue)
+                {
+                    var message = retryAfter.Value.TotalHours >= 1 
+                        ? $"Daily limit reached. Try again in {Math.Ceiling(retryAfter.Value.TotalHours)} hours."
+                        : $"Please wait {Math.Ceiling(retryAfter.Value.TotalMinutes)} minutes before requesting another email.";
+            
+                    return BadRequest(new { 
+                        message,
+                        retryAfter = retryAfter.Value.TotalSeconds 
+                    });
+                }
+                else
+                {
+                    return BadRequest(new { 
+                        message = "Daily email limit reached. Please try again tomorrow." 
+                    });
+                }
+            }
+
             // *** OPPRETT HYBRID VERIFIKASJON TOKENS ***
             var (longToken, shortCode) = await _userService.CreateVerificationTokenAsync(request.Email);
 
@@ -42,6 +76,11 @@ public class EmailController : BaseController
 
             if (success)
             {
+                // Registrer at email faktisk ble sendt (for rate limiting)
+                _emailRateLimitService.RegisterVerificationEmailSent(request.Email);
+                
+                await _userService.MarkVerificationEmailSentAsync(request.Email);
+                
                 return Ok(new
                 {
                     message = "Verification email sent with both web link and mobile code. Check your inbox!",
@@ -59,7 +98,8 @@ public class EmailController : BaseController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Internal server error", error = ex.Message });
+            _logger.LogError(ex, "Error in SendVerificationEmail for {Email}", request.Email);
+            return StatusCode(500, new { message = "Internal server error" });
         }
     }
 
@@ -68,34 +108,67 @@ public class EmailController : BaseController
     {
         try
         {
+            // Hent brukeren FØR vi nuller token
+            var user = await _userService.GetUserByTokenAsync(request.Token);
+            
+            if (user == null)
+            {
+                return BadRequest(new { message = "Invalid or expired verification code", success = false });
+            }
+
+            // Nå kan vi trygt verifisere (som nuller token)
             var isValid = await _userService.VerifyEmailTokenAsync(request.Token);
 
             if (isValid)
             {
+                // Fjern rate limit for denne email adressen når den blir verifisert
+                _emailRateLimitService.ClearEmailAttempts(user.Email);
+                
                 // Send velkomstepost
-                var user = await _userService.GetUserByTokenAsync(request.Token);
-                if (user != null)
-                {
-                    await _emailService.SendWelcomeEmailAsync(user.Email, user.FullName);
-                }
+                await _emailService.SendWelcomeEmailAsync(user.Email, user.FullName);
 
                 return Ok(new { message = "Email verified!", success = true });
             }
 
-            return BadRequest(new { message = "Invaldig or expired verification code", success = false });
+            return BadRequest(new { message = "Invalid or expired verification code", success = false });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Network error", error = ex.Message });
+            _logger.LogError(ex, "Error in VerifyEmail for token {Token}", request.Token);
+            return StatusCode(500, new { message = "Network error" });
         }
     }
-
 
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         try
         {
+            // *** RATE LIMITING - bruk samme system for password reset ***
+            var clientIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(request.Email, clientIp);
+
+            if (!isAllowed)
+            {
+                if (retryAfter.HasValue)
+                {
+                    var message = retryAfter.Value.TotalHours >= 1 
+                        ? $"Daily limit reached. Try again in {Math.Ceiling(retryAfter.Value.TotalHours)} hours."
+                        : $"Please wait {Math.Ceiling(retryAfter.Value.TotalMinutes)} minutes before requesting another email.";
+            
+                    return BadRequest(new { 
+                        message,
+                        retryAfter = retryAfter.Value.TotalSeconds 
+                    });
+                }
+                else
+                {
+                    return BadRequest(new { 
+                        message = "Daily email limit reached. Please try again tomorrow." 
+                    });
+                }
+            }
+
             // Opprett reset token
             var token = await _userService.CreatePasswordResetTokenAsync(request.Email);
 
@@ -104,22 +177,29 @@ public class EmailController : BaseController
                 // Send epost
                 var success = await _emailService.SendForgotPasswordEmailAsync(request.Email, token);
 
-                if (!success)
+                if (success)
                 {
-                    return StatusCode(500, new { message = "Kunne ikke sende epost", success = false });
+                    // Registrer at email faktisk ble sendt (for rate limiting)
+                    _emailRateLimitService.RegisterVerificationEmailSent(request.Email);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to send password reset email to {Email}", request.Email);
+                    // Ikke avslør tekniske detaljer
                 }
             }
 
             // Returner alltid samme melding for sikkerhet (ikke avslør om eposten eksisterer)
             return Ok(new
             {
-                message = "Hvis epostadressen er registrert, vil du motta en reset-link",
+                message = "If the email address is registered, you will receive a password reset link",
                 success = true
             });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
+            _logger.LogError(ex, "Error in ForgotPassword for {Email}", request.Email);
+            return StatusCode(500, new { message = "Internal server error" });
         }
     }
 
@@ -133,7 +213,7 @@ public class EmailController : BaseController
 
             if (!isValidToken)
             {
-                return BadRequest(new { message = "Ugyldig eller utløpt reset-token", success = false });
+                return BadRequest(new { message = "Invalid or expired reset token", success = false });
             }
 
             // Reset passordet
@@ -141,14 +221,15 @@ public class EmailController : BaseController
 
             if (success)
             {
-                return Ok(new { message = "Passordet er oppdatert!", success = true });
+                return Ok(new { message = "Password has been updated!", success = true });
             }
 
-            return BadRequest(new { message = "Kunne ikke oppdatere passordet", success = false });
+            return BadRequest(new { message = "Could not update password", success = false });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
+            _logger.LogError(ex, "Error in ResetPassword");
+            return StatusCode(500, new { message = "Internal server error" });
         }
     }
 
@@ -158,12 +239,12 @@ public class EmailController : BaseController
         try
         {
             var isValid = await _userService.ValidatePasswordResetTokenAsync(token);
-
             return Ok(new { isValid = isValid });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Intern serverfeil", error = ex.Message });
+            _logger.LogError(ex, "Error in ValidateResetToken");
+            return StatusCode(500, new { message = "Internal server error" });
         }
     }
 
@@ -174,48 +255,91 @@ public class EmailController : BaseController
             return BadRequest(new { message = "Email is required." });
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
-
-        if (user == null)
-        {
-            // Ikke avslør at brukeren ikke finnes - samme melding som ved suksess
-            _logger.LogInformation("Resend verification requested for non-existent email: {Email}", normalizedEmail);
-            return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
-        }
-
-        if (user.EmailConfirmed)
-        {
-            _logger.LogInformation("Resend verification requested for already verified email: {Email}", normalizedEmail);
-            return Ok(new
-            {
-                message = "Your email is already verified. You can log in.",
-                alreadyVerified = true
-            });
-        }
-
-        if (user.LastVerificationEmailSent.HasValue &&
-            user.LastVerificationEmailSent.Value.AddMinutes(2) > DateTime.UtcNow)
-        {
-            return BadRequest(new { message = "Please wait before requesting another verification email." });
-        }
 
         try
         {
-            // *** GENERER BÅDE LANG TOKEN OG KORT KODE ***
-            var newToken = Guid.NewGuid().ToString(); // For web/deep links
-            var newCode = new Random().Next(100000, 999999).ToString(); // For manuell input
+            // *** RATE LIMITING ***
+            var clientIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(normalizedEmail, clientIp);
 
-            user.EmailConfirmationToken = newToken;
-            user.EmailConfirmationCode = newCode; // Legg til kort kode
-            user.LastVerificationEmailSent = DateTime.UtcNow;
+            if (!isAllowed)
+            {
+                if (retryAfter.HasValue)
+                {
+                    var message = retryAfter.Value.TotalHours >= 1 
+                        ? $"Daily limit reached. Try again in {Math.Ceiling(retryAfter.Value.TotalHours)} hours."
+                        : $"Please wait {Math.Ceiling(retryAfter.Value.TotalMinutes)} minutes before requesting another email.";
+            
+                    return BadRequest(new { 
+                        message,
+                        retryAfter = retryAfter.Value.TotalSeconds 
+                    });
+                }
+                else
+                {
+                    return BadRequest(new { 
+                        message = "Daily email limit reached. Please try again tomorrow." 
+                    });
+                }
+            }
 
+            var user = await _context.Users
+                .Include(u => u.VerificationInfo)
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+            if (user == null)
+            {
+                _logger.LogInformation("Resend verification requested for non-existent email: {Email}", normalizedEmail);
+                return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
+            }
+
+            if (user.EmailConfirmed)
+            {
+                // Fjern rate limits for allerede verifiserte emails
+                _emailRateLimitService.ClearEmailAttempts(normalizedEmail);
+                
+                _logger.LogInformation("Resend verification requested for already verified email: {Email}", normalizedEmail);
+                return Ok(new
+                {
+                    message = "Your email is already verified. You can log in.",
+                    alreadyVerified = true
+                });
+            }
+
+            // Generer nye tokens
+            var newToken = Guid.NewGuid().ToString();
+            var newCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+
+            // Opprett/oppdater VerificationInfo
+            if (user.VerificationInfo == null)
+            {
+                user.VerificationInfo = new VerificationInfo
+                {
+                    User = user,
+                    EmailConfirmationToken = newToken,
+                    EmailConfirmationCode = newCode
+                };
+            }
+            else
+            {
+                user.VerificationInfo.EmailConfirmationToken = newToken;
+                user.VerificationInfo.EmailConfirmationCode = newCode;
+            }
+
+            // Lagre tokens før sending slik at lenke/kode er gyldig umiddelbart
             await _context.SaveChangesAsync();
 
-            // *** SEND BEGGE TOKENS TIL EMAIL SERVICE ***
+            // Send email
             var emailSent = await _emailService.SendVerificationEmailAsync(user.Email, newToken, newCode);
 
             if (emailSent)
             {
+                // Registrer at email faktisk ble sendt (for rate limiting)
+                _emailRateLimitService.RegisterVerificationEmailSent(user.Email);
+                
+                // Oppdater timestamp ETTER vellykket sending
+                await _userService.MarkVerificationEmailSentAsync(user.Email);
+
                 _logger.LogInformation("Verification email resent successfully to {Email}", user.Email);
                 return Ok(new
                 {
@@ -226,14 +350,12 @@ public class EmailController : BaseController
             else
             {
                 _logger.LogWarning("Failed to resend verification email to {Email}", user.Email);
-                // Ikke avslør tekniske detaljer - samme melding som ved suksess for sikkerhet
                 return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError("Error resending verification email to {Email}: {Error}", user.Email, ex.Message);
-            // Samme melding for sikkerhet - ikke avslør tekniske feil
+            _logger.LogError(ex, "Error resending verification email to {Email}", normalizedEmail);
             return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
         }
     }

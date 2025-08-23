@@ -12,6 +12,7 @@ public class ApplicationDbContext : DbContext
     
     // Her definerer vi tabellene i databasen. Users er brukere.
     public DbSet<User> Users { get; set; } // Bruker
+    public DbSet<VerificationInfo> VerificationInfos { get; set; }
     public DbSet<Profile> Profiles { get; set; } // profilen til bruker
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
     public DbSet<Friends> Friends { get; set; } // Venner til bruker
@@ -53,8 +54,16 @@ public class ApplicationDbContext : DbContext
         // Bruker må ha unik epost
         modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
         // bruker kan kun ha en profil
-        modelBuilder.Entity<Profile>().HasOne(p => p.User).WithOne(u => u.Profile)
+        modelBuilder.Entity<Profile>()
+            .HasOne(p => p.User)
+            .WithOne(u => u.Profile)
             .HasForeignKey<Profile>(p => p.UserId);
+    
+        // Bruker kan kun ha en UserSettings (1:1)
+        modelBuilder.Entity<UserSettings>()
+            .HasOne(s => s.User)
+            .WithOne(u => u.Settings)
+            .HasForeignKey<UserSettings>(s => s.UserId);
         // venneliste med composite key. .HasKey definerer en primarykey basert på UserId og FriendId
         modelBuilder.Entity<Friends>()
             .HasKey(f => new { f.UserId, f.FriendId });
@@ -722,6 +731,11 @@ public class ApplicationDbContext : DbContext
             // Table name
             entity.ToTable("ReportAttachments");
         });
+        
+        modelBuilder.Entity<VerificationInfo>()
+            .HasOne(v => v.User)
+            .WithOne(u => u.VerificationInfo)
+            .HasForeignKey<VerificationInfo>(v => v.UserId);
 
 
         
