@@ -20,7 +20,7 @@ public class EmailService
 
    public string PreviewVerificationEmail(string toEmail, string verificationToken, string verificationCode)
     {
-        var verificationLink = $"{_configuration["App:BaseUrl"]}/verify-email?token={verificationToken}";
+        var verificationLink = $"{_configuration["App:BaseUrl"]}/verification?token={verificationToken}";
         var logoUrl = "https://activitystorage.blob.core.windows.net/static/LogoMedSegoeUIHvit.png";
 
         return $@"
@@ -242,7 +242,7 @@ public class EmailService
         {
             var emailContent = new EmailContent("Verify your Koptr account")
             {
-                PlainText = $"Welcome to Koptr!\n\nThank you for signing up. Please verify your email address:\n\nOption 1: Click this link: {_configuration["App:BaseUrl"]}/verify-email?token={verificationToken}\n\nOption 2: Enter this code in the app: {verificationCode}\n\nBest regards,\nthe team at Koptr.",
+                PlainText = $"Welcome to Koptr!\n\nThank you for signing up. Please verify your email address:\n\nOption 1: Click this link: {_configuration["App:BaseUrl"]}/verification?token={verificationToken}\n\nOption 2: Enter this code in the app: {verificationCode}\n\nBest regards,\nthe team at Koptr.",
                 Html = PreviewVerificationEmail(toEmail, verificationToken, verificationCode)
             };
 
