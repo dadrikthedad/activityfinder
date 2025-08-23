@@ -1,5 +1,5 @@
 // screens/auth/LoginScreen.tsx - Oppdatert versjon
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -55,7 +55,7 @@ export default function LoginScreen() {
   React.useEffect(() => {
     if (errorMessage) {
       showNotificationToastNative({
-        type: LocalToastType.CustomSystemNotice,
+        type: LocalToastType.CustomSystemError,
         customTitle: "Login Error",
         customBody: errorMessage,
         position: 'top'
@@ -65,8 +65,8 @@ export default function LoginScreen() {
     }
   }, [errorMessage, clearError]);
 
-  // *** EMAIL VERIFICATION MODAL OPTIONS ***
-  const verificationOptions = [
+  // *** EMAIL VERIFICATION MODAL OPTIONS - Memoized for performance ***
+  const verificationOptions = useMemo(() => [
     {
       label: "Verify Email Now",
       value: "verify"
@@ -75,7 +75,7 @@ export default function LoginScreen() {
       label: "Resend Verification Email", 
       value: "resend"
     }
-  ];
+  ], []);
 
   const handleVerificationAction = async (action: string) => {
     switch (action) {
@@ -175,6 +175,7 @@ export default function LoginScreen() {
       {/* *** EMAIL VERIFICATION MODAL - Vises automatisk når showVerificationPrompt er true *** */}
       {showVerificationPrompt && (
         <OptionModalNative
+          key="verification-modal" // Gi modal en unik key for bedre ytelse
           title="Email Verification Required"
           options={verificationOptions}
           onSelect={handleVerificationAction}

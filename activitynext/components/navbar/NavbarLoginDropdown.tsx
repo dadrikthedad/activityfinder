@@ -20,6 +20,64 @@ export default function NavbarLoginDropdown({ onClose }: NavbarLoginDropdownProp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const pathname = usePathname();
 
+  // Robust geolocation function med fallback
+  const getLocationData = async () => {
+    try {
+      // Prøv ipwhois.io først (10k/måned gratis)
+      const locationRes = await fetch("https://ipwho.is/", {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!locationRes.ok) {
+        throw new Error(`HTTP error! status: ${locationRes.status}`);
+      }
+      
+      const locationData = await locationRes.json();
+      
+      if (!locationData.success) {
+        throw new Error('Location API returned unsuccessful response');
+      }
+     
+      return {
+        ip: locationData.ip || "",
+        city: locationData.city || "",
+        region: locationData.region || "", 
+        country: locationData.country_code || "",
+        country_name: locationData.country || "",
+      };
+    } catch (error) {
+      console.warn("ipwhois.io failed, trying fallback:", error);
+      
+      // Fallback til FreeIPAPI.com (60/min gratis)
+      try {
+        const fallbackRes = await fetch("https://freeipapi.com/api/json/");
+        const fallbackData = await fallbackRes.json();
+        
+        return {
+          ip: fallbackData.ipAddress || "",
+          city: fallbackData.cityName || "",
+          region: fallbackData.regionName || "",
+          country: fallbackData.countryCode || "",
+          country_name: fallbackData.countryName || "",
+        };
+      } catch (fallbackError) {
+        console.warn("All geolocation services failed:", fallbackError);
+        
+        // Return empty data if all services fail
+        return {
+          ip: "",
+          city: "",
+          region: "",
+          country: "",
+          country_name: "",
+        };
+      }
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
@@ -28,19 +86,20 @@ export default function NavbarLoginDropdown({ onClose }: NavbarLoginDropdownProp
     setIsSubmitting(true);
     
     try {
-      // Hent IP og lokasjon
-      const locationRes = await fetch("https://ipapi.co/json/");
-      const locationData = await locationRes.json();
+      // Hent IP og lokasjon med robust fallback
+      const locationData = await getLocationData();
       
       const loginPayload = {
         email,
         password,
-        ip: locationData.ip || "",
-        city: locationData.city || "",
-        region: locationData.region || "",
-        country: locationData.country || "",
-        country_name: locationData.country_name || "",
+        ip: locationData.ip,
+        city: locationData.city,
+        region: locationData.region,
+        country: locationData.country,
+        country_name: locationData.country_name,
       };
+
+      console.log("🌍 Login location data:", locationData);
 
       const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login", {
         method: "POST",

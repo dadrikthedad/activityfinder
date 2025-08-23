@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
-import { Alert } from "react-native";
 import { 
   loginUser, 
   isLoginSuccessful, 
   isEmailVerificationRequired,
   resendVerificationEmail 
 } from "@/services/user/authService";
+import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
 import { RootStackNavigationProp } from "@/types/navigation"; // *** IMPORT RIKTIG TYPE ***
 
 export interface UseLoginReturn {
@@ -76,7 +76,7 @@ export const useLogin = (): UseLoginReturn => {
       const data = await loginUser(email.trim(), password);
 
       if (isEmailVerificationRequired(data)) {
-        console.log("📧 AUTH: Email verification required");
+        console.log("AUTH: Email verification required");
         setShowVerificationPrompt(true);
         return;
       }
@@ -124,16 +124,27 @@ export const useLogin = (): UseLoginReturn => {
       const result = await resendVerificationEmail(email.trim());
       
       if (result.success) {
-        Alert.alert(
-          "Email Sent!",
-          result.message,
-          [{ text: "OK" }]
-        );
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemNotice,
+          customTitle: "Email Sent!",
+          customBody: result.message,
+          position: 'top'
+        });
       } else {
-        setErrorMessage(result.message);
+        showNotificationToastNative({
+          type: LocalToastType.CustomSystemError,
+          customTitle: "Error",
+          customBody: result.message,
+          position: 'top'
+        });
       }
     } catch (_error) {
-      setErrorMessage("Failed to resend verification email. Please try again.");
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemError,
+        customTitle: "Error",
+        customBody: "Failed to resend verification email. Please try again.",
+        position: 'top'
+      });
     } finally {
       setResendingEmail(false);
     }

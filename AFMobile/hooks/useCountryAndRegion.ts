@@ -6,7 +6,7 @@ import { FormDataType } from "@shared/types/form";
 
 interface UseCountryAndRegionProps {
   country: string; // Her lagere vi landet
-  setFormData: React.Dispatch<React.SetStateAction<FormDataType>>; 
+  setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
   editing?: boolean; // Brukes for å hente regioner automatisk
 }
 
@@ -22,18 +22,16 @@ export function useCountryAndRegion({
 
   const fetchCountriesFromAPI = async () => { // Henter land fra API
     const data = await fetchCountries();
-
     const countryOptions: SelectOption[] = data // Bygger dropdown og gjør om countryname til codes
       .map((country) => ({ label: country.name, value: country.name }))
       .sort((a, b) => a.label.localeCompare(b.label));
-
+    
     setCountries(countryOptions);
-
+    
     const codeMap: Record<string, string> = {};
     data.forEach((country) => {
       codeMap[country.name] = country.code;
     });
-
     setCountryCodes(codeMap);
     setCodesReady(true); // Markér at koder er klare
   };
@@ -62,19 +60,63 @@ export function useCountryAndRegion({
     [countryCodes]
   );
 
-  const fetchInitialLocation = async () => { // Her henter vi geolokasjon fra IP, brukes i frontend og ikke backend for en rask hent. Burde kanskje flyttes senere?
+  const fetchInitialLocation = async () => { // Oppdatert geolocation med fallback
     try {
-      const ipRes = await fetch("https://ipapi.co/json/");
+      // Prøv ipwhois.io først (10k/måned gratis)
+      const ipRes = await fetch("https://ipwho.is/", {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!ipRes.ok) {
+        throw new Error(`HTTP error! status: ${ipRes.status}`);
+      }
+
       const ipData = await ipRes.json();
-      if (ipData?.country_name && !hasSetCountry.current) {
+
+      if (!ipData.success) {
+        throw new Error('Location API returned unsuccessful response');
+      }
+
+      if (ipData?.country && !hasSetCountry.current) {
         hasSetCountry.current = true;
-        setFormData((prev) => ({ ...prev, country: ipData.country_name }));
+        setFormData((prev) => ({ ...prev, country: ipData.country })); // Bruker full country name
+        
         if (editing) {
-          await fetchRegionsForCountry(ipData.country_name);
+          await fetchRegionsForCountry(ipData.country);
         }
       }
     } catch (err) {
-      console.error("Feil ved henting av brukerland:", err);
+      console.warn("ipwhois.io failed, trying fallback:", err);
+      
+      // Fallback til FreeIPAPI.com
+      try {
+        const fallbackRes = await fetch("https://freeipapi.com/api/json/");
+        const fallbackData = await fallbackRes.json();
+        
+        if (fallbackData?.countryName && !hasSetCountry.current) {
+          hasSetCountry.current = true;
+          setFormData((prev) => ({ ...prev, country: fallbackData.countryName }));
+          
+          if (editing) {
+            await fetchRegionsForCountry(fallbackData.countryName);
+          }
+        }
+      } catch (fallbackError) {
+        console.error("All geolocation services failed:", fallbackError);
+        
+        // Siste fallback - sett til Norge som default (siden du er norsk app?)
+        if (!hasSetCountry.current) {
+          hasSetCountry.current = true;
+          setFormData((prev) => ({ ...prev, country: "Norway" }));
+          
+          if (editing) {
+            await fetchRegionsForCountry("Norway");
+          }
+        }
+      }
     }
   };
 

@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mail } from 'lucide-react';
 import { API_BASE_URL } from '@/constants/api/routes';
@@ -10,7 +10,8 @@ interface ApiResponse {
   emailSent?: boolean;
 }
 
-export default function EmailVerificationPage() {
+// Flytt hovedlogikken til en egen komponent
+function EmailVerificationContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [code, setCode] = useState('');
@@ -145,6 +146,21 @@ export default function EmailVerificationPage() {
     }
   };
 
+  // Få vindusbredde på en trygg måte
+  const [windowWidth, setWindowWidth] = useState<number>(0);
+  
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    // Set initial width
+    setWindowWidth(window.innerWidth);
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div style={{
       fontFamily: "'Segoe UI', sans-serif",
@@ -158,13 +174,13 @@ export default function EmailVerificationPage() {
         borderRadius: '10px',
         padding: '40px',
         width: '100%',
-        maxWidth: '800px', // ✅ Økt fra 500px til 800px
+        maxWidth: '800px',
         textAlign: 'center',
       }}>
         <h1 style={{
           color: '#2d3748',
           marginBottom: '20px',
-          fontSize: '2rem' // ✅ Større overskrift
+          fontSize: '2rem'
         }}>Check Your Email</h1>
 
         {/* Error/Success Messages */}
@@ -198,7 +214,7 @@ export default function EmailVerificationPage() {
           background: '#f0fdf4',
           border: '2px solid #1C6B1C',
           borderRadius: '8px',
-          padding: '30px', // ✅ Økt padding
+          padding: '30px',
           margin: '30px 0'
         }}>
           <div style={{
@@ -217,15 +233,15 @@ export default function EmailVerificationPage() {
           <div style={{
             fontWeight: 'bold',
             color: '#1C6B1C',
-            fontSize: '1.2rem', // ✅ Større tekst for email
+            fontSize: '1.2rem',
             wordBreak: 'break-word'
           }}>{email}</div>
         </div>
 
-        {/* ✅ Responsivt grid layout for store skjermer */}
+        {/* Responsivt grid layout */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: window.innerWidth > 768 ? '1fr 1fr' : '1fr', // 2 kolonner på desktop
+          gridTemplateColumns: windowWidth > 768 ? '1fr 1fr' : '1fr',
           gap: '20px',
           margin: '30px 0'
         }}>
@@ -429,5 +445,64 @@ export default function EmailVerificationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Loading fallback komponent
+function EmailVerificationLoading() {
+  return (
+    <div style={{
+      fontFamily: "'Segoe UI', sans-serif",
+      backgroundColor: '#ffffffff',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '100vh'
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: '10px',
+        padding: '40px',
+        width: '100%',
+        maxWidth: '800px',
+        textAlign: 'center',
+      }}>
+        <h1 style={{
+          color: '#2d3748',
+          marginBottom: '20px',
+          fontSize: '2rem'
+        }}>Check Your Email</h1>
+        <div style={{
+          background: '#f0fdf4',
+          border: '2px solid #1C6B1C',
+          borderRadius: '8px',
+          padding: '30px',
+          margin: '30px 0'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: '15px'
+          }}>
+            <Mail size={80} color="white" style={{
+              backgroundColor: '#1C6B1C',
+              padding: '12px',
+              borderRadius: '12px'
+            }} />
+          </div>
+          <p style={{ fontSize: '1.1rem', marginBottom: '10px' }}>Loading...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Hovedkomponent med Suspense wrapper
+export default function EmailVerificationPage() {
+  return (
+    <Suspense fallback={<EmailVerificationLoading />}>
+      <EmailVerificationContent />
+    </Suspense>
   );
 }

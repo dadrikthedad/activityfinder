@@ -207,7 +207,8 @@ public class UserController : BaseController
                         User = user,
                         EmailConfirmationToken = longToken,
                         EmailConfirmationCode = shortCode,
-                        LastVerificationEmailSent = DateTime.UtcNow
+                        LastVerificationEmailSent = DateTime.UtcNow,
+                        EmailConfirmationTokenExpires = DateTime.UtcNow.AddHours(1)
                     };
 
                     user.UpdateFullName();

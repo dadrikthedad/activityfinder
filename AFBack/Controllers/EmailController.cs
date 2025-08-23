@@ -348,13 +348,15 @@ public class EmailController : BaseController
                 {
                     User = user,
                     EmailConfirmationToken = newToken,
-                    EmailConfirmationCode = newCode
+                    EmailConfirmationCode = newCode,
+                    EmailConfirmationTokenExpires = DateTime.UtcNow.AddHours(1)
                 };
             }
             else
             {
                 user.VerificationInfo.EmailConfirmationToken = newToken;
                 user.VerificationInfo.EmailConfirmationCode = newCode;
+                user.VerificationInfo.EmailConfirmationTokenExpires = DateTime.UtcNow.AddHours(1);
             }
 
             // Lagre tokens før sending slik at lenke/kode er gyldig umiddelbart

@@ -40,7 +40,7 @@ public class UserService
 
         user.VerificationInfo.EmailConfirmationToken = longToken;
         user.VerificationInfo.EmailConfirmationCode = shortCode;
-        // FJERNET LastVerificationEmailSent - håndteres av egen metode
+        user.VerificationInfo.EmailConfirmationTokenExpires = DateTime.UtcNow.AddHours(1);
         
         await _context.SaveChangesAsync();
 
@@ -67,8 +67,9 @@ public class UserService
         var verificationInfo = await _context.VerificationInfos
             .Include(v => v.User)
             .FirstOrDefaultAsync(v => 
-                v.EmailConfirmationToken == tokenOrCode || 
-                v.EmailConfirmationCode == tokenOrCode);
+                (v.EmailConfirmationToken == tokenOrCode || 
+                 v.EmailConfirmationCode == tokenOrCode) &&
+                v.EmailConfirmationTokenExpires > DateTime.UtcNow);
     
         if (verificationInfo?.User != null)
         {

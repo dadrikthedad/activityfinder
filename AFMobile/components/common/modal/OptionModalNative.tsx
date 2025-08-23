@@ -47,22 +47,27 @@ export default function OptionModalNative({
   // Automatisk visning av modal når komponenten mountes
   useEffect(() => {
     if (autoShow) {
-      showModal(
-        <OptionModalContent 
-          title={title}
-          options={options}
-          onSelect={onSelect}
-          onClose={() => {
-            hideModal();
-            onClose?.();
-          }}
-        />,
-        {
-          blurBackground,
-          dismissOnBackdrop,
-          type: 'center'
-        }
-      );
+      // Bruk setTimeout for å unngå blikning ved første render
+      const timer = setTimeout(() => {
+        showModal(
+          <OptionModalContent 
+            title={title}
+            options={options}
+            onSelect={onSelect}
+            onClose={() => {
+              hideModal();
+              onClose?.();
+            }}
+          />,
+          {
+            blurBackground,
+            dismissOnBackdrop,
+            type: 'center'
+          }
+        );
+      }, 50); // Kort delay for å la komponenten fullføre første render
+
+      return () => clearTimeout(timer);
     }
   }, [autoShow, title, options]);
 
@@ -89,8 +94,15 @@ export default function OptionModalNative({
     onSelect: (value: string) => void;
     onClose: () => void; 
   }) {
+    // Kalkuler dynamisk minHeight basert på antall options
+    const dynamicMinHeight = Math.max(200, 100 + (options.length * 60)); // Base høyde + plass for hver option
+    const needsScrolling = options.length > 6; // Juster denne verdien etter behov
+    
     return (
-      <View style={styles.modalContainer}>
+      <View style={[
+        styles.modalContainer,
+        !needsScrolling && { minHeight: dynamicMinHeight }
+      ]}>
         <SafeAreaView style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{title}</Text>
@@ -102,21 +114,39 @@ export default function OptionModalNative({
             />
           </View>
 
-          <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
-            {options.map((option) => (
-              <View key={option.value} style={styles.optionWrapper}>
-                <ButtonNative
-                  text={option.label}
-                  onPress={() => handleOptionSelect(option.value)}
-                  variant="primary"
-                  size="large"
-                  fullWidth
-                  style={styles.optionButton}
-                  textStyle={styles.optionButtonText}
-                />
-              </View>
-            ))}
-          </ScrollView>
+          {needsScrolling ? (
+            <ScrollView style={styles.optionsList} showsVerticalScrollIndicator={false}>
+              {options.map((option) => (
+                <View key={option.value} style={styles.optionWrapper}>
+                  <ButtonNative
+                    text={option.label}
+                    onPress={() => handleOptionSelect(option.value)}
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                    style={styles.optionButton}
+                    textStyle={styles.optionButtonText}
+                  />
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.optionsContainer}>
+              {options.map((option) => (
+                <View key={option.value} style={styles.optionWrapper}>
+                  <ButtonNative
+                    text={option.label}
+                    onPress={() => handleOptionSelect(option.value)}
+                    variant="primary"
+                    size="large"
+                    fullWidth
+                    style={styles.optionButton}
+                    textStyle={styles.optionButtonText}
+                  />
+                </View>
+              ))}
+            </View>
+          )}
         </SafeAreaView>
       </View>
     );
@@ -145,7 +175,7 @@ const styles = StyleSheet.create({
   },
   
   modalContent: {
-    flex: 1,
+    flexShrink: 1, // La innholdet krympe hvis nødvendig
   },
   
   modalHeader: {
@@ -168,6 +198,12 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     paddingTop: 10,
+  },
+
+  optionsContainer: {
+    padding: 20,
+    paddingTop: 10,
+    paddingBottom: 20, // Sørg for god padding i bunnen
   },
   
   optionWrapper: {

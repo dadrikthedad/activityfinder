@@ -14,4 +14,5 @@ public class VerificationInfo
     public string? EmailConfirmationToken { get; set; }
     public DateTime? LastVerificationEmailSent { get; set; }
     public string? EmailConfirmationCode { get; set; }
+    public DateTime? EmailConfirmationTokenExpires { get; set; }
 }

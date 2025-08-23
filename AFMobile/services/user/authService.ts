@@ -36,19 +36,51 @@ export interface LocationData {
 // Get user location data for React Native
 export async function getLocationData(): Promise<Partial<LocationData>> {
   try {
-    const locationRes = await fetch("https://ipapi.co/json/");
+    // ipwhois.io - 10,000 gratis requests per måned, kommersielt bruk OK
+    const locationRes = await fetch("https://ipwho.is/", {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+    
+    if (!locationRes.ok) {
+      throw new Error(`HTTP error! status: ${locationRes.status}`);
+    }
+    
     const locationData = await locationRes.json();
+    
+    // Sjekk om request var vellykket
+    if (!locationData.success) {
+      throw new Error('Location API returned unsuccessful response');
+    }
    
     return {
       ip: locationData.ip || "",
       city: locationData.city || "",
-      region: locationData.region || "",
-      country: locationData.country || "",
-      country_name: locationData.country_name || "",
+      region: locationData.region || "", 
+      country: locationData.country_code || "", // ISO 2-letter code
+      country_name: locationData.country || "", // Full country name
     };
   } catch (error) {
-    console.warn("Could not fetch location data:", error);
-    return {};
+    console.warn("Could not fetch location data from ipwhois.io, trying fallback:", error);
+    
+    // Fallback til FreeIPAPI.com (60/min, unlimited gratis)
+    try {
+      const fallbackRes = await fetch("https://freeipapi.com/api/json/");
+      const fallbackData = await fallbackRes.json();
+      
+      return {
+        ip: fallbackData.ipAddress || "",
+        city: fallbackData.cityName || "",
+        region: fallbackData.regionName || "",
+        country: fallbackData.countryCode || "",
+        country_name: fallbackData.countryName || "",
+      };
+    } catch (fallbackError) {
+      console.warn("Fallback location service also failed:", fallbackError);
+      return {};
+    }
   }
 }
 
