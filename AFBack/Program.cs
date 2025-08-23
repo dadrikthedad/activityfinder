@@ -14,6 +14,7 @@ using AFBack.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using AFBack.Configuration;
 using AFBack.Filters;
 using AFBack.Hubs;
 using Azure.Storage.Blobs;
@@ -207,6 +208,10 @@ builder.Services.AddScoped<SupportService>();
 builder.Services.AddScoped<EmailService, EmailService>();
 builder.Services.AddScoped<UserService, UserService>();
 builder.Services.AddEmailRateLimit();
+builder.Services.Configure<IpBanOptions>(
+    builder.Configuration.GetSection("IpBan"));
+builder.Services.AddSingleton<IpBanService>();
+builder.Services.AddHostedService<IpBanCleanupService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

@@ -47,6 +47,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<Report> Reports { get; set; }
     
     public DbSet<ReportAttachment> ReportAttachments { get; set; }
+    
+    public DbSet<BanInfo> BanInfos { get; set; }
+    
+    public DbSet<SuspiciousActivity> SuspiciousActivities { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -736,6 +740,23 @@ public class ApplicationDbContext : DbContext
             .HasOne(v => v.User)
             .WithOne(u => u.VerificationInfo)
             .HasForeignKey<VerificationInfo>(v => v.UserId);
+        
+        modelBuilder.Entity<BanInfo>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.IpAddress);
+            entity.HasIndex(e => new { e.IpAddress, e.IsActive });
+            entity.Property(e => e.IpAddress).HasMaxLength(45); // IPv6 support
+        });
+
+        modelBuilder.Entity<SuspiciousActivity>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.IpAddress);
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => new { e.IpAddress, e.Timestamp });
+            entity.Property(e => e.IpAddress).HasMaxLength(45);
+        });
 
 
         
