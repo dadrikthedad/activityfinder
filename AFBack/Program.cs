@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
@@ -15,10 +16,16 @@ using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using AFBack.Configuration;
+using AFBack.Extensions;
 using AFBack.Filters;
 using AFBack.Hubs;
+using AFBack.Middleware;
+using AFBack.Utils;
 using Azure.Storage.Blobs;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Caching.Memory;
+using IPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
@@ -78,6 +85,49 @@ var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"
 // Connection string til bloben, for bilder
 var blobConnectionString = Environment.GetEnvironmentVariable("AZURE_BLOB_CONNECTION_STRING")
                            ?? throw new Exception("AZURE_BLOB_CONNECTION_STRING is not set.");
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | 
+                               ForwardedHeaders.XForwardedProto | 
+                               ForwardedHeaders.XForwardedHost;
+    
+    options.ForwardLimit = 2;
+    
+    if (builder.Environment.IsDevelopment())
+    {
+        // Kun localhost for utvikling
+        options.KnownProxies.Add(IPAddress.IPv6Loopback);
+        options.KnownProxies.Add(IPAddress.Loopback);
+    }
+    else
+    {
+        // Last faktiske proxy ranges fra konfigurasjon
+        var proxyRanges = builder.Configuration.GetSection("ProxyRanges").Get<string[]>();
+        if (proxyRanges != null)
+        {
+            foreach (var range in proxyRanges)
+            {
+                if (IPNetwork.TryParse(range, out var network))
+                {
+                    options.KnownNetworks.Add(network);
+                }
+                else
+                {
+                    // Log feil i konfigurasjon
+                    Console.WriteLine($"Invalid proxy range in configuration: {range}");
+                }
+            }
+        }
+        else if (builder.Environment.IsProduction())
+        {
+            // Advarsel hvis ingen proxy ranges er konfigurert i prod
+            Console.WriteLine("WARNING: No proxy ranges configured for production!");
+        }
+    }
+    
+    options.RequireHeaderSymmetry = false;
+});
 
 // Kobler oss opp til databasen med variabelen med connectionstring og miljøvariabelen til passord.
 //Denne linjen registerer databasekoblingen i ASP.NET Core Dependency Injection systemet. Legger til ApplicationDbContext som en tjeneste slik at API-et kan bruke databasen.
@@ -255,31 +305,119 @@ builder.Services.AddSwaggerGen(c =>
 
 // Beskytter mot bruntforce, spam og lignende angrep ved å  begrense hvor mange forespørseler som kan bli sendt i løpet av kort tid
 // Må ha inn en options som vi kan da tilpasse til vårt behov.
+// Forenklet rate limiter konfigurasjon
 builder.Services.AddRateLimiter(options =>
 {   
-    // GlobalLimiter gjelder for alle innkommende requester, ved å bruke PartitionedRateLimitir så deler vi opp i grupper
-    // og de har hver sin teller.
+    // Én global limiter som håndterer alt
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-        // RateLimitPartition teller antall forespørseler innenfor en fast tid som vi definerer med GetFixedWindowLimiter 
-        RateLimitPartition.GetFixedWindowLimiter(
-            // Her definerer vi at hver Ip-adresse for sin egen teller, slik at vi teller hvem som sender request.
-            // Finnes ikke IP-en så får vi unknow, svært sjeldent det skal skkje.
-            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            // Factory er en funkksjon som returnerer innstillinger, og her gir vi hver gruppe (altså hver IP) egne innstillinger.
-            factory: _ => new FixedWindowRateLimiterOptions
+    {
+        // Bruk hybrid partition key (IP + device fingerprint)
+        var partitionKey = IpUtils.GetHybridPartitionKey(context);
+        var isMobileApp = IpUtils.IsMobileAppRequest(context);
+        var isFromSharedNetwork = IpUtils.IsFromSharedNetwork(IpUtils.GetClientIp(context));
+        
+        // Enkle, adaptive grenser basert på nettverkstype og app-type
+        var (permitLimit, windowMinutes) = IpUtils.GetSimpleRateLimit(context.Request.Path, isMobileApp, isFromSharedNetwork);
+        
+        return RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: partitionKey,
+            factory: _ => new SlidingWindowRateLimiterOptions
             {
-                // Tillater 5 requests per IP i hver tidsperiode
-                PermitLimit = 50, // f.eks. 5 kall
-                // Maks 5 request pr 10 sekunder
-                Window = TimeSpan.FromSeconds(10),
-                // Mer enn 5 requester, så havner man i kø.
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromMinutes(windowMinutes),
+                SegmentsPerWindow = 4, // 15s segmenter for 1-minutts vindu
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                // Ikke mer enn 2 forespørsler i kø. Totalt forespørsler pr 10 sekund som blir behandlet er da 7
-                QueueLimit = 2
-            }));
-    // For mange forespørsler i forhold til det vi har definert så får bruker error 429
-    options.RejectionStatusCode = 429; // Too Many Requests
+                QueueLimit = isMobileApp ? 10 : 5 // Høyere kø for mobile
+            });
+    });
+
+    // Snillere rejection handling med gradert respons
+    options.OnRejected = async (context, cancellationToken) =>
+{
+    var httpContext = context.HttpContext;
+    var partitionKey = IpUtils.GetHybridPartitionKey(httpContext);
+    var clientIp = IpUtils.GetClientIp(httpContext) ?? "unknown";
+    var isMobileApp = IpUtils.IsMobileAppRequest(httpContext);
+    var isSharedNetwork = IpUtils.IsFromSharedNetwork(clientIp);
+    
+    // NYTT: Hent device ID for mobile apps
+    var deviceId = isMobileApp 
+        ? httpContext.Request.Headers["X-Device-ID"].FirstOrDefault() 
+        : null;
+    
+    // Sett Retry-After header for smart clients
+    if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+    {
+        var seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+        httpContext.Response.Headers["Retry-After"] = seconds.ToString();
+    }
+    
+    // Myk "strike" teller i memory cache
+    var cache = httpContext.RequestServices.GetService<IMemoryCache>();
+    var logger = httpContext.RequestServices.GetService<ILogger<Program>>();
+    
+    if (cache != null && logger != null)
+    {
+        var strikeKey = $"rl-strikes:{partitionKey}";
+        var strikes = cache.GetOrCreate(strikeKey, entry => 
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            return 0;
+        });
+        
+        strikes++;
+        cache.Set(strikeKey, strikes, TimeSpan.FromMinutes(10));
+        
+        // Gradert logging og potensielt ban-rapportering
+        if (strikes <= 3 || isSharedNetwork)
+        {
+            // Soft logging for første gangs overskridelser eller shared networks
+            var deviceInfo = !string.IsNullOrEmpty(deviceId) ? $" Device: {deviceId[..8]}..." : "";
+            logger.LogInformation("Rate limit hit (strike {Strike}) - {Type} from {IP}{DeviceInfo} on {Path}", 
+                strikes, isMobileApp ? "Mobile" : "Web", clientIp, deviceInfo, httpContext.Request.Path);
+        }
+        else if (strikes >= 5 && !isSharedNetwork)
+        {
+            // Kun rapporter til ban service etter gjentatte overskridelser på private networks
+            var ipBanService = httpContext.RequestServices.GetService<IpBanService>();
+            if (ipBanService != null)
+            {
+                var activityType = httpContext.Request.Path.StartsWithSegments("/api/auth") 
+                    ? SuspiciousActivityTypes.LOGIN_ATTEMPT 
+                    : SuspiciousActivityTypes.API_ABUSE;
+                    
+                var reason = $"Repeated rate limit violations (strike {strikes}) - {(isMobileApp ? "Mobile" : "Web")}";
+                
+                // FORBEDRET: Send device ID til ban service
+                await ipBanService.ReportSuspiciousActivityAsync(
+                    clientIp,
+                    activityType,
+                    reason,
+                    httpContext.Request.Headers["User-Agent"].ToString(),
+                    httpContext.Request.Path,
+                    deviceId); // NYTT: Device ID parameter
+            }
+            
+            var deviceInfo = !string.IsNullOrEmpty(deviceId) ? $" Device: {deviceId[..8]}..." : "";
+            logger.LogWarning("Repeated rate limit violations (strike {Strike}) - {Type} from {IP}{DeviceInfo} on {Path}", 
+                strikes, isMobileApp ? "Mobile" : "Web", clientIp, deviceInfo, httpContext.Request.Path);
+        }
+        else
+        {
+            // Moderate logging for repeated but not severe violations
+            var deviceInfo = !string.IsNullOrEmpty(deviceId) ? $" Device: {deviceId[..8]}..." : "";
+            logger.LogInformation("Repeated rate limit hit (strike {Strike}) - {Type} from {IP}{DeviceInfo} on {Path}", 
+                strikes, isMobileApp ? "Mobile" : "Web", clientIp, deviceInfo, httpContext.Request.Path);
+        }
+    }
+
+    httpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+    await httpContext.Response.WriteAsync("Too many requests. Please slow down.", cancellationToken);
+};
+
+    options.RejectionStatusCode = 429;
 });
+
 
 builder.Services.AddSingleton<CountryService>();
 builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
@@ -300,7 +438,10 @@ app.UseHttpsRedirection();
 // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
 app.UseAuthorization();
 // Aktivirer rate-limiteren vi har spesifisert litt over oss.
+app.UseMiddleware<RateLimitIpBanMiddleware>();
+app.UseForwardedHeaders();
 app.UseRateLimiter();
+app.UseMiddleware<RateLimitIpBanMiddleware>(); // Legg til etter UseRateLimiter()
 // Hører sammen med AddControllers og forteller ASp.NET CORE at Api-endepunktene finnes og skal håndteres av kontrollerne.
 app.MapControllers();
 // Med denne kan API-et servere statiske filer som HTML, CSS, bilder osv direkte fra wwwroot-mappen.
@@ -310,6 +451,8 @@ app.MapFallbackToFile("index.html");
 
 // her er endepunktet for meldinger til SignalR
 app.MapHub<UserHub>("/userhub");
+
+
 
 
 // Configure the HTTP request pipeline.

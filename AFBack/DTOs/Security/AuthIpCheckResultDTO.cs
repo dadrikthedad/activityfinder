@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 public class AuthIpCheckResult
 {
     public bool IsBanned { get; set; }
-    public string? ClientIp { get; set; }
     public IActionResult? ActionResult { get; set; }
+    public string? ClientIp { get; set; }
+    public string? DeviceId { get; set; } // NYTT
+    public bool IsMobileApp { get; set; } // NYTT
+    public bool IsSharedNetwork { get; set; } 
 }

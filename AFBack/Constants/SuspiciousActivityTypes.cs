@@ -13,6 +13,9 @@ public static class SuspiciousActivityTypes
     public const string EXCESSIVE_PASSWORD_RESET = "EXCESSIVE_PASSWORD_RESET";
     public const string BRUTE_FORCE_ATTEMPT = "BRUTE_FORCE_ATTEMPT";
     public const string SUSPICIOUS_USER_AGENT = "SUSPICIOUS_USER_AGENT";
-    public const string API_ABUSE = "API_ABUSE";
     public const string EXCESSIVE_EMAIL_VERIFICATION = "EXCESSIVE_EMAIL_VERIFICATION";
+    public const string RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED";
+    public const string API_ABUSE = "API_ABUSE";
+    public const string LOGIN_ATTEMPT = "LOGIN_ATTEMPT";
+    
 }
