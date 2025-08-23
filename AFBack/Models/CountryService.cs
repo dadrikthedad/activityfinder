@@ -48,11 +48,6 @@ public class CountryService
         return _codeToName.TryGetValue(code.Trim().ToUpper(), out var name) ? name : null;
     }
 
-    public bool IsValidCountryCode(string code)
-    {
-        return _validCountryCodes.Contains(code.Trim().ToUpper());
-    }
-
     public List<string> GetRegionsByCountryCode(string code)
     {
         if (string.IsNullOrWhiteSpace(code)) return new();

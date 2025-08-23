@@ -38,9 +38,11 @@ public class UserController : BaseController
     private readonly EmailService _emailService;
     private readonly UserService _userService;
     private readonly EmailRateLimitService _emailRateLimitService;
+    private readonly IpBanService _ipBanService;
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
-    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService, UserService userService, EmailRateLimitService emailRateLimitService)
+    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService, UserService userService, EmailRateLimitService emailRateLimitService, IpBanService ipBanService
+        )
     {
         _context = context;
         _countryService = countryService;
@@ -51,12 +53,17 @@ public class UserController : BaseController
         _emailService = emailService;
         _userService = userService;
         _emailRateLimitService = emailRateLimitService;
+        _ipBanService = ipBanService;
     }
     
     // Henter alle land:
     [HttpGet("countries")]
-    public IActionResult GetAllCountries()
+    public async Task<IActionResult> GetAllCountries()
     {
+        // Enkel IP-ban sjekk
+        var banCheck = await this.CheckIpBanAsync(_ipBanService, _logger);
+        if (banCheck != null) return banCheck;
+
         try
         {
             var countries = _countryService.GetAllCountries().ToList();
@@ -75,13 +82,14 @@ public class UserController : BaseController
             return StatusCode(500, new { message = "Failed to fetch countries." });
         }
     }
-    
-    
-    
-    // Endepunkt som blir sendt fra frontend basert på valgt land og sender tilbake en liste med alle regionene til valgt land
+
     [HttpGet("regions/{countryCode}")]
-    public IActionResult GetRegionsByCountry(string countryCode)
+    public async Task<IActionResult> GetRegionsByCountry(string countryCode)
     {
+        // Enkel IP-ban sjekk
+        var banCheck = await this.CheckIpBanAsync(_ipBanService, _logger);
+        if (banCheck != null) return banCheck;
+
         if (string.IsNullOrWhiteSpace(countryCode))
             return BadRequest(new { message = "Country code is required." });
 
@@ -115,6 +123,11 @@ public class UserController : BaseController
     {
         try
         {
+            // *** IP-BAN SJEKK MED EXTENSION (legges til øverst) ***
+            var ipCheckResult = await this.CheckAuthEndpointAsync(_ipBanService, _logger, "Registration", userDto.Email);
+            if (ipCheckResult.IsBanned)
+                return ipCheckResult.ActionResult!;
+
             _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
        
             var countryName = _countryService.GetCountryNameFromCode(userDto.Country);
@@ -133,6 +146,14 @@ public class UserController : BaseController
                     kvp => kvp.Value.Errors.Select(error => error.ErrorMessage).ToList());
 
                 _logger.LogWarning("Validation failed for user registration. Errors: {@Errors}", errors);
+                
+                // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService, 
+                    SuspiciousActivityTypes.REGISTRATION_VALIDATION_FAILED, 
+                    $"Registration validation failed: {string.Join(", ", errors.Values.SelectMany(v => v))}",
+                    _logger);
+                
                 return BadRequest(new {message = $"Validation failed. Check errors.", errors});
             }
         
@@ -222,6 +243,14 @@ public class UserController : BaseController
                         postgresException.SqlState == "23505")
                     {
                         _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
+                        
+                        // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
+                        await this.ReportSuspiciousActivityAsync(
+                            _ipBanService, 
+                            SuspiciousActivityTypes.DUPLICATE_EMAIL_REGISTRATION, 
+                            $"Attempted registration with existing email: {userDto.Email}",
+                            _logger);
+                        
                         return BadRequest(new { message = "Email is already registered." });
                     }
 
@@ -236,7 +265,6 @@ public class UserController : BaseController
                 }
             } // *** TRANSACTION ER NÅ FERDIG OG DISPOSED ***
 
-            // *** SEND EMAIL ETTER TRANSACTION ER FULLFØRT ***
             // *** SEND EMAIL ETTER TRANSACTION ER FULLFØRT ***
             bool emailSent = false;
             try
@@ -256,15 +284,31 @@ public class UserController : BaseController
                 else
                 {
                     _logger.LogWarning("Failed to send verification email to {Email}", savedUser.Email);
+                    
+                    // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
+                    await this.ReportSuspiciousActivityAsync(
+                        _ipBanService, 
+                        SuspiciousActivityTypes.VERIFICATION_EMAIL_FAILED, 
+                        $"Failed to send verification email to: {savedUser.Email}",
+                        _logger);
                 }
             }
             catch (Exception emailEx)
             {
                 _logger.LogError("Error sending verification email to {Email}: {Error}", savedUser.Email, emailEx.Message);
                 // Email failure should not fail the registration
+                
+                // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService, 
+                    SuspiciousActivityTypes.VERIFICATION_EMAIL_ERROR, 
+                    $"Exception sending verification email to: {savedUser.Email} - {emailEx.Message}",
+                    _logger);
             }
             
             // *** RETURNER ALLTID SUKSESS ***
+            _logger.LogInformation("Successful registration for user: {Email}", savedUser.Email);
+            
             return Ok(new
             {
                 message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
@@ -293,20 +337,40 @@ public class UserController : BaseController
     {
         if (!ModelState.IsValid)
             return BadRequest(new { message = "Invalid login requests." });
-    
+
+        // *** IP-BAN SJEKK MED EXTENSION (erstatter ~15 linjer kode) ***
+        var ipCheckResult = await this.CheckAuthEndpointAsync(_ipBanService, _logger, "Login", userLoginDto.Email);
+        if (ipCheckResult.IsBanned)
+            return ipCheckResult.ActionResult!;
+
         string normalizedEmail = userLoginDto.Email.Trim().ToLowerInvariant();
-    
+
         var token = await _authService.LoginAsync(normalizedEmail, userLoginDto.Password);
-    
+
         if (token == null)
         {
             _logger.LogWarning("Failed login attempt for email: {Email}", userLoginDto.Email);
+            
+            // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION (erstatter ~7 linjer) ***
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService, 
+                SuspiciousActivityTypes.FAILED_LOGIN, 
+                $"Failed login attempt for email: {normalizedEmail}",
+                _logger);
+            
             return Unauthorized(new { message = "Invalid email or password." });
         }
-    
+
         // *** HÅNDTER UVERIFISERT EPOST ***
         if (token == "EMAIL_NOT_VERIFIED")
         {
+            // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService, 
+                SuspiciousActivityTypes.UNVERIFIED_LOGIN_ATTEMPT, 
+                $"Login attempt with unverified email: {normalizedEmail}",
+                _logger);
+            
             return Unauthorized(new { 
                 message = "Please verify your email address before logging in. Check your inbox for the verification link.",
                 emailVerificationRequired = true,
@@ -319,7 +383,7 @@ public class UserController : BaseController
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             if (user != null)
             {
-                user.LastLoginIp = userLoginDto.Ip;
+                user.LastLoginIp = ipCheckResult.ClientIp; // Bruk IP fra extension result
                 user.LastLoginCity = userLoginDto.City;
                 user.LastLoginRegion = userLoginDto.Region;
                 user.LastLoginCountry = userLoginDto.Country;
@@ -346,14 +410,48 @@ public class UserController : BaseController
     [HttpGet("check-email")]
     public async Task<IActionResult> CheckEmailAvailability([FromQuery] string email)
     {
+        // *** AVANSERT IP-BAN SJEKK MED LOGGING ***
+        var ipCheckResult = await this.CheckAuthEndpointAsync(_ipBanService, _logger, "EmailCheck");
+        if (ipCheckResult.IsBanned)
+            return ipCheckResult.ActionResult!;
+
         if (string.IsNullOrWhiteSpace(email))
         {
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService,
+                SuspiciousActivityTypes.API_ABUSE,
+                "Email availability check with empty email",
+                _logger);
+                
             return BadRequest(new { message = "Email can't be empty." });
         }
 
         try
         {
             string normalizedEmail = email.Trim().ToLowerInvariant();
+            
+            // Sjekk for mistenkelige mønstre
+            if (IpBanExtensions.IsSuspiciousEmailPattern(normalizedEmail))
+            {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.API_ABUSE,
+                    $"Suspicious email pattern detected: {normalizedEmail}",
+                    _logger);
+                    
+                return BadRequest(new { message = "Invalid email format." });
+            }
+            
+            if (!IpBanExtensions.IsValidEmail(normalizedEmail))
+            {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.API_ABUSE,
+                    $"Invalid email format in availability check: {normalizedEmail}",
+                    _logger);
+                    
+                return BadRequest(new { message = "Invalid email format." });
+            }
             
             bool emailExists = await _context.Users.AnyAsync(user => user.Email == normalizedEmail);
 
@@ -362,6 +460,13 @@ public class UserController : BaseController
         catch (Exception e)
         {
             _logger.LogError("Error while checking email: {Error}", e.Message);
+            
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService,
+                SuspiciousActivityTypes.API_ABUSE,
+                $"Database error during email check: {e.Message}",
+                _logger);
+                
             return StatusCode(500, new { message = "Database error. Try again later." });
         }
     }

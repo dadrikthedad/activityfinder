@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using AFBack.Data;
 using AFBack.DTOs.Email;
+using AFBack.Extensions;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -17,90 +18,22 @@ public class EmailController : BaseController
     private readonly EmailRateLimitService _emailRateLimitService;
     private readonly ILogger<EmailController> _logger;
     private readonly ApplicationDbContext _context;
+    private readonly IpBanService _ipBanService;
 
     public EmailController(
         EmailService emailService, 
         UserService userService, 
         EmailRateLimitService emailRateLimitService,
         ILogger<EmailController> logger, 
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        IpBanService ipBanService)
     {
         _context = context;
         _emailService = emailService;
         _userService = userService;
         _emailRateLimitService = emailRateLimitService;
         _logger = logger;
-    }
-
-    [HttpPost("send-verification")]
-    public async Task<IActionResult> SendVerificationEmail([FromBody] SendVerificationRequest request)
-    {
-        try
-        {
-            // *** RATE LIMITING ***
-            var clientIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-            var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(request.Email, clientIp);
-
-            if (!isAllowed)
-            {
-                if (retryAfter.HasValue)
-                {
-                    var message = retryAfter.Value.TotalHours >= 1 
-                        ? $"Daily limit reached. Try again in {Math.Ceiling(retryAfter.Value.TotalHours)} hours."
-                        : $"Please wait {Math.Ceiling(retryAfter.Value.TotalMinutes)} minutes before requesting another email.";
-            
-                    return BadRequest(new { 
-                        message,
-                        retryAfter = retryAfter.Value.TotalSeconds 
-                    });
-                }
-                else
-                {
-                    return BadRequest(new { 
-                        message = "Daily email limit reached. Please try again tomorrow." 
-                    });
-                }
-            }
-
-            // *** OPPRETT HYBRID VERIFIKASJON TOKENS ***
-            var (longToken, shortCode) = await _userService.CreateVerificationTokenAsync(request.Email);
-
-            if (longToken == null || shortCode == null)
-            {
-                // Brukeren finnes ikke, men ikke avslør dette
-                return Ok(new { message = "If the email exists, a verification email has been sent.", success = true });
-            }
-
-            // *** SEND EPOST MED BEGGE TOKENS ***
-            var success = await _emailService.SendVerificationEmailAsync(request.Email, longToken, shortCode);
-
-            if (success)
-            {
-                // Registrer at email faktisk ble sendt (for rate limiting)
-                _emailRateLimitService.RegisterVerificationEmailSent(request.Email);
-                
-                await _userService.MarkVerificationEmailSentAsync(request.Email);
-                
-                return Ok(new
-                {
-                    message = "Verification email sent with both web link and mobile code. Check your inbox!",
-                    success = true,
-                    verificationMethods = new
-                    {
-                        webLink = "Click the verification link in the email",
-                        mobileCode = "Enter the 6-digit code from the email into the app",
-                        deepLink = "Click 'Open in App' if using mobile"
-                    }
-                });
-            }
-
-            return BadRequest(new { message = "Could not send verification email", success = false });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in SendVerificationEmail for {Email}", request.Email);
-            return StatusCode(500, new { message = "Internal server error" });
-        }
+        _ipBanService = ipBanService;
     }
 
     [HttpPost("verify")]
@@ -144,12 +77,49 @@ public class EmailController : BaseController
     {
         try
         {
-            // *** RATE LIMITING - bruk samme system for password reset ***
-            var clientIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
-            var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(request.Email, clientIp);
+            // *** IP-BAN SJEKK MED EXTENSION ***
+            var ipCheckResult = await this.CheckAuthEndpointAsync(_ipBanService, _logger, "ForgotPassword", request.Email);
+            if (ipCheckResult.IsBanned)
+                return ipCheckResult.ActionResult!;
+
+            // Validér email input
+            if (string.IsNullOrWhiteSpace(request.Email))
+            {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.API_ABUSE,
+                    "Forgot password with empty email",
+                    _logger);
+                    
+                return BadRequest(new { message = "Email is required." });
+            }
+
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+            // Validér email format
+            if (!IpBanExtensions.IsValidEmail(normalizedEmail))
+            {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.API_ABUSE,
+                    $"Invalid email format in forgot password: {normalizedEmail}",
+                    _logger);
+                    
+                return BadRequest(new { message = "Invalid email format." });
+            }
+
+            // *** RATE LIMITING (bruk IP fra extension) ***
+            var clientIp = ipCheckResult.ClientIp;
+            var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(normalizedEmail, clientIp);
 
             if (!isAllowed)
             {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.EXCESSIVE_PASSWORD_RESET,
+                    $"Rate limit exceeded for password reset to: {normalizedEmail}",
+                    _logger);
+
                 if (retryAfter.HasValue)
                 {
                     var message = retryAfter.Value.TotalHours >= 1 
@@ -170,23 +140,40 @@ public class EmailController : BaseController
             }
 
             // Opprett reset token
-            var token = await _userService.CreatePasswordResetTokenAsync(request.Email);
+            var token = await _userService.CreatePasswordResetTokenAsync(normalizedEmail);
 
             if (token != null)
             {
                 // Send epost
-                var success = await _emailService.SendForgotPasswordEmailAsync(request.Email, token);
+                var success = await _emailService.SendForgotPasswordEmailAsync(normalizedEmail, token);
 
                 if (success)
                 {
                     // Registrer at email faktisk ble sendt (for rate limiting)
-                    _emailRateLimitService.RegisterVerificationEmailSent(request.Email);
+                    _emailRateLimitService.RegisterVerificationEmailSent(normalizedEmail);
+                    
+                    _logger.LogInformation("Password reset email sent successfully to {Email}", normalizedEmail);
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to send password reset email to {Email}", request.Email);
+                    await this.ReportSuspiciousActivityAsync(
+                        _ipBanService,
+                        SuspiciousActivityTypes.VERIFICATION_EMAIL_FAILED,
+                        $"Failed to send password reset email to: {normalizedEmail}",
+                        _logger);
+                        
+                    _logger.LogWarning("Failed to send password reset email to {Email}", normalizedEmail);
                     // Ikke avslør tekniske detaljer
                 }
+            }
+            else
+            {
+                // Rapporter forsøk på password reset for ikke-eksisterende bruker
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.API_ABUSE,
+                    $"Password reset requested for non-existent email: {normalizedEmail}",
+                    _logger);
             }
 
             // Returner alltid samme melding for sikkerhet (ikke avslør om eposten eksisterer)
@@ -199,6 +186,13 @@ public class EmailController : BaseController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in ForgotPassword for {Email}", request.Email);
+            
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService,
+                SuspiciousActivityTypes.API_ABUSE,
+                $"Exception in forgot password for {request.Email}: {ex.Message}",
+                _logger);
+                
             return StatusCode(500, new { message = "Internal server error" });
         }
     }
@@ -251,19 +245,50 @@ public class EmailController : BaseController
     [HttpPost("resend-verification")]
     public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequest request)
     {
+        // *** IP-BAN SJEKK MED EXTENSION ***
+        var ipCheckResult = await this.CheckAuthEndpointAsync(_ipBanService, _logger, "ResendVerification", request.Email);
+        if (ipCheckResult.IsBanned)
+            return ipCheckResult.ActionResult!;
+
         if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService,
+                SuspiciousActivityTypes.API_ABUSE,
+                "Resend verification with empty email",
+                _logger);
+                
             return BadRequest(new { message = "Email is required." });
+        }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
+        // Validér email format
+        if (!IpBanExtensions.IsValidEmail(normalizedEmail))
+        {
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService,
+                SuspiciousActivityTypes.API_ABUSE,
+                $"Invalid email format in resend verification: {normalizedEmail}",
+                _logger);
+                
+            return BadRequest(new { message = "Invalid email format." });
+        }
+
         try
         {
-            // *** RATE LIMITING ***
-            var clientIp = Request.HttpContext.Connection.RemoteIpAddress?.ToString();
+            // *** RATE LIMITING (bruker IP fra extension) ***
+            var clientIp = ipCheckResult.ClientIp;
             var (isAllowed, retryAfter) = await _emailRateLimitService.CanSendVerificationEmailAsync(normalizedEmail, clientIp);
 
             if (!isAllowed)
             {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.EXCESSIVE_EMAIL_VERIFICATION,
+                    $"Rate limit exceeded for resend verification to: {normalizedEmail}",
+                    _logger);
+
                 if (retryAfter.HasValue)
                 {
                     var message = retryAfter.Value.TotalHours >= 1 
@@ -289,6 +314,12 @@ public class EmailController : BaseController
 
             if (user == null)
             {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.API_ABUSE,
+                    $"Resend verification requested for non-existent email: {normalizedEmail}",
+                    _logger);
+
                 _logger.LogInformation("Resend verification requested for non-existent email: {Email}", normalizedEmail);
                 return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
             }
@@ -349,6 +380,12 @@ public class EmailController : BaseController
             }
             else
             {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService,
+                    SuspiciousActivityTypes.VERIFICATION_EMAIL_FAILED,
+                    $"Failed to resend verification email to: {user.Email}",
+                    _logger);
+
                 _logger.LogWarning("Failed to resend verification email to {Email}", user.Email);
                 return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
             }
@@ -356,6 +393,13 @@ public class EmailController : BaseController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error resending verification email to {Email}", normalizedEmail);
+            
+            await this.ReportSuspiciousActivityAsync(
+                _ipBanService,
+                SuspiciousActivityTypes.API_ABUSE,
+                $"Exception in resend verification for {normalizedEmail}: {ex.Message}",
+                _logger);
+                
             return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
         }
     }

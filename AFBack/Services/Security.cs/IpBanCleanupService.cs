@@ -28,6 +28,9 @@ public class IpBanCleanupService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Vent litt før første cleanup for å la applikasjonen starte opp ordentlig
+        await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+        
         using var timer = new PeriodicTimer(_options.CleanupInterval);
         
         while (!stoppingToken.IsCancellationRequested)
@@ -35,22 +38,39 @@ public class IpBanCleanupService : BackgroundService
             try
             {
                 await timer.WaitForNextTickAsync(stoppingToken);
-                await PerformCleanupAsync();
+                
+                if (!stoppingToken.IsCancellationRequested)
+                {
+                    await PerformCleanupAsync();
+                }
             }
             catch (OperationCanceledException)
             {
                 // Expected when cancellation is requested
+                _logger.LogInformation("IP ban cleanup service is shutting down");
                 break;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error during IP ban cleanup");
+                
+                // Vent litt ekstra ved feil for å unngå spam av feilmeldinger
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
         }
     }
 
     private async Task PerformCleanupAsync()
     {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        
         try
         {
             using var scope = _scopeFactory.CreateScope();
@@ -73,15 +93,30 @@ public class IpBanCleanupService : BackgroundService
             // Clear expired bans from cache
             _ipBanService.ClearExpiredFromCache();
 
+            stopwatch.Stop();
+
             if (expiredBansCount > 0 || deletedActivitiesCount > 0)
             {
-                _logger.LogInformation("Cleanup completed: deactivated {ExpiredBans} expired bans, deleted {OldActivities} old suspicious activities",
-                    expiredBansCount, deletedActivitiesCount);
+                _logger.LogInformation("Cleanup completed in {Duration}ms: deactivated {ExpiredBans} expired bans, deleted {OldActivities} old suspicious activities",
+                    stopwatch.ElapsedMilliseconds, expiredBansCount, deletedActivitiesCount);
+            }
+            else
+            {
+                _logger.LogDebug("Cleanup completed in {Duration}ms: no expired data found",
+                    stopwatch.ElapsedMilliseconds);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during IP ban cleanup");
+            stopwatch.Stop();
+            _logger.LogError(ex, "Error during IP ban cleanup after {Duration}ms", stopwatch.ElapsedMilliseconds);
+            throw; // Re-throw for outer exception handling
         }
+    }
+
+    public override async Task StopAsync(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("IP ban cleanup service is stopping");
+        await base.StopAsync(stoppingToken);
     }
 }
