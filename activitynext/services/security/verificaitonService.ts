@@ -51,21 +51,37 @@ export async function sendForgotPasswordEmail(email: string): Promise<ForgotPass
 }
 
 // Reset password using token or code
-export async function resetPassword(tokenOrCode: string, newPassword: string): Promise<ResetPasswordResponse> {
+export async function resetPassword(tokenOrCode: string, newPassword: string, confirmPassword: string): Promise<ResetPasswordResponse> {
   try {
+    console.log("🔧 Reset Password Service:");
+    console.log("- API URL:", `${API_BASE_URL}/api/email/reset-password`);
+    console.log("- Token/Code length:", tokenOrCode.length);
+    console.log("- Password length:", newPassword.length);
+    
+    const payload = { 
+      tokenOrCode, 
+      newPassword,
+      confirmPassword
+    };
+    
+    console.log("- Payload:", JSON.stringify(payload, null, 2));
+    
     const res = await fetch(`${API_BASE_URL}/api/email/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        tokenOrCode, 
-        newPassword 
-      } as ResetPasswordRequest),
+      body: JSON.stringify(payload),
     });
     
+    console.log("- Response status:", res.status);
+    
     const data = await res.json();
+    console.log("- Response data:", data);
     
     if (!res.ok) {
-      throw new Error(data.message || "Failed to reset password");
+      // Try to get more specific error message from backend
+      const errorMessage = data.message || data.error || data.title || `HTTP ${res.status}: Failed to reset password`;
+      console.error("- Backend error:", errorMessage);
+      throw new Error(errorMessage);
     }
     
     return data as ResetPasswordResponse;

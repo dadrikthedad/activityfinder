@@ -227,13 +227,13 @@ export default function LoginPage() {
             <button
               onClick={handleResendVerificationEmail}
               disabled={resendingEmail}
-              className="w-full bg-[#1C6B1C] text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors font-medium disabled:opacity-50"
+              className="w-full bg-[#1C6B1C] text-white py-2 px-4 rounded-md hover:bg-[#155a15] transition-colors font-medium disabled:opacity-50"
             >
               {resendingEmail ? "Sending..." : "Resend Verification Email"}
             </button>
             <button
               onClick={() => setShowVerificationPrompt(false)}
-              className="w-32 text-white py-2 px-3 rounded-md bg-gray-600 hover:bg-gray-100 transition-colors text-sm"
+              className="w-32 text-white py-2 px-3 rounded-md bg-gray-600 hover:bg-gray-700 transition-colors text-sm"
             >
               Cancel
             </button>
@@ -283,9 +283,9 @@ export default function LoginPage() {
         </a>
       </p>
 
-      {/* Forgot password link */}
+      {/* Forgot password link - Updated to point to resetpassword */}
       <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-2">
-        <a href="/forgot-password" className="text-[#1C6B1C] hover:text-[#0F3D0F] hover:underline">
+        <a href="/resetpassword" className="text-[#1C6B1C] hover:text-[#0F3D0F] hover:underline">
           Forgot your password?
         </a>
       </p>

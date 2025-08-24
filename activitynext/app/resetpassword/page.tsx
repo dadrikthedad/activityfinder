@@ -1,16 +1,22 @@
 "use client";
 import { useState, useEffect, Suspense } from 'react';
+
 import { useRouter, useSearchParams } from 'next/navigation';
+
 import { Key, Mail, Lock, ArrowLeft } from 'lucide-react';
-import PasswordField from "@/components/PasswordField";
-import { validateSingleField } from "@shared/utils/validators";
-import { 
-  sendForgotPasswordEmail, 
-  validateResetToken, 
-  resetPassword 
+
+import ResetPasswordFields from '@/components/security/ResetPasswordFields';
+
+import {
+
+  sendForgotPasswordEmail,
+
+  validateResetToken,
+
+  resetPassword
+
 } from '@/services/security/verificaitonService';
 
-// Loading fallback komponent
 function ResetPasswordLoading() {
   return (
     <div style={{
@@ -47,8 +53,6 @@ function ResetPasswordContent() {
   const [step, setStep] = useState<'request' | 'code' | 'password'>('request');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [tokenFromLink, setTokenFromLink] = useState<string | null>(null);
@@ -140,40 +144,27 @@ function ResetPasswordContent() {
     }
   };
 
-  const handleResetPassword = async () => {
-    // Validation
-    const passwordError = validateSingleField("password", newPassword);
-    if (passwordError) {
-      showError(passwordError);
-      return;
-    }
+  const handleResetPassword = async (newPassword: string, confirmPassword: string) => {
+    const tokenOrCode = tokenFromLink || code;
+    
+    console.log("🔍 Reset Password Debug:");
+    console.log("- Token/Code:", tokenOrCode);
+    console.log("- Token from link:", tokenFromLink);
+    console.log("- Code from input:", code);
+    console.log("- New password length:", newPassword.length);
+    console.log("- Password contains uppercase:", /[A-Z]/.test(newPassword));
+    console.log("- Password contains lowercase:", /[a-z]/.test(newPassword));
+    console.log("- Password contains number:", /\d/.test(newPassword));
+    
+    const result = await resetPassword(tokenOrCode, newPassword, confirmPassword);
 
-    if (newPassword !== confirmPassword) {
-      showError("Passwords do not match");
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const tokenOrCode = tokenFromLink || code;
-      const result = await resetPassword(tokenOrCode, newPassword);
-
-      if (result.success) {
-        showSuccess("Your password has been updated successfully! ✅");
-        setTimeout(() => {
-          router.push('/login');
-        }, 2000);
-      } else {
-        showError(result.message);
-      }
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        showError(error.message);
-      } else {
-        showError("Something went wrong. Please try again.");
-      }
-    } finally {
-      setIsLoading(false);
+    if (result.success) {
+      showSuccess("Your password has been updated successfully! ✅");
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    } else {
+      throw new Error(result.message);
     }
   };
 
@@ -466,48 +457,23 @@ function ResetPasswordContent() {
 
         {/* Step 3: Reset Password */}
         {step === 'password' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <PasswordField
-              id="newPassword"
-              label="New Password"
-              value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
-                setError(null);
-              }}
-              placeholder="Enter new password"
-            />
-
-            <PasswordField
-              id="confirmPassword"
-              label="Confirm New Password"
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                setError(null);
-              }}
-              placeholder="Confirm new password"
-            />
-
-            <button
-              onClick={handleResetPassword}
-              disabled={isLoading || !newPassword || !confirmPassword}
-              style={{
-                width: '100%',
-                padding: '16px',
-                background: isLoading || !newPassword || !confirmPassword ? '#9ca3af' : '#1C6B1C',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: isLoading || !newPassword || !confirmPassword ? 'not-allowed' : 'pointer',
-                transition: 'background 0.3s'
-              }}
-            >
-              {isLoading ? "Updating..." : "Update Password"}
-            </button>
-          </div>
+          <ResetPasswordFields
+            onSubmit={async (newPassword, confirmPassword) => {
+              setIsLoading(true);
+              try {
+                await handleResetPassword(newPassword, confirmPassword);
+              } catch (error: unknown) {
+                if (error instanceof Error) {
+                  showError(error.message);
+                } else {
+                  showError("Something went wrong. Please try again.");
+                }
+              } finally {
+                setIsLoading(false);
+              }
+            }}
+            isLoading={isLoading}
+          />
         )}
       </div>
     </div>
