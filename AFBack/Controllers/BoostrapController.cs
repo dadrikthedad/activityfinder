@@ -5,6 +5,7 @@ using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
 using AFBack.DTOs.BoostrapDTO.Sync;
 using AFBack.Services;
+using AFBack.Utils;
 using Azure.Core;
 
 namespace AFBack.Controllers
@@ -16,14 +17,20 @@ namespace AFBack.Controllers
         private readonly BootstrapService _bootstrapService;
         private readonly UserOnlineService _userOnlineService;
         private readonly SyncService _syncService;
-        
+        private readonly ILogger<BootstrapController> _logger; // ✅ Legg til logger
 
-        public BootstrapController(BootstrapService bootstrapService, UserOnlineService userOnlineService, SyncService syncService)
+        public BootstrapController(
+            BootstrapService bootstrapService, 
+            UserOnlineService userOnlineService, 
+            SyncService syncService,
+            ILogger<BootstrapController> logger) // ✅ Legg til i constructor
         {
             _bootstrapService = bootstrapService;
             _userOnlineService = userOnlineService;
-            _syncService = syncService; 
+            _syncService = syncService;
+            _logger = logger; // ✅ Assign logger
         }
+
 
         [HttpGet("bootstrap/critical")]
         public async Task<ActionResult<CriticalBootstrapResponseDTO>> GetCriticalBootstrap()
@@ -78,60 +85,87 @@ namespace AFBack.Controllers
         }
         
         [HttpPost("online")]
-        public async Task<IActionResult> MarkOnline([FromBody] OnlineStatusRequest request)
+    public async Task<IActionResult> MarkOnline([FromBody] OnlineStatusRequest request)
+    {
+        try
         {
-            try // ✅ Legg til try-catch tilbake
+            var userId = GetUserId();
+            
+            if (userId == null)
+                return Unauthorized(new { error = "Invalid user token" });
+
+            // ✅ Prøv først header (mobile), fallback til generert device ID (web)
+            var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
+
+            if (string.IsNullOrEmpty(deviceId))
             {
-                var userId = GetUserId();
-                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault(); // Fra header
-
-                if (userId == null)
-                    return Unauthorized(new { error = "Invalid user token" });
-
-                if (string.IsNullOrEmpty(deviceId))
-                    return BadRequest(new { error = "Device ID is required in X-Device-ID header" });
-
-                // ✅ Send deviceId som separat parameter
-                var (success, errorMessage) = await _userOnlineService.MarkUserOnlineAsync(userId.Value, deviceId, request);
-
-                if (success)
-                {
-                    return Ok(new OnlineStatusResponse());
-                }
-
-                return StatusCode(500, new { 
-                    error = !string.IsNullOrEmpty(errorMessage) 
-                        ? errorMessage 
-                        : "Failed to update online status - unknown database error",
-                    userId = userId.Value,
-                    deviceId = deviceId // ✅ Bruk deviceId fra header, ikke request
-                });
+                // ✅ Generer konsistent device ID for web
+                var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+                var clientIp = IpUtils.GetClientIp(HttpContext) ?? "unknown";
+                
+                // Lag en hash for å holde device ID konsistent per user/browser
+                var deviceData = $"{userId}_{clientIp}_{userAgent}";
+                var hash = deviceData.GetHashCode();
+                deviceId = $"web_{Math.Abs(hash)}";
+                
+                _logger.LogInformation("Generated web device ID: {DeviceId} for user {UserId}", 
+                    deviceId, userId.Value);
             }
-            catch (Exception ex)
+            else
             {
-                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
-                return StatusCode(500, new { 
-                    error = "Internal server error while marking user online", 
-                    details = ex.Message,
-                    userId = GetUserId(),
-                    deviceId = deviceId // ✅ Bruk deviceId fra header, ikke request
-                });
+                _logger.LogInformation("Using mobile device ID: {DeviceId} for user {UserId}", 
+                    deviceId.Substring(0, 8) + "...", userId.Value);
             }
+
+            // ✅ Send deviceId som separat parameter
+            var (success, errorMessage) = await _userOnlineService.MarkUserOnlineAsync(userId.Value, deviceId, request);
+
+            if (success)
+            {
+                return Ok(new OnlineStatusResponse());
+            }
+
+            return StatusCode(500, new { 
+                error = !string.IsNullOrEmpty(errorMessage) 
+                    ? errorMessage 
+                    : "Failed to update online status - unknown database error",
+                userId = userId.Value,
+                deviceId = deviceId.Substring(0, 8) + "..." // Log bare første 8 chars
+            });
         }
+        catch (Exception ex)
+        {
+            var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault() ?? "web_unknown";
+            return StatusCode(500, new { 
+                error = "Internal server error while marking user online", 
+                details = ex.Message,
+                userId = GetUserId(),
+                deviceId = deviceId.Substring(0, Math.Min(8, deviceId.Length)) + "..."
+            });
+        }
+    }
 
         [HttpPost("offline")]
         public async Task<IActionResult> MarkOffline()
         {
-            try // ✅ Legg til try-catch
+            var userId = GetUserId();
+            
+            try
             {
-                var userId = GetUserId();
-                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault(); // Fra header
-
                 if (userId == null)
                     return Unauthorized(new { error = "Invalid user token" });
 
+                // ✅ Samme logic som MarkOnline
+                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
+
                 if (string.IsNullOrEmpty(deviceId))
-                    return BadRequest(new { error = "Device ID is required in X-Device-ID header" });
+                {
+                    var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+                    var clientIp = IpUtils.GetClientIp(HttpContext) ?? "unknown";
+                    var deviceData = $"{userId}_{clientIp}_{userAgent}";
+                    var hash = deviceData.GetHashCode();
+                    deviceId = $"web_{Math.Abs(hash)}";
+                }
 
                 var success = await _userOnlineService.MarkUserOfflineAsync(userId.Value, deviceId);
         
@@ -142,18 +176,18 @@ namespace AFBack.Controllers
 
                 return StatusCode(500, new { 
                     error = "Failed to mark user as offline",
-                    userId = userId.Value, // ✅ Legg til for debugging
-                    deviceId = deviceId    // ✅ Legg til for debugging
+                    userId = userId.Value,
+                    deviceId = deviceId.Substring(0, 8) + "..."
                 });
             }
             catch (Exception ex)
             {
-                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault(); // ✅ Hent deviceId for error logging
+                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault() ?? "web_unknown";
                 return StatusCode(500, new { 
                     error = "Internal server error while marking user offline", 
                     details = ex.Message,
                     userId = GetUserId(),
-                    deviceId = deviceId // ✅ Inkluder deviceId i error response
+                    deviceId = deviceId.Substring(0, Math.Min(8, deviceId.Length)) + "..."
                 });
             }
         }
@@ -164,29 +198,46 @@ namespace AFBack.Controllers
             try
             {
                 var userId = GetUserId();
-        
-                // ✅ Bruk samme header-navn som deviceInfoService sender
-                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault(); // Endre til X-Device-ID
-        
+
                 if (userId == null)
                 {
                     return Unauthorized(new { error = "Invalid user token" });
                 }
-        
+
+                // ✅ Samme logic som MarkOnline - header først, fallback til generert
+                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
+
                 if (string.IsNullOrEmpty(deviceId))
                 {
-                    return BadRequest(new { error = "Device ID is required in X-Device-ID header" }); // Oppdater feilmelding
+                    // ✅ Generer konsistent device ID for web (samme som MarkOnline)
+                    var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+                    var clientIp = IpUtils.GetClientIp(HttpContext) ?? "unknown";
+            
+                    var deviceData = $"{userId}_{clientIp}_{userAgent}";
+                    var hash = deviceData.GetHashCode();
+                    deviceId = $"web_{Math.Abs(hash)}";
+            
+                    _logger.LogDebug("Generated web device ID for heartbeat: {DeviceId} for user {UserId}", 
+                        deviceId, userId.Value);
+                }
+                else
+                {
+                    _logger.LogDebug("Using mobile device ID for heartbeat: {DeviceId} for user {UserId}", 
+                        deviceId.Substring(0, 8) + "...", userId.Value);
                 }
 
                 await _userOnlineService.UpdateHeartbeatAsync(userId.Value, deviceId);
-        
+
                 return Ok(new { status = "ok", timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
             }
             catch (Exception ex)
             {
+                var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault() ?? "web_unknown";
                 return StatusCode(500, new { 
-                    error = "Internal server error", 
-                    details = ex.Message 
+                    error = "Internal server error during heartbeat", 
+                    details = ex.Message,
+                    userId = GetUserId(),
+                    deviceId = deviceId.Substring(0, Math.Min(8, deviceId.Length)) + "..."
                 });
             }
         }

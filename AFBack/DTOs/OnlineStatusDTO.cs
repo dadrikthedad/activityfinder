@@ -4,7 +4,6 @@ namespace AFBack.DTOs;
 
 public class OnlineStatusRequest
 {
-    
     [Required]
     public string Platform { get; set; }
     
