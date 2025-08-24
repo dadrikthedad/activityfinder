@@ -227,8 +227,6 @@ export const useChatStore = create<ChatStore>()(
       },
 
       markConversationAsReadLocally: (conversationId) => {
-        useMessageNotificationStore.getState().markAsReadForConversation(conversationId);
-
         set((state) => ({
           unreadConversationIds: state.unreadConversationIds.filter((id) => id !== conversationId),
         }));

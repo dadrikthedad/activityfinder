@@ -166,11 +166,15 @@ export async function processSyncEventNative(event: SyncEventDTO): Promise<void>
 
     case 'MARK_AS_READ': {
       const { conversationId } = eventData;
-    
-      // MessageNotificationStore tar seg av alt - både notifikasjoner og ChatStore oppdatering
+      
+      // Oppdater notifikasjoner
       const { markAsReadForConversation } = useMessageNotificationStore.getState();
       markAsReadForConversation(conversationId);
-        
+      
+      // Oppdater unread conversation list
+      const { markConversationAsReadLocally } = useChatStore.getState();
+      markConversationAsReadLocally(conversationId);
+      
       console.log('📖 Marked conversation as read locally:', conversationId);
       break;
     }

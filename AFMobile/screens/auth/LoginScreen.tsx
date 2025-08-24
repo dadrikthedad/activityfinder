@@ -1,4 +1,4 @@
-// screens/auth/LoginScreen.tsx - Oppdatert versjon
+// screens/auth/LoginScreen.tsx - Oppdatert versjon med Forgot Password
 import React, { useMemo } from "react";
 import {
   View,
@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useLogin } from "@/hooks/auth/useLogin";
@@ -49,6 +50,11 @@ export default function LoginScreen() {
 
   const navigateToSignup = () => {
     navigation.navigate('Signup');
+  };
+
+  // *** NY FUNKSJON FOR FORGOT PASSWORD ***
+  const navigateToResetPassword = () => {
+    navigation.navigate('ResetPasswordScreen');
   };
 
   // Show error as toast if there's an error message
@@ -139,6 +145,22 @@ export default function LoginScreen() {
               disabled={isSubmitting || resendingEmail}
             />
 
+            {/* *** FORGOT PASSWORD LINK - Rett under password feltet *** */}
+            <View style={styles.forgotPasswordContainer}>
+              <TouchableOpacity
+                onPress={navigateToResetPassword}
+                disabled={isSubmitting || resendingEmail}
+                style={styles.forgotPasswordButton}
+              >
+                <Text style={[
+                  styles.forgotPasswordText,
+                  (isSubmitting || resendingEmail) && styles.forgotPasswordTextDisabled
+                ]}>
+                  Forgot Password?
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <ButtonNative
               text="Logg inn"
               loadingText={resendingEmail ? "Sending email..." : "Logging in..."}
@@ -167,7 +189,7 @@ export default function LoginScreen() {
 
           {/* Footer */}
           <View style={styles.footer}>
-            {/* Optionally add forgot password link here */}
+            {/* Optionally add other links here */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -225,8 +247,28 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     width: "100%",
   },
+  // *** NYE STYLES FOR FORGOT PASSWORD ***
+  forgotPasswordContainer: {
+    alignItems: 'flex-end',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  forgotPasswordButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: '#1C6B1C',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  forgotPasswordTextDisabled: {
+    color: '#9ca3af',
+    textDecorationLine: 'none',
+  },
   loginButton: {
-    marginTop: 24,
+    marginTop: 8, // Redusert siden forgot password har spacing
   },
   signupContainer: {
     flexDirection: "row",

@@ -27,18 +27,16 @@ export async function approveMessageRequestLogic(
     // 4) Fjern pending-forespørselen
     useChatStore.getState().removePendingRequest(conversationId);
 
+    // 5) Legg til i unread conversations (ikke sett som current conversation)
     const state = useChatStore.getState();
-    const pendingId = state.pendingLockedConversationId;
-    if (pendingId === conversationId) {
-      state.setCurrentConversationId(conversationId);
-    } else {
-      if (!state.unreadConversationIds.includes(conversationId)) {
-        state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
-      }
+    if (!state.unreadConversationIds.includes(conversationId)) {
+      state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
     }
 
-    // 5) "Lås opp" og sett aktiv samtal
-    state.setPendingLockedConversationId(null);
+    // 6) Rydd opp pending state
+    if (state.pendingLockedConversationId === conversationId) {
+      state.setPendingLockedConversationId(null);
+    }
 
     const logMessage = isSync 
       ? "✅ Meldingsforespørsel godkjenning synkronisert:" 

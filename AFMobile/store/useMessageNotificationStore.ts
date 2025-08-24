@@ -149,9 +149,6 @@ export const useMessageNotificationStore = create<MessageNotificationStore>()(
 
           return { messageNotifications: updated };
         });
-
-      const { markConversationAsReadLocally  } = require('./useChatStore').useChatStore.getState();
-      markConversationAsReadLocally(conversationId);
     },
 
       updateNotificationsForRejectedConversation: (conversationId: number) => {

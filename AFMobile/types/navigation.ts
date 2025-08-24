@@ -9,7 +9,7 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   VerificationScreen: { email: string };
-  ResetPasswordScreen: { email: string };
+  ResetPasswordScreen: undefined;
   Home: undefined;
   Profile: { id: string };
   EditProfile: undefined;
