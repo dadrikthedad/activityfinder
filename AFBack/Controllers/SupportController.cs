@@ -25,14 +25,20 @@ public class SupportController : BaseController
     public async Task<IActionResult> SubmitReport([FromBody] ReportRequestDTO request)
     {
         if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            return BadRequest(ModelState);
 
         try
         {
-            // Bruk hjelpefunksjonen - returnerer null hvis ikke innlogget
+            // ✅ Legg til device info logging for ban system
+            var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
+            var platform = Request.Headers["X-Device-Platform"].FirstOrDefault();
+        
+            _logger.LogInformation("Report submitted - DeviceId: {DeviceId}, Platform: {Platform}, Type: {Type}", 
+                deviceId, platform, request.Type);
+
             var userId = GetUserId();
             var reportId = await _supportService.CreateReportAsync(request, userId);
-                
+            
             return Ok(new { 
                 ReportId = reportId, 
                 Message = "Report submitted successfully",
@@ -41,7 +47,8 @@ public class SupportController : BaseController
         }
         catch (Exception ex)
         {
-            // TODO: Log exception properly
+            var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
+            _logger.LogError("Report submission failed - DeviceId: {DeviceId}, Error: {Error}", deviceId, ex.Message);
             return StatusCode(500, new { Message = "An error occurred while processing your report" });
         }
     }

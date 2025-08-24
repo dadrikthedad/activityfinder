@@ -94,21 +94,9 @@ public class UserService
         
         return verificationInfo?.User;
     }
-
-    public async Task<bool> MarkEmailAsVerifiedAsync(string email)
-    {
-        var normalizedEmail = email.Trim().ToLowerInvariant();
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
-        if (user != null)
-        {
-            user.EmailConfirmed = true; // EmailConfirmed forblir på User
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        return false;
-    }
     
-    public async Task<string?> CreatePasswordResetTokenAsync(string email)
+
+    public async Task<(string token, string code)?> CreatePasswordResetTokenAsync(string email)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
         var user = await _context.Users
@@ -117,16 +105,8 @@ public class UserService
             
         if (user == null)
         {
-            // Av sikkerhetsgrunner, returner null uten å avsløre om eposten eksisterer
             return null;
         }
-
-        // Generer URL-vennlig token
-        var tokenBytes = RandomNumberGenerator.GetBytes(32);
-        var token = Convert.ToBase64String(tokenBytes)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .TrimEnd('='); // Base64Url format
 
         // Opprett VerificationInfo hvis den ikke finnes
         if (user.VerificationInfo == null)
@@ -137,56 +117,57 @@ public class UserService
             };
         }
 
+        // Generer URL-vennlig token for web-link
+        var tokenBytes = RandomNumberGenerator.GetBytes(32);
+        var token = Convert.ToBase64String(tokenBytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+
+        // Generer 6-sifret kode for app input
+        var random = new Random();
+        var code = random.Next(100000, 999999).ToString();
+        
+        var expiry = DateTime.UtcNow.AddHours(1);
+        
         user.VerificationInfo.PasswordResetToken = token;
-        user.VerificationInfo.PasswordResetTokenExpires = DateTime.UtcNow.AddHours(1); // Utløper etter 1 time
-    
+        user.VerificationInfo.PasswordResetCode = code;
+        user.VerificationInfo.PasswordResetTokenExpires = expiry; // Samme utløpstid for begge
+
         await _context.SaveChangesAsync();
-        return token;
+        return (token, code);
     }
 
-    public async Task<bool> ValidatePasswordResetTokenAsync(string token)
+    public async Task<bool> ValidatePasswordResetTokenAsync(string tokenOrCode)
     {
-        // Spør direkte på VerificationInfos
         var verificationInfo = await _context.VerificationInfos
             .FirstOrDefaultAsync(v => 
-                v.PasswordResetToken == token && 
+                (v.PasswordResetToken == tokenOrCode || v.PasswordResetCode == tokenOrCode) && 
                 v.PasswordResetTokenExpires > DateTime.UtcNow);
-    
+
         return verificationInfo != null;
     }
 
-    public async Task<bool> ResetPasswordAsync(string token, string newPassword)
+    public async Task<bool> ResetPasswordAsync(string tokenOrCode, string newPassword)
     {
-        // Spør direkte på VerificationInfos
         var verificationInfo = await _context.VerificationInfos
             .Include(v => v.User)
             .FirstOrDefaultAsync(v => 
-                v.PasswordResetToken == token && 
+                (v.PasswordResetToken == tokenOrCode || v.PasswordResetCode == tokenOrCode) && 
                 v.PasswordResetTokenExpires > DateTime.UtcNow);
-    
+
         if (verificationInfo?.User == null)
             return false;
-    
+
         // Hash det nye passordet
         verificationInfo.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-    
-        // Fjern reset token etter bruk
+
+        // Fjern begge tokens etter bruk
         verificationInfo.PasswordResetToken = null;
+        verificationInfo.PasswordResetCode = null;
         verificationInfo.PasswordResetTokenExpires = null;
-    
+
         await _context.SaveChangesAsync();
         return true;
-    }
-
-    public async Task<User?> GetUserByPasswordResetTokenAsync(string token)
-    {
-        // Spør direkte på VerificationInfos
-        var verificationInfo = await _context.VerificationInfos
-            .Include(v => v.User)
-            .FirstOrDefaultAsync(v => 
-                v.PasswordResetToken == token && 
-                v.PasswordResetTokenExpires > DateTime.UtcNow);
-        
-        return verificationInfo?.User;
     }
 }

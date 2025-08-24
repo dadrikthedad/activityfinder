@@ -21,34 +21,3 @@ export async function getSecondaryBootstrap(): Promise<SecondaryBootstrapRespons
   
   return await fetchWithAuth<SecondaryBootstrapResponseDTO>(url);
 }
-
-
-// Marker bruker som online (for senere implementasjon)
-export async function markUserOnline(deviceId: string, platform: string = "web"): Promise<{ status: string } | null> {
-  const url = `${API_BASE_URL}/api/me/online`;
-  
-  console.log("🟢 Markerer bruker som online:", url);
-  
-  return await fetchWithAuth<{ status: string }>(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ deviceId, platform }),
-  });
-}
-
-// Marker bruker som offline (for senere implementasjon)
-export async function markUserOffline(deviceId: string): Promise<{ status: string } | null> {
-  const url = `${API_BASE_URL}/api/me/offline`;
-  
-  console.log("🔴 Markerer bruker som offline:", url);
-  
-  return await fetchWithAuth<{ status: string }>(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ deviceId }),
-  });
-}

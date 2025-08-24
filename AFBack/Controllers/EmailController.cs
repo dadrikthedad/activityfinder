@@ -139,20 +139,22 @@ public class EmailController : BaseController
                 }
             }
 
-            // Opprett reset token
-            var token = await _userService.CreatePasswordResetTokenAsync(normalizedEmail);
+            // Opprett både reset token og kode
+            var resetData = await _userService.CreatePasswordResetTokenAsync(normalizedEmail);
 
-            if (token != null)
+            if (resetData.HasValue)
             {
-                // Send epost
-                var success = await _emailService.SendForgotPasswordEmailAsync(normalizedEmail, token);
+                var (token, code) = resetData.Value;
+                
+                // Send epost med både link og kode
+                var success = await _emailService.SendPasswordResetEmailAsync(normalizedEmail, token, code);
 
                 if (success)
                 {
                     // Registrer at email faktisk ble sendt (for rate limiting)
                     _emailRateLimitService.RegisterVerificationEmailSent(normalizedEmail);
                     
-                    _logger.LogInformation("Password reset email sent successfully to {Email}", normalizedEmail);
+                    _logger.LogInformation("Password reset email with token and code sent successfully to {Email}", normalizedEmail);
                 }
                 else
                 {
@@ -179,7 +181,7 @@ public class EmailController : BaseController
             // Returner alltid samme melding for sikkerhet (ikke avslør om eposten eksisterer)
             return Ok(new
             {
-                message = "If the email address is registered, you will receive a password reset link",
+                message = "If the email address is registered, you will receive password reset instructions with both a link and a code",
                 success = true
             });
         }
@@ -202,16 +204,16 @@ public class EmailController : BaseController
     {
         try
         {
-            // Valider token først
-            var isValidToken = await _userService.ValidatePasswordResetTokenAsync(request.Token);
+            // Valider token/kode først
+            var isValid = await _userService.ValidatePasswordResetTokenAsync(request.TokenOrCode);
 
-            if (!isValidToken)
+            if (!isValid)
             {
-                return BadRequest(new { message = "Invalid or expired reset token", success = false });
+                return BadRequest(new { message = "Invalid or expired reset token or code", success = false });
             }
 
             // Reset passordet
-            var success = await _userService.ResetPasswordAsync(request.Token, request.NewPassword);
+            var success = await _userService.ResetPasswordAsync(request.TokenOrCode, request.NewPassword);
 
             if (success)
             {
@@ -227,12 +229,12 @@ public class EmailController : BaseController
         }
     }
 
-    [HttpGet("validate-reset-token/{token}")]
-    public async Task<IActionResult> ValidateResetToken(string token)
+    [HttpGet("validate-reset-token/{tokenOrCode}")]
+    public async Task<IActionResult> ValidateResetToken(string tokenOrCode)
     {
         try
         {
-            var isValid = await _userService.ValidatePasswordResetTokenAsync(token);
+            var isValid = await _userService.ValidatePasswordResetTokenAsync(tokenOrCode);
             return Ok(new { isValid = isValid });
         }
         catch (Exception ex)

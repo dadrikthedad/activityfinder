@@ -40,6 +40,7 @@ import NotificationScreen from './screens/notification/NotificationScreen';
 import ReportScreen from './screens/support/ReportScreen';
 import SecurityCredsScreen from './screens/profile/SecurityCredsScreen';
 import VerificationScreen from './screens/auth/VerificationScreen'
+import ResetPasswordScreen from './screens/auth/ResetPasswordScreen'
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -244,6 +245,7 @@ function AuthenticatedApp() {
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="VerificationScreen" component={VerificationScreen} />
+            <Stack.Screen name="ResetPasswordScreen" component={ResetPasswordScreen} />
             <Stack.Screen name="ReportScreen" component={ReportScreen} />
           </>
         )}

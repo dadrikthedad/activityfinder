@@ -167,7 +167,7 @@ public class EmailService
     }
 
     // Forgot Password Email (updated to match correct layout)
-    public string PreviewForgotPasswordEmail(string toEmail, string resetToken)
+    public string PreviewForgotPasswordEmail(string toEmail, string resetToken, string resetCode)
     {
         var resetLink = $"{_configuration["App:BaseUrl"]}/reset-password?token={resetToken}";
         var logoUrl = "https://activitystorage.blob.core.windows.net/static/LogoMedSegoeUIHvit.png";
@@ -191,12 +191,14 @@ public class EmailService
 
                     <!-- Body -->
                     <div style='background-color:#ffffff; padding:40px 30px;'>
-                        <h2 style='margin-top:0; color:#2d3748;'>Reset Your Password</h2>
+                        <h2 style='margin-top:0; color:#2d3748;'>Reset Your Koptr Password</h2>
                         <p style='color:#4a5568; font-size:16px; line-height:1.6;'>
-                            Someone requested a password reset for your account. Click the button below to choose a new password.
+                            Someone requested a password reset for your account. Use one of the methods below to reset your password:
                         </p>
 
-                        <div style='text-align:center; margin:40px 0;'>
+                        <!-- Web Button -->
+                        <div style='text-align:center; margin:30px 0;'>
+                            <h3 style='color:#2d3748; margin-bottom:15px;'>Option 1: Click to reset on web</h3>
                             <a href='{resetLink}' style='
                                 background-color:#1C6B1C;
                                 color:white;
@@ -209,6 +211,29 @@ public class EmailService
                             '>Reset Password</a>
                         </div>
 
+                        <hr style='margin:30px 0; border: none; border-top: 1px solid #e2e8f0;'>
+
+                        <!-- Manual Code -->
+                        <div style='text-align:center; margin:30px 0;'>
+                            <h3 style='color:#2d3748; margin-bottom:15px;'>Option 2: Enter this code in the app</h3>
+                            <div style='
+                                font-size:32px; 
+                                font-weight:bold; 
+                                color:#1C6B1C; 
+                                background:#f0fdf4; 
+                                padding:20px; 
+                                border-radius:8px; 
+                                border:2px solid #1C6B1C;
+                                letter-spacing:8px;
+                                font-family:monospace;
+                            '>{resetCode}</div>
+                            <p style='font-size:14px; color:#718096; margin-top:10px;'>
+                                Enter this 6-digit code in the Koptr app to reset your password
+                            </p>
+                        </div>
+
+                        <hr style='margin:30px 0; border: none; border-top: 1px solid #e2e8f0;'>
+
                         <p style='font-size:14px; color:#718096;'>
                             If the button doesn't work, paste this link into your browser:
                         </p>
@@ -216,10 +241,8 @@ public class EmailService
                             {resetLink}
                         </p>
 
-                        <hr style='margin:40px 0; border: none; border-top: 1px solid #e2e8f0;'>
-
-                        <p style='font-size:14px; color:#718096;'>
-                            This password reset link is valid for 1 hour. If you didn't request this reset, you can safely ignore this email.
+                        <p style='font-size:14px; color:#718096; margin-top:20px;'>
+                            We will never ask for your password by email. This link and code will expire in 1 hour for your security.
                         </p>
                     </div>
 
@@ -291,14 +314,16 @@ public class EmailService
         }
     }
     
-    public async Task<bool> SendForgotPasswordEmailAsync(string toEmail, string resetToken)
+    public async Task<bool> SendPasswordResetEmailAsync(string toEmail, string resetToken, string resetCode)
     {
         try
         {
+            var resetLink = $"{_configuration["App:BaseUrl"]}/reset-password?token={resetToken}";
+        
             var emailContent = new EmailContent("Reset your Koptr password")
             {
-                PlainText = $"Hello!\n\nSomeone requested a password reset for your Koptr account. Click the following link to reset your password:\n\n{_configuration["App:BaseUrl"]}/reset-password?token={resetToken}\n\nThis link will expire in 1 hour. If you didn't request this, you can safely ignore this email.\n\nBest regards,\nthe team at Koptr.",
-                Html = PreviewForgotPasswordEmail(toEmail, resetToken)
+                PlainText = $"Hello!\n\nSomeone requested a password reset for your Koptr account.\n\nOption 1 - Click this link:\n{resetLink}\n\nOption 2 - Use this 6-digit code in the mobile app:\n{resetCode}\n\nBoth will expire in 1 hour. If you didn't request this, you can safely ignore this email.\n\nBest regards,\nthe team at Koptr.",
+                Html = PreviewForgotPasswordEmail(toEmail, resetToken, resetCode) // Oppdater denne
             };
 
             var emailMessage = new EmailMessage(
@@ -307,12 +332,12 @@ public class EmailService
                 recipients: new EmailRecipients(new List<EmailAddress> { new EmailAddress(toEmail) }));
 
             var operation = await _emailClient.SendAsync(Azure.WaitUntil.Completed, emailMessage);
-        
+    
             return operation.HasValue && operation.Value.Status == EmailSendStatus.Succeeded;
         }
         catch (Exception ex)
         {
-            _logger.LogError("Forgot password email sending failed to {Email}: {Error}", toEmail, ex.Message);
+            _logger.LogError("Password reset email sending failed to {Email}: {Error}", toEmail, ex.Message);
             return false;
         }
     }

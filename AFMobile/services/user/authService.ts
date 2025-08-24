@@ -94,7 +94,7 @@ export function isEmailVerificationRequired(response: LoginResponse): boolean {
   return response.emailVerificationRequired === true;
 }
 
-// Login user
+// Login user - ✅ Oppdatert til å bruke postRequestPublic med device headers
 export async function loginUser(
   email: string,
   password: string,
@@ -111,63 +111,69 @@ export async function loginUser(
     Object.assign(loginPayload, locationData);
   }
  
-  const url = `${API_BASE_URL}/api/user/login`;
- 
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(loginPayload),
-    });
+    console.log("🟡 Attempting login for:", email);
+    
+    // ✅ Bruk postRequestPublic som sender device headers automatisk
+    const response = await postRequestPublic<LoginResponse, LoginPayload>(
+      `${API_BASE_URL}/api/user/login`,
+      loginPayload
+    );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      // *** HÅNDTER EMAIL VERIFICATION REQUIRED ***
-      if (response.status === 401 && data.emailVerificationRequired) {
-        return {
-          message: data.message,
-          emailVerificationRequired: true,
-          email: data.email
-        } as LoginResponse;
-      } else {
-        // Andre login-feil
-        throw new Error(data.message || "Login failed");
-      }
+    if (!response) {
+      throw new Error("Login failed - no response received");
     }
 
-    return data as LoginResponse;
-  } catch (error) {
-    console.error("❌ Login API error:", error);
+    console.log("✅ Login successful");
+    return response;
+    
+  } catch (error: any) {
+    console.error("❌ Login error:", error);
+    
+    // Hvis det er en 401 feil med email verification required
+    if (error.message && error.message.includes("email verification")) {
+      return {
+        message: error.message,
+        emailVerificationRequired: true,
+        email: loginPayload.email
+      } as LoginResponse;
+    }
+    
     throw error;
   }
 }
 
-// Resend verification email
+// Resend verification email - ✅ Oppdatert til å bruke postRequestPublic
 export async function resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/email/resend-verification`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
+    console.log("🟡 Resending verification email to:", email);
+    
+    // ✅ Bruk postRequestPublic som sender device headers automatisk
+    const response = await postRequestPublic<{ message: string }, { email: string }>(
+      `${API_BASE_URL}/api/email/resend-verification`,
+      { email }
+    );
 
-    const data = await response.json();
-
-    return {
-      success: response.ok,
-      message: data.message || (response.ok ? "Email sent successfully" : "Failed to send email")
-    };
-  } catch (error) {
+    if (response) {
+      console.log("✅ Verification email sent successfully");
+      return {
+        success: true,
+        message: response.message || "Email sent successfully"
+      };
+    } else {
+      throw new Error("Failed to send email");
+    }
+    
+  } catch (error: any) {
     console.error("❌ Resend verification email error:", error);
     return {
       success: false,
-      message: "Network error. Please try again."
+      message: error.message || "Network error. Please try again."
     };
   }
 }
 
-// Register user (kan legges til senere)
+// Register user - ✅ Allerede bruker postRequestPublic
 export async function registerUser(
   email: string,
   password: string,
@@ -187,6 +193,21 @@ export async function registerUser(
     Object.assign(registerPayload, locationData);
   }
   
-  const url = `${API_BASE_URL}/api/user/register`;
-  return await postRequestPublic<LoginResponse, RegisterPayload>(url, registerPayload);
+  console.log("🟡 Registering user:", email);
+  
+  try {
+    const response = await postRequestPublic<LoginResponse, RegisterPayload>(
+      `${API_BASE_URL}/api/user/register`, 
+      registerPayload
+    );
+    
+    if (response) {
+      console.log("✅ Registration successful");
+    }
+    
+    return response;
+  } catch (error) {
+    console.error("❌ Registration error:", error);
+    throw error;
+  }
 }

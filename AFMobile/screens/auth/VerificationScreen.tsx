@@ -20,6 +20,7 @@ import {
   VerificationScreenNavigationProp, 
   VerificationScreenRouteProp  
 } from '@/types/navigation';
+import { verifyEmailWithToken, resendVerificationEmail } from '@/services/security/verificationService';
 
 interface EmailVerificationScreenProps {
   navigation: VerificationScreenNavigationProp;
@@ -93,34 +94,11 @@ const VerificationScreen: React.FC<EmailVerificationScreenProps> = ({ route, nav
   const verifyWithToken = async (token: string) => {
     setIsLoading(true);
     try {
-      const url = `${API_BASE_URL}/api/email/verify`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      });
+      const result = await verifyEmailWithToken(token);
 
-      const data = await response.json();
-
-      if (data?.success) {
+      if (result.success) {
         setIsVerified(true);
-        // Success animation
-        Animated.sequence([
-          Animated.timing(slideAnim, {
-            toValue: -20,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start();
-
-        // Show success toast
+        // Success animation...
         showNotificationToastNative({
           type: LocalToastType.CustomSystemNotice,
           customTitle: "Email Verified!",
@@ -128,7 +106,6 @@ const VerificationScreen: React.FC<EmailVerificationScreenProps> = ({ route, nav
           position: 'top'
         });
 
-        // Navigate to login after a short delay
         setTimeout(() => {
           navigation.replace('Login');
         }, 2000);
@@ -136,12 +113,11 @@ const VerificationScreen: React.FC<EmailVerificationScreenProps> = ({ route, nav
         showNotificationToastNative({
           type: LocalToastType.CustomSystemError,
           customTitle: "Verification Failed",
-          customBody: data?.message || 'Invalid verification code',
+          customBody: result.message,
           position: 'top'
         });
       }
     } catch (error) {
-      console.error('Verification error:', error);
       showNotificationToastNative({
         type: LocalToastType.CustomSystemError,
         customTitle: "Verification Error",
@@ -171,39 +147,29 @@ const VerificationScreen: React.FC<EmailVerificationScreenProps> = ({ route, nav
 
     setIsLoading(true);
     try {
-      const url = `${API_BASE_URL}/api/email/resend-verification`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
+      const result = await resendVerificationEmail(email);
 
-      const data = await response.json();
-
-      if (data?.emailSent) {
+      if (result.success) {
         showNotificationToastNative({
           type: LocalToastType.CustomSystemNotice,
           customTitle: "Email Sent!",
           customBody: "A new verification email has been sent to your inbox. 📧",
           position: 'top'
         });
-        setResendCooldown(120); // 2 minutes cooldown
+        setResendCooldown(120);
       } else {
         showNotificationToastNative({
           type: LocalToastType.CustomSystemError,
           customTitle: "Resend Failed",
-          customBody: data?.message || 'Failed to resend email',
+          customBody: result.message,
           position: 'top'
         });
       }
-    } catch (error) {
-      console.error('Resend email error:', error);
+    } catch (error: any) {
       showNotificationToastNative({
         type: LocalToastType.CustomSystemError,
         customTitle: "Network Error",
-        customBody: "Failed to resend email. Please try again.",
+        customBody: error.message || "Failed to resend email. Please try again.",
         position: 'top'
       });
     } finally {

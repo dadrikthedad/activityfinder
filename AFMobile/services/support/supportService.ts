@@ -1,176 +1,89 @@
 import { API_BASE_URL } from "@/constants/routes";
-import { ReportRequestDTO, ReportResponseDTO } from "@shared/types/report/reportDTOs";
-import { PriorityEnum, ReportStatusEnum,ReportTypeEnum } from "@shared/types/report/reportEnums";
+import { ReportRequestDTO } from "@shared/types/report/reportDTOs";
+import { PriorityEnum, ReportTypeEnum } from "@shared/types/report/reportEnums";
 import { getCurrentDeviceInfo, getPlatform } from "@/utils/device/UserOnlineFunctions";
-import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { postRequestPublic } from "../baseService";
 
-
-
-
-
-
-// Response for submit report
+// Response for submit report (matches backend response)
 interface SubmitReportResponse {
-  reportId: string;
-  message: string;
-  submittedAt: string;
+  ReportId: string; // ✅ Matche backend property navn
+  Message: string;
+  SubmittedAt: string;
 }
 
-
-// Submit report - OFFENTLIG endpoint (kan brukes uten login)
+// Submit report - Prøver først med auth, fallback til public
 export async function submitReport(payload: ReportRequestDTO): Promise<SubmitReportResponse> {
   try {
     console.log("🟡 Submitting report:", payload.title);
     
+    // ✅ Prøv først med auth (automatisk device headers + userId fra token)
     const response = await fetchWithAuth<SubmitReportResponse>(
       `${API_BASE_URL}/api/support/report`,
       {
         method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify(payload),
       }
     );
 
-    // Sjekk for null response
     if (!response) {
       throw new Error("Failed to submit report - no response received");
     }
 
-    console.log("✅ Report submitted successfully:", response.reportId);
+    console.log("✅ Authenticated report submitted successfully:", response.ReportId);
     return response;
   } catch (error) {
-    console.error("❌ Error submitting report:", error);
+    console.error("❌ Error submitting authenticated report:", error);
     
-    // Hvis det er "No auth token found", prøv anonymous
+    // ✅ Hvis "No auth token found", bruk public endpoint (anonymous med device headers)
     if (error instanceof Error && error.message === "No auth token found.") {
-      console.log("ℹ️ No token found, submitting as anonymous report");
-      
-      const fallbackResponse = await fetch(`${API_BASE_URL}/api/support/report`, {
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!fallbackResponse.ok) {
-        const errorText = await fallbackResponse.text();
-        throw new Error(errorText || 'Anonymous report submission failed');
-      }
-
-      const data = await fallbackResponse.json();
-      return data;
-    }
-    
-    throw error;
-  }
-}
-
-// Get specific report - Krever login (må sende token)
-export async function getReport(reportId: string, token: string): Promise<ReportResponseDTO> {
-  try {
-    console.log("🟡 Fetching report:", reportId);
-    
-    const response = await fetch(`${API_BASE_URL}/api/support/report/${reportId}`, {
-      method: "GET",
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("🔴 Failed to fetch report:", errorText);
-      
-      if (response.status === 404) {
-        throw new Error('Report not found');
-      }
-      if (response.status === 401) {
-        throw new Error('Unauthorized - please log in');
-      }
+      console.log("ℹ️ No token found, submitting as anonymous report with device headers");
       
       try {
-        const errorJson = JSON.parse(errorText);
-        throw new Error(errorJson.message || 'Failed to fetch report');
-      } catch {
-        throw new Error(errorText || 'Failed to fetch report');
+        const response = await postRequestPublic<SubmitReportResponse, ReportRequestDTO>(
+          `${API_BASE_URL}/api/support/report`,
+          payload
+        );
+
+        if (!response) {
+          throw new Error("Failed to submit anonymous report - no response received");
+        }
+
+        console.log("✅ Anonymous report submitted successfully:", response.ReportId);
+        return response;
+      } catch (publicError) {
+        console.error("❌ Error submitting anonymous report:", publicError);
+        throw publicError;
       }
     }
-
-    const data = await response.json();
-    console.log("✅ Report fetched successfully");
-    return data;
-  } catch (error) {
-    console.error("❌ Error fetching report:", error);
-    throw error;
-  }
-}
-
-// Get user's reports - Krever login
-export async function getMyReports(token: string): Promise<ReportResponseDTO[]> {
-  try {
-    console.log("🟡 Fetching user reports");
     
-    const response = await fetch(`${API_BASE_URL}/api/support/my-reports`, {
-      method: "GET",
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("🔴 Failed to fetch user reports:", errorText);
-      
-      if (response.status === 401) {
-        throw new Error('Unauthorized - please log in');
-      }
-      
-      try {
-        const errorJson = JSON.parse(errorText);
-        throw new Error(errorJson.message || 'Failed to fetch reports');
-      } catch {
-        throw new Error(errorText || 'Failed to fetch reports');
-      }
-    }
-
-    const data = await response.json();
-    console.log("✅ User reports fetched successfully:", data.length, "reports");
-    return data;
-  } catch (error) {
-    console.error("❌ Error fetching user reports:", error);
     throw error;
   }
 }
 
-// Helper function to auto-detect browser/device info using existing utils
+// Helper function to auto-detect device info for reports
 export async function getDeviceInfoForReport(): Promise<{ 
-  userAgent: string; 
-  browserVersion: string; 
-  deviceInfo: string 
+  UserAgent: string; 
+  BrowserVersion: string; 
+  DeviceInfo: string 
 }> {
   try {
-    // Use existing device utils - this already includes platform info
+    // Use existing device utils
     const deviceInfo = await getCurrentDeviceInfo();
     
     // Create React Native specific user agent
-    const userAgent = `ReactNative/${deviceInfo.platform} - DeviceID: ${deviceInfo.deviceId}`;
+    const UserAgent = `ReactNative/${deviceInfo.platform} - DeviceID: ${deviceInfo.deviceId}`;
     
     // For React Native, "browser" is the app itself
-    const browserVersion = `ReactNative App - ${deviceInfo.platform}`;
+    const BrowserVersion = `ReactNative App - ${deviceInfo.platform}`;
     
-    // Device info string using the structure from getCurrentDeviceInfo
-    const deviceInfoString = `${deviceInfo.platform} - DeviceID: ${deviceInfo.deviceId} - Capabilities: ${deviceInfo.capabilities.join(', ')} - Network: ${deviceInfo.networkInfo.type} (Connected: ${deviceInfo.networkInfo.isConnected})`;
+    // Device info string
+    const DeviceInfo = `${deviceInfo.platform} - DeviceID: ${deviceInfo.deviceId} - Capabilities: ${deviceInfo.capabilities.join(', ')} - Network: ${deviceInfo.networkInfo.type} (Connected: ${deviceInfo.networkInfo.isConnected})`;
     
     return {
-      userAgent,
-      browserVersion,
-      deviceInfo: deviceInfoString
+      UserAgent,
+      BrowserVersion,
+      DeviceInfo
     };
   } catch (error) {
     console.error('Error getting device info for report:', error);
@@ -178,14 +91,14 @@ export async function getDeviceInfoForReport(): Promise<{
     // Fallback to basic Platform info if device utils fail
     const platform = getPlatform();
     return {
-      userAgent: `ReactNative/${platform}`,
-      browserVersion: `ReactNative App - ${platform}`,
-      deviceInfo: `${platform}`
+      UserAgent: `ReactNative/${platform}`,
+      BrowserVersion: `ReactNative App - ${platform}`,
+      DeviceInfo: `${platform}`
     };
   }
 }
 
-// Helper function to create bug report with auto-filled browser info
+// Helper function to create bug report with auto-filled device info
 export async function createBugReportPayload(
   title: string,
   description: string,
@@ -198,28 +111,35 @@ export async function createBugReportPayload(
   
   return {
     type: ReportTypeEnum.BugReport,
-    title,
-    description,
-    stepsToReproduce,
-    expectedBehavior,
-    actualBehavior,
-    priority,
-    ...deviceInfo
+    title: title,
+    description: description,
+    stepsToReproduce: stepsToReproduce,
+    expectedBehavior: expectedBehavior,
+    actualBehavior: actualBehavior,
+    priority: priority,
+    userAgent: deviceInfo.UserAgent,
+    browserVersion: deviceInfo.BrowserVersion,
+    deviceInfo: deviceInfo.DeviceInfo
   };
 }
 
 // Helper function to create user report
-export function createUserReportPayload(
+export async function createUserReportPayload(
   title: string,
   description: string,
   reportedUserId: string,
   priority: PriorityEnum = PriorityEnum.Medium
-): ReportRequestDTO {
+): Promise<ReportRequestDTO> {
+  const deviceInfo = await getDeviceInfoForReport();
+  
   return {
     type: ReportTypeEnum.UserReport,
-    title,
-    description,
-    reportedUserId,
-    priority
+    title: title,
+    description: description,
+    reportedUserId: reportedUserId,
+    priority: priority,
+    userAgent: deviceInfo.UserAgent,
+    browserVersion: deviceInfo.BrowserVersion,
+    deviceInfo: deviceInfo.DeviceInfo
   };
 }

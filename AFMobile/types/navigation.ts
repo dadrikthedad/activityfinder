@@ -9,6 +9,7 @@ export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   VerificationScreen: { email: string };
+  ResetPasswordScreen: { email: string };
   Home: undefined;
   Profile: { id: string };
   EditProfile: undefined;
@@ -50,7 +51,8 @@ export type RootStackParamList = {
   SecurityCredsScreen: undefined;
 };
 
-// Navigation prop types for each screen
+
+//////////////////////////// -        AUTH          -////////////////////////////////////
 export type LoginScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'Login'
@@ -65,6 +67,13 @@ export type VerificationScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
   'VerificationScreen'
 >;
+
+export type ResetPasswordScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'ResetPasswordScreen'
+>;
+
+/////////////////////////////////////////////////////////////////////
 
 export type HomeScreenNavigationProp = StackNavigationProp<
   RootStackParamList,
@@ -151,6 +160,8 @@ export type ReportScreenNavigationProp = StackNavigationProp<
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
 export type VerificationScreenRouteProp = RouteProp<RootStackParamList, 'VerificationScreen'>;
+export type ResetPasswordScreenRouteProp = RouteProp<RootStackParamList, 'ResetPasswordScreen'>;
+
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;

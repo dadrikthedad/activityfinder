@@ -10,7 +10,12 @@ public class VerificationInfo
     
     [MaxLength(255)]
     public string? PasswordResetToken { get; set; }
+    
+    [MaxLength(8)]
+    public string? PasswordResetCode { get; set; }
     public DateTime? PasswordResetTokenExpires { get; set; }
+    
+    
     public string? EmailConfirmationToken { get; set; }
     public DateTime? LastVerificationEmailSent { get; set; }
     public string? EmailConfirmationCode { get; set; }

@@ -20,12 +20,12 @@ public class UserOnlineService
     
     // Heartbeat
 
-    public async Task<(bool success, string errorMessage)> MarkUserOnlineAsync(int userId, OnlineStatusRequest request)
+    public async Task<(bool success, string errorMessage)> MarkUserOnlineAsync(int userId, string deviceId, OnlineStatusRequest request)
     {
         try
         {
             var existingStatus = await _context.UserOnlineStatuses
-                .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == request.DeviceId);
+                .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == deviceId); 
 
             var lastBootstrapDateTime = request.LastBootstrapAt.HasValue 
                 ? DateTimeOffset.FromUnixTimeMilliseconds(request.LastBootstrapAt.Value).UtcDateTime
@@ -46,7 +46,7 @@ public class UserOnlineService
                 var newStatus = new UserOnlineStatus
                 {
                     UserId = userId,
-                    DeviceId = request.DeviceId,
+                    DeviceId = deviceId,
                     LastSeen = DateTime.UtcNow,
                     LastBootstrapAt = lastBootstrapDateTime,
                     Platform = request.Platform,
@@ -69,7 +69,7 @@ public class UserOnlineService
                 try
                 {
                     var existingStatus = await _context.UserOnlineStatuses
-                        .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == request.DeviceId);
+                        .FirstOrDefaultAsync(u => u.UserId == userId && u.DeviceId == deviceId);;
                     
                     if (existingStatus != null)
                     {

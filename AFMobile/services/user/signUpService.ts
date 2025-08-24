@@ -1,26 +1,25 @@
-
 import { API_BASE_URL } from "@/constants/routes";
 import { RegisterResponse } from "@shared/types/auth/RegisterResponseDTO";
 import { RegisterUserPayload } from "@shared/types/auth/RegisterUserPayloadDTO";
+import { getRequestPublic, postRequestPublic } from "@/services/baseService";
 
-
+// Check email availability - ✅ Oppdatert til getRequestPublic med device headers
 export async function checkEmailAvailability(email: string): Promise<boolean> {
   try {
     console.log("🟡 Checking email availability for:", email);
     
     const normalized = email.trim().toLowerCase();
-    const response = await fetch(`${API_BASE_URL}/api/user/check-email?email=${encodeURIComponent(normalized)}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    
+    // ✅ Bruk getRequestPublic som sender device headers automatisk
+    const data = await getRequestPublic<{ exists: boolean }>(
+      `${API_BASE_URL}/api/user/check-email?email=${encodeURIComponent(normalized)}`
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!data) {
+      console.warn("⚠️ No response from email check API");
+      return false; // Ved feil, returner false (ikke tilgjengelig) for sikkerhet
     }
 
-    const data = await response.json() as { exists: boolean };
     console.log("✅ Email check result:", { email: normalized, exists: data.exists, available: !data.exists });
     
     return !data.exists; // true = tilgjengelig, false = opptatt
@@ -30,7 +29,6 @@ export async function checkEmailAvailability(email: string): Promise<boolean> {
     return false;
   }
 }
-
 
 // Type for land
 export interface Country {
@@ -44,93 +42,77 @@ export interface SelectOption {
   value: string;
 }
 
-// Henter land - bruker fetchWithAuth uten token (offentlig endpoint)
+// Henter land - ✅ Oppdatert til getRequestPublic med device headers
 export async function fetchCountries(): Promise<Country[]> {
   try {
     console.log("🟡 Fetching countries from:", `${API_BASE_URL}/api/user/countries`);
     
-    const response = await fetch(`${API_BASE_URL}/api/user/countries`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // ✅ Bruk getRequestPublic som sender device headers automatisk
+    const data = await getRequestPublic<Country[]>(`${API_BASE_URL}/api/user/countries`);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!data) {
+      console.warn("⚠️ No response from countries API");
+      return [];
     }
 
-    const data = await response.json();
-    console.log("✅ Countries fetched successfully:", data);
-    return data || [];
+    console.log("✅ Countries fetched successfully:", data.length, "countries");
+    return data;
   } catch (error) {
     console.error("❌ Error fetching countries:", error);
     return [];
   }
 }
 
-// 🔧 Henter regioner - OFFENTLIG endpoint (vanlig fetch)
+// Henter regioner - ✅ Oppdatert til getRequestPublic med device headers
 export async function fetchRegions(code: string): Promise<string[]> {
   try {
     console.log("🟡 Fetching regions for country:", code);
     
-    const response = await fetch(`${API_BASE_URL}/api/user/regions/${encodeURIComponent(code)}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    // ✅ Bruk getRequestPublic som sender device headers automatisk
+    const data = await getRequestPublic<string[]>(
+      `${API_BASE_URL}/api/user/regions/${encodeURIComponent(code)}`
+    );
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!data) {
+      console.warn("⚠️ No response from regions API");
+      return [];
     }
 
-    const data = await response.json();
-    console.log("✅ Regions fetched successfully:", data);
-    return data || [];
+    console.log("✅ Regions fetched successfully:", data.length, "regions");
+    return data;
   } catch (error) {
     console.error("❌ Error fetching regions:", error);
     return [];
   }
 }
 
-// 🔧 Registerer bruker - OFFENTLIG endpoint (vanlig fetch)
+// Registerer bruker - ✅ Oppdatert til postRequestPublic med device headers
 export async function registerUserAPI(payload: RegisterUserPayload): Promise<RegisterResponse> {
   try {
     console.log("🟡 Registering user:", payload.email);
    
-    const response = await fetch(`${API_BASE_URL}/api/user/register`, {
-      method: "POST",
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // ✅ Bruk postRequestPublic som sender device headers automatisk
+    const data = await postRequestPublic<RegisterResponse, RegisterUserPayload>(
+      `${API_BASE_URL}/api/user/register`,
+      payload
+    );
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("🔴 Registration failed:", data);
-      
-      // Handle different types of errors (samme som web-versjonen)
-      if (data.errors) {
-        // Validation errors - format them nicely
-        const errorMessages = Object.entries(data.errors as Record<string, string[]>)
-          .map(([field, messages]) => 
-            `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`
-          )
-          .join('\n');
-        throw new Error(errorMessages);
-      } else {
-        // Single error message
-        throw new Error(data.message || "User registration failed");
-      }
+    if (!data) {
+      throw new Error("Registration failed - no response received");
     }
     
     console.log("✅ User registered successfully");
-    return data as RegisterResponse;
-  } catch (error) {
+    return data;
+  } catch (error: any) {
     console.error("❌ Error registering user:", error);
-    throw error;
+    
+    // Handle different types of errors (samme som web-versjonen)
+    if (error.message && error.message.includes("errors")) {
+      // Try to parse validation errors from error message
+      throw new Error(error.message);
+    } else {
+      // Single error message
+      throw new Error(error.message || "User registration failed");
+    }
   }
 }

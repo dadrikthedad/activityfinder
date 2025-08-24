@@ -1,9 +1,10 @@
-// AFMobile/utils/deviceUtils.ts
+// AFMobile/utils/deviceUtils.ts - Oppdatert med device headers
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import NetInfo from '@react-native-community/netinfo';
+import { markOfflineWithDefaults } from '@/services/bootstrap/onlineStatusService';
 
 // Helper function to generate device ID (consistent across sessions)
 export async function generateDeviceId(): Promise<string> {
@@ -29,27 +30,40 @@ export function getPlatform(): 'ios' | 'android' | 'web' {
   return Platform.OS as 'ios' | 'android' | 'web';
 }
 
-// React Native equivalent of browser beacon - uses regular fetch with short timeout
+// ✅ Oppdatert til å bruke OnlineStatusService som sender device headers
 export async function markOfflineAPI(apiBaseUrl: string): Promise<void> {
   try {
-    const deviceId = await generateDeviceId();
+    console.log("📡 Marking user offline via service...");
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+    // ✅ Bruk service som automatisk sender device headers
+    await markOfflineWithDefaults();
     
-    await fetch(`${apiBaseUrl}/api/me/offline`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ deviceId }),
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    console.log("📡 Sent offline API call:", { deviceId });
+    console.log("✅ Successfully marked offline with device headers");
   } catch (error) {
-    console.warn("⚠️ Failed to send offline API call:", error);
+    console.warn("⚠️ Failed to mark offline via service:", error);
+    
+    // ✅ Fallback til manuell fetch med timeout (uten device headers som fallback)
+    try {
+      const deviceId = await generateDeviceId();
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      await fetch(`${apiBaseUrl}/api/me/offline`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ deviceId }),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      console.log("📡 Fallback offline API call sent:", { deviceId });
+    } catch (fallbackError) {
+      console.warn("⚠️ Fallback offline call also failed:", fallbackError);
+    }
+    
     // Don't throw - app should continue even if offline marking fails
   }
 }
@@ -119,7 +133,7 @@ export function setupAppStateHandlers(apiBaseUrl: string) {
   const handleAppStateChange = async (nextAppState: string) => {
     if (nextAppState === 'background' || nextAppState === 'inactive') {
       console.log('📱 App going to background, marking offline...');
-      await markOfflineAPI(apiBaseUrl);
+      await markOfflineAPI(apiBaseUrl); // ✅ Nå sender denne device headers
     }
   };
 
