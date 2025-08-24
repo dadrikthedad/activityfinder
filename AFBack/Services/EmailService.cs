@@ -31,7 +31,7 @@ public class EmailService
                 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
                 <title>Verify Email</title>
             </head>
-            <body style='margin:0; padding:0; font-family:Segoe UI, sans-serif; background-color:#f4f4f4;'>
+            <body style='margin:0; padding:20px; font-family:Segoe UI, sans-serif;'>
 
                 <div style='max-width:600px; margin:0 auto;'>
                     
@@ -110,7 +110,7 @@ public class EmailService
         ";
     }
 
-    public string PreviewWelcomeEmail(string toEmail, string userName)
+   public string PreviewWelcomeEmail(string toEmail, string userName)
     {
         var logoUrl = "https://activitystorage.blob.core.windows.net/static/LogoMedSegoeUIHvit.png";
         
@@ -122,7 +122,7 @@ public class EmailService
                 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
                 <title>Welcome to Koptr</title>
             </head>
-            <body style='margin:0; padding:0; font-family:Segoe UI, sans-serif; background-color:#f4f4f4;'>
+            <body style='margin:0; padding:20px; font-family:Segoe UI, sans-serif;'>
 
                 <div style='max-width:600px; margin:0 auto;'>
                     
@@ -169,7 +169,7 @@ public class EmailService
     // Forgot Password Email (updated to match correct layout)
     public string PreviewForgotPasswordEmail(string toEmail, string resetToken, string resetCode)
     {
-        var resetLink = $"{_configuration["App:BaseUrl"]}/reset-password?token={resetToken}";
+        var resetLink = $"{_configuration["App:BaseUrl"]}/resetpassword?token={resetToken}";
         var logoUrl = "https://activitystorage.blob.core.windows.net/static/LogoMedSegoeUIHvit.png";
         
         return $@"
@@ -180,13 +180,13 @@ public class EmailService
                 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
                 <title>Reset Password</title>
             </head>
-            <body style='margin:0; padding:0; font-family:Segoe UI, sans-serif; background-color:#f4f4f4;'>
+            <body style='margin:0; padding:20px; font-family:Segoe UI, sans-serif;'>
 
                 <div style='max-width:600px; margin:0 auto;'>
                     
                     <!-- Header -->
                     <div style='background-color:#1C6B1C; padding:30px; text-align:center; border-top-left-radius:10px; border-top-right-radius:10px;'>
-                        <img src='{logoUrl}' alt='Koptr Logo' style='width:120px; margin-bottom:10px;'>
+                        <img src='{logoUrl}' alt='Koptr Logo' style='width:150px; margin-bottom:10px;'>
                     </div>
 
                     <!-- Body -->
