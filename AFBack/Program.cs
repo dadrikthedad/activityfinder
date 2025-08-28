@@ -20,6 +20,7 @@ using AFBack.Extensions;
 using AFBack.Filters;
 using AFBack.Hubs;
 using AFBack.Middleware;
+using AFBack.Services.User;
 using AFBack.Utils;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -262,6 +263,7 @@ builder.Services.Configure<IpBanOptions>(
     builder.Configuration.GetSection("IpBan"));
 builder.Services.AddSingleton<IpBanService>();
 builder.Services.AddHostedService<IpBanCleanupService>();
+builder.Services.AddHttpClient<GeolocationService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

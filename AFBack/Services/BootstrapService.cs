@@ -194,7 +194,7 @@ namespace AFBack.Services
 
         // ✅ SEPARATE METHODS MED EGNE CONTEXTS
 
-        private async Task<User> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
+        private async Task<Models.User> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
         {
             _logger.LogDebug("🔍 Looking up user with ID: {UserId} (separate context)", userId);
 

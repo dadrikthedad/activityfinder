@@ -4,6 +4,7 @@ using System.Text.Json;
 using AFBack.Constants;
 using AFBack.DTOs.Auth;
 using AFBack.Extensions;
+using AFBack.Services.User;
 using AFBack.Utils;
 using Microsoft.AspNetCore.Authorization;
 
@@ -40,10 +41,11 @@ public class UserController : BaseController
     private readonly UserService _userService;
     private readonly EmailRateLimitService _emailRateLimitService;
     private readonly IpBanService _ipBanService;
+    private readonly GeolocationService _geolocationService;
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
-    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService, UserService userService, EmailRateLimitService emailRateLimitService, IpBanService ipBanService
-        )
+    public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService, UserService userService, EmailRateLimitService emailRateLimitService, IpBanService ipBanService,
+            GeolocationService geolocationService)
     {
         _context = context;
         _countryService = countryService;
@@ -55,6 +57,7 @@ public class UserController : BaseController
         _userService = userService;
         _emailRateLimitService = emailRateLimitService;
         _ipBanService = ipBanService;
+        _geolocationService = geolocationService;
     }
     
     // Henter alle land:
@@ -389,22 +392,49 @@ public class UserController : BaseController
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             if (user != null)
             {
+                var userId = user.Id; // Capture this
                 user.LastLoginIp = ipCheckResult.ClientIp;
-                user.LastLoginCity = userLoginDto.City;
-                user.LastLoginRegion = userLoginDto.Region;
-                user.LastLoginCountry = userLoginDto.Country;
                 user.LastSeen = DateTime.UtcNow;
-                
                 await _context.SaveChangesAsync();
+
+                // Background geolocation update using userId instead of email
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var locationResult = await _geolocationService.GetLocationAsync(ipCheckResult.ClientIp);
+            
+                        if (locationResult.Success)
+                        {
+                            using var scope = _scopeFactory.CreateScope();
+                            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                
+                            var userToUpdate = await context.Users.FindAsync(userId); // More efficient
+                            if (userToUpdate != null)
+                            {
+                                userToUpdate.LastLoginCity = locationResult.City;
+                                userToUpdate.LastLoginRegion = locationResult.Region;
+                                userToUpdate.LastLoginCountry = locationResult.Country;
+                                await context.SaveChangesAsync();
+                    
+                                _logger.LogDebug("Updated location for user {UserId}: {City}, {Region}, {Country}", 
+                                    userId, locationResult.City, locationResult.Region, locationResult.Country);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("Background geolocation update failed for user {UserId}: {Error}", 
+                            userId, ex.Message);
+                    }
+                });
             }
-        
-            _logger.LogInformation("Successful login for user: {Email}", userLoginDto.Email);
         }
         catch (Exception e)
         {
-            _logger.LogWarning("Could not save login location for {Email}: {Error}", userLoginDto.Email, e.Message);
+            _logger.LogWarning("Could not save login info for {Email}: {Error}", userLoginDto.Email, e.Message);
         }
-
+        
         return Ok(loginResponse);
     }
     

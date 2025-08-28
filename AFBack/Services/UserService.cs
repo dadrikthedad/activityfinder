@@ -83,7 +83,7 @@ public class UserService
         return false;
     }
 
-    public async Task<User?> GetUserByTokenAsync(string tokenOrCode)
+    public async Task<Models.User?> GetUserByTokenAsync(string tokenOrCode)
     {
         // Spør direkte på VerificationInfos
         var verificationInfo = await _context.VerificationInfos

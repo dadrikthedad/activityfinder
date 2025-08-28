@@ -115,7 +115,7 @@ public class AuthService
     }
     
     // Oppdatert JWT-generering med kortere levetid
-    private string GenerateJwtToken(User user)
+    private string GenerateJwtToken(Models.User user)
     {
         var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") 
                      ?? throw new Exception("JWT Key is missing in environment variables.");
