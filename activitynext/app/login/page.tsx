@@ -3,80 +3,21 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useModal } from "@/context/ModalContext"; // Add this import
+import { useModal } from "@/context/ModalContext";
 import FormField from "@/components/FormField";
 import FormButton from "@/components/FormButton";
 import PasswordField from "@/components/PasswordField";
 
 export default function LoginPage() {
-  // Tilstand for email, passord, feilmelding og submit-status
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [resendingEmail, setResendingEmail] = useState(false);
-  const { login } = useAuth(); // Henter login-funksjon fra AuthContext
+  const { login } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  const { showModal, hideModal } = useModal(); // Add this line
-
-  // Robust geolocation function med fallback
-  const getLocationData = async () => {
-    try {
-      // Prøv ipwhois.io først (10k/måned gratis)
-      const locationRes = await fetch("https://ipwho.is/", {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-      
-      if (!locationRes.ok) {
-        throw new Error(`HTTP error! status: ${locationRes.status}`);
-      }
-      
-      const locationData = await locationRes.json();
-      
-      if (!locationData.success) {
-        throw new Error('Location API returned unsuccessful response');
-      }
-     
-      return {
-        ip: locationData.ip || "",
-        city: locationData.city || "",
-        region: locationData.region || "", 
-        country: locationData.country_code || "",
-        country_name: locationData.country || "",
-      };
-    } catch (error) {
-      console.warn("ipwhois.io failed, trying fallback:", error);
-      
-      // Fallback til FreeIPAPI.com (60/min gratis)
-      try {
-        const fallbackRes = await fetch("https://freeipapi.com/api/json/");
-        const fallbackData = await fallbackRes.json();
-        
-        return {
-          ip: fallbackData.ipAddress || "",
-          city: fallbackData.cityName || "",
-          region: fallbackData.regionName || "",
-          country: fallbackData.countryCode || "",
-          country_name: fallbackData.countryName || "",
-        };
-      } catch (fallbackError) {
-        console.warn("All geolocation services failed:", fallbackError);
-        
-        // Return empty data if all services fail
-        return {
-          ip: "",
-          city: "",
-          region: "",
-          country: "",
-          country_name: "",
-        };
-      }
-    }
-  };
+  const { showModal, hideModal } = useModal();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,59 +28,23 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      // Hent IP og lokasjon med robust fallback
-      const locationData = await getLocationData();
-
-      const loginPayload = {
-        email,
-        password,
-        ip: locationData.ip,
-        city: locationData.city,
-        region: locationData.region,
-        country: locationData.country,
-        country_name: locationData.country_name,
-      };
-
-      console.log("🌍 Login page location data:", locationData);
-
-      const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/user/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(loginPayload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // *** HÅNDTER EMAIL VERIFICATION REQUIRED ***
-        if (response.status === 401 && data.emailVerificationRequired) {
+      // Bruk AuthService login direkte - ingen behov for manuell API-kall
+      await login(email, password);
+      console.log("Login successful, redirecting...");
+    } catch (error: unknown) {
+      console.error("Login error:", error);
+      
+      if (error instanceof Error) {
+        const message = error.message;
+        
+        // Sjekk for email verification error
+        if (message.includes("verify your email") || message.includes("emailVerificationRequired")) {
           setErrorMessage("");
           setShowVerificationPrompt(true);
           return;
-        } else {
-          // Andre login-feil
-          const errorMessage = data?.message || "Login failed.";
-          throw new Error(errorMessage);
         }
-      }
-
-      // *** VELLYKKET LOGIN ***
-      if (data.token) {
-        try {
-          console.log("🔑 BOOT: Token mottatt, kaller login()...", data.token.substring(0, 20));
-          login(data.token);
-          console.log("✅ BOOT: Login() kalt, skal redirecte...");
-          return;
-        } catch (error) {
-          console.warn("BOOT: Could not save token in localStorage:", error);
-          setErrorMessage("BOOT: Could not save login. Try again.");
-        }
-      }
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        setErrorMessage(error.message);
+        
+        setErrorMessage(message);
       } else {
         setErrorMessage("An unexpected error occurred.");
       }
@@ -149,7 +54,6 @@ export default function LoginPage() {
   };
 
   const handleVerifyEmail = () => {
-    // Navigate til verifikasjonsside med email parameter - endret fra /verify-email til /verification
     router.push(`/verification?email=${encodeURIComponent(email)}`);
   };
 
@@ -158,6 +62,7 @@ export default function LoginPage() {
     setErrorMessage("");
 
     try {
+      // Fortsatt bruk direkte API-kall for resend siden dette ikke er en del av AuthService
       const response = await fetch("https://activityfinder-gnaacbg9gsgjh7b7.swedencentral-01.azurewebsites.net/api/email/resend-verification", {
         method: "POST",
         headers: {
@@ -169,7 +74,6 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Show success modal instead of alert
         showModal(
           <div className="bg-white dark:bg-[#1e2122] p-6 rounded-lg shadow-lg max-w-md border-1 borderColor-[#1C6B1C]">
             <div className="flex items-center mb-4">
@@ -212,8 +116,7 @@ export default function LoginPage() {
       {/* Email verification prompt */}
       {showVerificationPrompt && (
         <div className="mt-6 p-6 bg-[#1e2122] border border-[#1C6B1C] rounded-lg max-w-md">
-            <h3 className="text-lg font-semibold items-center ">Email Verification Required</h3>
-
+          <h3 className="text-lg font-semibold items-center">Email Verification Required</h3>
           <p className="mb-4 text-sm leading-relaxed">
             Please verify your email address before logging in. Check your inbox for the verification link.
           </p>
@@ -275,7 +178,7 @@ export default function LoginPage() {
         </form>
       )}
 
-      {/* Link til signup-siden hvis vi ikke har en bruker */}
+      {/* Link til signup-siden */}
       <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-6">
         No account?{" "}
         <a href="/signup" className="text-[#1C6B1C] hover:text-[#0F3D0F] hover:underline">
@@ -283,7 +186,7 @@ export default function LoginPage() {
         </a>
       </p>
 
-      {/* Forgot password link - Updated to point to resetpassword */}
+      {/* Forgot password link */}
       <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-2">
         <a href="/resetpassword" className="text-[#1C6B1C] hover:text-[#0F3D0F] hover:underline">
           Forgot your password?

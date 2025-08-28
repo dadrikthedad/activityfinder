@@ -1,61 +1,44 @@
-// Dette er en generisk funksjon som henter token, gjør API-kallet, og håndterer feil hvis det oppstår. Brukes til alt hvor vi trenger auth
-
-type LogLevel = "none" | "basic" | "verbose";
+// utils/api/fetchWithAuth.ts
+import authService from '@/services/auth/authService';
+import type { LogLevel } from '@shared/utils/api/fetchWithAuth.types';
 
 export async function fetchWithAuth<T>(
   url: string,
   options: RequestInit = {},
-  token?: string,
+  _token?: string, // Ignoreres - beholdt for bakoverkompatibilitet
   logLevel: LogLevel = "verbose"
 ): Promise<T | null> {
-  const authToken = token || localStorage.getItem("token");
-  if (!authToken) {
-    throw new Error("No auth token found.");
-  }
-
   if (logLevel !== "none") {
     console.log("🟡 fetchWithAuth - URL:", url);
-    console.log("🟢 Token (first 20 chars):", authToken?.slice(0, 20));
   }
 
-  // 🆕 Bygg headers som Record<string, string> for å unngå TypeScript feil
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${authToken}`,
-  };
-
-  // Legg til eksisterende headers fra options
-  if (options.headers) {
-    const existingHeaders = new Headers(options.headers);
-    existingHeaders.forEach((value, key) => {
-      headers[key] = value;
-    });
-  }
-
-  // 🆕 Kun legg til Content-Type hvis body IKKE er FormData
-  if (!(options.body instanceof FormData)) {
-    headers["Content-Type"] = "application/json";
-  }
-  // FormData setter sin egen Content-Type med boundary automatisk
-
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  const text = await res.text();
-  
-  if (!res.ok) {
+  try {
+    const response = await authService.fetchWithAuth(url, options);
+    return await handleResponse<T>(response, url, logLevel);
+  } catch (error) {
     if (logLevel !== "none") {
-      console.error(`🔴 API error (${res.status}) from ${url}:`, text);
+      console.error("🔴 fetchWithAuth error:", error);
     }
+    throw error;
+  }
+}
 
+async function handleResponse<T>(
+  response: Response,
+  url: string,
+  logLevel: LogLevel
+): Promise<T | null> {
+  const text = await response.text();
+
+  if (!response.ok) {
+    if (logLevel !== "none") {
+      console.error(`🔴 API error (${response.status}) from ${url}:`, text);
+    }
     try {
       const json = JSON.parse(text);
-
       if (typeof json === "object" && json !== null && "message" in json) {
         throw new Error(json.message);
       }
-
       throw new Error("Something went wrong.");
     } catch {
       throw new Error(text || "Something went wrong.");
@@ -68,7 +51,7 @@ export async function fetchWithAuth<T>(
   }
 
   if (logLevel === "verbose") {
-    console.log("📦 Status code:", res.status);
+    console.log("📦 Status code:", response.status);
     console.log("📄 Raw text:", text);
   }
 

@@ -5,6 +5,7 @@ import {
   markOfflineWithDefaults, 
   sendHeartbeatSafe,
 } from '@/services/onlineStatusService';
+import { AuthError } from '@shared/types/error/AuthError';
 
 interface UseOnlineStatusReturn {
   isOnline: boolean;
@@ -125,18 +126,28 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
         throw new Error("Failed to mark user online - no response");
       }
       
-    } catch (error) {
-      console.error("❌ Failed to mark user online:", error);
-      setConnectionError(error instanceof Error ? error.message : "Failed to connect");
-      setIsOnline(false);
-      
-      // 🔑 Schedule recovery since we should be online
-      if (shouldBeOnlineRef.current) {
-        scheduleRecovery();
-      }
-    } finally {
-      setIsConnecting(false);
+    } catch (err) {
+  const error = err as Error; // Type-safe casting
+    console.error("❌ Failed to mark user online:", error);
+    
+    // Stop auto-recovery på auth-feil
+    if (error instanceof AuthError || error.message?.includes('Session expired')) {
+      console.log("🔐 Authentication failed - stopping auto-recovery");
+      shouldBeOnlineRef.current = false;
+      setConnectionError("Please log in again");
+      return;
     }
+    
+    setConnectionError(error.message || "Failed to connect");
+    setIsOnline(false);
+    
+    // Schedule recovery since we should be online
+    if (shouldBeOnlineRef.current) {
+      scheduleRecovery();
+    }
+  } finally {
+    setIsConnecting(false);
+  }
   }, [isConnecting, startHeartbeat, scheduleRecovery]);
 
   // 🔑 Set the ref after markOnline is defined

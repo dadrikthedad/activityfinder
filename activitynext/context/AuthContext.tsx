@@ -17,96 +17,113 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
 import { markOfflineWithDefaults } from "@/services/onlineStatusService";
+import authService from "@/services/auth/authService";
 
 interface AuthContextType {
-  isLoggedIn: boolean; // Sjekker om vi er logget inn eller ikke
-  token: string | null; // Her lagres tokenet
-  userId: number | null; //Lagrer bruker ID, brukes i navbar feks
-  login: (token: string, redirectTo?: string) => void; // Setter token, oppdatere state og sender oss videre
-  logout: () => void; // Fjerner token, nullstiller state og sender tilbake til login
+  isLoggedIn: boolean;
+  token: string | null;
+  userId: number | null;
+  login: (email: string, password: string, redirectTo?: string) => Promise<void>; // Endret til async med email/password
+  logout: () => Promise<void>; // Allerede async
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined); //Her oppretter vi selve contexten som holder auth-dataen.
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => { // Her sernder vi auth.data til barna
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false); 
-  const [token, setToken] = useState<string | null>(null); // Nå riktig plass
+  const [token, setToken] = useState<string | null>(null);
   const router = useRouter();
   const [userId, setUserId] = useState<number | null>(null);
 
-
-  useEffect(() => { //Ved første innlastning av siden, sjekker om vi er innlogget eller ikke.
-    const storedToken = localStorage.getItem("token");
+  useEffect(() => {
+    // Sjekk både gammel localStorage token og nye accessToken
+    const storedToken = localStorage.getItem("accessToken") || localStorage.getItem("token");
     setToken(storedToken);
     setIsLoggedIn(!!storedToken);
-    const id = getUserIdFromToken(storedToken); // Henter userid fra token
-    console.log("✅ User ID from token:", id); //Brukes for å debugge
-    setUserId(id); // Lagerer brukerId-en til feks NavBar
+    const id = getUserIdFromToken(storedToken);
+    console.log("User ID from token:", id);
+    setUserId(id);
   }, []);
 
-  // Login: lagrer token og redirecter
-  const login = (token: string, redirectTo = "/") => {
-    console.log("🔑BOOT: AuthContext.login() startet", { token: token.substring(0, 20)});
-    // 👈 OPPDATER STATE FØRST
-    const newUserId = getUserIdFromToken(token);
-    setToken(token);
-    setIsLoggedIn(true);
-    setUserId(newUserId);
-    console.log("✅BOOT: Auth state oppdatert");
-    
-    if (typeof window !== "undefined") {
-      const previousToken = localStorage.getItem("token");
-      const previousUserId = getUserIdFromToken(previousToken);
+  // Oppdatert login funksjon som bruker AuthService
+  const login = async (email: string, password: string, redirectTo = "/") => {
+    try {
+      console.log("AuthContext.login() startet");
+      
+      const loginResponse = await authService.login(email, password);
+      
+      // Oppdater context state
+      const newUserId = getUserIdFromToken(loginResponse.accessToken);
+      setToken(loginResponse.accessToken);
+      setIsLoggedIn(true);
+      setUserId(newUserId);
+      console.log("Auth state oppdatert");
+      
+      if (typeof window !== "undefined") {
+        const previousToken = localStorage.getItem("accessToken") || localStorage.getItem("token");
+        const previousUserId = getUserIdFromToken(previousToken);
 
-      // 🔐 Fjern gammel samtale-ID hvis bruker har endret seg
-      if (newUserId !== previousUserId) {
-        localStorage.removeItem("dropdown_convo");
+        // Fjern gammel samtale-ID hvis bruker har endret seg
+        if (newUserId !== previousUserId) {
+          localStorage.removeItem("dropdown_convo");
+        }
+
+        // Bakoverkompatibilitet - lagre også i gammel token key
+        localStorage.setItem("token", loginResponse.accessToken);
+        setCookie("token", loginResponse.accessToken);
+        console.log("Token lagret i localStorage og cookie");
       }
-
-      localStorage.setItem("token", token);
-      setCookie("token", token);
-      console.log("💾 BOOT: Token lagret i localStorage og cookie");
+      
+      console.log("Redirecter til:", redirectTo);
+      router.push(redirectTo);
+    } catch (error) {
+      console.error("Login failed:", error);
+      throw error; // La komponenten som kaller login håndtere feilen
     }
-    console.log("🚀 BOOT: Redirecter til:", redirectTo);
-    router.push(redirectTo);
   };
  
   const logout = async () => {
-      try {
-      // 🔴 MARKER SOM OFFLINE FØRST (før vi fjerner token)
-      console.log("🔴 Markerer bruker som offline ved utlogging...");
+    try {
+      console.log("Markerer bruker som offline ved utlogging...");
       await markOfflineWithDefaults();
-      console.log("✅ Bruker markert som offline");
+      console.log("Bruker markert som offline");
     } catch (error) {
-      console.warn("⚠️ Kunne ikke markere som offline ved utlogging:", error);
-      // Fortsett med logout selv om offline-markering feiler
+      console.warn("Kunne ikke markere som offline ved utlogging:", error);
+    }
+
+    try {
+      // Bruk AuthService for server-side logout
+      await authService.logout();
+    } catch (error) {
+      console.warn("Server logout failed:", error);
     }
 
     if (typeof window !== "undefined") {
-      // Fjern kun sesjons­relaterte nøkler
-      localStorage.removeItem("token");
+      // Fjern alle sesjonsrelaterte nøkler (både nye og gamle)
+      localStorage.removeItem("token"); // Gammel
+      localStorage.removeItem("accessToken"); // Ny
+      localStorage.removeItem("refreshToken"); // Ny
+      localStorage.removeItem("accessTokenExpires"); // Ny
+      localStorage.removeItem("refreshTokenExpires"); // Ny
       localStorage.removeItem("messageDropdownSize");
       localStorage.removeItem("messageDropdownPosition");
       localStorage.removeItem("dropdown_convo");
     }
 
     /* ---------- Zustand-stores ---------- */
-    useChatStore.getState().reset();          // tømmer chat
-    useNotificationStore.getState().reset();       // tømmer in-memory  (notifications & friendRequests)
+    useChatStore.getState().reset();
+    useNotificationStore.getState().reset();
     useMessageNotificationStore.getState().reset(); 
     useBootstrapStore.getState().reset();
-    useUserCacheStore.getState().reset();              
-    
+    useUserCacheStore.getState().reset();
 
     /* ---------- Slett IDB-snapshot helt ---------- */
-    // 1) Zustand v4+ har .persist.clearStorage()
     await useChatStore.persist.clearStorage();
     await useNotificationStore.persist.clearStorage();
     await useMessageNotificationStore.persist.clearStorage();
     await useBootstrapStore.persist.clearStorage();
-    await useUserCacheStore.persist.clearStorage();  
+    await useUserCacheStore.persist.clearStorage();
 
-    // 2) fallback – slett direkte via idb-keyval (hvis du ønsker helt blank DB)
     await indexedDBStorage.removeItem("chat-cache");
     await indexedDBStorage.removeItem("notif-cache");
     await indexedDBStorage.removeItem("message-notif-cache"); 
@@ -114,7 +131,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
     await indexedDBStorage.removeItem("user-cache-enhanced"); 
 
     /* ---------- Annet UI-rot ---------- */
-    clearAllDrafts();                              // f.eks. editor-drafts o.l.
+    clearAllDrafts();
 
     /* ---------- Auth-state i React-context ---------- */
     setToken(null);
@@ -125,11 +142,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
     router.push("/login");
   };
 
-
-  // Sync mellom tabs
+  // Oppdatert sync for å håndtere både gamle og nye token keys
   useEffect(() => {
     const syncAuth = () => {
-      const storedToken = localStorage.getItem("token");
+      const storedToken = localStorage.getItem("accessToken") || localStorage.getItem("token");
       setToken(storedToken);
       setIsLoggedIn(!!storedToken);
       setUserId(getUserIdFromToken(storedToken));
@@ -146,7 +162,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => { /
   );
 };
 
-// Custom hook for enkel tilgang til å hente auth-data
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth må brukes inni <AuthProvider>");

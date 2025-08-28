@@ -18,7 +18,21 @@ export default function MiniAvatar({
     ? "border-1 border-[#1C6B1C] shadow-md" 
     : "border border-gray-300 shadow-sm";
 
-    const displayImageUrl = imageUrl || "/default-avatar.png";
+    const getValidImageUrl = (url: string): string => {
+    if (!url || url === "string" || url.trim() === "") {
+      return "/default-avatar.png";
+    }
+    
+    // Sjekk om det er en gyldig URL
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/")) {
+      return url;
+    }
+    
+    // Hvis det ikke er en gyldig URL, bruk default
+    return "/default-avatar.png";
+  };
+  
+  const displayImageUrl = getValidImageUrl(imageUrl);
 
   return (
     <div
