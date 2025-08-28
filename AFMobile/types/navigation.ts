@@ -8,7 +8,7 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 export type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
-  VerificationScreen: { email: string };
+  VerificationScreen: { email: string, fromRegistration?: boolean;  };
   ResetPasswordScreen: undefined;
   Home: undefined;
   Profile: { id: string };

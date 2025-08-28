@@ -1,7 +1,8 @@
 // baseService.ts - Oppdatert med device header support
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { deviceInfoService } from "@/utils/api/deviceInfo";
-import { RateLimitError, BannedError } from "@/utils/api/fetchWithAuthCoreNative";
+import { RateLimitError } from "@shared/types/security/RateLimitError";
+import { BannedError } from "@shared/types/security/BannedError";
 
 // Authenticated requests - bruker fetchWithAuth som allerede har device headers
 export async function getRequest<T>(url: string): Promise<T | null> {

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
 import { registerUser } from "@/services/user/authService";
+import { RootStackNavigationProp } from "@/types/navigation";
 
 export interface UseRegisterReturn {
   email: string;
@@ -25,7 +26,7 @@ export const useRegister = (): UseRegisterReturn => {
   const [name, setName] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { login } = useAuth();
+  const navigation = useNavigation<RootStackNavigationProp>();
 
   const validateInput = (): string | null => {
     if (!name.trim()) {
@@ -67,13 +68,11 @@ export const useRegister = (): UseRegisterReturn => {
   };
 
   const handleRegister = async () => {
-    // Reset error and prevent double submission
     setErrorMessage("");
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
-      // Validate input
       const validationError = validateInput();
       if (validationError) {
         throw new Error(validationError);
@@ -81,40 +80,34 @@ export const useRegister = (): UseRegisterReturn => {
 
       console.log("👤 AUTH: Attempting registration for:", email);
 
-      // Call the auth service
-      const data = await registerUser(
+      const response = await registerUser(
         email.trim(), 
         password, 
         name.trim(), 
         confirmPassword
       );
 
-      if (!data) {
+      if (!response) {
         throw new Error("Registration failed. No response from server.");
       }
 
-      if (!data.token) {
-        throw new Error(data.message || "Registration failed. No token received.");
-      }
-
-      console.log("👤 AUTH: Registration successful, token received");
+      console.log("✅ AUTH: Registration successful");
       
-      // Use the login function from AuthContext to log the user in
-      await login(data.token);
+      // Navigate to verification screen instead of auto-login
+      navigation.navigate('VerificationScreen', { 
+        email: email.trim(),
+        fromRegistration: true 
+      });
       
-      console.log("✅ AUTH: User registered and logged in successfully");
-
-      // Clear form on successful registration
+      // Clear form after successful registration
       resetForm();
 
     } catch (error: unknown) {
       console.error("❌ AUTH: Registration error:", error);
       
       if (error instanceof Error) {
-        // Handle specific error messages
         let userFriendlyMessage = error.message;
         
-        // Map common server errors to user-friendly messages
         if (error.message.includes('Email already exists') || 
             error.message.includes('already registered')) {
           userFriendlyMessage = "An account with this email already exists. Please try logging in instead.";

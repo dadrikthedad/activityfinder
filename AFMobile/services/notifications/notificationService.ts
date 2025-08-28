@@ -1,5 +1,5 @@
 // services/notifications/getNotificationById.ts
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { API_BASE_URL } from "@/constants/routes";
 

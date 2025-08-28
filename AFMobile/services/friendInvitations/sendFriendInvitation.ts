@@ -1,6 +1,6 @@
 // AFMobile/services/sendFriendInvitationService.ts
 // API-kall til backend SendInvitations i FriendInvitationsController.cs. Brukes til å sende en venneforespørsel fra innlogged bruker til en annen bruker
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 

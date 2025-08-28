@@ -1,5 +1,5 @@
 // API-kall til backend med updateEmail() som oppdatere brukerens epost og updatePassword som oppdaterer passord
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 
 

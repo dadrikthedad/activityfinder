@@ -1,5 +1,5 @@
 // Brukes til metoden DELETE i backend, brukes til å slette en venn
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 
 export async function removeFriend(friendId: number, token: string): Promise<void> {

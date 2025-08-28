@@ -1,5 +1,5 @@
 // Her henter vi vennene til en bruker for å vise de igjen i en brukers venneprofil
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { FriendDTO } from "@shared/types/FriendDTO"; // Assuming you have a type for FriendDTO
 

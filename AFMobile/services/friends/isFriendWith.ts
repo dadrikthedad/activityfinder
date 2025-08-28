@@ -1,5 +1,5 @@
 // brukes til å sjekke om vi er en venn med brukeren sin side vi besøker, bruker backend sin FriendsWith fra FriendsController.cs
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 
 

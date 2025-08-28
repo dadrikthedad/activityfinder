@@ -1,6 +1,8 @@
 // services/verificationService.ts - Service for email verification og password reset
 import { postRequestPublic, getRequestPublic } from "@/services/baseService";
 import { API_BASE_URL } from "@/constants/routes";
+import { LoginResponseDTO } from "@shared/types/auth/LoginResponseDTO";
+import { LoginErrorResponse } from "@shared/types/auth/LoginErrorResponseDTO";
 
 // ========== EMAIL VERIFICATION ==========
 
@@ -32,7 +34,34 @@ export async function verifyEmailWithToken(token: string): Promise<{
 }
 
 // Resend verification email - reuse from authService for consistency
-export { resendVerificationEmail } from "../user/authService";
+export async function resendVerificationEmail(email: string): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log("🟡 Resending verification email to:", email);
+    
+    // ✅ Bruk postRequestPublic som sender device headers automatisk
+    const response = await postRequestPublic<{ message: string }, { email: string }>(
+      `${API_BASE_URL}/api/email/resend-verification`,
+      { email }
+    );
+
+    if (response) {
+      console.log("✅ Verification email sent successfully");
+      return {
+        success: true,
+        message: response.message || "Email sent successfully"
+      };
+    } else {
+      throw new Error("Failed to send email");
+    }
+    
+  } catch (error: any) {
+    console.error("❌ Resend verification email error:", error);
+    return {
+      success: false,
+      message: error.message || "Network error. Please try again."
+    };
+  }
+}
 
 // ========== PASSWORD RESET ==========
 

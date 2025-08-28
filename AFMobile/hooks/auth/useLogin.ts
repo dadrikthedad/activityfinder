@@ -2,13 +2,11 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import { 
-  loginUser, 
-  isLoginSuccessful, 
-  isEmailVerificationRequired,
-  resendVerificationEmail 
-} from "@/services/user/authService";
+  loginUser
+} from "@/services/user/authService"; // Oppdatert import path
+import { resendVerificationEmail } from "@/services/security/verificationService";
 import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
-import { RootStackNavigationProp } from "@/types/navigation"; // *** IMPORT RIKTIG TYPE ***
+import { RootStackNavigationProp } from "@/types/navigation";
 
 export interface UseLoginReturn {
   email: string;
@@ -36,7 +34,7 @@ export const useLogin = (): UseLoginReturn => {
   const [resendingEmail, setResendingEmail] = useState(false);
   
   const { login } = useAuth();
-  const navigation = useNavigation<RootStackNavigationProp>(); // *** TYPE NAVIGATION ***
+  const navigation = useNavigation<RootStackNavigationProp>();
 
   const validateInput = (): string | null => {
     if (!email.trim()) {
@@ -75,24 +73,26 @@ export const useLogin = (): UseLoginReturn => {
       
       const data = await loginUser(email.trim(), password);
 
-      if (isEmailVerificationRequired(data)) {
-        console.log("AUTH: Email verification required");
-        setShowVerificationPrompt(true);
-        return;
-      }
-
-      if (isLoginSuccessful(data)) {
-        console.log("🔑 AUTH: Token received, calling login()...", data.token!.substring(0, 20) + "...");
-        login(data.token!);
-        resetForm();
-      } else {
-        throw new Error(data.message || "Login failed. No token received.");
-      }
+      // Hvis vi kommer hit, var login vellykket
+      console.log("🔑 AUTH: Login successful, updating context...");
+      
+      // Send begge tokens til AuthContext
+      await login(data.accessToken, data.refreshToken);
+      
+      resetForm();
+      // AuthContext håndterer navigasjon automatisk
 
     } catch (error: unknown) {
       console.error("❌ AUTH: Login error:", error);
      
       if (error instanceof Error) {
+        // Sjekk om det er email verification error
+        if (error.message.includes("verify your email") || error.message.includes("email verification")) {
+          console.log("AUTH: Email verification required");
+          setShowVerificationPrompt(true);
+          return;
+        }
+        
         let userFriendlyMessage = error.message;
        
         if (error.message.includes('Invalid credentials') ||
@@ -151,7 +151,6 @@ export const useLogin = (): UseLoginReturn => {
   };
 
   const handleNavigateToVerification = () => {
-    // *** RIKTIG NAVIGATION MED TYPING ***
     navigation.navigate('VerificationScreen', { email: email.trim() });
   };
 

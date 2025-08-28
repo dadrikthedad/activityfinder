@@ -1,5 +1,5 @@
 // Denne brukes til å hente 100 notifications som skal vises på /notifications
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { API_ROUTES } from "@shared/constants/routes";
 import { NotificationDTO } from "@shared/types/NotificationEventDTO";

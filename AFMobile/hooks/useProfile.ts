@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { API_BASE_URL } from "@/constants/routes";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { useAuth } from "@/context/AuthContext";
 import { Profile } from "@shared/types/profile";
 

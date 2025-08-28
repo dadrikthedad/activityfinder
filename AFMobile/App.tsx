@@ -101,7 +101,16 @@ function AppContent() {
 }
 
 function AuthenticatedApp() {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isLoading } = useAuth();
+ 
+  // Show loading screen while initializing auth
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
  
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: 'white' }}>

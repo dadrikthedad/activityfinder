@@ -1,5 +1,5 @@
 // AFMobile/services/profileService.ts
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import type { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 

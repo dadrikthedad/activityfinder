@@ -1,5 +1,5 @@
 // Denne brukes til å hente 15 notifications som vises da i navbaren
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { API_ROUTES } from "@shared/constants/routes";
 import { NotificationDTO } from "@shared/types/NotificationEventDTO";

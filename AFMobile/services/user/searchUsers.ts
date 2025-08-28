@@ -1,5 +1,5 @@
 // Her henter vi alle brukerens fullenavn fra backend slik at vi kan søke etter brukere i navbaren. Henter api fra UserController.cs
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 

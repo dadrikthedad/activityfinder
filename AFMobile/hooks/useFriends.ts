@@ -1,6 +1,6 @@
 // Her henter vi alle vennene våre som skal brukes i friends/page.tsx
 import { useEffect, useState, useCallback } from "react";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { FriendDTO } from "@shared/types/FriendDTO";
 import { API_ROUTES } from "@shared/constants/routes";
 import { API_BASE_URL } from "@/constants/routes";

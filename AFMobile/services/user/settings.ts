@@ -1,7 +1,7 @@
 // Her henter vi de forskjellige endepunktene relatert til UserSettings
 import { UserSettingsDTO } from "@shared/types/UserSettingsDTO";
 import { API_ROUTES } from "@shared/constants/routes";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 
 

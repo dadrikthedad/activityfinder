@@ -1,5 +1,5 @@
 // services/friendService.ts
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { FriendInvitationDTO, PaginatedFriendInvResponse  } from "@shared/types/FriendInvitationDTO";
 import { API_BASE_URL } from "@/constants/routes";
 import { API_ROUTES } from "@shared/constants/routes";

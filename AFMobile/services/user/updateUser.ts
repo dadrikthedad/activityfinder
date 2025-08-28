@@ -1,5 +1,5 @@
 // API-kall til backend for hver enkelt patch til de forskjellige feltene i User.cs. Brukes i profilesettings, endrer navn, phone, location, gender fra User.cs, og kontaktEpost og kontaktTelefon fra profile.cs
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 
 // Denne funksjonen tar seg av selve patch-kallet, serialisere body til json, bruker fetchWithAuth og logger eventuelle feil. Slipper å gjenbruke koden flere ganger.

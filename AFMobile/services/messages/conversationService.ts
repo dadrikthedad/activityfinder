@@ -1,5 +1,5 @@
 // Samtale API-kall til backend relatert til samtaler. Henter samtaler, henter meldinger til samtaler
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { MessageDTO } from "@shared/types/MessageDTO"; // ← viktig!
 import { PagedConversationsResponseDTO } from "@shared/types/ConversationDTO";

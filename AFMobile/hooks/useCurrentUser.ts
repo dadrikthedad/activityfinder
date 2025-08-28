@@ -3,7 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { useAuth } from "@/context/AuthContext";
 import { User } from "@shared/types/UserDTO";

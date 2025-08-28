@@ -2,7 +2,7 @@ import { API_BASE_URL } from "@/constants/routes";
 import { ReportRequestDTO } from "@shared/types/report/reportDTOs";
 import { PriorityEnum, ReportTypeEnum } from "@shared/types/report/reportEnums";
 import { getCurrentDeviceInfo, getPlatform } from "@/utils/device/UserOnlineFunctions";
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { postRequestPublic } from "../baseService";
 
 // Response for submit report (matches backend response)

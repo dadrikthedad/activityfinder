@@ -8,6 +8,8 @@ import { markOnlineWithDefaults,
 import NetInfo from '@react-native-community/netinfo';
 // 🆕 Import SignalR heartbeat notifications
 import { notifyHeartbeatSuccess, notifyHeartbeatFailure } from '@/utils/signalr/chatHub';
+import { AuthError } from '@shared/types/error/AuthError';
+
 
 interface UseOnlineStatusReturn {
   isOnline: boolean;
@@ -17,6 +19,10 @@ interface UseOnlineStatusReturn {
   markOffline: () => Promise<void>;
   reconnect: () => Promise<void>;
 }
+
+let globalHeartbeatInterval: NodeJS.Timeout | null = null;
+let globalHeartbeatId: string | null = null;
+
 
 export const useOnlineStatus = (): UseOnlineStatusReturn => {
   const [isOnline, setIsOnline] = useState(false);
@@ -31,13 +37,14 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
   const markOnlineRef = useRef<(() => Promise<void>) | null>(null);
 
   const stopHeartbeat = useCallback(() => {
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
-      heartbeatIntervalRef.current = null;
-      console.log('⏹️ Heartbeat stopped');
-    }
-    retryCountRef.current = 0;
-  }, []);
+  if (globalHeartbeatInterval) {
+    clearInterval(globalHeartbeatInterval);
+    globalHeartbeatInterval = null;
+    console.log(`⏹️ Global heartbeat stopped: ${globalHeartbeatId}`);
+    globalHeartbeatId = null;
+  }
+  retryCountRef.current = 0;
+}, []);
 
   // Schedule recovery with exponential backoff
   const scheduleRecovery = useCallback(() => {
@@ -60,20 +67,23 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
   }, [isOnline, isConnecting]);
 
   // 🔧 Enhanced heartbeat with SignalR integration
-  const startHeartbeat = useCallback((intervalMs: number = 30000) => { // 🔧 Changed to 30s to match your existing heartbeat
-    if (heartbeatIntervalRef.current) {
-      clearInterval(heartbeatIntervalRef.current);
+  const startHeartbeat = useCallback((intervalMs: number = 30000) => {
+    // Stop eksisterende global heartbeat først
+    if (globalHeartbeatInterval) {
+      clearInterval(globalHeartbeatInterval);
+      console.log(`🛑 Stopping previous heartbeat: ${globalHeartbeatId}`);
     }
     
-    heartbeatIntervalRef.current = setInterval(async () => {
+    const heartbeatId = Math.random().toString(36).substring(2, 8);
+    globalHeartbeatId = heartbeatId;
+    
+    globalHeartbeatInterval = setInterval(async () => {
+      console.log(`💓 Global heartbeat (ID: ${heartbeatId})`);
+      
       try {
         const success = await sendHeartbeatSafe();
-        
         if (success) {
-          // 🆕 Notify SignalR that heartbeat succeeded
           notifyHeartbeatSuccess();
-          
-          // Reset retry count on successful heartbeat
           retryCountRef.current = 0;
           if (connectionError) {
             setConnectionError(null);
@@ -83,20 +93,15 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
         }
       } catch (error) {
         console.warn("⚠️ Heartbeat failed:", error);
-        
-        // 🆕 Notify SignalR that heartbeat failed
         notifyHeartbeatFailure(error);
-        
         retryCountRef.current++;
         
-        // After 3 failed heartbeats, mark as offline but schedule recovery
         if (retryCountRef.current >= 3) {
-          console.error("❌ Multiple heartbeat failures - marking offline but will auto-recover");
+          console.error("❌ Multiple heartbeat failures - marking offline");
           setIsOnline(false);
           setConnectionError("Connection lost");
           stopHeartbeat();
           
-          // Schedule auto-recovery if we should be online
           if (shouldBeOnlineRef.current) {
             scheduleRecovery();
           }
@@ -104,8 +109,8 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       }
     }, intervalMs);
     
-    console.log(`✅ Heartbeat started (${intervalMs}ms interval)`);
-  }, [connectionError, scheduleRecovery, stopHeartbeat]);
+    console.log(`✅ Global heartbeat started (${intervalMs}ms) - ID: ${heartbeatId}`);
+  }, [connectionError, scheduleRecovery]);
 
   // Enhanced markOnline
   const markOnline = useCallback(async () => {
@@ -141,12 +146,24 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
     } catch (error) {
       console.error("❌ Failed to mark user online:", error);
       
+      // 🆕 Type-safe error handling
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // 🆕 Stop auto-recovery på auth-feil
+      if (error instanceof AuthError || errorMessage.includes('Session expired')) {
+        console.log("🔐 Authentication failed - stopping auto-recovery");
+        shouldBeOnlineRef.current = false;
+        setConnectionError("Please log in again");
+        // Her kan du trigge redirect til login
+        return;
+      }
+    
       // 🆕 Notify SignalR about the connection failure
       notifyHeartbeatFailure(error);
-      
-      setConnectionError(error instanceof Error ? error.message : "Failed to connect");
+    
+      setConnectionError(errorMessage);
       setIsOnline(false);
-      
+    
       // Schedule recovery since we should be online
       if (shouldBeOnlineRef.current) {
         scheduleRecovery();
@@ -233,11 +250,20 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
   }, [isOnline, isConnecting, markOffline, markOnline]);
 
   // Network status changes with auto-recovery
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
+  // I useOnlineStatus, legg til debouncing for network events
+const networkEventTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+useEffect(() => {
+  const unsubscribe = NetInfo.addEventListener(state => {
+    // Debounce network events - vent 1 sekund før handling
+    if (networkEventTimeoutRef.current) {
+      clearTimeout(networkEventTimeoutRef.current);
+    }
+    
+    networkEventTimeoutRef.current = setTimeout(() => {
       if (state.isConnected && state.isInternetReachable) {
-        console.log("🌐 Network back online");
-        // Auto-recovery: Try to come back online when network returns
+        console.log("🌐 Network back online (debounced)");
+        
         if (shouldBeOnlineRef.current && !isOnline && !isConnecting) {
           console.log("🌐 Network restored and should be online - attempting recovery");
           markOnline();
@@ -247,16 +273,18 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
         setIsOnline(false);
         stopHeartbeat();
         setConnectionError("Network offline");
-        
-        // 🆕 Notify SignalR about network issues
         notifyHeartbeatFailure(new Error('Network offline'));
-        
-        // Note: shouldBeOnlineRef stays true - we'll recover when network returns
       }
-    });
+    }, 1000); // 1 sekund debounce
+  });
 
-    return unsubscribe;
-  }, [isOnline, isConnecting, markOnline, stopHeartbeat]);
+  return () => {
+    unsubscribe();
+    if (networkEventTimeoutRef.current) {
+      clearTimeout(networkEventTimeoutRef.current);
+    }
+  };
+}, [isOnline, isConnecting, markOnline, stopHeartbeat]);
 
   // Cleanup on unmount
   useEffect(() => {

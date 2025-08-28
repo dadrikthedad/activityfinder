@@ -1,4 +1,4 @@
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { SendGroupRequestsDTO, SendGroupRequestsResponseDTO } from "@shared/types/SendGroupRequestsDTO";
 

@@ -1,6 +1,6 @@
 // AFMobile/services/friendInvitationService.ts
 // Her skal vi håndtere om vi godkjenner eller avslår venneforespørsel, ikke ferdig enda
-import { fetchWithAuth } from "@/utils/api/fetchWithAuth.native";
+import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { API_ROUTES, APP_ROUTES } from "@shared/constants/routes";
 

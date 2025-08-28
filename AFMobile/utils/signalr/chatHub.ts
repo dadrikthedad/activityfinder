@@ -6,6 +6,7 @@ import { AppState } from 'react-native';
 import { API_BASE_URL } from "@/constants/routes";
 import { API_ROUTES } from "@shared/constants/routes";
 import { generateDeviceId, getPlatform, getCapabilities } from "../device/UserOnlineFunctions";
+import authServiceNative from '@/services/user/authServiceNative';
 
 let chatConnection: signalR.HubConnection | null = null;
 let networkUnsubscribe: (() => void) | null = null;
@@ -319,12 +320,31 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
     chatConnection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
         accessTokenFactory: async () => {
-          const token = await AsyncStorage.getItem("token");
-          return token ?? "";
-        },
-        transport: signalR.HttpTransportType.WebSockets,
-        timeout: CONNECTION_TIMEOUT,
-      })
+        try {
+          // Force refresh check since SignalR connections can be long-lived
+          const isExpiringSoon = await authServiceNative.isTokenExpiringSoon(); // Du må lage denne metoden
+          
+          if (isExpiringSoon) {
+            console.log('🔄 SignalR - Token expiring soon, refreshing...');
+            await authServiceNative.refreshAccessToken(); // Force refresh
+          }
+          
+          const token = await authServiceNative.getAccessToken();
+          console.log('🔍 SignalR token status:', {
+            hasToken: !!token,
+            tokenPreview: token?.substring(0, 30) + '...'
+          });
+          
+          if (!token) {
+            throw new Error('No token available');
+          }
+          
+          return token;
+        } catch (error) {
+          console.error('🔴 SignalR accessTokenFactory failed:', error);
+          throw error;
+        }
+      }})
       .configureLogging(signalR.LogLevel.Warning)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: retryContext => {
