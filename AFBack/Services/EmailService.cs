@@ -186,7 +186,7 @@ public class EmailService
                     
                     <!-- Header -->
                     <div style='background-color:#1C6B1C; padding:30px; text-align:center; border-top-left-radius:10px; border-top-right-radius:10px;'>
-                        <img src='{logoUrl}' alt='Koptr Logo' style='width:150px; margin-bottom:10px;'>
+                        <img src='{logoUrl}' alt='Koptr Logo' style='width:300px; margin-bottom:10px;'>
                     </div>
 
                     <!-- Body -->

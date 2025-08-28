@@ -4,6 +4,7 @@ using System.Text.Json;
 using AFBack.Constants;
 using AFBack.DTOs.Auth;
 using AFBack.Extensions;
+using AFBack.Utils;
 using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
@@ -346,52 +347,56 @@ public class UserController : BaseController
 
         string normalizedEmail = userLoginDto.Email.Trim().ToLowerInvariant();
 
-        var token = await _authService.LoginAsync(normalizedEmail, userLoginDto.Password);
+        // ENDRING: LoginAsync returnerer nå LoginResponseDTO, ikke string
+        var loginResponse = await _authService.LoginAsync(normalizedEmail, userLoginDto.Password);
 
-        if (token == null)
+        if (loginResponse == null)
         {
+            // FØRST: Sjekk om det er uverifisert epost
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+
+            if (existingUser != null && !existingUser.EmailConfirmed)
+            {
+                await this.ReportSuspiciousActivityAsync(
+                    _ipBanService, 
+                    SuspiciousActivityTypes.UNVERIFIED_LOGIN_ATTEMPT, 
+                    $"Login attempt with unverified email: {normalizedEmail}",
+                    _logger);
+        
+                return Unauthorized(new { 
+                    message = "Please verify your email address before logging in.",
+                    emailVerificationRequired = true,
+                    email = normalizedEmail
+                });
+            }
+
+            // DERETTER: Håndter vanlig feil login
             _logger.LogWarning("Failed login attempt for email: {Email}", userLoginDto.Email);
-            
-            // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION (erstatter ~7 linjer) ***
+
             await this.ReportSuspiciousActivityAsync(
                 _ipBanService, 
                 SuspiciousActivityTypes.FAILED_LOGIN, 
                 $"Failed login attempt for email: {normalizedEmail}",
                 _logger);
-            
+
             return Unauthorized(new { message = "Invalid email or password." });
         }
 
-        // *** HÅNDTER UVERIFISERT EPOST ***
-        if (token == "EMAIL_NOT_VERIFIED")
-        {
-            // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
-            await this.ReportSuspiciousActivityAsync(
-                _ipBanService, 
-                SuspiciousActivityTypes.UNVERIFIED_LOGIN_ATTEMPT, 
-                $"Login attempt with unverified email: {normalizedEmail}",
-                _logger);
-            
-            return Unauthorized(new { 
-                message = "Please verify your email address before logging in. Check your inbox for the verification link.",
-                emailVerificationRequired = true,
-                email = normalizedEmail
-            });
-        }
-
+        // Oppdater brukerinfo - gjenbruk user fra AuthService eller hent en gang
         try
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             if (user != null)
             {
-                user.LastLoginIp = ipCheckResult.ClientIp; // Bruk IP fra extension result
+                user.LastLoginIp = ipCheckResult.ClientIp;
                 user.LastLoginCity = userLoginDto.City;
                 user.LastLoginRegion = userLoginDto.Region;
                 user.LastLoginCountry = userLoginDto.Country;
                 user.LastSeen = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
             }
-
-            await _context.SaveChangesAsync();
         
             _logger.LogInformation("Successful login for user: {Email}", userLoginDto.Email);
         }
@@ -400,10 +405,46 @@ public class UserController : BaseController
             _logger.LogWarning("Could not save login location for {Email}: {Error}", userLoginDto.Email, e.Message);
         }
 
-        return Ok(new { 
-            token,
-            message = "Login successful"
-        });
+        return Ok(loginResponse);
+    }
+    
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDTO request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            return Ok(new { message = "Logged out successfully" }); // Soft fail
+
+        var success = await _authService.LogoutAsync(request.RefreshToken);
+    
+        if (success)
+        {
+            _logger.LogInformation("User logged out successfully");
+        }
+        else
+        {
+            _logger.LogWarning("Logout attempt with invalid token");
+        }
+
+        // Alltid returner success for å ikke avsløre token-status
+        return Ok(new { message = "Logged out successfully" });
+    }
+    
+    [HttpPost("refresh")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDTO request)
+    {
+        if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            return BadRequest(new { message = "Refresh token is required" });
+
+        var result = await _authService.RefreshTokenAsync(request.RefreshToken);
+
+        if (result == null)
+        {
+            _logger.LogWarning("Invalid refresh token attempt from IP: {IP}", 
+                IpUtils.GetClientIp(HttpContext));
+            return Unauthorized(new { message = "Invalid or expired refresh token" });
+        }
+
+        return Ok(result);
     }
     
     

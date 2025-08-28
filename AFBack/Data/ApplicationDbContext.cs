@@ -13,6 +13,7 @@ public class ApplicationDbContext : DbContext
     // Her definerer vi tabellene i databasen. Users er brukere.
     public DbSet<User> Users { get; set; } // Bruker
     public DbSet<VerificationInfo> VerificationInfos { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<Profile> Profiles { get; set; } // profilen til bruker
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
     public DbSet<Friends> Friends { get; set; } // Venner til bruker
