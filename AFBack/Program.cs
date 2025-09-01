@@ -40,28 +40,13 @@ var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIO
 // Et serilog objekt som logger og skriver til konsollen og en fil på PCen. Kan logges til JSON og diverse, berdre ytelse osv.
 builder.Host.UseSerilog((context, services, configuration) =>
 {
-    var logConfig = configuration
-        .ReadFrom.Configuration(context.Configuration)
-        .WriteTo.Console(); // ✅ Viktig for Azure App Service logs
-
-    // Kun logg til fil i development
-    if (context.HostingEnvironment.IsDevelopment())
-    {
-        logConfig.WriteTo.File("logs/myapp.log", rollingInterval: RollingInterval.Day);
-    }
-
-    // Azure Application Insights (anbefalt for produksjon)
+    configuration.ReadFrom.Configuration(context.Configuration);
+    
+    // Kun legg til Application Insights hvis tilgjengelig
     if (!string.IsNullOrEmpty(appInsightsConnectionString))
     {
-        logConfig.WriteTo.ApplicationInsights(appInsightsConnectionString, TelemetryConverter.Traces);
+        configuration.WriteTo.ApplicationInsights(appInsightsConnectionString, TelemetryConverter.Traces);
     }
-
-    logConfig.WriteTo.Logger(lc => lc
-            .Filter.ByIncludingOnly(logEvent =>
-                logEvent.Properties.ContainsKey("SourceContext") &&
-                logEvent.Properties["SourceContext"].ToString().Contains("UserHub"))
-            .WriteTo.Console() // Endre fra File til Console for Azure
-    );
 });
 
 // Fjerner Microsoft standard logging.
@@ -439,9 +424,6 @@ app.UseAuthentication();
 app.UseHttpsRedirection();
 // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
 app.UseAuthorization();
-// Aktivirer rate-limiteren vi har spesifisert litt over oss.
-app.UseMiddleware<RequestDeduplicationMiddleware>(); 
-app.UseMiddleware<RateLimitIpBanMiddleware>();
 app.UseForwardedHeaders();
 app.UseRateLimiter();
 app.UseMiddleware<RateLimitIpBanMiddleware>(); // Legg til etter UseRateLimiter()
