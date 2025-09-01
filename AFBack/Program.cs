@@ -19,7 +19,9 @@ using AFBack.Configuration;
 using AFBack.Extensions;
 using AFBack.Filters;
 using AFBack.Hubs;
+using AFBack.Interface;
 using AFBack.Middleware;
+using AFBack.Services.Maintenance.Tasks;
 using AFBack.Services.User;
 using AFBack.Utils;
 using Azure.Storage.Blobs;
@@ -237,7 +239,6 @@ builder.Services.AddScoped<GroupNotificationService>();
 builder.Services.AddScoped<BootstrapService>();
 builder.Services.AddScoped<FriendService>();
 builder.Services.AddScoped<UserOnlineService>();
-builder.Services.AddHostedService<MaintenanceCleanupService>();
 builder.Services.AddScoped<SyncService>();
 builder.Services.AddScoped<NotificationSyncService>();
 builder.Services.AddScoped<SupportService>();
@@ -247,8 +248,14 @@ builder.Services.AddEmailRateLimit();
 builder.Services.Configure<IpBanOptions>(
     builder.Configuration.GetSection("IpBan"));
 builder.Services.AddSingleton<IpBanService>();
-builder.Services.AddHostedService<IpBanCleanupService>();
 builder.Services.AddHttpClient<GeolocationService>();
+
+// Cleanup
+builder.Services.AddScoped<ICleanupTask, OnlineStatusCleanupTask>();
+builder.Services.AddScoped<ICleanupTask, SyncEventsCleanupTask>();
+builder.Services.AddScoped<ICleanupTask, IpBanCleanupTask>();
+builder.Services.AddScoped<ICleanupTask, RefreshTokenCleanupTask>();
+builder.Services.AddHostedService<MaintenanceCleanupService>();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
