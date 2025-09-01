@@ -440,6 +440,7 @@ app.UseHttpsRedirection();
 // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
 app.UseAuthorization();
 // Aktivirer rate-limiteren vi har spesifisert litt over oss.
+app.UseMiddleware<RequestDeduplicationMiddleware>(); 
 app.UseMiddleware<RateLimitIpBanMiddleware>();
 app.UseForwardedHeaders();
 app.UseRateLimiter();
