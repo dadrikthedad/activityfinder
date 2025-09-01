@@ -6,9 +6,10 @@ import { useAuth } from "../context/AuthContext";
 
 // Importer typen direkte fra updateUser-filen
 import type { UpdateFieldArgs } from "@/services/user/updateUser";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useUpdateUserField() {
-  const { token } = useAuth(); // Sjekker om vi er har riktig token
+ // Sjekker om vi er har riktig token
   const [isSubmitting, setSubmitting] = useState(false); // Sjekker om vi submitter
   const [error, setError] = useState(""); // Error ved feil
   const [success, setSuccess] = useState(false);
@@ -19,6 +20,7 @@ export function useUpdateUserField() {
     field: K,
     value: UpdateFieldArgs[K]
   ): Promise<boolean> => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) {
       setError("You are not authenticated.");
       return false;

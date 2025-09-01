@@ -8,8 +8,9 @@ import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import ButtonNative from "../common/buttons/ButtonNative";
 import { validateSingleField } from "@shared/utils/validators";
 import { updatePassword } from "@/services/user/security";
-import { useAuth } from "@/context/AuthContext";
 import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
+import authServiceNative from "@/services/user/authServiceNative";
+
 
 export default function EditablePasswordFieldsNative() {
   const [editing, setEditing] = useState(false);
@@ -20,9 +21,9 @@ export default function EditablePasswordFieldsNative() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { token } = useAuth();
 
   const handleSave = async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) {
       setError("Not authenticated");
       showNotificationToastNative({

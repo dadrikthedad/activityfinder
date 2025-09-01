@@ -13,9 +13,10 @@ import { useUserCacheStore, useFriends, useBlockedUsers } from '@/store/useUserC
 import { useBootstrapDistributor } from "@/hooks/bootstrap/useBootstrapDistributor";
 import { useSyncNative } from "@/hooks/sync/useSyncNative";
 import { handleUserSwitch } from '@/utils/signalr/chatHub';
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function AppInitializer() {
-  const { userId, token } = useAuth();
+  const { userId } = useAuth(); // Fjernet token
   const prevUserIdRef = useRef<number | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -54,54 +55,60 @@ export function AppInitializer() {
 
   // Reset stores ved brukerbytte
   useEffect(() => { 
-    if (!token || !userId) {
-      console.log("⏸️ BOOT: No token or userId, skipping initialization");
-      hasInitializedOnlineRef.current = false;
-      initializationStrategyRef.current = 'none';
-
-      if (isOnline) {
-        console.log("📡 BOOT: Not authenticated - marking offline");
-        markOffline();
-      }
-      return;
-    }
-    
-    // Ny bruker i samme sesjon? Reset alle stores
-    if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
-      // console.log("🔄 BOOT: User switch detected, resetting all stores...");
+    const checkAuth = async () => {
+      const isAuthenticated = await authServiceNative.isAuthenticated();
       
-      handleUserSwitch().catch(err => 
-        console.error('Failed to handle SignalR user switch:', err)
-      );
+      if (!isAuthenticated || !userId) {
+        console.log("⏸️ BOOT: Not authenticated, skipping initialization");
+        hasInitializedOnlineRef.current = false;
+        initializationStrategyRef.current = 'none';
 
-      useBootstrapStore.getState().reset();
-      useChatStore.getState().reset();
-      useMessageNotificationStore.getState().reset();
-      useNotificationStore.getState().reset();
-      useUserCacheStore.getState().reset();
-
-      // Reset states
-      retryCountRef.current = 0;
-      hasInitializedOnlineRef.current = false;
-      initializationStrategyRef.current = 'none';
-
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = undefined;
+        if (isOnline) {
+          console.log("📡 BOOT: Not authenticated - marking offline");
+          markOffline();
+        }
+        return;
       }
+      
+      // Ny bruker i samme sesjon? Reset alle stores
+      if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
+        console.log("🔄 BOOT: User switch detected, resetting all stores...");
+        
+        handleUserSwitch().catch(err => 
+          console.error('Failed to handle SignalR user switch:', err)
+        );
 
-      if (isOnline) {
-        console.log("📡 BOOT: User switch - marking offline");
-        markOffline();
+        useBootstrapStore.getState().reset();
+        useChatStore.getState().reset();
+        useMessageNotificationStore.getState().reset();
+        useNotificationStore.getState().reset();
+        useUserCacheStore.getState().reset();
+
+        // Reset states
+        retryCountRef.current = 0;
+        hasInitializedOnlineRef.current = false;
+        initializationStrategyRef.current = 'none';
+
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = undefined;
+        }
+
+        if (isOnline) {
+          console.log("📡 BOOT: User switch - marking offline");
+          markOffline();
+        }
       }
-    }
-    prevUserIdRef.current = userId;
-  }, [token, userId, isOnline, markOffline]);
+      prevUserIdRef.current = userId;
+    };
+    
+    checkAuth();
+  }, [userId, isOnline, markOffline]);
 
   // 🔑 SMART INITIALIZATION LOGIC
   useEffect(() => {
     const initializeApp = async () => {
-      if (!token || !userId || criticalLoading) {
+      if (!userId || criticalLoading) { // Fjernet !token
         return;
       }
 
@@ -150,7 +157,7 @@ export function AppInitializer() {
 
         if (criticalSuccess) {
           // console.log("🚀 BOOT: Triggering secondary bootstrap...");
-          loadSecondaryData(); // <-- KALL DEN HER
+          loadSecondaryData();
         }
         return;
       }
@@ -161,8 +168,7 @@ export function AppInitializer() {
 
     initializeApp();
   }, [
-    token, 
-    userId, 
+    userId,  // Fjernet token
     criticalLoading, 
     isCriticalCacheValid, 
     isSecondaryCacheValid, 
@@ -176,9 +182,8 @@ export function AppInitializer() {
   // Online status orchestration
   useEffect(() => {
     const shouldGoOnline = (
-      token &&                
-      userId &&               
-      (isBootstrapped || initializationStrategyRef.current === 'sync') && // 🔧 Tillat online med sync strategy
+      userId &&               // Fjernet token &&
+      (isBootstrapped || initializationStrategyRef.current === 'sync') &&
       user &&                 
       !criticalError &&       
       !isConnecting          
@@ -194,8 +199,7 @@ export function AppInitializer() {
       // console.log("🎯 BOOT: Initial online setup complete");
     }
   }, [
-    token,
-    userId,
+    userId,    // Fjernet token
     isBootstrapped, 
     user, 
     criticalError,
@@ -207,7 +211,7 @@ export function AppInitializer() {
   // React Native: AppState handler (erstatter document.visibilitychange)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
-      if (!token || !userId || (!isBootstrapped && initializationStrategyRef.current !== 'sync') || !user) {
+      if (!userId || (!isBootstrapped && initializationStrategyRef.current !== 'sync') || !user) { // Fjernet !token
         return;
       }
 
@@ -220,7 +224,7 @@ export function AppInitializer() {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     
     return () => subscription?.remove();
-  }, [token, userId, isBootstrapped, user, isOnline, isConnecting, markOnline]);
+  }, [userId, isBootstrapped, user, isOnline, isConnecting, markOnline]); // Fjernet token
 
   // 🆕 SYNC EVENT LISTENERS - tilpasset for React Native
   useEffect(() => {
@@ -242,7 +246,6 @@ export function AppInitializer() {
         bootstrap();
       }
     };
-
 
     return () => {
     };

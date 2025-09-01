@@ -12,7 +12,7 @@ import { GroupNotificationUpdateDTO } from "@shared/types/GroupNotificationUpdat
 import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
 import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,
@@ -175,7 +175,7 @@ export function useChatHub(
   const startConnection = async () => {
     try {
       // Sjekk token fra AsyncStorage
-      const token = await AsyncStorage.getItem("token");
+       const token = await authServiceNative.getAccessToken();
       if (!token) {
         console.warn("⏳ Token not available yet, retrying in 1s...");
         setTimeout(startConnection, 1000);

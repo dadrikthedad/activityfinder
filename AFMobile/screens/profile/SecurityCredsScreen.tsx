@@ -11,11 +11,11 @@ import { ArrowLeft } from "lucide-react-native";
 import EditableEmailFieldNative from "@/components/settings/EditableEmailFieldNative";
 import EditablePasswordFieldsNative from "@/components/settings/EditablePasswordFieldsNative";
 import AppHeader from "@/components/common/AppHeader";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useFullCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavigation } from "@react-navigation/native";
 
 export default function SecurityCredsScreen() {
-  const { user, loading, error } = useCurrentUser();
+  const { user, loading, error } = useFullCurrentUser();
   const [email, setEmail] = useState<string | null>(null);
   const navigation = useNavigation();
 

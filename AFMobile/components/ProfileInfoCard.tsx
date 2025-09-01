@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
-import { useAuth } from "@/context/AuthContext";
+import authServiceNative from "@/services/user/authServiceNative";
 import { updateBio, updateWebsites } from "@/services/profile/profile";
 import { PlusCircle, Trash2 } from "lucide-react-native";
 
@@ -43,7 +43,6 @@ export default function ProfileInfoCardNative({
   const [websiteList, setWebsiteList] = useState<string[]>(profile?.websites || []);
   const [websitesSaved, setWebsitesSaved] = useState(false);
   
-  const { token } = useAuth();
   const lastInputRef = useRef<TextInput | null>(null);
 
   // Utility functions
@@ -65,6 +64,7 @@ export default function ProfileInfoCardNative({
 
   // Bio functions
   const saveBio = async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
     try {
       await updateBio(bioText, token);
@@ -88,6 +88,7 @@ export default function ProfileInfoCardNative({
 
   // Website functions
   const saveWebsites = async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
     const cleanedWebsites = websiteList.filter((url) => url.trim() !== "");
     try {

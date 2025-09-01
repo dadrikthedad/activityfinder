@@ -2,17 +2,17 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import authServiceNative from "@/services/user/authServiceNative";
 import { updateUserSettings } from "@/services/user/settings";
 import { UserSettingsDTO } from "@shared/types/UserSettingsDTO";
 
 export function useUpdateUserSettings() { 
-  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const updateSettings = async (values: Partial<UserSettingsDTO>) => { // Funksjon for å oppdatere usersettings til backend
+    const token = await authServiceNative.getAccessToken();
     if (!token) {
       setError("Not authenticated");
       return;

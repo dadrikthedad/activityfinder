@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
+import authServiceNative from "@/services/user/authServiceNative";
 import { deleteAllNotifications } from "@/services/notifications/deleteAllNotifications";
 import { useNotificationStore } from "@/store/useNotificationStore";
 
@@ -10,7 +10,6 @@ import { useNotificationStore } from "@/store/useNotificationStore";
  * Sletter ALLE notifikasjoner hos backend *og* nullstiller lista i zustand-storen.
  */
 export function useDeleteAllNotifications() {
-  const { token } = useAuth();
 
   const clearNotifications = useNotificationStore(
     (s) => s.clearNotifications,   // action du la til i store
@@ -21,6 +20,7 @@ export function useDeleteAllNotifications() {
   const [error, setError] = useState<Error | null>(null);
 
   const deleteAll = useCallback(async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
 
     setLoading(true);
@@ -36,7 +36,7 @@ export function useDeleteAllNotifications() {
     } finally {
       setLoading(false);
     }
-  }, [token, clearNotifications]);
+  }, [clearNotifications]);
 
   return { deleteAll, loading, deletedCount, error };
 }

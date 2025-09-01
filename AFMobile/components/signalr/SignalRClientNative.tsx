@@ -29,7 +29,7 @@ import { useConversationUpdate } from "@/hooks/common/useConversationUpdate";
 import { useSimpleBootstrapCheck } from "./useSimpleBootstrapCheck";
 
 export default function SignalRClientNative(): null {
-  const { token, userId } = useAuth();
+  const { userId } = useAuth();
   const currentConversationId = useStore(useChatStore, (state) => state.currentConversationId);
   const showMessages = useChatStore.getState().showMessages;
   
@@ -88,7 +88,7 @@ export default function SignalRClientNative(): null {
     
     // onNotification
     async (evt) => {
-      await handleNotification(evt, token);
+      await handleNotification(evt);
     },
     
     // onUserProfileUpdated

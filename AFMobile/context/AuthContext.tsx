@@ -50,8 +50,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (isAuthenticated && currentAccessToken) {
           const id = getUserIdFromToken(currentAccessToken);
           console.log("✅ User authenticated, ID:", id);
+
+           if (id) {
+              await AsyncStorage.setItem("userId", id.toString());
+           }
           
-          setToken(currentAccessToken); // Legacy support
           setUserId(id);
           setIsLoggedIn(true);
         } else {
@@ -75,31 +78,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Login: lagrer tokens via AuthService og redirecter
   const login = async (accessToken: string, refreshToken: string) => {
-    
     try {
-      // AuthService har allerede lagret tokens, vi trenger bare å oppdatere state
       const newUserId = getUserIdFromToken(accessToken);
       
-      // Sjekk om bruker har endret seg
-      const previousToken = await AsyncStorage.getItem("token"); // Legacy token
-      const previousUserId = getUserIdFromToken(previousToken);
-
-      // Fjern gammel samtale-ID hvis bruker har endret seg
+      // Håndter null userId
+      if (!newUserId) {
+        console.error("❌ Could not extract user ID from access token");
+        throw new Error("Invalid access token - no user ID found");
+      }
+      
+      // Sjekk brukerbytte (bruk current state)
+      const previousUserId = userId;
+      
       if (newUserId !== previousUserId) {
         await AsyncStorage.removeItem("dropdown_convo");
       }
-
-      // Oppdater legacy token storage for bakoverkompatibilitet
-      await AsyncStorage.setItem("token", accessToken);
+      
+      // Lagre userId for SignalR - nå trygt å kalle toString()
+      await AsyncStorage.setItem("userId", newUserId.toString());
       
       // Oppdater state
-      setToken(accessToken);
-      setIsLoggedIn(true);
       setUserId(newUserId);
+      setIsLoggedIn(true);
       
       console.log("💾 Auth state updated");
     } catch (error) {
       console.error("❌ Error during login:", error);
+      // Her kan du også vise en toast eller navigere tilbake til login
     }
   };
  
@@ -119,7 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Fjern legacy token og andre sesjonsdata
       await AsyncStorage.multiRemove([
-        "token", // Legacy token
+        "userId",
         "messageDropdownSize", 
         "messageDropdownPosition",
         "dropdown_convo"

@@ -4,10 +4,10 @@ import { useState } from "react";
 import { sendFriendInvitation } from "@/services/friendInvitations/sendFriendInvitation";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
 import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative"; // 🆕 Import toast
+import authServiceNative from "@/services/user/authServiceNative";
 
 
 export function useSendFriendInvitation() {
-  const { token } = useAuth();
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -17,6 +17,7 @@ export function useSendFriendInvitation() {
   const setUserFriendStatus = useUserCacheStore(state => state.setUserFriendStatus);
 
   const sendInvitation = async (receiverId: number) => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) {
       setError("Missing authentication token.");
       return null;

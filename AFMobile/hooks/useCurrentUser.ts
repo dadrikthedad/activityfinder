@@ -1,43 +1,41 @@
-// Henter brukerinfo fra backend med /api/user/me fra UserController.cs. Den bruker UserDTO.cs og types/UserDTO.ts. Brukes kun i securitycred for å endre passord og epost
-
-"use client";
-
 import { useEffect, useState } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
-import { useAuth } from "@/context/AuthContext";
 import { User } from "@shared/types/UserDTO";
+import authServiceNative from "@/services/user/authServiceNative";
 
-export function useCurrentUser() {
-  const [user, setUser] = useState<User | null>(null); // Her lagres brukerdata fra backend
-  const [loading, setLoading] = useState(true); // Setter loading mens vi henter data
+export function useFullCurrentUser() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { token } = useAuth();
 
   useEffect(() => {
-    if (!token) return;
-
-    const fetchUser = async () => { // Her er API-kallet til backend for å hente innlogget profil
+    const fetchUser = async () => {
       try {
-        const data = await fetchWithAuth<User>(`${API_BASE_URL}/api/user/me`, {}, token);
+        const token = await authServiceNative.getAccessToken();
+        if (!token) {
+          setError("No authentication token available");
+          return;
+        }
 
-        console.log("✅ Current user fetched:", data);
+        const data = await fetchWithAuth<User>(`${API_BASE_URL}/api/user/me`, {}, token);
+        console.log("✅ Full current user fetched:", data);
         setUser(data);
+        setError(null);
       } catch (err) {
         if (err instanceof Error) {
-          console.error("❌ Error fetching current user:", err.message);
-          setError(err.message)
+          console.error("❌ Error fetching full current user:", err.message);
+          setError(err.message);
         } else {
           setError("Unknown error occurred.");
         }
-        
       } finally {
         setLoading(false);
       }
     };
 
     fetchUser();
-  }, [token]);
+  }, []); // Tom dependency array siden vi ikke er avhengige av props
 
   return { user, loading, error };
 }

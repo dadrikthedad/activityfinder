@@ -1,22 +1,19 @@
 // Her henter vi og håndterer profilinformasjon om den innloggede brukeren. Brukes i profilsidene, samt ProfileAvatar etc.
-"use client";
-
 import { useEffect, useState, useCallback } from "react";
 import { API_BASE_URL } from "@/constants/routes";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
-import { useAuth } from "@/context/AuthContext";
 import { Profile } from "@shared/types/profile";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null); // Lagerer profilen
   const [loading, setLoading] = useState(true); // Viser om profilen lastst inn
   const [error, setError] = useState<string | null>(null); 
-  const { token } = useAuth();
 
   console.log("API_BASE_URL →", API_BASE_URL); // Debug-logs
-  console.log("Token i useProfile:", token);
 
   const fetchProfile = useCallback(async () => { // Her henter vi profile fra API. Callback for å forsikre oss om at den ikke kjører flere ganger uten bekreftelse
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
 
     setLoading(true);
@@ -34,7 +31,7 @@ export function useProfile() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     fetchProfile();

@@ -1,10 +1,9 @@
-// Her henter vi alle vennene våre som skal brukes i friends/page.tsx
 import { useEffect, useState, useCallback } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { FriendDTO } from "@shared/types/FriendDTO";
 import { API_ROUTES } from "@shared/constants/routes";
 import { API_BASE_URL } from "@/constants/routes";
-import { useAuth } from "@/context/AuthContext";
+import authServiceNative from "@/services/user/authServiceNative";
 
 interface PaginatedFriendsResponse {
   data: FriendDTO[];
@@ -14,7 +13,6 @@ interface PaginatedFriendsResponse {
 }
 
 export function useFriends(pageSize = 30) {
-  const { token } = useAuth();
   const [friends, setFriends] = useState<FriendDTO[]>([]);
   const [pageNumber, setPageNumber] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -23,8 +21,11 @@ export function useFriends(pageSize = 30) {
 
   const fetchFriends = async (page: number): Promise<PaginatedFriendsResponse | null> => {
     try {
+      const token = await authServiceNative.getAccessToken();
+      if (!token) return null;
+
       const url = `${API_BASE_URL}${API_ROUTES.friends}?pageNumber=${page}&pageSize=${pageSize}`;
-      const res = await fetchWithAuth<PaginatedFriendsResponse>(url, {}, token ?? undefined);
+      const res = await fetchWithAuth<PaginatedFriendsResponse>(url, {}, token);
       return res;
     } catch (err) {
       console.error("❌ Failed to load friends:", err);
@@ -33,7 +34,6 @@ export function useFriends(pageSize = 30) {
   };
 
   useEffect(() => {
-    if (!token) return;
     const load = async () => {
       setLoading(true);
       const res = await fetchFriends(1);
@@ -44,11 +44,13 @@ export function useFriends(pageSize = 30) {
       }
       setLoading(false);
     };
+
     load();
-  }, [token]);
+  }, [pageSize]); // Kun pageSize i dependency array
 
   const loadMore = async () => {
-    if (!token || loadingMore) return;
+    if (loadingMore) return;
+    
     const nextPage = pageNumber + 1;
     setLoadingMore(true);
     const res = await fetchFriends(nextPage);
@@ -60,24 +62,19 @@ export function useFriends(pageSize = 30) {
     setLoadingMore(false);
   };
 
-  // NY: Funksjon for å fjerne en venn fra listen
   const removeFriend = useCallback((friendId: number) => {
-    setFriends(prevFriends => 
+    setFriends(prevFriends =>
       prevFriends.filter(friend => friend.friend.id !== friendId)
     );
-    // Oppdater også totalCount
     setTotalCount(prevCount => Math.max(0, prevCount - 1));
   }, []);
 
-  // NY: Funksjon for å legge til en venn (for fremtidig bruk)
   const addFriend = useCallback((newFriend: FriendDTO) => {
     setFriends(prevFriends => [newFriend, ...prevFriends]);
     setTotalCount(prevCount => prevCount + 1);
   }, []);
 
-  // NY: Funksjon for å refresh hele listen
   const refreshFriends = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     const res = await fetchFriends(1);
     if (res) {
@@ -86,15 +83,15 @@ export function useFriends(pageSize = 30) {
       setPageNumber(1);
     }
     setLoading(false);
-  }, [token, pageSize]);
+  }, [pageSize]);
 
   const hasMore = friends.length < totalCount;
 
-  return { 
-    friends, 
-    loading, 
-    loadingMore, 
-    loadMore, 
+  return {
+    friends,
+    loading,
+    loadingMore,
+    loadMore,
     hasMore,
     removeFriend,
     addFriend,

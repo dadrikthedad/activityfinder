@@ -16,7 +16,7 @@ import { useFormHandlers } from '@/hooks/useFormHandlers';
 import { useUpdateUserField } from '@/hooks/useUpdateUserField';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useUpdateUserSettings } from '@/hooks/useUpdateUserSettings';
-import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useFullCurrentUser } from '@/hooks/useCurrentUser';
 
 // Import your React Native components (you'll need to create these)
 import EditableFieldNative from '@/components/settings/EditableFieldNative';
@@ -31,7 +31,7 @@ import { LocalToastType } from '@/components/toast/NotificationToastNative';// A
 
 export default function ProfileSettingsScreen() {
   const navigation = useNavigation<ProfileSettingsScreenNavigationProp>();
-  const currentUser = useCurrentUser(); // Hent current user fra store
+  const currentUser = useFullCurrentUser(); // Hent current user fra store
   const { updateSettings } = useUpdateUserSettings();
   const [refreshIndex, setRefreshIndex] = useState(0);
   

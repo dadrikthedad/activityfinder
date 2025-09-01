@@ -17,16 +17,16 @@ export const useOptimisticFriends = (actualFriends: FriendDTO[]) => {
   // Lyt på endringer i user cache store og auth
   const users = useUserCacheStore(state => state.users);
   const currentUser = useUserCacheStore(state => state.currentUser);
-  const { token } = useAuth(); // NY: Lytt på token endringer
+  const { isLoggedIn  } = useAuth(); // NY: Lytt på token endringer
   
   // NY: Cleanup ved logout (når token blir null)
   useEffect(() => {
-    if (!token) {
+    if (!isLoggedIn ) {
       console.log('👥 Token cleared - resetting optimistic friends');
       setOptimisticFriends([]);
       setPreviousFriendIds(new Set());
     }
-  }, [token]);
+  }, [isLoggedIn ]);
   
   // Hovedlogikk for å oppdage nye venner
   useEffect(() => {

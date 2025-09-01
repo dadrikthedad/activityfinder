@@ -5,6 +5,7 @@ import { useNotificationStore } from "@/store/useNotificationStore";
 import { useAuth } from "@/context/AuthContext";
 import { finalizeConversationApproval } from "../messages/finalizeConversationApproval";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useFriendRequestHandlerNative() {
   const [handlingId, setHandlingId] = useState<number | null>(null);
@@ -12,7 +13,6 @@ export function useFriendRequestHandlerNative() {
   const friendRequests = useNotificationStore((s) => s.friendRequests);
   const setUserFriendStatus = useUserCacheStore((s) => s.setUserFriendStatus);
   const setUser = useUserCacheStore((s) => s.setUser);
-  const { token } = useAuth();
  
   const handleResponse = async (
     id: number,
@@ -27,6 +27,7 @@ export function useFriendRequestHandlerNative() {
       }
     }
   ) => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
     setHandlingId(id);
    

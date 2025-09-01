@@ -23,6 +23,7 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "@/types/navigation";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import authServiceNative from '@/services/user/authServiceNative';
 
 interface PublicProfileViewProps {
   profile: PublicProfileDTO;
@@ -39,7 +40,7 @@ export default function PublicProfileViewNative({
 }: PublicProfileViewProps) {
   const [profile, setProfile] = useState(initialProfile);
   const [reloadCounter] = useState(0);
-  const { token, userId } = useAuth();
+  const { userId } = useAuth();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
   
   // ✅ Use store directly - no API call needed
@@ -78,6 +79,7 @@ export default function PublicProfileViewNative({
   }, [navigation]);
 
   const refetchProfile = useCallback(async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!initialProfile?.userId || !token) return;
     try {
       const updated = await getUserProfile(initialProfile.userId, token);
@@ -86,7 +88,7 @@ export default function PublicProfileViewNative({
       console.error("❌ Failed to refetch profile", error);
       Alert.alert("Error", "Failed to update profile. Please try again.");
     }
-  }, [initialProfile?.userId, token]);
+  }, [initialProfile?.userId]);
 
   const handleRemove = useCallback(async () => {
     await confirmAndRemove(profile.userId, profile.fullName ?? "this user", async () => {

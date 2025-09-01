@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { FriendDTO } from "@shared/types/FriendDTO";
-import { useAuth } from "@/context/AuthContext";
 import { getFriendsOfUser } from "@/services/friends/getFriendsOfUser";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useFriendsOfUser(userId: number) {
-  const { token } = useAuth();
   const [friends, setFriends] = useState<FriendDTO[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token || !userId) return;
+    if (!userId) return;
 
     const load = async () => {
       try {
+        const token = await authServiceNative.getAccessToken();
+        if (!token) return;
+
         const data = await getFriendsOfUser(userId, token);
         console.log("🟢 Friends fetched from backend:", data);
         if (data) setFriends(data);
@@ -24,7 +26,7 @@ export function useFriendsOfUser(userId: number) {
     };
 
     load();
-  }, [userId, token]);
+  }, [userId]); // Fjernet token fra dependency array
 
   return { friends, loading };
 }

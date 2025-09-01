@@ -1,15 +1,15 @@
 // Her markerer vi at alle notificaitons har blitt lest ved å fetche fra backend
-import { useAuth } from "@/context/AuthContext";
 import { markAllNotificationsAsRead } from "@/services/notifications/markAllNotificationsAsRead";
 import { useCallback, useState } from "react";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useMarkAllNotificationsAsRead() {
-  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [updatedCount, setUpdatedCount] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   const markAllAsRead = useCallback(async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
 
     setLoading(true);
@@ -25,7 +25,7 @@ export function useMarkAllNotificationsAsRead() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
   
 
   return { markAllAsRead, loading, updatedCount, error };

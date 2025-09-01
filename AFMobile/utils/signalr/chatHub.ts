@@ -19,6 +19,12 @@ let lastSuccessfulConnection = Date.now();
 let currentUserId: string | null = null;
 let currentDeviceId: string | null = null;
 
+let tokenLoggedOnce = false;
+
+// **NYE VARIABLER FOR Å FORHINDRE RACE CONDITIONS**
+let connectionPromise: Promise<signalR.HubConnection> | null = null;
+let listenersInitialized = false;
+
 // Konfigurasjon
 const HEALTH_CHECK_INTERVAL = 30000; // 30 sekunder
 const MAX_MANUAL_RECONNECT_ATTEMPTS = 10;
@@ -50,7 +56,10 @@ const MAX_HEARTBEAT_FAILURES = 2; // Maks 2 feil før reconnect
 export function notifyHeartbeatSuccess(): void {
   lastHeartbeatSuccess = Date.now();
   heartbeatFailureCount = 0;
-  console.log('💓 SignalR - Heartbeat success registered');
+  // Redusert logging for å unngå spam
+  if (heartbeatFailureCount > 0) {
+    console.log('💓 SignalR - Heartbeat recovered');
+  }
 }
 
 /**
@@ -135,6 +144,85 @@ function stopHealthCheck() {
     clearInterval(healthCheckIntervalId);
     healthCheckIntervalId = null;
   }
+}
+
+/**
+ * Setup global listeners - kalles kun én gang
+ */
+function initializeGlobalListeners() {
+  if (listenersInitialized) {
+    return;
+  }
+
+  console.log('🔧 SignalR - Initializing global listeners...');
+  listenersInitialized = true;
+
+  // Setup network state listeners
+  networkUnsubscribe = NetInfo.addEventListener(state => {
+    console.log('📱 SignalR - Network state changed:', {
+      connected: state.isConnected,
+      type: state.type,
+      signalrState: chatConnection?.state
+    });
+   
+    if (state.isConnected && !isManualDisconnect) {
+      if (chatConnection?.state === signalR.HubConnectionState.Disconnected) {
+        console.log('🌐 SignalR - Device came online, attempting reconnect');
+        attemptReconnection();
+      }
+    } else if (!state.isConnected) {
+      console.log('📵 SignalR - Device went offline');
+    }
+  });
+
+  // Setup app state listeners
+  appStateSubscription = AppState.addEventListener('change', async nextAppState => {
+    console.log('📱 SignalR - App state changed:', nextAppState);
+    
+    if (nextAppState === 'active' && !isManualDisconnect) {
+      // Sjekk om bruker har endret seg mens appen var i bakgrunnen
+      if (await hasUserChanged()) {
+        console.log('👤 SignalR - User changed while app was backgrounded');
+        await recreateConnection();
+        return;
+      }
+      
+      // App ble aktiv, sjekk tilkobling
+      if (chatConnection?.state === signalR.HubConnectionState.Disconnected) {
+        console.log('👁️ SignalR - App became active, checking connection');
+        attemptReconnection();
+      } else if (chatConnection?.state === signalR.HubConnectionState.Connected) {
+        // Passive check når appen blir aktiv
+        const isHealthy = performPassiveHealthCheck();
+        if (!isHealthy) {
+          console.log('👁️ SignalR - App became active, heartbeat status unhealthy');
+          checkSignalRHealth();
+        }
+      }
+    } else if (nextAppState === 'background') {
+      console.log('📱 SignalR - App went to background');
+      // Ikke disconnect, la SignalR håndtere det selv
+    }
+  });
+}
+
+/**
+ * Cleanup global listeners
+ */
+function cleanupGlobalListeners() {
+  console.log('🧹 SignalR - Cleaning up global listeners...');
+  
+  if (networkUnsubscribe) {
+    networkUnsubscribe();
+    networkUnsubscribe = null;
+  }
+
+  if (appStateSubscription) {
+    appStateSubscription.remove();
+    appStateSubscription = null;
+  }
+  
+  listenersInitialized = false;
 }
 
 /**
@@ -278,7 +366,7 @@ async function hasUserChanged(): Promise<boolean> {
 }
 
 /**
- * Returnerer én delt tilkobling. Lager ny kun hvis ingen eksisterer.
+ * **HOVEDFORBEDRING** - Returnerer én delt tilkobling med race condition protection
  */
 export async function createChatConnection(): Promise<signalR.HubConnection> {
   const storedUserId = await AsyncStorage.getItem('userId');
@@ -288,15 +376,44 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
     console.log('👤 SignalR - User changed, recreating connection');
     await stopChatConnection();
     chatConnection = null;
+    connectionPromise = null; // Reset promise også
   }
   
   currentUserId = storedUserId;
 
+  // **RACE CONDITION PROTECTION**
   if (chatConnection && chatConnection.state !== signalR.HubConnectionState.Disconnected) {
+    console.log('🔄 SignalR - Returning existing connection');
     return chatConnection;
   }
 
+  // Hvis vi allerede holder på å opprette en connection, vent på den
+  if (connectionPromise) {
+    console.log('🔄 SignalR - Waiting for ongoing connection creation...');
+    return connectionPromise;
+  }
+
+  // Opprett ny connection med promise protection
+  connectionPromise = createConnectionInternal();
+  
   try {
+    const result = await connectionPromise;
+    connectionPromise = null; // Reset etter vellykket opprettelse
+    return result;
+  } catch (error) {
+    connectionPromise = null; // Reset ved feil også
+    throw error;
+  }
+}
+
+/**
+ * Intern metode som faktisk oppretter tilkoblingen
+ */
+async function createConnectionInternal(): Promise<signalR.HubConnection> {
+  try {
+    // Initialize global listeners kun én gang
+    initializeGlobalListeners();
+    
     // Generer eller hent device ID
     if (!currentDeviceId) {
       const storedDeviceId = await AsyncStorage.getItem('deviceId');
@@ -316,35 +433,40 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
    
     console.log('🚀 SignalR - Creating new connection for user:', currentUserId?.substring(0, 8) + '...');
     console.log('📱 SignalR - Device ID:', deviceId.substring(0, 20) + '...');
+
+    
     
     chatConnection = new signalR.HubConnectionBuilder()
       .withUrl(hubUrl, {
         accessTokenFactory: async () => {
-        try {
-          // Force refresh check since SignalR connections can be long-lived
-          const isExpiringSoon = await authServiceNative.isTokenExpiringSoon(); // Du må lage denne metoden
-          
-          if (isExpiringSoon) {
-            console.log('🔄 SignalR - Token expiring soon, refreshing...');
-            await authServiceNative.refreshAccessToken(); // Force refresh
+          try {
+            // Force refresh check since SignalR connections can be long-lived
+            const isExpiringSoon = await authServiceNative.isTokenExpiringSoon();
+            
+            if (isExpiringSoon) {
+              console.log('🔄 SignalR - Token expiring soon, refreshing...');
+              await authServiceNative.refreshAccessToken();
+            }
+            
+            const token = await authServiceNative.getAccessToken();
+            
+            // **REDUSERT LOGGING** - kun log én gang og ikke token preview hver gang
+            if (!token) {
+              console.error('🔴 SignalR - No access token available');
+              throw new Error('No token available');
+            }
+            
+            if (!tokenLoggedOnce && token) {
+              console.log('🔍 SignalR token status: ready');
+              tokenLoggedOnce = true;
+            }
+            return token;
+          } catch (error) {
+            console.error('🔴 SignalR accessTokenFactory failed:', error);
+            throw error;
           }
-          
-          const token = await authServiceNative.getAccessToken();
-          console.log('🔍 SignalR token status:', {
-            hasToken: !!token,
-            tokenPreview: token?.substring(0, 30) + '...'
-          });
-          
-          if (!token) {
-            throw new Error('No token available');
-          }
-          
-          return token;
-        } catch (error) {
-          console.error('🔴 SignalR accessTokenFactory failed:', error);
-          throw error;
         }
-      }})
+      })
       .configureLogging(signalR.LogLevel.Warning)
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: retryContext => {
@@ -412,7 +534,7 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
     chatConnection.on('ForceDisconnect', async (data: { reason: string, allowReconnect?: boolean }) => {
       console.log('🚫 SignalR - Force disconnect:', data.reason);
       
-      isManualDisconnect = !data.allowReconnect; // Tillat reconnect hvis serveren sier det
+      isManualDisconnect = !data.allowReconnect;
       
       await chatConnection?.stop();
       
@@ -420,62 +542,9 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
       // DeviceEventEmitter.emit('signalr:forceDisconnect', data);
       
       if (!data.allowReconnect) {
-        // Trigger logout eller vis melding til bruker
         console.log('🚫 SignalR - Permanent disconnect, user action required');
       }
     });
-
-    // Setup network state listeners (kun én gang)
-    if (!networkUnsubscribe) {
-      networkUnsubscribe = NetInfo.addEventListener(state => {
-        console.log('📱 SignalR - Network state changed:', {
-          connected: state.isConnected,
-          type: state.type,
-          signalrState: chatConnection?.state
-        });
-       
-        if (state.isConnected && !isManualDisconnect) {
-          if (chatConnection?.state === signalR.HubConnectionState.Disconnected) {
-            console.log('🌐 SignalR - Device came online, attempting reconnect');
-            attemptReconnection();
-          }
-        } else if (!state.isConnected) {
-          console.log('📵 SignalR - Device went offline');
-        }
-      });
-    }
-
-    // Setup app state listeners (kun én gang)
-    if (!appStateSubscription) {
-      appStateSubscription = AppState.addEventListener('change', async nextAppState => {
-        console.log('📱 SignalR - App state changed:', nextAppState);
-        
-        if (nextAppState === 'active' && !isManualDisconnect) {
-          // Sjekk om bruker har endret seg mens appen var i bakgrunnen
-          if (await hasUserChanged()) {
-            console.log('👤 SignalR - User changed while app was backgrounded');
-            await recreateConnection();
-            return;
-          }
-          
-          // App ble aktiv, sjekk tilkobling
-          if (chatConnection?.state === signalR.HubConnectionState.Disconnected) {
-            console.log('👁️ SignalR - App became active, checking connection');
-            attemptReconnection();
-          } else if (chatConnection?.state === signalR.HubConnectionState.Connected) {
-            // Passive check når appen blir aktiv
-            const isHealthy = performPassiveHealthCheck();
-            if (!isHealthy) {
-              console.log('👁️ SignalR - App became active, heartbeat status unhealthy');
-              checkSignalRHealth();
-            }
-          }
-        } else if (nextAppState === 'background') {
-          console.log('📱 SignalR - App went to background');
-          // Ikke disconnect, la SignalR håndtere det selv
-        }
-      });
-    }
 
     // Start tilkobling
     isManualDisconnect = false;
@@ -500,7 +569,7 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
       
       if (reconnectAttempts < MAX_MANUAL_RECONNECT_ATTEMPTS) {
         reconnectAttempts++;
-        return createChatConnection();
+        return createConnectionInternal(); // Kall intern metode direkte
       }
     }
     
@@ -509,7 +578,7 @@ export async function createChatConnection(): Promise<signalR.HubConnection> {
       console.log('🔄 SignalR - Retrying connection creation...');
       await new Promise(resolve => setTimeout(resolve, getRetryDelay(reconnectAttempts)));
       reconnectAttempts++;
-      return createChatConnection();
+      return createConnectionInternal(); // Kall intern metode direkte
     }
     
     throw error;
@@ -581,21 +650,14 @@ export async function stopChatConnection(): Promise<void> {
     chatConnection = null;
   }
  
-  // Cleanup network listener
-  if (networkUnsubscribe) {
-    networkUnsubscribe();
-    networkUnsubscribe = null;
-  }
-
-  // Cleanup app state listener
-  if (appStateSubscription) {
-    appStateSubscription.remove();
-    appStateSubscription = null;
-  }
+  // Cleanup global listeners
+  cleanupGlobalListeners();
   
   // Reset state
   reconnectAttempts = 0;
   isManualDisconnect = false;
+  connectionPromise = null; // **VIKTIG**: Reset connection promise
+  tokenLoggedOnce = false;
   
   // Reset heartbeat state
   lastHeartbeatSuccess = Date.now();
@@ -623,5 +685,7 @@ export function getConnectionDebugInfo() {
     lastHeartbeatSuccess: `${Math.round((Date.now() - lastHeartbeatSuccess) / 1000)}s ago`,
     heartbeatFailureCount,
     heartbeatHealthy: performPassiveHealthCheck(),
+    hasConnectionPromise: !!connectionPromise,
+    listenersInitialized,
   };
 }

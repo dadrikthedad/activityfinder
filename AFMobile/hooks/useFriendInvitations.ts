@@ -2,13 +2,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
 import { FriendInvitationDTO } from "@shared/types/FriendInvitationDTO";
 import { getFriendInvitations } from "@/services/friends/friendService";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import authServiceNative from "@/services/user/authServiceNative";
+
 
 export function useFriendInvitations(pageSize = 10) {
-  const { token } = useAuth();
 
   const friendRequests           = useNotificationStore(s => s.friendRequests);
   const hasLoadedFriendRequests  = useNotificationStore(s => s.hasLoadedFriendRequests);
@@ -40,6 +40,7 @@ export function useFriendInvitations(pageSize = 10) {
   const hasMore = invitations.length < totalCount;
 
   const loadMore = async () => {
+    const token = await authServiceNative.getAccessToken();
     if (!token || !hasMore) return;
 
     setLoadingMore(true);

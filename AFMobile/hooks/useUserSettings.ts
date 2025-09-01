@@ -1,40 +1,36 @@
-// Henter API-en GetPublicProfile() fra Backend. Bruker PublicProfileDTO både i frontend og backend
-"use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/constants/routes";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
-import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
+import authServiceNative from "@/services/user/authServiceNative";
 
 export function useUserSettings(refreshIndex: number = 0) {
-  const { token } = useAuth();
+  const { userId } = useAuth(); // Hent userId direkte fra AuthContext
   const [settings, setSettings] = useState<PublicProfileDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { // Sjekker token
-    if (!token) {
-      console.warn("🚫 Ingen token funnet i AuthContext");
-      return;
-    }
-
-    const userId = getUserIdFromToken(token); // Henter userId
+  useEffect(() => {
     if (!userId) {
-      console.warn("❌ Fant ikke bruker-ID i token");
+      console.warn("🚫 Ingen bruker-ID funnet i AuthContext");
       return;
     }
-    
-    const url = `${API_BASE_URL}/api/profile/${userId}`; // Her hetner vi brukerID og bruker den til å hente profile til brukeren
-    console.log("🔄 Henter brukerinnstillinger fra:", url);
-    console.log("👤 Bruker-ID:", userId);
-    console.log("🔐 Token (1st 20 chars):", token.slice(0, 20) + "...");
 
     const fetchSettings = async () => {
       setLoading(true);
-
       try {
-        const data = await fetchWithAuth<PublicProfileDTO>( // Her sender vi API til backend GetPublicProfile() fra ProfileController.cs
+        // Hent fresh token
+        const token = await authServiceNative.getAccessToken();
+        if (!token) {
+          throw new Error("No authentication token available");
+        }
+
+        const url = `${API_BASE_URL}/api/profile/${userId}`;
+        console.log("🔄 Henter brukerinnstillinger fra:", url);
+        console.log("👤 Bruker-ID:", userId);
+
+        const data = await fetchWithAuth<PublicProfileDTO>(
           url,
           {},
           token
@@ -43,10 +39,10 @@ export function useUserSettings(refreshIndex: number = 0) {
         if (!data) {
           throw new Error("Tomt svar fra API.");
         }
-        
-        console.log("✅ Data fra backend (user settings):", data); // Logg
+
+        console.log("✅ Data fra backend (user settings):", data);
         setSettings(data);
-        
+
       } catch (err) {
         console.error("❌ Klarte ikke hente brukerinnstillinger:", err);
         if (err instanceof Error) {
@@ -60,7 +56,7 @@ export function useUserSettings(refreshIndex: number = 0) {
     };
 
     fetchSettings();
-  }, [token, refreshIndex]); // Bruker refreshIndex for å resette siden etter endring
+  }, [userId, refreshIndex]); // userId i stedet for token
 
   return { settings, loading, error };
 }

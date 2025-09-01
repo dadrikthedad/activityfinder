@@ -1,13 +1,10 @@
 // src/hooks/notifications/useNotificationById.ts
-"use client";
-
 import { useEffect, useState } from "react";
-import { useAuth } from "@/context/AuthContext";
 import { getNotificationById } from "@/services/notifications/notificationService";
 import { useNotificationStore } from "@/store/useNotificationStore";
+import authServiceNative from '@/services/user/authServiceNative';
 
 export function useNotificationById(id: number) {
-  const { token } = useAuth();
 
   /* ---- selektorer som er stabile ---- */
   const addNotification = useNotificationStore((s) => s.addNotification);
@@ -20,16 +17,25 @@ export function useNotificationById(id: number) {
 
   /* ---- hent én gang ved mount hvis nødvendig ---- */
   useEffect(() => {
-    if (notification || !token) return;        // allerede i cache eller ikke logget inn
-
-    setLoading(true);
-    getNotificationById(id, token)
-      .then((res) => {
-        if (res) addNotification(res);         // putt i store
-      })
-      .catch((err) => setError(err as Error))
-      .finally(() => setLoading(false));
-  }, [id, token, notification, addNotification]);
+  if (notification) return; // Already cached
+  
+  const fetchNotification = async () => {
+      const token = await authServiceNative.getAccessToken();
+      if (!token) return; // Still needed for safety
+      
+      setLoading(true);
+      try {
+        const res = await getNotificationById(id, token);
+        if (res) addNotification(res);
+      } catch (err) {
+        setError(err as Error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchNotification();
+  }, [id, notification, addNotification]);
 
   return { notification: notification ?? null, loading, error };
 }

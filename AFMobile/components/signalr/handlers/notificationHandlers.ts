@@ -7,10 +7,11 @@ import { getFriendInvitationById } from "@/services/friends/friendService";
 import { getNotificationById } from "@/services/notifications/notificationService";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
+import authServiceNative from '@/services/user/authServiceNative';
+
 
 export const handleNotification = async (
   evt: NotificationDTO,
-  token: string | null
 ) => {
   console.log("🔔 Notification received via useChatHub:", evt);
  
@@ -24,6 +25,7 @@ export const handleNotification = async (
 
   try {
     if (evt.type === "FriendInvitation") {
+      const token = await authServiceNative.getAccessToken();
       if (!token || !evt.friendInvitationId) return;
       const fr = await getFriendInvitationById(evt.friendInvitationId, token);
       addNotification(evt);
@@ -75,6 +77,7 @@ export const handleNotification = async (
       return;
     }
 
+    const token = await authServiceNative.getAccessToken();
     if (!token) return;
     const full = await getNotificationById(evt.id, token);
     if (full) addNotification(full);

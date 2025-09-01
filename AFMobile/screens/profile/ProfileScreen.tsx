@@ -8,13 +8,14 @@ import PublicProfileViewNative from '@/components/profile/PublicProfileViewNativ
 import SpinnerNative from '@/components/common/SpinnerNative';
 import { ProfileScreenRouteProp } from '@/types/navigation';
 import { useIsUserBlocked } from '@/store/useUserCacheStore';
+import authServiceNative from '@/services/user/authServiceNative';
 
 export default function ProfileScreen() {
   const route = useRoute<ProfileScreenRouteProp>();
   const { id } = route.params;
   const userId = Number(id);
  
-  const { token, userId: currentUserId } = useAuth();
+  const { userId: currentUserId } = useAuth();
   const [profile, setProfile] = useState<PublicProfileDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,8 @@ export default function ProfileScreen() {
       try {
         setLoading(true);
         setError(null);
-       
+        
+        const token = await authServiceNative.getAccessToken();
         if (!token) {
           throw new Error('No authentication token available');
         }
@@ -52,13 +54,13 @@ export default function ProfileScreen() {
       }
     };
     
-    if (userId && token) {
+    if (userId && currentUserId) {
       fetchProfile();
     } else {
       setLoading(false);
       setError('Invalid user ID or missing authentication');
     }
-  }, [userId, token]);
+  }, [userId, currentUserId]);
 
   // Show loading state
   if (loading) {

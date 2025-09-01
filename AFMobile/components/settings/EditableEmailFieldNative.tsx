@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { FieldName, validateSingleField } from "@shared/utils/validators";
 import ButtonNative from "../common/buttons/ButtonNative";
-import { useAuth } from "@/context/AuthContext";
+import authServiceNative from "@/services/user/authServiceNative";
 import { updateEmail } from "@/services/user/security";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
@@ -25,8 +25,6 @@ export default function EditableEmailFieldNative({ email, onEmailUpdated }: Edit
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const { token } = useAuth();
 
   const handleSave = async () => {
     const validationError = validateSingleField("email" as FieldName, inputValue);
@@ -52,6 +50,7 @@ export default function EditableEmailFieldNative({ email, onEmailUpdated }: Edit
       return; 
     }
 
+    const token = await authServiceNative.getAccessToken();
     if (!token) {
       setError("Not authenticated");
       showNotificationToastNative({

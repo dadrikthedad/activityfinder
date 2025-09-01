@@ -6,47 +6,49 @@ import { PublicProfileDTO } from '@shared/types/PublicProfileDTO';
 import PublicProfileViewNative from '@/components/profile/PublicProfileViewNative';
 import SpinnerNative from '@/components/common/SpinnerNative';
 import ButtonNative from '@/components/common/buttons/ButtonNative';
+import authServiceNative from '@/services/user/authServiceNative';
 
 export default function EditProfileScreen() {
-  const { token, userId } = useAuth();
+  const { userId } = useAuth();
   const [profile, setProfile] = useState<PublicProfileDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-       
-        if (!token || !userId) {
-          throw new Error('No authentication token or user ID available');
-        }
-
-        const profileData = await getUserProfile(userId, token);
-        setProfile(profileData as PublicProfileDTO);
-      } catch (err) {
-        console.error('❌ Failed to fetch profile:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
-       
-        // Show user-friendly error
-        Alert.alert(
-          'Error',
-          'Failed to load your profile. Please try again.',
-          [{ text: 'OK' }]
-        );
-      } finally {
-        setLoading(false);
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+     
+      const token = await authServiceNative.getAccessToken();
+      if (!token || !userId) {
+        throw new Error('No authentication token or user ID available');
       }
-    };
 
-    if (userId && token) {
+      const profileData = await getUserProfile(userId, token);
+      setProfile(profileData as PublicProfileDTO);
+    } catch (err) {
+      console.error('❌ Failed to fetch profile:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load profile');
+     
+      // Show user-friendly error
+      Alert.alert(
+        'Error',
+        'Failed to load your profile. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) {
       fetchProfile();
     } else {
       setLoading(false);
       setError('Missing authentication or user ID');
     }
-  }, [userId, token]);
+  }, [userId]);
 
   // Show loading state
   if (loading) {
@@ -65,11 +67,11 @@ export default function EditProfileScreen() {
         <Text style={styles.errorText}>
           {error || 'Failed to load profile'}
         </Text>
-        <ButtonNative
-          text="Try Again"
-          onPress={() => window.location.reload()}
-          variant="primary"
-        />
+         <ButtonNative
+            text="Try Again"
+            onPress={fetchProfile} // Bruk samme funksjon
+            variant="primary"
+          />
       </View>
     </View>
   );
@@ -82,6 +84,7 @@ return (
       profile={profile}
       isEditable={true}
       isOwner={true}
+      publicProfile={false} 
     />
   </View>
 );
