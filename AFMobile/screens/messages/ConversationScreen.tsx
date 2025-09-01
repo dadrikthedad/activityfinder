@@ -39,7 +39,6 @@ interface ConversationScreenProps {
 
 export default function ConversationScreen({ route, navigation }: ConversationScreenProps) {
   const { conversationId, fromNewMessage = false } = route.params; 
-  const { isLoggedIn } = useAuth();
   const currentUser = useCurrentUser();
   
   // Chat store state
@@ -77,20 +76,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
   
   // Check if conversation has error
   const hasConversationError = conversationError !== null;
-
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isLoggedIn) {
-      navigation.navigate('Login');
-    }
-  }, [isLoggedIn, navigation]);
-
-  // Redirect if invalid conversation ID
-  useEffect(() => {
-    if (isLoggedIn && !conversationId) {
-      navigation.navigate('MessagesScreen');
-    }
-  }, [conversationId, navigation, isLoggedIn]);
 
   // Set current conversation on mount and cleanup on unmount
   useEffect(() => {
@@ -376,16 +361,6 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
     return () => backHandler.remove();
   }, [handleBack]);
-
-  // Loading states
-  if (!isLoggedIn) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar backgroundColor="#1C6B1C" barStyle="light-content" />
-        <Text>Loading...</Text>
-      </SafeAreaView>
-    );
-  }
 
   if (!conversationId) {
     return (

@@ -132,19 +132,19 @@ function AuthenticatedApp() {
         {isLoggedIn ? (
           <>
             {/* Sider MED navbar */}
-            <Stack.Screen name="Home">
-              {() => (
-                <>
-                  <MobileNavbarNative />
-                  <HomeScreen />
-                </>
-              )}
-            </Stack.Screen>
             <Stack.Screen name="MessagesScreen">
               {({ navigation }) => (
                 <>
                   <MobileNavbarNative />
                   <MessagesScreen navigation={navigation} />
+                </>
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="Home">
+              {() => (
+                <>
+                  <MobileNavbarNative />
+                  <HomeScreen />
                 </>
               )}
             </Stack.Screen>

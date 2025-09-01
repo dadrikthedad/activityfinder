@@ -25,14 +25,13 @@ import { PendingRequestsListNative } from '@/components/messages/PendingRequests
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useConversationSearch } from '@/hooks/messages/useSearchConversations';
 import { ConversationDTO } from '@shared/types/ConversationDTO';
-import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
+
 
 interface MessagesScreenProps {
   navigation: any;
 }
 
 export default function MessagesScreen({ navigation }: MessagesScreenProps) {
-  const { isLoggedIn } = useAuth();
   const currentUser = useCurrentUser();
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
@@ -202,26 +201,6 @@ export default function MessagesScreen({ navigation }: MessagesScreenProps) {
       </View>
     );
   };
-
-  // Redirect to login if not authenticated
-  if (!isLoggedIn) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loginPrompt}>
-          <Text style={styles.loginTitle}>Logg inn for å se meldinger</Text>
-          <Text style={styles.loginSubtitle}>
-            Du må være innlogget för å få tilgang til meldingssystemet.
-          </Text>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Login')}
-            style={styles.loginButton}
-          >
-            <Text style={styles.loginButtonText}>Logg inn</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   if (!isBootstrapped) {
     return (

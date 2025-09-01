@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Login: lagrer tokens via AuthService og redirecter
-  const login = async (accessToken: string, refreshToken: string, redirectTo = "Home") => {
+  const login = async (accessToken: string, refreshToken: string) => {
     
     try {
       // AuthService har allerede lagret tokens, vi trenger bare å oppdatere state
@@ -98,8 +98,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUserId(newUserId);
       
       console.log("💾 Auth state updated");
-      console.log("🚀 Navigating to:", redirectTo);
-      navigation.navigate(redirectTo as never);
     } catch (error) {
       console.error("❌ Error during login:", error);
     }
