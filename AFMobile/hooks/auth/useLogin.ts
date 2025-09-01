@@ -69,12 +69,12 @@ export const useLogin = (): UseLoginReturn => {
         throw new Error(validationError);
       }
 
-      console.log("🔑 AUTH: Attempting login for:", email);
+      // console.log("🔑 AUTH: Attempting login for:", email);
       
       const data = await loginUser(email.trim(), password);
 
       // Hvis vi kommer hit, var login vellykket
-      console.log("🔑 AUTH: Login successful, updating context...");
+      // console.log("🔑 AUTH: Login successful, updating context...");
       
       // Send begge tokens til AuthContext
       await login(data.accessToken, data.refreshToken);

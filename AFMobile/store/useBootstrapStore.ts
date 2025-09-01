@@ -115,7 +115,7 @@ export const useBootstrapStore = create<BootstrapStore>()(
       // --- Cache management (fra eksisterende store) ---
       cleanupOldCache: () =>
         set((state) => {
-          console.log("🧹 Cleaning up bootstrap cache at", new Date().toLocaleTimeString());
+          // console.log("🧹 Cleaning up bootstrap cache at", new Date().toLocaleTimeString());
           
           const now = Date.now();
           const CRITICAL_TTL = 1000 * 60 * 60; // 1 time
@@ -127,17 +127,17 @@ export const useBootstrapStore = create<BootstrapStore>()(
           // Sjekk om critical cache er for gammelt
           if (state.criticalCacheTimestamp && (now - state.criticalCacheTimestamp > CRITICAL_TTL)) {
             resetCritical = true;
-            console.log("🧹 Critical cache expired, resetting");
+            // console.log("🧹 Critical cache expired, resetting");
           }
           
           // Sjekk om secondary cache er for gammelt
           if (state.secondaryCacheTimestamp && (now - state.secondaryCacheTimestamp > SECONDARY_TTL)) {
             resetSecondary = true;
-            console.log("🧹 Secondary cache expired, resetting");
+            // console.log("🧹 Secondary cache expired, resetting");
           }
           
           if (!resetCritical && !resetSecondary) {
-            console.log("🧹 Cache still valid, no cleanup needed");
+            // console.log("🧹 Cache still valid, no cleanup needed");
             return {};
           }
           

@@ -222,7 +222,7 @@ export const useChatStore = create<ChatStore>()(
         })),
 
       setUnreadConversationIds: (ids) => {
-        console.log("🔔 Setter unreadConversationIds i store:", ids);
+        // console.log("🔔 Setter unreadConversationIds i store:", ids);
         set({ unreadConversationIds: ids });
       },
 

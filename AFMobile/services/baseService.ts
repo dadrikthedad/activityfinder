@@ -3,17 +3,22 @@ import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { deviceInfoService } from "@/utils/api/deviceInfo";
 import { RateLimitError } from "@shared/types/security/RateLimitError";
 import { BannedError } from "@shared/types/security/BannedError";
+import { LogLevel } from "@shared/utils/api/fetchWithAuth.types";
 
 // Authenticated requests - bruker fetchWithAuth som allerede har device headers
 export async function getRequest<T>(url: string): Promise<T | null> {
   return await fetchWithAuth<T>(url);
 }
 
-export async function postRequest<T, D = Record<string, unknown>>(url: string, data?: D): Promise<T | null> {
+export async function postRequest<T, D = Record<string, unknown>>(
+  url: string, 
+  data?: D, 
+  logLevel?: LogLevel
+): Promise<T | null> {
   return await fetchWithAuth<T>(url, {
     method: "POST",
     body: data ? JSON.stringify(data) : undefined,
-  });
+  }, undefined, logLevel);
 }
 
 export async function putRequest<T, D = Record<string, unknown>>(url: string, data?: D): Promise<T | null> {

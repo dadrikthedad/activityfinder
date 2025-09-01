@@ -1,4 +1,4 @@
-// services/auth/authService.native.ts
+// services/auth/authServiceNative.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RefreshTokenRequest } from "@shared/types/auth/RefreshTokenRequestDTO";
 import { LoginResponseDTO } from "@shared/types/auth/LoginResponseDTO";
@@ -122,11 +122,14 @@ class AuthService {
     // Get device headers
     const deviceHeaders = await deviceInfoService.getDeviceHeaders();
 
+    const isFormData = options.body instanceof FormData;
+
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...deviceHeaders,
-      ...options.headers
-    };
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...deviceHeaders,
+    ...options.headers
+  };
+
 
     if (this.accessToken) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;

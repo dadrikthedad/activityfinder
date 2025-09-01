@@ -75,7 +75,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Login: lagrer tokens via AuthService og redirecter
   const login = async (accessToken: string, refreshToken: string, redirectTo = "Home") => {
-    console.log("🔑 AuthContext.login() startet");
     
     try {
       // AuthService har allerede lagret tokens, vi trenger bare å oppdatere state

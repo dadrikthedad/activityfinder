@@ -71,7 +71,7 @@ export function useSignalRMonitorNative(options: SignalRMonitorOptions = {}) {
 
   // Start connection monitoring
   useEffect(() => {
-    console.log('🔍 Starting SignalR connection monitoring...');
+    // console.log('🔍 Starting SignalR connection monitoring...');
     
     // Initial check
     checkSignalRConnection();

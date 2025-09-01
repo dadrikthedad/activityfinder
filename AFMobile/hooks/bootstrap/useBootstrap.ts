@@ -60,7 +60,7 @@ export const useBootstrap = () => {
   // Load critical data med cache validation
   const loadCriticalData = useCallback(async () => {
     if (isCriticalCacheValid()) {
-      console.log("✅ Critical cache er gyldig, hopper over API-kall");
+      // console.log("✅ Critical cache er gyldig, hopper over API-kall");
       return true;
     }
 
@@ -88,7 +88,7 @@ export const useBootstrap = () => {
   // Load secondary data med cache validation
   const loadSecondaryData = useCallback(async () => {
     if (isSecondaryCacheValid()) {
-      console.log("✅ Secondary cache er gyldig, hopper over API-kall");
+      // console.log("✅ Secondary cache er gyldig, hopper over API-kall");
       return true;
     }
 
@@ -101,7 +101,7 @@ export const useBootstrap = () => {
       
       if (secondaryData) {
         distributeSecondaryData(secondaryData);
-        console.log("✅ Sekundær bootstrap ferdig via distributor");
+        // console.log("✅ Sekundær bootstrap ferdig via distributor");
         return true;
       } else {
         throw new Error("Ingen sekundær data mottatt");
@@ -115,21 +115,16 @@ export const useBootstrap = () => {
 
   // Main bootstrap function
   const bootstrap = useCallback(async () => {
-    console.log("🔄 Starter full bootstrap...");
+    // console.log("🔄 Starter critical bootstrap...");
     
-    // Critical data først (blokkerende for app-funksjonalitet)
     const criticalSuccess = await loadCriticalData();
     
-    if (criticalSuccess) {
-      // 🔧 FIX: Start secondary data loading umiddelbart efter critical
-      loadSecondaryData().catch(error => {
-        console.warn("⚠️ Secondary bootstrap failed (non-critical):", error);
-        // Ikke kast error - appen kan fortsatt fungere uten secondary data
-      });
-    } else {
-      console.error("💥 Critical bootstrap failed - appen kan ikke starte riktig");
+    if (!criticalSuccess) {
+      console.error("💥 Critical bootstrap failed");
     }
-  }, [loadCriticalData, loadSecondaryData]);
+    
+    return criticalSuccess;
+  }, [loadCriticalData]);
 
   // 🔧 FIX: Setter isBootstrapped når critical data er loaded
   useEffect(() => {
@@ -142,16 +137,6 @@ export const useBootstrap = () => {
     }
   }, [user, isBootstrapped, criticalError, setBootstrapped]);
 
-  // 🔧 FIX: Separat useEffect for å trigge secondary bootstrap når vi blir bootstrapped
-  useEffect(() => {
-    if (isBootstrapped && !isSecondaryCacheValid() && !secondaryLoading && !secondaryError) {
-      // console.log("🔄 App is bootstrapped but secondary cache is invalid, loading secondary data...");
-      loadSecondaryData().catch(error => {
-        console.warn("⚠️ Secondary bootstrap failed after bootstrapped:", error);
-      });
-    }
-  }, [isBootstrapped, isSecondaryCacheValid, secondaryLoading, secondaryError, loadSecondaryData]);
-
   // Retry functions
   const retryCritical = useCallback(() => {
     console.log("🔄 Retrying critical bootstrap...");
@@ -162,38 +147,6 @@ export const useBootstrap = () => {
     console.log("🔄 Retrying secondary bootstrap...");
     loadSecondaryData();
   }, [loadSecondaryData]);
-
-  // 🔧 FIX: Initial bootstrap logic
-  useEffect(() => {
-    if (hasInitialized.current) {
-      console.log("✅ useBootstrap already initialized, skipping...");
-      return;
-    }
-    hasInitialized.current = true;
-    
-    const criticalValid = isCriticalCacheValid();
-    const secondaryValid = isSecondaryCacheValid();
-    
-    console.log("🔍 Bootstrap cache status:", { criticalValid, secondaryValid, isBootstrapped });
-    
-    if (!criticalValid || !isBootstrapped) {
-      console.log("🔄 Starting bootstrap (critical cache invalid or not bootstrapped)...");
-      bootstrap();
-    } else {
-      console.log("✅ Bootstrap cache valid and app is bootstrapped");
-      
-      markCacheAsLoaded();
-
-      
-      // 🔧 FIX: Altid sjekk secondary data, selv når vi er bootstrapped
-      if (!secondaryValid) {
-        console.log("🔄 Refreshing secondary data in background...");
-        loadSecondaryData().catch(error => {
-          console.warn("⚠️ Background secondary bootstrap failed:", error);
-        });
-      }
-    }
-  }, [isCriticalCacheValid, isSecondaryCacheValid, isBootstrapped, bootstrap, loadSecondaryData, markCacheAsLoaded]);
 
   return {
     // ✅ Data fra alle stores
@@ -217,6 +170,7 @@ export const useBootstrap = () => {
     
     // Actions
     bootstrap,
+    loadSecondaryData,
     retryCritical,
     retrySecondary,
     

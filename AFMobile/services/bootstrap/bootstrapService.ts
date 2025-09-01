@@ -8,16 +8,12 @@ import { SecondaryBootstrapResponseDTO } from "@shared/types/bootstrap/Secondary
 export async function getCriticalBootstrap(): Promise<CriticalBootstrapResponseDTO | null> {
   const url = `${API_BASE_URL}/api/me/bootstrap/critical`;
   
-  console.log("🚀 Henter kritisk bootstrap data:", url);
-  
-  return await fetchWithAuth<CriticalBootstrapResponseDTO>(url);
+  return await fetchWithAuth<CriticalBootstrapResponseDTO>(url, {}, undefined, "none");
 }
 
 // Henter sekundær data i bakgrunnen etter kritisk data er lastet
 export async function getSecondaryBootstrap(): Promise<SecondaryBootstrapResponseDTO | null> {
   const url = `${API_BASE_URL}/api/me/bootstrap/secondary`;
   
-  console.log("📚 Henter sekundær bootstrap data:", url);
-  
-  return await fetchWithAuth<SecondaryBootstrapResponseDTO>(url);
+  return await fetchWithAuth<SecondaryBootstrapResponseDTO>(url, {}, undefined, "none");
 }

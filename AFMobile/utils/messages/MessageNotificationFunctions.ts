@@ -28,5 +28,5 @@ export function setMessageNotificationsInStore(notifications: MessageNotificatio
   store.setMessageNotifications(notifications);
   store.setHasLoadedNotifications(true);
   
-  console.log(`📨 Lagrer ${notifications.length} unike message notifications i Zustand (via ${source}).`);
+  // console.log(`📨 Lagrer ${notifications.length} unike message notifications i Zustand (via ${source}).`);
 }

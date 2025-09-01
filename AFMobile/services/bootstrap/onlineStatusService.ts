@@ -27,10 +27,10 @@ export async function markUserOffline(): Promise<OnlineStatusResponse | null> {
 export async function sendHeartbeat(): Promise<{ status: string } | null> {
   const url = `${API_BASE_URL}/api/me/heartbeat`;
   
-  console.log("💓 Sender heartbeat:", url);
+  // console.log("💓 Sender heartbeat:", url);
   
   // Device ID sendes automatisk via X-Device-ID header
-  return await postRequest<{ status: string }>(url, {});
+  return await postRequest<{ status: string }>(url, {}, "none");
 }
 
 // Convenience function for marking online with defaults (React Native optimized)

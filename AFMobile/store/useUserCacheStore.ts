@@ -87,7 +87,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
       getCurrentUser: () => get().currentUser,
 
       setSettings: (settings: UserSettingsDTO) => {
-        console.log("⚙️ Setting user settings:", settings.language);
+        // console.log("⚙️ Setting user settings:", settings.language);
         set(() => ({
           settings,
           lastUpdated: Date.now()
@@ -104,7 +104,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
       
           // 🔧 Bruk existing user's name hvis ikke oppgitt
           const displayName = user.fullName || existingUser?.fullName || `User ${user.id}`;
-          console.log(`👤 setUser: ${displayName} (ID: ${user.id})`);
+          // console.log(`👤 setUser: ${displayName} (ID: ${user.id})`);
       
           if (existingUser) {
             // 🔧 SMART MERGE: Preserve existing data, only update what's provided AND not null/undefined
@@ -233,7 +233,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
             }
             });
             
-            console.log(`👤 setUsers result: ${newUsers} new, ${updatedExisting} updated, ${preservedExisting} preserved`);
+            // console.log(`👤 setUsers result: ${newUsers} new, ${updatedExisting} updated, ${preservedExisting} preserved`);
             
             return {
             users: updatedUsers,
@@ -329,8 +329,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
       cacheUsersFromCriticalBootstrap: (data: CriticalBootstrapResponseDTO) => {
         const userMap = new Map<number, UserSummaryDTO>();
         const now = Date.now();
-        
-        console.log("👤 Caching users from CRITICAL bootstrap...");
+      
         
         data.recentConversations?.forEach(conv => 
             conv.participants?.forEach(user => {
@@ -345,7 +344,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
         );
         
         const uniqueUsers = Array.from(userMap.values());
-        console.log(`👤 Cached ${uniqueUsers.length} users from critical bootstrap`);
+        // console.log(`👤 Cached ${uniqueUsers.length} users from critical bootstrap`);
         
         // Use setUsers for smart merging
         get().setUsers(uniqueUsers);
@@ -408,7 +407,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
         
         set(state => {
           if (!state.lastUpdated || (now - state.lastUpdated < TTL)) {
-            console.log("👤 User cache still valid, no cleanup needed");
+            // console.log("👤 User cache still valid, no cleanup needed");
             return state;
           }
           

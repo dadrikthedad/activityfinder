@@ -78,7 +78,7 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
     globalHeartbeatId = heartbeatId;
     
     globalHeartbeatInterval = setInterval(async () => {
-      console.log(`💓 Global heartbeat (ID: ${heartbeatId})`);
+      // console.log(`💓 Global heartbeat (ID: ${heartbeatId})`);
       
       try {
         const success = await sendHeartbeatSafe();
@@ -109,7 +109,7 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
       }
     }, intervalMs);
     
-    console.log(`✅ Global heartbeat started (${intervalMs}ms) - ID: ${heartbeatId}`);
+    // console.log(`✅ Global heartbeat started (${intervalMs}ms) - ID: ${heartbeatId}`);
   }, [connectionError, scheduleRecovery]);
 
   // Enhanced markOnline
@@ -124,12 +124,12 @@ export const useOnlineStatus = (): UseOnlineStatusReturn => {
     setConnectionError(null);
 
     try {
-      console.log("🚀 Marking user as online...");
+      // console.log("🚀 Marking user as online...");
 
       const result = await markOnlineWithDefaults(['signalr', 'push', 'websocket']);
 
       if (result) {
-        console.log("✅ User marked as online successfully");
+        // console.log("✅ User marked as online successfully");
         setIsOnline(true);
         startHeartbeat(30000); // 🔧 30 second interval
         retryCountRef.current = 0;

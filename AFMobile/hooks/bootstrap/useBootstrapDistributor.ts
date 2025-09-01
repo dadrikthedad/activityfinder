@@ -65,7 +65,7 @@ export const useBootstrapDistributor = () => {
   ]);
 
   const distributeCriticalData = useCallback((data: CriticalBootstrapResponseDTO) => {
-    console.log("📦 Distributing critical bootstrap data...");
+    // console.log("📦 Distributing critical bootstrap data...");
    
     // 1. SyncToken til BootstrapStore
     setCriticalData(data);
@@ -83,11 +83,10 @@ export const useBootstrapDistributor = () => {
         const convId = Number(conversationId);
         if (messages && messages.length > 0) {
           setCachedMessages(convId, messages);
-          console.log(`💬 Cached ${messages.length} messages for conversation ${convId}`);
         }
       });
       
-      console.log(`✅ Cached messages for ${Object.keys(data.conversationMessages).length} conversations`);
+      // console.log(`✅ Cached messages for ${Object.keys(data.conversationMessages).length} conversations`);
     }
 
     // 5. Cache conversation participants i UserCache
@@ -103,7 +102,7 @@ export const useBootstrapDistributor = () => {
   }, [setCriticalData, setCurrentUser, setConversations, setHasLoadedConversations, setCachedMessages, cacheUsersFromCriticalBootstrap]);
 
   const distributeSecondaryData = useCallback((data: SecondaryBootstrapResponseDTO) => {
-    console.log("📦 Distributing secondary bootstrap data...");
+    // console.log("📦 Distributing secondary bootstrap data...");
    
     // 1. Settings til UserCacheStore
     setSettings(data.settings);
@@ -137,43 +136,43 @@ export const useBootstrapDistributor = () => {
       const { setFriendRequestTotalCount } = useNotificationStore.getState();
       setFriendRequestTotalCount(data.pendingFriendInvitations.length);
 
-      console.log("👥 Friend requests satt i NotificationStore:", data.pendingFriendInvitations.length);
+      // console.log("👥 Friend requests satt i NotificationStore:", data.pendingFriendInvitations.length);
     } else {
       setHasLoadedFriendRequests(true);
-      console.log("👥 Ingen friend requests mottatt, men marker som loaded");
+      // console.log("👥 Ingen friend requests mottatt, men marker som loaded");
     }
 
     // 7. App notifications til NotificationStore
     if (data.recentNotifications && data.recentNotifications.length > 0) {
       setNotifications(data.recentNotifications);
       setHasLoadedNotifications(true);
-      console.log("🔔 App notifications satt i NotificationStore:", data.recentNotifications.length);
+      // console.log("🔔 App notifications satt i NotificationStore:", data.recentNotifications.length);
     } else {
       setHasLoadedNotifications(true);
-      console.log("🔔 Ingen app notifications mottatt, men marker som loaded");
+      // console.log("🔔 Ingen app notifications mottatt, men marker som loaded");
     }
 
     // 8. Cache all users med relationships i UserCache
-    console.log("🔍 DEBUG: About to process allUserSummaries...");
-    console.log("🔍 DEBUG: allUserSummaries data:", {
-      exists: !!data.allUserSummaries,
-      type: typeof data.allUserSummaries,
-      length: data.allUserSummaries?.length,
-      isArray: Array.isArray(data.allUserSummaries),
-      firstUser: data.allUserSummaries?.[0]
-    });
+    // console.log("🔍 DEBUG: About to process allUserSummaries...");
+    // console.log("🔍 DEBUG: allUserSummaries data:", {
+    //   exists: !!data.allUserSummaries,
+    //   type: typeof data.allUserSummaries,
+    //   length: data.allUserSummaries?.length,
+    //   isArray: Array.isArray(data.allUserSummaries),
+    //   firstUser: data.allUserSummaries?.[0]
+    // });
 
     if (data.allUserSummaries && data.allUserSummaries.length > 0) {
-      console.log("🚀 PROCESSING allUserSummaries - calling setUsers...");
+     //  console.log("🚀 PROCESSING allUserSummaries - calling setUsers...");
       setUsers(data.allUserSummaries);
-      console.log("🤝 User relationships cached:", {
-        total: data.allUserSummaries.length,
-        friends: data.allUserSummaries.filter(u => u.isFriend).length,
-        blocked: data.allUserSummaries.filter(u => u.isBlocked).length,
-        sampleUser: data.allUserSummaries[0]
-      });
+     //  console.log("🤝 User relationships cached:", {
+     //    total: data.allUserSummaries.length,
+     //    friends: data.allUserSummaries.filter(u => u.isFriend).length,
+     //    blocked: data.allUserSummaries.filter(u => u.isBlocked).length,
+     //    sampleUser: data.allUserSummaries[0]
+     //  });
     } else {
-      console.log("🤝 No user relationships to cache - allUserSummaries is empty or undefined");
+      // console.log("🤝 No user relationships to cache - allUserSummaries is empty or undefined");
     }
 
     console.log("✅ Secondary data distributed:", {

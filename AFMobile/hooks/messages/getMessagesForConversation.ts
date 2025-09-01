@@ -63,7 +63,7 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
         hasLoadedInitialCache.current = true;
         setHasMore(cached.length >= take);
       } else {
-        console.log(`📭 No cached messages for conversation ${conversationId}, will fetch from API`);
+        // console.log(`📭 No cached messages for conversation ${conversationId}, will fetch from API`);
         setHasMore(true);
       }
       

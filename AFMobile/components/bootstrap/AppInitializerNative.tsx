@@ -29,6 +29,7 @@ export function AppInitializer() {
     criticalLoading, 
     criticalError,
     bootstrap,
+    loadSecondaryData,
     retryCritical,
     isCriticalCacheValid,
     isSecondaryCacheValid,
@@ -67,7 +68,7 @@ export function AppInitializer() {
     
     // Ny bruker i samme sesjon? Reset alle stores
     if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
-      console.log("🔄 BOOT: User switch detected, resetting all stores...");
+      // console.log("🔄 BOOT: User switch detected, resetting all stores...");
       
       handleUserSwitch().catch(err => 
         console.error('Failed to handle SignalR user switch:', err)
@@ -106,6 +107,7 @@ export function AppInitializer() {
 
       // Hvis vi allerede har bestemt strategi, ikke gjør noe mer
       if (initializationStrategyRef.current !== 'none') {
+        // console.log(`🛑 BOOT: Strategy already set to ${initializationStrategyRef.current}, skipping`);
         return;
       }
 
@@ -115,41 +117,46 @@ export function AppInitializer() {
       // React Native: Bruk AsyncStorage istedenfor localStorage
       const hasCachedSyncToken = await AsyncStorage.getItem('lastSyncToken');
       
-      console.log("🧠 BOOT: Determining initialization strategy:", {
-        criticalValid,
-        secondaryValid,
-        hasCachedSyncToken: !!hasCachedSyncToken,
-        isBootstrapped
-      });
+      // console.log("🧠 BOOT: Determining initialization strategy:", {
+      //  criticalValid,
+      //  secondaryValid,
+      //  hasCachedSyncToken: !!hasCachedSyncToken,
+      //  isBootstrapped
+      // });
 
       // 🎯 BESLUTNINGSLOGIKK:
       
       // 1. Hvis vi har gyldig cache OG sync token → Bruk SYNC
       if (criticalValid && secondaryValid && hasCachedSyncToken && !isBootstrapped) {
-        console.log("✨ BOOT: Valid cache + sync token found → Using SYNC strategy");
+        // console.log("✨ BOOT: Valid cache + sync token found → Using SYNC strategy");
         initializationStrategyRef.current = 'sync';
         
         // Merk cache som loaded siden vi har gyldig data
         markCacheAsLoaded();
         
         // Start sync umiddelbart for å få latest changes
-        console.log("🚀 SYNC: Starting immediate sync with cached token");
+        // console.log("🚀 SYNC: Starting immediate sync with cached token");
         triggerSync();
         return;
       }
       
       // 2. Hvis vi mangler cache eller token → Bruk BOOTSTRAP
       if (!criticalValid || !secondaryValid || !hasCachedSyncToken || !isBootstrapped) {
-        console.log("🔄 BOOT: Missing cache or token → Using BOOTSTRAP strategy");
+        // console.log("🔄 BOOT: Missing cache or token → Using BOOTSTRAP strategy");
         initializationStrategyRef.current = 'bootstrap';
         
-        console.log("🚀 BOOT: Triggering full bootstrap...");
-        bootstrap();
+        // console.log("🚀 BOOT: Triggering full bootstrap...");
+        const criticalSuccess = await bootstrap();
+
+        if (criticalSuccess) {
+          // console.log("🚀 BOOT: Triggering secondary bootstrap...");
+          loadSecondaryData(); // <-- KALL DEN HER
+        }
         return;
       }
       
       // 3. Allerede bootstrapped og har alt vi trenger
-      console.log("✅ BOOT: Already initialized, nothing to do");
+      // console.log("✅ BOOT: Already initialized, nothing to do");
     };
 
     initializeApp();
@@ -160,7 +167,8 @@ export function AppInitializer() {
     isCriticalCacheValid, 
     isSecondaryCacheValid, 
     isBootstrapped,
-    bootstrap, 
+    bootstrap,
+    loadSecondaryData,
     markCacheAsLoaded, 
     triggerSync
   ]);
@@ -177,13 +185,13 @@ export function AppInitializer() {
     );
 
     if (shouldGoOnline && !isOnline) {
-      console.log("✅ BOOT: Conditions met for going online - marking user online");
+      // console.log("✅ BOOT: Conditions met for going online - marking user online");
       markOnline();
     }
     
     if (shouldGoOnline && !hasInitializedOnlineRef.current) {
       hasInitializedOnlineRef.current = true;
-      console.log("🎯 BOOT: Initial online setup complete");
+      // console.log("🎯 BOOT: Initial online setup complete");
     }
   }, [
     token,
@@ -204,7 +212,7 @@ export function AppInitializer() {
       }
 
       if (nextAppState === 'active' && !isOnline && !isConnecting) {
-        console.log("👁️ BOOT: App became active and we're offline - attempting to go online");
+        // console.log("👁️ BOOT: App became active and we're offline - attempting to go online");
         markOnline();
       }
     };
@@ -217,7 +225,7 @@ export function AppInitializer() {
   // 🆕 SYNC EVENT LISTENERS - tilpasset for React Native
   useEffect(() => {
     const handleFullRefreshRequired = (event: any) => {
-      console.log("🔄 SYNC: Full refresh required:", event?.detail?.reason || 'Unknown reason');
+      // console.log("🔄 SYNC: Full refresh required:", event?.detail?.reason || 'Unknown reason');
       
       // Reset strategy og trigger bootstrap
       initializationStrategyRef.current = 'bootstrap';
@@ -229,23 +237,14 @@ export function AppInitializer() {
       
       // Hvis sync feiler og vi ikke har bootstrap som fallback
       if (initializationStrategyRef.current === 'sync' && !isBootstrapped) {
-        console.log("🔄 SYNC: Sync failed, falling back to bootstrap");
+        // console.log("🔄 SYNC: Sync failed, falling back to bootstrap");
         initializationStrategyRef.current = 'bootstrap';
         bootstrap();
       }
     };
 
-    // React Native: Bruk custom event system eller direkte callback
-    // Siden RN ikke har window.addEventListener for custom events,
-    // kan du enten bruke DeviceEventEmitter eller implementere egen event system
-    
-    // For nå, kommenterer ut event listeners - implementer disse hvis du har sync
-    // DeviceEventEmitter.addListener('sync:fullRefreshRequired', handleFullRefreshRequired);
-    // DeviceEventEmitter.addListener('sync:error', handleSyncError);
 
     return () => {
-      // DeviceEventEmitter.removeListener('sync:fullRefreshRequired', handleFullRefreshRequired);
-      // DeviceEventEmitter.removeListener('sync:error', handleSyncError);
     };
   }, [bootstrap, isBootstrapped]);
 
@@ -299,10 +298,10 @@ export function AppInitializer() {
     } else if (strategy === 'sync' && isSyncInitialized) {
       console.log("✅ SYNC: Sync-based initialization complete!");
     } else if (isBootstrapped && !criticalError) {
-      console.log("✅ BOOT: Bootstrap complete!", {
-        strategy,
-        retryCount: retryCountRef.current > 0 ? retryCountRef.current : "no retries needed"
-      });
+      // console.log("✅ BOOT: Bootstrap complete!", {
+      //  strategy,
+      //  retryCount: retryCountRef.current > 0 ? retryCountRef.current : "no retries needed"
+      // });
     }
   }, [criticalLoading, isBootstrapped, criticalError, isSyncInitialized]);
 
@@ -311,15 +310,15 @@ export function AppInitializer() {
     const strategy = initializationStrategyRef.current;
     
     if (strategy !== 'none') {
-      console.log("🎯 INIT: Strategy status:", {
-        strategy,
-        isBootstrapped: strategy === 'bootstrap' ? isBootstrapped : 'N/A',
-        isSyncInitialized: strategy === 'sync' ? isSyncInitialized : 'N/A',
-        signalRConnected: isSignalRConnected,
-        fallbackActive: isFallbackActive,
-        lastSyncAt: lastSyncAt?.toISOString(),
-        hasSyncToken
-      });
+     // console.log("🎯 INIT: Strategy status:", {
+     //    strategy,
+     //    isBootstrapped: strategy === 'bootstrap' ? isBootstrapped : 'N/A',
+     //    isSyncInitialized: strategy === 'sync' ? isSyncInitialized : 'N/A',
+     //    signalRConnected: isSignalRConnected,
+     //    fallbackActive: isFallbackActive,
+     //    lastSyncAt: lastSyncAt?.toISOString(),
+     //    hasSyncToken
+     //  });
     }
   }, [isBootstrapped, isSyncInitialized, isSignalRConnected, isFallbackActive, lastSyncAt, hasSyncToken]);
 

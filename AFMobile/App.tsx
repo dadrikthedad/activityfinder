@@ -101,7 +101,7 @@ function AppContent() {
 }
 
 function AuthenticatedApp() {
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, isLoading, userId  } = useAuth();
  
   // Show loading screen while initializing auth
   if (isLoading) {
@@ -118,7 +118,7 @@ function AuthenticatedApp() {
      
       {isLoggedIn && (
         <>
-          <AppInitializer />
+          <AppInitializer key={`app-init-${userId}`} />
           <SignalRClientNative />
         </>
       )}
