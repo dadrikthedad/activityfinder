@@ -37,13 +37,24 @@ namespace AFBack.Controllers
         {
             try
             {
+                var requestId = HttpContext.TraceIdentifier;
+                var timestamp = DateTime.UtcNow;
+                var forwardedFor = Request.Headers["X-Forwarded-For"].ToString();
+                var userAgent = Request.Headers["User-Agent"].ToString();
+                var realIp = Request.Headers["X-Real-IP"].ToString();
+        
                 var userId = GetUserId();
                 if (userId == null)
                 {
                     return Unauthorized(new { error = "Invalid user token" });
                 }
 
+                _logger.LogInformation($"🔍 BACKEND [{requestId}] Critical bootstrap START at {timestamp:HH:mm:ss.fff} - User: {userId} - X-Forwarded-For: {forwardedFor} - X-Real-IP: {realIp} - UserAgent: {userAgent.Substring(0, Math.Min(50, userAgent.Length))}...");
+
                 var response = await _bootstrapService.GetCriticalBootstrapAsync(userId.Value);
+        
+                _logger.LogInformation($"✅ BACKEND [{requestId}] Critical bootstrap COMPLETE at {DateTime.UtcNow:HH:mm:ss.fff}");
+        
                 return Ok(response);
             }
             catch (KeyNotFoundException ex)
@@ -52,10 +63,9 @@ namespace AFBack.Controllers
             }
             catch (Exception ex)
             {
-                // 👈 ENDRE DENNE - vis faktisk feil
                 return StatusCode(500, new { 
                     error = ex.Message, 
-                    stackTrace = ex.StackTrace?.Split('\n').Take(5) // First 5 lines
+                    stackTrace = ex.StackTrace?.Split('\n').Take(5)
                 });
             }
         }
@@ -65,21 +75,29 @@ namespace AFBack.Controllers
         {
             try
             {
+                var requestId = HttpContext.TraceIdentifier;
+                var timestamp = DateTime.UtcNow;
+                var forwardedFor = Request.Headers["X-Forwarded-For"].ToString();
+        
                 var userId = GetUserId();
                 if (userId == null)
                 {
                     return Unauthorized(new { error = "Invalid user token" });
                 }
 
+                _logger.LogInformation($"🔍 BACKEND [{requestId}] Secondary bootstrap START at {timestamp:HH:mm:ss.fff} - User: {userId} - X-Forwarded-For: {forwardedFor}");
+
                 var response = await _bootstrapService.GetSecondaryBootstrapAsync(userId.Value);
+        
+                _logger.LogInformation($"✅ BACKEND [{requestId}] Secondary bootstrap COMPLETE at {DateTime.UtcNow:HH:mm:ss.fff}");
+        
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                // 👈 ENDRE DENNE - vis faktisk feil
                 return StatusCode(500, new { 
                     error = ex.Message, 
-                    stackTrace = ex.StackTrace?.Split('\n').Take(5) // First 5 lines
+                    stackTrace = ex.StackTrace?.Split('\n').Take(5)
                 });
             }
         }
