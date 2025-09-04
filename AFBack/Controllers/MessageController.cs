@@ -452,6 +452,7 @@ public class MessagesController : BaseController
         }
     }
     
+    [HttpPost("encrypted")]
     public async Task<IActionResult> SendEncryptedMessage([FromBody] SendEncryptedMessageRequestDTO request)
     {
         try
