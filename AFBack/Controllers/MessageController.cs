@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using AFBack.Constants;
 using AFBack.Data;
+using AFBack.DTOs.Crypto;
 using AFBack.Extensions;
 using AFBack.Models;
+using AFBack.Services.Crypto;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Controllers;
@@ -22,8 +24,10 @@ public class MessagesController : BaseController
     private readonly MessageNotificationService _messageNotificationService;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly E2EEService _e2eeService;
+    private readonly ILogger<MessagesController> _logger;
 
-    public MessagesController(ApplicationDbContext context, IMessageService messageService, IFileService fileService, MessageNotificationService messageNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
+    public MessagesController(ApplicationDbContext context, IMessageService messageService, IFileService fileService, MessageNotificationService messageNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, E2EEService e2eeService, ILogger<MessagesController> logger)
     {
         _context = context;
         _messageService = messageService;
@@ -31,6 +35,8 @@ public class MessagesController : BaseController
         _fileService = fileService;
         _messageNotificationService = messageNotificationService;
         _scopeFactory = scopeFactory;
+        _e2eeService = e2eeService;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -446,5 +452,98 @@ public class MessagesController : BaseController
         }
     }
     
+    public async Task<IActionResult> SendEncryptedMessage([FromBody] SendEncryptedMessageRequestDTO request)
+    {
+        try
+        {
+            // Validation
+            if (!request.HasValidContent)
+                return BadRequest("Message must have either encrypted text or attachments");
 
+            if (request.KeyInfo?.Any() != true)
+                return BadRequest("KeyInfo is required for encrypted messages");
+
+            if (string.IsNullOrEmpty(request.IV))
+                return BadRequest("IV is required for encrypted messages");
+
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized("Invalid user ID in token");
+
+            _logger.LogInformation("Sending encrypted message from user {UserId} to conversation {ConversationId}", 
+                userId, request.ConversationId);
+
+            // Now returns EncryptedMessageResponseDTO instead of MessageResponseDTO
+            var response = await _messageService.SendEncryptedMessageAsync(userId.Value, request);
+
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access attempt for encrypted message from user {UserId}", GetUserId());
+            return Forbid(ex.Message);
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid encrypted message request from user {UserId}: {Error}", GetUserId(), ex.Message);
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending encrypted message from user {UserId}", GetUserId());
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+        /// <summary>
+        /// Get encrypted messages for a conversation
+        /// </summary>
+        [HttpGet("encrypted/conversation/{conversationId:int}")]
+        public async Task<IActionResult> GetEncryptedMessages(int conversationId, int skip = 0, int take = 50)
+        {
+            try
+            {
+                var userId = GetUserId();
+                
+                if (userId == null) // Håndter null-tilfellet
+                {
+                    return Unauthorized("Invalid user ID in token");
+                }
+                
+                _logger.LogInformation("Getting encrypted messages for conversation {ConversationId}, user {UserId}", 
+                    conversationId, userId);
+
+                // Validate pagination
+                if (skip < 0) skip = 0;
+                if (take <= 0 || take > 100) take = 50;
+
+                var messages = await _e2eeService.GetEncryptedMessagesForConversationAsync(
+                    conversationId, userId.Value, skip, take);
+
+                return Ok(new
+                {
+                    messages = messages,
+                    pagination = new
+                    {
+                        skip = skip,
+                        take = take,
+                        count = messages.Count
+                    }
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning(ex, "Unauthorized access to conversation {ConversationId}", conversationId);
+                return Forbid();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting encrypted messages for conversation {ConversationId}", conversationId);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+        
+    
 }
+    
+

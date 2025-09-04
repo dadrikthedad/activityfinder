@@ -2,6 +2,8 @@
 using AFBack.Constants;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
+using AFBack.Models.Crypto;
+
 namespace AFBack.Data;
 // 10.03
 // Denne klassen gjør at vi kan jobbe med databasen uten å skrive SQL, kun brukek C# objekter.
@@ -52,6 +54,12 @@ public class ApplicationDbContext : DbContext
     public DbSet<BanInfo> BanInfos { get; set; }
     
     public DbSet<SuspiciousActivity> SuspiciousActivities { get; set; }
+    
+    public DbSet<UserPublicKey> UserPublicKeys { get; set; }
+    
+    public DbSet<EncryptedMessage> EncryptedMessages { get; set; } 
+    
+    public DbSet<EncryptedAttachment> EncryptedAttachments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,4 +1,5 @@
 ﻿using AFBack.DTOs;
+using AFBack.DTOs.Crypto;
 using AFBack.Models;
 
 namespace AFBack.Services;
@@ -20,5 +21,7 @@ public interface IMessageService
 
     Task<MessageResponseDTO> SoftDeleteMessageAsync(int messageId, int userId);
     Task<MessageResponseDTO> MapToResponseDtoOptimized(int messageId);
+
+    Task<EncryptedMessageResponseDTO> SendEncryptedMessageAsync(int senderId, SendEncryptedMessageRequestDTO dto);
 
 }
