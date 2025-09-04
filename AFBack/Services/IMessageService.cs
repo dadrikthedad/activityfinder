@@ -8,7 +8,7 @@ public interface IMessageService
 {
     Task<MessageResponseDTO> SendMessageAsync(int senderId, SendMessageRequestDTO requestDto);
 
-    Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId, int skip = 0,
+    Task<List<EncryptedMessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId, int skip = 0,
         int take = 20);
 
     Task<PaginatedMessageRequestsDTO> GetPendingMessageRequestsAsync(int receiverId, int page = 1,

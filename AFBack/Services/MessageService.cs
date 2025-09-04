@@ -361,10 +361,10 @@ public class MessageService : IMessageService
 
 
     // Her henter vi meldinger etter ConversationId
-    public async Task<List<MessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId,
+    public async Task<List<EncryptedMessageResponseDTO>> GetMessagesForConversationAsync(int conversationId, int userId,
     int skip = 0, int take = 20)
     {
-        // 🚀 RASK: Sjekk full tilgang først
+        // Samme tilgangskontroll logikk som før
         bool canSend = await _msgCache.CanUserSendAsync(userId, conversationId);
         bool isCreator = await _context.Conversations
             .AsNoTracking()
@@ -372,11 +372,10 @@ public class MessageService : IMessageService
 
         if (canSend || isCreator)
         {
-            //  FULL TILGANG: Direkte til meldinger
             return await GetFullMessagesAsync(conversationId, skip, take);
         }
 
-        // 🔍 SJEKK MEMBERSHIP: Er brukeren i samtalen i det hele tatt?
+        // Samme membership sjekk som før...
         var conversation = await _context.Conversations
             .AsNoTracking()
             .Include(c => c.Participants)
@@ -384,33 +383,23 @@ public class MessageService : IMessageService
 
         if (conversation == null)
             throw new Exception("Samtalen finnes ikke.");
-        
+    
         var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
-        
-        
+    
         if (userParticipant == null) 
-        {
-            // ❌ IKKE MEMBER: 403 Forbidden
             throw new UnauthorizedAccessException("Du har ikke tilgang til denne samtalen.");
-        }
         
         if (userParticipant.HasDeleted)
-        {
             throw new UnauthorizedAccessException("You have deleted this conversation. Restore it to regain access.");
-        }
 
-        // 🔒 MEMBER MEN PENDING: Vis begrenset preview
         if (conversation.IsGroup)
-        {
             return await GetFullMessagesAsync(conversationId, skip, take);
-        }
 
-        // For 1-1 samtaler: vis begrenset preview
         return await GetLimitedMessagesPreviewFor1v1(conversation, userId, take);
     }
 
     // 🔒 Spesialisert metode for 1-1 pending samtaler
-    private async Task<List<MessageResponseDTO>> GetLimitedMessagesPreviewFor1v1(Conversation conversation, int userId, int take)
+    private async Task<List<EncryptedMessageResponseDTO>> GetLimitedMessagesPreviewFor1v1(Conversation conversation, int userId, int take)
     {
         if (conversation.IsApproved)
         {
@@ -428,16 +417,14 @@ public class MessageService : IMessageService
         }
 
         // Ikke-creator: begrenset preview (maks 5 fra sender + egne)
-        var allMessages = await _context.Messages
+        var allMessages = await _context.EncryptedMessages // Endret fra Messages til EncryptedMessages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversation.Id && 
-                       (m.SenderId == userId || m.SenderId == otherUserId))
-            .Include(m => m.Attachments)
+                        (m.SenderId == userId || m.SenderId == otherUserId))
+            .Include(m => m.EncryptedAttachments) // Endret fra Attachments til EncryptedAttachments
             .Include(m => m.Reactions)
             .Include(m => m.Sender).ThenInclude(u => u.Profile)
-            .Include(m => m.ParentMessage)
-            .ThenInclude(pm => pm.Sender)    
-            .ThenInclude(s => s.Profile)
+            // ParentMessage støttes ikke for encrypted messages ennå, eller du må legge til navigation property
             .OrderByDescending(m => m.SentAt)
             .ToListAsync();
 
@@ -448,81 +435,70 @@ public class MessageService : IMessageService
             .OrderByDescending(m => m.SentAt)
             .ToList();
 
-        return combined.Select(MapToResponseForMessagesToConv).ToList();
+        return combined.Select(MapMessageToResponseDTO).ToList(); // Bruker den nye mapping-metoden
     }
-
-    // 🚀 Hjelpemetode for full tilgang
-    private async Task<List<MessageResponseDTO>> GetFullMessagesAsync(int conversationId, int skip, int take)
+    
+    
+    private async Task<List<EncryptedMessageResponseDTO>> GetFullMessagesAsync(int conversationId, int skip, int take)
     {
-        var messages = await _context.Messages
+        var messages = await _context.EncryptedMessages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversationId)
-            .Include(m => m.Attachments)
+            .Include(m => m.EncryptedAttachments)
             .Include(m => m.Reactions)
             .Include(m => m.Sender).ThenInclude(u => u.Profile)
-            .Include(m => m.ParentMessage)
-            .ThenInclude(pm => pm.Sender)    
-            .ThenInclude(s => s.Profile)
             .OrderByDescending(m => m.SentAt)
             .Skip(skip)
             .Take(take)
             .ToListAsync();
 
-        return messages
-            .OrderByDescending(m => m.SentAt)
-            .Select(MapToResponseForMessagesToConv)
-            .ToList();
+        return messages.Select(MapMessageToResponseDTO).ToList();
     }
-
-    private MessageResponseDTO MapToResponseForMessagesToConv(Message message)
-    {
-        UserSummaryDTO? parentSender = null;
-        if (!message.IsDeleted && message.ParentMessage?.Sender != null)
-        {
-            parentSender = new UserSummaryDTO
-            {
-                Id = message.ParentMessage.Sender.Id,
-                FullName = message.ParentMessage.Sender.FullName,
-                ProfileImageUrl = message.ParentMessage.Sender.Profile?.ProfileImageUrl
-            };
-        }
     
-        return new MessageResponseDTO
+    private EncryptedMessageResponseDTO MapMessageToResponseDTO(EncryptedMessage message)
+    {
+        return new EncryptedMessageResponseDTO
         {
             Id = message.Id,
             SenderId = message.SenderId,
+            EncryptedText = message.IsDeleted ? null : message.EncryptedText,
+            KeyInfo = message.IsDeleted ? new Dictionary<string, string>() : 
+                JsonConvert.DeserializeObject<Dictionary<string, string>>(message.KeyInfo) ?? new Dictionary<string, string>(),
+            IV = message.IsDeleted ? string.Empty : message.IV,
+            Version = message.Version,
+            SentAt = message.SentAt.ToString("O"),
+            ConversationId = message.ConversationId,
+            IsDeleted = message.IsDeleted,
+            ParentMessageId = message.ParentMessageId,
+            ParentMessagePreview = message.ParentMessagePreview,
+            IsSystemMessage = message.IsSystemMessage,
+        
             Sender = message.Sender != null ? new UserSummaryDTO
             {
                 Id = message.Sender.Id,
                 FullName = message.Sender.FullName,
                 ProfileImageUrl = message.Sender.Profile?.ProfileImageUrl
             } : null,
-            Text = message.IsDeleted ? null : message.Text,
-            SentAt = message.SentAt,
-            ConversationId = message.ConversationId,
-            IsSystemMessage = message.IsSystemMessage,
-            IsDeleted = message.IsDeleted,
-            Attachments = message.IsDeleted ? new List<AttachmentDto>() : 
-                message.Attachments
-                    .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
-                    .Select(a => new AttachmentDto
-                    {
-                        FileUrl = a.FileUrl,
-                        FileType = a.FileType,
-                        FileName = a.FileName,
-                        FileSize = a.FileSize
-                        
-                    }).ToList(),
+
+            EncryptedAttachments = message.IsDeleted ? new List<EncryptedAttachmentDto>() :
+                message.EncryptedAttachments.Select(a => new EncryptedAttachmentDto
+                {
+                    EncryptedFileUrl = a.EncryptedFileUrl,
+                    FileType = a.FileType,
+                    FileName = a.FileName,
+                    FileSize = a.FileSize,
+                    KeyInfo = JsonConvert.DeserializeObject<Dictionary<string, string>>(a.KeyInfo) ?? new Dictionary<string, string>(),
+                    IV = a.IV,
+                    Version = a.Version
+                }).ToList(),
+
             Reactions = message.IsDeleted ? new List<ReactionDTO>() :
                 message.Reactions.Select(r => new ReactionDTO
                 {
                     MessageId = r.MessageId,
                     Emoji = r.Emoji,
                     UserId = r.UserId
-                }).ToList(),
-            ParentMessageId = message.IsDeleted ? null : message.ParentMessageId,
-            ParentMessageText = message.IsDeleted ? null : message.ParentMessage?.Text,
-            ParentSender = parentSender,
+                }).ToList()
         };
     }
 

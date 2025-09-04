@@ -2,6 +2,7 @@ using AFBack.DTOs;
 using AFBack.Models;
 using AFBack.Data;
 using AFBack.DTOs.BoostrapDTO;
+using AFBack.DTOs.Crypto;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
 
@@ -257,76 +258,72 @@ namespace AFBack.Services
                 .ToList();
         }
         
-        private async Task<Dictionary<int, List<MessageResponseDTO>>> GetConversationMessagesWithService(
-        int userId, 
-        IMessageService messageService)
+        private async Task<Dictionary<int, List<EncryptedMessageResponseDTO>>> GetConversationMessagesWithService(
+    int userId, 
+    IMessageService messageService)
+    {
+        _logger.LogDebug("🔍 Getting encrypted messages for user's conversations {UserId} (separate service)", userId);
+
+        try
         {
-            _logger.LogDebug("🔍 Getting messages for user's conversations {UserId} (separate service)", userId);
+            using var scope = _serviceProvider.CreateScope();
+            var conversationService = scope.ServiceProvider.GetRequiredService<ConversationService>();
+            
+            var conversationResults = await conversationService.GetUserConversationsSortedAsync(
+                userId,
+                includeRejected: false,
+                limit: 10);
 
-            try
+            var conversationMessages = new Dictionary<int, List<EncryptedMessageResponseDTO>>();
+
+            var messageTasks = conversationResults.Select(async conversationResult =>
             {
-                // First get user's recent conversation IDs (using same logic as conversations)
-                using var scope = _serviceProvider.CreateScope();
-                var conversationService = scope.ServiceProvider.GetRequiredService<ConversationService>();
-                
-                var conversationResults = await conversationService.GetUserConversationsSortedAsync(
-                    userId,
-                    includeRejected: false,
-                    limit: 10);
+                using var taskScope = _serviceProvider.CreateScope();
+                var taskMessageService = taskScope.ServiceProvider.GetRequiredService<IMessageService>();
 
-                var conversationMessages = new Dictionary<int, List<MessageResponseDTO>>();
-
-                // Get messages for each conversation in parallel
-                var messageTasks = conversationResults.Select(async conversationResult =>
+                try
                 {
-                    // ✅ NY SCOPE for hver parallel task
-                    using var taskScope = _serviceProvider.CreateScope();
-                    var taskMessageService = taskScope.ServiceProvider.GetRequiredService<IMessageService>();
-    
-                    try
-                    {
-                        _logger.LogDebug("🔍 Fetching messages for conversation {ConversationId}", conversationResult.Conversation.Id);
+                    _logger.LogDebug("🔍 Fetching encrypted messages for conversation {ConversationId}", conversationResult.Conversation.Id);
 
-                        var messages = await taskMessageService.GetMessagesForConversationAsync(
-                            conversationResult.Conversation.Id, 
-                            userId, 
-                            skip: 0, 
-                            take: 20);
+                    // Bruker den oppdaterte metoden som returnerer EncryptedMessageResponseDTO
+                    var messages = await taskMessageService.GetMessagesForConversationAsync(
+                        conversationResult.Conversation.Id, 
+                        userId, 
+                        skip: 0, 
+                        take: 20);
 
-                        _logger.LogDebug("✅ Got {MessageCount} messages for conversation {ConversationId}", 
-                            messages.Count, conversationResult.Conversation.Id);
+                    _logger.LogDebug("✅ Got {MessageCount} encrypted messages for conversation {ConversationId}", 
+                        messages.Count, conversationResult.Conversation.Id);
 
-                        return new { ConversationId = conversationResult.Conversation.Id, Messages = messages };
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "❌ DETAILED ERROR for conversation {ConversationId}: {ErrorMessage}", 
-                            conversationResult.Conversation.Id, ex.Message);
-                        return new { ConversationId = conversationResult.Conversation.Id, Messages = new List<MessageResponseDTO>() };
-                    }
-                });
-
-                var messageResults = await Task.WhenAll(messageTasks);
-
-                // Build dictionary
-                foreach (var result in messageResults)
-                {
-                    conversationMessages[result.ConversationId] = result.Messages;
+                    return new { ConversationId = conversationResult.Conversation.Id, Messages = messages };
                 }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "❌ DETAILED ERROR for conversation {ConversationId}: {ErrorMessage}", 
+                        conversationResult.Conversation.Id, ex.Message);
+                    return new { ConversationId = conversationResult.Conversation.Id, Messages = new List<EncryptedMessageResponseDTO>() };
+                }
+            });
 
-                _logger.LogDebug("✅ Found messages for {ConversationCount} conversations with total {MessageCount} messages", 
-                    conversationMessages.Count, 
-                    conversationMessages.Values.Sum(m => m.Count));
+            var messageResults = await Task.WhenAll(messageTasks);
 
-                return conversationMessages;
-            }
-            catch (Exception ex)
+            foreach (var result in messageResults)
             {
-                _logger.LogError(ex, "❌ Failed to get conversation messages for user {UserId}", userId);
-                // Return empty dictionary instead of crashing bootstrap
-                return new Dictionary<int, List<MessageResponseDTO>>();
+                conversationMessages[result.ConversationId] = result.Messages;
             }
+
+            _logger.LogDebug("✅ Found encrypted messages for {ConversationCount} conversations with total {MessageCount} messages", 
+                conversationMessages.Count, 
+                conversationMessages.Values.Sum(m => m.Count));
+
+            return conversationMessages;
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to get conversation messages for user {UserId}", userId);
+            return new Dictionary<int, List<EncryptedMessageResponseDTO>>();
+        }
+    }
         
         // SECONDARY ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
