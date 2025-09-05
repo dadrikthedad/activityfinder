@@ -25,7 +25,7 @@ public class SendEncryptedMessageRequestDTO
         
     // Validation helper
     public bool HasValidContent => 
-        !string.IsNullOrEmpty(EncryptedText) || 
+        (!string.IsNullOrEmpty(EncryptedText) && KeyInfo.Any()) || 
         (EncryptedAttachments?.Any() == true);
 }
 
