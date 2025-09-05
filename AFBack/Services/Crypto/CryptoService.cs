@@ -27,6 +27,12 @@ public class E2EEService
                     throw new ArgumentException("Public key cannot be empty");
                 }
 
+                // Validate Sodium key format
+                if (!IsValidSodiumKey(publicKey))
+                {
+                    throw new ArgumentException("Invalid public key format. Expected 32-byte Sodium key.");
+                }
+
                 // Deactivate old keys
                 var existingKeys = await _context.UserPublicKeys
                     .Where(k => k.UserId == userId && k.IsActive)
@@ -50,7 +56,7 @@ public class E2EEService
                 _context.UserPublicKeys.Add(newKey);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Stored new public key for user {UserId}, version {Version}", 
+                _logger.LogInformation("Stored new Sodium public key for user {UserId}, version {Version}", 
                     userId, newKey.KeyVersion);
 
                 return newKey;
@@ -59,6 +65,20 @@ public class E2EEService
             {
                 _logger.LogError(ex, "Failed to store public key for user {UserId}", userId);
                 throw;
+            }
+        }
+        
+        
+        private bool IsValidSodiumKey(string publicKey)
+        {
+            try
+            {
+                var keyBytes = Convert.FromBase64String(publicKey);
+                return keyBytes.Length == 32; // Sodium X25519 public keys are 32 bytes
+            }
+            catch
+            {
+                return false;
             }
         }
 
