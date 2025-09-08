@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
 using AFBack.Models.Crypto;
 using Newtonsoft.Json;
+using EncryptedMessage = AFBack.Models.Crypto.EncryptedMessage;
 
 // En service for å håndtere alle meldinger
 namespace AFBack.Services;
@@ -485,8 +486,8 @@ public class MessageService : IMessageService
                 {
                     EncryptedFileUrl = a.EncryptedFileUrl,
                     FileType = a.FileType,
-                    FileName = a.FileName,
-                    FileSize = a.FileSize,
+                    FileName = a.OriginalFileName, // Endret fra a.FileName
+                    FileSize = a.OriginalFileSize, // Endret fra a.FileSize
                     KeyInfo = JsonConvert.DeserializeObject<Dictionary<string, string>>(a.KeyInfo) ?? new Dictionary<string, string>(),
                     IV = a.IV,
                     Version = a.Version
@@ -1702,14 +1703,15 @@ public class MessageService : IMessageService
             {
                 var attachments = dto.EncryptedAttachments.Select(att => new EncryptedAttachment
                 {
-                    MessageId = encryptedMessage.Id,
+                    EncryptedMessageId = encryptedMessage.Id, // Endret fra MessageId
                     EncryptedFileUrl = att.EncryptedFileUrl,
                     FileType = att.FileType,
-                    FileName = att.FileName,
-                    FileSize = att.FileSize ?? 0,
+                    OriginalFileName = att.FileName, // Endret fra FileName til OriginalFileName
+                    OriginalFileSize = att.FileSize ?? 0, // Endret fra FileSize til OriginalFileSize
                     KeyInfo = JsonConvert.SerializeObject(att.KeyInfo),
                     IV = att.IV,
-                    Version = att.Version
+                    Version = att.Version,
+                    CreatedAt = DateTime.UtcNow // Legg til CreatedAt
                 });
 
                 _context.EncryptedAttachments.AddRange(attachments);
@@ -1886,11 +1888,11 @@ public class MessageService : IMessageService
             SentAt = DateTime.UtcNow,
             IsSystemMessage = false,
             IsDeleted = false,
-            IsApproved = isApproved // Add this field to EncryptedMessage model
+            IsApproved = isApproved // Add this field to FileController model
         };
     }
 
-    private async Task<EncryptedMessageResponseDTO> MapEncryptedToResponseDtoOptimized(int messageId)
+   private async Task<EncryptedMessageResponseDTO> MapEncryptedToResponseDtoOptimized(int messageId)
     {
         var dto = await _context.EncryptedMessages
             .AsNoTracking()
@@ -1939,8 +1941,8 @@ public class MessageService : IMessageService
                         {
                             EncryptedFileUrl = a.EncryptedFileUrl,
                             FileType = a.FileType,
-                            FileName = a.FileName,
-                            FileSize = a.FileSize,
+                            FileName = a.OriginalFileName, // Endret fra a.FileName
+                            FileSize = a.OriginalFileSize, // Endret fra a.FileSize
                             KeyInfo = JsonConvert.DeserializeObject<Dictionary<string, string>>(a.KeyInfo) ?? new Dictionary<string, string>(),
                             IV = a.IV,
                             Version = a.Version
@@ -1965,7 +1967,7 @@ public class MessageService : IMessageService
         return dto;
     }
 
-    private async Task<EncryptedMessageResponseDTO> CreateAndSaveEncryptedMessageFast(int senderId, SendEncryptedMessageRequestDTO dto, Conversation conversation)
+        private async Task<EncryptedMessageResponseDTO> CreateAndSaveEncryptedMessageFast(int senderId, SendEncryptedMessageRequestDTO dto, Conversation conversation)
     {
         // Opprett encrypted melding direkte - vi vet brukeren kan sende
         var encryptedMessage = CreateEncryptedMessage(senderId, conversation.Id, dto, isApproved: true);
@@ -1977,14 +1979,15 @@ public class MessageService : IMessageService
         {
             var attachments = dto.EncryptedAttachments.Select(att => new EncryptedAttachment
             {
-                MessageId = encryptedMessage.Id,
+                EncryptedMessageId = encryptedMessage.Id, // Endret fra MessageId
                 EncryptedFileUrl = att.EncryptedFileUrl,
                 FileType = att.FileType,
-                FileName = att.FileName,
-                FileSize = att.FileSize ?? 0,
+                OriginalFileName = att.FileName, // Endret fra FileName
+                OriginalFileSize = att.FileSize ?? 0, // Endret fra FileSize
                 KeyInfo = JsonConvert.SerializeObject(att.KeyInfo),
                 IV = att.IV,
-                Version = att.Version
+                Version = att.Version,
+                CreatedAt = DateTime.UtcNow // Legg til CreatedAt
             });
 
             _context.EncryptedAttachments.AddRange(attachments);

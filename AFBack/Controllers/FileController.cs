@@ -32,7 +32,16 @@ public class FileController : BaseController
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     
-    public FileController(ApplicationDbContext context, ILogger<FileController> logger, BlobServiceClient blobServiceClient, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IFileService fileService, IMessageService messageService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
+    public FileController(ApplicationDbContext context, 
+        ILogger<FileController> logger, 
+        BlobServiceClient blobServiceClient, 
+        IHubContext<UserHub> hubContext, 
+        MessageNotificationService messageNotificationService, 
+        GroupNotificationService groupNotificationService, 
+        IFileService fileService, 
+        IMessageService messageService, 
+        IBackgroundTaskQueue taskQueue, 
+        IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _logger = logger;

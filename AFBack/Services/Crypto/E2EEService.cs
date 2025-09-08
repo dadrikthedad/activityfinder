@@ -206,14 +206,15 @@ public class E2EEService
                 {
                     var attachments = request.EncryptedAttachments.Select(att => new EncryptedAttachment
                     {
-                        MessageId = message.Id,
+                        EncryptedMessageId = message.Id, // Endret fra MessageId
                         EncryptedFileUrl = att.EncryptedFileUrl,
                         FileType = att.FileType,
-                        FileName = att.FileName,
-                        FileSize = att.FileSize ?? 0,
+                        OriginalFileName = att.FileName, // Mapping fra FileName til OriginalFileName
+                        OriginalFileSize = att.FileSize ?? 0, // Mapping fra FileSize til OriginalFileSize
                         KeyInfo = JsonConvert.SerializeObject(att.KeyInfo),
                         IV = att.IV,
-                        Version = att.Version
+                        Version = att.Version,
+                        CreatedAt = DateTime.UtcNow // Legg til CreatedAt
                     });
 
                     _context.EncryptedAttachments.AddRange(attachments);
@@ -231,7 +232,6 @@ public class E2EEService
                 throw;
             }
         }
-
         public async Task<EncryptedMessage?> GetEncryptedMessageWithDetailsAsync(int messageId)
         {
             return await _context.EncryptedMessages
@@ -282,8 +282,8 @@ public class E2EEService
                     {
                         EncryptedFileUrl = a.EncryptedFileUrl,
                         FileType = a.FileType,
-                        FileName = a.FileName,
-                        FileSize = a.FileSize,
+                        FileName = a.OriginalFileName, // Endret fra a.FileName
+                        FileSize = a.OriginalFileSize, // Endret fra a.FileSize
                         KeyInfo = JsonConvert.DeserializeObject<Dictionary<string, string>>(a.KeyInfo) 
                                   ?? new Dictionary<string, string>(),
                         IV = a.IV,

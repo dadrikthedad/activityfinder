@@ -10,7 +10,7 @@ public class FileService : IFileService
     private readonly ILogger<FileService> _logger;
 
     // Tillatte filtyper for vedlegg
-    private readonly HashSet<string> _allowedAttachmentTypes = new()
+    public static readonly HashSet<string> _allowedAttachmentTypes = new()
     {
         "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
         "application/pdf", "text/plain", 

@@ -5,7 +5,7 @@ namespace AFBack.Models.Crypto;
 public class EncryptedAttachment
 {
     public int Id { get; set; }
-    public int MessageId { get; set; }
+    public int EncryptedMessageId { get; set; } // Endret fra MessageId
     public EncryptedMessage Message { get; set; }
         
     [Required]
@@ -15,15 +15,16 @@ public class EncryptedAttachment
     public string FileType { get; set; } = string.Empty;
         
     [Required]
-    public string FileName { get; set; } = string.Empty;
+    public string OriginalFileName { get; set; } = string.Empty; // Endret fra FileName
         
-    public long FileSize { get; set; }
+    public long OriginalFileSize { get; set; } // Endret fra FileSize
         
     [Required]
-    public string KeyInfo { get; set; } = "{}"; // JSON string of encrypted keys
+    public string KeyInfo { get; set; } = "{}"; // JSON string av encrypted keys
         
     [Required]
     public string IV { get; set; } = string.Empty;
         
     public int Version { get; set; } = 1;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // Legg til
 }
