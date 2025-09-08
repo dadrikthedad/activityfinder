@@ -114,5 +114,30 @@ namespace AFBack.Controllers
                 return StatusCode(500, "Internal server error");
             }
         }
+        
+        /// <summary>
+        /// Get current user's public key (for checking E2EE setup status)
+        /// </summary>
+        [HttpGet("public-key")]
+        public async Task<IActionResult> GetMyPublicKey()
+        {
+            try
+            {
+                var userId = GetUserId();
+                var publicKeys = await _e2eeService.GetPublicKeysForUsersAsync(new List<int> { userId.Value });
+        
+                if (!publicKeys.Any())
+                {
+                    return NotFound("No public key found for user");
+                }
+
+                return Ok(publicKeys.First());
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting user's public key");
+                return StatusCode(500, "Internal server error");
+            }
+        }
     }
 }
