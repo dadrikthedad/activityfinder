@@ -210,4 +210,17 @@ public class FileService : IFileService
         });
         await Task.WhenAll(cleanupTasks).ConfigureAwait(false);
     }
+    
+    public async Task<string> UploadEncryptedBytesAsync(byte[] encryptedData, string containerName, string fileName)
+    {
+        var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+        await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob);
+    
+        var blobClient = containerClient.GetBlobClient(fileName);
+    
+        using var stream = new MemoryStream(encryptedData);
+        await blobClient.UploadAsync(stream, new BlobHttpHeaders { ContentType = "application/octet-stream" });
+    
+        return blobClient.Uri.ToString();
+    }
 }

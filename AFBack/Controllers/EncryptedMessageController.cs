@@ -249,4 +249,142 @@ public class EncryptedMessageController : BaseController
 
         return (true, null);
     }
+    
+    [HttpPost("upload-encrypted-json")]
+    public async Task<IActionResult> UploadEncryptedJSON([FromBody] UploadEncryptedJSONRequestDTO request)
+    {
+        try
+        {
+            var userId = GetUserId();
+            if (userId == null)
+                return Unauthorized("Invalid user ID");
+
+            if (request.EncryptedFilesData == null || !request.EncryptedFilesData.Any())
+                return BadRequest("No encrypted files provided");
+
+            if (request.EncryptedFilesData.Count > 10)
+                return BadRequest("Maximum 10 files per message");
+
+            // Validate conversation access
+            var hasAccess = await _context.ConversationParticipants
+                .AnyAsync(cp => cp.ConversationId == request.ConversationId && cp.UserId == userId);
+            
+            if (!hasAccess)
+                return Forbid("Not authorized for this conversation");
+
+            var uploadedUrls = new List<string>();
+            var encryptedAttachments = new List<EncryptedAttachmentDto>();
+
+            try
+            {
+                // Process each encrypted file
+                foreach (var fileData in request.EncryptedFilesData)
+                {
+                    // Validate base64 data
+                    if (string.IsNullOrEmpty(fileData.EncryptedFileData))
+                        throw new ValidationException($"Missing encrypted data for file: {fileData.FileName}");
+
+                    // Convert base64 to bytes for blob upload
+                    byte[] encryptedBytes;
+                    try
+                    {
+                        encryptedBytes = Convert.FromBase64String(fileData.EncryptedFileData);
+                    }
+                    catch (FormatException)
+                    {
+                        throw new ValidationException($"Invalid base64 data for file: {fileData.FileName}");
+                    }
+
+                    if (encryptedBytes.Length == 0)
+                        throw new ValidationException($"Empty encrypted data for file: {fileData.FileName}");
+
+                    // Determine container based on file type
+                    var containerName = fileData.FileType.StartsWith("video/") 
+                        ? "encrypted-message-videos" 
+                        : "encrypted-message-attachments";
+
+                    // Generate unique filename for encrypted file
+                    var fileName = $"{Path.GetFileNameWithoutExtension(fileData.FileName)}_{Guid.NewGuid()}.enc";
+                    
+                    // Upload encrypted bytes to blob storage
+                    var uploadedUrl = await _fileService.UploadEncryptedBytesAsync(encryptedBytes, containerName, fileName);
+                    uploadedUrls.Add(uploadedUrl);
+
+                    // Add to encrypted attachments list
+                    encryptedAttachments.Add(new EncryptedAttachmentDto
+                    {
+                        EncryptedFileUrl = uploadedUrl,
+                        FileName = fileData.FileName,
+                        FileType = fileData.FileType,
+                        FileSize = fileData.FileSize,
+                        KeyInfo = fileData.KeyInfo,
+                        IV = fileData.IV,
+                        Version = fileData.Version
+                    });
+
+                    _logger.LogInformation("Encrypted file uploaded: {FileName} -> {Url} ({Size} bytes)", 
+                        fileData.FileName, uploadedUrl, encryptedBytes.Length);
+                }
+
+                // Create message request
+                var sendMessageRequest = new SendEncryptedMessageRequestDTO
+                {
+                    EncryptedText = request.Text,
+                    ConversationId = request.ConversationId,
+                    ReceiverId = request.ReceiverId?.ToString(),
+                    ParentMessageId = request.ParentMessageId,
+                    KeyInfo = !string.IsNullOrEmpty(request.TextKeyInfo) 
+                        ? JsonSerializer.Deserialize<Dictionary<string, string>>(request.TextKeyInfo) ?? new Dictionary<string, string>()
+                        : new Dictionary<string, string>(),
+                    IV = request.TextIV ?? string.Empty,
+                    Version = 1,
+                    EncryptedAttachments = encryptedAttachments
+                };
+
+                // Store encrypted message with attachments
+                var messageResult = await _ee2eService.StoreEncryptedMessageAsync(sendMessageRequest, userId.Value);
+                
+                if (messageResult == null)
+                {
+                    // Cleanup uploaded files if message creation fails
+                    await _fileService.CleanupUploadedFiles(uploadedUrls);
+                    return StatusCode(500, "Failed to send encrypted message");
+                }
+
+                _logger.LogInformation("Encrypted message with {AttachmentCount} attachments sent successfully. MessageId: {MessageId}", 
+                    encryptedAttachments.Count, messageResult.Id);
+
+                return Ok(new
+                {
+                    message = "Encrypted message with attachments sent successfully",
+                    messageId = messageResult.Id,
+                    attachmentCount = encryptedAttachments.Count,
+                    attachments = encryptedAttachments.Select(a => new {
+                        fileName = a.FileName,
+                        fileType = a.FileType,
+                        encryptedFileUrl = a.EncryptedFileUrl
+                    })
+                });
+            }
+            catch (Exception)
+            {
+                // Cleanup uploaded files on error
+                if (uploadedUrls.Any())
+                {
+                    await _fileService.CleanupUploadedFiles(uploadedUrls);
+                }
+                throw;
+            }
+        }
+        catch (ValidationException ex)
+        {
+            _logger.LogWarning("Validation error uploading encrypted JSON: {Error}", ex.Message);
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading encrypted JSON attachments for user {UserId}", GetUserId());
+            return StatusCode(500, "Internal server error");
+        }
+    }
 }
