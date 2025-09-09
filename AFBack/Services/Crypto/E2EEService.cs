@@ -161,15 +161,26 @@ public class E2EEService
                     throw new ArgumentException("Message must have either encrypted text or attachments");
                 }
 
-                if (request.KeyInfo?.Any() != true)
+                // Validate that message has content (text or attachments)
+                if (string.IsNullOrEmpty(request.EncryptedText) && 
+                    (request.EncryptedAttachments == null || !request.EncryptedAttachments.Any()))
                 {
-                    throw new ArgumentException("KeyInfo is required");
+                    throw new ArgumentException("Message must have either encrypted text or attachments");
                 }
 
-                if (string.IsNullOrEmpty(request.IV))
+                // Only require KeyInfo if there's encrypted text
+                if (!string.IsNullOrEmpty(request.EncryptedText) && 
+                    (request.KeyInfo == null || !request.KeyInfo.Any()))
                 {
-                    throw new ArgumentException("IV is required");
+                    throw new ArgumentException("KeyInfo is required for text messages");
                 }
+
+                // Only require IV if there's encrypted text
+                if (!string.IsNullOrEmpty(request.EncryptedText) && string.IsNullOrEmpty(request.IV))
+                {
+                    throw new ArgumentException("IV is required for text messages");
+                }
+                
 
                 // Validate conversation access
                 if (request.ConversationId.HasValue)
