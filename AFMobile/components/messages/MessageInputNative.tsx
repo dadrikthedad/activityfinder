@@ -1,4 +1,4 @@
-// components/messages/MessageInputNative.tsx - Refactored to use AttachmentPicker
+// components/messages/MessageInputNative.tsx - Updated with encrypted attachments support
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -11,7 +11,6 @@ import {
   AppState,
 } from 'react-native';
 import { ArrowBigRight } from 'lucide-react-native';
-import { useSendMessage } from '@/hooks/messages/useSendMessage';
 import { MessageDTO, AttachmentDto } from '@shared/types/MessageDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
@@ -19,6 +18,7 @@ import { getDraftFor, saveDraftFor, clearDraftFor } from '@/utils/draft/draft';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { ReplyPreviewNative } from './ReplyPreviewNative';
 import { RNFile, validateFiles } from '@/utils/files/FileFunctions';
+import { useSendEncryptedMessage } from '@/hooks/messages/useSendEncryptedMessage';
 
 // Import our new components
 import { AttachmentPreview } from '../files/AttachmentPreview';
@@ -53,7 +53,14 @@ export default function MessageInputNative({
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<RNFile[]>([]);
   
-  const { send, error } = useSendMessage(onMessageSent);
+  const { 
+    send, 
+    error, 
+    loading, 
+    e2eeError, 
+    encryptionProgress 
+  } = useSendEncryptedMessage(onMessageSent);
+  
   const inputRef = useRef<TextInput>(null);
   const conversationId = useChatStore((state) => state.currentConversationId);
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
@@ -90,7 +97,8 @@ export default function MessageInputNative({
   const isBlocked = 
     isDisabled ||
     (currentConversation?.isPendingApproval && effectiveMessageCount >= 5) ||
-    isLocked;
+    isLocked ||
+    loading;
 
   const handleTextChange = (newText: string) => {
     setText(newText);
@@ -124,9 +132,9 @@ export default function MessageInputNative({
     // Generate unique optimistic ID
     const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Create optimistic attachments
+    // Create optimistic attachments for encrypted files
     const optimisticAttachments: AttachmentDto[] = selectedFiles.map((file, index) => ({
-      fileUrl: '',
+      fileUrl: '', // Will be set after encryption/upload
       fileType: file.type,
       fileName: file.name,
       fileSize: file.size,
@@ -135,6 +143,7 @@ export default function MessageInputNative({
       localUri: file.uri,
       isUploading: true,
       uploadError: null,
+      isEncrypted: true, // Mark as encrypted
     }));
 
     // Create optimistic message
@@ -155,45 +164,40 @@ export default function MessageInputNative({
       parentMessageText: replyingTo?.text || null,
       parentSender: replyingTo?.sender || null,
       isSystemMessage: false,
-      isDeleted: false
+      isDeleted: false,
     };
 
-    // Add optimistic message to store
+    // Add optimistic message to store immediately
     if (conversationId) {
       useChatStore.getState().addMessage(optimisticMessage);
     }
 
-    // Clear input and files immediately
+    // Clear input and files immediately for better UX
     setText("");
     setSelectedFiles([]);
     onClearReply?.();
 
-    const messageData = hasFiles ? {
-      text: trimmed || undefined,
-      files: selectedFiles,
+    const messageData = {
+      text: hasText ? trimmed : undefined, // Don't send empty string
+      files: hasFiles ? selectedFiles : undefined,
       conversationId: conversationId!,
       receiverId: receiverId?.toString(),
-      parentMessageId: replyingTo?.id
-    } : {
-      text: trimmed,
-      files: undefined,
-      conversationId: conversationId ?? undefined,
-      receiverId: receiverId?.toString(),
-      parentMessageId: replyingTo?.id
+      parentMessageId: replyingTo?.id ?? undefined // Convert null to undefined
     };
 
     try {
       const result = await send(messageData);
       
       if (!result) {
-        // Update optimistic message and attachments with error
+        // Update optimistic message with error
         if (conversationId) {
           useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
             ...optimisticMessage,
             isSending: false,
-            sendError: "Failed to send message"
+            sendError: "Failed to send encrypted message"
           });
           
+          // Update attachment errors if necessary
           optimisticAttachments.forEach(attachment => {
             if (attachment.optimisticId) {
               useChatStore.getState().updateAttachmentUploadStatus(
@@ -219,7 +223,7 @@ export default function MessageInputNative({
         clearDraftFor(conversationId);
       }
     } catch (err: any) {
-      console.error("Error sending message:", err);
+      console.error("Error sending encrypted message:", err);
       
       // Update optimistic message with error
       if (conversationId) {
@@ -229,6 +233,7 @@ export default function MessageInputNative({
           sendError: err.message || "Send failed"
         });
         
+        // Update attachment errors
         optimisticAttachments.forEach(attachment => {
           if (attachment.optimisticId) {
             useChatStore.getState().updateAttachmentUploadStatus(
@@ -302,13 +307,13 @@ export default function MessageInputNative({
     };
   }, []);
 
-  const displayError = conversationError || error;
+  const displayError = conversationError || error || e2eeError;
 
   const getPlaceholder = () => {
     if (isDisabled) return "This conversation has been deleted...";
     if (isBlocked) return "You can't send messages until the request is accepted...";
     if (selectedFiles.length > 0) return "Add a message (optional)...";
-    return "Write a message...";
+    return "Write an encrypted message...";
   };
 
   return (
@@ -319,6 +324,15 @@ export default function MessageInputNative({
           message={replyingTo} 
           onClear={onClearReply || (() => {})} 
         />
+      )}
+
+      {/* Encryption Progress */}
+      {encryptionProgress > 0 && encryptionProgress < 100 && (
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            🔐 Encrypting... {Math.round(encryptionProgress)}%
+          </Text>
+        </View>
       )}
 
       {/* File Previews using AttachmentPreview */}
@@ -338,9 +352,9 @@ export default function MessageInputNative({
                 onPress={() => handleFilePreviewPress(0)}
                 onRemove={() => removeFile(0)}
                 isBlurred={false}
-                isUploading={false}
+                isUploading={loading}
                 uploadError={null}
-                disabled={false}
+                disabled={loading}
                 borderColor="white"
               />
             </View>
@@ -365,9 +379,9 @@ export default function MessageInputNative({
                   onPress={() => handleFilePreviewPress(index)}
                   onRemove={() => removeFile(index)}
                   isBlurred={false}
-                  isUploading={false}
+                  isUploading={loading}
                   uploadError={null}
-                  disabled={false}
+                  disabled={loading}
                   borderColor="white"
                 />
               ))}
@@ -385,7 +399,7 @@ export default function MessageInputNative({
 
       {/* Input Row */}
       <View style={styles.inputContainer}>
-        {/* 🆕 NEW: AttachmentPicker replaces the old plus button and modal logic */}
+        {/* AttachmentPicker */}
         {!isBlocked && (
           <AttachmentPicker
             onFilesSelected={handleFilesSelected}
@@ -395,7 +409,7 @@ export default function MessageInputNative({
             allowDocuments={true}
             imageQuality={0.7}
             cameraQuality={0.7}
-            modalTitle="Choose Attachment"
+            modalTitle="Choose Encrypted Attachment"
             accentColor="#1C6B1C"
             buttonBackgroundColor="#1C6B1C"
             buttonColor="#ffffff"
@@ -429,7 +443,7 @@ export default function MessageInputNative({
           onPress={handleSend}
           disabled={(!text.trim() && selectedFiles.length === 0) || isBlocked}
         >
-          <ArrowBigRight size={24} color="#ffffffff" />
+          <ArrowBigRight size={24} color="#ffffff" />
         </TouchableOpacity>
       </View>
     </View>
@@ -451,6 +465,32 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12,
     color: '#DC2626',
+  },
+  progressContainer: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#0369A1',
+    textAlign: 'center',
+  },
+  encryptionStatusContainer: {
+    marginBottom: 8,
+  },
+  encryptionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    justifyContent: 'center',
+  },
+  encryptionStatusText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   inputContainer: {
     flexDirection: 'row',

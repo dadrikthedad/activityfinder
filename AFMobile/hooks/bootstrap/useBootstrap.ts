@@ -32,6 +32,7 @@ export const useBootstrap = () => {
     setSecondaryError,
     cleanupOldCache,
     setBootstrapped,
+    hasLoadedCritical
   } = useBootstrapStore();
 
   // Conversations data fra ChatStore
@@ -128,14 +129,12 @@ export const useBootstrap = () => {
 
   // 🔧 FIX: Setter isBootstrapped når critical data er loaded
   useEffect(() => {
-    const { hasLoadedCritical } = useBootstrapStore.getState();
-    
     // Hvis vi har critical data men isBootstrapped er false, sett den til true
     if (hasLoadedCritical && user && !isBootstrapped && !criticalError) {
       // console.log("✅ Found existing critical data, setting isBootstrapped = true");
       setBootstrapped(true);
     }
-  }, [user, isBootstrapped, criticalError, setBootstrapped]);
+  }, [user, isBootstrapped, criticalError, setBootstrapped, hasLoadedCritical]);
 
   // Retry functions
   const retryCritical = useCallback(() => {

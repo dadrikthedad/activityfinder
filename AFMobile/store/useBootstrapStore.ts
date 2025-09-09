@@ -23,6 +23,12 @@ type BootstrapStore = {
   // Loading flags (fra eksisterende store)
   hasLoadedCritical: boolean;
   hasLoadedSecondary: boolean;
+
+  e2eeInitialized: boolean;
+  e2eeHasKeyPair: boolean;
+  e2eeError: string | null;
+  e2eeIsGeneratingKeys: boolean;
+  
   
   // Actions - Critical data
   setCriticalData: (data: CriticalBootstrapResponseDTO) => void;
@@ -44,6 +50,9 @@ type BootstrapStore = {
   setBootstrapped: (value: boolean) => void;
   markCriticalAsLoaded: () => void;
   markSecondaryAsLoaded: () => void;
+
+  setE2EEState: (initialized: boolean, hasKeyPair: boolean, error?: string | null) => void;
+  setE2EEGenerating: (isGenerating: boolean) => void;
   
   /** Tøm alt ved logout */
   reset: () => void;
@@ -68,10 +77,16 @@ export const useBootstrapStore = create<BootstrapStore>()(
       hasLoadedCritical: false,
       hasLoadedSecondary: false,
 
+      e2eeInitialized: false,
+      e2eeHasKeyPair: false,
+      e2eeError: null,
+      e2eeIsGeneratingKeys: false,
+
       // --- Critical data actions ---
       setCriticalData: (data: CriticalBootstrapResponseDTO) =>
         set(() => ({
           user: data.user,
+          settings: data.settings,
           syncToken: data.syncToken,
           criticalLoading: false,
           criticalError: null,
@@ -94,7 +109,6 @@ export const useBootstrapStore = create<BootstrapStore>()(
       // --- Secondary data actions ---
       setSecondaryData: (data: SecondaryBootstrapResponseDTO) =>
         set((state) => ({
-          settings: data.settings,
           secondaryLoading: false,
           secondaryError: null,
           secondaryCacheTimestamp: Date.now(),
@@ -192,6 +206,19 @@ export const useBootstrapStore = create<BootstrapStore>()(
       markSecondaryAsLoaded: () =>
         set(() => ({ hasLoadedSecondary: true })),
 
+      // E2EE actions
+      setE2EEState: (initialized: boolean, hasKeyPair: boolean, error?: string | null) =>
+        set(() => ({
+          e2eeInitialized: initialized,
+          e2eeHasKeyPair: hasKeyPair,
+          e2eeError: error || null
+        })),
+
+        setE2EEGenerating: (isGenerating: boolean) =>
+        set(() => ({
+          e2eeIsGeneratingKeys: isGenerating
+        })),
+
       // --- Reset for logout ---
       reset: () =>
         set({
@@ -206,6 +233,12 @@ export const useBootstrapStore = create<BootstrapStore>()(
           
           criticalCacheTimestamp: 0,
           secondaryCacheTimestamp: 0,
+
+          // Reset E2EE state
+          e2eeInitialized: false,
+          e2eeHasKeyPair: false,
+          e2eeError: null,
+          e2eeIsGeneratingKeys: false, 
           
           hasLoadedCritical: false,
           hasLoadedSecondary: false,

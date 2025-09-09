@@ -1,3 +1,7 @@
+// KRITISK: Dette må være første import!
+import './components/ende-til-ende/polyfills';
+import { initializePolyfills } from './components/ende-til-ende/polyfills';
+
 import 'react-native-gesture-handler';
 
 import React, { useEffect } from 'react';
@@ -41,6 +45,7 @@ import ReportScreen from './screens/support/ReportScreen';
 import SecurityCredsScreen from './screens/profile/SecurityCredsScreen';
 import VerificationScreen from './screens/auth/VerificationScreen'
 import ResetPasswordScreen from './screens/auth/ResetPasswordScreen'
+import { TestScreen } from './screens/test/TestScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
@@ -50,7 +55,11 @@ function AppContent() {
       platform: 'react-native',
       appVersion: '1.0.0'
     });
+
+    const polyfillStatus = initializePolyfills();
+    Logger.info('Polyfills initialized', polyfillStatus);
   }, []);
+
 
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
@@ -247,6 +256,7 @@ function AuthenticatedApp() {
             />
             <Stack.Screen name="ReportScreen" component={ReportScreen} />
             <Stack.Screen name="SecurityCredsScreen" component={SecurityCredsScreen} />
+            <Stack.Screen name="TestScreen" component={TestScreen} />
           </>
         ) : (
           <>

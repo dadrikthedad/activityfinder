@@ -4,6 +4,8 @@ import { SendMessageRequestDTO, MessageDTO } from "@shared/types/MessageDTO";
 import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
 import { RejectRequestDTO } from "@shared/types/RejectRequestDTO";
 import { PaginatedMessageRequestsDTO } from "@shared/types/PaginatedMessageRequestsDTO";
+import { EncryptedMessageDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
+import { SendEncryptedMessageRequestDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
 
 // Sende meldinger til bruker eller grupper
 export async function sendTextMessage(
@@ -53,4 +55,12 @@ export async function rejectRequest(dto: RejectRequestDTO): Promise<void> {
 export async function deleteMessage(messageId: number): Promise<MessageDTO | null> {
   const url = `${API_BASE_URL}/api/messages/${messageId}`;
   return await deleteRequest<MessageDTO>(url);
+}
+
+
+export async function sendEncryptedMessage(
+  payload: SendEncryptedMessageRequestDTO
+): Promise<EncryptedMessageDTO | null> {
+  const url = `${API_BASE_URL}/api/messages/encrypted`;
+  return await postRequest<EncryptedMessageDTO, SendEncryptedMessageRequestDTO>(url, payload);
 }

@@ -1,6 +1,6 @@
 namespace AFBack.Models;
 
-public class UserBlocks
+public class UserBlock
 {
     public int Id { get; set; }
     

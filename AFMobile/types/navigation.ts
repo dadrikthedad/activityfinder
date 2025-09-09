@@ -49,6 +49,7 @@ export type RootStackParamList = {
     userName?: string; 
   } | undefined;
   SecurityCredsScreen: undefined;
+  TestScreen: undefined;
 };
 
 
@@ -155,6 +156,11 @@ export type ReportScreenNavigationProp = StackNavigationProp<
   'ReportScreen'
 >;
 
+export type TestScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'TestScreen'
+>;
+
 
 // Route prop types for each screen (if you need route params)
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
@@ -178,6 +184,7 @@ export type TrashcanScreenRouteProp = RouteProp<RootStackParamList, 'TrashcanScr
 export type FriendScreenRouteProp = RouteProp<RootStackParamList, 'FriendScreen'>;
 export type NotificationScreenRouteProp = RouteProp<RootStackParamList, 'NotificationScreen'>;
 export type ReportScreenRouteProp = RouteProp<RootStackParamList, 'ReportScreen'>;
+export type TestScreenRouteProp = RouteProp<RootStackParamList, 'TestScreen'>;
 
 // Generic navigation prop (useful for components that can navigate to multiple screens)
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

@@ -162,7 +162,7 @@ async function sendWithFiles(payload: MessageWithFilesNative): Promise<MessageDT
   return result;
 }
 
-function extractErrorMessage(err: unknown): string {
+export function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) {
     try {
       const parsed = JSON.parse(err.message);

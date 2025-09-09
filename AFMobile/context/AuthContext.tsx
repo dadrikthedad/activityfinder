@@ -1,5 +1,5 @@
 // AFMobile/context/AuthContext.tsx
-// Oppdatert til å bruke den nye AuthService med refresh tokens
+// Oppdatert til å bruke LogoutService for bedre debugging
 import React, {
   createContext,
   useState,
@@ -9,16 +9,8 @@ import React, {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import authServiceNative from "@/services/user/authServiceNative";
-import { logoutUser } from "@/services/user/authService";
+import { LogoutService } from "@/auth/services/logoutService";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
-import { clearAllDrafts } from "@/utils/draft/draft";
-import { useChatStore } from "@/store/useChatStore";
-import { useNotificationStore } from "@/store/useNotificationStore";
-import { asyncStorage } from "@/store/indexedNotificationDBStorage";
-import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
-import { useBootstrapStore } from "@/store/useBootstrapStore";
-import { useUserCacheStore } from "@/store/useUserCacheStore";
-import { markOfflineWithDefaults } from "@/services/bootstrap/onlineStatusService";
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -37,6 +29,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [userId, setUserId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigation = useNavigation();
+  const logoutService = LogoutService.getInstance();
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -110,57 +103,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
  
   const logout = async () => {
     try {
-      // Marker som offline først (før vi fjerner token)
-      console.log("🔴 Marking user as offline...");
-      await markOfflineWithDefaults();
-      console.log("✅ User marked as offline");
-    } catch (error) {
-      console.warn("⚠️ Could not mark as offline during logout:", error);
-    }
-
-    try {
-      // Bruk den nye logout service som håndterer server-side cleanup
-      await logoutUser();
+      // ✅ Use dedicated LogoutService for complete cleanup
+      await logoutService.performLogout();
       
-      // Fjern legacy token og andre sesjonsdata
-      await AsyncStorage.multiRemove([
-        "userId",
-        "messageDropdownSize", 
-        "messageDropdownPosition",
-        "dropdown_convo"
-      ]);
-
-      // Zustand stores cleanup
-      useChatStore.getState().reset();
-      useNotificationStore.getState().reset();       
-      useMessageNotificationStore.getState().reset(); 
-      useBootstrapStore.getState().reset();
-      useUserCacheStore.getState().reset();              
-      
-      // Clear persistent storage
-      await useChatStore.persist.clearStorage();
-      await useNotificationStore.persist.clearStorage();
-      await useMessageNotificationStore.persist.clearStorage();
-      await useBootstrapStore.persist.clearStorage();
-      await useUserCacheStore.persist.clearStorage();  
-
-      // Fallback cleanup
-      await asyncStorage.removeItem("chat-cache");
-      await asyncStorage.removeItem("notif-cache");
-      await asyncStorage.removeItem("message-notif-cache"); 
-      await asyncStorage.removeItem("bootstrap-cache");           
-      await asyncStorage.removeItem("user-cache-enhanced"); 
-
-      // UI cleanup
-      await clearAllDrafts();
-
-      // Reset auth state
+      // Reset auth state AFTER successful logout
       setToken(null);
       setUserId(null);
       setIsLoggedIn(false);
 
       // Navigate to login
-      navigation.navigate("Login" as never);
+      navigation.navigate("LoginScreen" as never);
       
     } catch (error) {
       console.error("❌ Error during logout:", error);
@@ -169,7 +121,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(null);
       setUserId(null);
       setIsLoggedIn(false);
-      navigation.navigate("Login" as never);
+      navigation.navigate("LoginScreen" as never);
     }
   };
 

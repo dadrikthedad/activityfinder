@@ -81,7 +81,7 @@ public class BlockedController : BaseController
                              .Contains(userId))
              .FirstOrDefaultAsync();
 
-         var userBlock = new UserBlocks
+         var userBlock = new UserBlock
          {
              BlockerId = currentUserId.Value,
              BlockedUserId = userId,

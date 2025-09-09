@@ -388,6 +388,14 @@ export default function MobileNavbarNative({
                       <Text style={styles.menuItemText}>Report a problem/issue</Text>
                     </TouchableOpacity>
 
+                    <TouchableOpacity
+                      onPress={() => handleNavigation('TestScreen')}
+                      style={styles.menuItem}
+                    >
+                      <Bug size={18} color="#374151" />
+                      <Text style={styles.menuItemText}>TEST</Text>
+                    </TouchableOpacity>
+
                     <View style={styles.separator} />
 
                     <TouchableOpacity

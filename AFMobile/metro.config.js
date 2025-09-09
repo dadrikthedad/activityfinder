@@ -14,6 +14,9 @@ config.watchFolders = [
 config.resolver.platforms = ['ios', 'android', 'web'];
 config.resolver.alias = {
   '@shared': path.resolve(__dirname, '../shared'),
+  'buffer': 'buffer',
+  'stream': 'stream-browserify',
+  'crypto': 'react-native-quick-crypto', // LEGG TIL DENNE
 };
 
 // Allow imports from outside the project root

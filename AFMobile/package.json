@@ -9,14 +9,19 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@dreson4/react-native-quick-bip39": "^0.0.7",
     "@gorhom/bottom-sheet": "^5.1.8",
     "@microsoft/applicationinsights-react-native": "^4.3.7",
     "@microsoft/applicationinsights-web": "^3.3.9",
+    "@peculiar/webcrypto": "^1.5.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "^8.4.4",
     "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.1.17",
     "@react-navigation/stack": "^7.4.5",
+    "@s77rt/react-native-sodium": "^0.4.0",
+    "bip39": "^3.1.0",
+    "buffer": "^6.0.3",
     "expo": "~53.0.20",
     "expo-application": "~6.1.5",
     "expo-dev-client": "~5.2.4",
@@ -37,18 +42,23 @@
     "react-native-device-info": "^14.0.4",
     "react-native-emoji-modal": "^0.2.4",
     "react-native-gesture-handler": "~2.24.0",
+    "react-native-get-random-values": "^1.11.0",
     "react-native-image-picker": "^8.2.1",
+    "react-native-keychain": "^10.0.0",
+    "react-native-quick-crypto": "^0.7.17",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
     "react-native-svg": "15.11.2",
     "react-native-toast-message": "^2.3.3",
     "rn-emoji-keyboard": "^1.7.0",
+    "stream-browserify": "^3.0.0",
     "zustand": "^5.0.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
+    "babel-plugin-module-resolver": "^5.0.2",
     "typescript": "~5.8.3"
   },
   "private": true

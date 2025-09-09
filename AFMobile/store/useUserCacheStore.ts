@@ -11,45 +11,42 @@ interface UserCacheStore {
   // Current user og settings
   currentUser: UserSummaryDTO | null;
   settings: UserSettingsDTO | null;
-
   // Data - nå med relationship status
   users: Record<number, UserSummaryDTO>;
-  
+ 
   // Cache metadata
   lastUpdated: number;
   hasLoadedFromBootstrap: boolean;
-
+  
   // CurrentUserActions
   setCurrentUser: (user: UserSummaryDTO) => void;
   getCurrentUser: () => UserSummaryDTO | null;
   setSettings: (settings: UserSettingsDTO) => void;
   getSettings: () => UserSettingsDTO | null;
-  
+ 
   // Core actions
   setUser: (user: Partial<UserSummaryDTO> & { id: number }) => void;
   setUsers: (users: UserSummaryDTO[]) => void;
   getUser: (userId: number) => UserSummaryDTO | null;
   updateUser: (userId: number, updates: Partial<UserSummaryDTO>) => void;
-  
+ 
   // Relationship-specific actions
   setUserFriendStatus: (userId: number, isFriend: boolean, isBlocked?: boolean) => void;
   setUserBlockedStatus: (userId: number, isBlocked: boolean, isFriend?: boolean) => void;
-  
+ 
   // Quick relationship checks
   isFriend: (userId: number) => boolean;
   isBlocked: (userId: number) => boolean;
-
   // Filtered getters
   getFriends: () => UserSummaryDTO[];
   getBlockedUsers: () => UserSummaryDTO[];
-  
-  // Enhanced bootstrap caching
-  cacheUsersFromCriticalBootstrap: (data: CriticalBootstrapResponseDTO) => void;
-  cacheUsersFromSecondaryBootstrap: (data: SecondaryBootstrapResponseDTO) => void;
+ 
+  // UNIFIED: Single bootstrap caching method
+  cacheUsersFromBootstrap: (secondaryData?: SecondaryBootstrapResponseDTO) => void;
   
   // Bulk operations
   getUsersByIds: (userIds: number[]) => UserSummaryDTO[];
-  
+ 
   // Cache management
   cleanupOldUsers: () => void;
   isCacheValid: () => boolean;
@@ -325,74 +322,64 @@ export const useUserCacheStore = create<UserCacheStore>()(
         return Object.values(state.users).filter(user => user.isBlocked === true);
       },
       
-      // 🔧 UPDATED: Critical bootstrap caching (no relationship status)
-      cacheUsersFromCriticalBootstrap: (data: CriticalBootstrapResponseDTO) => {
+      cacheUsersFromBootstrap: (
+        secondaryData?: SecondaryBootstrapResponseDTO
+      ) => {
         const userMap = new Map<number, UserSummaryDTO>();
         const now = Date.now();
-      
-        
-        data.recentConversations?.forEach(conv => 
+
+        console.log("👤 Caching users from bootstrap data...");
+
+        // 1. Cache conversation participants from secondary bootstrap (no relationship status)
+        if (secondaryData?.recentConversations) {
+          secondaryData.recentConversations.forEach(conv =>
             conv.participants?.forEach(user => {
-            if (!userMap.has(user.id)) {
+              if (!userMap.has(user.id)) {
                 userMap.set(user.id, {
-                ...user,
-                // Don't set relationship status from critical bootstrap
-                lastUpdated: now
+                  ...user,
+                  // Don't set relationship status from conversation participants
+                  lastUpdated: now
                 });
-            }
+              }
             })
-        );
-        
+          );
+        }
+
+        // 2. Cache users from friend invitations (secondary bootstrap)
+        if (secondaryData?.pendingFriendInvitations) {
+          secondaryData.pendingFriendInvitations.forEach(inv => {
+            if (inv.userSummary && !userMap.has(inv.userSummary.id)) {
+              userMap.set(inv.userSummary.id, {
+                ...inv.userSummary,
+                lastUpdated: now
+              });
+            }
+          });
+        }
+
+        // 3. Cache users from app notifications (secondary bootstrap)
+        if (secondaryData?.recentNotifications) {
+          secondaryData.recentNotifications.forEach(notif => {
+            if (notif.relatedUser && !userMap.has(notif.relatedUser.id)) {
+              userMap.set(notif.relatedUser.id, {
+                ...notif.relatedUser,
+                lastUpdated: now
+              });
+            }
+          });
+        }
+
         const uniqueUsers = Array.from(userMap.values());
-        // console.log(`👤 Cached ${uniqueUsers.length} users from critical bootstrap`);
-        
-        // Use setUsers for smart merging
-        get().setUsers(uniqueUsers);
-        },
-      
-      // Secondary bootstrap now handles allUserSummaries AND other users
-      cacheUsersFromSecondaryBootstrap: (data: SecondaryBootstrapResponseDTO) => {
-        const userMap = new Map<number, UserSummaryDTO>();
-        const now = Date.now();
-        
-        console.log("👤 Caching remaining users from SECONDARY bootstrap...");
-        
-        // allUserSummaries is handled separately in distributor
-        // Here we only cache users from other sources (notifications, invitations, etc.)
-        
-        // Friend invitations
-        data.pendingFriendInvitations?.forEach(inv => {
-          if (inv.userSummary && !userMap.has(inv.userSummary.id)) {
-            userMap.set(inv.userSummary.id, {
-              ...inv.userSummary,
-              // Don't override relationship status - these are invitation users
-              lastUpdated: now 
-            });
-          }
-        });
-        
-        // App notifications
-        data.recentNotifications?.forEach(notif => {
-          if (notif.relatedUser && !userMap.has(notif.relatedUser.id)) {
-            userMap.set(notif.relatedUser.id, {
-              ...notif.relatedUser,
-              // Don't set relationship status for notification users
-              lastUpdated: now 
-            });
-          }
-        });
-        
-        const uniqueUsers = Array.from(userMap.values());
-        
+
         if (uniqueUsers.length > 0) {
-          console.log(`👤 Cached ${uniqueUsers.length} additional users from secondary bootstrap`);
-          // Use setUsers for smart merging
+          console.log(`👤 Cached ${uniqueUsers.length} users from bootstrap data`);
           get().setUsers(uniqueUsers);
         }
-        
-        // Mark as loaded from bootstrap
-        set({ hasLoadedFromBootstrap: true });
-        },
+
+        if (secondaryData) {
+          set({ hasLoadedFromBootstrap: true });
+        }
+      },
       
       // Bulk operations
       getUsersByIds: (userIds: number[]) => {

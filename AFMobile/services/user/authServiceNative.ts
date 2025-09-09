@@ -6,6 +6,8 @@ import { LoginRequest } from "@shared/types/auth/LoginRequestDTO";
 import { API_BASE_URL } from "@/constants/routes";
 import { deviceInfoService } from "@/utils/api/deviceInfo";
 import { AuthError } from '@shared/types/error/AuthError';
+import { CryptoService } from '@/components/ende-til-ende/CryptoService';
+import { CryptoServiceBackup } from '@/components/ende-til-ende/CryptoServiceBackup';
 
 class AuthService {
   private accessToken: string | null = null;
@@ -30,6 +32,11 @@ class AuthService {
         const expires = new Date(expiresStr);
         if (expires > new Date()) {
           this.scheduleTokenRefresh(expires);
+          
+          // Initialize E2EE for existing session
+          this.initializeE2EEAsync().catch(error => {
+            console.error('E2EE initialization failed on app startup:', error);
+          });
         } else {
           // Token is expired, try to refresh if we have refresh token
           if (this.refreshToken) {
@@ -125,11 +132,10 @@ class AuthService {
     const isFormData = options.body instanceof FormData;
 
     const headers: HeadersInit = {
-    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...deviceHeaders,
-    ...options.headers
-  };
-
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...deviceHeaders,
+      ...options.headers
+    };
 
     if (this.accessToken) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
@@ -149,7 +155,7 @@ class AuthService {
         return fetch(url, { ...options, headers });
       } catch {
         await this.clearTokens();
-        throw new AuthError('Session expired - redirect to login'); // 🆕 Spesiell error
+        throw new AuthError('Session expired - redirect to login');
       }
     }
 
@@ -159,6 +165,27 @@ class AuthService {
   async getAccessToken(): Promise<string | null> {
     await this.ensureInitialized();
     return this.accessToken;
+  }
+
+  async getCurrentUserId(): Promise<number | null> {
+    await this.ensureInitialized();
+    
+    if (!this.accessToken) {
+      return null;
+    }
+
+    try {
+      // Parse JWT token payload
+      const payload = JSON.parse(atob(this.accessToken.split('.')[1]));
+      
+      // JWT kan ha forskjellige field names for userId
+      const userId = payload.sub || payload.userId || payload.id || payload.user_id;
+      
+      return userId ? parseInt(userId.toString()) : null;
+    } catch (error) {
+      console.error('Failed to parse userId from token:', error);
+      return null;
+    }
   }
 
   async isAuthenticated(): Promise<boolean> {
@@ -172,7 +199,63 @@ class AuthService {
     
     await this.saveTokens(tokenData);
     this.scheduleTokenRefresh(tokenData.accessTokenExpires);
+    
+    // ✅ Vent på E2EE initialisering før vi fortsetter
+    await this.initializeE2EEAsync();
   }
+
+  private async initializeE2EEAsync(): Promise<void> {
+  try {
+    // Ikke kall getCurrentUserId() - parse JWT direkte siden vi VET tokens er satt
+    if (!this.accessToken) {
+      throw new Error('No access token available after token setup');
+    }
+
+    const payload = JSON.parse(atob(this.accessToken.split('.')[1]));
+    const userId = payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"] ||
+                   payload.sub || 
+                   payload.userId || 
+                   payload.id || 
+                   payload.user_id;
+
+    if (!userId) {
+      throw new Error('No userId found in JWT token');
+    }
+
+    console.log("🔐 Initializing E2EE after login for user:", userId);
+
+    const backupService = CryptoServiceBackup.getInstance();
+    const result = await backupService.initializeForUser(parseInt(userId.toString()));
+    
+    // Use dynamic import to avoid circular dependency
+    const { useBootstrapStore } = await import('@/store/useBootstrapStore');
+    const { setE2EEState } = useBootstrapStore.getState();
+    
+    if (result.needsSetup) {
+      setE2EEState(true, false, 'needs_setup');
+      console.log("✅ E2EE initialized: needs setup");
+    } else if (result.needsRestore) {
+      setE2EEState(true, false, 'needs_restore');
+      console.log("✅ E2EE initialized: needs restore");
+    } else {
+      setE2EEState(true, true, null);
+      console.log("✅ E2EE initialized: ready");
+    }
+    
+  } catch (error) {
+    console.error('E2EE initialization failed:', error);
+    
+    // Set E2EE state to failed
+    try {
+      const { useBootstrapStore } = await import('@/store/useBootstrapStore');
+      const { setE2EEState } = useBootstrapStore.getState();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown E2EE error';
+      setE2EEState(true, false, errorMessage);
+    } catch (storeError) {
+      console.error('Failed to set E2EE error state:', storeError);
+    }
+  }
+}
 
   private async saveTokens(tokenData: LoginResponseDTO): Promise<void> {
     try {
@@ -250,6 +333,8 @@ class AuthService {
   }
 
   private async clearTokens(): Promise<void> {
+    const userId = await this.getCurrentUserId();
+    
     this.accessToken = null;
     this.refreshToken = null;
     
@@ -258,10 +343,30 @@ class AuthService {
       this.refreshTimer = null;
     }
 
+    if (userId) {
+      try {
+        const cryptoService = CryptoService.getInstance();
+        
+        // Clear memory cache only - keep keychain for same device re-login
+        cryptoService.clearUserCache(userId);
+        
+        // DON'T clear keychain on normal logout
+        // await cryptoService.clearPrivateKey(userId);
+        
+        const { useBootstrapStore } = await import('@/store/useBootstrapStore');
+        const { setE2EEState } = useBootstrapStore.getState();
+        setE2EEState(false, false, null);
+        
+        console.log("🔐 E2EE memory cache cleared for user:", userId);
+      } catch (error) {
+        console.error('Failed to clear E2EE state:', error);
+      }
+    }
+
     try {
       await AsyncStorage.multiRemove([
         'accessToken',
-        'refreshToken', 
+        'refreshToken',
         'accessTokenExpires',
         'refreshTokenExpires'
       ]);

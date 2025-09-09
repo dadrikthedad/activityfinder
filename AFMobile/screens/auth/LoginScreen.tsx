@@ -1,5 +1,5 @@
-// screens/auth/LoginScreen.tsx - Oppdatert versjon med Forgot Password
-import React, { useMemo } from "react";
+// screens/auth/LoginScreen.tsx - Oppdatert versjon med Forgot Password + Debug Key Clear
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useLogin } from "@/hooks/auth/useLogin";
@@ -18,9 +19,12 @@ import ButtonNative from "@/components/common/buttons/ButtonNative";
 import OptionModalNative from "@/components/common/modal/OptionModalNative";
 import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
 import { LoginScreenNavigationProp } from "@/types/navigation";
+import { CryptoService } from "@/components/ende-til-ende/CryptoService"; // Import your crypto service
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();
+  const [clearingKeys, setClearingKeys] = useState(false);
+  
   const {
     email,
     setEmail,
@@ -56,6 +60,89 @@ export default function LoginScreen() {
   const navigateToResetPassword = () => {
     navigation.navigate('ResetPasswordScreen');
   };
+
+  // *** DEBUG FUNCTION - CLEAR ALL PRIVATE KEYS ***
+  const handleClearPrivateKeys = () => {
+  Alert.alert(
+    "Complete Keychain Reset",
+    "This will delete ALL private keys AND reset the entire keychain for this app. This gives you a completely clean slate. Continue?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel"
+      },
+      {
+        text: "Reset Everything",
+        style: "destructive",
+        onPress: async () => {
+          setClearingKeys(true);
+          try {
+            const crypto = CryptoService.getInstance();
+            
+            console.log('🔐 DEBUG: Starting complete keychain reset...');
+            
+            // Method 1: Try to clear known user IDs
+            const userIds = [127, 128, 129, 130, 195, 200, 201, 202]; // Add more as needed
+            
+            for (const userId of userIds) {
+              try {
+                await crypto.clearPrivateKey(userId);
+                console.log(`🔐 DEBUG: Cleared private key for user ${userId}`);
+              } catch (error) {
+                console.log(`🔐 DEBUG: No key found for user ${userId}`);
+              }
+            }
+            
+            // Method 2: Try to reset entire keychain (more aggressive)
+            try {
+              const Keychain = require('react-native-keychain');
+              
+              // Get all keychain items and delete them
+              const credentials = await Keychain.getAllInternetCredentials();
+              console.log('🔐 DEBUG: Found keychain items:', Object.keys(credentials || {}));
+              
+              // Clear each e2ee key we find
+              for (const server of Object.keys(credentials || {})) {
+                if (server.includes('e2ee_private_key_')) {
+                  try {
+                    await Keychain.resetInternetCredentials({ server });
+                    console.log(`🔐 DEBUG: Cleared keychain entry: ${server}`);
+                  } catch (e) {
+                    console.log(`🔐 DEBUG: Could not clear: ${server}`);
+                  }
+                }
+              }
+              
+            } catch (error) {
+              console.log('🔐 DEBUG: Could not enumerate keychain:', error);
+            }
+            
+            console.log('🔐 DEBUG: Complete keychain reset completed');
+            
+            showNotificationToastNative({
+              type: LocalToastType.CustomSystemNotice,
+              customTitle: "Complete Reset Done",
+              customBody: "All encryption keys cleared. Next login will generate fresh keys.",
+              position: 'top'
+            });
+            
+          } catch (error) {
+            console.error('🔐 ERROR: Failed to reset keychain:', error);
+            
+            showNotificationToastNative({
+              type: LocalToastType.CustomSystemError,
+              customTitle: "Reset Failed",
+              customBody: "Failed to reset keychain. Check console for details.",
+              position: 'top'
+            });
+          } finally {
+            setClearingKeys(false);
+          }
+        }
+      }
+    ]
+  );
+};
 
   // Show error as toast if there's an error message
   React.useEffect(() => {
@@ -130,7 +217,7 @@ export default function LoginScreen() {
               value={email}
               onChangeText={setEmail}
               placeholder="Your email"
-              disabled={isSubmitting || resendingEmail}
+              disabled={isSubmitting || resendingEmail || clearingKeys}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -142,19 +229,19 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               placeholder="Your password"
-              disabled={isSubmitting || resendingEmail}
+              disabled={isSubmitting || resendingEmail || clearingKeys}
             />
 
             {/* *** FORGOT PASSWORD LINK - Rett under password feltet *** */}
             <View style={styles.forgotPasswordContainer}>
               <TouchableOpacity
                 onPress={navigateToResetPassword}
-                disabled={isSubmitting || resendingEmail}
+                disabled={isSubmitting || resendingEmail || clearingKeys}
                 style={styles.forgotPasswordButton}
               >
                 <Text style={[
                   styles.forgotPasswordText,
-                  (isSubmitting || resendingEmail) && styles.forgotPasswordTextDisabled
+                  (isSubmitting || resendingEmail || clearingKeys) && styles.forgotPasswordTextDisabled
                 ]}>
                   Forgot Password?
                 </Text>
@@ -166,7 +253,7 @@ export default function LoginScreen() {
               loadingText={resendingEmail ? "Sending email..." : "Logging in..."}
               onPress={onLoginPress}
               loading={isSubmitting || resendingEmail}
-              disabled={isSubmitting || resendingEmail}
+              disabled={isSubmitting || resendingEmail || clearingKeys}
               variant="primary"
               size="large"
               fullWidth
@@ -181,10 +268,28 @@ export default function LoginScreen() {
                 onPress={navigateToSignup}
                 variant="ghost"
                 size="medium"
-                disabled={isSubmitting || resendingEmail}
+                disabled={isSubmitting || resendingEmail || clearingKeys}
                 textStyle={styles.signupButtonText}
               />
             </View>
+
+            {/* *** DEBUG SECTION - ONLY SHOW IN DEVELOPMENT *** */}
+            {__DEV__ && (
+              <View style={styles.debugSection}>
+                <Text style={styles.debugTitle}>Debug Tools</Text>
+                <ButtonNative
+                  text="Clear All Private Keys"
+                  loadingText="Clearing keys..."
+                  onPress={handleClearPrivateKeys}
+                  loading={clearingKeys}
+                  disabled={isSubmitting || resendingEmail || clearingKeys}
+                  variant="danger"
+                  size="medium"
+                  fullWidth
+                  style={styles.debugButton}
+                />
+              </View>
+            )}
           </View>
 
           {/* Footer */}
@@ -288,5 +393,22 @@ const styles = StyleSheet.create({
   signupButtonText: {
     fontSize: 14,
     fontWeight: "600",
+  },
+  // *** DEBUG STYLES ***
+  debugSection: {
+    marginTop: 32,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  debugTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ef4444',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  debugButton: {
+    backgroundColor: '#ef4444',
   },
 });
