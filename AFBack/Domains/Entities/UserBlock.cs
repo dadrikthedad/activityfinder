@@ -1,4 +1,6 @@
-namespace AFBack.Models;
+using AFBack.Models;
+
+namespace AFBack.Domains.Entities;
 
 public class UserBlock
 {

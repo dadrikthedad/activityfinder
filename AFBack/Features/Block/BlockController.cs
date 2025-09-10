@@ -1,5 +1,6 @@
 using AFBack.Constants;
 using AFBack.Data;
+using AFBack.Domains.Entities;
 using AFBack.Extensions;
 using AFBack.Functions;
 using AFBack.Hubs;
@@ -15,14 +16,14 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class BlockedController : BaseController
+public class BlockController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly SendMessageCache _sendMessageCache;
 
-    public BlockedController(
+    public BlockController(
         ApplicationDbContext context,
         IBackgroundTaskQueue taskQueue, 
         IServiceScopeFactory scopeFactory,

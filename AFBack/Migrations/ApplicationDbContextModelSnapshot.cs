@@ -1218,7 +1218,7 @@ namespace AFBack.Migrations
                     b.ToTable("UserActivity");
                 });
 
-            modelBuilder.Entity("AFBack.Models.UserBlocks", b =>
+            modelBuilder.Entity("AFBack.Models.UserBlock", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1247,7 +1247,7 @@ namespace AFBack.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_UserBlock_BlockerId_BlockedUserId");
 
-                    b.ToTable("UserBlocks", t =>
+                    b.ToTable("UserBlock", t =>
                         {
                             t.HasCheckConstraint("CK_UserBlock_NoSelfBlock", "\"BlockerId\" <> \"BlockedUserId\"");
                         });
@@ -1874,7 +1874,7 @@ namespace AFBack.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AFBack.Models.UserBlocks", b =>
+            modelBuilder.Entity("AFBack.Models.UserBlock", b =>
                 {
                     b.HasOne("AFBack.Models.User", "BlockedUser")
                         .WithMany()

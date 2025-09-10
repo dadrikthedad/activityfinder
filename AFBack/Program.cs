@@ -21,6 +21,7 @@ using AFBack.Filters;
 using AFBack.Hubs;
 using AFBack.Interface;
 using AFBack.Middleware;
+using AFBack.Services.Block;
 using AFBack.Services.Crypto;
 using AFBack.Services.Maintenance.Tasks;
 using AFBack.Services.User;
@@ -246,6 +247,7 @@ builder.Services.AddScoped<SupportService>();
 builder.Services.AddScoped<EmailService, EmailService>();
 builder.Services.AddScoped<UserService, UserService>();
 builder.Services.AddScoped<E2EEService>();
+builder.Services.AddScoped<BlockService, BlockService>();
 builder.Services.AddEmailRateLimit();
 builder.Services.Configure<IpBanOptions>(
     builder.Configuration.GetSection("IpBan"));

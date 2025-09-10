@@ -1,8 +1,10 @@
 ﻿using System.Text.Json;
 using AFBack.Constants;
+using AFBack.Domains.Entities;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.Models.Crypto;
+
 
 namespace AFBack.Data;
 // 10.03
@@ -39,7 +41,7 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<GroupEventAffectedUser> GroupEventAffectedUsers { get; set; }
     
-    public DbSet<UserBlocks> UserBlocks { get; set; }
+    public DbSet<UserBlock> UserBlocks { get; set; }
     
     public DbSet<CanSend> CanSend { get; set; }
     
@@ -419,7 +421,7 @@ public class ApplicationDbContext : DbContext
         });
         
         // UserBlock konfigurasjon
-        modelBuilder.Entity<UserBlocks>(entity =>
+        modelBuilder.Entity<UserBlock>(entity =>
         {
             entity.HasKey(ub => ub.Id);
     

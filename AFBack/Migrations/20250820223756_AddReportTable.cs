@@ -25,11 +25,11 @@ namespace AFBack.Migrations
 
             migrationBuilder.RenameTable(
                 name: "UserBlock",
-                newName: "UserBlocks");
+                newName: "UserBlock");
 
             migrationBuilder.AddPrimaryKey(
                 name: "PK_UserBlocks",
-                table: "UserBlocks",
+                table: "UserBlock",
                 column: "Id");
 
             migrationBuilder.CreateTable(
@@ -88,7 +88,7 @@ namespace AFBack.Migrations
 
             migrationBuilder.AddForeignKey(
                 name: "FK_UserBlocks_Users_BlockedUserId",
-                table: "UserBlocks",
+                table: "UserBlock",
                 column: "BlockedUserId",
                 principalTable: "Users",
                 principalColumn: "Id",
@@ -96,7 +96,7 @@ namespace AFBack.Migrations
 
             migrationBuilder.AddForeignKey(
                 name: "FK_UserBlocks_Users_BlockerId",
-                table: "UserBlocks",
+                table: "UserBlock",
                 column: "BlockerId",
                 principalTable: "Users",
                 principalColumn: "Id",
@@ -108,21 +108,21 @@ namespace AFBack.Migrations
         {
             migrationBuilder.DropForeignKey(
                 name: "FK_UserBlocks_Users_BlockedUserId",
-                table: "UserBlocks");
+                table: "UserBlock");
 
             migrationBuilder.DropForeignKey(
                 name: "FK_UserBlocks_Users_BlockerId",
-                table: "UserBlocks");
+                table: "UserBlock");
 
             migrationBuilder.DropTable(
                 name: "Reports");
 
             migrationBuilder.DropPrimaryKey(
                 name: "PK_UserBlocks",
-                table: "UserBlocks");
+                table: "UserBlock");
 
             migrationBuilder.RenameTable(
-                name: "UserBlocks",
+                name: "UserBlock",
                 newName: "UserBlock");
 
             migrationBuilder.AddPrimaryKey(
