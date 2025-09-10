@@ -216,37 +216,40 @@ public class E2EEService
                 // Handle encrypted attachments
                 if (request.EncryptedAttachments?.Any() == true)
                 {
-                    _logger.LogInformation("🔐🐛 ATTEMPTING TO STORE MESSAGE: ConversationId={ConversationId}, SenderId={SenderId}, HasAttachments={HasAttachments}", 
-                        request.ConversationId, senderId, request.EncryptedAttachments?.Count > 0);
-                    
-                    var attachments = request.EncryptedAttachments.Select(att => new MessageAttachment
+                    _logger.LogInformation("🔐🐛 ATTEMPTING TO STORE {AttachmentCount} ATTACHMENTS for MessageId={MessageId}", 
+                        request.EncryptedAttachments.Count, message.Id);
+    
+                    // Lag attachments uten å spesifisere Id
+                    foreach (var att in request.EncryptedAttachments)
                     {
-                        EncryptedFileUrl = att.EncryptedFileUrl,
-                        FileType = att.FileType,
-                        OriginalFileName = att.FileName,
-                        OriginalFileSize = att.FileSize ?? 0,
-                        KeyInfo = JsonConvert.SerializeObject(att.KeyInfo),
-                        IV = att.IV,
-                        Version = att.Version,
-                        CreatedAt = DateTime.UtcNow,
+                        var attachment = new MessageAttachment
+                        {
+                            // Ikke sett Id, MessageId eller Message - la EF håndtere alt
+                            EncryptedFileUrl = att.EncryptedFileUrl,
+                            FileType = att.FileType,
+                            OriginalFileName = att.FileName,
+                            OriginalFileSize = att.FileSize ?? 0,
+                            KeyInfo = JsonConvert.SerializeObject(att.KeyInfo),
+                            IV = att.IV,
+                            Version = att.Version,
+                            CreatedAt = DateTime.UtcNow,
 
-                        // Thumbnail-felter:
-                        EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
-                        ThumbnailKeyInfo = att.ThumbnailKeyInfo != null 
-                            ? JsonConvert.SerializeObject(att.ThumbnailKeyInfo) 
-                            : null,
-                        ThumbnailIV = att.ThumbnailIV,
-                        ThumbnailWidth = att.ThumbnailWidth,
-                        ThumbnailHeight = att.ThumbnailHeight
-                    }).ToList();
-
-                    foreach (var attachment in attachments)
-                    {
+                            // Thumbnail-felter:
+                            EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                            ThumbnailKeyInfo = att.ThumbnailKeyInfo != null 
+                                ? JsonConvert.SerializeObject(att.ThumbnailKeyInfo) 
+                                : null,
+                            ThumbnailIV = att.ThumbnailIV,
+                            ThumbnailWidth = att.ThumbnailWidth,
+                            ThumbnailHeight = att.ThumbnailHeight
+                        };
+        
+                        // Legg til via navigation property
                         message.Attachments.Add(attachment);
                     }
-                    
+    
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation("🔐✅ MESSAGE SAVED SUCCESSFULLY: MessageId={MessageId}", message.Id);
+                    _logger.LogInformation("🔐✅ ATTACHMENTS SAVED SUCCESSFULLY for MessageId={MessageId}", message.Id);
                 }
 
                 _logger.LogInformation("Stored encrypted message {MessageId} from user {UserId} in conversation {ConversationId}", 
