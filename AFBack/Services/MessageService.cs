@@ -458,6 +458,8 @@ public class MessageService : IMessageService
     
     private EncryptedMessageResponseDTO MapMessageToResponseDTO(EncryptedMessage message)
     {
+        Console.WriteLine($"🔐🐛 MAPPING MESSAGE {message.Id}: KeyInfoKeys={JsonConvert.DeserializeObject<Dictionary<string, string>>(message.KeyInfo)?.Keys.Count ?? 0}");
+        
         return new EncryptedMessageResponseDTO
         {
             Id = message.Id,

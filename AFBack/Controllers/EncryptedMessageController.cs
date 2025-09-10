@@ -78,15 +78,33 @@ public class EncryptedMessageController : BaseController
             
             if (!hasAccess)
                 return Forbid("Not authorized for this conversation");
+            
+            _logger.LogInformation("🔐🐛 BACKEND RECEIVED: MessageKeyInfo={MessageKeyInfoCount}, AttachmentCount={AttachmentCount}", 
+                !string.IsNullOrEmpty(request.TextKeyInfo) ? JsonSerializer.Deserialize<Dictionary<string, string>>(request.TextKeyInfo)?.Keys.Count ?? 0 : 0,
+                request.EncryptedFilesData?.Count ?? 0);
+
+            // Log hver attachment som kommer inn
+            foreach (var fileData in request.EncryptedFilesData ?? new List<EncryptedFileDataDto>())
+            {
+                _logger.LogInformation("🔐🐛 INCOMING ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, HasThumbnailData={HasThumbnailData}", 
+                    fileData.FileName, 
+                    fileData.KeyInfo?.Keys.Count ?? 0,
+                    fileData.ThumbnailKeyInfo?.Keys.Count ?? 0,
+                    !string.IsNullOrEmpty(fileData.EncryptedThumbnailData));
+            }
+            
+            
 
             var uploadedUrls = new List<string>();
             var encryptedAttachments = new List<EncryptedAttachmentDto>();
 
             try
             {
+                
                 // Process each encrypted file
                 foreach (var fileData in request.EncryptedFilesData)
                 {
+                    
                     // Validate base64 data for main file
                     if (string.IsNullOrEmpty(fileData.EncryptedFileData))
                         throw new ValidationException($"Missing encrypted data for file: {fileData.FileName}");
@@ -163,6 +181,12 @@ public class EncryptedMessageController : BaseController
                         ThumbnailWidth = fileData.ThumbnailWidth,
                         ThumbnailHeight = fileData.ThumbnailHeight
                     };
+                    
+                    _logger.LogInformation("🔐🐛 CREATED ATTACHMENT DTO: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, ThumbnailUrl={HasThumbnailUrl}", 
+                        encryptedAttachment.FileName,
+                        encryptedAttachment.KeyInfo?.Keys.Count ?? 0,
+                        encryptedAttachment.ThumbnailKeyInfo?.Keys.Count ?? 0,
+                        !string.IsNullOrEmpty(encryptedAttachment.EncryptedThumbnailUrl));
 
                     encryptedAttachments.Add(encryptedAttachment);
 
@@ -188,6 +212,18 @@ public class EncryptedMessageController : BaseController
                     Version = 1,
                     EncryptedAttachments = encryptedAttachments
                 };
+                
+                _logger.LogInformation("🔐🐛 SENDING TO STORE: TextKeyInfo={TextKeyInfoCount}, AttachmentCount={AttachmentCount}", 
+                    sendMessageRequest.KeyInfo?.Keys.Count ?? 0,
+                    sendMessageRequest.EncryptedAttachments?.Count ?? 0);
+
+                foreach (var att in sendMessageRequest.EncryptedAttachments ?? new List<EncryptedAttachmentDto>())
+                {
+                    _logger.LogInformation("🔐🐛 STORE ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys", 
+                        att.FileName, 
+                        att.KeyInfo?.Keys.Count ?? 0,
+                        att.ThumbnailKeyInfo?.Keys.Count ?? 0);
+                }
 
                 // Store encrypted message with attachments
                 var messageResult = await _ee2eService.StoreEncryptedMessageAsync(sendMessageRequest, userId.Value);
