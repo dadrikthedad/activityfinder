@@ -44,4 +44,11 @@ public class EncryptedFileDataDto
     [Required]
     [MaxLength(150 * 1024 * 1024)]
     public string EncryptedFileData { get; set; } = string.Empty; // Base64 av kryptert fil
+    
+    public Dictionary<string, string>? ThumbnailKeyInfo { get; set; }
+    public string? ThumbnailIV { get; set; }
+    public int? ThumbnailWidth { get; set; }
+    public int? ThumbnailHeight { get; set; }
+    [MaxLength(10 * 1024 * 1024)] // Max 10MB thumbnail
+    public string? EncryptedThumbnailData { get; set; }
 }
