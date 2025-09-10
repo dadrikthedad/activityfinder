@@ -212,19 +212,19 @@ public class E2EEService
 
                 _context.Messages.Add(message);
                 await _context.SaveChangesAsync();
-
+                
                 // Handle encrypted attachments
                 if (request.EncryptedAttachments?.Any() == true)
                 {
                     _logger.LogInformation("🔐🐛 ATTEMPTING TO STORE {AttachmentCount} ATTACHMENTS for MessageId={MessageId}", 
                         request.EncryptedAttachments.Count, message.Id);
     
-                    // Lag attachments uten å spesifisere Id
+                    // Lag attachments og legg til direkte i context
                     foreach (var att in request.EncryptedAttachments)
                     {
                         var attachment = new MessageAttachment
                         {
-                            // Ikke sett Id, MessageId eller Message - la EF håndtere alt
+                            MessageId = message.Id, // Sett foreign key eksplisitt
                             EncryptedFileUrl = att.EncryptedFileUrl,
                             FileType = att.FileType,
                             OriginalFileName = att.FileName,
@@ -244,8 +244,8 @@ public class E2EEService
                             ThumbnailHeight = att.ThumbnailHeight
                         };
         
-                        // Legg til via navigation property
-                        message.Attachments.Add(attachment);
+                        // Legg til direkte i context i stedet for navigation property
+                        _context.MessageAttachments.Add(attachment);
                     }
     
                     await _context.SaveChangesAsync();
