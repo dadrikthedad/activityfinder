@@ -297,7 +297,7 @@ public class GroupConversationController : BaseController
             {
                 ConversationId = newConversation.Id,
                 SenderId = senderId,
-                Text = request.InitialMessage.Trim(),
+                EncryptedText = request.InitialMessage.Trim(),
                 SentAt = DateTime.UtcNow,
                 IsApproved = true,
                 IsSystemMessage = false // 🆕 Eksplisitt vanlig melding
@@ -933,87 +933,6 @@ public class GroupConversationController : BaseController
         }
     }
     
-    // Sletting av en gruppesamtale - ikke i bruk atm
-    private async Task DeleteEmptyGroupAsync(Conversation conversation)
-    {
-        try
-        {
-            Console.WriteLine($"🗑️ Sletter tom gruppe {conversation.Id} '{conversation.GroupName}'");
-
-            // 1️⃣ Slett i riktig rekkefølge (foreign keys)
-            
-            // Slett GroupEventAffectedUsers først
-            var affectedUsers = await _context.GroupEventAffectedUsers
-                .Where(geau => _context.GroupEvents
-                    .Where(ge => ge.ConversationId == conversation.Id)
-                    .Select(ge => ge.Id)
-                    .Contains(geau.GroupEventId))
-                .ToListAsync();
-            _context.GroupEventAffectedUsers.RemoveRange(affectedUsers);
-
-            // Slett MessageNotificationGroupEvents
-            var notificationGroupEvents = await _context.MessageNotificationGroupEvents
-                .Where(mnge => _context.GroupEvents
-                    .Where(ge => ge.ConversationId == conversation.Id)
-                    .Select(ge => ge.Id)
-                    .Contains(mnge.GroupEventId))
-                .ToListAsync();
-            _context.MessageNotificationGroupEvents.RemoveRange(notificationGroupEvents);
-
-            // Slett GroupEvents
-            var groupEvents = await _context.GroupEvents
-                .Where(ge => ge.ConversationId == conversation.Id)
-                .ToListAsync();
-            _context.GroupEvents.RemoveRange(groupEvents);
-
-            // Slett Reactions (foreign key til Messages)
-            var reactions = await _context.Reactions
-                .Where(r => _context.Messages
-                    .Where(m => m.ConversationId == conversation.Id)
-                    .Select(m => m.Id)
-                    .Contains(r.MessageId))
-                .ToListAsync();
-            _context.Reactions.RemoveRange(reactions);
-
-            // Slett MessageAttachments
-            var attachments = await _context.MessageAttachments
-                .Where(ma => _context.Messages
-                    .Where(m => m.ConversationId == conversation.Id)
-                    .Select(m => m.Id)
-                    .Contains(ma.MessageId))
-                .ToListAsync();
-            _context.MessageAttachments.RemoveRange(attachments);
-
-            // Slett Messages
-            var messages = await _context.Messages
-                .Where(m => m.ConversationId == conversation.Id)
-                .ToListAsync();
-            _context.Messages.RemoveRange(messages);
-
-            // Slett GroupRequests
-            var groupRequests = await _context.GroupRequests
-                .Where(gr => gr.ConversationId == conversation.Id)
-                .ToListAsync();
-            _context.GroupRequests.RemoveRange(groupRequests);
-
-            // Slett ConversationParticipants
-            var participants = await _context.ConversationParticipants
-                .Where(cp => cp.ConversationId == conversation.Id)
-                .ToListAsync();
-            _context.ConversationParticipants.RemoveRange(participants);
-
-            // Slett Conversation sist
-            _context.Conversations.Remove(conversation);
-
-            // Log statistikk
-            Console.WriteLine($"✅ Slettet gruppe {conversation.Id}: {messages.Count} meldinger, {groupRequests.Count} forespørsler");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Feil ved sletting av gruppe {conversation.Id}: {ex.Message}");
-            throw; // Re-throw for å stoppe transaksjonen
-        }
-    }
     
     [HttpPut("update-group-name")]
     public async Task<IActionResult> UpdateGroupName(int groupId, string newName)

@@ -270,125 +270,6 @@ namespace AFBack.Migrations
                     b.ToTable("ConversationReadStates");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Crypto.EncryptedAttachment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("EncryptedFileUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("EncryptedMessageId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EncryptedThumbnailUrl")
-                        .HasColumnType("text");
-
-                    b.Property<string>("FileType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("IV")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("KeyInfo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<long>("OriginalFileSize")
-                        .HasColumnType("bigint");
-
-                    b.Property<int?>("ThumbnailHeight")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ThumbnailIV")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ThumbnailKeyInfo")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ThumbnailWidth")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EncryptedMessageId");
-
-                    b.ToTable("EncryptedAttachments");
-                });
-
-            modelBuilder.Entity("AFBack.Models.Crypto.EncryptedMessage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ConversationId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("EncryptedText")
-                        .HasColumnType("text");
-
-                    b.Property<string>("IV")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsApproved")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsSystemMessage")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("KeyInfo")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ParentMessageId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ParentMessagePreview")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("SenderId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ConversationId");
-
-                    b.HasIndex("ParentMessageId");
-
-                    b.HasIndex("SenderId");
-
-                    b.ToTable("EncryptedMessages");
-                });
-
             modelBuilder.Entity("AFBack.Models.Crypto.UserPublicKey", b =>
                 {
                     b.Property<int>("Id")
@@ -555,6 +436,14 @@ namespace AFBack.Migrations
                     b.Property<int>("ConversationId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("EncryptedText")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<string>("IV")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsApproved")
                         .HasColumnType("boolean");
 
@@ -564,8 +453,15 @@ namespace AFBack.Migrations
                     b.Property<bool>("IsSystemMessage")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("KeyInfo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<int?>("ParentMessageId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("ParentMessagePreview")
+                        .HasColumnType("text");
 
                     b.Property<int?>("SenderId")
                         .HasColumnType("integer");
@@ -573,9 +469,8 @@ namespace AFBack.Migrations
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Text")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -591,32 +486,57 @@ namespace AFBack.Migrations
             modelBuilder.Entity("AFBack.Models.MessageAttachment", b =>
                 {
                     b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("FileName")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                    b.Property<string>("EncryptedFileUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
 
-                    b.Property<long?>("FileSize")
-                        .HasColumnType("bigint");
+                    b.Property<string>("EncryptedThumbnailUrl")
+                        .HasColumnType("text");
 
                     b.Property<string>("FileType")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("FileUrl")
+                    b.Property<string>("IV")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeyInfo")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("MessageId")
                         .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
-                    b.HasIndex("MessageId");
+                    b.Property<long>("OriginalFileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("ThumbnailHeight")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ThumbnailIV")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ThumbnailKeyInfo")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ThumbnailWidth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
 
                     b.ToTable("MessageAttachments");
                 });
@@ -862,15 +782,10 @@ namespace AFBack.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int?>("EncryptedMessageId")
-                        .HasColumnType("integer");
-
                     b.Property<int>("Id")
                         .HasColumnType("integer");
 
                     b.HasKey("MessageId", "UserId");
-
-                    b.HasIndex("EncryptedMessageId");
 
                     b.HasIndex("UserId");
 
@@ -1565,40 +1480,6 @@ namespace AFBack.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Crypto.EncryptedAttachment", b =>
-                {
-                    b.HasOne("AFBack.Models.Crypto.EncryptedMessage", "Message")
-                        .WithMany("EncryptedAttachments")
-                        .HasForeignKey("EncryptedMessageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Message");
-                });
-
-            modelBuilder.Entity("AFBack.Models.Crypto.EncryptedMessage", b =>
-                {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
-                        .WithMany()
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.Crypto.EncryptedMessage", "ParentMessage")
-                        .WithMany()
-                        .HasForeignKey("ParentMessageId");
-
-                    b.HasOne("AFBack.Models.User", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId");
-
-                    b.Navigation("Conversation");
-
-                    b.Navigation("ParentMessage");
-
-                    b.Navigation("Sender");
-                });
-
             modelBuilder.Entity("AFBack.Models.Crypto.UserPublicKey", b =>
                 {
                     b.HasOne("AFBack.Models.User", "User")
@@ -1723,7 +1604,7 @@ namespace AFBack.Migrations
                 {
                     b.HasOne("AFBack.Models.Message", "Message")
                         .WithMany("Attachments")
-                        .HasForeignKey("MessageId")
+                        .HasForeignKey("Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1831,10 +1712,6 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.Reaction", b =>
                 {
-                    b.HasOne("AFBack.Models.Crypto.EncryptedMessage", null)
-                        .WithMany("Reactions")
-                        .HasForeignKey("EncryptedMessageId");
-
                     b.HasOne("AFBack.Models.Message", "Message")
                         .WithMany("Reactions")
                         .HasForeignKey("MessageId")
@@ -1965,13 +1842,6 @@ namespace AFBack.Migrations
                     b.Navigation("Messages");
 
                     b.Navigation("Participants");
-                });
-
-            modelBuilder.Entity("AFBack.Models.Crypto.EncryptedMessage", b =>
-                {
-                    b.Navigation("EncryptedAttachments");
-
-                    b.Navigation("Reactions");
                 });
 
             modelBuilder.Entity("AFBack.Models.GroupEvent", b =>

@@ -23,8 +23,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<Friends> Friends { get; set; } // Venner til bruker
     public DbSet<FriendInvitation> FriendInvitations { get; set; } // Venne invitasjoner til bruker
     public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
-    public DbSet<Message> Messages { get; set; } // Meldinger mellom brukere
-    public DbSet<MessageAttachment> MessageAttachments { get; set; } // Vedlegg til meldinger
     
     public DbSet<ConversationParticipant> ConversationParticipants { get; set; } // Her her vi samtaler som kobler meldinger mot brukere/grupper
     public DbSet<Conversation> Conversations { get; set; } // Samtaler mellom brukere
@@ -59,9 +57,9 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<UserPublicKey> UserPublicKeys { get; set; }
     
-    public DbSet<EncryptedMessage> EncryptedMessages { get; set; } 
+    public DbSet<Message> Messages { get; set; } 
     
-    public DbSet<EncryptedAttachment> EncryptedAttachments { get; set; }
+    public DbSet<MessageAttachment> MessageAttachments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -130,38 +128,45 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Message>(entity =>
         {
             entity.HasKey(m => m.Id);
-            entity.Property(m => m.Text).HasMaxLength(5000);
+            entity.Property(m => m.EncryptedText).HasMaxLength(5000); // Endret fra Text
+            entity.Property(m => m.KeyInfo).IsRequired(); // Legg til for krypterte felter
+            entity.Property(m => m.IV).IsRequired();
+    
             entity.HasMany(m => m.Attachments)
                 .WithOne(a => a.Message)
-                .HasForeignKey(a => a.MessageId)
-                .OnDelete(DeleteBehavior.Cascade); // Hvis melding slettes, slettes vedleggene også
+                .HasForeignKey(a => a.Id)
+                .OnDelete(DeleteBehavior.Cascade);
         });
+
         // Hvis en bruker slettes så slettes ikke alle meldinger
         modelBuilder.Entity<Message>()
             .HasOne(m => m.Sender)
             .WithMany()
             .HasForeignKey(m => m.SenderId)
             .OnDelete(DeleteBehavior.Restrict);
-        
+
         // Meldinger får med reaksjoner
         modelBuilder.Entity<Message>()
             .HasMany(m => m.Reactions)
             .WithOne(r => r.Message)
             .HasForeignKey(r => r.MessageId)
             .OnDelete(DeleteBehavior.Cascade);
+
         // Meldinger får med reply-to
         modelBuilder.Entity<Message>()
             .HasOne(m => m.ParentMessage)
             .WithMany()
             .HasForeignKey(m => m.ParentMessageId)
             .OnDelete(DeleteBehavior.Restrict);
-        
+
         modelBuilder.Entity<MessageAttachment>(entity =>
         {
             entity.HasKey(a => a.Id);
-            entity.Property(a => a.FileUrl).IsRequired();
+            entity.Property(a => a.EncryptedFileUrl).IsRequired(); // Endret fra FileUrl
             entity.Property(a => a.FileType).IsRequired();
-            entity.Property(a => a.FileName).HasMaxLength(255);
+            entity.Property(a => a.OriginalFileName).HasMaxLength(255); // Endret fra FileName
+            entity.Property(a => a.KeyInfo).IsRequired(); // Legg til for krypterte felter
+            entity.Property(a => a.IV).IsRequired();
         });
         
         // Samtaler

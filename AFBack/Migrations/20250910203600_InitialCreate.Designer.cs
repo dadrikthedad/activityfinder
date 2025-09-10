@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250730121258_IgnoreCanSendNavigationProperties")]
-    partial class IgnoreCanSendNavigationProperties
+    [Migration("20250910203600_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,41 @@ namespace AFBack.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("AFBack.Domains.Entities.UserBlock", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("BlockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("BlockedUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BlockerId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BlockedUserId")
+                        .HasDatabaseName("IX_UserBlock_BlockedUserId");
+
+                    b.HasIndex("BlockerId")
+                        .HasDatabaseName("IX_UserBlock_BlockerId");
+
+                    b.HasIndex("BlockerId", "BlockedUserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UserBlock_BlockerId_BlockedUserId");
+
+                    b.ToTable("UserBlocks", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserBlock_NoSelfBlock", "\"BlockerId\" <> \"BlockedUserId\"");
+                        });
+                });
 
             modelBuilder.Entity("AFBack.Models.Activity", b =>
                 {
@@ -36,6 +71,50 @@ namespace AFBack.Migrations
                     b.HasKey("ActivityId");
 
                     b.ToTable("Activity");
+                });
+
+            modelBuilder.Entity("AFBack.Models.BanInfo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BanType")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("BannedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BannedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DeviceId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IpAddress");
+
+                    b.HasIndex("IpAddress", "IsActive");
+
+                    b.ToTable("BanInfos");
                 });
 
             modelBuilder.Entity("AFBack.Models.CanSend", b =>
@@ -194,6 +273,37 @@ namespace AFBack.Migrations
                     b.ToTable("ConversationReadStates");
                 });
 
+            modelBuilder.Entity("AFBack.Models.Crypto.UserPublicKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("KeyVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserPublicKeys");
+                });
+
             modelBuilder.Entity("AFBack.Models.FriendInvitation", b =>
                 {
                     b.Property<int>("Id")
@@ -329,6 +439,14 @@ namespace AFBack.Migrations
                     b.Property<int>("ConversationId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("EncryptedText")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<string>("IV")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsApproved")
                         .HasColumnType("boolean");
 
@@ -338,8 +456,15 @@ namespace AFBack.Migrations
                     b.Property<bool>("IsSystemMessage")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("KeyInfo")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<int?>("ParentMessageId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("ParentMessagePreview")
+                        .HasColumnType("text");
 
                     b.Property<int?>("SenderId")
                         .HasColumnType("integer");
@@ -347,9 +472,8 @@ namespace AFBack.Migrations
                     b.Property<DateTime>("SentAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Text")
-                        .HasMaxLength(5000)
-                        .HasColumnType("character varying(5000)");
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -365,29 +489,57 @@ namespace AFBack.Migrations
             modelBuilder.Entity("AFBack.Models.MessageAttachment", b =>
                 {
                     b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("FileName")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                    b.Property<string>("EncryptedFileUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EncryptedThumbnailUrl")
+                        .HasColumnType("text");
 
                     b.Property<string>("FileType")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("FileUrl")
+                    b.Property<string>("IV")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeyInfo")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("MessageId")
                         .HasColumnType("integer");
 
-                    b.HasKey("Id");
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
-                    b.HasIndex("MessageId");
+                    b.Property<long>("OriginalFileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("ThumbnailHeight")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ThumbnailIV")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ThumbnailKeyInfo")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("ThumbnailWidth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
 
                     b.ToTable("MessageAttachments");
                 });
@@ -643,6 +795,218 @@ namespace AFBack.Migrations
                     b.ToTable("Reactions");
                 });
 
+            modelBuilder.Entity("AFBack.Models.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("AFBack.Models.Report", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActualBehavior")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("AssignedTo")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("BrowserVersion")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<string>("DeviceInfo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ExpectedBehavior")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("Priority")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(2);
+
+                    b.Property<string>("ReportedUserId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Resolution")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<string>("StepsToReproduce")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.Property<int?>("SubmittedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_Report_Status");
+
+                    b.HasIndex("SubmittedAt")
+                        .HasDatabaseName("IX_Report_SubmittedAt");
+
+                    b.HasIndex("SubmittedByUserId")
+                        .HasDatabaseName("IX_Report_SubmittedByUserId");
+
+                    b.HasIndex("Type")
+                        .HasDatabaseName("IX_Report_Type");
+
+                    b.HasIndex("Type", "Status")
+                        .HasDatabaseName("IX_Report_Type_Status");
+
+                    b.ToTable("Reports", (string)null);
+                });
+
+            modelBuilder.Entity("AFBack.Models.ReportAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<long?>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("FileType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("NOW()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportId")
+                        .HasDatabaseName("IX_ReportAttachment_ReportId");
+
+                    b.ToTable("ReportAttachments", (string)null);
+                });
+
+            modelBuilder.Entity("AFBack.Models.SuspiciousActivity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActivityType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("DeviceId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Endpoint")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IpAddress")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserAgent")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IpAddress");
+
+                    b.HasIndex("Timestamp");
+
+                    b.HasIndex("IpAddress", "Timestamp");
+
+                    b.ToTable("SuspiciousActivities");
+                });
+
             modelBuilder.Entity("AFBack.Models.SyncEvent", b =>
                 {
                     b.Property<int>("Id")
@@ -720,9 +1084,6 @@ namespace AFBack.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
-
-                    b.Property<string>("EmailConfirmationToken")
-                        .HasColumnType("text");
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
@@ -823,41 +1184,6 @@ namespace AFBack.Migrations
                     b.HasIndex("ProfileUserId");
 
                     b.ToTable("UserActivity");
-                });
-
-            modelBuilder.Entity("AFBack.Models.UserBlocks", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("BlockedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("BlockedUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BlockerId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BlockedUserId")
-                        .HasDatabaseName("IX_UserBlock_BlockedUserId");
-
-                    b.HasIndex("BlockerId")
-                        .HasDatabaseName("IX_UserBlock_BlockerId");
-
-                    b.HasIndex("BlockerId", "BlockedUserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_UserBlock_BlockerId_BlockedUserId");
-
-                    b.ToTable("UserBlock", t =>
-                        {
-                            t.HasCheckConstraint("CK_UserBlock_NoSelfBlock", "\"BlockerId\" <> \"BlockedUserId\"");
-                        });
                 });
 
             modelBuilder.Entity("AFBack.Models.UserOnlineStatus", b =>
@@ -1010,6 +1336,39 @@ namespace AFBack.Migrations
                     b.ToTable("UserSettings");
                 });
 
+            modelBuilder.Entity("AFBack.Models.VerificationInfo", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EmailConfirmationCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EmailConfirmationToken")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("EmailConfirmationTokenExpires")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LastVerificationEmailSent")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordResetCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("PasswordResetToken")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime?>("PasswordResetTokenExpires")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("VerificationInfos");
+                });
+
             modelBuilder.Entity("GroupEventAffectedUser", b =>
                 {
                     b.Property<int>("Id")
@@ -1037,6 +1396,25 @@ namespace AFBack.Migrations
                         .HasDatabaseName("IX_GroupEventAffectedUser_GroupEventId_UserId");
 
                     b.ToTable("GroupEventAffectedUsers");
+                });
+
+            modelBuilder.Entity("AFBack.Domains.Entities.UserBlock", b =>
+                {
+                    b.HasOne("AFBack.Models.User", "BlockedUser")
+                        .WithMany()
+                        .HasForeignKey("BlockedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AFBack.Models.User", "Blocker")
+                        .WithMany()
+                        .HasForeignKey("BlockerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BlockedUser");
+
+                    b.Navigation("Blocker");
                 });
 
             modelBuilder.Entity("AFBack.Models.CanSend", b =>
@@ -1101,6 +1479,17 @@ namespace AFBack.Migrations
                         .IsRequired();
 
                     b.Navigation("Conversation");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AFBack.Models.Crypto.UserPublicKey", b =>
+                {
+                    b.HasOne("AFBack.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });
@@ -1218,7 +1607,7 @@ namespace AFBack.Migrations
                 {
                     b.HasOne("AFBack.Models.Message", "Message")
                         .WithMany("Attachments")
-                        .HasForeignKey("MessageId")
+                        .HasForeignKey("Id")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1343,6 +1732,28 @@ namespace AFBack.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("AFBack.Models.RefreshToken", b =>
+                {
+                    b.HasOne("AFBack.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AFBack.Models.ReportAttachment", b =>
+                {
+                    b.HasOne("AFBack.Models.Report", "Report")
+                        .WithMany("Attachments")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Report");
+                });
+
             modelBuilder.Entity("AFBack.Models.SyncEvent", b =>
                 {
                     b.HasOne("AFBack.Models.User", "User")
@@ -1377,25 +1788,6 @@ namespace AFBack.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("AFBack.Models.UserBlocks", b =>
-                {
-                    b.HasOne("AFBack.Models.User", "BlockedUser")
-                        .WithMany()
-                        .HasForeignKey("BlockedUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Models.User", "Blocker")
-                        .WithMany()
-                        .HasForeignKey("BlockerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("BlockedUser");
-
-                    b.Navigation("Blocker");
-                });
-
             modelBuilder.Entity("AFBack.Models.UserOnlineStatus", b =>
                 {
                     b.HasOne("AFBack.Models.User", "User")
@@ -1412,6 +1804,17 @@ namespace AFBack.Migrations
                     b.HasOne("AFBack.Models.User", "User")
                         .WithOne("Settings")
                         .HasForeignKey("AFBack.Models.UserSettings", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("AFBack.Models.VerificationInfo", b =>
+                {
+                    b.HasOne("AFBack.Models.User", "User")
+                        .WithOne("VerificationInfo")
+                        .HasForeignKey("AFBack.Models.VerificationInfo", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1468,6 +1871,11 @@ namespace AFBack.Migrations
                     b.Navigation("Communities");
                 });
 
+            modelBuilder.Entity("AFBack.Models.Report", b =>
+                {
+                    b.Navigation("Attachments");
+                });
+
             modelBuilder.Entity("AFBack.Models.User", b =>
                 {
                     b.Navigation("OnlineStatuses");
@@ -1475,6 +1883,8 @@ namespace AFBack.Migrations
                     b.Navigation("Profile");
 
                     b.Navigation("Settings");
+
+                    b.Navigation("VerificationInfo");
                 });
 #pragma warning restore 612, 618
         }

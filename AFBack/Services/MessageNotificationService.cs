@@ -39,7 +39,7 @@ public class MessageNotificationService
         {
             ConversationId = conversationId,
             SenderId = null,
-            Text = messageText,
+            EncryptedText = messageText,
             IsSystemMessage = true,
             SentAt = DateTime.UtcNow,
             IsApproved = true
@@ -72,7 +72,7 @@ public class MessageNotificationService
             Id = systemMessage.Id,
             SenderId = null,
             Sender = null,
-            Text = systemMessage.Text,
+            Text = systemMessage.EncryptedText,
             SentAt = systemMessage.SentAt,
             ConversationId = systemMessage.ConversationId,
             IsSystemMessage = true,
@@ -202,7 +202,7 @@ public class MessageNotificationService
                 MessageText = notification.MessageId.HasValue 
                     ? _context.Messages
                         .Where(m => m.Id == notification.MessageId.Value)
-                        .Select(m => m.Text)
+                        .Select(m => m.EncryptedText)
                         .FirstOrDefault()
                     : null
             };
@@ -525,9 +525,9 @@ public class MessageNotificationService
                 break;
 
             case NotificationType.MessageReaction:
-                preview = n.Message?.Text?.Length > 40
-                    ? n.Message.Text.Substring(0, 40) + "..."
-                    : n.Message?.Text ?? "";
+                preview = n.Message?.EncryptedText?.Length > 40
+                    ? n.Message.EncryptedText.Substring(0, 40) + "..."
+                    : n.Message?.EncryptedText ?? "";
                 break;
 
             case NotificationType.NewMessage:
@@ -542,7 +542,7 @@ public class MessageNotificationService
                     else
                     {
                         // Første melding: MED sender-navn
-                        var msgText = n.Message?.Text;
+                        var msgText = n.Message?.EncryptedText;
                         var msgPreview = msgText?.Length > 40 ? msgText.Substring(0, 40) + "..." : msgText ?? "";
                         preview = $"sent to {n.Conversation.GroupName}: {msgPreview}";
                     }
@@ -556,7 +556,7 @@ public class MessageNotificationService
                     }
                     else
                     {
-                        var msgText = n.Message?.Text;
+                        var msgText = n.Message?.EncryptedText;
                         var msgPreview = msgText?.Length > 40 ? msgText.Substring(0, 40) + "..." : msgText ?? "";
                         preview = $"said: {msgPreview}";
                     }

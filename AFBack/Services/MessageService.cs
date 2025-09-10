@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
 using AFBack.Models.Crypto;
 using Newtonsoft.Json;
-using EncryptedMessage = AFBack.Models.Crypto.EncryptedMessage;
+using EncryptedMessage = AFBack.Models.Message;
 
 // En service for å håndtere alle meldinger
 namespace AFBack.Services;
@@ -418,11 +418,11 @@ public class MessageService : IMessageService
         }
 
         // Ikke-creator: begrenset preview (maks 5 fra sender + egne)
-        var allMessages = await _context.EncryptedMessages // Endret fra Messages til EncryptedMessages
+        var allMessages = await _context.Messages // Endret fra Messages til EncryptedMessages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversation.Id && 
                         (m.SenderId == userId || m.SenderId == otherUserId))
-            .Include(m => m.EncryptedAttachments) // Endret fra Attachments til EncryptedAttachments
+            .Include(m => m.Attachments) // Endret fra Attachments til Attachments
             .Include(m => m.Reactions)
             .Include(m => m.Sender).ThenInclude(u => u.Profile)
             // ParentMessage støttes ikke for encrypted messages ennå, eller du må legge til navigation property
@@ -442,10 +442,10 @@ public class MessageService : IMessageService
     
     private async Task<List<EncryptedMessageResponseDTO>> GetFullMessagesAsync(int conversationId, int skip, int take)
     {
-        var messages = await _context.EncryptedMessages
+        var messages = await _context.Messages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversationId)
-            .Include(m => m.EncryptedAttachments)
+            .Include(m => m.Attachments)
             .Include(m => m.Reactions)
             .Include(m => m.Sender).ThenInclude(u => u.Profile)
             .OrderByDescending(m => m.SentAt)
@@ -456,7 +456,7 @@ public class MessageService : IMessageService
         return messages.Select(MapMessageToResponseDTO).ToList();
     }
     
-    private EncryptedMessageResponseDTO MapMessageToResponseDTO(EncryptedMessage message)
+    private EncryptedMessageResponseDTO MapMessageToResponseDTO(Message message)
     {
         Console.WriteLine($"🔐🐛 MAPPING MESSAGE {message.Id}: KeyInfoKeys={JsonConvert.DeserializeObject<Dictionary<string, string>>(message.KeyInfo)?.Keys.Count ?? 0}");
         
@@ -484,7 +484,7 @@ public class MessageService : IMessageService
             } : null,
 
             EncryptedAttachments = message.IsDeleted ? new List<EncryptedAttachmentDto>() :
-                message.EncryptedAttachments.Select(a => new EncryptedAttachmentDto
+                message.Attachments.Select(a => new EncryptedAttachmentDto
                 {
                     EncryptedFileUrl = a.EncryptedFileUrl,
                     FileType = a.FileType,
@@ -810,8 +810,8 @@ public class MessageService : IMessageService
     // Søke etter meldinger til en samtale
     public async Task<List<MessageResponseDTO>> SearchMessagesInConversationAsync(int conversationId, int userId,
         string query, int skip = 0, int take = 50)
-        {
-        // Samme tilgangssjekk som over...
+    {
+        // Samme tilgangssjekk som før...
         bool canSend = await _msgCache.CanUserSendAsync(userId, conversationId);
         bool isCreator = await _context.Conversations
             .AsNoTracking()
@@ -819,20 +819,17 @@ public class MessageService : IMessageService
 
         if (!canSend && !isCreator)
         {
-            // Samme fallback-logikk...
-            // (kan forenkles hvis ønskelig)
             throw new UnauthorizedAccessException("Du har ikke tilgang til å søke i denne samtalen.");
         }
 
-        // 🎯 PROJECTION: Hent kun nødvendig data
         var messages = await _context.Messages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversationId &&
                         !m.IsDeleted &&
                         (
-                            (m.Text != null && EF.Functions.ILike(m.Text, $"%{query}%")) ||
+                            (m.EncryptedText != null && EF.Functions.ILike(m.EncryptedText, $"%{query}%")) ||
                             m.Attachments.Any(a =>
-                                (a.FileName != null && EF.Functions.ILike(a.FileName, $"%{query}%")) ||
+                                (a.OriginalFileName != null && EF.Functions.ILike(a.OriginalFileName, $"%{query}%")) ||
                                 EF.Functions.ILike(a.FileType, $"%{query}%")
                             )
                         ))
@@ -843,7 +840,7 @@ public class MessageService : IMessageService
             {
                 Id = m.Id,
                 SenderId = m.SenderId,
-                Text = m.Text,
+                Text = m.EncryptedText, // Endret fra m.Text
                 SentAt = m.SentAt,
                 ConversationId = m.ConversationId,
                 IsSystemMessage = m.IsSystemMessage,
@@ -857,12 +854,13 @@ public class MessageService : IMessageService
                 } : null,
                 
                 Attachments = m.Attachments
-                    .Where(a => !string.IsNullOrWhiteSpace(a.FileUrl))
+                    .Where(a => !string.IsNullOrWhiteSpace(a.EncryptedFileUrl)) // Endret fra a.FileUrl
                     .Select(a => new AttachmentDto
                     {
-                        FileUrl = a.FileUrl,
+                        FileUrl = a.EncryptedFileUrl, // Endret fra a.FileUrl
                         FileType = a.FileType,
-                        FileName = a.FileName
+                        FileName = a.OriginalFileName, // Endret fra a.FileName
+                        FileSize = a.OriginalFileSize  // Legg til hvis AttachmentDto har FileSize
                     }).ToList(),
                     
                 Reactions = m.Reactions.Select(r => new ReactionDTO
@@ -873,7 +871,7 @@ public class MessageService : IMessageService
                 }).ToList(),
                 
                 ParentMessageId = m.ParentMessageId,
-                ParentMessageText = m.ParentMessage != null ? m.ParentMessage.Text : null,
+                ParentMessageText = m.ParentMessage != null ? m.ParentMessage.EncryptedText : null, // Endret fra m.ParentMessage.Text
                 ParentSender = m.ParentMessage != null && m.ParentMessage.Sender != null ? new UserSummaryDTO
                 {
                     Id = m.ParentMessage.Sender.Id,
@@ -1160,16 +1158,21 @@ public class MessageService : IMessageService
         {
             SenderId = senderId,
             ConversationId = conversationId,
-            Text = request.Text,
+            EncryptedText = request.Text,
             SentAt = DateTime.UtcNow,
             IsApproved = isApproved,
             ParentMessageId = request.ParentMessageId > 0 ? request.ParentMessageId : null,
             Attachments = request.Attachments?.Select(a => new MessageAttachment
             {
-                FileUrl = a.FileUrl,
+                EncryptedFileUrl = a.FileUrl, // Endret fra FileUrl
                 FileType = a.FileType,
-                FileName = a.FileName,
-                FileSize = a.FileSize 
+                OriginalFileName = a.FileName, // Endret fra FileName
+                OriginalFileSize = a.FileSize ?? 0, // Endret fra FileSize
+            
+                // Du må også sette de påkrevde krypterte feltene:
+                KeyInfo = "{}", // Sett til tom JSON hvis ikke kryptert her
+                IV = string.Empty, // Sett til tom hvis ikke kryptert her
+                Version = 1
             }).ToList() ?? new List<MessageAttachment>()
         };
     }
@@ -1178,19 +1181,19 @@ public class MessageService : IMessageService
     {
         var dto = await _context.Messages
             .AsNoTracking()
-            .AsSplitQuery() // unngår tunge join-operasjoner som kan gi dårlig ytelse
+            .AsSplitQuery()
             .Where(m => m.Id == messageId)
             .Select(m => new MessageResponseDTO
             {
                 Id = m.Id,
                 SenderId = m.SenderId,
-                Text = m.IsDeleted ? null : m.Text,
+                Text = m.IsDeleted ? null : m.EncryptedText, // Allerede oppdatert
                 SentAt = m.SentAt,
                 ConversationId = m.ConversationId,
                 IsDeleted = m.IsDeleted, 
                 ParentMessageId = m.IsDeleted ? null : m.ParentMessageId, 
                 ParentMessageText = m.IsDeleted ? null : 
-                    (m.ParentMessage != null ? m.ParentMessage.Text : null),
+                    (m.ParentMessage != null ? m.ParentMessage.EncryptedText : null), // Allerede oppdatert
 
                 Sender = m.Sender != null ? new UserSummaryDTO
                 {
@@ -1217,10 +1220,10 @@ public class MessageService : IMessageService
                     m.Attachments
                         .Select(a => new AttachmentDto
                         {
-                            FileUrl = a.FileUrl,
+                            FileUrl = a.EncryptedFileUrl, // Endret fra a.FileUrl
                             FileType = a.FileType,
-                            FileName = a.FileName,
-                            FileSize = a.FileSize 
+                            FileName = a.OriginalFileName, // Endret fra a.FileName
+                            FileSize = a.OriginalFileSize // Endret fra a.FileSize
                         })
                         .ToList(),
 
@@ -1548,7 +1551,7 @@ public class MessageService : IMessageService
         
         if (dto.ParentMessageId.HasValue)
         {
-            var parentExists = await _context.EncryptedMessages
+            var parentExists = await _context.Messages
                 .AsNoTracking()
                 .AnyAsync(m => m.Id == dto.ParentMessageId.Value);
         
@@ -1677,7 +1680,7 @@ public class MessageService : IMessageService
             if (!conversation.IsGroup && requiresApproval)
             {
                 // Teller encrypted meldinger **bare** når det trengs
-                messageCount = await _context.EncryptedMessages.AsNoTracking()
+                messageCount = await _context.Messages.AsNoTracking()
                     .CountAsync(m => m.ConversationId == conversation.Id &&
                                      m.SenderId == senderId);
 
@@ -1707,15 +1710,15 @@ public class MessageService : IMessageService
             else
                 encryptedMessage.ConversationId = conversation.Id;
 
-            _context.EncryptedMessages.Add(encryptedMessage);
+            _context.Messages.Add(encryptedMessage);
             conversation.LastMessageSentAt = encryptedMessage.SentAt;
 
             // Handle encrypted attachments
             if (dto.EncryptedAttachments?.Any() == true)
             {
-                var attachments = dto.EncryptedAttachments.Select(att => new EncryptedAttachment
+                var attachments = dto.EncryptedAttachments.Select(att => new MessageAttachment
                 {
-                    EncryptedMessageId = encryptedMessage.Id, // Endret fra MessageId
+                    MessageId = encryptedMessage.Id, // Endret fra MessageId
                     EncryptedFileUrl = att.EncryptedFileUrl,
                     FileType = att.FileType,
                     OriginalFileName = att.FileName, // Endret fra FileName til OriginalFileName
@@ -1726,7 +1729,7 @@ public class MessageService : IMessageService
                     CreatedAt = DateTime.UtcNow // Legg til CreatedAt
                 });
 
-                _context.EncryptedAttachments.AddRange(attachments);
+                _context.MessageAttachments.AddRange(attachments);
             }
 
             // 6️⃣ ÉN lagring av alt ovenfor
@@ -1906,7 +1909,7 @@ public class MessageService : IMessageService
 
    private async Task<EncryptedMessageResponseDTO> MapEncryptedToResponseDtoOptimized(int messageId)
     {
-        var dto = await _context.EncryptedMessages
+        var dto = await _context.Messages
             .AsNoTracking()
             .AsSplitQuery()
             .Where(m => m.Id == messageId)
@@ -1948,7 +1951,7 @@ public class MessageService : IMessageService
                         : null),
 
                 EncryptedAttachments = m.IsDeleted ? new List<EncryptedAttachmentDto>() :
-                    m.EncryptedAttachments
+                    m.Attachments
                         .Select(a => new EncryptedAttachmentDto
                         {
                             EncryptedFileUrl = a.EncryptedFileUrl,
@@ -1984,14 +1987,14 @@ public class MessageService : IMessageService
         // Opprett encrypted melding direkte - vi vet brukeren kan sende
         var encryptedMessage = CreateEncryptedMessage(senderId, conversation.Id, dto, isApproved: true);
 
-        _context.EncryptedMessages.Add(encryptedMessage);
+        _context.Messages.Add(encryptedMessage);
 
         // Handle encrypted attachments
         if (dto.EncryptedAttachments?.Any() == true)
         {
-            var attachments = dto.EncryptedAttachments.Select(att => new EncryptedAttachment
+            var attachments = dto.EncryptedAttachments.Select(att => new MessageAttachment
             {
-                EncryptedMessageId = encryptedMessage.Id, // Endret fra MessageId
+                MessageId = encryptedMessage.Id, // Endret fra MessageId
                 EncryptedFileUrl = att.EncryptedFileUrl,
                 FileType = att.FileType,
                 OriginalFileName = att.FileName, // Endret fra FileName
@@ -2002,7 +2005,7 @@ public class MessageService : IMessageService
                 CreatedAt = DateTime.UtcNow // Legg til CreatedAt
             });
 
-            _context.EncryptedAttachments.AddRange(attachments);
+            _context.MessageAttachments.AddRange(attachments);
         }
 
         // 🎯 Intelligent conversation oppdatering

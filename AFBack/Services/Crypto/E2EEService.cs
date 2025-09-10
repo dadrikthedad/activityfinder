@@ -1,6 +1,7 @@
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.DTOs.Crypto;
+using AFBack.Models;
 using AFBack.Models.Crypto;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
@@ -149,7 +150,7 @@ public class E2EEService
             }
         }
 
-        public async Task<EncryptedMessage?> StoreEncryptedMessageAsync(
+        public async Task<Message?> StoreEncryptedMessageAsync(
             SendEncryptedMessageRequestDTO request, 
             int senderId)
         {
@@ -194,7 +195,7 @@ public class E2EEService
                     }
                 }
 
-                var message = new EncryptedMessage
+                var message = new Message
                 {
                     SenderId = senderId,
                     EncryptedText = request.EncryptedText,
@@ -209,27 +210,42 @@ public class E2EEService
                     IsDeleted = false
                 };
 
-                _context.EncryptedMessages.Add(message);
+                _context.Messages.Add(message);
                 await _context.SaveChangesAsync();
 
                 // Handle encrypted attachments
                 if (request.EncryptedAttachments?.Any() == true)
                 {
-                    var attachments = request.EncryptedAttachments.Select(att => new EncryptedAttachment
+                    _logger.LogInformation("🔐🐛 ATTEMPTING TO STORE MESSAGE: ConversationId={ConversationId}, SenderId={SenderId}, HasAttachments={HasAttachments}", 
+                        request.ConversationId, senderId, request.EncryptedAttachments?.Count > 0);
+                    
+                    var attachments = request.EncryptedAttachments.Select(att => new MessageAttachment
                     {
-                        EncryptedMessageId = message.Id, // Endret fra MessageId
+                        MessageId = message.Id,
                         EncryptedFileUrl = att.EncryptedFileUrl,
                         FileType = att.FileType,
-                        OriginalFileName = att.FileName, // Mapping fra FileName til OriginalFileName
-                        OriginalFileSize = att.FileSize ?? 0, // Mapping fra FileSize til OriginalFileSize
+                        OriginalFileName = att.FileName,
+                        OriginalFileSize = att.FileSize ?? 0,
                         KeyInfo = JsonConvert.SerializeObject(att.KeyInfo),
                         IV = att.IV,
                         Version = att.Version,
-                        CreatedAt = DateTime.UtcNow // Legg til CreatedAt
+                        CreatedAt = DateTime.UtcNow,
+    
+                        // Legg til thumbnail-felter:
+                        EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                        ThumbnailKeyInfo = att.ThumbnailKeyInfo != null 
+                            ? JsonConvert.SerializeObject(att.ThumbnailKeyInfo) 
+                            : null,
+                        ThumbnailIV = att.ThumbnailIV,
+                        ThumbnailWidth = att.ThumbnailWidth,
+                        ThumbnailHeight = att.ThumbnailHeight
                     });
+                    
+                    
 
-                    _context.EncryptedAttachments.AddRange(attachments);
+                    _context.MessageAttachments.AddRange(attachments);
                     await _context.SaveChangesAsync();
+                    _logger.LogInformation("🔐✅ MESSAGE SAVED SUCCESSFULLY: MessageId={MessageId}", message.Id);
                 }
 
                 _logger.LogInformation("Stored encrypted message {MessageId} from user {UserId} in conversation {ConversationId}", 
@@ -243,11 +259,12 @@ public class E2EEService
                 throw;
             }
         }
-        public async Task<EncryptedMessage?> GetEncryptedMessageWithDetailsAsync(int messageId)
+        
+        public async Task<Message?> GetEncryptedMessageWithDetailsAsync(int messageId)
         {
-            return await _context.EncryptedMessages
+            return await _context.Messages
                 .Include(m => m.Sender)
-                .Include(m => m.EncryptedAttachments)
+                .Include(m => m.Attachments)
                 .Include(m => m.Reactions)
                 .FirstOrDefaultAsync(m => m.Id == messageId);
         }
@@ -269,10 +286,10 @@ public class E2EEService
                     throw new UnauthorizedAccessException("User not authorized for this conversation");
                 }
 
-                var messages = await _context.EncryptedMessages
+                var messages = await _context.Messages
                     .Where(m => m.ConversationId == conversationId)
                     .Include(m => m.Sender)
-                    .Include(m => m.EncryptedAttachments)
+                    .Include(m => m.Attachments)
                     .OrderByDescending(m => m.SentAt)
                     .Skip(skip)
                     .Take(take)
@@ -289,7 +306,7 @@ public class E2EEService
                     Version = m.Version,
                     SentAt = m.SentAt.ToString("O"),
                     ConversationId = m.ConversationId,
-                    EncryptedAttachments = m.EncryptedAttachments.Select(a => new EncryptedAttachmentDto
+                    EncryptedAttachments = m.Attachments.Select(a => new EncryptedAttachmentDto
                     {
                         EncryptedFileUrl = a.EncryptedFileUrl,
                         FileType = a.FileType,
