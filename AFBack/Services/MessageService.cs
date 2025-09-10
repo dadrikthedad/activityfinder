@@ -486,11 +486,21 @@ public class MessageService : IMessageService
                 {
                     EncryptedFileUrl = a.EncryptedFileUrl,
                     FileType = a.FileType,
-                    FileName = a.OriginalFileName, // Endret fra a.FileName
-                    FileSize = a.OriginalFileSize, // Endret fra a.FileSize
+                    FileName = a.OriginalFileName,
+                    FileSize = a.OriginalFileSize,
                     KeyInfo = JsonConvert.DeserializeObject<Dictionary<string, string>>(a.KeyInfo) ?? new Dictionary<string, string>(),
                     IV = a.IV,
-                    Version = a.Version
+                    Version = a.Version,
+                    
+                    // 🆕 THUMBNAIL FIELDS - Map thumbnail data from database
+                    EncryptedThumbnailUrl = a.EncryptedThumbnailUrl,
+                    ThumbnailKeyInfo = !string.IsNullOrEmpty(a.ThumbnailKeyInfo) 
+                        ? JsonConvert.DeserializeObject<Dictionary<string, string>>(a.ThumbnailKeyInfo) 
+                        : null,
+                    ThumbnailIV = a.ThumbnailIV,
+                    ThumbnailWidth = a.ThumbnailWidth,
+                    ThumbnailHeight = a.ThumbnailHeight,
+                    // Note: EncryptedThumbnailData is not included since it's only used during upload
                 }).ToList(),
 
             Reactions = message.IsDeleted ? new List<ReactionDTO>() :

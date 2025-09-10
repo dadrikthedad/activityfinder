@@ -10,8 +10,8 @@ public class EncryptedAttachmentDto
     public string IV { get; set; } = string.Empty;
     public int Version { get; set; } = 1;
     
-    public string? ThumbnailUrl { get; set; }
-    public string? ThumbnailKeyInfo { get; set; }
+    public string? EncryptedThumbnailUrl { get; set; } 
+    public Dictionary<string, string>? ThumbnailKeyInfo { get; set; }
     public string? ThumbnailIV { get; set; }
     public int? ThumbnailWidth { get; set; }
     public int? ThumbnailHeight { get; set; }

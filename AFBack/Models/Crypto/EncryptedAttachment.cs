@@ -28,7 +28,7 @@ public class EncryptedAttachment
     public int Version { get; set; } = 1;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow; // Legg til
     
-    public string? ThumbnailUrl { get; set; }
+    public string? EncryptedThumbnailUrl  { get; set; }
     public string? ThumbnailKeyInfo { get; set; }
     public string? ThumbnailIV { get; set; }
     public int? ThumbnailWidth { get; set; }

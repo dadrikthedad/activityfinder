@@ -15,6 +15,7 @@ using AFBack.Services;
 using DotNetEnv;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
+using AFBack.Api.Extensions;
 using AFBack.Configuration;
 using AFBack.Extensions;
 using AFBack.Filters;
@@ -424,33 +425,6 @@ builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
 // og klart til bruk. 
 var app = builder.Build();
 
-// Middleware:
-//Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization.
-app.UseCors("AllowFrontend");
-// UseRouting() betemmer hvilken URL som skal håndtere sine spesifikke API-metoder/kontroller. 
-app.UseRouting();
-// Aktiverer autentisering vi lagde i AddAuthentication
-app.UseAuthentication();
-// Sikrer at alle som prøver å gå til http blir sendt til https.
-app.UseHttpsRedirection();
-// Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
-app.UseAuthorization();
-app.UseForwardedHeaders();
-app.UseRateLimiter();
-app.UseMiddleware<RateLimitIpBanMiddleware>(); // Legg til etter UseRateLimiter()
-// Hører sammen med AddControllers og forteller ASp.NET CORE at Api-endepunktene finnes og skal håndteres av kontrollerne.
-app.MapControllers();
-// Med denne kan API-et servere statiske filer som HTML, CSS, bilder osv direkte fra wwwroot-mappen.
-app.UseStaticFiles();
-// Hvis noen prøver å gå inn på en side som ikke eksisterer så blir de sendt tilbake til home eller index.
-app.MapFallbackToFile("index.html");
-
-// her er endepunktet for meldinger til SignalR
-app.MapHub<UserHub>("/userhub");
-
-
-
-
 // Configure the HTTP request pipeline.
 try
 {
@@ -463,30 +437,10 @@ catch (Exception ex)
     Console.WriteLine(ex.StackTrace);
 }
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// Setter opp hele HTTP-pipelinen med middlewares. Den kobler opp middlewaren i ritkig rekkefølge. Rekkefølgen er veldig viktig
+app.UseAppPipeline();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+
 
 Log.Information("Application started successfully!");
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
