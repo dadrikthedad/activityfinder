@@ -221,7 +221,6 @@ public class E2EEService
                     
                     var attachments = request.EncryptedAttachments.Select(att => new MessageAttachment
                     {
-                        MessageId = message.Id,
                         EncryptedFileUrl = att.EncryptedFileUrl,
                         FileType = att.FileType,
                         OriginalFileName = att.FileName,
@@ -230,8 +229,8 @@ public class E2EEService
                         IV = att.IV,
                         Version = att.Version,
                         CreatedAt = DateTime.UtcNow,
-    
-                        // Legg til thumbnail-felter:
+
+                        // Thumbnail-felter:
                         EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
                         ThumbnailKeyInfo = att.ThumbnailKeyInfo != null 
                             ? JsonConvert.SerializeObject(att.ThumbnailKeyInfo) 
@@ -239,11 +238,13 @@ public class E2EEService
                         ThumbnailIV = att.ThumbnailIV,
                         ThumbnailWidth = att.ThumbnailWidth,
                         ThumbnailHeight = att.ThumbnailHeight
-                    });
-                    
-                    
+                    }).ToList();
 
-                    _context.MessageAttachments.AddRange(attachments);
+                    foreach (var attachment in attachments)
+                    {
+                        message.Attachments.Add(attachment);
+                    }
+                    
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("🔐✅ MESSAGE SAVED SUCCESSFULLY: MessageId={MessageId}", message.Id);
                 }
