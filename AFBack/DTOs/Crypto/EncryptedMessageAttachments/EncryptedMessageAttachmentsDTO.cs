@@ -2,10 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AFBack.DTOs.Crypto.EncryptedMessageAttachments;
 
-public class UploadEncryptedJSONRequestDTO
+
+/// <summary>
+/// DTOen som kommer som en forespørsel når en bruker sender en melding
+/// </summary>
+public class SendEncryptedMessageWithFilesRequestDTO
 {
     [Required]
-    public List<EncryptedFileDataDto> EncryptedFilesData { get; set; } = new();
+    public List<EncryptedFileDataRequestDto> EncryptedFilesData { get; set; } = new();
     
     public string? Text { get; set; }
     public string? TextKeyInfo { get; set; }
@@ -18,8 +22,11 @@ public class UploadEncryptedJSONRequestDTO
     public int? ReceiverId { get; set; }
     public int? ParentMessageId { get; set; }
 }
+/// <summary>
+/// Inneholder en attachment til en SendEncryptedMessageWithFilesRequestDTO
+/// </summary>
 
-public class EncryptedFileDataDto
+public class EncryptedFileDataRequestDto
 {
     [Required]
     [StringLength(255)]
@@ -51,4 +58,29 @@ public class EncryptedFileDataDto
     public int? ThumbnailHeight { get; set; }
     [MaxLength(10 * 1024 * 1024)] // Max 10MB thumbnail
     public string? EncryptedThumbnailData { get; set; }
+    
+    public string? OptimisticId { get; set; }
+}
+
+
+/// <summary>
+/// Response på en melding til frontend
+/// </summary>
+public class SendEncryptedMessageResponseDTO
+{
+    public int MessageId { get; set; }
+    public string SentAt { get; set; } = string.Empty;
+    public int ConversationId { get; set; }
+    public AttachmentResponseDto[]? Attachments { get; set; }
+}
+
+/// <summary>
+///  Response på en attachment til frontend
+/// </summary>
+public class AttachmentResponseDto
+{
+    public int Id { get; set; }
+    public string OptimisticId { get; set; } = string.Empty; // For frontend mapping
+    public string FileUrl { get; set; } = string.Empty;
+    public string? ThumbnailUrl { get; set; }
 }

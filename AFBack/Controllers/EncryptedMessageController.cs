@@ -58,7 +58,7 @@ public class EncryptedMessageController : BaseController
     }
 
     [HttpPost("upload-encrypted-json")]
-    public async Task<IActionResult> UploadEncryptedJSON([FromBody] UploadEncryptedJSONRequestDTO request)
+    public async Task<IActionResult> UploadEncryptedJSON([FromBody] SendEncryptedMessageWithFilesRequestDTO request)
     {
         try
         {
@@ -84,7 +84,7 @@ public class EncryptedMessageController : BaseController
                 request.EncryptedFilesData?.Count ?? 0);
 
             // Log hver attachment som kommer inn
-            foreach (var fileData in request.EncryptedFilesData ?? new List<EncryptedFileDataDto>())
+            foreach (var fileData in request.EncryptedFilesData ?? new List<EncryptedFileDataRequestDto>())
             {
                 _logger.LogInformation("🔐🐛 INCOMING ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, HasThumbnailData={HasThumbnailData}", 
                     fileData.FileName, 
@@ -237,23 +237,19 @@ public class EncryptedMessageController : BaseController
 
                 _logger.LogInformation("Encrypted message with {AttachmentCount} attachments sent successfully. MessageId: {MessageId}", 
                     encryptedAttachments.Count, messageResult.Id);
-
-                // Updated response with thumbnail info
-                var thumbnailCount = encryptedAttachments.Count(a => !string.IsNullOrEmpty(a.EncryptedThumbnailUrl));
-                return Ok(new
+                
+                return Ok(new SendEncryptedMessageResponseDTO
                 {
-                    message = "Encrypted message with attachments sent successfully",
-                    messageId = messageResult.Id,
-                    attachmentCount = encryptedAttachments.Count,
-                    thumbnailCount = thumbnailCount,
-                    attachments = encryptedAttachments.Select(a => new {
-                        fileName = a.FileName,
-                        fileType = a.FileType,
-                        encryptedFileUrl = a.EncryptedFileUrl,
-                        hasThumbnail = !string.IsNullOrEmpty(a.EncryptedThumbnailUrl),
-                        thumbnailWidth = a.ThumbnailWidth,
-                        thumbnailHeight = a.ThumbnailHeight
-                    })
+                    MessageId = messageResult.Id,
+                    SentAt = messageResult.SentAt.ToString("O"), // ISO format
+                    ConversationId = messageResult.ConversationId,
+                    Attachments = request.EncryptedFilesData.Select((fileData, index) => new AttachmentResponseDto
+                    {
+                        Id = messageResult.Attachments.ElementAt(index).Id, // From database
+                        OptimisticId = fileData.OptimisticId ?? $"fallback_{index}", // Use original optimistic ID from frontend
+                        FileUrl = encryptedAttachments[index].EncryptedFileUrl,
+                        ThumbnailUrl = encryptedAttachments[index].EncryptedThumbnailUrl
+                    }).ToArray()
                 });
             }
             catch (Exception)
