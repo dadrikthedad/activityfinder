@@ -210,21 +210,18 @@ public class E2EEService
                     IsDeleted = false
                 };
 
-                _context.Messages.Add(message);
-                await _context.SaveChangesAsync();
-                
-                // Handle encrypted attachments
+                // Handle encrypted attachments FØR vi legger til message i context
                 if (request.EncryptedAttachments?.Any() == true)
                 {
-                    _logger.LogInformation("🔐🐛 ATTEMPTING TO STORE {AttachmentCount} ATTACHMENTS for MessageId={MessageId}", 
-                        request.EncryptedAttachments.Count, message.Id);
-    
-                    // Lag attachments og legg til direkte i context
+                    _logger.LogInformation("🔐🐛 ATTEMPTING TO STORE {AttachmentCount} ATTACHMENTS", 
+                        request.EncryptedAttachments.Count);
+
                     foreach (var att in request.EncryptedAttachments)
                     {
                         var attachment = new MessageAttachment
                         {
-                            MessageId = message.Id, // Sett foreign key eksplisitt
+                            // IKKE sett MessageId - la EF håndtere det
+                            Message = message, // <-- Bruk navigation property
                             EncryptedFileUrl = att.EncryptedFileUrl,
                             FileType = att.FileType,
                             OriginalFileName = att.FileName,
@@ -243,17 +240,19 @@ public class E2EEService
                             ThumbnailWidth = att.ThumbnailWidth,
                             ThumbnailHeight = att.ThumbnailHeight
                         };
-        
-                        // Legg til direkte i context i stedet for navigation property
-                        _context.MessageAttachments.Add(attachment);
+
+                        // Legg til i message sin collection
+                        message.Attachments.Add(attachment);
                     }
-    
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("🔐✅ ATTACHMENTS SAVED SUCCESSFULLY for MessageId={MessageId}", message.Id);
                 }
 
-                _logger.LogInformation("Stored encrypted message {MessageId} from user {UserId} in conversation {ConversationId}", 
-                    message.Id, senderId, message.ConversationId);
+                // Legg til message (med attachments) i context
+                _context.Messages.Add(message);
+                
+                // Lagre ALT på en gang
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("🔐✅ MESSAGE AND ATTACHMENTS SAVED SUCCESSFULLY MessageId={MessageId}", message.Id);
 
                 return await GetEncryptedMessageWithDetailsAsync(message.Id);
             }

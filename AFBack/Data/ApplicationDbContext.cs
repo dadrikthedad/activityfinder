@@ -124,49 +124,61 @@ public class ApplicationDbContext : DbContext
             .Property(n => n.Type)
             .HasConversion<string>(); // 🔹 konverter enum til string
         
-        // Til meldinger mellom bruker og annen bruker eller gruppe
+        // Message entity configuration - alle relationships samlet
         modelBuilder.Entity<Message>(entity =>
         {
+            // Primary key og properties
             entity.HasKey(m => m.Id);
-            entity.Property(m => m.EncryptedText).HasMaxLength(5000); // Endret fra Text
-            entity.Property(m => m.KeyInfo).IsRequired(); // Legg til for krypterte felter
+            entity.Property(m => m.EncryptedText).HasMaxLength(5000);
+            entity.Property(m => m.KeyInfo).IsRequired();
             entity.Property(m => m.IV).IsRequired();
-    
+
+            // Attachments relationship
             entity.HasMany(m => m.Attachments)
                 .WithOne(a => a.Message)
-                .HasForeignKey(a => a.Id)
+                .HasForeignKey(a => a.MessageId)  // RETTET: var a.Id
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Sender relationship - hvis bruker slettes så slettes ikke meldinger
+            entity.HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Reactions relationship
+            entity.HasMany(m => m.Reactions)
+                .WithOne(r => r.Message)
+                .HasForeignKey(r => r.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Parent message relationship (reply-to)
+            entity.HasOne(m => m.ParentMessage)
+                .WithMany()
+                .HasForeignKey(m => m.ParentMessageId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Conversation relationship
+            entity.HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // Hvis en bruker slettes så slettes ikke alle meldinger
-        modelBuilder.Entity<Message>()
-            .HasOne(m => m.Sender)
-            .WithMany()
-            .HasForeignKey(m => m.SenderId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        // Meldinger får med reaksjoner
-        modelBuilder.Entity<Message>()
-            .HasMany(m => m.Reactions)
-            .WithOne(r => r.Message)
-            .HasForeignKey(r => r.MessageId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        // Meldinger får med reply-to
-        modelBuilder.Entity<Message>()
-            .HasOne(m => m.ParentMessage)
-            .WithMany()
-            .HasForeignKey(m => m.ParentMessageId)
-            .OnDelete(DeleteBehavior.Restrict);
-
+        // MessageAttachment entity configuration
         modelBuilder.Entity<MessageAttachment>(entity =>
         {
             entity.HasKey(a => a.Id);
-            entity.Property(a => a.EncryptedFileUrl).IsRequired(); // Endret fra FileUrl
+            entity.Property(a => a.EncryptedFileUrl).IsRequired();
             entity.Property(a => a.FileType).IsRequired();
-            entity.Property(a => a.OriginalFileName).HasMaxLength(255); // Endret fra FileName
-            entity.Property(a => a.KeyInfo).IsRequired(); // Legg til for krypterte felter
+            entity.Property(a => a.OriginalFileName).HasMaxLength(255);
+            entity.Property(a => a.KeyInfo).IsRequired();
             entity.Property(a => a.IV).IsRequired();
+    
+            // Relationship til Message (allerede definert i Message entity, men kan være eksplisitt)
+            entity.HasOne(a => a.Message)
+                .WithMany(m => m.Attachments)
+                .HasForeignKey(a => a.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         
         // Samtaler
