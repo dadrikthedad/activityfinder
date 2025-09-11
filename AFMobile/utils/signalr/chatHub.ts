@@ -551,8 +551,6 @@ async function createConnectionInternal(): Promise<signalR.HubConnection> {
     console.log('🔌 SignalR - Starting connection...');
     await chatConnection.start();
     
-    console.log('✅ SignalR - Connected successfully with ID:', chatConnection.connectionId);
-    console.log('👤 SignalR - Connected as user:', currentUserId?.substring(0, 8) + '...');
     resetReconnectState();
     startHealthCheck();
     

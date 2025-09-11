@@ -1,4 +1,4 @@
-// AppInitializer.native.tsx - Med guard mot loops
+// AppInitializer.native.tsx - Oppdatert med CryptoInitializer og riktig sequence
 import { useEffect, useRef } from "react";
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,11 +9,12 @@ import { useBootstrapStore } from "@/store/useBootstrapStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useNotificationStore } from '@/store/useNotificationStore';
-import { useUserCacheStore, useFriends, useBlockedUsers } from '@/store/useUserCacheStore';
+import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useBootstrapDistributor } from "@/hooks/bootstrap/useBootstrapDistributor";
 import { useSyncNative } from "@/hooks/sync/useSyncNative";
 import { handleUserSwitch } from '@/utils/signalr/chatHub';
 import authServiceNative from "@/services/user/authServiceNative";
+import { CryptoInitializer } from "../ende-til-ende/CryptoInitializer";
 
 export function AppInitializer() {
   const { userId } = useAuth();
@@ -22,13 +23,11 @@ export function AppInitializer() {
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const hasInitializedOnlineRef = useRef(false);
   const initializationStrategyRef = useRef<'none' | 'bootstrap' | 'sync'>('none');
-  
-  // 🔧 NEW: Guard mot concurrent initialization
   const isInitializingRef = useRef(false);
   
   const { markCacheAsLoaded } = useBootstrapDistributor();
   
-  // Global E2EE state från BootstrapStore (kun for å sjekke status)
+  // E2EE state for status checking
   const { 
     e2eeInitialized, 
     e2eeHasKeyPair, 
@@ -56,12 +55,8 @@ export function AppInitializer() {
   } = useOnlineStatus();
 
   const { 
-    isSignalRConnected, 
-    isFallbackActive, 
-    lastSyncAt, 
     triggerSync,
     isInitialized: isSyncInitialized,
-    hasToken: hasSyncToken
   } = useSyncNative();
 
   // Reset stores ved brukerbytte
@@ -73,9 +68,8 @@ export function AppInitializer() {
         console.log("⏸️ BOOT: Not authenticated, skipping initialization");
         hasInitializedOnlineRef.current = false;
         initializationStrategyRef.current = 'none';
-        isInitializingRef.current = false; // Reset guard
+        isInitializingRef.current = false;
 
-        // Reset E2EE state når ikke autentisert
         setE2EEState(false, false, null);
 
         if (isOnline) {
@@ -85,7 +79,7 @@ export function AppInitializer() {
         return;
       }
       
-      // Ny bruger i samme sesjon? Reset alla stores
+      // User switch detection
       if (prevUserIdRef.current && prevUserIdRef.current !== userId) {
         console.log("🔄 BOOT: User switch detected, resetting all stores...");
         
@@ -93,7 +87,7 @@ export function AppInitializer() {
           console.error('Failed to handle SignalR user switch:', err)
         );
 
-        useBootstrapStore.getState().reset(); // Detta resettar även E2EE state
+        useBootstrapStore.getState().reset();
         useChatStore.getState().reset();
         useMessageNotificationStore.getState().reset();
         useNotificationStore.getState().reset();
@@ -103,7 +97,7 @@ export function AppInitializer() {
         retryCountRef.current = 0;
         hasInitializedOnlineRef.current = false;
         initializationStrategyRef.current = 'none';
-        isInitializingRef.current = false; // Reset guard
+        isInitializingRef.current = false;
 
         if (retryTimeoutRef.current) {
           clearTimeout(retryTimeoutRef.current);
@@ -129,67 +123,55 @@ export function AppInitializer() {
     }
   }, [userId]);
 
-  // 🔑 SMART INITIALIZATION LOGIC med loop protection
+  // BOOTSTRAP/SYNC INITIALIZATION (venter på E2EE)
   useEffect(() => {
     const initializeApp = async () => {
-      if (!userId || criticalLoading) {
+      if (!userId || criticalLoading || isInitializingRef.current) {
         return;
       }
 
-      // 🔧 GUARD: Hindre concurrent initialization
-      if (isInitializingRef.current) {
-        console.log("🛑 BOOT: Already initializing, skipping");
+      // VIKTIG: Vent på E2EE før bootstrap starter
+      if (!e2eeInitialized) {
+        console.log("🛑 BOOT: Waiting for E2EE initialization before bootstrap");
         return;
       }
 
-      console.log("🔐 BOOT: Checking E2EE status (global):", { 
-        e2eeInitialized, 
-        e2eeHasKeyPair, 
-        e2eeError 
-      });
-
-      // Om vi allerede har bestämt strategi, gör inget mer
       if (initializationStrategyRef.current !== 'none') {
         console.log(`🛑 BOOT: Strategy already set to ${initializationStrategyRef.current}, skipping`);
         return;
       }
 
-      // Set guard
+      console.log("🧠 BOOT: E2EE ready, determining bootstrap strategy");
       isInitializingRef.current = true;
 
       try {
         const criticalValid = isCriticalCacheValid();
         const secondaryValid = isSecondaryCacheValid();
-        
         const hasCachedSyncToken = await AsyncStorage.getItem('lastSyncToken');
         
-        console.log("🧠 BOOT: Determining initialization strategy:", {
+        console.log("🧠 BOOT: Strategy decision:", {
           criticalValid,
           secondaryValid,
           hasCachedSyncToken: !!hasCachedSyncToken,
           isBootstrapped,
-          e2eeInitialized,
-          e2eeHasKeyPair
+          e2eeReady: e2eeInitialized && e2eeHasKeyPair
         });
 
-        // 1. Om vi har giltig cache OCH sync token → Använd SYNC
+        // SYNC strategy
         if (criticalValid && secondaryValid && hasCachedSyncToken && !isBootstrapped) {
-          console.log("✨ BOOT: Valid cache + sync token found → Using SYNC strategy");
+          console.log("✨ BOOT: Using SYNC strategy (E2EE ready)");
           initializationStrategyRef.current = 'sync';
-          
           markCacheAsLoaded();
           triggerSync();
           return;
         }
         
-        // 2. Om vi saknar cache eller token → Använd BOOTSTRAP (inkluderer E2EE)
+        // BOOTSTRAP strategy
         if (!criticalValid || !secondaryValid || !hasCachedSyncToken || !isBootstrapped) {
-          console.log("🔄 BOOT: Missing cache or token → Using BOOTSTRAP strategy (will handle E2EE)");
+          console.log("🔄 BOOT: Using BOOTSTRAP strategy (E2EE ready)");
           initializationStrategyRef.current = 'bootstrap';
           
-          console.log("🚀 BOOT: Triggering full bootstrap (E2EE will be initialized in bootstrap)...");
           const criticalSuccess = await bootstrap();
-
           if (criticalSuccess) {
             console.log("🚀 BOOT: Triggering secondary bootstrap...");
             loadSecondaryData();
@@ -197,52 +179,48 @@ export function AppInitializer() {
           return;
         }
         
-        console.log("✅ BOOT: Already initialized, nothing to do");
+        console.log("✅ BOOT: Already initialized");
       } catch (error) {
         console.error("❌ BOOT: Initialization error:", error);
       } finally {
-        // Clear guard
         isInitializingRef.current = false;
       }
     };
 
     initializeApp();
-  }, [
-    userId,
-    criticalLoading, 
-    isBootstrapped,
-  ]);
+  }, [userId, criticalLoading, isBootstrapped, e2eeInitialized]);
 
-  // Online status orchestration - nå med global E2EE state
+  // Online status orchestration
   useEffect(() => {
     const shouldGoOnline = (
       userId &&
       (isBootstrapped || initializationStrategyRef.current === 'sync') &&
       user &&
       !criticalError &&
-      !isConnecting
+      !isConnecting &&
+      // E2EE check: either ready or in offline mode
+      (e2eeInitialized && (e2eeHasKeyPair || e2eeError === 'network_error'))
     );
 
     if (shouldGoOnline && !isOnline) {
-      console.log("✅ BOOT: Conditions met for going online (including E2EE from bootstrap) - marking user online");
+      if (e2eeError === 'network_error') {
+        console.log("🔶 BOOT: Going online with E2EE in offline mode");
+      } else {
+        console.log("✅ BOOT: Going online");
+      }
       markOnline();
     }
     
     if (shouldGoOnline && !hasInitializedOnlineRef.current) {
       hasInitializedOnlineRef.current = true;
-      console.log("🎯 BOOT: Initial online setup complete (with E2EE from bootstrap)");
+      console.log("🎯 BOOT: Initial online setup complete");
     }
   }, [
-    userId,
-    isBootstrapped, 
-    user, 
-    criticalError,
-    isOnline, 
-    isConnecting,
-    markOnline,
+    userId, isBootstrapped, user, criticalError, isOnline, isConnecting,
+    markOnline, e2eeInitialized, e2eeHasKeyPair, e2eeError
   ]);
 
-  // React Native: AppState handler
+  // AppState handler
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (!userId || (!isBootstrapped && initializationStrategyRef.current !== 'sync') || !user) {
@@ -256,7 +234,6 @@ export function AppInitializer() {
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
     return () => subscription?.remove();
   }, [userId, isBootstrapped, user, isOnline, isConnecting, markOnline]);
 
@@ -264,8 +241,6 @@ export function AppInitializer() {
   useEffect(() => {
     const handleFullRefreshRequired = (event: any) => {
       console.log("🔄 SYNC: Full refresh required:", event?.detail?.reason || 'Unknown reason');
-      
-      // Reset guards for new initialization
       isInitializingRef.current = false;
       initializationStrategyRef.current = 'bootstrap';
       bootstrap();
@@ -276,15 +251,13 @@ export function AppInitializer() {
       
       if (initializationStrategyRef.current === 'sync' && !isBootstrapped) {
         console.log("🔄 SYNC: Sync failed, falling back to bootstrap");
-        // Reset guards for new initialization
         isInitializingRef.current = false;
         initializationStrategyRef.current = 'bootstrap';
         bootstrap();
       }
     };
 
-    return () => {
-    };
+    return () => {};
   }, [bootstrap, isBootstrapped]);
 
   // Exponential backoff retry logic
@@ -304,7 +277,6 @@ export function AppInitializer() {
         retryTimeoutRef.current = setTimeout(() => {
           console.log(`🔄 BOOT: Executing retry ${retryCountRef.current + 1}`);
           retryCountRef.current++;
-          // Reset guard for retry
           isInitializingRef.current = false;
           retryCritical();
         }, delay);
@@ -330,23 +302,38 @@ export function AppInitializer() {
     };
   }, [criticalError, isBootstrapped, retryCritical]);
 
-  // Debug logging - med E2EE state från bootstrap
+  // E2EE initialization callback
+  const handleCryptoInitialized = (success: boolean) => {
+    if (success) {
+      console.log("🔐 BOOT: E2EE ready");
+    } else {
+      console.log("🔐 BOOT: E2EE failed, continuing in limited mode");
+    }
+  };
+
+  // Debug logging
   useEffect(() => {
     const strategy = initializationStrategyRef.current;
     
     if (strategy === 'bootstrap' && criticalLoading) {
-      console.log("⏳ BOOT: Loading critical bootstrap data (including E2EE)...");
+      console.log("⏳ BOOT: Loading critical bootstrap data...");
     } else if (strategy === 'sync' && isSyncInitialized) {
       console.log("✅ SYNC: Sync-based initialization complete!");
     } else if (isBootstrapped && !criticalError) {
       console.log("✅ BOOT: Bootstrap complete!", {
         strategy,
-        e2eeInitialized,
-        e2eeHasKeyPair,
         retryCount: retryCountRef.current > 0 ? retryCountRef.current : "no retries needed"
       });
     }
-  }, [criticalLoading, isBootstrapped, criticalError, isSyncInitialized, e2eeInitialized, e2eeHasKeyPair]);
+  }, [criticalLoading, isBootstrapped, criticalError, isSyncInitialized]);
 
-  return null;
+  return (
+    <>
+      {/* E2EE initialisering - MÅ være ferdig før bootstrap */}
+      <CryptoInitializer 
+        shouldInitialize={!!userId}
+        onInitialized={handleCryptoInitialized}
+      />
+    </>
+  );
 }

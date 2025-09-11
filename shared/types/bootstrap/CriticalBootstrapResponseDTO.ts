@@ -1,11 +1,8 @@
 import { UserSummaryDTO } from "../UserSummaryDTO";
-import { ConversationDTO } from "../ConversationDTO";
-import { MessageDTO } from "../MessageDTO";
+import { UserSettingsDTO } from "../UserSettingsDTO";
 
 export interface CriticalBootstrapResponseDTO {
   user: UserSummaryDTO;
-  recentConversations: ConversationDTO[];
-  // Key = conversationId, Value = array of messages
-  conversationMessages: Record<number, MessageDTO[]>;
+  settings: UserSettingsDTO;
   syncToken: string;
 }

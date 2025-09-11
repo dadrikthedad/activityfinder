@@ -4,8 +4,8 @@ import { SendMessageRequestDTO, MessageDTO } from "@shared/types/MessageDTO";
 import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
 import { RejectRequestDTO } from "@shared/types/RejectRequestDTO";
 import { PaginatedMessageRequestsDTO } from "@shared/types/PaginatedMessageRequestsDTO";
-import { EncryptedMessageDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
-import { SendEncryptedMessageRequestDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
+import { EncryptedMessageDTO } from "@/features/crypto/types/EncryptedMessageTypes";
+import { SendEncryptedMessageRequestDTO } from "@/features/crypto/types/EncryptedMessageTypes";
 
 // Sende meldinger til bruker eller grupper
 export async function sendTextMessage(

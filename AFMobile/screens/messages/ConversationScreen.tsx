@@ -83,6 +83,8 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     setCurrentConversationId(conversationId);
   }
 
+  
+
   return () => {
     const state = useChatStore.getState();
     

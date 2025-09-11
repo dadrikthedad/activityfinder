@@ -1,5 +1,5 @@
-// components/attachments/AttachmentPreview.tsx - Enhanced with more document info
-import React, { useRef } from 'react';
+// components/attachments/AttachmentPreview.tsx - Enhanced with thumbnail support
+import React, { useRef, useMemo, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { AttachmentDto } from '@shared/types/MessageDTO';
 import { RNFile, getFileTypeInfo, getDisplayFileName, formatFileSize } from '@/utils/files/FileFunctions';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
+import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
+import { ThumbnailCacheService } from '@/features/cryptoAttachments/services/ThumbnailCacheService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -65,7 +67,7 @@ const VideoPreview: React.FC<{ uri: string; isBlurred?: boolean }> = ({ uri, isB
   );
 };
 
-// Enhanced size configurations with more space for document info
+// Enhanced size configurations
 const getSizeConfig = (size: 'small' | 'medium' | 'large') => {
   switch (size) {
     case 'small':
@@ -116,6 +118,8 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 }) => {
   const attachmentRef = useRef<View>(null);
   const sizeConfig = getSizeConfig(size);
+  const { decryptFile, isLoading: isDecryptingThumbnail, getDecryptedUrl } = useLazyFileDecryption();
+  const hasAttemptedDecryption = useRef(new Set<string>());
   
   // Normalize data from either AttachmentDto or RNFile
   const normalizedData = attachment ? {
@@ -124,14 +128,25 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
     fileUrl: attachment.fileUrl,
     localUri: attachment.localUri,
     isOptimistic: attachment.isOptimistic,
-    size: attachment.fileSize, // File size from attachment
+    size: attachment.fileSize,
+    // Thumbnail fields
+    thumbnailUrl: attachment.thumbnailUrl,
+    thumbnailWidth: attachment.thumbnailWidth,
+    thumbnailHeight: attachment.thumbnailHeight,
+    localThumbnailUri: attachment.localThumbnailUri,
+    needsDecryption: attachment.needsDecryption,
   } : {
     fileName: file?.name || 'Unknown file',
     fileType: file?.type || 'application/octet-stream',
     fileUrl: file?.uri || '',
     localUri: file?.uri,
     isOptimistic: true,
-    size: file?.size, // File size from file
+    size: file?.size,
+    thumbnailUrl: undefined,
+    thumbnailWidth: undefined,
+    thumbnailHeight: undefined,
+    localThumbnailUri: undefined,
+    needsDecryption: false,
   };
 
   const fileInfo = getFileTypeInfo(normalizedData.fileType, normalizedData.fileName);
@@ -139,8 +154,191 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   const isVideo = fileInfo.category === 'video';
   const isDocument = !isImage && !isVideo;
 
-  // Determine image URI
-  const imageUri = normalizedData.isOptimistic ? normalizedData.localUri : normalizedData.fileUrl;
+  // State for thumbnail decryption
+  const [thumbnailDecrypted, setThumbnailDecrypted] = useState(false);
+
+  // Determine which image/video URI to use with thumbnail priority
+  const displayUri = useMemo(() => {
+    // Priority order for thumbnail display:
+    // 1. Local thumbnail (immediate display for new uploads)
+    // 2. Cached thumbnail (fastest for encrypted content)
+    // 3. Decrypted remote thumbnail (for encrypted thumbnails)
+    // 4. Plain remote thumbnail (for unencrypted)
+    // 5. Local file URI (for optimistic messages)
+    // 6. Remote file URL (fallback)
+    
+    if (normalizedData.localThumbnailUri) {
+      console.log('BANAN displayUri - using localThumbnailUri');
+      return normalizedData.localThumbnailUri;
+    }
+    
+    if (normalizedData.needsDecryption && normalizedData.thumbnailUrl) {
+      // Sjekk cache FØRST før vi prøver dekryptering
+      const thumbnailCacheService = ThumbnailCacheService.getInstance();
+        const cacheKey = normalizedData.isOptimistic ? 
+          normalizedData.localUri : 
+          normalizedData.fileUrl;
+        
+        if (cacheKey) { // Legg til denne sjekken
+          const cachedThumbnail = thumbnailCacheService.getCachedThumbnail(
+            cacheKey, 
+            normalizedData.size
+          );
+          
+          if (cachedThumbnail) {
+            console.log('BANAN displayUri - using cached thumbnail');
+            return cachedThumbnail.uri;
+          }
+        }
+      
+      // Hvis ikke i cache, sjekk om dekryptering er ferdig
+      const decryptedThumbnailUrl = getDecryptedUrl(normalizedData.thumbnailUrl);
+      if (decryptedThumbnailUrl) {
+        console.log('BANAN displayUri - using decrypted thumbnail');
+        return decryptedThumbnailUrl;
+      }
+      
+      // Bare vis "decryption in progress" hvis verken cache eller dekryptert URL finnes
+      console.log('BANAN displayUri - thumbnail decryption in progress');
+      return null;
+    }
+    
+    if (normalizedData.thumbnailUrl && !normalizedData.needsDecryption) {
+      console.log('BANAN displayUri - using plain thumbnail');
+      return normalizedData.thumbnailUrl;
+    }
+    
+    if (normalizedData.isOptimistic && normalizedData.localUri) {
+      console.log('BANAN displayUri - using optimistic localUri');
+      return normalizedData.localUri;
+    }
+    
+    console.log('BANAN displayUri - using fallback fileUrl');
+    return normalizedData.fileUrl;
+  }, [
+    normalizedData.localThumbnailUri,
+    normalizedData.needsDecryption,
+    normalizedData.thumbnailUrl,
+    normalizedData.fileUrl,
+    normalizedData.size,
+    normalizedData.isOptimistic,
+    normalizedData.localUri,
+    getDecryptedUrl,
+  ]);
+
+  useEffect(() => {
+  if (!attachment || !normalizedData.needsDecryption || !normalizedData.thumbnailUrl) return;
+  if (!(isImage || isVideo)) return;
+
+  const thumbnailKey = `${normalizedData.fileUrl}_${normalizedData.thumbnailUrl}`;
+  
+  // Unngå gjentatte forsøk på samme thumbnail
+  if (hasAttemptedDecryption.current.has(thumbnailKey)) {
+    return;
+  }
+
+  const handleThumbnailDecryption = async () => {
+    const thumbnailCacheService = ThumbnailCacheService.getInstance();
+    
+    console.log(`🔍 Checking cache for: ${normalizedData.fileName}`);
+    
+    try {
+      // FIX: For optimistiske meldinger, bruk localUri. For server meldinger, bruk fileUrl
+      const cacheKey = normalizedData.isOptimistic ? 
+        normalizedData.localUri : 
+        normalizedData.fileUrl;
+        
+      if (!cacheKey) {
+        console.warn('No cache key available for thumbnail lookup');
+        return;
+      }
+        
+      const cachedThumbnail = thumbnailCacheService.getCachedThumbnail(
+        cacheKey,
+        normalizedData.size
+      );
+
+      if (cachedThumbnail) {
+        console.log(`🖼️📦 Found cached thumbnail for ${normalizedData.fileName} - STOPPING`);
+        return; // Dette burde stoppe videre prosessering
+      } else {
+        console.log(`❌ No cache found for ${normalizedData.fileName}`);
+      }
+    } catch (error) {
+      console.warn('Failed to check thumbnail cache:', error);
+    }
+
+    if (
+      normalizedData.thumbnailUrl &&
+      !getDecryptedUrl(normalizedData.thumbnailUrl) &&
+      !isDecryptingThumbnail(normalizedData.thumbnailUrl)
+    ) {
+      console.log(`🔐🖼️ Auto-decrypting thumbnail for: ${normalizedData.fileName}`);
+      
+      // Marker at vi har prøvd denne thumbnails
+      hasAttemptedDecryption.current.add(thumbnailKey);
+      
+      const thumbnailAttachment: AttachmentDto = {
+        fileUrl: normalizedData.thumbnailUrl,
+        fileType: normalizedData.fileType,
+        fileName: `thumbnail_${normalizedData.fileName}`,
+        fileSize: undefined,
+        isEncrypted: true,
+        needsDecryption: true,
+        keyInfo: attachment.thumbnailKeyInfo,
+        iv: attachment.thumbnailIV,
+        version: attachment.version || 1,
+      };
+
+      decryptFile(thumbnailAttachment);
+    }
+  };
+
+  handleThumbnailDecryption();
+}, [
+  attachment?.fileUrl, // Bruk bare stabile felter som dependencies
+  attachment?.thumbnailUrl,
+  attachment?.needsDecryption,
+  isImage,
+  isVideo,
+  // Fjern hooks som dependencies - de endrer ikke
+]);
+
+// Behold useEffect #2 som den er (caching etter dekryptering)
+  useEffect(() => {
+  if (!attachment || !normalizedData.needsDecryption || !normalizedData.thumbnailUrl) return;
+
+  const decryptedUrl = getDecryptedUrl(normalizedData.thumbnailUrl);
+  if (decryptedUrl) {
+    const thumbnailCacheService = ThumbnailCacheService.getInstance();
+    
+    (async () => {
+      try {
+        // Bruk samme cache-nøkkel logikk som de andre stedene
+        const cacheKey = normalizedData.isOptimistic ? 
+          normalizedData.localUri : 
+          normalizedData.fileUrl;
+          
+        if (cacheKey) {
+          await thumbnailCacheService.cacheThumbnail(
+            cacheKey,  // Konsistent cache-nøkkel
+            normalizedData.size,
+            decryptedUrl,
+            normalizedData.thumbnailWidth || 400,
+            normalizedData.thumbnailHeight || 400
+          );
+          console.log(`🖼️📦 Cached decrypted thumbnail for ${normalizedData.fileName}`);
+        }
+      } catch (error) {
+        console.warn('Failed to cache decrypted thumbnail:', error);
+      }
+    })();
+  }
+}, [
+  attachment?.thumbnailUrl,
+  attachment?.fileUrl,
+  getDecryptedUrl
+]);
   
   // Show upload status
   const showUploadStatus = Boolean(uploadError);
@@ -172,6 +370,15 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
       onLongPress();
     }
   };
+
+  // Determine if we should show a loading state for thumbnail
+  const showThumbnailLoading = (
+    normalizedData.needsDecryption &&
+    normalizedData.thumbnailUrl &&
+    !displayUri &&
+    isDecryptingThumbnail(normalizedData.thumbnailUrl) &&
+    (isImage || isVideo)
+  );
 
   return (
     <TouchableOpacity
@@ -206,22 +413,41 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
 
       {/* IMAGE CONTENT */}
       {isImage && (
-        <Image
-          source={{ uri: imageUri }}
-          style={[
-            styles.image,
-            isBlurred && styles.blurredImage,
-            showUploadStatus && styles.uploadingImage
-          ]}
-          resizeMode="cover"
-        />
+        <>
+          {displayUri ? (
+            <Image
+              source={{ uri: displayUri }}
+              style={[
+                styles.image,
+                isBlurred && styles.blurredImage,
+                showUploadStatus && styles.uploadingImage
+              ]}
+              resizeMode="cover"
+            />
+          ) : showThumbnailLoading ? (
+            <View style={styles.thumbnailLoadingContainer}>
+              <ActivityIndicator size="small" color="#1C6B1C" />
+              <Text style={styles.thumbnailLoadingText}>Loading preview...</Text>
+            </View>
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.imageIcon}>🖼️</Text>
+              <Text style={styles.placeholderText}>Image</Text>
+            </View>
+          )}
+        </>
       )}
 
       {/* VIDEO CONTENT */}
       {isVideo && (
         <View style={styles.videoContainer}>
-          {!showUploadStatus && imageUri ? (
-            <VideoPreview uri={imageUri} isBlurred={isBlurred} />
+          {displayUri && !showUploadStatus ? (
+            <VideoPreview uri={displayUri} isBlurred={isBlurred} />
+          ) : showThumbnailLoading ? (
+            <View style={[styles.videoPlaceholder, styles.thumbnailLoadingContainer]}>
+              <ActivityIndicator size="small" color="white" />
+              <Text style={[styles.thumbnailLoadingText, { color: 'white' }]}>Loading preview...</Text>
+            </View>
           ) : (
             <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
               <Text style={styles.videoIcon}>🎥</Text>
@@ -231,7 +457,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
         </View>
       )}
 
-      {/* ENHANCED DOCUMENT CONTENT */}
+      {/* DOCUMENT CONTENT */}
       {isDocument && (
         <View style={[styles.documentContainer, { padding: sizeConfig.documentPadding }]}>
           {/* Icon Section */}
@@ -239,9 +465,9 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             <File size={sizeConfig.iconSize} color="#1C6B1C" />
           </View>
           
-          {/* Enhanced Info Section */}
+          {/* Info Section */}
           <View style={styles.documentInfoSection}>
-            {/* File Name - Multiple lines for longer names */}
+            {/* File Name */}
             <Text 
               style={[
                 styles.documentName, 
@@ -323,7 +549,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           )}
 
           {/* Play button overlay - only for videos */}
-          {isVideo && !isBlurred && (
+          {isVideo && !isBlurred && displayUri && (
             <View style={styles.playOverlay}>
               <View style={styles.playButton}>
                 <Play size={20} color="white" fill="white" />
@@ -398,6 +624,17 @@ const styles = StyleSheet.create({
   uploadingImage: {
     opacity: 0.8,
   },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  imageIcon: {
+    fontSize: 32,
+  },
   
   // Video styles
   videoContainer: {
@@ -442,7 +679,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   
-  // Enhanced document styles
+  // Thumbnail loading states
+  thumbnailLoadingContainer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  thumbnailLoadingText: {
+    fontSize: 10,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  
+  // Document styles
   documentContainer: {
     width: '100%',
     height: '100%',
@@ -454,7 +708,7 @@ const styles = StyleSheet.create({
   },
   documentIconSection: {
     marginBottom: 8,
-    flexShrink: 0, // Don't shrink the icon
+    flexShrink: 0,
   },
   documentInfoSection: {
     flex: 1,

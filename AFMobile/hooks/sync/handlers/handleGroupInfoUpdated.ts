@@ -30,7 +30,7 @@ export const handleGroupInfoUpdated = async (
     hasSystemMessage: !!eventData.systemMessage
   });
 
-  const { pendingMessageRequests, updatePendingRequest, addMessage, addConversation } = useChatStore.getState();
+  const { pendingMessageRequests, updatePendingRequest, addMessageOptimistic: addMessage, addConversation } = useChatStore.getState();
  
   // Handle both event formats - prioritize 'conversation' but fallback to 'conversationData'
   const conversation = eventData.conversation || eventData.conversationData;

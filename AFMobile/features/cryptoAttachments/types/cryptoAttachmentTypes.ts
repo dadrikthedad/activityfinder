@@ -28,16 +28,6 @@ export interface ProcessedFile {
   metadata: FileMetadata;
 }
 
-export interface EncryptedFileResult {
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  keyInfo: { [userId: string]: string };
-  iv: string;
-  version: number;
-  encryptedFileData: string;
-}
-
 
 export interface EncryptionOptions {
   onProgress?: (progress: number) => void;

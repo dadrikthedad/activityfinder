@@ -7,7 +7,6 @@ import { API_BASE_URL } from "@/constants/routes";
 import { deviceInfoService } from "@/utils/api/deviceInfo";
 import { AuthError } from '@shared/types/error/AuthError';
 import { CryptoService } from '@/components/ende-til-ende/CryptoService';
-import { CryptoServiceBackup } from '@/components/ende-til-ende/CryptoServiceBackup';
 
 class AuthService {
   private accessToken: string | null = null;
@@ -15,6 +14,8 @@ class AuthService {
   private refreshTimer: NodeJS.Timeout | null = null;
   private readonly baseURL: string;
   private initPromise: Promise<void> | null = null;
+  private refreshPromise: Promise<string> | null = null;
+  private isRefreshing = false;
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -23,36 +24,69 @@ class AuthService {
   }
 
   private async initializeTokens(): Promise<void> {
+    console.log('🔄 Starting token initialization...');
+    
     try {
+      console.log('📱 Reading tokens from AsyncStorage...');
       this.accessToken = await AsyncStorage.getItem('accessToken');
       this.refreshToken = await AsyncStorage.getItem('refreshToken');
       const expiresStr = await AsyncStorage.getItem('accessTokenExpires');
       
+      console.log('🔍 Token status:', {
+        hasAccessToken: !!this.accessToken,
+        hasRefreshToken: !!this.refreshToken,
+        hasExpires: !!expiresStr
+      });
+      
       if (this.accessToken && expiresStr) {
         const expires = new Date(expiresStr);
-        if (expires > new Date()) {
+        const now = new Date();
+        const isExpired = expires <= now;
+        
+        console.log('⏰ Token timing:', {
+          expires: expires.toISOString(),
+          now: now.toISOString(),
+          isExpired
+        });
+        
+        if (!isExpired) {
+          console.log('✅ Token is valid, scheduling refresh');
           this.scheduleTokenRefresh(expires);
-          
-          // Initialize E2EE for existing session
-          this.initializeE2EEAsync().catch(error => {
-            console.error('E2EE initialization failed on app startup:', error);
-          });
-        } else {
-          // Token is expired, try to refresh if we have refresh token
-          if (this.refreshToken) {
-            try {
-              await this.refreshAccessToken();
-            } catch {
-              this.clearTokens();
-            }
+        } else if (this.refreshToken) {
+          console.log('🔄 Access token expired, auto-refreshing...');
+          try {
+            await this.refreshAccessToken();
+            console.log('✅ Token successfully refreshed on startup');
+          } catch (error) {
+            console.error('❌ Failed to refresh token on startup, clearing all tokens');
+            await this.clearTokens();
           }
+        } else {
+          console.log('❌ Token expired and no refresh token - clearing');
+          await this.clearTokens();
         }
-      }
+      } else if (this.refreshToken && !this.accessToken) {
+          console.log('🔄 No access token but have refresh token, getting new access token...');
+          try {
+            await this.refreshAccessToken();
+            console.log('✅ New access token obtained');
+          } catch (error) {
+            console.error('❌ Failed to get new access token, refresh token likely expired');
+            console.log('🧹 Calling clearTokens from initializeTokens catch...');
+            await this.clearTokens();
+            console.log('✅ clearTokens completed from initializeTokens');
+          }
+        } else {
+          console.log('ℹ️ No tokens found - user needs to login');
+        }
+      
+      console.log('✅ Token initialization complete');
     } catch (error) {
-      console.error('Failed to initialize tokens:', error);
-      this.clearTokens();
+      console.error('❌ Failed to initialize tokens:', error);
+      await this.clearTokens();
     }
   }
+
 
   private async ensureInitialized(): Promise<void> {
     if (this.initPromise) {
@@ -168,30 +202,48 @@ class AuthService {
   }
 
   async getCurrentUserId(): Promise<number | null> {
-    await this.ensureInitialized();
+    let tokenToCheck = this.accessToken;
     
-    if (!this.accessToken) {
+    // Hvis vi ikke har token i memory, prøv å hent fra storage
+    if (!tokenToCheck) {
+      try {
+        console.log('🔍 No token in memory, checking AsyncStorage...');
+        tokenToCheck = await AsyncStorage.getItem('accessToken');
+      } catch (error) {
+        console.log('⚠️ Could not read token from storage:', error);
+        return null;
+      }
+    }
+
+    if (!tokenToCheck) {
+      console.log('ℹ️ No access token available for user ID extraction');
       return null;
     }
 
     try {
+      console.log('🔍 Parsing JWT token for user ID...');
       // Parse JWT token payload
-      const payload = JSON.parse(atob(this.accessToken.split('.')[1]));
+      const payload = JSON.parse(atob(tokenToCheck.split('.')[1]));
       
       // JWT kan ha forskjellige field names for userId
       const userId = payload.sub || payload.userId || payload.id || payload.user_id;
       
-      return userId ? parseInt(userId.toString()) : null;
+      const parsedUserId = userId ? parseInt(userId.toString()) : null;
+      console.log('👤 Extracted user ID:', parsedUserId);
+      return parsedUserId;
     } catch (error) {
-      console.error('Failed to parse userId from token:', error);
+      console.error('❌ Failed to parse userId from token:', error);
       return null;
     }
   }
 
-  async isAuthenticated(): Promise<boolean> {
-    await this.ensureInitialized();
-    return !!this.accessToken && !!this.refreshToken;
-  }
+ async isAuthenticated(): Promise<boolean> {
+  await this.ensureInitialized();
+  
+  // Hvis vi har refresh token men ikke access token, er vi fortsatt "authenticated"
+  // fordi vi kan få ny access token
+  return !!(this.refreshToken && (this.accessToken || this.refreshToken));
+}
 
   private async setTokens(tokenData: LoginResponseDTO): Promise<void> {
     this.accessToken = tokenData.accessToken;
@@ -199,63 +251,9 @@ class AuthService {
     
     await this.saveTokens(tokenData);
     this.scheduleTokenRefresh(tokenData.accessTokenExpires);
-    
-    // ✅ Vent på E2EE initialisering før vi fortsetter
-    await this.initializeE2EEAsync();
   }
 
-  private async initializeE2EEAsync(): Promise<void> {
-  try {
-    // Ikke kall getCurrentUserId() - parse JWT direkte siden vi VET tokens er satt
-    if (!this.accessToken) {
-      throw new Error('No access token available after token setup');
-    }
 
-    const payload = JSON.parse(atob(this.accessToken.split('.')[1]));
-    const userId = payload["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"] ||
-                   payload.sub || 
-                   payload.userId || 
-                   payload.id || 
-                   payload.user_id;
-
-    if (!userId) {
-      throw new Error('No userId found in JWT token');
-    }
-
-    console.log("🔐 Initializing E2EE after login for user:", userId);
-
-    const backupService = CryptoServiceBackup.getInstance();
-    const result = await backupService.initializeForUser(parseInt(userId.toString()));
-    
-    // Use dynamic import to avoid circular dependency
-    const { useBootstrapStore } = await import('@/store/useBootstrapStore');
-    const { setE2EEState } = useBootstrapStore.getState();
-    
-    if (result.needsSetup) {
-      setE2EEState(true, false, 'needs_setup');
-      console.log("✅ E2EE initialized: needs setup");
-    } else if (result.needsRestore) {
-      setE2EEState(true, false, 'needs_restore');
-      console.log("✅ E2EE initialized: needs restore");
-    } else {
-      setE2EEState(true, true, null);
-      console.log("✅ E2EE initialized: ready");
-    }
-    
-  } catch (error) {
-    console.error('E2EE initialization failed:', error);
-    
-    // Set E2EE state to failed
-    try {
-      const { useBootstrapStore } = await import('@/store/useBootstrapStore');
-      const { setE2EEState } = useBootstrapStore.getState();
-      const errorMessage = error instanceof Error ? error.message : 'Unknown E2EE error';
-      setE2EEState(true, false, errorMessage);
-    } catch (storeError) {
-      console.error('Failed to set E2EE error state:', storeError);
-    }
-  }
-}
 
   private async saveTokens(tokenData: LoginResponseDTO): Promise<void> {
     try {
@@ -288,31 +286,87 @@ class AuthService {
     }
   }
 
+  
   public async refreshAccessToken(): Promise<string> {
+    // Hvis refresh allerede pågår, vent på den
+    if (this.refreshPromise) {
+      console.log('🔄 Refresh already in progress, waiting for completion...');
+      return this.refreshPromise;
+    }
+
+    // Hvis vi allerede refresher, returner umiddelbart
+    if (this.isRefreshing) {
+      throw new Error('Refresh already in progress');
+    }
+
+    console.log('🔄 Starting token refresh process...');
+    this.isRefreshing = true;
+    
+    this.refreshPromise = this._performActualRefresh();
+    
+    try {
+      const result = await this.refreshPromise;
+      return result;
+    } finally {
+      this.refreshPromise = null;
+      this.isRefreshing = false;
+    }
+  }
+
+  private async _performActualRefresh(): Promise<string> {
     if (!this.refreshToken) {
+      console.error('❌ No refresh token available for refresh');
       throw new Error('No refresh token available');
     }
 
-    const deviceHeaders = await deviceInfoService.getDeviceHeaders();
+    console.log('📡 Making refresh token request...');
+    
+    try {
+      const deviceHeaders = await deviceInfoService.getDeviceHeaders();
+      
+      const response = await fetch(`${this.baseURL}/api/user/refresh`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...deviceHeaders
+        },
+        body: JSON.stringify({ refreshToken: this.refreshToken })
+      });
 
-    const response = await fetch(`${this.baseURL}/api/user/refresh`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...deviceHeaders
-      },
-      body: JSON.stringify({ refreshToken: this.refreshToken } as RefreshTokenRequest)
-    });
+      console.log('📡 Refresh response status:', response.status);
 
-    if (!response.ok) {
-      await this.clearTokens();
-      throw new Error('Session expired');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Refresh failed with status:', response.status, 'Error:', errorText);
+        
+        // Only clear tokens once
+        if (!this.isRefreshing) {
+          console.log('🧹 About to clear tokens due to failed refresh...');
+          await this.clearTokens();
+        }
+        
+        throw new Error(`Session expired (${response.status})`);
+      }
+
+      const data: LoginResponseDTO = await response.json();
+      console.log('✅ Got new tokens, saving...');
+      
+      await this.setTokens(data);
+      console.log('✅ Token refresh completed successfully');
+      
+      return data.accessToken;
+    } catch (error) {
+      console.error('❌ Token refresh failed:', error);
+      
+      // Only clear tokens if we're the active refresh attempt
+      if (!this.isRefreshing) {
+        await this.clearTokens();
+      }
+      
+      throw error;
     }
-
-    const data: LoginResponseDTO = await response.json();
-    await this.setTokens(data);
-    return data.accessToken;
   }
+
 
   public async isTokenExpiringSoon(): Promise<boolean> {
     if (!this.accessToken) return true;
@@ -333,46 +387,77 @@ class AuthService {
   }
 
   private async clearTokens(): Promise<void> {
-    const userId = await this.getCurrentUserId();
+    console.log('🧹 Starting clearTokens process...');
     
+    // Clear tokens fra memory FØRST (dette kan ikke feile)
+    console.log('🧠 Clearing tokens from memory...');
     this.accessToken = null;
     this.refreshToken = null;
     
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
+      console.log('⏰ Refresh timer cleared');
     }
 
+    // Prøv å få userId fra AsyncStorage direkte (uten å parse token)
+    let userId: string | null = null;
+    try {
+      console.log('👤 Getting user ID from AsyncStorage...');
+      userId = await AsyncStorage.getItem('userId');
+      console.log('👤 Found stored user ID:', userId);
+    } catch (error) {
+      console.log('⚠️ Could not get stored user ID:', error);
+    }
+
+    // Clear E2EE cache hvis vi har userId
     if (userId) {
       try {
+        console.log('🔐 Clearing E2EE cache...');
         const cryptoService = CryptoService.getInstance();
-        
-        // Clear memory cache only - keep keychain for same device re-login
-        cryptoService.clearUserCache(userId);
-        
-        // DON'T clear keychain on normal logout
-        // await cryptoService.clearPrivateKey(userId);
+        cryptoService.clearUserCache(parseInt(userId));
         
         const { useBootstrapStore } = await import('@/store/useBootstrapStore');
         const { setE2EEState } = useBootstrapStore.getState();
         setE2EEState(false, false, null);
         
-        console.log("🔐 E2EE memory cache cleared for user:", userId);
+        console.log("✅ E2EE memory cache cleared for user:", userId);
       } catch (error) {
-        console.error('Failed to clear E2EE state:', error);
+        console.error('⚠️ Failed to clear E2EE state (continuing anyway):', error);
       }
+    } else {
+      console.log('ℹ️ Skipping E2EE cleanup (no stored user ID)');
     }
 
+    // Clear AsyncStorage (viktigst!)
     try {
+      console.log('📱 Removing tokens from AsyncStorage...');
       await AsyncStorage.multiRemove([
         'accessToken',
         'refreshToken',
         'accessTokenExpires',
-        'refreshTokenExpires'
+        'refreshTokenExpires',
+        'userId'
       ]);
+      console.log('🗑️ All auth tokens cleared from storage');
     } catch (error) {
-      console.error('Failed to clear tokens:', error);
+      console.error('❌ Failed to clear tokens from storage:', error);
+      
+      // Prøv å clear individuelt
+      try {
+        console.log('🔄 Trying individual token removal...');
+        await AsyncStorage.removeItem('accessToken');
+        await AsyncStorage.removeItem('refreshToken');
+        await AsyncStorage.removeItem('accessTokenExpires');
+        await AsyncStorage.removeItem('refreshTokenExpires');
+        await AsyncStorage.removeItem('userId');
+        console.log('✅ Individual token removal successful');
+      } catch (individualError) {
+        console.error('❌ Individual token removal also failed:', individualError);
+      }
     }
+    
+    console.log('✅ clearTokens process complete');
   }
 }
 

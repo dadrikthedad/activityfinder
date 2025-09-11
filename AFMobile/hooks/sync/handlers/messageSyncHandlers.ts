@@ -49,7 +49,7 @@ export const handleMessageSync = async (
  
   const {
     addConversation,
-    addMessage,
+    addMessageOptimistic: addMessage,
     updateConversationTimestamp,
   } = useChatStore.getState();
  

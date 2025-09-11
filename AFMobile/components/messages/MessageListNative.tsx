@@ -389,27 +389,29 @@ const MessageListNative: React.ForwardRefRenderFunction<MessageListNativeRef, Me
 
   // Combine and sort messages
   const displayedMessages = useMemo(() => {
-    if (isSearchMode) {
-      return searchResults.sort((a, b) => 
-        new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()
-      );
-    }
+  if (isSearchMode) {
+    return searchResults.sort((a, b) => 
+      new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime()
+    );
+  }
 
-    const messageMap = new Map();
-    
-    // Add cached messages first
-    messages.forEach(msg => {
-      messageMap.set(msg.id, msg);
-    });
-    
-    // Add live messages, overriding cached ones if same ID
-    live.forEach(msg => {
-      messageMap.set(msg.id, msg);
-    });
+  const messageMap = new Map();
+  
+  // Add cached messages first
+  messages.forEach(msg => {
+    const key = msg.optimisticId || msg.id.toString();
+    messageMap.set(key, msg);
+  });
+  
+  // Add live messages, overriding cached ones if same key
+  live.forEach(msg => {
+    const key = msg.optimisticId || msg.id.toString();
+    messageMap.set(key, msg);
+  });
 
-    return Array.from(messageMap.values())
-      .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
-  }, [messages, live, isSearchMode, searchResults]);
+  return Array.from(messageMap.values())
+    .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+}, [messages, live, isSearchMode, searchResults]);
 
   const pendingLockedConversationId = useChatStore((state) => state.pendingLockedConversationId);
   const currentConversation = useChatStore((state) =>

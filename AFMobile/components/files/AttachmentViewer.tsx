@@ -6,6 +6,7 @@ import { AttachmentDto } from '@shared/types/MessageDTO';
 import { RNFile, getFileTypeInfo } from '@/utils/files/FileFunctions';
 import { useChatStore } from '@/store/useChatStore';
 import { RootStackNavigationProp } from '@/types/navigation';
+import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
 
 // Utility function to convert AttachmentDto to RNFile
 const convertAttachmentToRNFile = (
@@ -14,16 +15,11 @@ const convertAttachmentToRNFile = (
 ): RNFile => {
   let finalUri: string;
   
-  if (attachment.isOptimistic && attachment.optimisticId) {
-    const mappedServerUrl = optimisticToServerAttachmentMap[attachment.optimisticId];
-    
-    if (mappedServerUrl) {
-      finalUri = mappedServerUrl;
-      console.log(`📎 Using mapped server URL for ${attachment.optimisticId}: ${mappedServerUrl}`);
-    } else {
-      finalUri = attachment.localUri || attachment.fileUrl;
-      console.log(`📱 Using local URI for unmapped attachment: ${finalUri}`);
-    }
+  // Prioritize localUri for optimistic attachments
+  if (attachment.isOptimistic && attachment.localUri) {
+    finalUri = attachment.localUri;
+  } else if (attachment.optimisticId && optimisticToServerAttachmentMap[attachment.optimisticId]) {
+    finalUri = optimisticToServerAttachmentMap[attachment.optimisticId];
   } else {
     finalUri = attachment.fileUrl;
   }
@@ -41,7 +37,7 @@ export const useAttachmentViewer = ({
   attachments,
   files,
   isMapped = false,
-  viewerOptions = {}, // NEW: Add viewer options
+  viewerOptions = {},
 }: {
   attachments?: AttachmentDto[];
   files?: RNFile[];
@@ -53,6 +49,7 @@ export const useAttachmentViewer = ({
 }) => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
+  const { decryptFile, isLoading: isDecrypting, getError } = useLazyFileDecryption();
 
   // Convert data to RNFile array
   const normalizedFiles: RNFile[] = React.useMemo(() => {
@@ -65,7 +62,7 @@ export const useAttachmentViewer = ({
     return [];
   }, [attachments, files, optimisticToServerAttachmentMap]);
 
-  // 🆕 NEW: Function to check if file can be viewed inline (same logic as DocumentViewer)
+  // Function to check if file can be viewed inline
   const canViewInline = (file: RNFile): boolean => {
     const INLINE_VIEWABLE_TYPES = [
       'text/plain',
@@ -102,117 +99,178 @@ export const useAttachmentViewer = ({
   };
 
   const openFile = async (index: number) => {
-    if (index < 0 || index >= normalizedFiles.length) {
-      console.error('Invalid file index:', index);
-      return;
-    }
+  console.log(`🎬 openFile called with index: ${index}, total files: ${normalizedFiles.length}`);
+  
+  if (index < 0 || index >= normalizedFiles.length) {
+    console.error('Invalid file index:', index);
+    return;
+  }
 
-    // Check if it's uploading (for optimistic attachments)
-    const uploadError = attachments?.[index]?.uploadError;
-    
-    if (uploadError) {
-      if (uploadError) {
-        Alert.alert(
-          'Upload Failed', 
-          'This file failed to upload. Please try sending it again.',
-          [{ text: 'OK' }]
-        );
-      }
-      return;
-    }
+  // Check upload status
+  const uploadError = attachments?.[index]?.uploadError;
+  if (uploadError) {
+    Alert.alert(
+      'Upload Failed', 
+      'This file failed to upload. Please try sending it again.',
+      [{ text: 'OK' }]
+    );
+    return;
+  }
 
-    const file = normalizedFiles[index];
-    const fileInfo = getFileTypeInfo(file.type, file.name);
-    
-    // 🎯 DECISION LOGIC:
-    
-    // 1. Media files (images/videos) → MediaViewer for gallery
-    if (fileInfo.category === 'image' || fileInfo.category === 'video') {
-      console.log('🎬 Opening MediaViewer for media file:', {
-        name: file.name,
-        type: file.type,
-        category: fileInfo.category
-      });
-      
-      navigation.navigate('MediaViewer', {
-        files: normalizedFiles,
-        initialIndex: index,
-        conversationId: undefined,
-        viewerOptions,
-      });
-      return;
-    }
-    
-    // 2. Documents that CAN be viewed inline → MediaViewer (will use DocumentViewer inside)
-    if (canViewInline(file)) {
-      console.log('📄 Opening DocumentViewer for previewable file:', {
-        name: file.name,
-        type: file.type,
-        category: fileInfo.category,
-        canPreview: true
-      });
-      
-      navigation.navigate('MediaViewer', {
-        files: normalizedFiles,
-        initialIndex: index,
-        conversationId: undefined
-      });
-      return;
-    }
-    
-    // 3. Documents that CANNOT be viewed inline → Native app directly
-    console.log('📄 Opening file with native app (not previewable):', {
-      name: file.name,
-      type: file.type,
-      category: fileInfo.category,
-      canPreview: false
-    });
+  const attachment = attachments?.[index];
+  let fileToOpen = normalizedFiles[index];
+  let allFilesToOpen = [...normalizedFiles];
+
+  console.log(`🎬 Initial fileToOpen:`, {
+    name: fileToOpen.name,
+    type: fileToOpen.type,
+    uri: fileToOpen.uri,
+    needsDecryption: attachment?.needsDecryption
+  });
+
+  // Handle decryption if needed
+  if (attachment?.needsDecryption) {
+    console.log('🔐📱 File needs decryption, starting lazy decryption for:', attachment.fileName);
     
     try {
-      // Create a simple confirmation modal for native app opening
-      const confirmModal = {
-        confirm: async (options: { title?: string; message: string }) => {
-          return new Promise<boolean>((resolve) => {
-            Alert.alert(
-              options.title || 'Open File',
-              options.message,
-              [
-                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                { text: 'Open', onPress: () => resolve(true) }
-              ]
-            );
-          });
-        }
-      };
+      const decryptedUrl = await decryptFile(attachment);
       
-      // Import the function dynamically to avoid circular imports
-      const { openFileWithNativeApp } = await import('@/components/files/FileHandlerNative');
-      
-      await openFileWithNativeApp(file.uri, file.name, confirmModal);
-    } catch (error) {
-      console.error('Failed to open file with native app:', error);
-      
-      // Fallback to MediaViewer if native opening fails
-      Alert.alert(
-        'Cannot Open File',
-        'This file type cannot be opened directly. Would you like to try viewing it in the app?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Try Viewing', 
-            onPress: () => {
-              navigation.navigate('MediaViewer', {
-                files: normalizedFiles,
-                initialIndex: index,
-                conversationId: undefined
-              });
-            }
+      if (decryptedUrl) {
+        console.log(`🔐📱 Decryption successful! Original: ${fileToOpen.uri}`);
+        console.log(`🔐📱 Decrypted URL: ${decryptedUrl}`);
+        
+        // Update the specific file with decrypted URL
+        fileToOpen = {
+          ...fileToOpen,
+          uri: decryptedUrl
+        };
+        
+        // Update the files array for gallery view with the decrypted URL
+        allFilesToOpen = normalizedFiles.map((file, idx) => {
+          if (idx === index) {
+            console.log(`🔐📱 Updating file ${idx} with decrypted URL: ${decryptedUrl}`);
+            return fileToOpen;
           }
-        ]
+          return file;
+        });
+        
+        console.log('🔐📱 ✅ File decrypted successfully, opening:', decryptedUrl);
+      } else {
+        const errorMsg = getError(attachment.fileUrl) || 'Unknown decryption error';
+        console.error(`🔐📱 ❌ Decryption failed: ${errorMsg}`);
+        Alert.alert(
+          'Decryption Failed',
+          `Could not decrypt this file: ${errorMsg}`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('🔐📱 ❌ Decryption error:', error);
+      Alert.alert(
+        'Decryption Failed',
+        'Could not decrypt this file. Please try again.',
+        [{ text: 'OK' }]
       );
+      return;
     }
-  };
+  }
 
+  const fileInfo = getFileTypeInfo(fileToOpen.type, fileToOpen.name);
+  
+  console.log(`🎬 About to navigate to MediaViewer:`, {
+    fileName: fileToOpen.name,
+    fileType: fileToOpen.type,
+    category: fileInfo.category,
+    finalUri: fileToOpen.uri,
+    allFilesCount: allFilesToOpen.length,
+    allFileUris: allFilesToOpen.map(f => f.uri)
+  });
+  
+  // Decision logic for opening files
+  
+  // 1. Media files (images/videos) → MediaViewer for gallery
+  if (fileInfo.category === 'image' || fileInfo.category === 'video') {
+    console.log('🎬 Opening MediaViewer for media file:', {
+      name: fileToOpen.name,
+      type: fileToOpen.type,
+      category: fileInfo.category,
+      uri: fileToOpen.uri
+    });
+    
+    navigation.navigate('MediaViewer', {
+      files: allFilesToOpen,
+      initialIndex: index,
+      viewerOptions,
+    });
+    return;
+  }
+  
+  // 2. Documents that CAN be viewed inline → MediaViewer (will use DocumentViewer inside)
+  if (canViewInline(fileToOpen)) {
+    console.log('📄 Opening DocumentViewer for previewable file:', {
+      name: fileToOpen.name,
+      type: fileToOpen.type,
+      category: fileInfo.category,
+      canPreview: true,
+      uri: fileToOpen.uri
+    });
+    
+    navigation.navigate('MediaViewer', {
+      files: allFilesToOpen,
+      initialIndex: index,
+    });
+    return;
+  }
+  
+  // 3. Documents that CANNOT be viewed inline → Native app directly
+  console.log('📄 Opening file with native app (not previewable):', {
+    name: fileToOpen.name,
+    type: fileToOpen.type,
+    category: fileInfo.category,
+    canPreview: false,
+    uri: fileToOpen.uri
+  });
+  
+  try {
+    const confirmModal = {
+      confirm: async (options: { title?: string; message: string }) => {
+        return new Promise<boolean>((resolve) => {
+          Alert.alert(
+            options.title || 'Open File',
+            options.message,
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Open', onPress: () => resolve(true) }
+            ]
+          );
+        });
+      }
+    };
+    
+    const { openFileWithNativeApp } = await import('@/components/files/FileHandlerNative');
+    await openFileWithNativeApp(fileToOpen.uri, fileToOpen.name, confirmModal);
+  } catch (error) {
+    console.error('Failed to open file with native app:', error);
+    
+    Alert.alert(
+      'Cannot Open File',
+      'This file type cannot be opened directly. Would you like to try viewing it in the app?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Try Viewing', 
+          onPress: () => {
+            navigation.navigate('MediaViewer', {
+              files: allFilesToOpen,
+              initialIndex: index,
+            });
+          }
+        }
+      ]
+    );
+  }
+};
   const openFiles = (startIndex = 0) => {
     openFile(startIndex);
   };
@@ -221,6 +279,7 @@ export const useAttachmentViewer = ({
     normalizedFiles,
     openFile,
     openFiles,
+    isDecrypting,
   };
 };
 
@@ -228,8 +287,9 @@ export const useAttachmentViewer = ({
 export const createAttachmentPressHandler = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);
+  const { decryptFile, isLoading: isDecrypting } = useLazyFileDecryption();
   
-  return (
+  return async (
     attachment: AttachmentDto,
     index: number,
     allAttachments: AttachmentDto[],
@@ -269,9 +329,41 @@ export const createAttachmentPressHandler = () => {
     }
 
     // Convert attachments to files
-    const normalizedFiles = allAttachments.map(att => 
+    let normalizedFiles = allAttachments.map(att => 
       convertAttachmentToRNFile(att, optimisticToServerAttachmentMap)
     );
+
+    // Handle decryption if needed
+    if (attachment.needsDecryption) {
+      console.log('🔐📱 Attachment needs decryption, starting lazy decryption...');
+      
+      try {
+        const decryptedUrl = await decryptFile(attachment);
+        
+        if (decryptedUrl) {
+          // Update the files array with decrypted URL
+          normalizedFiles = normalizedFiles.map((file, idx) => 
+            idx === index ? { ...file, uri: decryptedUrl } : file
+          );
+          console.log('🔐📱 ✅ Attachment decrypted successfully');
+        } else {
+          Alert.alert(
+            'Decryption Failed',
+            'Could not decrypt this file. Please try again.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('🔐📱 ❌ Attachment decryption error:', error);
+        Alert.alert(
+          'Decryption Failed',
+          'Could not decrypt this file. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
     
     console.log('🎬 Opening MediaViewer from message attachment:', {
       fileName: attachment.fileName,
@@ -279,26 +371,37 @@ export const createAttachmentPressHandler = () => {
       totalFiles: normalizedFiles.length
     });
 
-    // All files go to MediaViewer - it handles all file types
     navigation.navigate('MediaViewer', {
       files: normalizedFiles,
       initialIndex: index,
-      conversationId: undefined
     });
   };
 };
 
 // Utility function to open a single file directly
-export const openSingleFile = (
+export const openSingleFile = async (
   file: RNFile | AttachmentDto, 
   navigation: RootStackNavigationProp,
-  optimisticToServerAttachmentMap?: Record<string, string>
+  optimisticToServerAttachmentMap?: Record<string, string>,
+  decryptFile?: (attachment: AttachmentDto) => Promise<string | null> // Pass decryptFile som parameter
 ) => {
   let normalizedFile: RNFile;
   
   if ('fileUrl' in file) {
     // It's an AttachmentDto
     normalizedFile = convertAttachmentToRNFile(file, optimisticToServerAttachmentMap || {});
+    
+    // Handle decryption if needed
+    if (file.needsDecryption && decryptFile) {
+      try {
+        const decryptedUrl = await decryptFile(file);
+        if (decryptedUrl) {
+          normalizedFile = { ...normalizedFile, uri: decryptedUrl };
+        }
+      } catch (error) {
+        console.error('Failed to decrypt single file:', error);
+      }
+    }
   } else {
     // It's already an RNFile
     normalizedFile = file;
@@ -312,7 +415,6 @@ export const openSingleFile = (
   navigation.navigate('MediaViewer', {
     files: [normalizedFile],
     initialIndex: 0,
-    conversationId: undefined
   });
 };
 

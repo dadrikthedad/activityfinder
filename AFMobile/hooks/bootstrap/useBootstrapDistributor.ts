@@ -1,27 +1,22 @@
+// hooks/bootstrap/useBootstrapDistributor.ts
 import { useCallback } from 'react';
 import { CriticalBootstrapResponseDTO } from '@shared/types/bootstrap/CriticalBootstrapResponseDTO';
 import { SecondaryBootstrapResponseDTO } from '@shared/types/bootstrap/SecondaryBootstrapResponseDTO';
-import { MessageDTO } from '@shared/types/MessageDTO';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { mergeMessageNotifications, setMessageNotificationsInStore } from '@/utils/messages/MessageNotificationFunctions';
 import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
-import { useE2EE } from '@/components/ende-til-ende/useE2EE';
-import { useAttachmentDecryption } from '@/features/cryptoAttachments/hooks/useAttachmentDecryption';
+import { useBootstrapE2EEHandler } from '@/components/ende-til-ende/useBootstrapE2EEHandler';
 
 export const useBootstrapDistributor = () => {
   const { setCriticalData, setSecondaryData } = useBootstrapStore();
-  
-  // Opprett EncryptedAttachmentService instans
-  const { decryptMessage } = useE2EE();
-  const { decryptAttachments } = useAttachmentDecryption();
+  const { handleConversationMessages } = useBootstrapE2EEHandler();
  
   const {
     setConversations,
     setHasLoadedConversations,
-    setCachedMessages,
     setUnreadConversationIds,
     setHasLoadedUnreadConversationIds,
     setPendingMessageRequests,
@@ -74,11 +69,9 @@ export const useBootstrapDistributor = () => {
     setCriticalData(data);
   
     // 2. KRITISK: Sett current user FØRST i UserCacheStore
-    console.log("👤 Setting current user:", data.user.fullName);
     setCurrentUser(data.user);
 
     // 3. Settings til UserCacheStore (flyttet fra secondary)
-    console.log("⚙️ Setting user settings from critical bootstrap");
     setSettings(data.settings);
 
     console.log("✅ Critical data distributed:", {
@@ -103,289 +96,9 @@ export const useBootstrapDistributor = () => {
     setConversations(data.recentConversations);
     setHasLoadedConversations(true);
 
-    // 3. DEKRYPTERING: Håndter alle E2EE scenarioer
+    // 3. DEKRYPTERING: Håndter alle E2EE scenarioer - Simplisert!
     if (data.conversationMessages) {
-      console.log("🔐 Starting message decryption...");
-      
-      const e2eeState = useBootstrapStore.getState();
-      
-      if (!e2eeState.e2eeInitialized) {
-        console.error("🔐❌ E2EE not initialized by AuthService");
-        
-        for (const [conversationId, encryptedMessages] of Object.entries(data.conversationMessages)) {
-          const convId = Number(conversationId);
-          const errorMessages: MessageDTO[] = encryptedMessages.map(encMsg => ({
-            id: encMsg.id,
-            senderId: encMsg.senderId,
-            text: '🔐 E2EE not initialized - restart app',
-            sentAt: encMsg.sentAt,
-            conversationId: encMsg.conversationId,
-            attachments: [],
-            reactions: encMsg.reactions,
-            parentMessageId: encMsg.parentMessageId,
-            parentMessageText: encMsg.parentMessagePreview,
-            parentSender: encMsg.parentSender,
-            sender: encMsg.sender,
-            isRejectedRequest: encMsg.isRejectedRequest,
-            isNowApproved: encMsg.isNowApproved,
-            isSilent: encMsg.isSilent,
-            isSystemMessage: encMsg.isSystemMessage,
-            isDeleted: encMsg.isDeleted
-          }));
-          setCachedMessages(convId, errorMessages);
-        }
-        
-      } else if (e2eeState.e2eeError === 'needs_setup') {
-        console.log("🔐⚠️ User needs E2EE setup - showing placeholder messages");
-        
-        for (const [conversationId, encryptedMessages] of Object.entries(data.conversationMessages)) {
-          const convId = Number(conversationId);
-          const setupMessages: MessageDTO[] = encryptedMessages.map(encMsg => ({
-            id: encMsg.id,
-            senderId: encMsg.senderId,
-            text: '🔐 Set up E2EE to read this message',
-            sentAt: encMsg.sentAt,
-            conversationId: encMsg.conversationId,
-            attachments: [],
-            reactions: encMsg.reactions,
-            parentMessageId: encMsg.parentMessageId,
-            parentMessageText: encMsg.parentMessagePreview,
-            parentSender: encMsg.parentSender,
-            sender: encMsg.sender,
-            isRejectedRequest: encMsg.isRejectedRequest,
-            isNowApproved: encMsg.isNowApproved,
-            isSilent: encMsg.isSilent,
-            isSystemMessage: encMsg.isSystemMessage,
-            isDeleted: encMsg.isDeleted
-          }));
-          setCachedMessages(convId, setupMessages);
-        }
-        
-      } else if (e2eeState.e2eeError === 'needs_restore') {
-        console.log("🔐⚠️ User needs E2EE restore - showing placeholder messages");
-        
-        for (const [conversationId, encryptedMessages] of Object.entries(data.conversationMessages)) {
-          const convId = Number(conversationId);
-          const restoreMessages: MessageDTO[] = encryptedMessages.map(encMsg => ({
-            id: encMsg.id,
-            senderId: encMsg.senderId,
-            text: '🔐 Restore backup phrase to read this message',
-            sentAt: encMsg.sentAt,
-            conversationId: encMsg.conversationId,
-            attachments: [],
-            reactions: encMsg.reactions,
-            parentMessageId: encMsg.parentMessageId,
-            parentMessageText: encMsg.parentMessagePreview,
-            parentSender: encMsg.parentSender,
-            sender: encMsg.sender,
-            isRejectedRequest: encMsg.isRejectedRequest,
-            isNowApproved: encMsg.isNowApproved,
-            isSilent: encMsg.isSilent,
-            isSystemMessage: encMsg.isSystemMessage,
-            isDeleted: encMsg.isDeleted
-          }));
-          setCachedMessages(convId, restoreMessages);
-        }
-        
-      } else if (e2eeState.e2eeHasKeyPair) {
-        // E2EE er klar - dekrypter meldinger og attachments
-        
-        // Debug nøkkel-debugging før dekryptering
-        if (__DEV__) {
-          console.log('🔐🐛 === BOOTSTRAP E2EE DEBUG ===');
-          const currentUser = useUserCacheStore.getState().currentUser;
-          const crypto = (await import('@/components/ende-til-ende/CryptoService')).CryptoService.getInstance();
-          
-          if (currentUser?.id) {
-            const privateKey = await crypto.getPrivateKey(currentUser.id);
-            console.log('🔐🐛 Bootstrap user key info:', {
-              userId: currentUser.id,
-              hasPrivateKey: !!privateKey,
-              privateKeyLength: privateKey?.length,
-              keyPreview: privateKey?.substring(0, 20) + '...'
-            });
-            
-            if (privateKey) {
-              try {
-                await (crypto as any).debugKeyConsistency(currentUser.id);
-              } catch (error) {
-                console.error('🔐🐛 Key consistency debug failed:', error);
-              }
-            }
-            
-            const firstConversation = Object.entries(data.conversationMessages)[0];
-            if (firstConversation && firstConversation[1].length > 0) {
-              const [convId, messages] = firstConversation;
-              const firstMessage = messages[0];
-              
-              console.log('🔐🐛 Testing first message:', {
-                conversationId: convId,
-                messageId: firstMessage.id,
-                hasKeyInfo: !!firstMessage.keyInfo,
-                keyInfoKeys: Object.keys(firstMessage.keyInfo || {}),
-                hasDataForUser: !!firstMessage.keyInfo?.[currentUser.id.toString()],
-                encryptedDataLength: firstMessage.keyInfo?.[currentUser.id.toString()]?.length
-              });
-            }
-          }
-          console.log('🔐🐛 === DEBUG COMPLETED ===');
-        }
-        
-        for (const [conversationId, encryptedMessages] of Object.entries(data.conversationMessages)) {
-          const convId = Number(conversationId);
-          
-          if (encryptedMessages && encryptedMessages.length > 0) {
-            console.log(`🔐⚡ Starting parallel decryption of ${encryptedMessages.length} messages for conversation ${convId}...`);
-            
-            // PARALLELL DEKRYPTERING - alle meldinger dekrypteres samtidig
-            const decryptionPromises = encryptedMessages.map(async (encryptedMsg, index) => {
-              try {
-                const currentUser = useUserCacheStore.getState().currentUser;
-                if (!currentUser) {
-                  throw new Error('Current user not set');
-                }
-
-                // Debug dekrypteringsoperasjon i development
-                if (__DEV__ && index < 3) {
-                  console.log(`🔐🐛 Decrypting message ${index}:`, {
-                    messageId: encryptedMsg.id,
-                    userId: currentUser.id,
-                    hasKeyInfo: !!encryptedMsg.keyInfo,
-                    hasUserData: !!encryptedMsg.keyInfo?.[currentUser.id.toString()],
-                    encryptedTextEmpty: !encryptedMsg.encryptedText || encryptedMsg.encryptedText === "",
-                    version: encryptedMsg.version || 1
-                  });
-                }
-
-                const decrypted = await decryptMessage(encryptedMsg, currentUser.id);
-                
-                if (decrypted) {
-                  // ATTACHMENT DEKRYPTERING: Dekrypter alle attachments og erstatt fileUrl
-                  const processedAttachments = await decryptAttachments(
-                    encryptedMsg.encryptedAttachments || [],
-                    currentUser.id
-                  );
-
-                  // Konverter DecryptedMessageDTO til MessageDTO format med prosesserte attachments
-                  const messageDto: MessageDTO = {
-                    id: decrypted.id,
-                    senderId: decrypted.senderId,
-                    text: decrypted.text,
-                    sentAt: decrypted.sentAt,
-                    conversationId: decrypted.conversationId,
-                    attachments: processedAttachments,
-                    reactions: decrypted.reactions,
-                    parentMessageId: decrypted.parentMessageId,
-                    parentMessageText: decrypted.parentMessageText,
-                    parentSender: decrypted.parentSender,
-                    sender: decrypted.sender,
-                    isRejectedRequest: decrypted.isRejectedRequest,
-                    isNowApproved: decrypted.isNowApproved,
-                    isSilent: decrypted.isSilent,
-                    isSystemMessage: decrypted.isSystemMessage,
-                    isDeleted: decrypted.isDeleted
-                  };
-                  
-                  // Debug suksessful dekryptering
-                  if (__DEV__ && index < 3) {
-                    console.log(`🔐🐛 Decryption SUCCESS for message ${index}:`, {
-                      messageId: decrypted.id,
-                      textLength: decrypted.text?.length || 0,
-                      textPreview: decrypted.text?.substring(0, 30) || 'null',
-                      attachmentCount: messageDto.attachments.length,
-                      decryptedAttachments: messageDto.attachments.filter(att => att.isEncrypted && att.fileUrl.startsWith('blob:')).length
-                    });
-                  }
-                  
-                  return { success: true, message: messageDto, index };
-                } else {
-                  throw new Error('Decryption returned null');
-                }
-              } catch (error) {
-                console.error(`🔐❌ Failed to decrypt message ${index} in conversation ${convId}:`, error);
-                
-                // Debug detaljert feil
-                if (__DEV__) {
-                  console.log(`🔐🐛 Decryption FAILED for message ${index}:`, {
-                    messageId: encryptedMsg.id,
-                    error: error instanceof Error ? error.message : String(error),
-                    hasKeyInfo: !!encryptedMsg.keyInfo,
-                    keyInfoKeys: Object.keys(encryptedMsg.keyInfo || {}),
-                    encryptedTextLength: encryptedMsg.encryptedText?.length || 0
-                  });
-                }
-                
-                // Returner failed message
-                const failedMessage: MessageDTO = {
-                  id: encryptedMsg.id,
-                  senderId: encryptedMsg.senderId,
-                  text: '🔐 Failed to decrypt message',
-                  sentAt: encryptedMsg.sentAt,
-                  conversationId: encryptedMsg.conversationId,
-                  attachments: [],
-                  reactions: encryptedMsg.reactions,
-                  parentMessageId: encryptedMsg.parentMessageId,
-                  parentMessageText: encryptedMsg.parentMessagePreview,
-                  parentSender: encryptedMsg.parentSender,
-                  sender: encryptedMsg.sender,
-                  isRejectedRequest: encryptedMsg.isRejectedRequest,
-                  isNowApproved: encryptedMsg.isNowApproved,
-                  isSilent: encryptedMsg.isSilent,
-                  isSystemMessage: encryptedMsg.isSystemMessage,
-                  isDeleted: encryptedMsg.isDeleted
-                };
-                
-                return { success: false, message: failedMessage, index, error };
-              }
-            });
-            
-            // Prosesser resultater og behold original rekkefølge
-            const results = await Promise.allSettled(decryptionPromises);
-            const decryptedMessages: MessageDTO[] = [];
-            let successCount = 0;
-            let failureCount = 0;
-            let attachmentCount = 0;
-            
-            results.forEach((result, index) => {
-              if (result.status === 'fulfilled') {
-                decryptedMessages.push(result.value.message);
-                if (result.value.success) {
-                  successCount++;
-                  // Tell dekrypterte attachments
-                  const decryptedAttachments = result.value.message.attachments?.filter(att => att.isEncrypted && att.fileUrl.startsWith('blob:'))?.length || 0;
-                  attachmentCount += decryptedAttachments;
-                } else {
-                  failureCount++;
-                }
-              } else {
-                console.error(`🔐💥 Promise rejection for message ${index}:`, result.reason);
-                failureCount++;
-                
-                // Legg til generisk feilmelding
-                const fallbackMessage: MessageDTO = {
-                  id: encryptedMessages[index]?.id || -1,
-                  senderId: encryptedMessages[index]?.senderId || null,
-                  text: '🔐 Critical decryption failure',
-                  sentAt: encryptedMessages[index]?.sentAt || new Date().toISOString(),
-                  conversationId: convId,
-                  attachments: [],
-                  reactions: [],
-                  isSystemMessage: false,
-                  isDeleted: false
-                };
-                
-                decryptedMessages.push(fallbackMessage);
-              }
-            });
-            
-            // Cache de dekrypterte meldingene
-            setCachedMessages(convId, decryptedMessages);
-            console.log(`🔐✅ Parallel decryption completed for conversation ${convId}: ${successCount} successful, ${failureCount} failed, ${decryptedMessages.length} total, ${attachmentCount} attachments decrypted`);
-          }
-        }
-        
-        console.log(`🔐✅ Message and attachment decryption completed for ${Object.keys(data.conversationMessages).length} conversations`);
-      }
+      await handleConversationMessages(data.conversationMessages);
     }
 
     // 4. Chat-relatert data direkte til ChatStore
@@ -450,7 +163,6 @@ export const useBootstrapDistributor = () => {
     setSecondaryData,
     setConversations,
     setHasLoadedConversations,
-    setCachedMessages,
     setUnreadConversationIds,
     setHasLoadedUnreadConversationIds,
     setPendingMessageRequests,
@@ -462,7 +174,7 @@ export const useBootstrapDistributor = () => {
     setNotifications,           
     setHasLoadedNotifications,
     setUsers,
-    decryptMessage,
+    handleConversationMessages,
     cacheUsersFromBootstrap,
   ]);
 

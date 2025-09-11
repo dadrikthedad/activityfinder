@@ -7,9 +7,6 @@ import { getPlatform, getCapabilities } from "@/utils/device/UserOnlineFunctions
 // Mark user as online - deviceId kommer fra X-Device-ID header
 export async function markUserOnline(request: Omit<OnlineStatusRequest, 'deviceId'>): Promise<OnlineStatusResponse | null> {
   const url = `${API_BASE_URL}/api/me/online`;
- 
-  console.log("🟢 Markerer bruker som online:", url, request);
- 
   return await postRequest<OnlineStatusResponse, Omit<OnlineStatusRequest, 'deviceId'>>(url, request);
 }
 

@@ -24,6 +24,7 @@ export interface InitializationResult {
 export class CryptoServiceBackup {
   private static instance: CryptoServiceBackup;
   private cryptoService: CryptoService;
+  private readonly NETWORK_TIMEOUT_MS = 8000;
 
   static getInstance(): CryptoServiceBackup {
     if (!CryptoServiceBackup.instance) {
@@ -155,83 +156,150 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
   }
 
   /**
-   * Enhanced initializeForUser to handle backup flow
+   * Initialize crypto service for user with network timeout handling
    */
-  async initializeForUser(userId: number): Promise<InitializationResult> {
-  try {
-    console.log(`Initializing CryptoServiceBackup for user ${userId}...`);
-    
-    // Debug keychain state before attempting to get private key
-    console.log("🔐 DEBUG: Checking keychain for user", userId);
-    const Keychain = require('react-native-keychain');
-    
+  async initializeForUser(userId: number): Promise<{needsSetup: boolean, needsRestore: boolean}> {
     try {
-      const hasKeychainEntry = await Keychain.hasInternetCredentials({
-        server: `e2ee_private_key_${userId}`
-      });
-      console.log("🔐 DEBUG: Keychain entry exists:", hasKeychainEntry);
-    } catch (keychainError) {
-      console.log("🔐 DEBUG: Keychain check failed:", keychainError);
-    }
-    
-    // Try to get existing private key from device
-    const existingPrivateKey = await this.cryptoService.getPrivateKeySafe(userId);
-    console.log("🔐 DEBUG: Retrieved private key:", !!existingPrivateKey, existingPrivateKey?.length);
-    
-    if (existingPrivateKey) {
-      console.log(`Existing key pair found for user ${userId}`);
+      console.log(`Initializing CryptoServiceBackup for user ${userId}...`);
       
-      // Generate public key from local private key
-      const localPublicKey = await this.getPublicKeyFromSeed(existingPrivateKey);
+      // Check local keychain first (this is fast and offline)
+      const hasLocalKey = await this.checkLocalKey(userId);
+      console.log(`🔐 DEBUG: Checking keychain for user ${userId}`);
       
-      // Check if backend has E2EE setup
-      const hasE2EESetup = await this.checkUserHasE2EESetup(userId);
-      
-      if (!hasE2EESetup) {
-        console.log(`Private key exists locally but missing on backend - uploading public key`);
-        await this.uploadPublicKeyToBackend(userId, localPublicKey);
-      } else {
-        // Backend has key - verify it matches local key
-        const backendKeyData = await getMyPublicKey();
+      if (hasLocalKey) {
+        console.log(`Existing key pair found for user ${userId}`);
         
-        if (backendKeyData && backendKeyData.publicKey !== localPublicKey) {
-          console.log(`Key mismatch detected! Local: ${localPublicKey.slice(0, 20)}... Backend: ${backendKeyData.publicKey.slice(0, 20)}...`);
-          console.log(`User ${userId} has different keys - needs restore to sync with backend`);
-          return { needsSetup: false, needsRestore: true };
-        } else {
-          console.log(`Keys match - continuing with existing setup`);
+        // Try to verify with server, but don't let it block if network is slow
+        try {
+          const hasServerKey = await this.checkServerKeyWithTimeout(userId);
+          
+          if (hasServerKey) {
+            return { needsSetup: false, needsRestore: false };
+          } else {
+            // Local key exists but not on server - needs setup (upload to server)
+            return { needsSetup: true, needsRestore: false };
+          }
+        } catch (networkError) {
+          console.warn('🔶 Network check failed, proceeding with local keys:', networkError);
+          // If network fails, assume local keys are valid and continue
+          // This allows offline usage when we have local keys
+          return { needsSetup: false, needsRestore: false };
+        }
+      } else {
+        // No local key - check if user has keys on server
+        try {
+          const hasServerKey = await this.checkServerKeyWithTimeout(userId);
+          
+          if (hasServerKey) {
+            // Server has key but we don't have local - needs restore
+            return { needsSetup: false, needsRestore: true };
+          } else {
+            // Neither local nor server has keys - needs complete setup
+            return { needsSetup: true, needsRestore: false };
+          }
+        } catch (networkError) {
+          console.warn('🔶 Network check failed, assuming new user setup needed:', networkError);
+          // If network fails and no local keys, assume new setup needed
+          return { needsSetup: true, needsRestore: false };
         }
       }
       
-      return { needsSetup: false, needsRestore: false };
-    } else {
-      console.log("🔐 DEBUG: No private key found locally");
+    } catch (error) {
+      console.error(`Failed to initialize CryptoServiceBackup for user ${userId}:`, error);
+      throw new Error(`CryptoServiceBackup initialization failed: ${error}`);
+    }
+  }
+
+  /**
+   * Check if user has local private key (offline check)
+   */
+  private async checkLocalKey(userId: number): Promise<boolean> {
+    try {
+      const cryptoService = CryptoService.getInstance();
+      const privateKey = await cryptoService.getPrivateKeySafe(userId);
       
-      // No key on device - check if user has E2EE setup on other devices
-      const hasE2EESetup = await this.checkUserHasE2EESetup(userId);
+      if (privateKey) {
+        console.log(`🔐 DEBUG: Keychain entry exists: true`);
+        console.log(`🔐 DEBUG: Retrieved seed from keychain for user ${userId}, length:`, privateKey.length);
+        console.log(`🔐 DEBUG: Retrieved private key: true`, privateKey.length);
+        return true;
+      }
       
-      if (hasE2EESetup) {
-        // User has E2EE but not on this device - needs restore
-        console.log(`User ${userId} has E2EE setup, needs restore on this device`);
-        return { needsSetup: false, needsRestore: true };
-      } else {
-        // Brand new verified user - create E2EE automatically at first login
-        console.log(`User ${userId} is verified - creating E2EE automatically at first login`);
+      console.log(`🔐 DEBUG: Keychain entry exists: false`);
+      return false;
+    } catch (error) {
+      console.error('Error checking local key:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if user has public key on server with timeout and retry
+   */
+  private async checkServerKeyWithTimeout(userId: number): Promise<boolean> {
+    const MAX_RETRIES = 2; // Mindre retries for server check
+    const RETRY_DELAY = 1000; // 1 sekund mellom forsøk
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        console.log(`🔍 Checking E2EE setup for user ${userId} (attempt ${attempt}/${MAX_RETRIES})`);
         
-        const setupResult = await this.setupE2EEWithBackup(userId);
+        const result = await this.performServerKeyCheck(userId);
+        console.log(`🔍 Server key check result: ${result}`);
+        return result;
         
-        // TODO: Show backup phrase to user in UI
-        console.log("🔐 Backup phrase for user:", setupResult.backupPhrase);
-        console.log("🔐 Auto-setup completed successfully");
+      } catch (error) {
+        console.error(`❌ Server key check attempt ${attempt} failed:`, error);
         
-        return { needsSetup: false, needsRestore: false };
+        if (attempt === MAX_RETRIES) {
+          throw error; // Kast error på siste forsøk
+        }
+        
+        // Wait before retry
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
       }
     }
-  } catch (error) {
-    console.error(`Failed to initialize CryptoServiceBackup for user ${userId}:`, error);
-    throw new Error(`Backup service initialization failed: ${error}`);
+    
+    return false; // Fallback (bør ikke nås)
   }
-}
+
+   /**
+   * Perform single server key check with timeout
+   */
+  private async performServerKeyCheck(userId: number): Promise<boolean> {
+    try {
+      // Race mellom getMyPublicKey og timeout
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Network timeout')), this.NETWORK_TIMEOUT_MS);
+      });
+      
+      const keyResult = await Promise.race([
+        getMyPublicKey(),
+        timeoutPromise
+      ]);
+      
+      if (keyResult && keyResult.publicKey) {
+        return true;
+      } else {
+        return false;
+      }
+      
+    } catch (error) {
+      // Type guard for error handling
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      if (errorMessage.includes('timeout')) {
+        throw new Error(`Network timeout after ${this.NETWORK_TIMEOUT_MS}ms`);
+      }
+      
+      // 404 betyr ingen key funnet - ikke en error
+      if (errorMessage.includes('404')) {
+        return false;
+      }
+      
+      throw error;
+    }
+  }
 
   /**
    * Check if user has E2EE setup on any device (has public key on backend)

@@ -65,7 +65,7 @@ export async function processSyncEventNative(event: SyncEventDTO): Promise<void>
       // Når vi mottar en MessageRequest fra en annen bruker. legger inn i pending listen. -- FERDIG BACKEND OG FRONTEND!
     case 'REQUEST_RECEIVED': {
       const { groupRequestData, messageRequestData, systemMessage, message } = eventData;
-      const { addPendingRequest, addMessage, conversations } = useChatStore.getState();
+      const { addPendingRequest, addMessageOptimistic: addMessage, conversations } = useChatStore.getState();
       
       const requestData = groupRequestData || messageRequestData;
       

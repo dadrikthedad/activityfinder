@@ -66,7 +66,6 @@ export const useUserCacheStore = create<UserCacheStore>()(
 
       // --- Current user actions ---
       setCurrentUser: (user: UserSummaryDTO) => {
-        console.log("👤 Setting current user:", user.fullName);
         set(state => ({
           currentUser: user,
           lastUpdated: Date.now(),
@@ -327,8 +326,6 @@ export const useUserCacheStore = create<UserCacheStore>()(
       ) => {
         const userMap = new Map<number, UserSummaryDTO>();
         const now = Date.now();
-
-        console.log("👤 Caching users from bootstrap data...");
 
         // 1. Cache conversation participants from secondary bootstrap (no relationship status)
         if (secondaryData?.recentConversations) {

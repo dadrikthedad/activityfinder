@@ -25,7 +25,7 @@ export const handleMessage = async (
 ) => {
   console.log("💬 Mottatt melding via useChatHub:", message);
   const {
-    addMessage,
+    addMessageOptimistic: addMessage,
     registerOptimisticMapping,
     registerOptimisticAttachmentMapping,
     updateConversationTimestamp,

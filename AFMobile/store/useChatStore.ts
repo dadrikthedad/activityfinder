@@ -4,7 +4,7 @@ import { asyncStorage } from "./indexedNotificationDBStorage";
 import { MessageDTO, ReactionDTO } from "@shared/types/MessageDTO";
 import { ConversationDTO } from "@shared/types/ConversationDTO";
 import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
-import { useMessageNotificationStore } from "./useMessageNotificationStore";
+import { SendEncryptedMessageWithFilesRequestDTO } from "@/features/OptimsticMessage/types/MessagesToBackendTypes";
 
 type ScrollData = {
   messageId: number;
@@ -21,6 +21,7 @@ type ChatStore = {
   setConversations: (conversations: ConversationDTO[]) => void;
   conversationIds: Set<number>;
   addMessage: (message: MessageDTO) => void;
+  addMessageOptimistic: (message: MessageDTO) => void;
   clearLiveMessages: (conversationId: number) => void;
   updateConversationTimestamp: (conversationId: number, timestamp: string) => void;
   cachedMessages: Record<number, MessageDTO[]>;
@@ -31,6 +32,7 @@ type ChatStore = {
   searchMode: boolean;
   setSearchMode: (value: boolean) => void;
   updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) => void;
+  updateMessageOptimistic: (conversationId: number, optimisticId: string, updatedMessage: MessageDTO) => void;
   softDeleteMessage: (conversationId: number, messageId: number) => void; 
   updateMessageReactions: (reaction: ReactionDTO) => void;
   cleanupOldCache: () => void;
@@ -89,7 +91,6 @@ type ChatStore = {
     attachmentOptimisticId: string, 
     status: { isUploading?: boolean; uploadError?: string }
   ) => void;
-
 
 
 
@@ -318,6 +319,40 @@ export const useChatStore = create<ChatStore>()(
               if (hasMessage) {
                 cachedMessages[conversationId] = updateMessages(state.cachedMessages[conversationId]);
                 console.log(`✅ Oppdatert melding ${messageId} i cachedMessages`);
+              }
+            }
+
+            return {
+              liveMessages,
+              cachedMessages,
+            };
+          }),
+
+          updateMessageOptimistic: (conversationId: number, optimisticId: string, updatedMessage: MessageDTO) =>
+        set((state) => {
+          console.log(`🔄 Updating optimistic message ${optimisticId} in conversation ${conversationId}`);
+          
+          const updateMessages = (messages: MessageDTO[]) =>
+              messages.map((m) => m.optimisticId === optimisticId ? updatedMessage : m);
+
+            const liveMessages = { ...state.liveMessages };
+            const cachedMessages = { ...state.cachedMessages };
+
+            // Update in liveMessages if message exists there
+            if (state.liveMessages[conversationId]) {
+              const hasMessage = state.liveMessages[conversationId].some(m => m.optimisticId === optimisticId);
+              if (hasMessage) {
+                liveMessages[conversationId] = updateMessages(state.liveMessages[conversationId]);
+                console.log(`✅ Updated optimistic message ${optimisticId} in liveMessages`);
+              }
+            }
+
+            // Update in cachedMessages if message exists there
+            if (state.cachedMessages[conversationId]) {
+              const hasMessage = state.cachedMessages[conversationId].some(m => m.optimisticId === optimisticId);
+              if (hasMessage) {
+                cachedMessages[conversationId] = updateMessages(state.cachedMessages[conversationId]);
+                console.log(`✅ Updated optimistic message ${optimisticId} in cachedMessages`);
               }
             }
 
@@ -617,6 +652,42 @@ export const useChatStore = create<ChatStore>()(
         };
       }
     }),
+
+    addMessageOptimistic: (message) =>
+  set((state) => {
+    console.log("🐛 ATTEMPTING TO ADD MESSAGE:", {
+      optimisticId: message.optimisticId,
+      id: message.id,
+      isOptimistic: message.isOptimistic,
+      stackTrace: new Error().stack?.split('\n').slice(1, 4)
+    });
+    
+    const current = state.liveMessages[message.conversationId] ?? [];
+    const alreadyExists = current.some((m) => 
+      m.optimisticId === message.optimisticId || 
+      (message.id && m.id === message.id)
+    );
+    
+    if (alreadyExists) {
+      console.log("⚠️ Message already exists, skipping:", message.optimisticId || message.id);
+      console.log("🐛 Existing messages:", current.map(m => ({ 
+        id: m.id, 
+        optimisticId: m.optimisticId 
+      })));
+      return state;
+        }
+        // Legg til melding
+        const updated = [...current, message];
+        console.log(`✅ Message added: ${message.optimisticId || message.id} (optimistic: ${message.isOptimistic})`);
+      
+        return {
+          liveMessages: {
+            ...state.liveMessages,
+            [message.conversationId]: updated,
+          }
+        };
+      }),
+
 
       registerOptimisticMapping: (optimisticId, serverId) =>
     set((state) => {

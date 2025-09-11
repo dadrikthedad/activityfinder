@@ -22,7 +22,6 @@ export type RootStackParamList = {
   MediaViewer: {
     files: RNFile[];
     initialIndex: number;
-    conversationId?: number;
     viewerOptions?: {
       showDownload?: boolean;
       showShare?: boolean;

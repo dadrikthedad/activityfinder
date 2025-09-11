@@ -12,6 +12,20 @@ export interface AttachmentDto {
   isUploading?: boolean;
   uploadError?: string | null;
   fileSize?: number; 
+  isEncrypted?: boolean;
+  needsDecryption?: boolean;
+
+   // Encryption metadata for lazy decryption
+  keyInfo?: { [userId: string]: string };
+  iv?: string;
+  version?: number;
+
+  thumbnailUrl?: string;           // Encrypted thumbnail URL from server
+  thumbnailWidth?: number;         // Original thumbnail dimensions
+  thumbnailHeight?: number;
+  thumbnailKeyInfo?: { [userId: string]: string }; // Encryption keys for thumbnail
+  thumbnailIV?: string;            // Thumbnail encryption IV
+  localThumbnailUri?: string;   
 }
 
 export interface ReactionDTO {

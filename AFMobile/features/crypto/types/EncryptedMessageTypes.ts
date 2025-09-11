@@ -1,7 +1,5 @@
-// types/EncryptedMessageDTO.ts - Fixed consistent version
+import { ReactionDTO, AttachmentDto } from "@shared/types/MessageDTO";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
-import { ReactionDTO } from "@shared/types/MessageDTO";
-import { AttachmentDto } from "@shared/types/MessageDTO";
 
 export interface EncryptedAttachmentDto {
   encryptedFileUrl: string;
@@ -11,6 +9,14 @@ export interface EncryptedAttachmentDto {
   keyInfo: { [userId: string]: string }; // encrypted symmetric key for each recipient
   iv: string; // REQUIRED for AES-GCM decryption
   version: number; // REQUIRED for versioning
+
+  // Thumbnail fields
+  encryptedThumbnailUrl?: string;
+  thumbnailKeyInfo?: { [userId: string]: string } | null;
+  thumbnailIV?: string;
+  thumbnailWidth?: number;
+  thumbnailHeight?: number;
+  encryptedThumbnailData?: string; // Base64 encrypted thumbnail
   
   // Original fields for compatibility
   isOptimistic?: boolean;
@@ -118,65 +124,3 @@ export interface ConversationKeyDTO {
   participantKeys: UserPublicKeyDTO[];
   keyRotationVersion: number;
 }
-
-// Type guards for runtime validation
-export const isValidEncryptedMessage = (obj: any): obj is EncryptedMessageDTO => {
-  if (!obj || typeof obj !== 'object') return false;
-  
-  // Basic required fields
-  if (typeof obj.id !== 'number') return false;
-  if (!obj.keyInfo || typeof obj.keyInfo !== 'object' || Object.keys(obj.keyInfo).length === 0) return false;
-  if (typeof obj.iv !== 'string' || obj.iv.length === 0) return false;
-  if (typeof obj.version !== 'number' || obj.version <= 0) return false;
-  
-  // At least one content type must be present
-  const hasText = obj.encryptedText !== null && typeof obj.encryptedText === 'string' && obj.encryptedText.length > 0;
-  const hasAttachments = Array.isArray(obj.encryptedAttachments) && obj.encryptedAttachments.length > 0;
-  
-  return hasText || hasAttachments;
-};
-
-export const isValidSendEncryptedMessageRequest = (obj: any): obj is SendEncryptedMessageRequestDTO => {
-  if (!obj || typeof obj !== 'object') return false;
-  
-  // Basic required fields
-  if (!obj.keyInfo || typeof obj.keyInfo !== 'object' || Object.keys(obj.keyInfo).length === 0) return false;
-  if (typeof obj.iv !== 'string' || obj.iv.length === 0) return false;
-  if (typeof obj.version !== 'number' || obj.version <= 0) return false;
-  
-  // At least one content type must be present
-  const hasText = obj.encryptedText !== null && typeof obj.encryptedText === 'string' && obj.encryptedText.length > 0;
-  const hasAttachments = Array.isArray(obj.encryptedAttachments) && obj.encryptedAttachments.length > 0;
-  
-  return hasText || hasAttachments;
-};
-
-// Utility type for handling both encrypted and regular messages
-export type MessageUnion = EncryptedMessageDTO | DecryptedMessageDTO;
-
-// Helper to check if message is encrypted
-export const isEncryptedMessage = (message: MessageUnion): message is EncryptedMessageDTO => {
-  return 'encryptedText' in message && !('isDecrypted' in message && message.isDecrypted === true);
-};
-
-// Helper to check if message is decrypted
-export const isDecryptedMessage = (message: MessageUnion): message is DecryptedMessageDTO => {
-  return 'isDecrypted' in message && message.isDecrypted === true;
-};
-
-
-export const createEmptyEncryptedMessage = (conversationId: number, senderId: number): Partial<EncryptedMessageDTO> => {
-  return {
-    conversationId,
-    senderId,
-    encryptedText: null,
-    keyInfo: {},
-    iv: '',
-    version: 1,
-    encryptedAttachments: [],
-    reactions: [],
-    isSystemMessage: false,
-    isDeleted: false,
-    sentAt: new Date().toISOString()
-  };
-};

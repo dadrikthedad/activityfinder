@@ -5,16 +5,15 @@ import { CryptoService } from './CryptoService';
 import { useCurrentUser } from '../../store/useUserCacheStore';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
 import { 
-  EncryptedMessageDTO, 
-  DecryptedMessageDTO, 
   ConversationKeyDTO 
-} from './EncryptedMessageDto';
+} from '@/features/crypto/types/EncryptedMessageTypes';
 import { storePublicKey, getConversationKeys } from '@/services/crypto/cryptoService';
 import { useUserCacheStore } from '../../store/useUserCacheStore';
 
 export const useE2EE = () => {
   const currentUser = useCurrentUser();
   const crypto = CryptoService.getInstance();
+
   
   // ✅ Bruk kun global state
   const { 
@@ -165,147 +164,6 @@ export const useE2EE = () => {
     }
   }, []);
 
-  // Encrypt message for sending
-  const encryptMessage = useCallback(async (
-    plaintext: string | null,
-    conversationId: number
-  ): Promise<{ encryptedText: string | null; keyInfo: { [userId: string]: string }; iv: string; version: number } | null> => {
-    try {
-      const conversationKeys = await getConversationKeysWithService(conversationId);
-      if (!conversationKeys || !conversationKeys.participantKeys?.length) {
-        throw new Error('No participant keys available for encryption');
-      }
-
-      const recipientKeys: { [userId: string]: string } = {};
-      conversationKeys.participantKeys.forEach(key => {
-        recipientKeys[key.userId.toString()] = key.publicKey;
-      });
-
-      console.log(`Encrypting message for ${Object.keys(recipientKeys).length} recipients`);
-      
-      const encrypted = await crypto.encryptMessage(plaintext, recipientKeys);
-      
-      return {
-        encryptedText: encrypted.encryptedText,
-        keyInfo: encrypted.keyInfo,
-        iv: encrypted.iv,
-        version: encrypted.version
-      };
-    } catch (error) {
-      console.error('Failed to encrypt message:', error);
-      
-      Alert.alert(
-        'Encryption Failed', 
-        'Could not encrypt your message. Please try again.',
-        [{ text: 'OK' }]
-      );
-      
-      return null;
-    }
-  }, [crypto, getConversationKeysWithService]);
-
-  // Decrypt message for display
-  const decryptMessage = useCallback(async (
-    encryptedMessage: EncryptedMessageDTO,
-    userId?: number 
-  ): Promise<DecryptedMessageDTO | null> => {
-    const userIdToUse = userId || currentUser?.id;
-    
-    if (!userIdToUse) {
-      console.error('No current user for decryption');
-      return null;
-    }
-
-    try {
-      let decryptedText: string | null = null;
-
-      const hasEncryptedDataForUser = encryptedMessage.keyInfo && 
-                                 encryptedMessage.keyInfo[userIdToUse.toString()] &&
-                                 encryptedMessage.encryptedText !== null &&
-                                 encryptedMessage.encryptedText !== "";
-
-      if (hasEncryptedDataForUser) {
-        console.log('🔐 DEBUG: Found encrypted data for user', userIdToUse, {
-          keyInfoSize: Object.keys(encryptedMessage.keyInfo).length,
-          hasDataForUser: !!encryptedMessage.keyInfo[userIdToUse.toString()],
-          encryptedDataLength: encryptedMessage.keyInfo[userIdToUse.toString()]?.length
-        });
-
-        decryptedText = await crypto.decryptMessage({
-          encryptedText: encryptedMessage.encryptedText,
-          keyInfo: encryptedMessage.keyInfo,
-          iv: encryptedMessage.iv,
-          version: encryptedMessage.version || 1
-        }, userIdToUse);
-
-        console.log('🔐 DEBUG: Decryption attempt result:', {
-          success: decryptedText !== null,
-          textLength: decryptedText?.length || 0,
-          textPreview: decryptedText?.substring(0, 50) || 'null'
-        });
-
-        if (decryptedText === null && hasEncryptedDataForUser) {
-          console.warn(`Failed to decrypt message ${encryptedMessage.id} for user ${userIdToUse}`);
-          return {
-            ...encryptedMessage,
-            text: null,
-            attachments: [],
-            isDecrypted: true,
-            decryptionError: 'Could not decrypt this message'
-          } as DecryptedMessageDTO;
-        }
-      } else {
-        console.log('🔐 DEBUG: No encrypted data for user', userIdToUse, {
-          messageId: encryptedMessage.id,
-          hasKeyInfo: !!encryptedMessage.keyInfo,
-          keyInfoKeys: Object.keys(encryptedMessage.keyInfo || {})
-        });
-      }
-
-      const decryptedAttachments = encryptedMessage.encryptedAttachments?.map(encAttachment => ({
-        fileUrl: encAttachment.encryptedFileUrl,
-        fileType: encAttachment.fileType,
-        fileName: encAttachment.fileName,
-        fileSize: encAttachment.fileSize
-      })) || [];
-
-      return {
-        id: encryptedMessage.id,
-        senderId: encryptedMessage.senderId,
-        text: decryptedText,
-        sentAt: encryptedMessage.sentAt,
-        conversationId: encryptedMessage.conversationId,
-        attachments: decryptedAttachments,
-        reactions: encryptedMessage.reactions || [],
-        parentMessageId: encryptedMessage.parentMessageId,
-        parentMessageText: encryptedMessage.parentMessagePreview,
-        parentSender: encryptedMessage.parentSender,
-        sender: encryptedMessage.sender,
-        isRejectedRequest: encryptedMessage.isRejectedRequest,
-        isNowApproved: encryptedMessage.isNowApproved,
-        isSilent: encryptedMessage.isSilent,
-        isSystemMessage: encryptedMessage.isSystemMessage || false,
-        isDeleted: encryptedMessage.isDeleted || false,
-        isDecrypted: true,
-        isOptimistic: encryptedMessage.isOptimistic,
-        optimisticId: encryptedMessage.optimisticId,
-        isSending: encryptedMessage.isSending,
-        sendError: encryptedMessage.sendError
-      };
-
-    } catch (error) {
-      console.error('Failed to decrypt message:', error);
-      
-      return {
-        ...encryptedMessage,
-        text: null,
-        attachments: [],
-        isDecrypted: true,
-        decryptionError: 'Decryption failed'
-      } as DecryptedMessageDTO;
-    }
-  }, [currentUser, crypto]);
-
   // Rotate keys
   const rotateKeys = useCallback(async (): Promise<boolean> => {
     if (!currentUser) {
@@ -355,8 +213,6 @@ export const useE2EE = () => {
     
     // Funksjoner
     initializeE2EE,
-    encryptMessage,
-    decryptMessage,
     getConversationKeys: getConversationKeysWithService,
     rotateKeys
   };

@@ -19,6 +19,7 @@ import { useCurrentUser } from '@/store/useUserCacheStore';
 import { ReplyPreviewNative } from './ReplyPreviewNative';
 import { RNFile, validateFiles } from '@/utils/files/FileFunctions';
 import { useSendEncryptedMessage } from '@/hooks/messages/useSendEncryptedMessage';
+import { useE2EE } from '../ende-til-ende/useE2EE';
 
 // Import our new components
 import { AttachmentPreview } from '../files/AttachmentPreview';
@@ -52,12 +53,12 @@ export default function MessageInputNative({
 }: MessageInputNativeProps) {
   const [text, setText] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<RNFile[]>([]);
+  const { error: e2eeError } = useE2EE();
   
   const { 
     send, 
     error, 
     loading, 
-    e2eeError, 
     encryptionProgress 
   } = useSendEncryptedMessage(onMessageSent);
   
@@ -114,146 +115,59 @@ export default function MessageInputNative({
   };
 
   const handleSend = async () => {
-    const trimmed = text.trim();
-    const hasText = trimmed.length > 0;
-    const hasFiles = selectedFiles.length > 0;
+  const trimmed = text.trim();
+  const hasText = trimmed.length > 0;
+  const hasFiles = selectedFiles.length > 0;
+  
+  if (!hasText && !hasFiles) return;
+
+  // Validate files if any
+  if (hasFiles) {
+    const validation = validateFiles(selectedFiles);
+    if (!validation.isValid) {
+      Alert.alert('File Error', validation.error || 'Invalid files selected');
+      return;
+    }
+  }
+
+  // Clear input and files immediately for better UX
+  setText("");
+  setSelectedFiles([]);
+  onClearReply?.();
+
+  const messageData = {
+    text: hasText ? trimmed : undefined,
+    files: hasFiles ? selectedFiles : undefined,
+    conversationId: conversationId!,
+    receiverId: receiverId?.toString(),
+    parentMessageId: replyingTo?.id ?? undefined
+  };
+
+  try {
+    const result = await send(messageData);
     
-    if (!hasText && !hasFiles) return;
-
-    // Validate files if any
-    if (hasFiles) {
-      const validation = validateFiles(selectedFiles);
-      if (!validation.isValid) {
-        Alert.alert('File Error', validation.error || 'Invalid files selected');
-        return;
-      }
-    }
-
-    // Generate unique optimistic ID
-    const optimisticId = `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Create optimistic attachments for encrypted files
-    const optimisticAttachments: AttachmentDto[] = selectedFiles.map((file, index) => ({
-      fileUrl: '', // Will be set after encryption/upload
-      fileType: file.type,
-      fileName: file.name,
-      fileSize: file.size,
-      isOptimistic: true,
-      optimisticId: `opt_att_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 5)}`,
-      localUri: file.uri,
-      isUploading: true,
-      uploadError: null,
-      isEncrypted: true, // Mark as encrypted
-    }));
-
-    // Create optimistic message
-    const optimisticMessage: MessageDTO = {
-      id: -Date.now(),
-      optimisticId,
-      isOptimistic: true,
-      isSending: true,
-      sendError: null,
-      senderId: user?.id || null,
-      sender: user,
-      text: trimmed || null,
-      sentAt: new Date().toISOString(),
-      conversationId: conversationId || -1,
-      attachments: optimisticAttachments,
-      reactions: [],
-      parentMessageId: replyingTo?.id || null,
-      parentMessageText: replyingTo?.text || null,
-      parentSender: replyingTo?.sender || null,
-      isSystemMessage: false,
-      isDeleted: false,
-    };
-
-    // Add optimistic message to store immediately
-    if (conversationId) {
-      useChatStore.getState().addMessage(optimisticMessage);
-    }
-
-    // Clear input and files immediately for better UX
-    setText("");
-    setSelectedFiles([]);
-    onClearReply?.();
-
-    const messageData = {
-      text: hasText ? trimmed : undefined, // Don't send empty string
-      files: hasFiles ? selectedFiles : undefined,
-      conversationId: conversationId!,
-      receiverId: receiverId?.toString(),
-      parentMessageId: replyingTo?.id ?? undefined // Convert null to undefined
-    };
-
-    try {
-      const result = await send(messageData);
-      
-      if (!result) {
-        // Update optimistic message with error
-        if (conversationId) {
-          useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
-            ...optimisticMessage,
-            isSending: false,
-            sendError: "Failed to send encrypted message"
-          });
-          
-          // Update attachment errors if necessary
-          optimisticAttachments.forEach(attachment => {
-            if (attachment.optimisticId) {
-              useChatStore.getState().updateAttachmentUploadStatus(
-                conversationId,
-                optimisticMessage.id,
-                attachment.optimisticId,
-                {
-                  isUploading: false,
-                  uploadError: "Upload failed"
-                }
-              );
-            }
-          });
-        }
-        return;
-      }
-      
-      if (!conversationId && result.conversationId) {
-        useChatStore.getState().setCurrentConversationId(result.conversationId);
-      }
-      
-      if (conversationId) {
-        clearDraftFor(conversationId);
-      }
-    } catch (err: any) {
-      console.error("Error sending encrypted message:", err);
-      
-      // Update optimistic message with error
-      if (conversationId) {
-        useChatStore.getState().updateMessage(conversationId, optimisticMessage.id, {
-          ...optimisticMessage,
-          isSending: false,
-          sendError: err.message || "Send failed"
-        });
-        
-        // Update attachment errors
-        optimisticAttachments.forEach(attachment => {
-          if (attachment.optimisticId) {
-            useChatStore.getState().updateAttachmentUploadStatus(
-              conversationId,
-              optimisticMessage.id,
-              attachment.optimisticId,
-              {
-                isUploading: false,
-                uploadError: "Upload failed"
-              }
-            );
-          }
-        });
-      }
-      
-      // Restore input text and files for retry
+    if (!result) {
+      // Restore input for retry
       setText(trimmed);
       setSelectedFiles(selectedFiles);
+      return;
     }
-  };
+    
+    if (!conversationId && result.conversationId) {
+      useChatStore.getState().setCurrentConversationId(result.conversationId);
+    }
+    
+    if (conversationId) {
+      clearDraftFor(conversationId);
+    }
+  } catch (err: any) {
+    console.error("Error sending encrypted message:", err);
+    
+    // Restore input text and files for retry
+    setText(trimmed);
+    setSelectedFiles(selectedFiles);
+  }
+};
 
   // Remove file from selection
   const removeFile = (index: number) => {
@@ -327,10 +241,10 @@ export default function MessageInputNative({
       )}
 
       {/* Encryption Progress */}
-      {encryptionProgress > 0 && encryptionProgress < 100 && (
+      {encryptionProgress?.stage && (
         <View style={styles.progressContainer}>
           <Text style={styles.progressText}>
-            🔐 Encrypting... {Math.round(encryptionProgress)}%
+            {encryptionProgress.stage}
           </Text>
         </View>
       )}

@@ -1,7 +1,6 @@
 import { postRequest, getRequest } from "@/services/baseService";
 import { API_BASE_URL } from "@/constants/routes";
-import { EncryptedMessageDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
-import { UserPublicKeyDTO, ConversationKeyDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
+import { UserPublicKeyDTO, ConversationKeyDTO } from "@/features/crypto/types/EncryptedMessageTypes";
 
 // E2EE Key management
 export async function storePublicKey(publicKey: string): Promise<any> {

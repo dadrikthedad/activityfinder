@@ -151,7 +151,7 @@ async function sendWithFiles(payload: MessageWithFilesData): Promise<MessageDTO>
 /**
  * 🛡️ Ekstraher feilmelding fra ukjent error
  */
-function extractErrorMessage(err: unknown): string {
+export function extractErrorMessage(err: unknown): string {
   if (err instanceof Error) {
     try {
       const parsed = JSON.parse(err.message);

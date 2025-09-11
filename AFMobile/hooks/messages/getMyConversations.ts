@@ -31,15 +31,12 @@ export function usePaginatedConversations() {
       const response = await getMyConversations(skip, take);
       const newConversations = response?.conversations || [];
       
-      console.log("📬 load - Got conversations:", newConversations.length);
-      
       // Legg til nye conversations (addConversation håndterer duplicates)
       newConversations.forEach(useChatStore.getState().addConversation);
       
       // Justér hasMore basert på resultat
       if (newConversations.length < take) {
         setHasMore(false);
-        console.log("🏁 Reached end of conversations");
       }
     } catch (err) {
       console.error("❌ Feil ved henting av samtaler:", err);

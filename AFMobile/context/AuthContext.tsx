@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const navigation = useNavigation();
   const logoutService = LogoutService.getInstance();
 
-  useEffect(() => {
+ useEffect(() => {
     const initializeAuth = async () => {
       try {
         console.log("🔄 Initializing auth state...");
@@ -40,28 +40,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const isAuthenticated = await authServiceNative.isAuthenticated();
         const currentAccessToken = await authServiceNative.getAccessToken();
         
+        console.log("🔍 Auth check result:", {
+          isAuthenticated,
+          hasAccessToken: !!currentAccessToken
+        });
+        
         if (isAuthenticated && currentAccessToken) {
           const id = getUserIdFromToken(currentAccessToken);
           console.log("✅ User authenticated, ID:", id);
 
-           if (id) {
-              await AsyncStorage.setItem("userId", id.toString());
-           }
+          if (id) {
+            await AsyncStorage.setItem("userId", id.toString());
+          }
           
           setUserId(id);
           setIsLoggedIn(true);
         } else {
-          console.log("❌ No valid authentication found");
+          console.log("❌ No valid authentication found - user needs to login");
+          
+          // Explicitly clear any remaining state
+          await AsyncStorage.removeItem("userId");
           setToken(null);
           setUserId(null);
           setIsLoggedIn(false);
         }
       } catch (error) {
         console.error("❌ Error initializing auth state:", error);
+        
+        // Clear state on any error
+        await AsyncStorage.removeItem("userId");
         setToken(null);
         setUserId(null);
         setIsLoggedIn(false);
       } finally {
+        console.log("✅ Auth initialization complete, setting loading to false");
         setIsLoading(false);
       }
     };
@@ -94,7 +106,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUserId(newUserId);
       setIsLoggedIn(true);
       
-      console.log("💾 Auth state updated");
     } catch (error) {
       console.error("❌ Error during login:", error);
       // Her kan du også vise en toast eller navigere tilbake til login
@@ -145,3 +156,4 @@ export const useAuth = () => {
   if (!context) throw new Error("useAuth must be used within <AuthProvider>");
   return context;
 };
+
