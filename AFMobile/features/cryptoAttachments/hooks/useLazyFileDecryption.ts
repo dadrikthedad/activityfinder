@@ -1,6 +1,7 @@
-// features/cryptoAttachments/hooks/useLazyFileDecryption.ts
+// features/cryptoAttachments/hooks/useLazyFileDecryption.ts - Med AttachmentCacheService
 import { useState, useCallback, useRef } from 'react';
 import { AttachmentDecryptionService } from '@/features/cryptoAttachments/services/AttachmentDecryptionService';
+import { AttachmentCacheService } from '@/features/crypto/cache/AttachmentCacheService';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 
@@ -14,6 +15,7 @@ export const useLazyFileDecryption = () => {
   const currentUser = useCurrentUser();
   const [decryptionStates, setDecryptionStates] = useState<Map<string, DecryptionState>>(new Map());
   const decryptionService = useRef(AttachmentDecryptionService.getInstance());
+  const cacheService = useRef(AttachmentCacheService.getInstance());
 
   const getDecryptionState = useCallback((fileUrl: string): DecryptionState => {
     return decryptionStates.get(fileUrl) || {
@@ -46,9 +48,9 @@ export const useLazyFileDecryption = () => {
     const fileKey = attachment.fileUrl;
     const currentState = getDecryptionState(fileKey);
 
-    // Return cached result if available
+    // Return cached result if available in state
     if (currentState.decryptedUrl) {
-      console.log(`🔐📱 ♻️ Using cached decryption: ${attachment.fileName}`);
+      console.log(`🔐📱 ♻️ Using cached decryption from state: ${attachment.fileName}`);
       return currentState.decryptedUrl;
     }
 
@@ -58,6 +60,28 @@ export const useLazyFileDecryption = () => {
       return null;
     }
 
+    // FIRST: Check AttachmentCacheService
+    console.log(`🔐📱 🔍 Checking cache for: ${attachment.fileName}`);
+    try {
+      const cachedPath = await cacheService.current.getCachedAttachment(attachment.fileUrl);
+      if (cachedPath) {
+        console.log(`🔐📱 🚀 Using cached attachment: ${attachment.fileName}`);
+        
+        // Update state with cached result
+        updateDecryptionState(fileKey, {
+          isLoading: false,
+          decryptedUrl: cachedPath,
+          error: null
+        });
+        
+        return cachedPath;
+      }
+    } catch (error) {
+      console.warn('Failed to check attachment cache:', error);
+    }
+
+    // If not cached, proceed with decryption
+    console.log(`🔐📱 💾 No cache found, starting decryption: ${attachment.fileName}`);
     console.log(`🔐📱 🔄 Starting lazy decryption: ${attachment.fileName}`);
 
     // Set loading state
@@ -68,8 +92,6 @@ export const useLazyFileDecryption = () => {
 
     try {
       // Create EncryptedAttachmentData from AttachmentDto
-      // NOTE: This requires additional metadata from the original encrypted message
-      // For now, we'll need to pass this through the attachment object
       const encryptedAttachment = {
         encryptedFileUrl: attachment.fileUrl,
         fileType: attachment.fileType,
@@ -78,15 +100,15 @@ export const useLazyFileDecryption = () => {
         keyInfo: attachment.keyInfo || {},
         iv: attachment.iv || '', 
         version: attachment.version || 1 
-        };
+      };
 
-        console.log(`🔐📱 DEBUG attachment keyInfo:`, {
-          fileName: attachment.fileName,
-          hasKeyInfo: !!attachment.keyInfo,
-          keyInfoKeys: attachment.keyInfo ? Object.keys(attachment.keyInfo) : [],
-          hasIV: !!attachment.iv,
-          userId: currentUser.id
-        });
+      console.log(`🔐📱 DEBUG attachment keyInfo:`, {
+        fileName: attachment.fileName,
+        hasKeyInfo: !!attachment.keyInfo,
+        keyInfoKeys: attachment.keyInfo ? Object.keys(attachment.keyInfo) : [],
+        hasIV: !!attachment.iv,
+        userId: currentUser.id
+      });
 
       const result = await decryptionService.current.decryptAttachment(
         encryptedAttachment,
@@ -99,15 +121,54 @@ export const useLazyFileDecryption = () => {
         if (result.fileUrl === attachment.fileUrl) {
           throw new Error('Decryption returned same URL - decryption likely failed');
         }
-        
-        // Update state with success
-        updateDecryptionState(fileKey, {
-          isLoading: false,
-          decryptedUrl: result.fileUrl,
-          error: null
-        });
 
-        return result.fileUrl;
+        // CACHE THE DECRYPTED FILE
+        // Vi må lese den dekrypterte filen og cache den
+        try {
+          // result.fileUrl peker til en midlertidig fil som AttachmentDecryptionService lagde
+          // Vi trenger å lese denne og cache den via AttachmentCacheService
+          
+          const response = await fetch(result.fileUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to read decrypted file: ${response.status}`);
+          }
+          
+          const buffer = await response.arrayBuffer();
+          
+          // Cache den dekrypterte filen
+          const cachedPath = await cacheService.current.cacheAttachment(
+            attachment.fileUrl,
+            buffer,
+            attachment.fileName || 'unknown'
+          );
+          
+          // Bruk cached path hvis tilgjengelig, ellers fallback til original result
+          const finalPath = cachedPath || result.fileUrl;
+          
+          console.log(`🔐📱 📦 Cached decrypted file: ${attachment.fileName} -> ${finalPath.split('/').pop()}`);
+          
+          // Update state with success
+          updateDecryptionState(fileKey, {
+            isLoading: false,
+            decryptedUrl: finalPath,
+            error: null
+          });
+
+          return finalPath;
+          
+        } catch (cacheError) {
+          console.warn('Failed to cache decrypted file, using original result:', cacheError);
+          
+          // Fallback til original result selv om caching feilet
+          updateDecryptionState(fileKey, {
+            isLoading: false,
+            decryptedUrl: result.fileUrl,
+            error: null
+          });
+
+          return result.fileUrl;
+        }
+        
       } else {
         throw new Error('Decryption returned no file URL');
       }
@@ -138,7 +199,7 @@ export const useLazyFileDecryption = () => {
     return getDecryptionState(fileUrl).decryptedUrl;
   }, [getDecryptionState]);
 
-  const clearCache = useCallback((fileUrl?: string) => {
+  const clearCache = useCallback(async (fileUrl?: string) => {
     if (fileUrl) {
       setDecryptionStates(prev => {
         const newMap = new Map(prev);
@@ -147,11 +208,18 @@ export const useLazyFileDecryption = () => {
       });
     } else {
       setDecryptionStates(new Map());
+      // Også clear AttachmentCacheService
+      try {
+        await cacheService.current.clearCache();
+        console.log('🔐📱 🧹 All decryption and attachment caches cleared');
+      } catch (error) {
+        console.warn('Failed to clear attachment cache:', error);
+      }
     }
   }, []);
 
   const getStats = useCallback(() => {
-    const stats = {
+    const decryptionStats = {
       totalFiles: decryptionStates.size,
       decrypted: 0,
       loading: 0,
@@ -159,13 +227,27 @@ export const useLazyFileDecryption = () => {
     };
 
     decryptionStates.forEach((state) => {
-      if (state.decryptedUrl) stats.decrypted++;
-      if (state.isLoading) stats.loading++;
-      if (state.error) stats.errors++;
+      if (state.decryptedUrl) decryptionStats.decrypted++;
+      if (state.isLoading) decryptionStats.loading++;
+      if (state.error) decryptionStats.errors++;
     });
 
-    return stats;
+    const cacheStats = cacheService.current.getCacheStats();
+
+    return {
+      decryption: decryptionStats,
+      cache: cacheStats
+    };
   }, [decryptionStates]);
+
+  // Utility function til å initialisere cache ved app start
+  const initializeCache = useCallback(async () => {
+    try {
+      await cacheService.current.initializeCache();
+    } catch (error) {
+      console.warn('Failed to initialize attachment cache:', error);
+    }
+  }, []);
 
   return {
     decryptFile,
@@ -173,6 +255,7 @@ export const useLazyFileDecryption = () => {
     getError,
     getDecryptedUrl,
     clearCache,
-    getStats
+    getStats,
+    initializeCache
   };
 };

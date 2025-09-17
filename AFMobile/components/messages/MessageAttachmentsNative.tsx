@@ -23,7 +23,8 @@ import { MessageCircleReply, Trash2, Clipboard as ClipboardIcon } from 'lucide-r
 
 // Import our components
 import { AttachmentPreview } from '../files/AttachmentPreview';
-import useAttachmentViewer from '../files/AttachmentViewer';
+import { useAttachmentViewer } from '@/features/files/hooks/useAttachmentViewer';
+
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
@@ -61,7 +62,8 @@ export default function MessageAttachmentsNative({
   // Use AttachmentViewer hook for file opening logic
   const { openFile } = useAttachmentViewer({
     attachments,
-    isMapped
+    isMapped,
+    messageSentAt: message?.sentAt
   });
 
   const setSearchMode = useChatStore(state => state.setSearchMode);

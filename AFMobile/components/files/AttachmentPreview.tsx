@@ -16,6 +16,8 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
 import { ThumbnailCacheService } from '@/features/cryptoAttachments/services/ThumbnailCacheService';
+import * as FileSystem from 'expo-file-system';
+import { NativeFileOpener } from '@/features/cryptoAttachments/utils/NativeFileOpener';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -50,7 +52,6 @@ export interface AttachmentPreviewProps {
 const VideoPreview: React.FC<{ uri: string; isBlurred?: boolean }> = ({ uri, isBlurred }) => {
   const player = useVideoPlayer(uri, (player) => {
     player.muted = true;
-    player.currentTime = 1;
   });
 
   return (
@@ -175,9 +176,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
     if (normalizedData.needsDecryption && normalizedData.thumbnailUrl) {
       // Sjekk cache FØRST før vi prøver dekryptering
       const thumbnailCacheService = ThumbnailCacheService.getInstance();
-        const cacheKey = normalizedData.isOptimistic ? 
-          normalizedData.localUri : 
-          normalizedData.fileUrl;
+        const cacheKey = normalizedData.localUri || normalizedData.fileUrl;
         
         if (cacheKey) { // Legg til denne sjekken
           const cachedThumbnail = thumbnailCacheService.getCachedThumbnail(
@@ -439,23 +438,31 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
       )}
 
       {/* VIDEO CONTENT */}
-      {isVideo && (
-        <View style={styles.videoContainer}>
-          {displayUri && !showUploadStatus ? (
-            <VideoPreview uri={displayUri} isBlurred={isBlurred} />
-          ) : showThumbnailLoading ? (
-            <View style={[styles.videoPlaceholder, styles.thumbnailLoadingContainer]}>
-              <ActivityIndicator size="small" color="white" />
-              <Text style={[styles.thumbnailLoadingText, { color: 'white' }]}>Loading preview...</Text>
-            </View>
-          ) : (
-            <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
-              <Text style={styles.videoIcon}>🎥</Text>
-              <Text style={styles.placeholderText}>Video</Text>
-            </View>
-          )}
-        </View>
-      )}
+      {/* VIDEO CONTENT - FIX: Bruk Image for thumbnail, ikke VideoPreview */}
+        {isVideo && (
+          <View style={styles.videoContainer}>
+            {displayUri && !showUploadStatus ? (
+              <Image
+                source={{ uri: displayUri }}
+                style={[
+                  styles.videoPreview,
+                  isBlurred && styles.blurredVideo
+                ]}
+                resizeMode="cover"
+              />
+            ) : showThumbnailLoading ? (
+              <View style={[styles.videoPlaceholder, styles.thumbnailLoadingContainer]}>
+                <ActivityIndicator size="small" color="white" />
+                <Text style={[styles.thumbnailLoadingText, { color: 'white' }]}>Loading preview...</Text>
+              </View>
+            ) : (
+              <View style={[styles.videoPlaceholder, isBlurred && styles.blurredVideo]}>
+                <Text style={styles.videoIcon}>🎥</Text>
+                <Text style={styles.placeholderText}>Video</Text>
+              </View>
+            )}
+          </View>
+        )}
 
       {/* DOCUMENT CONTENT */}
       {isDocument && (

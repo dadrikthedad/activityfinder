@@ -38,6 +38,7 @@ export const useAttachmentViewer = ({
   files,
   isMapped = false,
   viewerOptions = {},
+  messageSentAt,
 }: {
   attachments?: AttachmentDto[];
   files?: RNFile[];
@@ -46,6 +47,7 @@ export const useAttachmentViewer = ({
     showDownload?: boolean;
     showShare?: boolean;
   };
+  messageSentAt?: string;
 }) => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const optimisticToServerAttachmentMap = useChatStore(state => state.optimisticToServerAttachmentMap);

@@ -111,20 +111,61 @@ export class ThumbnailService {
   options: ThumbnailOptions = {}
 ): Promise<ThumbnailResult | null> {
   try {
-    // Set default thumbnail size for videos
     const maxWidth = options.maxWidth || 320;
     const maxHeight = options.maxHeight || 320;
     
-    // Generate thumbnail using expo-video-thumbnails
-    const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, {
-      time: 1000,
-      quality: options.quality || 0.8,
-    });
+    // Array of different time positions to try (in milliseconds)
+    const timePositions = [1000, 2000, 5000, 3000, 500];
     
-    console.log(`Generated video thumbnail from expo-video-thumbnails: ${uri}`);
+    let thumbnailUri: string | null = null;
+    let lastError: Error | null = null;
+
+    // Try different time positions until one works
+    for (const timePosition of timePositions) {
+      try {
+        console.log(`🎥 Trying thumbnail at ${timePosition}ms for ${videoUri}`);
+        
+        const result = await VideoThumbnails.getThumbnailAsync(videoUri, {
+          time: timePosition,
+          quality: options.quality || 0.8,
+        });
+        
+        thumbnailUri = result.uri;
+        const isValid = await this.isValidThumbnail(thumbnailUri);
+          if (!isValid) {
+            console.warn(`🎥 Invalid thumbnail detected at ${timePosition}ms, trying next position`);
+            continue; // Try next time position
+          }
+        console.log(`🎥 Success! Generated thumbnail at ${timePosition}ms: ${thumbnailUri}`);
+        const thumbnailFileInfo = await FileSystem.getInfoAsync(thumbnailUri);
+        console.log(`🎥 Generated thumbnail: exists=${thumbnailFileInfo.exists}, size=${thumbnailFileInfo.exists && 'size' in thumbnailFileInfo ? thumbnailFileInfo.size : 'unknown'}`);
+        break;
+        
+      } catch (error) {
+        lastError = error as Error;
+        console.warn(`🎥 Failed at ${timePosition}ms:`, error);
+        continue; // Try next time position
+      }
+    }
+
+    // If all time positions failed, throw the last error
+    if (!thumbnailUri) {
+      throw lastError || new Error('Failed to generate thumbnail at any time position');
+    }
     
     // Get original thumbnail dimensions
-    const { width: originalWidth, height: originalHeight } = await this.getImageDimensions(uri);
+    const { width: originalWidth, height: originalHeight } = await this.getImageDimensions(thumbnailUri);
+    
+    // Check if thumbnail is valid (not gray/empty)
+    // A completely gray thumbnail often has very small file size
+    const thumbnailFileInfo = await FileSystem.getInfoAsync(thumbnailUri);
+    const thumbnailSizeKB = (thumbnailFileInfo.exists && 'size' in thumbnailFileInfo && thumbnailFileInfo.size) 
+      ? thumbnailFileInfo.size / 1024 : 0;
+    
+    if (thumbnailSizeKB < 1) {
+      console.warn(`🎥 Thumbnail seems invalid (${thumbnailSizeKB}KB), might be gray`);
+      // Could return null or try alternative approach
+    }
     
     // ALWAYS resize video thumbnails to reasonable size
     const { width: newWidth, height: newHeight } = this.calculateThumbnailDimensions(
@@ -134,15 +175,22 @@ export class ThumbnailService {
       maxHeight
     );
     
-    console.log(`Video thumbnail resize: ${originalWidth}x${originalHeight} -> ${newWidth}x${newHeight}`);
+    
+    console.log(`🎥 Video thumbnail resize: ${originalWidth}x${originalHeight} -> ${newWidth}x${newHeight}`);
     
     // Resize the thumbnail
-    const resizedUri = await this.resizeImage(uri, newWidth, newHeight, options.quality || 0.8, 'jpeg');
+    const resizedUri = await this.resizeImage(thumbnailUri, newWidth, newHeight, options.quality || 0.8, 'jpeg');
+
+    const resizedFileInfo = await FileSystem.getInfoAsync(resizedUri);
+    console.log(`🎥 Resized thumbnail: exists=${resizedFileInfo.exists}, size=${resizedFileInfo.exists && 'size' in resizedFileInfo ? resizedFileInfo.size : 'unknown'}`);  
     
     // Convert to ArrayBuffer using FileSystem
     const base64 = await FileSystem.readAsStringAsync(resizedUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
+
+    const testBase64 = base64.substring(0, 100);
+    console.log(`🎥 Thumbnail base64 start: ${testBase64}`);
     const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0)).buffer;
     
     const result: ThumbnailResult = {
@@ -153,11 +201,11 @@ export class ThumbnailService {
       format: 'image/jpeg'
     };
 
-    console.log(`Video thumbnail completed: ${newWidth}x${newHeight}, ${Math.round(buffer.byteLength / 1024)}KB`);
+    console.log(`🎥 Video thumbnail completed: ${newWidth}x${newHeight}, ${Math.round(buffer.byteLength / 1024)}KB`);
     
     return result;
   } catch (error) {
-    console.error('Video thumbnail generation failed:', error);
+    console.error('Video thumbnail generation failed completely:', error);
     return null;
   }
 }
@@ -288,5 +336,57 @@ export class ThumbnailService {
       imageCount,
       videoCount
     };
+  }
+
+  /**
+   * Check if thumbnail appears to be gray/invalid by analyzing pixel data
+   */
+  public async isValidThumbnail(thumbnailUri: string): Promise<boolean> {
+    try {
+      // Read the thumbnail as base64
+      const base64 = await FileSystem.readAsStringAsync(thumbnailUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      
+      // Check file size - gray thumbnails are usually very small
+      const sizeKB = (base64.length * 3/4) / 1024;
+      if (sizeKB < 2) {
+        console.warn(`🎥 Thumbnail suspiciously small: ${sizeKB}KB`);
+        return false;
+      }
+      
+      // Convert to Uint8Array to analyze pixel data
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Basic check: if most bytes are similar values, it might be gray
+      // This is a simple heuristic - gray images have low variance
+      const sampleSize = Math.min(1000, bytes.length);
+      let sum = 0;
+      let sumSquares = 0;
+      
+      for (let i = 0; i < sampleSize; i++) {
+        const value = bytes[i];
+        sum += value;
+        sumSquares += value * value;
+      }
+      
+      const mean = sum / sampleSize;
+      const variance = (sumSquares / sampleSize) - (mean * mean);
+      
+      // Low variance indicates a gray/uniform image
+      const isValid = variance > 100; // Threshold may need adjustment
+      
+      console.log(`🎥 Thumbnail analysis: size=${sizeKB}KB, variance=${variance.toFixed(2)}, valid=${isValid}`);
+      
+      return isValid;
+      
+    } catch (error) {
+      console.warn('Failed to analyze thumbnail validity:', error);
+      return true; // Assume valid if we can't analyze
+    }
   }
 }
