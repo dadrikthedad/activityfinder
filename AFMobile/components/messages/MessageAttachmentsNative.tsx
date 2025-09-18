@@ -23,7 +23,7 @@ import { MessageCircleReply, Trash2, Clipboard as ClipboardIcon } from 'lucide-r
 
 // Import our components
 import { AttachmentPreview } from '../files/AttachmentPreview';
-import { useAttachmentViewer } from '@/features/files/hooks/useAttachmentViewer';
+import { useAttachmentViewer } from '@/features/files/hooks/useAttachmentViewerMessages';
 
 
 interface MessageAttachmentsNativeProps {

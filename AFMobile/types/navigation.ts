@@ -25,6 +25,9 @@ export type RootStackParamList = {
     viewerOptions?: {
       showDownload?: boolean;
       showShare?: boolean;
+      isDecrypting?: boolean;
+      decryptingFileUrl?: string;
+      decryptingFileName?: string;
     };
   };
   Notifications: undefined;

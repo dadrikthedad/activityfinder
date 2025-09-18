@@ -2,16 +2,10 @@ import { EncryptedAttachmentData } from "../types/cryptoAttachmentTypes";
 import { DecryptedAttachment } from "../types/cryptoAttachmentTypes";
 import { FileEncryptionService } from "./FileEncryptionService";
 import { CryptoService } from "@/components/ende-til-ende/CryptoService";
-import RNFS from 'react-native-fs';
+import { unifiedCacheManager } from "@/features/crypto/storage/UnifiedCacheManager";
 
 export class AttachmentDecryptionService {
   private static instance: AttachmentDecryptionService;
-  private tempFileCache = new Map<string, string>(); // Maps encrypted URLs to temp file paths
-  private initialized = false;
-
-  private constructor() {
-    this.initializeTempStorage();
-  }
 
   public static getInstance(): AttachmentDecryptionService {
     if (!AttachmentDecryptionService.instance) {
@@ -21,70 +15,11 @@ export class AttachmentDecryptionService {
   }
 
   /**
-   * Initialize temp storage and cleanup old files
-   */
-  private async initializeTempStorage(): Promise<void> {
-    if (this.initialized) return;
-
-    try {
-      const tempDir = `${RNFS.TemporaryDirectoryPath}/decrypted_attachments`;
-      
-      // Create temp directory if it doesn't exist
-      const dirExists = await RNFS.exists(tempDir);
-      if (!dirExists) {
-        await RNFS.mkdir(tempDir);
-        console.log('📁 Created temp directory for decrypted attachments');
-      }
-
-      // Clean up old temp files (older than 24 hours)
-      await this.cleanupOldTempFiles();
-      
-      this.initialized = true;
-      console.log('📁 AttachmentDecryptionService temp storage initialized');
-    } catch (error) {
-      console.error('📁 Failed to initialize temp storage:', error);
-    }
-  }
-
-  /**
-   * Clean up old temporary files
-   */
-  private async cleanupOldTempFiles(): Promise<void> {
-    try {
-      const tempDir = `${RNFS.TemporaryDirectoryPath}/decrypted_attachments`;
-      const files = await RNFS.readDir(tempDir);
-      const now = Date.now();
-      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-
-      let cleanedCount = 0;
-      for (const file of files) {
-        // Handle undefined mtime
-        if (!file.mtime) {
-          console.warn(`File ${file.name} has no mtime, skipping`);
-          continue;
-        }
-        
-        const fileAge = now - new Date(file.mtime).getTime();
-        if (fileAge > maxAge) {
-          await RNFS.unlink(file.path);
-          cleanedCount++;
-        }
-      }
-
-      if (cleanedCount > 0) {
-        console.log(`📁 Cleaned up ${cleanedCount} old temp files`);
-      }
-    } catch (error) {
-      console.error('📁 Failed to cleanup old temp files:', error);
-    }
-  }
-
-  /**
    * Decrypt a single attachment
    */
   async decryptAttachment(
     encryptedAttachment: EncryptedAttachmentData,
-    currentUserId: number
+    currentUserId: number,
   ): Promise<DecryptedAttachment> {
     // If no encryption info, return as-is
     if (!encryptedAttachment.keyInfo) {
@@ -97,17 +32,30 @@ export class AttachmentDecryptionService {
       };
     }
 
-    // Check if file is already cached as temp file
-    const cachedTempPath = this.tempFileCache.get(encryptedAttachment.encryptedFileUrl);
-    // Legg til cleanup ved cache miss:
-    if (cachedTempPath && !(await RNFS.exists(cachedTempPath))) {
-      this.tempFileCache.delete(encryptedAttachment.encryptedFileUrl);
-    }
+    const isThumbnail = this.isThumbnailFile(encryptedAttachment);
+    const identifier = encryptedAttachment.encryptedFileUrl;
 
-    if (cachedTempPath && await RNFS.exists(cachedTempPath)) {
-      console.log(`📁 Using cached temp file: ${encryptedAttachment.fileName}`);
+    // Check if file is already cached using UnifiedCacheManager
+    const cachedPath = await unifiedCacheManager.getFile(identifier, encryptedAttachment.fileType, isThumbnail);
+    
+    if (cachedPath) {
+      console.log(`📁 Using cached decrypted file: ${encryptedAttachment.fileName}`);
+      
+      // If it's a thumbnail, also cache the metadata
+      if (isThumbnail && encryptedAttachment.fileSize) {
+        // Try to get dimensions from file if available, otherwise use defaults
+        const { width, height } = await this.getThumbnailDimensions(cachedPath);
+        unifiedCacheManager.cacheThumbnail(
+          encryptedAttachment.encryptedFileUrl,
+          encryptedAttachment.fileSize,
+          cachedPath,
+          width,
+          height
+        );
+      }
+
       return {
-        fileUrl: `file://${cachedTempPath}`,
+        fileUrl: `file://${cachedPath}`,
         fileType: encryptedAttachment.fileType,
         fileName: encryptedAttachment.fileName,
         fileSize: encryptedAttachment.fileSize,
@@ -125,21 +73,30 @@ export class AttachmentDecryptionService {
       );
 
       if (decryptedBuffer) {
-        const isThumbnail = this.isThumbnailFile(encryptedAttachment);
-
-        const tempFilePath = await this.saveToTempFile(
+        // Store using UnifiedCacheManager
+        const storedPath = await unifiedCacheManager.storeFile(
+          identifier,
           decryptedBuffer,
           encryptedAttachment.fileName,
           encryptedAttachment.fileType,
           isThumbnail
         );
 
-        if (tempFilePath) {
-          // Cache the temp file path
-          this.tempFileCache.set(encryptedAttachment.encryptedFileUrl, tempFilePath);
+        if (storedPath) {
+          // Cache thumbnail metadata if this is a thumbnail
+          if (isThumbnail && encryptedAttachment.fileSize) {
+            const { width, height } = await this.getThumbnailDimensions(storedPath);
+            unifiedCacheManager.cacheThumbnail(
+              encryptedAttachment.encryptedFileUrl,
+              encryptedAttachment.fileSize,
+              storedPath,
+              width,
+              height
+            );
+          }
 
           return {
-            fileUrl: `file://${tempFilePath}`,
+            fileUrl: `file://${storedPath}`,
             fileType: encryptedAttachment.fileType,
             fileName: encryptedAttachment.fileName,
             fileSize: encryptedAttachment.fileSize,
@@ -162,50 +119,13 @@ export class AttachmentDecryptionService {
   }
 
   /**
-   * Save decrypted buffer to temporary file
+   * Get thumbnail dimensions from file (placeholder implementation)
    */
-  private async saveToTempFile(
-    decryptedBuffer: ArrayBuffer,
-    fileName: string,
-    mimeType: string,
-    isThumbnail: boolean = false  // Legg til parameter
-  ): Promise<string | null> {
-    try {
-      await this.initializeTempStorage();
-
-      const tempDir = `${RNFS.TemporaryDirectoryPath}/decrypted_attachments`;
-      const timestamp = Date.now();
-      
-      // Håndter thumbnail vs original file
-      let finalFileName: string;
-      if (isThumbnail) {
-        const baseNameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
-        // Sjekk om det allerede har thumbnail-prefiks
-        const cleanBaseName = baseNameWithoutExt.replace(/^thumbnail_/, "");
-        finalFileName = `thumbnail_${cleanBaseName}.jpg`;
-      } else {
-        finalFileName = fileName;
-      }
-      
-      const sanitizedFileName = finalFileName.replace(/[^a-zA-Z0-9._-]/g, '_')
-        .substring(0, 100);
-      const tempFileName = `${timestamp}_${sanitizedFileName}`;
-      const tempFilePath = `${tempDir}/${tempFileName}`;
-
-        // Convert ArrayBuffer to base64 for RNFS
-        const base64Data = this.arrayBufferToBase64(decryptedBuffer);
-        
-        // Write file to temp directory
-        await RNFS.writeFile(tempFilePath, base64Data, 'base64');
-        
-        console.log(`📁 Saved decrypted file to temp: ${tempFileName} (${(decryptedBuffer.byteLength / 1024).toFixed(1)}KB)`);
-        
-        return tempFilePath;
-      } catch (error) {
-        console.error(`📁 Failed to save temp file for ${fileName}:`, error);
-        return null;
-      }
-    }
+  private async getThumbnailDimensions(filePath: string): Promise<{ width: number; height: number }> {
+    // This would need to be implemented based on your image processing library
+    // For now, return default dimensions
+    return { width: 200, height: 200 };
+  }
 
   /**
    * Decrypt multiple attachments
@@ -310,34 +230,36 @@ export class AttachmentDecryptionService {
   }
 
   /**
-   * Clear temp file cache and optionally delete files
+   * Clear cache using UnifiedCacheManager
    */
   public async clearTempCache(deleteFiles: boolean = false): Promise<void> {
     if (deleteFiles) {
-      try {
-        const tempDir = `${RNFS.TemporaryDirectoryPath}/decrypted_attachments`;
-        const exists = await RNFS.exists(tempDir);
-        if (exists) {
-          await RNFS.unlink(tempDir);
-          await RNFS.mkdir(tempDir);
-        }
-        console.log('📁 Cleared all temp files');
-      } catch (error) {
-        console.error('📁 Failed to clear temp files:', error);
-      }
+      // Clear all temp files through UnifiedCacheManager
+      await unifiedCacheManager.clearCache('temp');
+      console.log('📁 Cleared all temp files via UnifiedCacheManager');
+    } else {
+      console.log('📁 Cache clearing handled by UnifiedCacheManager');
     }
-    
-    this.tempFileCache.clear();
-    console.log('📁 Cleared temp file cache');
   }
 
   /**
-   * Get temp cache statistics
+   * Get cache statistics from UnifiedCacheManager
    */
-  public getTempCacheStats(): { cachedFiles: number; tempDir: string } {
+  public async getTempCacheStats(): Promise<{
+    cachedFiles: number;
+    tempSize: number;
+    cacheFiles: number;
+    cacheSize: number;
+    health: string;
+  }> {
+    const stats = await unifiedCacheManager.getStorageStats();
+    
     return {
-      cachedFiles: this.tempFileCache.size,
-      tempDir: `${RNFS.TemporaryDirectoryPath}/decrypted_attachments`
+      cachedFiles: stats.temp.totalFiles,
+      tempSize: stats.totalTempSize,
+      cacheFiles: stats.cache.attachments.totalFiles,
+      cacheSize: stats.totalCacheSize,
+      health: stats.health.overall
     };
   }
 
@@ -367,5 +289,14 @@ export class AttachmentDecryptionService {
     );
     
     return hasUrlIndicator || hasFilenameIndicator;
+  }
+
+  /**
+   * Preload conversation keys for faster decryption
+   */
+  public async preloadConversationKeys(conversationId: number): Promise<void> {
+    // This would integrate with UnifiedCacheManager's conversation keys preloading
+    // Implementation depends on how conversation keys relate to attachments
+    console.log(`🔐 Preloading conversation keys for ${conversationId}`);
   }
 }

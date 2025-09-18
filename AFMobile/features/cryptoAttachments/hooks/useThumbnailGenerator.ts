@@ -1,8 +1,8 @@
-// features/cryptoAttachments/hooks/useThumbnailGenerator.ts - Fixed cache key for videos
+// features/cryptoAttachments/hooks/useThumbnailGenerator.ts - Updated with UnifiedCacheManager
 import { useState } from 'react';
 import { RNFile } from '@/utils/files/FileFunctions';
 import { ThumbnailService } from '@/features/cryptoAttachments/services/ThumbnailService';
-import { ThumbnailCacheService } from '@/features/cryptoAttachments/services/ThumbnailCacheService';
+import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManager';
 
 export interface ThumbnailData {
   buffer: ArrayBuffer;
@@ -36,7 +36,6 @@ export function useThumbnailGenerator() {
     setIsGenerating(true);
     
     const thumbnailService = ThumbnailService.getInstance();
-    const thumbnailCacheService = ThumbnailCacheService.getInstance();
     
     try {
       await Promise.all(
@@ -47,11 +46,11 @@ export function useThumbnailGenerator() {
           }
 
           try {
-            // Check cache first - FIX: Use file.uri directly, not a generated key
-            const cachedThumbnail = thumbnailCacheService.getCachedThumbnail(file.uri, file.size);
+            // Check UnifiedCacheManager for cached thumbnail metadata
+            const cachedThumbnail = unifiedCacheManager.getCachedThumbnail(file.uri, file.size);
             
             if (cachedThumbnail) {
-              console.log(`🖼️📦 Using cached thumbnail for ${file.name}: ${cachedThumbnail.width}x${cachedThumbnail.height}`);
+              console.log(`🖼️📦 Using cached thumbnail from UnifiedCacheManager for ${file.name}: ${cachedThumbnail.width}x${cachedThumbnail.height}`);
               
               // Store thumbnail info
               thumbnails.set(file.uri, {
@@ -72,7 +71,7 @@ export function useThumbnailGenerator() {
                   view[i] = binaryString.charCodeAt(i);
                 }
               } else {
-                // File URI - load from file
+                // File URI - load from file (thumbnail stored in temp storage)
                 const response = await fetch(cachedThumbnail.uri);
                 buffer = await response.arrayBuffer();
               }
@@ -98,9 +97,25 @@ export function useThumbnailGenerator() {
                   mimeType: 'image/jpeg'
                 });
                 
-                // Create base64 for display
-                const base64 = btoa(String.fromCharCode(...new Uint8Array(thumbnail.buffer)));
-                const thumbnailUri = `data:image/jpeg;base64,${base64}`;
+                // Store thumbnail file via UnifiedCacheManager
+                const thumbnailIdentifier = `${file.uri}_thumbnail`;
+                const storedThumbnailPath = await unifiedCacheManager.storeFile(
+                  thumbnailIdentifier,
+                  thumbnail.buffer,
+                  `thumbnail_${file.name}.jpg`,
+                  'image/jpeg',
+                  true // isThumbnail = true
+                );
+                
+                let thumbnailUri: string;
+                if (storedThumbnailPath) {
+                  // Use file URI from stored thumbnail
+                  thumbnailUri = `file://${storedThumbnailPath}`;
+                } else {
+                  // Fallback to base64 if storage fails
+                  const base64 = btoa(String.fromCharCode(...new Uint8Array(thumbnail.buffer)));
+                  thumbnailUri = `data:image/jpeg;base64,${base64}`;
+                }
                 
                 // Store thumbnail info
                 thumbnails.set(file.uri, {
@@ -109,8 +124,8 @@ export function useThumbnailGenerator() {
                   height: thumbnail.height,
                 });
                 
-                // FIX: Cache with correct key - use file.uri directly
-                thumbnailCacheService.cacheThumbnail(
+                // Cache thumbnail metadata via UnifiedCacheManager
+                unifiedCacheManager.cacheThumbnail(
                   file.uri,
                   file.size,
                   thumbnailUri,
@@ -118,7 +133,7 @@ export function useThumbnailGenerator() {
                   thumbnail.height
                 );
                 
-                console.log(`🖼️ Generated and cached thumbnail for ${file.name}: ${thumbnail.width}x${thumbnail.height}`);
+                console.log(`🖼️ Generated and cached thumbnail via UnifiedCacheManager for ${file.name}: ${thumbnail.width}x${thumbnail.height}`);
               }
             }
           } catch (error) {
@@ -127,7 +142,7 @@ export function useThumbnailGenerator() {
         })
       );
       
-      console.log(`🖼️ Generated ${thumbnailData.size} thumbnails (cache used where possible)`);
+      console.log(`🖼️ Generated ${thumbnailData.size} thumbnails via UnifiedCacheManager (cache used where possible)`);
       
     } finally {
       setIsGenerating(false);
@@ -136,8 +151,39 @@ export function useThumbnailGenerator() {
     return { thumbnails, thumbnailData };
   };
 
+  // Clear thumbnail cache
+  const clearThumbnailCache = async (): Promise<void> => {
+    try {
+      await unifiedCacheManager.clearCache('thumbnails');
+      console.log('🖼️🧹 Thumbnail cache cleared via UnifiedCacheManager');
+    } catch (error) {
+      console.warn('Failed to clear thumbnail cache:', error);
+    }
+  };
+
+  // Get thumbnail cache statistics
+  const getThumbnailCacheStats = async () => {
+    try {
+      const stats = await unifiedCacheManager.getStorageStats();
+      return {
+        thumbnailMetadata: stats.cache.thumbnails,
+        thumbnailFiles: {
+          // Thumbnails are stored in temp storage
+          totalFiles: stats.temp.totalFiles,
+          totalSize: stats.temp.totalSize
+        },
+        cacheHealth: stats.health.overall
+      };
+    } catch (error) {
+      console.warn('Failed to get thumbnail cache stats:', error);
+      return null;
+    }
+  };
+
   return {
     generateThumbnails,
-    isGenerating
+    isGenerating,
+    clearThumbnailCache,
+    getThumbnailCacheStats
   };
 }

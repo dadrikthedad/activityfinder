@@ -15,9 +15,11 @@ import { RNFile, getFileTypeInfo, getDisplayFileName, formatFileSize } from '@/u
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
-import { ThumbnailCacheService } from '@/features/cryptoAttachments/services/ThumbnailCacheService';
 import * as FileSystem from 'expo-file-system';
 import { NativeFileOpener } from '@/features/cryptoAttachments/utils/NativeFileOpener';
+import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
+import { generateCacheKey } from '@/features/crypto/storage/utils/cacheKeyUtils';
+import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManager';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -158,180 +160,117 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   // State for thumbnail decryption
   const [thumbnailDecrypted, setThumbnailDecrypted] = useState(false);
 
+  const thumbnailStoreUrl = useDecryptionStore(state =>
+    normalizedData.thumbnailUrl ?
+      state.getDecryptedUrl(generateCacheKey(normalizedData.thumbnailUrl)) :
+      null
+  );
+
   // Determine which image/video URI to use with thumbnail priority
   const displayUri = useMemo(() => {
-    // Priority order for thumbnail display:
-    // 1. Local thumbnail (immediate display for new uploads)
-    // 2. Cached thumbnail (fastest for encrypted content)
-    // 3. Decrypted remote thumbnail (for encrypted thumbnails)
-    // 4. Plain remote thumbnail (for unencrypted)
-    // 5. Local file URI (for optimistic messages)
-    // 6. Remote file URL (fallback)
-    
-    if (normalizedData.localThumbnailUri) {
-      console.log('BANAN displayUri - using localThumbnailUri');
-      return normalizedData.localThumbnailUri;
-    }
-    
-    if (normalizedData.needsDecryption && normalizedData.thumbnailUrl) {
-      // Sjekk cache FØRST før vi prøver dekryptering
-      const thumbnailCacheService = ThumbnailCacheService.getInstance();
-        const cacheKey = normalizedData.localUri || normalizedData.fileUrl;
-        
-        if (cacheKey) { // Legg til denne sjekken
-          const cachedThumbnail = thumbnailCacheService.getCachedThumbnail(
-            cacheKey, 
-            normalizedData.size
-          );
-          
-          if (cachedThumbnail) {
-            console.log('BANAN displayUri - using cached thumbnail');
-            return cachedThumbnail.uri;
-          }
-        }
-      
-      // Hvis ikke i cache, sjekk om dekryptering er ferdig
-      const decryptedThumbnailUrl = getDecryptedUrl(normalizedData.thumbnailUrl);
-      if (decryptedThumbnailUrl) {
-        console.log('BANAN displayUri - using decrypted thumbnail');
-        return decryptedThumbnailUrl;
-      }
-      
-      // Bare vis "decryption in progress" hvis verken cache eller dekryptert URL finnes
-      console.log('BANAN displayUri - thumbnail decryption in progress');
-      return null;
-    }
-    
-    if (normalizedData.thumbnailUrl && !normalizedData.needsDecryption) {
-      console.log('BANAN displayUri - using plain thumbnail');
-      return normalizedData.thumbnailUrl;
-    }
-    
-    if (normalizedData.isOptimistic && normalizedData.localUri) {
-      console.log('BANAN displayUri - using optimistic localUri');
-      return normalizedData.localUri;
-    }
-    
-    console.log('BANAN displayUri - using fallback fileUrl');
-    return normalizedData.fileUrl;
-  }, [
-    normalizedData.localThumbnailUri,
-    normalizedData.needsDecryption,
-    normalizedData.thumbnailUrl,
-    normalizedData.fileUrl,
-    normalizedData.size,
-    normalizedData.isOptimistic,
-    normalizedData.localUri,
-    getDecryptedUrl,
-  ]);
-
-  useEffect(() => {
-  if (!attachment || !normalizedData.needsDecryption || !normalizedData.thumbnailUrl) return;
-  if (!(isImage || isVideo)) return;
-
-  const thumbnailKey = `${normalizedData.fileUrl}_${normalizedData.thumbnailUrl}`;
-  
-  // Unngå gjentatte forsøk på samme thumbnail
-  if (hasAttemptedDecryption.current.has(thumbnailKey)) {
-    return;
+  if (normalizedData.localThumbnailUri) {
+    console.log('BANAN displayUri - using localThumbnailUri');
+    return normalizedData.localThumbnailUri;
   }
 
-  const handleThumbnailDecryption = async () => {
-    const thumbnailCacheService = ThumbnailCacheService.getInstance();
+  if (normalizedData.needsDecryption && normalizedData.thumbnailUrl) {
+    const thumbnailCacheKey = normalizedData.thumbnailUrl ? generateCacheKey(normalizedData.thumbnailUrl) : null;
+    const decryptedThumbnailUrl = thumbnailCacheKey ? getDecryptedUrl(thumbnailCacheKey) : null;
     
-    console.log(`🔍 Checking cache for: ${normalizedData.fileName}`);
+    if (decryptedThumbnailUrl) {
+      console.log('BANAN displayUri - using decrypted thumbnail from UnifiedCacheManager');
+      return decryptedThumbnailUrl;
+    }
     
-    try {
-      // FIX: For optimistiske meldinger, bruk localUri. For server meldinger, bruk fileUrl
-      const cacheKey = normalizedData.isOptimistic ? 
-        normalizedData.localUri : 
-        normalizedData.fileUrl;
-        
-      if (!cacheKey) {
-        console.warn('No cache key available for thumbnail lookup');
-        return;
-      }
-        
-      const cachedThumbnail = thumbnailCacheService.getCachedThumbnail(
-        cacheKey,
-        normalizedData.size
-      );
-
-      if (cachedThumbnail) {
-        console.log(`🖼️📦 Found cached thumbnail for ${normalizedData.fileName} - STOPPING`);
-        return; // Dette burde stoppe videre prosessering
-      } else {
-        console.log(`❌ No cache found for ${normalizedData.fileName}`);
-      }
-    } catch (error) {
-      console.warn('Failed to check thumbnail cache:', error);
+    // Sjekk UnifiedCacheManager direkte for cached thumbnail
+    const cachedFromUnified = unifiedCacheManager.getCachedThumbnail(
+      normalizedData.isOptimistic ? (normalizedData.localUri || '') : (normalizedData.fileUrl || ''),
+      normalizedData.size
+    );
+    
+    if (cachedFromUnified) {
+      console.log('BANAN displayUri - using cached thumbnail from UnifiedCacheManager');
+      return cachedFromUnified.uri;
     }
 
-    if (
-      normalizedData.thumbnailUrl &&
-      !getDecryptedUrl(normalizedData.thumbnailUrl) &&
-      !isDecryptingThumbnail(normalizedData.thumbnailUrl)
-    ) {
-      console.log(`🔐🖼️ Auto-decrypting thumbnail for: ${normalizedData.fileName}`);
-      
-      // Marker at vi har prøvd denne thumbnails
-      hasAttemptedDecryption.current.add(thumbnailKey);
-      
-      const thumbnailAttachment: AttachmentDto = {
-        fileUrl: normalizedData.thumbnailUrl,
-        fileType: normalizedData.fileType,
-        fileName: `thumbnail_${normalizedData.fileName}`,
-        fileSize: undefined,
-        isEncrypted: true,
-        needsDecryption: true,
-        keyInfo: attachment.thumbnailKeyInfo,
-        iv: attachment.thumbnailIV,
-        version: attachment.version || 1,
-      };
+    console.log('BANAN displayUri - thumbnail decryption in progress');
+    return null;
+  }
 
-      decryptFile(thumbnailAttachment);
-    }
-  };
+  // Resten av logikken forblir det samme...
+  if (normalizedData.thumbnailUrl && !normalizedData.needsDecryption) {
+    console.log('BANAN displayUri - using plain thumbnail');
+    return normalizedData.thumbnailUrl;
+  }
 
-  handleThumbnailDecryption();
+  if (normalizedData.isOptimistic && normalizedData.localUri) {
+    console.log('BANAN displayUri - using optimistic localUri');
+    return normalizedData.localUri;
+  }
+
+  console.log('BANAN displayUri - using fallback fileUrl');
+  return normalizedData.fileUrl;
 }, [
-  attachment?.fileUrl, // Bruk bare stabile felter som dependencies
-  attachment?.thumbnailUrl,
-  attachment?.needsDecryption,
-  isImage,
-  isVideo,
-  // Fjern hooks som dependencies - de endrer ikke
+  normalizedData.localThumbnailUri,
+  normalizedData.needsDecryption,
+  normalizedData.thumbnailUrl,
+  normalizedData.fileUrl,
+  normalizedData.size,
+  normalizedData.isOptimistic,
+  normalizedData.localUri,
+  getDecryptedUrl,
+  thumbnailStoreUrl,
 ]);
 
+useEffect(() => {
+  if (!attachment || !normalizedData.needsDecryption || !normalizedData.thumbnailUrl) return;
+  if (!(isImage || isVideo)) return;
+  if (displayUri) return; // Allerede tilgjengelig
+
+  // Start dekryptering hvis ikke allerede i gang
+  const thumbnailCacheKey = generateCacheKey(normalizedData.thumbnailUrl);
+  if (!getDecryptedUrl(thumbnailCacheKey) && !isDecryptingThumbnail(thumbnailCacheKey)) {
+    console.log(`🔐🖼️ Auto-starting thumbnail decryption for: ${normalizedData.fileName}`);
+    
+    const thumbnailAttachment: AttachmentDto = {
+      fileUrl: normalizedData.thumbnailUrl,
+      fileType: 'image/jpeg', // Thumbnails er alltid bilder
+      fileName: `thumbnail_${normalizedData.fileName.replace(/\.[^.]+$/, '.jpg')}`, // Endre filtype til .jpg
+      fileSize: undefined,
+      isEncrypted: true,
+      needsDecryption: true,
+      keyInfo: attachment.thumbnailKeyInfo,
+      iv: attachment.thumbnailIV,
+      version: attachment.version || 1,
+    };
+
+    decryptFile(thumbnailAttachment);
+  }
+}, [attachment, displayUri, isImage, isVideo]);
+  
+
+
 // Behold useEffect #2 som den er (caching etter dekryptering)
-  useEffect(() => {
+ useEffect(() => {
   if (!attachment || !normalizedData.needsDecryption || !normalizedData.thumbnailUrl) return;
 
   const decryptedUrl = getDecryptedUrl(normalizedData.thumbnailUrl);
   if (decryptedUrl) {
-    const thumbnailCacheService = ThumbnailCacheService.getInstance();
-    
-    (async () => {
-      try {
-        // Bruk samme cache-nøkkel logikk som de andre stedene
-        const cacheKey = normalizedData.isOptimistic ? 
-          normalizedData.localUri : 
-          normalizedData.fileUrl;
-          
-        if (cacheKey) {
-          await thumbnailCacheService.cacheThumbnail(
-            cacheKey,  // Konsistent cache-nøkkel
-            normalizedData.size,
-            decryptedUrl,
-            normalizedData.thumbnailWidth || 400,
-            normalizedData.thumbnailHeight || 400
-          );
-          console.log(`🖼️📦 Cached decrypted thumbnail for ${normalizedData.fileName}`);
-        }
-      } catch (error) {
-        console.warn('Failed to cache decrypted thumbnail:', error);
-      }
-    })();
+    // Cache i UnifiedCacheManager
+    const cacheKey = normalizedData.isOptimistic ? 
+      normalizedData.localUri : 
+      normalizedData.fileUrl;
+      
+    if (cacheKey) {
+      unifiedCacheManager.cacheThumbnail(
+        cacheKey,
+        normalizedData.size,
+        decryptedUrl,
+        normalizedData.thumbnailWidth || 400,
+        normalizedData.thumbnailHeight || 400
+      );
+      console.log(`Cached decrypted thumbnail in UnifiedCacheManager for ${normalizedData.fileName}`);
+    }
   }
 }, [
   attachment?.thumbnailUrl,
@@ -341,6 +280,26 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   
   // Show upload status
   const showUploadStatus = Boolean(uploadError);
+
+  // Erstatt isDecryptingFile prop med sanntids store data
+  const decryptionProgress = useDecryptionStore(state => 
+    state.getProgress(normalizedData.fileUrl)
+  );
+  const decryptionStatus = useDecryptionStore(state => 
+    state.getStatus(normalizedData.fileUrl)
+  );
+  const isDecryptingFromStore = useDecryptionStore(state => 
+    state.isDecrypting(normalizedData.fileUrl)
+  );
+
+  const { cancelDecryption } = useDecryptionStore();
+
+  // Oppdater showFileDecryptionLoading logikk
+  const showFileDecryptionLoading = (
+    isDecryptingFromStore && 
+    attachment?.needsDecryption && 
+    !showUploadStatus
+  );
 
   // Get file extension and formatted size
   const fileExtension = normalizedData.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
@@ -375,7 +334,6 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
     normalizedData.needsDecryption &&
     normalizedData.thumbnailUrl &&
     !displayUri &&
-    isDecryptingThumbnail(normalizedData.thumbnailUrl) &&
     (isImage || isVideo)
   );
 
@@ -414,6 +372,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
       {isImage && (
         <>
           {displayUri ? (
+            
             <Image
               source={{ uri: displayUri }}
               style={[
@@ -539,6 +498,34 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
               <Text style={styles.uploadStatusText}>Upload failed</Text>
             </>
           )}
+        </View>
+      )}
+
+       {showFileDecryptionLoading && (
+        <View style={styles.decryptionOverlay}>
+          <ActivityIndicator size="small" color="#1C6B1C" />
+          <Text style={styles.decryptionText}>
+            {decryptionStatus} {decryptionProgress}%
+          </Text>
+          {/* Progress bar */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill,
+                  { width: `${decryptionProgress}%` }
+                ]}
+              />
+            </View>
+          </View>
+          {cancelDecryption  && (
+            <TouchableOpacity 
+              style={styles.cancelButton}
+              onPress={() => cancelDecryption(normalizedData.fileUrl)}
+            >
+              <X size={16} color="white" />
+            </TouchableOpacity>
+            )}
         </View>
       )}
 
@@ -840,4 +827,51 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 4,
   },
+
+  // Decryption
+   decryptionOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  decryptionText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  cancelButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  progressBarContainer: {
+  width: '80%',
+  marginTop: 8,
+},
+progressBar: {
+  height: 3,
+  backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  borderRadius: 1.5,
+  overflow: 'hidden',
+},
+progressFill: {
+  height: '100%',
+  backgroundColor: '#1C6B1C',
+  borderRadius: 1.5,
+},
 });

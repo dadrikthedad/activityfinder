@@ -2,7 +2,7 @@
 import { useCallback } from 'react';
 import { Alert } from 'react-native';
 import { EncryptMessageService } from '@/features/crypto/services/EncryptMessageService';
-import { conversationKeysCache } from '../cache/ConversationKeyCache';
+import { conversationKeysCache } from '../storage/ConversationKeyCache';
 import { ConversationKeyDTO } from '@/features/crypto/types/EncryptedMessageTypes';
 
 export const useEncryptMessage = () => {

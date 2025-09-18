@@ -7,6 +7,7 @@ import { API_BASE_URL } from "@/constants/routes";
 import { deviceInfoService } from "@/utils/api/deviceInfo";
 import { AuthError } from '@shared/types/error/AuthError';
 import { CryptoService } from '@/components/ende-til-ende/CryptoService';
+import { cleanupManager } from '@/features/cleanup/CleanupManager';
 
 class AuthService {
   private accessToken: string | null = null;
@@ -427,6 +428,14 @@ class AuthService {
       }
     } else {
       console.log('ℹ️ Skipping E2EE cleanup (no stored user ID)');
+    }
+
+    try {
+      console.log('📁 Clearing file caches and temp storage...');
+      await cleanupManager.clearCache('all');
+      console.log('✅ File caches and temp storage cleared');
+    } catch (error) {
+      console.error('⚠️ Failed to clear file caches (continuing anyway):', error);
     }
 
     // Clear AsyncStorage (viktigst!)
