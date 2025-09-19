@@ -74,23 +74,10 @@ const decryptionStatus = useDecryptionStore(state => {
   // Monitor decryption state changes from store
   useEffect(() => {
   if (viewerOptions?.isDecrypting && viewerOptions?.decryptingFileUrl) {
-    console.log(`🔐 MediaViewer DEBUG:`, {
-      decryptingFileUrl: viewerOptions.decryptingFileUrl,
-      isDecrypting,
-      decryptedUrl,
-      hasDecryptedUrl: !!decryptedUrl,
-      storeState: useDecryptionStore.getState().decryptionStates.get(viewerOptions.decryptingFileUrl)
-    });
-
       if (decryptedUrl && !hasResolvedFile) {
-        console.log('🔐 MediaViewer: Updating resolved files with decrypted URL');
         setResolvedFiles(prevFiles => 
           prevFiles.map((file, index) => {
             if (index === initialIndex) {
-              console.log(`🔐 Updating file ${index}:`, {
-                from: file.uri.substring(0, 50) + '...',
-                to: decryptedUrl.substring(0, 50) + '...'
-              });
               return { ...file, uri: decryptedUrl };
             }
             return file;
@@ -223,13 +210,6 @@ const decryptionStatus = useDecryptionStore(state => {
     );
     
     const videoIndex = videoFiles.findIndex(f => f.uri === currentFile.uri);
-    
-    console.log(`🎬 Rendering VideoViewerContent with decrypted URI:`, {
-      fileName: currentFile.name,
-      originalUri: files[initialIndex].uri,
-      decryptedUri: currentFile.uri,
-      hasDecryptedUrl: !!decryptedUrl
-    });
     
     return (
       <View style={styles.container}>

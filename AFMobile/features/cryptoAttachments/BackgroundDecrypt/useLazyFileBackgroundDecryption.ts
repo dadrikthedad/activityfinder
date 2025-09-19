@@ -1,6 +1,6 @@
-// features/cryptoAttachments/hooks/useLazyFileDecryption.ts - Updated with UnifiedCacheManager
+// features/cryptoAttachments/hooks/useLazyFileBackgroundDecryption.ts
 import { useCallback, useRef } from 'react';
-import { AttachmentDecryptionService } from '@/features/cryptoAttachments/services/AttachmentDecryptionService';
+import { BackgroundAttachmentDecryptionService } from './BackgrundAttachmentDecryptionService';
 import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManager';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
@@ -9,9 +9,9 @@ import * as FileSystem from 'expo-file-system';
 import { generateCacheKey } from '@/features/crypto/storage/utils/cacheKeyUtils';
 
 
-export const useLazyFileDecryption = () => {
+export const useLazyFileBackgroundDecryption = () => {
   const currentUser = useCurrentUser();
-  const decryptionService = useRef(AttachmentDecryptionService.getInstance());
+  const decryptionService = useRef(BackgroundAttachmentDecryptionService.getBackgroundInstance());
   
   // Use global store instead of local state
   const {
@@ -28,19 +28,19 @@ export const useLazyFileDecryption = () => {
   } = useDecryptionStore();
 
   const decryptFile = useCallback(async (
-      attachment: AttachmentDto,
-      options?: { skipCacheCheck?: boolean }
+    attachment: AttachmentDto,
+    options?: { skipCacheCheck?: boolean }
     ): Promise<string | null> => {
     if (!currentUser?.id) {
-      console.error('🔐📱 No current user for lazy decryption');
-      return null;
+        console.error('🔐📱 No current user for lazy decryption');
+        return null;
     }
 
     if (!attachment.needsDecryption) {
-      return attachment.fileUrl;
+        return attachment.fileUrl;
     }
 
-     const fileKey = generateCacheKey(attachment.fileUrl);
+    const fileKey = generateCacheKey(attachment.fileUrl);
     const fileName = attachment.fileName || 'unknown';
     const isThumbnail = fileName.toLowerCase().includes('thumb');
 
@@ -48,63 +48,54 @@ export const useLazyFileDecryption = () => {
 
     // Return cached result if available in store
     const existingUrl = getDecryptedUrl(fileKey);
-      if (existingUrl) try {
+    if (existingUrl) {
+        try {
         const fileInfo = await FileSystem.getInfoAsync(existingUrl);
         if (fileInfo.exists) {
-          console.log(`🔐📱 ♻️ Using cached decryption from store: ${fileName}`);
-          return existingUrl;
+            console.log(`🔐📱 ♻️ Using cached decryption from store: ${fileName}`);
+            return existingUrl;
         } else {
-          console.log(`🔐📱 ⚠️ Cached file no longer exists, re-decrypting: ${fileName}`);
-          // Clear invalid cache entry
-          clearDecryptionState(fileKey);
+            console.log(`🔐📱 ⚠️ Cached file no longer exists, re-decrypting: ${fileName}`);
+            clearDecryptionState(fileKey);
         }
-      } catch (error) {
+        } catch (error) {
         console.log(`🔐📱 ⚠️ Error checking cached file, re-decrypting: ${fileName}`);
         clearDecryptionState(fileKey);
-      }
+        }
+    }
 
     // Skip if already in progress
     const originalKey = attachment.fileUrl;
     if (isDecrypting(fileKey) || isDecrypting(originalKey)) {
-      console.log(`🔐📱 ⏳ Decryption already in progress: ${fileName}`);
-      return null;
+        console.log(`🔐📱 ⏳ Decryption already in progress: ${fileName}`);
+        return null;
     }
 
     try {
-      // Start decryption with store tracking
-      console.log(`🔐📱 🔄 Starting lazy decryption with UnifiedCacheManager: ${fileName}`);
-      startDecryption(fileKey, fileName);
+        // Start decryption with store tracking
+        console.log(`🔐📱 🔄 Starting lazy decryption with UnifiedCacheManager: ${fileName}`);
+        startDecryption(fileKey, fileName);
 
-      // FIRST: Check UnifiedCacheManager for existing cached file
-      console.log(`🔐📱 🔍 Checking unified cache for: ${fileName}`);
-      updateProgress(fileKey, 5, 'downloading');
-      
-      const cachedPath = await unifiedCacheManager.getFile(
-        fileKey, 
-        attachment.fileType, 
-        isThumbnail
-      );
-      
-      // FIRST: Check UnifiedCacheManager for existing cached file (unless skipped)
-      if (!options?.skipCacheCheck) {
+        // FIRST: Check UnifiedCacheManager for existing cached file (unless skipped)
+        if (!options?.skipCacheCheck) {
         console.log(`🔐📱 🔍 Checking unified cache for: ${fileName}`);
         updateProgress(fileKey, 5, 'downloading');
         
         const cachedPath = await unifiedCacheManager.getFile(
-          fileKey, 
-          attachment.fileType, 
-          isThumbnail
+            fileKey,
+            attachment.fileType,
+            isThumbnail
         );
         
         if (cachedPath) {
-          console.log(`🔐📱 🚀 Using cached file from UnifiedCacheManager: ${fileName}`);
-          completeDecryption(fileKey, cachedPath);
-          return cachedPath;
+            console.log(`🔐📱 🚀 Using cached file from UnifiedCacheManager: ${fileName}`);
+            completeDecryption(fileKey, cachedPath);
+            return cachedPath;
         }
-      } else {
+        } else {
         console.log(`🔐📱 ⏭️ Skipping cache check (already checked): ${fileName}`);
         updateProgress(fileKey, 5, 'downloading');
-      }
+        }
 
       // Create EncryptedAttachmentData from AttachmentDto
       const encryptedAttachment = {
@@ -126,14 +117,19 @@ export const useLazyFileDecryption = () => {
       });
 
       // Update progress for download phase
-      updateProgress(fileKey, 20, 'downloading');
-      updateProgress(fileKey, 50, 'decrypting');
-      updateProgress(fileKey, 70, 'decrypting');
+      updateProgress(fileKey, 10, 'downloading');
+      updateProgress(fileKey, 25, 'decrypting');
+      updateProgress(fileKey, 40, 'decrypting');
 
-      // Use AttachmentDecryptionService which now uses UnifiedCacheManager internally
+      // Use BackgroundAttachmentDecryptionService with progress callback
       const result = await decryptionService.current.decryptAttachment(
         encryptedAttachment,
         currentUser.id,
+        (progress: number, message: string) => {
+            // Map background progress (0-100) to our progress (40-90) - større range
+            const mappedProgress = 40 + (progress * 0.5);
+            updateProgress(fileKey, Math.round(mappedProgress), 'decrypting');
+            }
       );
 
       if (result?.fileUrl) {
@@ -143,7 +139,7 @@ export const useLazyFileDecryption = () => {
           throw new Error('Decryption returned same URL - decryption likely failed');
         }
 
-        updateProgress(fileKey, 85, 'decrypting');
+        updateProgress(fileKey, 90, 'decrypting');
 
         // The file is already stored by AttachmentDecryptionService through UnifiedCacheManager
         // No need to manually cache again as it's handled internally

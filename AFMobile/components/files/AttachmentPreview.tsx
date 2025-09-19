@@ -9,14 +9,13 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import { X, Play, File } from 'lucide-react-native';
+import { X, Play, File, CheckLine } from 'lucide-react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { RNFile, getFileTypeInfo, getDisplayFileName, formatFileSize } from '@/utils/files/FileFunctions';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { FileNameFooterPreview } from '../files/FileNameFooterPreview';
 import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
 import * as FileSystem from 'expo-file-system';
-import { NativeFileOpener } from '@/features/cryptoAttachments/utils/NativeFileOpener';
 import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
 import { generateCacheKey } from '@/features/crypto/storage/utils/cacheKeyUtils';
 import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManager';
@@ -122,7 +121,8 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   const attachmentRef = useRef<View>(null);
   const sizeConfig = getSizeConfig(size);
   const { decryptFile, isLoading: isDecryptingThumbnail, getDecryptedUrl } = useLazyFileDecryption();
-  const hasAttemptedDecryption = useRef(new Set<string>());
+
+  const [isDecryptionCompleted, setIsDecryptionCompleted] = useState(false);
   
   // Normalize data from either AttachmentDto or RNFile
   const normalizedData = attachment ? {
@@ -277,19 +277,30 @@ useEffect(() => {
   attachment?.fileUrl,
   getDecryptedUrl
 ]);
+
+
   
   // Show upload status
   const showUploadStatus = Boolean(uploadError);
 
+  const cacheKey = useMemo(() => 
+    generateCacheKey(normalizedData.fileUrl), 
+    [normalizedData.fileUrl]
+  );
+
+  
+
   // Erstatt isDecryptingFile prop med sanntids store data
-  const decryptionProgress = useDecryptionStore(state => 
-    state.getProgress(normalizedData.fileUrl)
-  );
-  const decryptionStatus = useDecryptionStore(state => 
-    state.getStatus(normalizedData.fileUrl)
-  );
   const isDecryptingFromStore = useDecryptionStore(state => 
-    state.isDecrypting(normalizedData.fileUrl)
+    state.isDecrypting(cacheKey) // Bruker cache key i stedet
+  );
+
+  const decryptionProgress = useDecryptionStore(state => 
+    state.getProgress(cacheKey) // Bruker cache key
+  );
+
+  const decryptionStatus = useDecryptionStore(state => 
+    state.getStatus(cacheKey) // Bruker cache key
   );
 
   const { cancelDecryption } = useDecryptionStore();
@@ -300,6 +311,16 @@ useEffect(() => {
     attachment?.needsDecryption && 
     !showUploadStatus
   );
+
+  useEffect(() => {
+  if (attachment?.needsDecryption && 
+      decryptionProgress === 100 && 
+      !isDecryptingFromStore && 
+      !isDecryptionCompleted) {
+    setIsDecryptionCompleted(true);
+  }
+}, [attachment?.needsDecryption, decryptionProgress, isDecryptingFromStore, isDecryptionCompleted]);
+
 
   // Get file extension and formatted size
   const fileExtension = normalizedData.fileName?.split('.').pop()?.toUpperCase() || 'FILE';
@@ -336,6 +357,20 @@ useEffect(() => {
     !displayUri &&
     (isImage || isVideo)
   );
+
+  console.log('DEBUG AttachmentPreview:', {
+  fileName: normalizedData.fileName,
+  fileUrl: normalizedData.fileUrl,
+  cacheKey,
+  needsDecryption: normalizedData.needsDecryption,
+  isDecryptingFromStore,
+  decryptionProgress,
+  decryptionStatus,
+  showFileDecryptionLoading,
+  showUploadStatus,
+  isVideo,
+  displayUri: !!displayUri
+});
 
   return (
     <TouchableOpacity
@@ -543,10 +578,14 @@ useEffect(() => {
           )}
 
           {/* Play button overlay - only for videos */}
-          {isVideo && !isBlurred && displayUri && (
+          {isVideo && !isBlurred && displayUri && !showFileDecryptionLoading && (
             <View style={styles.playOverlay}>
               <View style={styles.playButton}>
-                <Play size={20} color="white" fill="white" />
+                {isDecryptionCompleted ? (
+                  <CheckLine size={20} color="white" fill="white" />
+                ) : (
+                  <Play size={20} color="white" fill="white" />
+                )}
               </View>
             </View>
           )}

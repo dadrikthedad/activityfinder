@@ -1,5 +1,6 @@
 // features/cryptoAttachments/services/TempFileService.ts
 import RNFS from 'react-native-fs';
+import { generateCacheKey } from './utils/cacheKeyUtils';
 
 export interface TempFileOptions {
   maxAge?: number;          // Max alder i millisekunder
@@ -85,7 +86,7 @@ export class TempFileService {
         if (file.isFile() && file.mtime) {
           // Generer cache key fra filnavn (fjern timestamp prefix)
           const fileName = file.name.replace(/^\d+_/, '');
-          const cacheKey = this.generateCacheKey(fileName);
+          const cacheKey = generateCacheKey(fileName);
           
           this.tempFileCache.set(cacheKey, {
             localPath: file.path,
@@ -101,20 +102,6 @@ export class TempFileService {
     } catch (error) {
       console.warn('📁 Failed to load existing files:', error);
     }
-  }
-
-  /**
-   * Generer cache key fra URL eller filnavn
-   */
-  private generateCacheKey(identifier: string): string {
-    // For URLs, bruk siste del som key
-    if (identifier.includes('/')) {
-      const parts = identifier.split('/');
-      const fileName = parts[parts.length - 1] || 'unknown';
-      return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-    }
-    // For filnavn, sanitize direkte
-    return identifier.replace(/[^a-zA-Z0-9._-]/g, '_');
   }
 
   /**
@@ -150,7 +137,7 @@ export class TempFileService {
       await RNFS.writeFile(tempFilePath, base64Data, 'base64');
       
       // Oppdater cache
-      const cacheKey = this.generateCacheKey(identifier);
+      const cacheKey = generateCacheKey(identifier);
       this.tempFileCache.set(cacheKey, {
         localPath: tempFilePath,
         fileName: originalFileName,
@@ -175,7 +162,7 @@ export class TempFileService {
   async getTempFile(identifier: string): Promise<string | null> {
     await this.ensureInitialized();
     
-    const cacheKey = this.generateCacheKey(identifier);
+    const cacheKey = generateCacheKey(identifier);
     const tempFile = this.tempFileCache.get(cacheKey);
     
     if (!tempFile) {

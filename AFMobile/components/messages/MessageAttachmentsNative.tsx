@@ -1,5 +1,5 @@
-// components/messages/MessageAttachmentsNative.tsx - Steg 1: Fjern DocumentAttachmentItem
-import React, { useState, useRef } from 'react';
+// components/messages/MessageAttachmentsNative.tsx - Refactored to use AttachmentViewer
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Vibration,
   Clipboard,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { getFileTypeInfo } from '@/utils/files/FileFunctions';
@@ -21,10 +22,10 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
 import { MessageCircleReply, Trash2, Clipboard as ClipboardIcon } from 'lucide-react-native';
 
-// Import our components
+// Import our new AttachmentViewer component
+import { createAttachmentPressHandler } from '@/features/cryptoAttachments/Viewer/comp/AttachmentGridMessages';
 import { AttachmentPreview } from '../files/AttachmentPreview';
-import { useAttachmentViewer } from '@/features/files/hooks/useAttachmentViewerMessages';
-
+import { useEncryptedAttachmentOpener } from '@/features/cryptoAttachments/Viewer/hooks/useEncryptedAttachmentOpener';
 
 interface MessageAttachmentsNativeProps {
   attachments: AttachmentDto[];
@@ -59,14 +60,13 @@ export default function MessageAttachmentsNative({
       .map(att => att.fileUrl) : [])
   );
 
-  // Use AttachmentViewer hook for file opening logic
-  const { openFile } = useAttachmentViewer({
+  const setSearchMode = useChatStore(state => state.setSearchMode);
+
+  const { openFile } = useEncryptedAttachmentOpener({
     attachments,
     isMapped,
-    messageSentAt: message?.sentAt
+    viewerOptions: {},
   });
-
-  const setSearchMode = useChatStore(state => state.setSearchMode);
 
   // Reaction menu state
   const [showReactionMenu, setShowReactionMenu] = useState(false);
@@ -75,6 +75,9 @@ export default function MessageAttachmentsNative({
     x: number; y: number; width: number; height: number;
   } | undefined>();
   const { addReaction } = useReactions();
+
+  // Create attachment press handler using the hook
+  const attachmentPressHandler = createAttachmentPressHandler();
 
   if (!attachments || attachments.length === 0) {
     return null;
@@ -92,7 +95,11 @@ export default function MessageAttachmentsNative({
     });
   };
 
-  const handleAttachmentPress = (attachment: AttachmentDto, index: number) => {
+  // Custom attachment press handler that handles blur and reactions
+  const handleCustomAttachmentPress = async (index: number) => {
+    const attachment = attachments[index];
+    
+    // Check upload status
     const showUploadStatus = Boolean(
       attachment.isOptimistic && 
       (attachment.uploadError)
@@ -109,13 +116,18 @@ export default function MessageAttachmentsNative({
       return;
     }
     
-    const isCurrentlyBlurred = isLocked && blurredAttachments.has(attachment.fileUrl);
+    // Check if currently blurred
+    const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+    const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+    const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
     
     if (isCurrentlyBlurred) {
       toggleBlur(attachment.fileUrl);
-    } else {
-      openFile(index);
+      return;
     }
+
+    // Use the hook's press handler for file opening
+    await openFile(index);
   };
 
   // Long press handler for reaction menu
@@ -236,172 +248,129 @@ export default function MessageAttachmentsNative({
     return parts.length > 0 ? `(${parts.join(', ')})` : '';
   };
 
-  // Determine size based on attachment count and content
-  const getAttachmentSize = (attachment: AttachmentDto, index: number) => {
-    // Single attachment gets large size
-    if (attachments.length === 1) {
-      return 'large';
-    }
-    
-    // Multiple attachments get medium size consistently
-    return 'medium';
-  };
-
-  const getShowFileNameFooter = (attachment: AttachmentDto) => {
-    const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
-    const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
-    
-    // Show footer for media files, but not for documents (they show filename inside)
-    return isMedia;
-  };
-
-  // Calculate container height to ensure proper reaction positioning
-  const calculateContainerHeight = () => {
-    if (attachments.length === 1) {
-      // Single attachment - provide minimum height based on type
-      const attachment = attachments[0];
-      const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
-      const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
-      
-      if (isMedia) {
-        return Math.min((screenWidth - 32) / 1.5, 250); // Large media size
-      } else {
-        return 140; // Document size
-      }
-    }
-
-    // Multiple attachments always use medium size (140px)
-    return 140;
-  };
-
-  const containerHeight = calculateContainerHeight();
-
+  // Use existing layout for all attachments
   return (
-    <View style={styles.attachmentsWrapper}>
-      {attachments.length > 0 && (
-        <View style={styles.attachmentsContent}>
-          {attachments.length === 1 ? (
-          // Single attachment - full width
-          <View style={styles.singleAttachmentContainer}>
-            {(() => {
-              const attachment = attachments[0];
+  <View style={styles.attachmentsWrapper}>
+    <View style={styles.attachmentsContent}>
+      {attachments.length === 1 ? (
+        // Single attachment - full width
+        <View style={styles.singleAttachmentContainer}>
+          {(() => {
+            const attachment = attachments[0];
+            const showUploadStatus = Boolean(
+              attachment.isOptimistic && 
+              !isMapped && 
+              (attachment.isUploading || attachment.uploadError)
+            );
+            const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+            const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+
+            return (
+              <AttachmentPreview
+                attachment={attachment}
+                index={0}
+                totalCount={attachments.length}
+                size="large"
+                showGalleryIndicator={false}
+                showFileNameFooter={isMedia}
+                onPress={() => handleCustomAttachmentPress(0)}
+                onLongPress={createLongPressHandler(attachment, 0)}
+                isBlurred={isLocked && isMedia && blurredAttachments.has(attachment.fileUrl)}
+                isUploading={attachment.isUploading && showUploadStatus}
+                uploadError={showUploadStatus ? attachment.uploadError : null}
+                disabled={showUploadStatus}
+              />
+            );
+          })()}
+        </View>
+      ) : (
+        // Multiple attachments - horizontal scroll (works for any number of files)
+        <View style={styles.multipleAttachmentsContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalGrid}
+            style={styles.horizontalScroll}
+            nestedScrollEnabled={true}
+          >
+            {attachments.map((attachment, index) => {
+              const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
+              const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
+              const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
+
               const showUploadStatus = Boolean(
                 attachment.isOptimistic && 
                 !isMapped && 
                 (attachment.isUploading || attachment.uploadError)
               );
-              const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
-              const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
 
               return (
                 <AttachmentPreview
+                  key={`attachment-${index}-${attachment.fileUrl}`}
                   attachment={attachment}
-                  index={0}
+                  index={index}
                   totalCount={attachments.length}
-                  size={getAttachmentSize(attachment, 0)}
-                  showGalleryIndicator={false}
-                  showFileNameFooter={getShowFileNameFooter(attachment)}
-                  onPress={() => handleAttachmentPress(attachment, 0)}
-                  onLongPress={createLongPressHandler(attachment, 0)}
-                  isBlurred={isLocked && isMedia && blurredAttachments.has(attachment.fileUrl)}
+                  size="medium"
+                  showGalleryIndicator={true}
+                  showFileNameFooter={isMedia}
+                  onPress={() => handleCustomAttachmentPress(index)}
+                  onLongPress={createLongPressHandler(attachment, index)}
+                  isBlurred={isCurrentlyBlurred}
                   isUploading={attachment.isUploading && showUploadStatus}
                   uploadError={showUploadStatus ? attachment.uploadError : null}
                   disabled={showUploadStatus}
                 />
               );
-            })()}
-          </View>
-        ) : (
-          // Multiple attachments - horizontal scroll
-          <View style={styles.multipleAttachmentsContainer}>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalGrid}
-              style={styles.horizontalScroll}
-              nestedScrollEnabled={true}
-            >
-              {attachments.map((attachment, index) => {
-                const fileInfo = getFileTypeInfo(attachment.fileType, attachment.fileName);
-                const isMedia = fileInfo.category === 'image' || fileInfo.category === 'video';
-                const isCurrentlyBlurred = isLocked && isMedia && blurredAttachments.has(attachment.fileUrl);
-
-                const showUploadStatus = Boolean(
-                  attachment.isOptimistic && 
-                  !isMapped && 
-                  (attachment.isUploading || attachment.uploadError)
-                );
-
-                return (
-                  <AttachmentPreview
-                    key={`attachment-${index}-${attachment.fileUrl}`}
-                    attachment={attachment}
-                    index={index}
-                    totalCount={attachments.length}
-                    size={getAttachmentSize(attachment, index)}
-                    showGalleryIndicator={true}
-                    showFileNameFooter={getShowFileNameFooter(attachment)}
-                    onPress={() => handleAttachmentPress(attachment, index)}
-                    onLongPress={createLongPressHandler(attachment, index)}
-                    isBlurred={isCurrentlyBlurred}
-                    isUploading={attachment.isUploading && showUploadStatus}
-                    uploadError={showUploadStatus ? attachment.uploadError : null}
-                    disabled={showUploadStatus}
-                  />
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
+            })}
+          </ScrollView>
         </View>
-      )}
-
-      {/* Summary for many files */}
-      {attachments.length > 5 && (
-        <View style={styles.summary}>
-          <Text style={styles.summaryText}>
-            {attachments.length} files total {getFileTypesSummary()}
-          </Text>
-        </View>
-      )}
-
-      {/* Download Progress Modal */}
-      <DownloadProgressModal
-        visible={showProgress}                       
-        fileName={fileName || ''}                           
-        progress={progress?.progress || 0}                    
-        totalBytes={progress?.totalBytesExpectedToWrite}       
-        downloadedBytes={progress?.totalBytesWritten} 
-        onCancel={cancelDownload}
-      />
-
-      {/* Reaction Menu */}
-      {showReactionMenu && message && currentUser && (
-        <ReactionMenuNative
-          visible={showReactionMenu}
-          onClose={() => setShowReactionMenu(false)}
-          onReactionSelect={handleReactionSelect}
-          quickActions={getQuickActions()}
-          existingReactions={message.reactions || []}
-          userId={currentUser.id || 0}
-          message={message}
-          actualMessageId={useChatStore.getState().getActualMessageId(message)}
-          reactionsDisabled={false}
-          actionsDisabled={false}
-          messagePosition={menuPosition}
-        />
       )}
     </View>
-  );
+
+    {/* Summary for many files */}
+    {attachments.length > 5 && (
+      <View style={styles.summary}>
+        <Text style={styles.summaryText}>
+          {attachments.length} files total {getFileTypesSummary()}
+        </Text>
+      </View>
+    )}
+
+    {/* Download Progress Modal */}
+    <DownloadProgressModal
+      visible={showProgress}                       
+      fileName={fileName || ''}                           
+      progress={progress?.progress || 0}                    
+      totalBytes={progress?.totalBytesExpectedToWrite}       
+      downloadedBytes={progress?.totalBytesWritten} 
+      onCancel={cancelDownload}
+    />
+
+    {/* Reaction Menu */}
+    {showReactionMenu && message && currentUser && (
+      <ReactionMenuNative
+        visible={showReactionMenu}
+        onClose={() => setShowReactionMenu(false)}
+        onReactionSelect={handleReactionSelect}
+        quickActions={getQuickActions()}
+        existingReactions={message.reactions || []}
+        userId={currentUser.id || 0}
+        message={message}
+        actualMessageId={useChatStore.getState().getActualMessageId(message)}
+        reactionsDisabled={false}
+        actionsDisabled={false}
+        messagePosition={menuPosition}
+      />
+    )}
+  </View>
+);
 }
 
 const styles = StyleSheet.create({
-  // 🔧 FIX: Nye wrapper styles for tett layout
   attachmentsWrapper: {
-    // Hovedcontainer - ingen ekstra spacing
+    // Hovedcontainer
   },
   attachmentsContent: {
-    // Innholdscontainer - tilpasser seg innhold
     alignSelf: 'flex-start',
     width: '100%',
   },
@@ -419,6 +388,10 @@ const styles = StyleSheet.create({
     gap: 8,
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  attachmentViewerContainer: {
+    // Styling for the new AttachmentViewer component
+    marginTop: 4,
   },
   summary: {
     marginTop: 8,

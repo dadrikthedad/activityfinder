@@ -27,6 +27,7 @@ import { MessageSettingsModalNative } from '@/components/messages/MessageSetting
 import { ConversationScreenNavigationProp, ConversationScreenRouteProp } from '@/types/navigation';
 import { useSearchMessages } from '@/hooks/messages/useSearchMessages';
 import { useModal } from '@/context/ModalContext';
+import { backgroundDecryptionManager } from '@/features/cryptoAttachments/BackgroundDecrypt/BackgroundDecryptionManager';
 
 interface MessageListRef {
   scrollToBottom: () => void;
@@ -142,6 +143,46 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
     }
   }
 }, [conversationId, pending]);
+
+  // Legg til useEffect for background decryption etter conversationId useEffect
+  useEffect(() => {
+    if (conversationId && currentUser?.id && currentConversation) {
+      // Set current user for background manager
+      backgroundDecryptionManager.setCurrentUser(currentUser.id);
+      
+      // Get all attachments from conversation messages
+      const liveMessages = useChatStore.getState().liveMessages[conversationId] || [];
+      const cachedMessages = useChatStore.getState().cachedMessages[conversationId] || [];
+      const allMessages = [...cachedMessages, ...liveMessages];
+      
+      // Extract all attachments that need decryption
+      const allAttachments = allMessages
+        .flatMap(message => message.attachments || [])
+        .filter(attachment => attachment.needsDecryption);
+      
+      if (allAttachments.length > 0) {
+        console.log(`📦 BACKGROUND: Starting background decryption for ${allAttachments.length} attachments in conversation ${conversationId}`);
+        
+        backgroundDecryptionManager.addConversationAttachments(
+          allAttachments,
+          conversationId,
+          'low', // Low priority since this is background preloading
+          false 
+        );
+      }
+    }
+  }, [conversationId, currentUser?.id, currentConversation]);
+
+  // Cleanup background manager når vi forlater samtalen
+  useEffect(() => {
+    return () => {
+      if (conversationId) {
+        // Clear any remaining queue items for this conversation when leaving
+        console.log(`📦 BACKGROUND: Cleaning up background queue for conversation ${conversationId}`);
+        // Du kan implementere removeConversationFromQueue metode i manager hvis ønskelig
+      }
+    };
+  }, [conversationId]);
 
   // Clear draft when conversation error occurs
   useEffect(() => {

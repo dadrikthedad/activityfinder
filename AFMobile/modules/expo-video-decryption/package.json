@@ -1,0 +1,20 @@
+{
+  "name": "expo-video-decryption",
+  "version": "1.0.0",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "expo-module build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["expo", "react-native", "video", "decryption"],
+  "author": "",
+  "license": "MIT",
+  "description": "Video decryption module for Expo",
+  "devDependencies": {
+    "expo-module-scripts": "^3.5.2"
+  },
+  "peerDependencies": {
+    "expo": "*"
+  }
+}

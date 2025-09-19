@@ -185,17 +185,15 @@ export const useDecryptionStore = create<DecryptionStore>((set, get) => ({
   },
   
   completeDecryption: (fileUrl: string, decryptedUrl: string) => {
-  console.log(`BANAN STORE: Saving key: ${fileUrl} -> ${decryptedUrl}`);
-  
-  get().updateDecryptionState(fileUrl, {
-    isLoading: false,
-    progress: 100,
-    status: 'complete',
-    decryptedUrl,
-    error: null,
-    estimatedTimeRemaining: 0
-  });
-},
+    get().updateDecryptionState(fileUrl, {
+      isLoading: false,
+      progress: 100,
+      status: 'complete',
+      decryptedUrl,
+      error: null,
+      estimatedTimeRemaining: 0
+    });
+  },
   
   failDecryption: (fileUrl: string, error: string) => {
     get().updateDecryptionState(fileUrl, {

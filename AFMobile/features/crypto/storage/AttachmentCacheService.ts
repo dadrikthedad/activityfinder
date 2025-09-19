@@ -1,5 +1,6 @@
 // features/cryptoAttachments/services/AttachmentCacheService.ts
 import * as FileSystem from 'expo-file-system';
+import { generateCacheKey } from './utils/cacheKeyUtils';
 
 export interface CachedAttachment {
   localPath: string;
@@ -43,16 +44,6 @@ export class AttachmentCacheService {
   }
 
   /**
-   * Generer cache-nøkkel fra attachment URL
-   */
-  private generateCacheKey(attachmentUrl: string): string {
-    // Bruk URL som basis for cache key, men sanitize den
-    const urlParts = attachmentUrl.split('/');
-    const fileName = urlParts[urlParts.length - 1] || 'unknown';
-    return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  }
-
-  /**
    * Generer lokal filpath for caching
    */
   private generateLocalPath(attachmentUrl: string, originalFileName: string): string {
@@ -71,7 +62,7 @@ export class AttachmentCacheService {
     originalFileName: string
   ): Promise<string | null> {
     try {
-      const cacheKey = this.generateCacheKey(attachmentUrl);
+      const cacheKey = generateCacheKey(attachmentUrl);
       const localPath = this.generateLocalPath(attachmentUrl, originalFileName);
       
       // Sjekk om vi har plass i cache
@@ -117,7 +108,7 @@ export class AttachmentCacheService {
    * Hent cached attachment hvis tilgjengelig
    */
   async getCachedAttachment(attachmentUrl: string): Promise<string | null> {
-    const cacheKey = this.generateCacheKey(attachmentUrl);
+    const cacheKey = generateCacheKey(attachmentUrl);
     const cached = this.cache.get(cacheKey);
     
     if (!cached) {
