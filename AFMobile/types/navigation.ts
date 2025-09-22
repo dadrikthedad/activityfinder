@@ -3,6 +3,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RNFile } from '@/utils/files/FileFunctions';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
+import { AttachmentDto } from '@shared/types/MessageDTO';
 
 // Define all your app screens and their parameters here
 export type RootStackParamList = {
@@ -21,6 +22,7 @@ export type RootStackParamList = {
   };// Added with optional conversationId param
   MediaViewer: {
     files: RNFile[];
+    attachments?: AttachmentDto[]; 
     initialIndex: number;
     viewerOptions?: {
       showDownload?: boolean;

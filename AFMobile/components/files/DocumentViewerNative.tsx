@@ -1,4 +1,4 @@
-// components/common/DocumentViewerNative.tsx - Fixed Text Component Error
+// components/common/DocumentViewerNative.tsx - With navigation support
 import React, { useState, useEffect } from 'react';
 import { 
   Modal, 
@@ -24,6 +24,11 @@ interface DocumentViewerContentProps {
   onShare?: (file: RNFile) => void;
   onDownload?: (file: RNFile) => void;
   useModal?: boolean;
+  // Navigation props
+  showNavigation?: boolean;
+  currentIndex?: number;
+  totalFiles?: number;
+  onNavigate?: (direction: 'prev' | 'next') => void;
 }
 
 interface DocumentViewerNativeProps extends DocumentViewerContentProps {
@@ -80,7 +85,12 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   onClose,
   onShare,
   onDownload,
-  useModal = true
+  useModal = true,
+  // Navigation props
+  showNavigation = false,
+  currentIndex,
+  totalFiles,
+  onNavigate
 }) => {
   const [fileContent, setFileContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -209,7 +219,6 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
   };
 
   const getSyntaxHighlighting = (content: string, fileName: string): React.ReactNode => {
-    // 🔧 FIX: Ensure content is not empty
     if (!content || content.trim() === '') {
       return <Text style={styles.textContent}>No content available</Text>;
     }
@@ -240,6 +249,7 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
       {/* Header */}
       <ViewerHeaderNative
         title={decodeURIComponent(file.name)}
+        subtitle={showNavigation && currentIndex !== undefined && totalFiles ? `${currentIndex + 1} of ${totalFiles}` : undefined}
         onClose={onClose}
         onDownload={onDownload ? handleDownload : undefined}
         onShare={onShare ? handleShare : undefined}
@@ -249,6 +259,25 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
         isDownloading={isDownloading}
         theme="light"
       />
+
+      {/* Navigation arrows */}
+      {showNavigation && onNavigate && totalFiles && totalFiles > 1 && (
+        <>
+          <TouchableOpacity
+            style={[styles.navButton, styles.navLeft]}
+            onPress={() => onNavigate('prev')}
+          >
+            <Text style={styles.navText}>‹</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.navButton, styles.navRight]}
+            onPress={() => onNavigate('next')}
+          >
+            <Text style={styles.navText}>›</Text>
+          </TouchableOpacity>
+        </>
+      )}
 
       {/* Content Container */}
       <View style={useModal ? styles.modalContent : styles.screenContent}>
@@ -266,7 +295,6 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
             <Text style={styles.fileType}>{fileExtension}</Text>
           </View>
           
-          {/* 🔧 FIX: Change from && to ternary operator */}
           {!canShow ? (
             <Text style={styles.message}>
               This {fileExtension} file cannot be previewed. Tap "Open" to view it in another app.
@@ -281,10 +309,10 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
           </View>
         </View>
         
-        {/* 🔧 FIX: File content with proper conditional rendering */}
+        {/* File content with proper conditional rendering */}
         {canShow ? (
           <View style={styles.contentContainer}>
-            {/* 🔧 FIX: Loading state */}
+            {/* Loading state */}
             {loading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color={getColorByCategory()} />
@@ -292,12 +320,12 @@ const DocumentViewerContent: React.FC<DocumentViewerContentProps> = ({
               </View>
             ) : null}
             
-            {/* 🔧 FIX: Error state */}
+            {/* Error state */}
             {error ? (
               <Text style={styles.errorText}>{error}</Text>
             ) : null}
             
-            {/* 🔧 FIX: Content display */}
+            {/* Content display */}
             {!loading && !error && fileContent ? (
               <ScrollView 
                 style={styles.fileContentScrollView} 
@@ -329,7 +357,11 @@ export default function DocumentViewerNative({
   file,
   onClose,
   onShare,
-  onDownload
+  onDownload,
+  showNavigation,
+  currentIndex,
+  totalFiles,
+  onNavigate
 }: DocumentViewerNativeProps) {
   return (
     <Modal 
@@ -346,6 +378,10 @@ export default function DocumentViewerNative({
         onShare={onShare}
         onDownload={onDownload}
         useModal={true}
+        showNavigation={showNavigation}
+        currentIndex={currentIndex}
+        totalFiles={totalFiles}
+        onNavigate={onNavigate}
       />
     </Modal>
   );
@@ -501,5 +537,29 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Navigation button styles
+  navButton: {
+    position: 'absolute',
+    top: '50%',
+    width: 50,
+    height: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -25,
+    zIndex: 100,
+  },
+  navLeft: {
+    left: 16,
+  },
+  navRight: {
+    right: 16,
+  },
+  navText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
   },
 });

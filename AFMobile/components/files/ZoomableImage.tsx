@@ -17,6 +17,7 @@ type Props = {
   maxScale?: number;
   onSingleTap?: () => void;
   onZoomChange?: (zoomed: boolean) => void;
+  simultaneousGesture?: any; 
 };
 
 const ZoomableImage: React.FC<Props> = ({
@@ -27,6 +28,7 @@ const ZoomableImage: React.FC<Props> = ({
   maxScale = 5,
   onSingleTap,
   onZoomChange,
+  simultaneousGesture
 }) => {
   const scale = useSharedValue(1);
   const savedScale = useSharedValue(1);
@@ -159,9 +161,12 @@ const ZoomableImage: React.FC<Props> = ({
 
   // RIKTIG gesture prioritering - Race istedenfor Exclusive
   const composed = Gesture.Race(
-    doubleTap, // Høyeste prioritet
-    Gesture.Simultaneous(pinch, pan), // Kan skje samtidig
-    singleTap // Laveste prioritet
+    doubleTap,
+    Gesture.Simultaneous(
+      pinch, 
+      pan.simultaneousWithExternalGesture(simultaneousGesture || Gesture.Manual()) // Tillat samtidig med parent
+    ),
+    singleTap
   );
 
   // Reset når URI endres

@@ -40,7 +40,14 @@
       }
     },
     "plugins": [
-      "expo-video"
+      "expo-video",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "AFMobile needs access to your photos to save downloaded images and videos to your gallery",
+          "savePhotosPermission": "AFMobile wants to save downloaded files to your photo library"
+        }
+      ]
     ]
   }
 }

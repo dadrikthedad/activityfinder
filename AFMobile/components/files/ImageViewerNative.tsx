@@ -1,5 +1,5 @@
-// components/common/ImageViewerNative.tsx - Modal-agnostic
-import React, { useState, useEffect } from "react";
+// components/common/ImageViewerNative.tsx - Optimalisert versjon
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   Modal, 
   View, 
@@ -24,30 +24,43 @@ interface ImageViewerContentProps {
   onClose: () => void;
   onDownload?: (file: RNFile) => void;
   onShare?: (file: RNFile) => void;
-  useModal?: boolean; // NEW: Control whether to lock orientation
+  useModal?: boolean;
+  onIndexChange?: (newIndex: number) => void;
+  simultaneousGesture?: any;
+  dimensions?: { width: number; height: number };
 }
 
-interface ImageViewerNativeProps extends ImageViewerContentProps {
+interface ImageViewerNativeProps extends Omit<ImageViewerContentProps, 'useModal' | 'onIndexChange'> {
   visible: boolean;
+  onIndexChange?: (newIndex: number) => void;
+  simultaneousGesture?: any;
 }
 
-// Core content component - can be used in Modal or Screen
+// Core content component - optimalisert for å unngå re-renders
 const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
   images,
   initialIndex = 0,
   onClose,
   onDownload,
   onShare,
-  useModal = true // Default to Modal behavior for backwards compatibility
+  useModal = true,
+  onIndexChange,
+  simultaneousGesture,
+  dimensions: propDimensions
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [showControls, setShowControls] = useState(true);
   const [isZoomed, setIsZoomed] = useState(false);
-  const [dimensions, setDimensions] = useState(() => {
+  
+  // Stable dimensions - bruk propDimensions hvis tilgjengelig
+  const stableDimensions = useMemo(() => {
+    if (propDimensions) {
+      return propDimensions;
+    }
+    // Fallback til skjermdimensjoner, men ikke oppdater automatisk
     const { width, height } = Dimensions.get('window');
     return { width, height };
-  });
-  
+  }, [propDimensions?.width, propDimensions?.height]);
 
   const { GestureHandlerRootView } = GestureHandler;
   
@@ -56,53 +69,41 @@ const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
   const currentImage = images[currentIndex];
   const hasMultiple = images.length > 1;
 
-  // Orientation handling - only for Modal usage
-  useEffect(() => {
-    if (useModal) {
-      // Unlock rotation when viewer opens (Modal behavior)
-      ScreenOrientation.unlockAsync();
-      
-      // Listen to orientation changes
-      const subscription = ScreenOrientation.addOrientationChangeListener(() => {
-        const { width, height } = Dimensions.get('window');
-        setDimensions({ width, height });
-      });
+  // Helper function to update index and notify parent
+  const updateIndex = useCallback((newIndex: number) => {
+    setCurrentIndex(newIndex);
+    onIndexChange?.(newIndex);
+  }, [onIndexChange]);
 
-      return () => subscription?.remove();
-    } else {
-      // For Screen usage, just listen to dimension changes
-      const subscription = Dimensions.addEventListener('change', ({ window }) => {
-        setDimensions({ width: window.width, height: window.height });
-      });
+  // FJERNET: Orientasjonshåndtering fra denne komponenten
+  // Dette skal håndteres av parent-komponenten (MediaViewerScreen)
 
-      return () => subscription?.remove();
-    }
-  }, [useModal]);
-
-  const goToNext = () => {
+  const goToNext = useCallback(() => {
     if (hasMultiple && !isZoomed) {
-      setCurrentIndex((prev) => (prev + 1) % images.length);
+      const newIndex = (currentIndex + 1) % images.length;
+      updateIndex(newIndex);
     }
-  };
+  }, [hasMultiple, isZoomed, currentIndex, images.length, updateIndex]);
 
-  const goToPrevious = () => {
+  const goToPrevious = useCallback(() => {
     if (hasMultiple && !isZoomed) {
-      setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+      const newIndex = (currentIndex - 1 + images.length) % images.length;
+      updateIndex(newIndex);
     }
-  };
+  }, [hasMultiple, isZoomed, currentIndex, images.length, updateIndex]);
 
   // Toggle controls visibility
-  const handleScreenTap = () => {
+  const handleScreenTap = useCallback(() => {
     setShowControls(!showControls);
-  };
+  }, [showControls]);
 
-  // Handle zoom state changes
-  const handleZoomChange = (zoomed: boolean) => {
+  // Handle zoom state changes - stable callback
+  const handleZoomChange = useCallback((zoomed: boolean) => {
     setIsZoomed(zoomed);
-  };
+  }, []);
 
   // Handle close with orientation locking for Modal
-  const handleClose = async () => {
+  const handleClose = useCallback(async () => {
     if (useModal) {
       try {
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
@@ -111,7 +112,7 @@ const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
       }
     }
     onClose();
-  };
+  }, [useModal, onClose]);
 
   const content = (
     <View style={styles.container}>
@@ -122,12 +123,13 @@ const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
       <View style={styles.imageContainer}>
         <ZoomableImage
           uri={currentImage.uri}
-          width={dimensions.width}
-          height={dimensions.height}
+          width={stableDimensions.width}
+          height={stableDimensions.height}
           minScale={1}
           maxScale={5}
           onSingleTap={handleScreenTap}
           onZoomChange={handleZoomChange}
+          simultaneousGesture={simultaneousGesture} 
         />
       </View>
 
@@ -169,12 +171,12 @@ const ImageViewerContent: React.FC<ImageViewerContentProps> = ({
               <View style={styles.thumbnailContent}>
                 {images.map((image, index) => (
                   <TouchableOpacity
-                    key={index}
+                    key={`${image.uri}-${index}`} // Stable key
                     style={[
                       styles.thumbnail,
                       index === currentIndex && styles.thumbnailActive
                     ]}
-                    onPress={() => setCurrentIndex(index)}
+                    onPress={() => updateIndex(index)}
                   >
                     <Image
                       source={{ uri: image.uri }}
@@ -216,7 +218,9 @@ export default function ImageViewerNative({
   initialIndex = 0,
   onClose,
   onDownload,
-  onShare
+  onShare,
+  onIndexChange,
+  simultaneousGesture
 }: ImageViewerNativeProps) {
   return (
     <Modal
@@ -234,6 +238,8 @@ export default function ImageViewerNative({
         onDownload={onDownload}
         onShare={onShare}
         useModal={true}
+        onIndexChange={onIndexChange}
+        simultaneousGesture={simultaneousGesture} 
       />
     </Modal>
   );

@@ -7,6 +7,7 @@ import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManag
 import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
 import { CryptoService } from '@/components/ende-til-ende/CryptoService';
 
+
 interface QueueItem {
   id: string;
   attachment: AttachmentDto;
@@ -241,7 +242,7 @@ export class BackgroundDecryptionManager {
     const needDecryption = needDecryptionResults.filter(Boolean) as AttachmentDto[];
 
     // Prioritize based on file type and size
-    const sortedAttachments = this.sortAttachmentsByPriority(needDecryption);
+    const sortedAttachments = needDecryption;
 
     console.log(`📦 BACKGROUND: Adding ${sortedAttachments.length} attachments from conversation ${conversationId} (videos ${includeVideos ? 'included' : 'excluded'})`);
     
@@ -354,12 +355,19 @@ export class BackgroundDecryptionManager {
       const result = await this.currentDecryptionPromise;
 
       if (result?.fileUrl) {
+        const cacheKey = generateCacheKey(attachment.fileUrl);
+        
+        // Use the existing completeDecryption method
+        useDecryptionStore.getState().completeDecryption(cacheKey, result.fileUrl);
+        
+        console.log(`🔐 BACKGROUND: Updated Zustand store for ${attachment.fileName}`);
+        
         return {
           success: true,
           fileUrl: result.fileUrl,
           fileSize: result.fileSize
         };
-      } else {
+    } else {
         return {
           success: false,
           error: 'No file URL returned from decryption'
@@ -384,32 +392,6 @@ export class BackgroundDecryptionManager {
     } catch {
       return false;
     }
-  }
-
-  /**
-   * Sort attachments by decryption priority
-   */
-  private sortAttachmentsByPriority(attachments: AttachmentDto[]): AttachmentDto[] {
-    return attachments.sort((a, b) => {
-      // Images first, then documents, then videos
-      const getTypePriority = (att: AttachmentDto) => {
-        if (att.fileType.startsWith('image/')) return 1;
-        if (att.fileType.startsWith('application/')) return 2;
-        if (att.fileType.startsWith('video/')) return 3;
-        return 4;
-      };
-      
-      const typeA = getTypePriority(a);
-      const typeB = getTypePriority(b);
-      
-      // Different file types - use type priority
-      if (typeA !== typeB) return typeA - typeB;
-      
-      // Same file type - prioritize smaller files
-      const sizeA = a.fileSize || 0;
-      const sizeB = b.fileSize || 0;
-      return sizeA - sizeB;
-    });
   }
 
   /**

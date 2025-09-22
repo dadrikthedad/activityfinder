@@ -118,8 +118,16 @@ export class BackgroundAttachmentDecryptionService {
 
           console.log(`🔐 BACKGROUND: ✅ File stored at: ${storedPath}`);
 
+          // RETT KODE: Bruk completeDecryption i stedet for setDecrypted
+          const { useDecryptionStore } = await import('@/features/crypto/store/useDecryptionStore');
+          const cacheKey = generateCacheKey(encryptedAttachment.encryptedFileUrl);
+          
+          // Marker filen som dekryptert i store
+          useDecryptionStore.getState().completeDecryption(cacheKey, storedPath);
+          console.log(`🔐 BACKGROUND: Updated Zustand store for ${encryptedAttachment.fileName}`);
+
           return {
-            fileUrl: storedPath, // Return actual file path, not data URI
+            fileUrl: storedPath,
             fileType: encryptedAttachment.fileType,
             fileName: encryptedAttachment.fileName,
             fileSize: decryptedBuffer.byteLength,

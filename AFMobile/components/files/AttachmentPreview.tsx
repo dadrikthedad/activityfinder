@@ -358,20 +358,6 @@ useEffect(() => {
     (isImage || isVideo)
   );
 
-  console.log('DEBUG AttachmentPreview:', {
-  fileName: normalizedData.fileName,
-  fileUrl: normalizedData.fileUrl,
-  cacheKey,
-  needsDecryption: normalizedData.needsDecryption,
-  isDecryptingFromStore,
-  decryptionProgress,
-  decryptionStatus,
-  showFileDecryptionLoading,
-  showUploadStatus,
-  isVideo,
-  displayUri: !!displayUri
-});
-
   return (
     <TouchableOpacity
       ref={attachmentRef}

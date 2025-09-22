@@ -146,32 +146,52 @@ export default function ConversationScreen({ route, navigation }: ConversationSc
 
   // Legg til useEffect for background decryption etter conversationId useEffect
   useEffect(() => {
-    if (conversationId && currentUser?.id && currentConversation) {
-      // Set current user for background manager
-      backgroundDecryptionManager.setCurrentUser(currentUser.id);
-      
-      // Get all attachments from conversation messages
-      const liveMessages = useChatStore.getState().liveMessages[conversationId] || [];
-      const cachedMessages = useChatStore.getState().cachedMessages[conversationId] || [];
-      const allMessages = [...cachedMessages, ...liveMessages];
-      
-      // Extract all attachments that need decryption
-      const allAttachments = allMessages
-        .flatMap(message => message.attachments || [])
-        .filter(attachment => attachment.needsDecryption);
-      
-      if (allAttachments.length > 0) {
-        console.log(`📦 BACKGROUND: Starting background decryption for ${allAttachments.length} attachments in conversation ${conversationId}`);
-        
-        backgroundDecryptionManager.addConversationAttachments(
-          allAttachments,
-          conversationId,
-          'low', // Low priority since this is background preloading
-          false 
-        );
-      }
+  if (conversationId && currentUser?.id && currentConversation) {
+    backgroundDecryptionManager.setCurrentUser(currentUser.id);
+    
+    const liveMessages = useChatStore.getState().liveMessages[conversationId] || [];
+    const cachedMessages = useChatStore.getState().cachedMessages[conversationId] || [];
+    
+    // 🐛 DEBUG: Log message order
+    console.log('📊 CACHED MESSAGES:', cachedMessages.map(m => ({ 
+      id: m.id, 
+      sentAt: m.sentAt, 
+      attachmentCount: m.attachments?.length || 0 
+    })));
+    
+    console.log('📊 LIVE MESSAGES:', liveMessages.map(m => ({ 
+      id: m.id, 
+      sentAt: m.sentAt, 
+      attachmentCount: m.attachments?.length || 0 
+    })));
+    
+    const allMessages = [...cachedMessages, ...liveMessages]
+      .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+    
+    // 🐛 DEBUG: Log final order
+    console.log('📊 FINAL MESSAGE ORDER:', allMessages.map(m => ({ 
+      id: m.id, 
+      sentAt: m.sentAt, 
+      attachmentCount: m.attachments?.length || 0 
+    })));
+    
+    const allAttachments = allMessages
+      .flatMap(message => message.attachments || [])
+      .filter(attachment => attachment.needsDecryption);
+    
+    // 🐛 DEBUG: Log attachment order
+    console.log('📊 ATTACHMENT ORDER:', allAttachments.map(att => att.fileName));
+    
+    if (allAttachments.length > 0) {
+      backgroundDecryptionManager.addConversationAttachments(
+        allAttachments,
+        conversationId,
+        'low',
+        false 
+      );
     }
-  }, [conversationId, currentUser?.id, currentConversation]);
+  }
+}, [conversationId, currentUser?.id, currentConversation]);
 
   // Cleanup background manager når vi forlater samtalen
   useEffect(() => {

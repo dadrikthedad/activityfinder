@@ -15,6 +15,7 @@ import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
 import { showNotificationToastNative, LocalToastType } from '@/components/toast/NotificationToastNative';
 import { BackgroundAttachmentDecryptionService } from '../../BackgroundDecrypt/BackgrundAttachmentDecryptionService';
 import { useCurrentUser } from '@/store/useUserCacheStore';
+import { backgroundDecryptionManager } from '../../BackgroundDecrypt/BackgroundDecryptionManager';
 
 
 // Import separated services
@@ -206,26 +207,41 @@ const openFile = React.useCallback(async (index: number) => {
                 
                 // Only start decryption if file is not cached anywhere
                 if (strategy.immediate === 'lazy') {
-                  console.log('Fast decryption detected - navigating immediately with parallel decryption');
+                  console.log('Fast decryption detected - pausing background and starting immediate decryption');
                   
-                  // Pass cache info to avoid double-checking
-                  decryptFile(attachment, true, { 
-                    cacheAlreadyChecked: true, 
-                    cacheKey: fileKey 
-                  }).catch(error => {
-                    console.error('Background decryption failed:', error);
-                  });
+                  // Pause background decryption to avoid conflicts
+                  await backgroundDecryptionManager.pauseProcessing();
                   
-                  // Navigate immediately to MediaViewer with isDecrypting flag
+                  try {
+                    // Start immediate decryption
+                    const decryptedUrl = await decryptFile(attachment, true, { 
+                      cacheAlreadyChecked: true, 
+                      cacheKey: fileKey 
+                    });
+                    
+                    if (decryptedUrl) {
+                      // Update files with decrypted URL
+                      fileToOpen = { ...fileToOpen, uri: decryptedUrl };
+                      allFilesToOpen = normalizedFiles.map((file, idx) => 
+                        idx === index ? fileToOpen : file
+                      );
+                    }
+                    
+                    // Resume background processing
+                    backgroundDecryptionManager.resumeProcessing();
+                    
+                  } catch (error) {
+                    console.error('Immediate decryption failed:', error);
+                    // Resume background processing even on error
+                    backgroundDecryptionManager.resumeProcessing();
+                  }
+                  
+                  // Navigate with the resolved file
                   navigation.navigate('MediaViewer', {
                     files: allFilesToOpen,
+                    attachments,
                     initialIndex: index,
-                    viewerOptions: {
-                      ...viewerOptions,
-                      isDecrypting: true,
-                      decryptingFileUrl: attachment.fileUrl,
-                      decryptingFileName: attachment.fileName
-                    },
+                    viewerOptions,
                   });
                   return;
                 }
@@ -282,6 +298,7 @@ const openFile = React.useCallback(async (index: number) => {
                   
                   navigation.navigate('MediaViewer', {
                     files: allFilesToOpen,
+                    attachments,
                     initialIndex: index,
                     viewerOptions: {
                       ...viewerOptions,
@@ -358,6 +375,7 @@ const openFile = React.useCallback(async (index: number) => {
   if (fileInfo.category === 'image' || fileInfo.category === 'video') {
     navigation.navigate('MediaViewer', {
       files: allFilesToOpen,
+      attachments,
       initialIndex: index,
       viewerOptions,
     });
@@ -365,69 +383,39 @@ const openFile = React.useCallback(async (index: number) => {
   }
   
   // 2. Documents that CAN be viewed inline → MediaViewer (will use DocumentViewer inside)
-  if (canViewInline(fileToOpen)) {
-    console.log('Opening DocumentViewer for previewable file:', {
-      name: fileToOpen.name,
-      type: fileToOpen.type,
-      category: fileInfo.category,
-      canPreview: true,
-      uri: fileToOpen.uri
-    });
-    
-    navigation.navigate('MediaViewer', {
-      files: allFilesToOpen,
-      initialIndex: index,
-    });
-    return;
-  }
-  
-  // 3. Documents that CANNOT be viewed inline → Native app directly
-  console.log('Opening file with native app (not previewable):', {
+  if (fileInfo.category === 'pdf' || 
+    fileInfo.category === 'document' || 
+    fileInfo.category === 'spreadsheet' || 
+    fileInfo.category === 'presentation' || 
+    fileInfo.category === 'code' ||
+    fileInfo.category === 'data' ||
+    fileInfo.category === 'config' ||
+    fileInfo.category === 'other') {
+  console.log('Opening DocumentViewer for ALL documents:', {
     name: fileToOpen.name,
     type: fileToOpen.type,
     category: fileInfo.category,
-    canPreview: false,
     uri: fileToOpen.uri
   });
   
-  try {
-    const confirmModal = {
-      confirm: async (options: { title?: string; message: string }) => {
-        return new Promise<boolean>((resolve) => {
-          Alert.alert(
-            options.title || 'Open File',
-            options.message,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Open', onPress: () => resolve(true) }
-            ]
-          );
-        });
-      }
-    };
-    
-    const { openFileWithNativeApp } = await import('@/components/files/FileHandlerNative');
-    await openFileWithNativeApp(fileToOpen.uri, fileToOpen.name, confirmModal);
-  } catch (error) {
-    console.error('Failed to open file with native app:', error);
-    
-    Alert.alert(
-      'Cannot Open File',
-      'This file type cannot be opened directly. Would you like to try viewing it in the app?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Try Viewing', 
-          onPress: () => {
-            navigation.navigate('MediaViewer', {
-              files: allFilesToOpen,
-              initialIndex: index,
-            });
-          }
-        }
-      ]
-    );
-  }
+  navigation.navigate('MediaViewer', {
+    files: allFilesToOpen,
+    attachments,
+    initialIndex: index,
+    viewerOptions,
+  });
+  return;
+}
+
+// 3. Fallback for unknown file types → Try MediaViewer first
+console.log('Unknown file type, trying MediaViewer:', fileToOpen.name);
+navigation.navigate('MediaViewer', {
+  files: allFilesToOpen,
+  attachments,
+  initialIndex: index,
+  viewerOptions,
+});
+  
 }, [normalizedFiles, attachments, getStrategy, getDecryptedUrl, clearDecryptionState, decryptFile, canViewInline, viewerOptions, navigation]);
 
   // Utility method for batch file resolution (for gallery view)
