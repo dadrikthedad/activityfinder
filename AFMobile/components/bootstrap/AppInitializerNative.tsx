@@ -15,6 +15,7 @@ import { useSyncNative } from "@/hooks/sync/useSyncNative";
 import { handleUserSwitch } from '@/utils/signalr/chatHub';
 import authServiceNative from "@/services/user/authServiceNative";
 import { CryptoInitializer } from "../ende-til-ende/CryptoInitializer";
+import { useBackgroundImageDecryption } from "@/features/cryptoAttachments/BackgroundDecrypt/hooks/useBackgroundImageDecryption";
 
 export function AppInitializer() {
   const { userId } = useAuth();
@@ -24,7 +25,10 @@ export function AppInitializer() {
   const hasInitializedOnlineRef = useRef(false);
   const initializationStrategyRef = useRef<'none' | 'bootstrap' | 'sync'>('none');
   const isInitializingRef = useRef(false);
-  
+  const hasStartedBackgroundDecryptionRef = useRef(false);
+
+
+  const { startBackgroundDecryption } = useBackgroundImageDecryption();
   const { markCacheAsLoaded } = useBootstrapDistributor();
   
   // E2EE state for status checking
@@ -98,6 +102,7 @@ export function AppInitializer() {
         hasInitializedOnlineRef.current = false;
         initializationStrategyRef.current = 'none';
         isInitializingRef.current = false;
+        hasStartedBackgroundDecryptionRef.current = false;
 
         if (retryTimeoutRef.current) {
           clearTimeout(retryTimeoutRef.current);
@@ -310,6 +315,39 @@ export function AppInitializer() {
       console.log("🔐 BOOT: E2EE failed, continuing in limited mode");
     }
   };
+
+  useEffect(() => {
+  const shouldRunPostTasks = (
+    userId &&
+    isBootstrapped &&
+    isSyncInitialized &&
+    !criticalError &&
+    e2eeInitialized &&
+    initializationStrategyRef.current !== 'none' &&
+    !hasStartedBackgroundDecryptionRef.current // Legg til denne
+  );
+
+    if (shouldRunPostTasks) {
+      console.log("🎯 BOOT: All initialization complete, starting background image decryption");
+      
+      startBackgroundDecryption().then(result => {
+        if (result.success) {
+          console.log(`✅ Background decryption started: ${result.totalImagesQueued} images queued from ${result.conversationsProcessed} conversations`);
+        } else {
+          console.warn(`⚠️ Background decryption had issues: ${result.error}`);
+        }
+      }).catch(error => {
+        console.error('❌ Background decryption failed:', error);
+      });
+    }
+  }, [
+    userId, 
+    isBootstrapped, 
+    isSyncInitialized, 
+    criticalError, 
+    e2eeInitialized, 
+    startBackgroundDecryption
+  ]);
 
   // Debug logging
   useEffect(() => {

@@ -7,7 +7,7 @@ import { AttachmentDto } from '@shared/types/MessageDTO';
 import { RNFile, getFileTypeInfo } from '@/utils/files/FileFunctions';
 import { useChatStore } from '@/store/useChatStore';
 import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
-import { useLazyFileBackgroundDecryption } from '../../BackgroundDecrypt/useLazyFileBackgroundDecryption';
+import { useLazyFileBackgroundDecryption } from '../../BackgroundDecrypt/hooks/useLazyFileBackgroundDecryption';
 import { SmartDecryptionService } from '../../services/SmartDecryptionService';
 import { AttachmentCacheService } from '@/features/crypto/storage/AttachmentCacheService';
 import { RootStackNavigationProp } from '@/types/navigation';

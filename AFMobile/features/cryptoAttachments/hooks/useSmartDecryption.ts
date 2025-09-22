@@ -3,7 +3,7 @@ import { useCallback, useRef, useMemo } from 'react';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { SmartDecryptionService } from '../services/SmartDecryptionService';
 import { useLazyFileDecryption } from '@/features/cryptoAttachments/hooks/useLazyFileDecryption';
-import { useLazyFileBackgroundDecryption } from '../BackgroundDecrypt/useLazyFileBackgroundDecryption';
+import { useLazyFileBackgroundDecryption } from '../BackgroundDecrypt/hooks/useLazyFileBackgroundDecryption';
 
 interface SmartDecryptionOptions {
   returnDetails?: boolean; // If true, returns strategy details

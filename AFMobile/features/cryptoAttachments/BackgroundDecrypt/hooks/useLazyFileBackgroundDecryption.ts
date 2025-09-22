@@ -1,6 +1,6 @@
 // features/cryptoAttachments/hooks/useLazyFileBackgroundDecryption.ts
 import { useCallback, useRef } from 'react';
-import { BackgroundAttachmentDecryptionService } from './BackgrundAttachmentDecryptionService';
+import { BackgroundAttachmentDecryptionService } from '../BackgrundAttachmentDecryptionService';
 import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManager';
 import { useCurrentUser } from '@/store/useUserCacheStore';
 import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
