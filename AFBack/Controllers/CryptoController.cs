@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using AFBack.DTOs.Crypto;
+using AFBack.Extensions;
 using AFBack.Services.Crypto;
+using Azure.Security.KeyVault.Secrets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,11 +15,13 @@ namespace AFBack.Controllers
     {
         private readonly E2EEService _e2eeService;
         private readonly ILogger<E2EEController> _logger;
+        private readonly SecretClient _secretClient;
 
-        public E2EEController(E2EEService e2eeService, ILogger<E2EEController> logger)
+        public E2EEController(E2EEService e2eeService, ILogger<E2EEController> logger, SecretClient secretClient)
         {
             _e2eeService = e2eeService;
             _logger = logger;
+            _secretClient = secretClient;
         }
 
         /// <summary>
@@ -137,6 +141,63 @@ namespace AFBack.Controllers
             {
                 _logger.LogError(ex, "Error getting user's public key");
                 return StatusCode(500, "Internal server error");
+            }
+        }
+
+        [HttpPost("secret-key")]
+        public async Task<IActionResult> SetSecret([FromBody] SecretKeyPhraseDTO dto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                    return BadRequest(ModelState);
+                
+                var userId = GetUserId();
+                if (!userId.HasValue)
+                    return Unauthorized("User Id not found");
+
+                var deviceId = HttpContext.GetDeviceId();
+                var timestamp = DateTime.UtcNow;
+
+                if (string.IsNullOrEmpty(deviceId))
+                    return BadRequest("DeviceId not found");
+                
+                string secretName = $"user-{userId.Value}-{timestamp:yyyyMMddHHmmss}";
+
+                _logger.LogInformation($"Storing recovery seed for user {userId} with device {deviceId}");
+
+                var secret = new KeyVaultSecret(secretName, dto.Key)
+                {
+                    Properties =
+                    {
+                        Tags =
+                        {
+                            ["userId"] = userId.Value.ToString(),
+                            ["device"] = deviceId,
+                            ["createdAt"] = timestamp.ToString("O"),
+                            ["version"] = timestamp.Ticks.ToString()
+                        },
+                        ContentType = "recovery-seed"
+                    }
+                };
+
+                await _secretClient.SetSecretAsync(secret);
+
+                _logger.LogInformation($"Recovery seed sent succesfully for user {userId}");
+
+                var respone = new SecretKeyResponseDTO
+                {
+                    Message = "Recovery seed stored successfully",
+                    UserId = userId.Value,
+                    DeviceId = deviceId,
+                };
+
+                return Ok(respone);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error Secret Key: {ex}");
+                return StatusCode(500, $"Error Secret Key: {ex}");
             }
         }
     }

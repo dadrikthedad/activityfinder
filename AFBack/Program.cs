@@ -27,6 +27,8 @@ using AFBack.Services.Crypto;
 using AFBack.Services.Maintenance.Tasks;
 using AFBack.Services.User;
 using AFBack.Utils;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.SignalR;
@@ -224,6 +226,7 @@ builder.Services.AddSignalR()
         options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+string keyVaultUrl = builder.Configuration["KeyVault:Url"];
 
 // Services jeg har opprettet. Til Authentisering og Notifications og Meldinger
 builder.Services.AddScoped<AuthService>();
@@ -254,6 +257,7 @@ builder.Services.Configure<IpBanOptions>(
     builder.Configuration.GetSection("IpBan"));
 builder.Services.AddSingleton<IpBanService>();
 builder.Services.AddHttpClient<GeolocationService>();
+builder.Services.AddSingleton(new SecretClient(new Uri(keyVaultUrl), new DefaultAzureCredential()));
 
 // Cleanup
 builder.Services.AddScoped<ICleanupTask, OnlineStatusCleanupTask>();
