@@ -14,16 +14,20 @@ namespace AFBack.Controllers;
 [Authorize]
 public class MessageNotificationsController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly GroupNotificationService _groupNotificationService;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<MessageNotificationsController> _logger;
 
-    public MessageNotificationsController(ApplicationDbContext context, MessageNotificationService notificationService, GroupNotificationService groupNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<MessageNotificationsController> logger)
+    public MessageNotificationsController(
+        ApplicationDbContext context, 
+        MessageNotificationService notificationService, 
+        GroupNotificationService groupNotificationService, 
+        IBackgroundTaskQueue taskQueue, 
+        IServiceScopeFactory scopeFactory, 
+        ILogger<MessageNotificationsController> logger) :  base(context)
     {
-        _context = context;
         _messageNotificationService = notificationService;
         _groupNotificationService = groupNotificationService;
         _taskQueue = taskQueue;

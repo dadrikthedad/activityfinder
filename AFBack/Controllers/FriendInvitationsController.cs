@@ -20,7 +20,6 @@ namespace AFBack.Controllers;
 [Authorize]
 public class FriendInvitationsController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
     private readonly IHubContext<UserHub> _hubContext;
     private readonly SendMessageCache       _msgCache;  
@@ -30,9 +29,14 @@ public class FriendInvitationsController : BaseController
     private readonly ILogger<FriendInvitationsController> _logger;
     
 
-    public FriendInvitationsController(ApplicationDbContext context, INotificationService notificationService, IHubContext<UserHub> hubContext,  SendMessageCache msgCache, FriendService friendService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<FriendInvitationsController> logger)
+    public FriendInvitationsController(ApplicationDbContext context, 
+        INotificationService notificationService, 
+        IHubContext<UserHub> hubContext,  
+        SendMessageCache msgCache, 
+        FriendService friendService, 
+        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<FriendInvitationsController> logger) :  base(context)
     {
-        _context = context;
+
         _notificationService = notificationService;
         _hubContext = hubContext;
         _msgCache            = msgCache;

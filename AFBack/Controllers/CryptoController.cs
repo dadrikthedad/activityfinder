@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using AFBack.Data;
+using AFBack.DTOs.Auth;
 using AFBack.DTOs.Crypto;
 using AFBack.Extensions;
 using AFBack.Services.Crypto;
@@ -17,7 +19,7 @@ namespace AFBack.Controllers
         private readonly ILogger<E2EEController> _logger;
         private readonly SecretClient _secretClient;
 
-        public E2EEController(E2EEService e2eeService, ILogger<E2EEController> logger, SecretClient secretClient)
+        public E2EEController(ApplicationDbContext context, E2EEService e2eeService, ILogger<E2EEController> logger, SecretClient secretClient) : base(context)
         {
             _e2eeService = e2eeService;
             _logger = logger;
@@ -200,29 +202,5 @@ namespace AFBack.Controllers
                 return StatusCode(500, $"Error Secret Key: {ex}");
             }
         }
-        
-        [AllowAnonymous]
-        [HttpPost("test-secret")]
-        public async Task<IActionResult> TestSecret([FromBody] TestDto dto)
-        {
-            try
-            {
-                _logger.LogInformation($"Storing recovery seed for user with device");
-                var secret = new KeyVaultSecret("bra", dto.Key);
-                await _secretClient.SetSecretAsync(secret);
-                _logger.LogInformation($"Recovery seed sent succesfully for user");
-                return Ok();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error Secret Key: {ex}");
-                return StatusCode(500, $"Error Secret Key: {ex}");
-            }
-        }
-    }
-
-    public class TestDto
-    {
-        public string Key { get; set; } = "Test10000000000000000000";
     }
 }

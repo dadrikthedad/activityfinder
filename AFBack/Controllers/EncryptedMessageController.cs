@@ -20,7 +20,6 @@ namespace AFBack.Controllers;
 [Authorize]
 public class EncryptedMessageController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly ILogger<FileController> _logger;
     private readonly BlobServiceClient _blobServiceClient;
     private readonly IHubContext<UserHub> _hubContext;
@@ -42,9 +41,8 @@ public class EncryptedMessageController : BaseController
         IMessageService messageService,
         IBackgroundTaskQueue taskQueue,
         IServiceScopeFactory scopeFactory,
-        E2EEService e2eeService)
+        E2EEService e2eeService) : base(context)
     {
-        _context = context;
         _logger = logger;
         _hubContext = hubContext;
         _blobServiceClient = blobServiceClient;

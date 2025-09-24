@@ -15,12 +15,10 @@ using System.Security.Claims;
 [Authorize] 
 public class NotificationController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly INotificationService _notificationService;
 
-    public NotificationController(ApplicationDbContext context, INotificationService notificationService)
+    public NotificationController(ApplicationDbContext context, INotificationService notificationService) :  base(context)
     {
-        _context = context;
         _notificationService = notificationService;
     }
     

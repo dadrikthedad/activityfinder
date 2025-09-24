@@ -10,14 +10,12 @@ namespace AFBack.Controllers;
 public class SupportController : BaseController
 {
     private readonly SupportService _supportService;
-    private readonly ApplicationDbContext _context;
     // Loggeren
     private readonly ILogger<SupportController> _logger;
         
-    public SupportController(ApplicationDbContext context, ILogger<SupportController> logger, SupportService supportService)
+    public SupportController(ApplicationDbContext context, ILogger<SupportController> logger, SupportService supportService) :  base(context)
     {
             _supportService = supportService;
-            _context = context;
             _logger = logger;
     }
 

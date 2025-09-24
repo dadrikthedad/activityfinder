@@ -20,15 +20,13 @@ public class ConversationsController : BaseController
     private readonly ConversationService _conversationService;
     private readonly IHubContext<UserHub> _hubContext;
     private readonly IMessageService _messageService;
-    private readonly ApplicationDbContext _context;
     private readonly SendMessageCache _msgCache;
 
-    public ConversationsController(ConversationService conversationService, IHubContext<UserHub> hubContext, IMessageService messageService, ApplicationDbContext context, SendMessageCache msgCache)
+    public ConversationsController(ConversationService conversationService, IHubContext<UserHub> hubContext, IMessageService messageService, ApplicationDbContext context, SendMessageCache msgCache) : base(context)
     {
         _conversationService = conversationService;
         _hubContext = hubContext;
         _messageService = messageService;
-        _context = context;
         _msgCache = msgCache;
     }
     // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat

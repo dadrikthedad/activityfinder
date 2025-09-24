@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AFBack.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using AFBack.DTOs;
@@ -20,10 +21,11 @@ namespace AFBack.Controllers
         private readonly ILogger<BootstrapController> _logger; // ✅ Legg til logger
 
         public BootstrapController(
+            ApplicationDbContext context, 
             BootstrapService bootstrapService, 
             UserOnlineService userOnlineService, 
             SyncService syncService,
-            ILogger<BootstrapController> logger) // ✅ Legg til i constructor
+            ILogger<BootstrapController> logger) : base(context) // ✅ Legg til i constructor
         {
             _bootstrapService = bootstrapService;
             _userOnlineService = userOnlineService;

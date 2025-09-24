@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +12,7 @@ public class ReactionController : BaseController
 {
     private readonly IReactionService _reactionService;
 
-    public ReactionController(IReactionService reactionService)
+    public ReactionController(ApplicationDbContext context, IReactionService reactionService) : base(context)
     {
         _reactionService = reactionService;
     }

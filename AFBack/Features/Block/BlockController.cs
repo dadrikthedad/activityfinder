@@ -18,7 +18,6 @@ namespace AFBack.Controllers;
 [Authorize]
 public class BlockController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly SendMessageCache _sendMessageCache;
@@ -27,9 +26,8 @@ public class BlockController : BaseController
         ApplicationDbContext context,
         IBackgroundTaskQueue taskQueue, 
         IServiceScopeFactory scopeFactory,
-        SendMessageCache sendMessageCache) 
+        SendMessageCache sendMessageCache) :  base(context)
     {
-        _context = context;
         _taskQueue = taskQueue; 
         _scopeFactory = scopeFactory;
         _sendMessageCache = sendMessageCache;

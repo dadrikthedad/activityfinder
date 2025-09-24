@@ -21,7 +21,6 @@ namespace AFBack.Controllers;
 [Authorize]
 public class FileController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly ILogger<FileController> _logger;
     private readonly BlobServiceClient _blobServiceClient;
     private readonly IHubContext<UserHub> _hubContext;
@@ -41,9 +40,8 @@ public class FileController : BaseController
         IFileService fileService, 
         IMessageService messageService, 
         IBackgroundTaskQueue taskQueue, 
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory) : base(context)
     {
-        _context = context;
         _logger = logger;
         _hubContext = hubContext;
         _blobServiceClient = blobServiceClient;

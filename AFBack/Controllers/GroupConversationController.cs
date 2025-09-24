@@ -18,7 +18,6 @@ namespace AFBack.Controllers;
 [Route("api/[controller]")]
 public class GroupConversationController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly SendMessageCache _msgCache;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -30,10 +29,18 @@ public class GroupConversationController : BaseController
 
 
 
-    public GroupConversationController(ApplicationDbContext context, ILogger<GroupConversationController> logger, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService, GroupNotificationService groupNotificationService, IMessageService messageService)
+    public GroupConversationController(
+        ApplicationDbContext context, 
+        ILogger<GroupConversationController> logger, 
+        SendMessageCache msgCache, 
+        IBackgroundTaskQueue taskQueue, 
+        IServiceScopeFactory scopeFactory, 
+        IHubContext<UserHub> hubContext, 
+        MessageNotificationService messageNotificationService, 
+        GroupNotificationService groupNotificationService, 
+        IMessageService messageService) :  base(context)
     {
         _logger = logger;
-        _context = context;
         _msgCache = msgCache;
         _taskQueue = taskQueue;
         _scopeFactory = scopeFactory;

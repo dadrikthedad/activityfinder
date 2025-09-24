@@ -26,10 +26,6 @@ using CountryData.Standard;
 [ApiController]
 public class UserController : BaseController
 {
-    
-   
-    // Egenskapen for å koble oss til databasen, settes kun engang i konstruktøren
-    private readonly ApplicationDbContext _context;
     // Loggeren
     private readonly ILogger<UserController> _logger;
     // Lager token og sjekker at passord og epost er riktig.
@@ -45,9 +41,8 @@ public class UserController : BaseController
 
     // Konstruktøren. Lagrer context som en variabel og countryHelperen som en variabel. Kommer fra CountryData.Standard. Loggeren og authService.
     public UserController(ApplicationDbContext context, ILogger<UserController> logger, AuthService authService, CountryService countryService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, EmailService emailService, UserService userService, EmailRateLimitService emailRateLimitService, IpBanService ipBanService,
-            GeolocationService geolocationService)
+            GeolocationService geolocationService) :base(context)
     {
-        _context = context;
         _countryService = countryService;
         _logger = logger;
         _authService = authService;
@@ -773,15 +768,6 @@ public class UserController : BaseController
 
         return Ok(new { message = "Gender updated." });
     }
-
-    private async Task<User?> GetUserFromClaims()
-    {
-        
-        if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return null;
-
-        return await _context.Users.FindAsync(userId);
-    }
     
     // Patch for securitycred sin endring av epost
     [HttpPatch("email")]
@@ -931,6 +917,25 @@ public class UserController : BaseController
             .ToListAsync();
 
         return Ok(results);
+    }
+    
+    [Authorize]
+    [HttpPost("verify-password")]
+    public async Task<IActionResult> VerifyPassword([FromBody] VerifyPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var user = await GetUserFromClaims();
+        if (user == null)
+            return Unauthorized("User not found.");
+            
+        if (!BCrypt.Verify(dto.Password, user.PasswordHash))
+        {
+            return Unauthorized("Password is incorrect.");
+        }
+
+        return Ok();
     }
     
 }

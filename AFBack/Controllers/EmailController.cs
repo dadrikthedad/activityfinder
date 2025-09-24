@@ -17,7 +17,6 @@ public class EmailController : BaseController
     private readonly UserService _userService;
     private readonly EmailRateLimitService _emailRateLimitService;
     private readonly ILogger<EmailController> _logger;
-    private readonly ApplicationDbContext _context;
     private readonly IpBanService _ipBanService;
 
     public EmailController(
@@ -26,9 +25,8 @@ public class EmailController : BaseController
         EmailRateLimitService emailRateLimitService,
         ILogger<EmailController> logger, 
         ApplicationDbContext context,
-        IpBanService ipBanService)
+        IpBanService ipBanService) : base(context)
     {
-        _context = context;
         _emailService = emailService;
         _userService = userService;
         _emailRateLimitService = emailRateLimitService;

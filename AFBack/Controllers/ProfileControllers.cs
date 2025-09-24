@@ -16,17 +16,15 @@ using Azure.Storage.Blobs.Models;
 [Route("api/profile")]
 [ApiController]
 [Authorize]
-public class ProfileController : ControllerBase
+public class ProfileController : BaseController
 {
-    private readonly ApplicationDbContext _context;
     private readonly ILogger<ProfileController> _logger;
     private readonly BlobServiceClient _blobServiceClient;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
 
-    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger, BlobServiceClient blobServiceClient, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
+    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger, BlobServiceClient blobServiceClient, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory) :  base(context)
     {
-        _context = context;
         _logger = logger;
         _blobServiceClient = blobServiceClient;
         _taskQueue = taskQueue;

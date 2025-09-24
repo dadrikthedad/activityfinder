@@ -20,16 +20,22 @@ public class MessagesController : BaseController
 {
     private readonly IMessageService _messageService;
     private readonly IFileService _fileService;
-    private readonly ApplicationDbContext _context;
     private readonly MessageNotificationService _messageNotificationService;
     private readonly IBackgroundTaskQueue _taskQueue;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly E2EEService _e2eeService;
     private readonly ILogger<MessagesController> _logger;
 
-    public MessagesController(ApplicationDbContext context, IMessageService messageService, IFileService fileService, MessageNotificationService messageNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, E2EEService e2eeService, ILogger<MessagesController> logger)
+    public MessagesController(
+        ApplicationDbContext context, 
+        IMessageService messageService, 
+        IFileService fileService, 
+        MessageNotificationService messageNotificationService, 
+        IBackgroundTaskQueue taskQueue, 
+        IServiceScopeFactory scopeFactory, 
+        E2EEService e2eeService, 
+        ILogger<MessagesController> logger) :  base(context)
     {
-        _context = context;
         _messageService = messageService;
         _taskQueue = taskQueue;
         _fileService = fileService;
