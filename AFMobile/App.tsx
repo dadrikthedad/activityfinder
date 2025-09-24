@@ -45,19 +45,15 @@ import ReportScreen from './screens/support/ReportScreen';
 import SecurityCredsScreen from './screens/profile/SecurityCredsScreen';
 import VerificationScreen from './screens/auth/VerificationScreen'
 import ResetPasswordScreen from './screens/auth/ResetPasswordScreen'
-import { TestScreen } from './screens/test/TestScreen';
+import CryptationScreen from './screens/auth/CryptationScreen';
+import { TestNavigator } from './screens/test/TestNavigation';
+
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 function AppContent() {
   useEffect(() => {
-    Logger.info('Application Insights initialized', {
-      platform: 'react-native',
-      appVersion: '1.0.0'
-    });
-
-    const polyfillStatus = initializePolyfills();
-    Logger.info('Polyfills initialized', polyfillStatus);
+    initializePolyfills(); // Kjør fortsatt polyfills, men logg ikke resultatet
   }, []);
 
 
@@ -256,7 +252,8 @@ function AuthenticatedApp() {
             />
             <Stack.Screen name="ReportScreen" component={ReportScreen} />
             <Stack.Screen name="SecurityCredsScreen" component={SecurityCredsScreen} />
-            <Stack.Screen name="TestScreen" component={TestScreen} />
+            <Stack.Screen name="TestNavigator" component={TestNavigator} />
+            <Stack.Screen name="CryptationScreen" component={CryptationScreen} />
           </>
         ) : (
           <>

@@ -101,6 +101,7 @@ export default function FormFieldNative({
         maxLength={maxLength}
         placeholderTextColor="#9ca3af"
         selectionColor="#1C6B1C"
+        
       />
       {showError && <Text style={styles.errorText}>{error}</Text>}
     </View>
@@ -116,6 +117,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#374151",
     marginBottom: 6,
+    textAlign: "center"
   },
   input: {
     height: 48,

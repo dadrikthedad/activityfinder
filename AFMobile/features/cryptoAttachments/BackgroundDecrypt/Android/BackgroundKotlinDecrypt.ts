@@ -7,6 +7,7 @@ export class BackgroundKotlinDecrypt {
   private activeDecryptions = new Map();
   private progressCallbacks = new Map();
   private initialized = false;
+  private failedTasksCache = new Set<string>(); // Cache for failed tasks to avoid retry spam
 
   private constructor() {
     this.initializeSodium();
@@ -35,10 +36,53 @@ export class BackgroundKotlinDecrypt {
   }
 
   /**
+   * Validate that we have proper decryption keys before starting
+   */
+  private validateDecryptionKeys(userSecretKey: string, userPublicKey: string): boolean {
+    if (!userSecretKey || !userPublicKey) {
+      console.warn('🔐 ❌ Missing user keys for decryption');
+      return false;
+    }
+    
+    if (userSecretKey.length === 0 || userPublicKey.length === 0) {
+      console.warn('🔐 ❌ Empty user keys for decryption');
+      return false;
+    }
+    
+    try {
+      // Try to decode base64 keys to validate format
+      this.base64ToArrayBuffer(userSecretKey);
+      this.base64ToArrayBuffer(userPublicKey);
+      return true;
+    } catch (error) {
+      console.warn('🔐 ❌ Invalid key format:', error);
+      return false;
+    }
+  }
+
+  /**
    * Decrypt attachment in background with progress tracking
    */
   async decryptAttachment(encryptedData: string, keyPackage: string, iv: string, userSecretKey: string, userPublicKey: string, onProgress?: (progress: number, message: string) => void) {
     await this.initializeSodium();
+    
+    // Early validation of keys
+    if (!this.validateDecryptionKeys(userSecretKey, userPublicKey)) {
+      const error = new Error('Missing or invalid decryption keys. Please set up your encryption keys first.');
+      if (onProgress) {
+        onProgress(0, 'Missing decryption keys');
+      }
+      throw error;
+    }
+    
+    // Generate a unique cache key for this decryption attempt
+    const cacheKey = this.generateCacheKey(encryptedData, keyPackage, iv);
+    
+    // Check if this combination has failed before
+    if (this.failedTasksCache.has(cacheKey)) {
+      console.log('🔐 ⚠️ Skipping previously failed decryption attempt');
+      throw new Error('This decryption has failed before. Encryption keys may be incorrect.');
+    }
     
     try {
       console.log('🔐 Starting background decryption...');
@@ -51,10 +95,13 @@ export class BackgroundKotlinDecrypt {
       if (result.action === 'performCryptoDecryption') {
         // Kotlin handed back control - perform actual decryption with sodium
         const taskId = result.taskId;
-        this.activeDecryptions.set(taskId, { startTime: Date.now() });
+        this.activeDecryptions.set(taskId, { 
+          startTime: Date.now(),
+          cacheKey: cacheKey 
+        });
         this.progressCallbacks.set(taskId, onProgress);
         
-        // Start progress monitoring (but don't await it)
+        // Start progress monitoring with timeout
         this.monitorProgress(taskId, onProgress);
         
         console.log('🔐 Performing sodium decryption with metadata:', result.metadata);
@@ -83,8 +130,135 @@ export class BackgroundKotlinDecrypt {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('🔐 ❌ Decryption failed:', error);
+      
+      // Cache this failure to prevent retries
+      this.failedTasksCache.add(cacheKey);
+      
+      // Clean up any failed progress monitoring
+      this.cleanupFailedDecryption(cacheKey);
+      
       throw new Error(`Decryption failed: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Generate a cache key for failed attempts
+   */
+  private generateCacheKey(encryptedData: string, keyPackage: string, iv: string): string {
+    // Create a short hash of the input parameters
+    const combined = `${encryptedData.substring(0, 50)}_${keyPackage.substring(0, 50)}_${iv}`;
+    return btoa(combined).substring(0, 20);
+  }
+
+  /**
+   * Clean up failed decryption resources
+   */
+  private cleanupFailedDecryption(cacheKey: string): void {
+    // Find and clean up any related active decryptions
+    for (const [taskId, taskData] of this.activeDecryptions.entries()) {
+      if (taskData.cacheKey === cacheKey) {
+        console.log(`🔐 🧹 Cleaning up failed decryption: ${taskId}`);
+        this.activeDecryptions.delete(taskId);
+        this.progressCallbacks.delete(taskId);
+        
+        // Try to cancel the native task
+        ExpoVideoDecryptionModule.cancelDecryption(taskId).catch(() => {
+          // Ignore cancellation errors
+        });
+      }
+    }
+  }
+
+  /**
+   * Monitor progress from Kotlin side with improved error handling
+   */
+  private async monitorProgress(taskId: string, onProgress?: (progress: number, message: string) => void) {
+    let attempts = 0;
+    const maxAttempts = 20; // Reduced from 120 - only 10 seconds max monitoring
+    let stuckAtProgress = 0;
+    let stuckCount = 0;
+    const maxStuckCount = 5; // If stuck at same progress 5 times, give up
+    
+    const checkProgress = async () => {
+      try {
+        attempts++;
+        
+        // Check if task was cleaned up or exceeded max attempts
+        if (!this.activeDecryptions.has(taskId) || attempts > maxAttempts) {
+          console.log(`🔐 ⏰ Progress monitoring stopped for ${taskId} (attempts: ${attempts})`);
+          this.progressCallbacks.delete(taskId);
+          return;
+        }
+        
+        const progress = await ExpoVideoDecryptionModule.getDecryptionProgress(taskId);
+        
+        // Check for "Task not found" or similar error messages
+        if (progress.message && (
+          progress.message.includes('Task not found') || 
+          progress.message.includes('completed') ||
+          progress.message.includes('not found')
+        )) {
+          console.log(`🔐 ⚠️ Task ${taskId} not found, stopping progress monitoring`);
+          this.progressCallbacks.delete(taskId);
+          this.activeDecryptions.delete(taskId);
+          return;
+        }
+        
+        // Check if we're stuck at the same progress
+        if (progress.progress === stuckAtProgress) {
+          stuckCount++;
+          if (stuckCount >= maxStuckCount) {
+            console.log(`🔐 ⚠️ Task ${taskId} stuck at ${progress.progress}%, stopping monitoring`);
+            this.progressCallbacks.delete(taskId);
+            this.activeDecryptions.delete(taskId);
+            
+            // Mark as failed
+            const taskData = this.activeDecryptions.get(taskId);
+            if (taskData?.cacheKey) {
+              this.failedTasksCache.add(taskData.cacheKey);
+            }
+            return;
+          }
+        } else {
+          stuckAtProgress = progress.progress;
+          stuckCount = 0;
+        }
+        
+        if (onProgress && progress.progress !== undefined) {
+          onProgress(progress.progress, progress.message);
+        }
+        
+        if (progress.progress < 100 && this.progressCallbacks.has(taskId)) {
+          setTimeout(checkProgress, 500);
+        } else {
+          this.progressCallbacks.delete(taskId);
+        }
+        
+      } catch (error) {
+        console.warn('🔐 ⚠️ Progress monitoring error:', error);
+        this.progressCallbacks.delete(taskId);
+        this.activeDecryptions.delete(taskId);
+      }
+    };
+    
+    // Start monitoring after a short delay
+    setTimeout(checkProgress, 100);
+  }
+
+  /**
+   * Clear failed tasks cache - call this when user updates their keys
+   */
+  public clearFailedTasksCache(): void {
+    console.log(`🔐 🧹 Clearing failed tasks cache (${this.failedTasksCache.size} entries)`);
+    this.failedTasksCache.clear();
+  }
+
+  /**
+   * Check if a specific file combination has failed before
+   */
+  public hasFailedBefore(encryptedData: string, keyPackage: string, iv: string): boolean {
+    const cacheKey = this.generateCacheKey(encryptedData, keyPackage, iv);
+    return this.failedTasksCache.has(cacheKey);
   }
 
   /**
@@ -123,7 +297,7 @@ export class BackgroundKotlinDecrypt {
       );
       
       if (unsealResult !== 0) {
-        throw new Error(`crypto_box_seal_open failed with code ${unsealResult}`);
+        throw new Error(`Key decryption failed - incorrect encryption keys (error code: ${unsealResult})`);
       }
       
       console.log('🔐 ✅ Key package decrypted successfully');
@@ -159,7 +333,7 @@ export class BackgroundKotlinDecrypt {
       );
       
       if (decryptResult !== 0) {
-        throw new Error(`crypto_box_open_easy failed with code ${decryptResult}`);
+        throw new Error(`File decryption failed (error code: ${decryptResult})`);
       }
       
       console.log('🔐 ✅ File decryption SUCCESS:', {
@@ -174,42 +348,6 @@ export class BackgroundKotlinDecrypt {
       console.error('🔐 ❌ Background decryption failed:', error);
       throw new Error(`Sodium decryption failed: ${errorMessage}`);
     }
-  }
-
-  /**
-   * Monitor progress from Kotlin side
-   */
-  private async monitorProgress(taskId: string, onProgress?: (progress: number, message: string) => void) {
-    let attempts = 0;
-    const maxAttempts = 120; // 60 seconds max monitoring
-    
-    const checkProgress = async () => {
-      try {
-        attempts++;
-        
-        if (!this.activeDecryptions.has(taskId) || attempts > maxAttempts) {
-          return;
-        }
-        
-        const progress = await ExpoVideoDecryptionModule.getDecryptionProgress(taskId);
-        
-        if (onProgress && progress.progress !== undefined) {
-          onProgress(progress.progress, progress.message);
-        }
-        
-        if (progress.progress < 100 && this.progressCallbacks.has(taskId)) {
-          setTimeout(checkProgress, 500);
-        } else {
-          this.progressCallbacks.delete(taskId);
-        }
-        
-      } catch (error) {
-        console.warn('Progress monitoring error:', error);
-        this.progressCallbacks.delete(taskId);
-      }
-    };
-    
-    setTimeout(checkProgress, 100);
   }
 
   async cancelDecryption(taskId: string) {
@@ -241,6 +379,7 @@ export class BackgroundKotlinDecrypt {
         ...nativeStats,
         activeDecryptions: this.activeDecryptions.size,
         progressCallbacks: this.progressCallbacks.size,
+        failedTasksCached: this.failedTasksCache.size,
         initialized: this.initialized
       };
     } catch (error) {
@@ -249,6 +388,7 @@ export class BackgroundKotlinDecrypt {
         error: errorMessage,
         activeDecryptions: this.activeDecryptions.size,
         progressCallbacks: this.progressCallbacks.size,
+        failedTasksCached: this.failedTasksCache.size,
         initialized: this.initialized
       };
     }

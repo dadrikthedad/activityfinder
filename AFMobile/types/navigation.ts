@@ -7,7 +7,7 @@ import { AttachmentDto } from '@shared/types/MessageDTO';
 
 // Define all your app screens and their parameters here
 export type RootStackParamList = {
-  Login: undefined;
+  Login: { fromSignup?: boolean } | undefined;
   Signup: undefined;
   VerificationScreen: { email: string, fromRegistration?: boolean;  };
   ResetPasswordScreen: undefined;
@@ -53,7 +53,8 @@ export type RootStackParamList = {
     userName?: string; 
   } | undefined;
   SecurityCredsScreen: undefined;
-  TestScreen: undefined;
+  TestNavigator: undefined; 
+  CryptationScreen: undefined;
 };
 
 
@@ -160,9 +161,14 @@ export type ReportScreenNavigationProp = StackNavigationProp<
   'ReportScreen'
 >;
 
-export type TestScreenNavigationProp = StackNavigationProp<
+export type TestNavigatorNavigationProp = StackNavigationProp<
   RootStackParamList,
-  'TestScreen'
+  'TestNavigator'
+>;
+
+export type CryptationScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  'CryptationScreen'
 >;
 
 
@@ -188,7 +194,8 @@ export type TrashcanScreenRouteProp = RouteProp<RootStackParamList, 'TrashcanScr
 export type FriendScreenRouteProp = RouteProp<RootStackParamList, 'FriendScreen'>;
 export type NotificationScreenRouteProp = RouteProp<RootStackParamList, 'NotificationScreen'>;
 export type ReportScreenRouteProp = RouteProp<RootStackParamList, 'ReportScreen'>;
-export type TestScreenRouteProp = RouteProp<RootStackParamList, 'TestScreen'>;
+export type TestNavigatorRouteProp = RouteProp<RootStackParamList, 'TestNavigator'>;
+export type CryptationScreen = RouteProp<RootStackParamList, 'CryptationScreen'>;
 
 // Generic navigation prop (useful for components that can navigate to multiple screens)
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

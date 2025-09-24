@@ -137,10 +137,59 @@ export default function SignupScreen() {
         if (!formData.email) return errors; // skip API call
 
         const normalizedEmail = formData.email.trim().toLowerCase();
-        const emailAvailable = await checkEmailAvailability(normalizedEmail);
-        if (!emailAvailable) {
-          errors.email = "An account with this email already exists.";
+        
+        // Grunnleggende email format validering før API kall
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(normalizedEmail)) {
+          errors.email = "Please enter a valid email address.";
+          return errors;
         }
+
+        // Sjekk for mistenkelige mønstre som backend ikke liker
+        const suspiciousPatterns = [
+          "test@", "admin@", "root@", "postmaster@",
+          "noreply@", "no-reply@", "@test", "@example"
+        ];
+        
+        const hasSuspiciousPattern = suspiciousPatterns.some(pattern => 
+          normalizedEmail.includes(pattern.toLowerCase())
+        );
+        
+        if (hasSuspiciousPattern) {
+          errors.email = "Invalid email.";
+          return errors;
+        }
+
+        try {
+          const emailAvailable = await checkEmailAvailability(normalizedEmail);
+          if (!emailAvailable) {
+            errors.email = "An account with this email already exists.";
+          }
+        } catch (error) {
+          console.error('Email availability check failed:', error);
+          
+          // Prøv å parse backend error message
+          let errorMessage = "Could not verify email availability. Please try again.";
+          
+          if (error && typeof error === 'object' && 'message' in error) {
+            const backendMessage = (error as any).message;
+            if (typeof backendMessage === 'string') {
+              if (backendMessage.includes('Invalid email format')) {
+                errorMessage = "Please enter a valid email address.";
+              } else if (backendMessage.includes('empty')) {
+                errorMessage = "Email address is required.";
+              } else if (backendMessage.includes('Database error')) {
+                errorMessage = "Server error. Please try again later.";
+              } else {
+                // Vis backend error message direkte hvis den er forståelig
+                errorMessage = backendMessage;
+              }
+            }
+          }
+          
+          errors.email = errorMessage;
+        }
+        
         return errors;
       },
     });
@@ -153,16 +202,25 @@ export default function SignupScreen() {
 
   // Redirect til login etter registrering
   useEffect(() => {
-    if (isRegistered) {
-      setTimeout(() => {
-        navigation.navigate('Login');
-      }, 500); // Shorter delay since we already showed the toast
-    }
-  }, [isRegistered, navigation]);
+  if (isRegistered) {
+    setTimeout(() => {
+      navigation.reset({
+        index: 0,
+        routes: [{ 
+          name: 'Login', 
+          params: { fromSignup: true } // 👈 Send parameteret
+        }],
+      });
+    }, 500);
+  }
+}, [isRegistered, navigation]);
 
   const navigateToLogin = () => {
-    navigation.navigate('Login');
-  };
+  navigation.reset({
+    index: 0,
+    routes: [{ name: 'Login' }],
+  });
+};
 
   const handleCountryChange = async (selectedCountry: string) => {
     setFormData((prev) => ({

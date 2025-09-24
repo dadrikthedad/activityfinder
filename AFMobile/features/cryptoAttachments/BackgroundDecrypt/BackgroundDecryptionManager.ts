@@ -7,14 +7,14 @@ import { unifiedCacheManager } from '@/features/crypto/storage/UnifiedCacheManag
 import { useDecryptionStore } from '@/features/crypto/store/useDecryptionStore';
 import { CryptoService } from '@/components/ende-til-ende/CryptoService';
 
-
 interface QueueItem {
   id: string;
   attachment: AttachmentDto;
   priority: 'high' | 'normal' | 'low';
   addedAt: number;
   conversationId?: number;
-  taskId?: string; // For cancellation support
+  taskId?: string;
+  retryCount?: number; // Track retry attempts
 }
 
 interface DecryptionResult {
@@ -22,15 +22,17 @@ interface DecryptionResult {
   fileUrl?: string;
   error?: string;
   fileSize?: number;
+  shouldRetry?: boolean; // Indicate if this error is retryable
 }
 
-type QueueEventType = 'started' | 'completed' | 'failed' | 'paused' | 'resumed' | 'cleared';
+type QueueEventType = 'started' | 'completed' | 'failed' | 'paused' | 'resumed' | 'cleared' | 'skipped';
 
 interface QueueEvent {
   type: QueueEventType;
   item?: QueueItem;
   error?: string;
   queueLength: number;
+  reason?: string; // Additional context for skipped items
 }
 
 export class BackgroundDecryptionManager {
@@ -43,6 +45,7 @@ export class BackgroundDecryptionManager {
   private currentItem: QueueItem | null = null;
   private currentDecryptionPromise: Promise<any> | null = null;
   private currentUserId: number | null = null;
+  private hasValidKeys = false; // Track if we have valid encryption keys
   
   // Services
   private backgroundService = BackgroundAttachmentDecryptionService.getBackgroundInstance();
@@ -56,6 +59,7 @@ export class BackgroundDecryptionManager {
     totalProcessed: 0,
     totalSuccessful: 0,
     totalFailed: 0,
+    totalSkipped: 0,
     averageProcessingTime: 0,
     lastProcessedAt: 0
   };
@@ -76,7 +80,48 @@ export class BackgroundDecryptionManager {
    */
   public setCurrentUser(userId: number): void {
     this.currentUserId = userId;
-    console.log(`📦 BACKGROUND: User set to ${userId}`);
+    this.validateUserKeys();
+    console.log(`📦 BACKGROUND: User set to ${userId}, has valid keys: ${this.hasValidKeys}`);
+  }
+
+  /**
+   * Validate that current user has proper encryption keys
+   */
+  private validateUserKeys(): void {
+    if (!this.currentUserId) {
+      this.hasValidKeys = false;
+      return;
+    }
+
+    try {
+      const userKeys = this.cryptoService.getCachedKeys(this.currentUserId);
+      this.hasValidKeys = !!(userKeys?.publicKey && userKeys?.secretKey);
+      
+      if (!this.hasValidKeys) {
+        console.warn(`📦 BACKGROUND: No valid keys found for user ${this.currentUserId}`);
+        // Clear any cached failures since they might be due to missing keys
+        BackgroundKotlinDecrypt.clearFailedTasksCache();
+      }
+    } catch (error) {
+      console.warn('📦 BACKGROUND: Error validating user keys:', error);
+      this.hasValidKeys = false;
+    }
+  }
+
+  /**
+   * Call this when user sets up new encryption keys
+   */
+  public onKeysUpdated(): void {
+    this.validateUserKeys();
+    if (this.hasValidKeys) {
+      console.log('📦 BACKGROUND: Keys updated - clearing failed tasks cache and resuming');
+      BackgroundKotlinDecrypt.clearFailedTasksCache();
+      
+      // Resume processing if we were paused due to key issues
+      if (!this.isProcessing && this.queue.length > 0) {
+        this.processQueue();
+      }
+    }
   }
 
   private async initializeUser(): Promise<void> {
@@ -87,6 +132,7 @@ export class BackgroundDecryptionManager {
       const userKeys = this.cryptoService.getCachedKeys(1); // Replace with actual user ID
       if (userKeys) {
         this.currentUserId = 1; // Replace with actual user ID
+        this.validateUserKeys();
       }
     } catch (error) {
       console.warn('📦 BACKGROUND: Could not initialize user:', error);
@@ -101,6 +147,15 @@ export class BackgroundDecryptionManager {
     priority: 'high' | 'normal' | 'low' = 'normal',
     conversationId?: number
   ): Promise<string> {
+    // Skip if no valid keys and we've seen this fail before
+    if (!this.hasValidKeys) {
+      const cacheKey = this.generateQuickCacheKey(attachment.fileUrl, attachment.keyInfo?.keyPackage || '', attachment.iv || '');
+      if (BackgroundKotlinDecrypt.hasFailedBefore(attachment.fileUrl, attachment.keyInfo?.keyPackage || '', attachment.iv || '')) {
+        console.log(`📦 BACKGROUND: Skipping ${attachment.fileName} - no keys and failed before`);
+        return '';
+      }
+    }
+
     // Skip if already cached
     const cacheKey = generateCacheKey(attachment.fileUrl);
     if (await this.isAlreadyCached(cacheKey, attachment.fileType)) {
@@ -122,7 +177,8 @@ export class BackgroundDecryptionManager {
       attachment,
       priority,
       addedAt: Date.now(),
-      conversationId
+      conversationId,
+      retryCount: 0
     };
 
     // Insert based on priority
@@ -138,6 +194,213 @@ export class BackgroundDecryptionManager {
     }
 
     return queueItem.id;
+  }
+
+  /**
+   * Generate a quick cache key for failed task checking
+   */
+  private generateQuickCacheKey(fileUrl: string, keyPackage: string, iv: string): string {
+    return `${fileUrl.substring(fileUrl.length - 20)}_${keyPackage.substring(0, 20)}_${iv}`;
+  }
+
+  /**
+   * Main queue processing loop
+   */
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing || this.isPaused || this.queue.length === 0) {
+      return;
+    }
+
+    this.isProcessing = true;
+    console.log(`📦 BACKGROUND: Starting queue processing (${this.queue.length} items, valid keys: ${this.hasValidKeys})`);
+
+    while (this.queue.length > 0 && !this.isPaused) {
+      this.currentItem = this.queue.shift()!;
+      console.log(`📦 BACKGROUND: Processing ${this.currentItem.attachment.fileName}`);
+
+      const startTime = Date.now();
+      
+      // Check if we should skip this item due to missing keys
+      if (!this.hasValidKeys) {
+        const hasFailedBefore = BackgroundKotlinDecrypt.hasFailedBefore(
+          this.currentItem.attachment.fileUrl,
+          this.currentItem.attachment.keyInfo?.keyPackage || '',
+          this.currentItem.attachment.iv || ''
+        );
+        
+        if (hasFailedBefore) {
+          console.log(`📦 BACKGROUND: ⏭️ Skipping ${this.currentItem.attachment.fileName} - no keys and failed before`);
+          this.stats.totalSkipped++;
+          this.emitEvent({
+            type: 'skipped',
+            item: this.currentItem,
+            reason: 'No encryption keys available and previously failed',
+            queueLength: this.queue.length
+          });
+          this.currentItem = null;
+          continue;
+        }
+      }
+      
+      try {
+        const result = await this.decryptAttachment(this.currentItem);
+        const processingTime = Date.now() - startTime;
+        
+        this.updateStats(result.success, processingTime);
+        
+        if (result.success) {
+          console.log(`📦 BACKGROUND: ✅ Completed ${this.currentItem.attachment.fileName} in ${processingTime}ms`);
+          this.emitEvent({ 
+            type: 'completed', 
+            item: this.currentItem, 
+            queueLength: this.queue.length 
+          });
+        } else {
+          // Check if we should retry
+          const shouldRetry = result.shouldRetry && 
+                            (this.currentItem.retryCount || 0) < 2 && // Max 2 retries
+                            !result.error?.toLowerCase().includes('keys'); // Don't retry key errors
+          
+          if (shouldRetry) {
+            console.log(`📦 BACKGROUND: 🔄 Retrying ${this.currentItem.attachment.fileName} (attempt ${(this.currentItem.retryCount || 0) + 1})`);
+            this.currentItem.retryCount = (this.currentItem.retryCount || 0) + 1;
+            
+            // Add back to queue with lower priority
+            const retryPriority = this.currentItem.priority === 'high' ? 'normal' : 'low';
+            this.currentItem.priority = retryPriority;
+            this.queue.push(this.currentItem);
+          } else {
+            console.log(`📦 BACKGROUND: ❌ Failed ${this.currentItem.attachment.fileName}: ${result.error}`);
+            this.emitEvent({ 
+              type: 'failed', 
+              item: this.currentItem, 
+              error: result.error,
+              queueLength: this.queue.length 
+            });
+          }
+        }
+        
+      } catch (error) {
+        const processingTime = Date.now() - startTime;
+        this.updateStats(false, processingTime);
+        
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`📦 BACKGROUND: ❌ Error processing ${this.currentItem.attachment.fileName}:`, error);
+        
+        // Check if this is a key-related error
+        const isKeyError = errorMessage.toLowerCase().includes('key') || 
+                          errorMessage.toLowerCase().includes('decrypt') ||
+                          errorMessage.toLowerCase().includes('missing');
+        
+        if (isKeyError) {
+          console.log(`📦 BACKGROUND: Key-related error detected, updating key validation`);
+          this.validateUserKeys();
+        }
+        
+        this.emitEvent({ 
+          type: 'failed', 
+          item: this.currentItem, 
+          error: errorMessage,
+          queueLength: this.queue.length 
+        });
+      }
+
+      this.currentItem = null;
+      this.currentDecryptionPromise = null;
+
+      // Small delay to prevent overwhelming the system
+      await this.sleep(100);
+    }
+
+    this.isProcessing = false;
+    console.log(`📦 BACKGROUND: Queue processing completed`);
+  }
+
+  /**
+   * Decrypt single attachment
+   */
+  private async decryptAttachment(queueItem: QueueItem): Promise<DecryptionResult> {
+    const { attachment } = queueItem;
+
+    try {
+      // Check if we have a current user
+      if (!this.currentUserId) {
+        return {
+          success: false,
+          error: 'No current user set for background decryption',
+          shouldRetry: false
+        };
+      }
+
+      // Early key validation
+      if (!this.hasValidKeys) {
+        return {
+          success: false,
+          error: 'Missing encryption keys. Please set up your encryption keys first.',
+          shouldRetry: false // Don't retry missing key errors
+        };
+      }
+
+      // Create EncryptedAttachmentData
+      const encryptedAttachment = {
+        encryptedFileUrl: attachment.fileUrl,
+        fileType: attachment.fileType,
+        fileName: attachment.fileName,
+        fileSize: attachment.fileSize || 0,
+        keyInfo: attachment.keyInfo || {},
+        iv: attachment.iv || '',
+        version: attachment.version || 1
+      };
+      
+      this.currentDecryptionPromise = this.backgroundService.decryptAttachment(
+        encryptedAttachment,
+        this.currentUserId,
+        (progress: number, message: string) => {
+          // Only log every 20% to reduce spam
+          if (progress % 20 === 0 || progress >= 95) {
+            console.log(`📦 BACKGROUND: ${attachment.fileName} - ${progress}% ${message}`);
+          }
+        }
+      );
+
+      const result = await this.currentDecryptionPromise;
+
+      if (result?.fileUrl) {
+        const cacheKey = generateCacheKey(attachment.fileUrl);
+        
+        // Use the existing completeDecryption method
+        useDecryptionStore.getState().completeDecryption(cacheKey, result.fileUrl);
+        
+        console.log(`🔐 BACKGROUND: Updated Zustand store for ${attachment.fileName}`);
+        
+        return {
+          success: true,
+          fileUrl: result.fileUrl,
+          fileSize: result.fileSize
+        };
+      } else {
+        return {
+          success: false,
+          error: 'No file URL returned from decryption',
+          shouldRetry: true // This might be a temporary issue
+        };
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Decryption failed';
+      
+      // Determine if this error should trigger a retry
+      const shouldRetry = !errorMessage.toLowerCase().includes('key') && 
+                         !errorMessage.toLowerCase().includes('missing') &&
+                         !errorMessage.toLowerCase().includes('invalid') &&
+                         !errorMessage.toLowerCase().includes('incorrect');
+      
+      return {
+        success: false,
+        error: errorMessage,
+        shouldRetry
+      };
+    }
   }
 
   /**
@@ -175,8 +438,8 @@ export class BackgroundDecryptionManager {
     
     this.emitEvent({ type: 'resumed', queueLength: this.queue.length });
     
-    // Resume processing if we have items in queue
-    if (this.queue.length > 0 && !this.isProcessing) {
+    // Resume processing if we have items in queue and valid keys
+    if (this.queue.length > 0 && !this.isProcessing && this.hasValidKeys) {
       this.processQueue();
     }
   }
@@ -210,7 +473,7 @@ export class BackgroundDecryptionManager {
   }
 
   /**
-   * Add conversation attachments to queue
+   * Add conversation attachments to queue with improved filtering
    */
   public async addConversationAttachments(
     attachments: AttachmentDto[], 
@@ -220,6 +483,12 @@ export class BackgroundDecryptionManager {
   ): Promise<string[]> {
     const addedIds: string[] = [];
     
+    // Skip if no valid keys
+    if (!this.hasValidKeys) {
+      console.log(`📦 BACKGROUND: Skipping conversation ${conversationId} - no valid encryption keys`);
+      return addedIds;
+    }
+    
     // Filter for files that need decryption and aren't cached
     const needDecryptionPromises = attachments
       .filter(att => {
@@ -228,6 +497,16 @@ export class BackgroundDecryptionManager {
         // Skip videos if not included
         if (!includeVideos && att.fileType.startsWith('video/')) {
           console.log(`📦 BACKGROUND: Skipping video ${att.fileName} - videos excluded`);
+          return false;
+        }
+        
+        // Skip if this specific file has failed before
+        if (BackgroundKotlinDecrypt.hasFailedBefore(
+          att.fileUrl,
+          att.keyInfo?.keyPackage || '',
+          att.iv || ''
+        )) {
+          console.log(`📦 BACKGROUND: Skipping ${att.fileName} - previously failed`);
           return false;
         }
         
@@ -241,145 +520,14 @@ export class BackgroundDecryptionManager {
     const needDecryptionResults = await Promise.all(needDecryptionPromises);
     const needDecryption = needDecryptionResults.filter(Boolean) as AttachmentDto[];
 
-    // Prioritize based on file type and size
-    const sortedAttachments = needDecryption;
-
-    console.log(`📦 BACKGROUND: Adding ${sortedAttachments.length} attachments from conversation ${conversationId} (videos ${includeVideos ? 'included' : 'excluded'})`);
+    console.log(`📦 BACKGROUND: Adding ${needDecryption.length} attachments from conversation ${conversationId} (videos ${includeVideos ? 'included' : 'excluded'})`);
     
-    for (const attachment of sortedAttachments) {
+    for (const attachment of needDecryption) {
       const id = await this.addToQueue(attachment, priority, conversationId);
       if (id) addedIds.push(id);
     }
 
     return addedIds;
-  }
-
-  /**
-   * Main queue processing loop
-   */
-  private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.isPaused || this.queue.length === 0) {
-      return;
-    }
-
-    this.isProcessing = true;
-    console.log(`📦 BACKGROUND: Starting queue processing (${this.queue.length} items)`);
-
-    while (this.queue.length > 0 && !this.isPaused) {
-      this.currentItem = this.queue.shift()!;
-      console.log(`📦 BACKGROUND: Processing ${this.currentItem.attachment.fileName}`);
-
-      const startTime = Date.now();
-      
-      try {
-        const result = await this.decryptAttachment(this.currentItem);
-        const processingTime = Date.now() - startTime;
-        
-        this.updateStats(true, processingTime);
-        
-        if (result.success) {
-          console.log(`📦 BACKGROUND: ✅ Completed ${this.currentItem.attachment.fileName} in ${processingTime}ms`);
-          this.emitEvent({ 
-            type: 'completed', 
-            item: this.currentItem, 
-            queueLength: this.queue.length 
-          });
-        } else {
-          console.log(`📦 BACKGROUND: ❌ Failed ${this.currentItem.attachment.fileName}: ${result.error}`);
-          this.emitEvent({ 
-            type: 'failed', 
-            item: this.currentItem, 
-            error: result.error,
-            queueLength: this.queue.length 
-          });
-        }
-        
-      } catch (error) {
-        const processingTime = Date.now() - startTime;
-        this.updateStats(false, processingTime);
-        
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`📦 BACKGROUND: ❌ Error processing ${this.currentItem.attachment.fileName}:`, error);
-        
-        this.emitEvent({ 
-          type: 'failed', 
-          item: this.currentItem, 
-          error: errorMessage,
-          queueLength: this.queue.length 
-        });
-      }
-
-      this.currentItem = null;
-      this.currentDecryptionPromise = null;
-
-      // Small delay to prevent overwhelming the system
-      await this.sleep(100);
-    }
-
-    this.isProcessing = false;
-    console.log(`📦 BACKGROUND: Queue processing completed`);
-  }
-
-  /**
-   * Decrypt single attachment
-   */
-  private async decryptAttachment(queueItem: QueueItem): Promise<DecryptionResult> {
-    const { attachment } = queueItem;
-
-    try {
-      // Check if we have a current user
-      if (!this.currentUserId) {
-        throw new Error('No current user set for background decryption');
-      }
-
-      // Create EncryptedAttachmentData
-      const encryptedAttachment = {
-        encryptedFileUrl: attachment.fileUrl,
-        fileType: attachment.fileType,
-        fileName: attachment.fileName,
-        fileSize: attachment.fileSize || 0,
-        keyInfo: attachment.keyInfo || {},
-        iv: attachment.iv || '',
-        version: attachment.version || 1
-      };
-      
-      this.currentDecryptionPromise = this.backgroundService.decryptAttachment(
-        encryptedAttachment,
-        this.currentUserId,
-        (progress: number, message: string) => {
-          // Optional: emit progress events
-          console.log(`📦 BACKGROUND: ${attachment.fileName} - ${progress}% ${message}`);
-        }
-      );
-
-      const result = await this.currentDecryptionPromise;
-
-      if (result?.fileUrl) {
-        const cacheKey = generateCacheKey(attachment.fileUrl);
-        
-        // Use the existing completeDecryption method
-        useDecryptionStore.getState().completeDecryption(cacheKey, result.fileUrl);
-        
-        console.log(`🔐 BACKGROUND: Updated Zustand store for ${attachment.fileName}`);
-        
-        return {
-          success: true,
-          fileUrl: result.fileUrl,
-          fileSize: result.fileSize
-        };
-    } else {
-        return {
-          success: false,
-          error: 'No file URL returned from decryption'
-        };
-      }
-
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Decryption failed'
-      };
-    }
   }
 
   /**
@@ -455,6 +603,7 @@ export class BackgroundDecryptionManager {
       queueLength: this.queue.length,
       isProcessing: this.isProcessing,
       isPaused: this.isPaused,
+      hasValidKeys: this.hasValidKeys,
       currentItem: this.currentItem?.attachment.fileName || null
     };
   }
@@ -464,14 +613,24 @@ export class BackgroundDecryptionManager {
       queueLength: this.queue.length,
       isProcessing: this.isProcessing,
       isPaused: this.isPaused,
+      hasValidKeys: this.hasValidKeys,
       currentItem: this.currentItem,
       queue: this.queue.map(item => ({
         id: item.id,
         fileName: item.attachment.fileName,
         priority: item.priority,
-        addedAt: item.addedAt
+        addedAt: item.addedAt,
+        retryCount: item.retryCount || 0
       }))
     };
+  }
+
+  /**
+   * Force validation of current user keys - call when user logs in
+   */
+  public validateCurrentUser(): void {
+    this.validateUserKeys();
+    console.log(`📦 BACKGROUND: Key validation completed, valid: ${this.hasValidKeys}`);
   }
 
   private sleep(ms: number): Promise<void> {

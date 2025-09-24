@@ -44,12 +44,6 @@ class AuthService {
         const now = new Date();
         const isExpired = expires <= now;
         
-        console.log('⏰ Token timing:', {
-          expires: expires.toISOString(),
-          now: now.toISOString(),
-          isExpired
-        });
-        
         if (!isExpired) {
           console.log('✅ Token is valid, scheduling refresh');
           this.scheduleTokenRefresh(expires);

@@ -10,7 +10,6 @@ export const initializePolyfills = () => {
   console.log('🔐 Crypto polyfill status:', {
     buffer: !!global.Buffer,
     getRandomValues: !!global.crypto?.getRandomValues,
-    // Fjern crypto.subtle siden du ikke bruker det
   });
  
   return {

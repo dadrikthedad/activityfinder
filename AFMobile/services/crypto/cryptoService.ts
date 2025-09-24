@@ -1,6 +1,7 @@
 import { postRequest, getRequest } from "@/services/baseService";
 import { API_BASE_URL } from "@/constants/routes";
 import { UserPublicKeyDTO, ConversationKeyDTO } from "@/features/crypto/types/EncryptedMessageTypes";
+import { SecretKeyResponseDTO } from "@shared/types/crypto/SecretKeyResponseDTO";
 
 // E2EE Key management
 export async function storePublicKey(publicKey: string): Promise<any> {
@@ -22,3 +23,10 @@ export async function getMyPublicKey(): Promise<UserPublicKeyDTO | null> {
   const url = `${API_BASE_URL}/api/e2ee/public-key`;
   return await getRequest<UserPublicKeyDTO>(url);
 }
+
+export async function storeRecoverySeed(key: string): Promise<SecretKeyResponseDTO | null> {
+  const url = `${API_BASE_URL}/api/e2ee/secret-key`;
+  return await postRequest<SecretKeyResponseDTO, { key: string }>(url, { key });
+}
+
+

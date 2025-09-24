@@ -121,10 +121,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(null);
       setUserId(null);
       setIsLoggedIn(false);
-
-      // Navigate to login
-      navigation.navigate("LoginScreen" as never);
-      
     } catch (error) {
       console.error("❌ Error during logout:", error);
       
@@ -132,7 +128,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setToken(null);
       setUserId(null);
       setIsLoggedIn(false);
-      navigation.navigate("LoginScreen" as never);
     }
   };
 

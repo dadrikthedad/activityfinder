@@ -3,7 +3,7 @@ import { Buffer } from 'buffer';
 import sodium from "@s77rt/react-native-sodium";
 import { CryptoService } from './CryptoService';
 import authServiceNative from '@/services/user/authServiceNative';
-import { getMyPublicKey, storePublicKey } from '@/services/crypto/cryptoService';
+import { getMyPublicKey, storePublicKey, storeRecoverySeed  } from '@/services/crypto/cryptoService';
 import { validateMnemonic, entropyToMnemonic, mnemonicToEntropy } from 'bip39';
 
 export interface KeyPair {
@@ -37,59 +37,68 @@ export class CryptoServiceBackup {
     this.cryptoService = CryptoService.getInstance();
   }
 
-  /**
- * Generate a 12-word backup phrase from private key
+/**
+ * Generate a 24-word backup phrase from private key (using full 32-byte entropy)
  */
 async generateBackupPhrase(privateKey: string): Promise<string> {
   try {
+    console.log('🔑 DEBUG: Generating backup phrase from private key');
+    console.log('🔑 DEBUG: Private key (base64):', privateKey);
+    
     // Convert private key (seed) to entropy for BIP39
     const seedBuffer = this.base64ToArrayBuffer(privateKey);
-    const entropy = new Uint8Array(seedBuffer.slice(0, 16)); // Use first 16 bytes (128-bit entropy)
+    console.log('🔑 DEBUG: Seed buffer length:', seedBuffer.byteLength);
+    
+    // Use ALL 32 bytes as entropy (256-bit entropy = 24 words)
+    const entropy = new Uint8Array(seedBuffer); 
+    console.log('🔑 DEBUG: Entropy bytes (all 32):', Array.from(entropy));
     
     // Convert Uint8Array to hex string for BIP39
     const entropyHex = Array.from(entropy)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
+    console.log('🔑 DEBUG: Entropy hex:', entropyHex);
     
-    // Generate BIP39 mnemonic from entropy using standard bip39
+    // Generate BIP39 mnemonic from entropy (24 words for 256-bit entropy)
     const mnemonic = entropyToMnemonic(entropyHex);
+    console.log('🔑 DEBUG: Generated mnemonic:', mnemonic);
+    console.log('🔑 DEBUG: Word count:', mnemonic.split(' ').length);
     
-    console.log('Generated BIP39 backup phrase with standard security');
+    console.log('Generated BIP39 backup phrase with full entropy');
     return mnemonic;
   } catch (error) {
     throw new Error(`Failed to generate BIP39 backup phrase: ${error}`);
   }
 }
 
- /**
- * Restore private key from backup phrase
+/**
+ * Restore private key from backup phrase (24 words)
  */
 async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
   try {
-    // Validate BIP39 mnemonic using standard bip39
+    console.log('🔑 DEBUG: Restoring private key from backup phrase');
+    console.log('🔑 DEBUG: Backup phrase:', backupPhrase);
+    
+    // Validate BIP39 mnemonic
     if (!validateMnemonic(backupPhrase.trim())) {
       throw new Error('Invalid BIP39 backup phrase');
     }
 
-    // Convert BIP39 mnemonic back to entropy using standard bip39
+    // Convert BIP39 mnemonic back to entropy (256-bit = 32 bytes)
     const entropyHex = mnemonicToEntropy(backupPhrase.trim());
+    console.log('🔑 DEBUG: Restored entropy hex:', entropyHex);
     
-    // Convert hex string back to Uint8Array
-    const entropy = new Uint8Array(
+    // Convert hex string back to Uint8Array (full 32 bytes)
+    const fullSeed = new Uint8Array(
       entropyHex.match(/.{2}/g)!.map(byte => parseInt(byte, 16))
     );
+    console.log('🔑 DEBUG: Restored seed bytes:', Array.from(fullSeed));
+    console.log('🔑 DEBUG: Restored seed length:', fullSeed.length);
     
-    // Create full 32-byte seed by padding the entropy
-    const fullSeed = new Uint8Array(32);
-    fullSeed.set(entropy, 0); // Place entropy at start
-    
-    // Fill remaining bytes with deterministic data derived from entropy
-    for (let i = entropy.length; i < 32; i++) {
-      fullSeed[i] = entropy[i % entropy.length] ^ (i * 7); // Simple deterministic fill
-    }
+    const restoredSeedBase64 = this.arrayBufferToBase64(fullSeed.buffer);
+    console.log('🔑 DEBUG: Restored seed (base64):', restoredSeedBase64);
 
-    // Convert to base64 for compatibility with existing system
-    return this.arrayBufferToBase64(fullSeed.buffer);
+    return restoredSeedBase64;
   } catch (error) {
     throw new Error(`Failed to restore key from BIP39 backup phrase: ${error}`);
   }
@@ -114,6 +123,9 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
       
       // Upload public key to backend for this user
       await this.uploadPublicKeyToBackend(userId, keyPair.publicKey);
+
+      // Upload backup phrase to vault
+      await this.storeBackupPhraseToVault(backupPhrase);
       
       console.log(`E2EE setup complete for user ${userId}`);
       
@@ -124,36 +136,46 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
   }
 
   /**
-   * Restore E2EE from backup phrase on new device
-   */
-  async restoreE2EEFromBackup(backupPhrase: string, userId: number): Promise<KeyPair> {
-    try {
-      console.log(`Restoring E2EE from backup for user ${userId}`);
+ * Restore E2EE from backup phrase on new device or from old phrase
+ */
+async restoreE2EEFromBackup(
+  backupPhrase: string, 
+  userId: number, 
+  skipServerValidation: boolean = false
+): Promise<KeyPair> {
+  try {
+    console.log(`Restoring E2EE from backup for user ${userId}${skipServerValidation ? ' (skip validation)' : ''}`);
 
-      // Restore private key from phrase
-      const privateKey = await this.restorePrivateKeyFromPhrase(backupPhrase);
-      
-      // Generate corresponding public key
-      const publicKey = await this.getPublicKeyFromSeed(privateKey);
-      
-      // Verify this matches the user's stored public key on backend
+    // Restore private key from phrase
+    const privateKey = await this.restorePrivateKeyFromPhrase(backupPhrase);
+    
+    // Generate corresponding public key
+    const publicKey = await this.getPublicKeyFromSeed(privateKey);
+    
+    if (!skipServerValidation) {
+      // Normal validation - verify this matches the user's stored public key on backend
       const isValidRestore = await this.verifyRestoredKey(userId, publicKey);
       if (!isValidRestore) {
         throw new Error('Backup phrase does not match this user account');
       }
-      
-      // Store restored key
-      await this.cryptoService.storePrivateKey(privateKey, userId);
-      
-      const keyPair = { publicKey, privateKey };
-      
-      console.log(`E2EE restored successfully for user ${userId}`);
-      
-      return keyPair;
-    } catch (error) {
-      throw new Error(`E2EE restore failed: ${error}`);
+    } else {
+      // Skip validation mode - replace server public key with restored key
+      console.log('🔄 Skipping validation, uploading restored public key to server');
+      await this.uploadPublicKeyToBackend(userId, publicKey);
     }
+    
+    // Store restored key
+    await this.cryptoService.storePrivateKey(privateKey, userId);
+    
+    const keyPair = { publicKey, privateKey };
+    
+    console.log(`E2EE restored successfully for user ${userId}`);
+    
+    return keyPair;
+  } catch (error) {
+    throw new Error(`E2EE restore failed: ${error}`);
   }
+}
 
   /**
    * Initialize crypto service for user with network timeout handling
@@ -337,28 +359,34 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
    */
   private async verifyRestoredKey(userId: number, restoredPublicKey: string): Promise<boolean> {
     try {
-      // Get the user's stored public key from backend
+      console.log('🔍 Verifying restored key against server...');
+      console.log('🔍 Restored public key:', restoredPublicKey);
+      
+      // Get the user's own stored public key from backend - FIXED ENDPOINT
       const response = await authServiceNative.fetchWithAuth(
-        `${authServiceNative['baseURL']}/api/e2ee/users/public-keys`,
+        `${authServiceNative['baseURL']}/api/e2ee/public-key`,  // Changed from /users/public-keys
         {
-          method: 'POST',
-          body: JSON.stringify([userId])
+          method: 'GET'  // Changed from POST
+          // Removed body since it's GET request
         }
       );
 
       if (!response.ok) {
+        console.log('🔍 Server response not OK:', response.status);
+        if (response.status === 404) {
+          console.log('🔍 No public key found for user - this should not happen during restore');
+        }
         return false;
       }
 
-      const keys = await response.json();
+      const userKeyData = await response.json();
+      console.log('🔍 Server response:', userKeyData);
+      console.log('🔍 Server public key:', userKeyData.publicKey);
       
-      // Find this user's key
-      const userKey = keys.find((key: any) => key.userId === userId);
-      if (!userKey) {
-        return false;
-      }
-
-      return userKey.publicKey === restoredPublicKey;
+      const matches = userKeyData.publicKey === restoredPublicKey;
+      console.log('🔍 Keys match:', matches);
+      
+      return matches;
     } catch (error) {
       console.error('Failed to verify restored key:', error);
       return false;
@@ -368,7 +396,7 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
   /**
  * Generate public key from seed (private key) - FIXED VERSION
  */
-private async getPublicKeyFromSeed(seedBase64: string): Promise<string> {
+public async getPublicKeyFromSeed(seedBase64: string): Promise<string> {
   try {
     if (sodium.sodium_init() < 0) {
       throw new Error("Failed to initialize sodium!");
@@ -395,6 +423,29 @@ private async getPublicKeyFromSeed(seedBase64: string): Promise<string> {
     throw error;
   }
 }
+
+/**
+ * Store secret phrase in vault
+ * @param buffer 
+ * @returns 
+ */
+private async storeBackupPhraseToVault(backupPhrase: string): Promise<void> {
+  try {
+    console.log('KEY VAULT: Storing backup phrase to server..')
+
+    const result = await storeRecoverySeed(backupPhrase);
+
+    if (result) {
+      console.log(`KEY VAULT: Backup phrase stored successfully on device ${result.deviceId}.`);
+    } else {
+      throw new Error('KEY VAULT: Failed to store backup phrase - no response');
+    }
+  } catch (error) {
+    console.error(`KEY VAULT: Failed to store backup phrase to server: `, error)
+    throw new Error(`KEY VAULT: Backup phrase storage failed: ${error}`);
+  }
+}
+
 
   // Utility methods
   private arrayBufferToBase64(buffer: ArrayBuffer): string {

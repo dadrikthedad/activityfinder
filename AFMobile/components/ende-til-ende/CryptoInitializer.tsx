@@ -1,21 +1,24 @@
-// CryptoInitializer.tsx - Dedikert E2EE initialisering
-import { useEffect, useRef } from 'react';
+// CryptoInitializer.tsx - Dedikert E2EE initialisering med standalone modal
+
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
-import { CryptoServiceBackup } from './CryptoServiceBackup';
+import { CryptoServiceBackup } from '@/components/ende-til-ende/CryptoServiceBackup';
+import E2EERestoreModal from '@/features/crypto/components/E2EERestoreModal';
 
 interface CryptoInitializerProps {
-  // Start E2EE når bruker er autentisert, IKKE når bootstrap er ferdig
   shouldInitialize: boolean;
   onInitialized?: (success: boolean) => void;
 }
 
 export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoInitializerProps) {
   const { userId } = useAuth();
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const initializationAttemptRef = useRef<number | null>(null);
   const isInitializingRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
-  const hasCalledCallbackRef = useRef(false); // Track if callback was called
+  const hasCalledCallbackRef = useRef(false);
+  const hasShownRestoreModalRef = useRef(false);
   
   const { 
     e2eeInitialized, 
@@ -24,20 +27,50 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
     setE2EEState 
   } = useBootstrapStore();
 
+  // Handle successful restore
+  const handleRestoreSuccess = useCallback(() => {
+    console.log("✅ CRYPTO: E2EE restored successfully");
+    setE2EEState(true, true, null);
+    setShowRestoreModal(false);
+    hasCalledCallbackRef.current = true;
+    onInitialized?.(true);
+  }, [setE2EEState, onInitialized]);
+
+  // Handle skip restore
+  const handleSkipRestore = useCallback(() => {
+    console.log("⚠️ CRYPTO: User skipped E2EE restore");
+    // Keep error state so user can restore later in settings
+    setE2EEState(true, false, 'skipped_restore');
+    setShowRestoreModal(false);
+    hasCalledCallbackRef.current = true;
+    onInitialized?.(true); // Still consider initialization "successful"
+  }, [setE2EEState, onInitialized]);
+
+  // Handle modal close
+  const handleModalClose = useCallback(() => {
+    setShowRestoreModal(false);
+  }, []);
+
+  // Show restore modal when needed
+  useEffect(() => {
+    if (e2eeError === 'needs_restore' && !hasShownRestoreModalRef.current) {
+      console.log("🔐 CRYPTO: Showing E2EE restore modal");
+      hasShownRestoreModalRef.current = true;
+      setShowRestoreModal(true);
+    }
+  }, [e2eeError]);
+
   // Main E2EE initialization effect
   useEffect(() => {
     const initializeCrypto = async () => {
-      // Guards
       if (!userId || !shouldInitialize || isInitializingRef.current) {
         return;
       }
 
-      // Skip if already successfully initialized AND callback was called
       if (e2eeInitialized && e2eeHasKeyPair && !e2eeError && hasCalledCallbackRef.current) {
         return;
       }
 
-      // Skip if this is the same user attempt
       if (initializationAttemptRef.current === userId) {
         console.log("🔐 CRYPTO: Already attempted for this user, skipping");
         return;
@@ -51,25 +84,36 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
         const backupService = CryptoServiceBackup.getInstance();
         const result = await backupService.initializeForUser(userId);
         
-        // Set E2EE state based on result
         if (result.needsSetup) {
-          setE2EEState(true, false, 'needs_setup');
-          console.log("✅ CRYPTO: E2EE initialized - needs setup");
+          console.log("🔐 CRYPTO: User needs E2EE setup - performing automatic setup");
+          
+          // Automatisk setup for nye brukere
+          const setupResult = await backupService.setupE2EEWithBackup(userId);
+          
+          setE2EEState(true, true, null);
+          console.log("✅ CRYPTO: E2EE setup completed successfully");
+          console.log("🔑 CRYPTO: Backup phrase generated (should be shown to user):", setupResult.backupPhrase);
+          
+          hasCalledCallbackRef.current = true;
+          onInitialized?.(true);
+          
         } else if (result.needsRestore) {
+          console.log("🔐 CRYPTO: User needs E2EE restore - will show modal");
           setE2EEState(true, false, 'needs_restore');
-          console.log("✅ CRYPTO: E2EE initialized - needs restore");
+          // Modal will be shown by the useEffect above
+          // Don't call onInitialized here - wait for user action
+          
         } else {
           setE2EEState(true, true, null);
           console.log("✅ CRYPTO: E2EE initialized - ready");
+          
+          hasCalledCallbackRef.current = true;
+          onInitialized?.(true);
         }
         
-        console.log("✅ CRYPTO: E2EE initialization completed successfully");
-        hasCalledCallbackRef.current = true; // Mark callback as called
-        onInitialized?.(true);
       } catch (error) {
         console.error("❌ CRYPTO: E2EE initialization failed:", error);
         
-        // Handle error by setting appropriate E2EE state
         const errorMessage = error instanceof Error ? error.message : String(error);
         const isNetworkError = errorMessage.includes('timeout') || 
                               errorMessage.includes('network') || 
@@ -81,7 +125,7 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
           setE2EEState(true, false, errorMessage);
         }
         
-        hasCalledCallbackRef.current = true; // Mark callback as called even on error
+        hasCalledCallbackRef.current = true;
         onInitialized?.(false);
       } finally {
         isInitializingRef.current = false;
@@ -102,6 +146,7 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
           isInitializingRef.current = false; // Reset guard
           initializationAttemptRef.current = null; // Allow retry
           hasCalledCallbackRef.current = false; // Allow callback again
+          hasShownRestoreModalRef.current = false; // Allow modal again if needed
           
           const backupService = CryptoServiceBackup.getInstance();
           const result = await backupService.initializeForUser(userId!);
@@ -133,7 +178,9 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
       // Cleanup on user switch
       isInitializingRef.current = false;
       initializationAttemptRef.current = null;
-      hasCalledCallbackRef.current = false; // Reset callback flag
+      hasCalledCallbackRef.current = false;
+      hasShownRestoreModalRef.current = false; // Reset modal flag
+      setShowRestoreModal(false); // Hide modal
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
       }
@@ -148,5 +195,12 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
     }
   }, [e2eeInitialized, e2eeHasKeyPair, e2eeError]);
 
-  return null;
+  return (
+    <E2EERestoreModal
+      visible={showRestoreModal}
+      onRestore={handleRestoreSuccess}
+      onSkip={handleSkipRestore}
+      onClose={handleModalClose}
+    />
+  );
 }

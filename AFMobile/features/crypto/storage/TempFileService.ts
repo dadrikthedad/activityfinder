@@ -58,7 +58,6 @@ export class TempFileService {
       this.startPeriodicCleanup();
       
       this.initialized = true;
-      console.log(`📁 TempFileService initialized: ${this.tempFileCache.size} existing files`);
     } catch (error) {
       console.error('📁 Failed to initialize TempFileService:', error);
     }
@@ -97,8 +96,6 @@ export class TempFileService {
           });
         }
       }
-      
-      console.log(`📁 Loaded ${this.tempFileCache.size} existing temp files`);
     } catch (error) {
       console.warn('📁 Failed to load existing files:', error);
     }

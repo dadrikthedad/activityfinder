@@ -1174,8 +1174,6 @@ convertAllOptimisticToReal: () =>
           if (!state.optimisticToServerAttachmentMap) {
             state.optimisticToServerAttachmentMap = {};
           }
-          
-          console.log("🔄 Rehydrated optimistic mappings:", Object.keys(state.optimisticToServerIdMap).length);
         }
       },
 

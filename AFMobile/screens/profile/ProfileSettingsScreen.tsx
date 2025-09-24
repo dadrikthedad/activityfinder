@@ -298,6 +298,14 @@ export default function ProfileSettingsScreen() {
                 size="large"
                 fullWidth
             />
+
+            <ButtonNative
+                text="Manage Encryption"
+                onPress={() => navigation.navigate('CryptationScreen')}
+                variant="primary"
+                size="large"
+                fullWidth
+            />
             </View>
 
         {settings ? (
