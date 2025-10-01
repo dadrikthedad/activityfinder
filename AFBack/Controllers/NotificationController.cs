@@ -1,4 +1,7 @@
-﻿using AFBack.Services;
+﻿using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
+using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace AFBack.Controllers;
@@ -13,15 +16,14 @@ using System.Security.Claims;
 [ApiController]
 [Route("api/notifications")]
 [Authorize] 
-public class NotificationController : BaseController
+public class NotificationController(
+    ApplicationDbContext context,
+    INotificationService notificationService,
+    ILogger<NotificationController> logger,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<NotificationController>(context, logger, userCache, responseService)
 {
-    private readonly INotificationService _notificationService;
-
-    public NotificationController(ApplicationDbContext context, INotificationService notificationService) :  base(context)
-    {
-        _notificationService = notificationService;
-    }
-    
     /* ---------- HENT ENKELT NOTIFIKASJON ---------- */
     [HttpGet("{id:int}")]
     public async Task<ActionResult<NotificationDTO>> GetNotificationById(int id)
@@ -55,7 +57,7 @@ public class NotificationController : BaseController
             return Unauthorized();
 
         // 🎯 ENKEL: Bruk service i stedet for direkte database-kall
-        var notifications = await _notificationService.GetUserNotificationsAsync(userId, page, pageSize);
+        var notifications = await notificationService.GetUserNotificationsAsync(userId, page, pageSize);
         return Ok(notifications);
     }
     
@@ -111,7 +113,7 @@ public class NotificationController : BaseController
             {
                 Id = n.RelatedUser.Id,
                 FullName = n.RelatedUser.FullName,
-                ProfileImageUrl = n.RelatedUser.Profile?.ProfileImageUrl
+                ProfileImageUrl = n.RelatedUser.ProfileImageUrl
             };
         }
 

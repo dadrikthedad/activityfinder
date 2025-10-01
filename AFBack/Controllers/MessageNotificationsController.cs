@@ -1,6 +1,10 @@
 using System.Security.Claims;
 using AFBack.Constants;
 using AFBack.Data;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -12,30 +16,20 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class MessageNotificationsController : BaseController
+public class MessageNotificationsController(
+    ApplicationDbContext context,
+    IMessageNotificationService notificationService,
+    GroupNotificationService groupNotificationService,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    ILogger<MessageNotificationsController> logger,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<MessageNotificationsController>(context, logger, userCache, responseService)
 {
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly GroupNotificationService _groupNotificationService;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<MessageNotificationsController> _logger;
+    private readonly GroupNotificationService _groupNotificationService = groupNotificationService;
 
-    public MessageNotificationsController(
-        ApplicationDbContext context, 
-        MessageNotificationService notificationService, 
-        GroupNotificationService groupNotificationService, 
-        IBackgroundTaskQueue taskQueue, 
-        IServiceScopeFactory scopeFactory, 
-        ILogger<MessageNotificationsController> logger) :  base(context)
-    {
-        _messageNotificationService = notificationService;
-        _groupNotificationService = groupNotificationService;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-    }
 
-    
     // Henter alle Notifications
     [HttpGet]
     public async Task<IActionResult> GetNotifications([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
@@ -49,7 +43,7 @@ public class MessageNotificationsController : BaseController
             if (page < 1 || pageSize <= 0)
                 return BadRequest("Ugyldig pagineringsverdi.");
 
-            var (notifications, totalCount) = await _messageNotificationService.GetUserNotificationsAsync(
+            var (notifications, totalCount) = await notificationService.GetUserNotificationsAsync(
                 userId.Value, page, pageSize);
 
             return Ok(new
@@ -142,10 +136,10 @@ public class MessageNotificationsController : BaseController
         await _context.SaveChangesAsync();
 
         // Send sync event for å oppdatere frontend
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {
@@ -194,10 +188,10 @@ public class MessageNotificationsController : BaseController
         await _context.SaveChangesAsync();
 
         // Send sync event for å oppdatere frontend
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {

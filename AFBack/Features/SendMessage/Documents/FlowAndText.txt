@@ -1,0 +1,50 @@
+
+Swagger SendMessage uten Attachments suksess:
+
+{
+        "encryptedText": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRIipRkwB0K1Y=",
+        "keyInfo": {
+            "123": "encryptedKeyForUser123",
+            "456": "encryptedKeyForUser456"
+        },
+        "iv": "randomIV12345678",
+        "version": 1,
+        "encryptedAttachments": null,
+        "conversationId": 1,
+        "parentMessageId": null,
+        "parentMessagePreview": null
+}
+
+Med attachmetns suksess:
+
+{
+  "encryptedText": "U2FsdGVkX1+vupppZksvRf5pq5g5XjFRIipRkwB0K1Y=",
+  "keyInfo": {
+    "123": "encryptedKeyForUser123"
+  },
+  "iv": "randomIV12345678",
+  "version": 1,
+  "encryptedAttachments": [
+    {
+      "encryptedFileUrl": "https://storage.example.com/files/abc123.enc",
+      "fileType": "image/jpeg",
+      "fileName": "photo.jpg",
+      "fileSize": 2048576,
+      "keyInfo": {
+        "123": "encryptedFileKey123"
+      },
+      "iv": "fileIV987654321",
+      "version": 1,
+      "encryptedThumbnailUrl": "https://storage.example.com/thumbnails/abc123_thumb.enc",
+      "thumbnailKeyInfo": {
+        "123": "encryptedThumbKey123"
+      },
+      "thumbnailIV": "thumbIV111222333",
+      "thumbnailWidth": 200,
+      "thumbnailHeight": 150
+    }
+  ],
+  "conversationId": 1,
+  "parentMessageId": null,
+  "parentMessagePreview": null
+}

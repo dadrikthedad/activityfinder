@@ -192,13 +192,8 @@ namespace AFBack.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<bool>("HasUnreadMessages")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsApproved")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDisbanded")
                         .HasColumnType("boolean");
@@ -223,6 +218,9 @@ namespace AFBack.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("ConversationId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ConversationStatus")
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("DeletedAt")
@@ -443,9 +441,6 @@ namespace AFBack.Migrations
                     b.Property<string>("IV")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<bool>("IsApproved")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -743,10 +738,6 @@ namespace AFBack.Migrations
                     b.Property<string>("ContactPhone")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
-
-                    b.Property<string>("ProfileImageUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
 
                     b.Property<int>("TotalCommentsMade")
                         .HasColumnType("integer");
@@ -1142,6 +1133,10 @@ namespace AFBack.Migrations
                     b.Property<string>("PostalCode")
                         .HasMaxLength(25)
                         .HasColumnType("character varying(25)");
+
+                    b.Property<string>("ProfileImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("Region")
                         .HasMaxLength(100)

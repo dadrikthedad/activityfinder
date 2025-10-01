@@ -4,40 +4,33 @@ using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.DTOs;
 using AFBack.Extensions;
+using AFBack.Features.Cache.Interface;
 using AFBack.Functions;
+using AFBack.Interface.Services;
 
 namespace AFBack.Services;
 
-public class ConversationService
-    {
-        private readonly ApplicationDbContext _context;
-        private readonly SendMessageCache _msgCache;
-        private readonly IBackgroundTaskQueue _taskQueue;
-        private readonly IServiceScopeFactory _scopeFactory;
-        private readonly ILogger<ConversationService> _logger;
-
-        public ConversationService(ApplicationDbContext context, SendMessageCache msgCache, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<ConversationService> logger)
-        {
-            _context = context;
-            _msgCache = msgCache;
-            _taskQueue = taskQueue;
-            _scopeFactory = scopeFactory;
-            _logger = logger;
-        }
-        // Hente alle samtalene til en bruker som er godkjente
+public class ConversationService(
+    ApplicationDbContext context,
+    ISendMessageCache msgCache,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    ILogger<ConversationService> logger)
+{
+    // Hente alle samtalene til en bruker som er godkjente
         public async Task<List<ConversationWithApprovalDTO>> GetUserConversationsSortedAsync(
         int userId, bool includeRejected = false, int? limit = null)
         {
             // 🚀 RASK: Hent alle samtaler brukeren kan sende til via CanSend
             var allowedConversationIds = new HashSet<int>(
-                (await _msgCache.GetUserCanSendConversationsAsync(userId))
-                .Concat(await _context.MessageRequests
+                (await msgCache.GetUserCanSendConversationsAsync(userId))
+                .Concat(await context.MessageRequests
                     .AsNoTracking()
                     .Where(r => r.SenderId == userId && !r.IsAccepted && !r.IsRejected && r.ConversationId.HasValue)
                     .Select(r => r.ConversationId!.Value)
                     .ToListAsync()));
 
-            var query = _context.Conversations
+            var query = context.Conversations
                 .Where(c =>
                     c.Participants.Any(p => p.UserId == userId && !p.HasDeleted) &&
                     (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId)
@@ -48,10 +41,10 @@ public class ConversationService
             {
                 query = query.Where(c =>
                     // For 1-1: ikke vis hvis bruker har rejected
-                    (c.IsGroup || !_context.MessageRequests
+                    (c.IsGroup || !context.MessageRequests
                         .Any(r => r.ConversationId == c.Id && r.IsRejected && r.ReceiverId == userId)) &&
                     // For grupper: ikke vis hvis bruker har rejected GroupRequest
-                    (!c.IsGroup || !_context.GroupRequests
+                    (!c.IsGroup || !context.GroupRequests
                         .Any(gr => gr.ConversationId == c.Id && gr.ReceiverId == userId && gr.Status == GroupRequestStatus.Rejected))
                 );
             }
@@ -78,7 +71,7 @@ public class ConversationService
             var conversationIds = conversations.Where(c => c.IsGroup).Select(c => c.Id).ToList();
             
             var groupRequests = conversationIds.Any() 
-                ? await _context.GroupRequests
+                ? await context.GroupRequests
                     .AsNoTracking()
                     .Where(gr => conversationIds.Contains(gr.ConversationId))
                     .ToListAsync()
@@ -106,7 +99,7 @@ public class ConversationService
         // Når en bruker åpner en samtale så sjekker vi om vi har lest meldingen for å fjerne notifasjonen
         public async Task MarkConversationAsReadAsync(int userId, int conversationId)
         {
-            var existing = await _context.ConversationReadStates
+            var existing = await context.ConversationReadStates
                 .FirstOrDefaultAsync(r => r.UserId == userId && r.ConversationId == conversationId);
 
             if (existing == null)
@@ -117,20 +110,20 @@ public class ConversationService
                     ConversationId = conversationId,
                     LastReadAt = DateTime.UtcNow
                 };
-                _context.ConversationReadStates.Add(state);
+                context.ConversationReadStates.Add(state);
             }
             else
             {
                 existing.LastReadAt = DateTime.UtcNow;
             }
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
         
         // Her henter vi totalt antall meldinger ulest
         public async Task<UnreadSummaryDTO> GetUnreadSummaryAsync(int userId)
         {
-            var readStates = await _context.ConversationReadStates
+            var readStates = await context.ConversationReadStates
                 .Where(r => r.UserId == userId)
                 .ToDictionaryAsync(r => r.ConversationId, r => r.LastReadAt);
 
@@ -141,7 +134,7 @@ public class ConversationService
             var accessibleConversationIds = conversationResults.Select(cr => cr.Conversation.Id).ToHashSet();
 
             // Hent meldinger for disse samtalene
-            var conversationsWithMessages = await _context.Conversations
+            var conversationsWithMessages = await context.Conversations
                 .Include(c => c.Messages)
                 .Where(c => accessibleConversationIds.Contains(c.Id))
                 .ToListAsync();
@@ -172,7 +165,7 @@ public class ConversationService
         public async Task DeleteConversationForUserAsync(int conversationId, int userId)
         {
             // Hent conversation med participants
-            var conversation = await _context.Conversations
+            var conversation = await context.Conversations
                 .Include(c => c.Participants)
                 .FirstOrDefaultAsync(c => c.Id == conversationId);
 
@@ -198,16 +191,16 @@ public class ConversationService
             var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
             foreach (var participantId in allParticipantIds)
             {
-                await _context.RemoveCanSendAsync(participantId, conversationId, _msgCache);
+                await context.RemoveCanSendAsync(participantId, conversationId, msgCache);
             }
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             
             // 🆕 SYNC EVENT - etter SaveChanges
-            _taskQueue.QueueAsync(async () => 
+            taskQueue.QueueAsync(async () => 
             {
-                using var scope = _scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                using var scope = scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
         
                 try 
                 {
@@ -223,7 +216,7 @@ public class ConversationService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to create sync event for conversation deletion. ConversationId: {ConversationId}, UserId: {UserId}", 
+                    logger.LogError(ex, "Failed to create sync event for conversation deletion. ConversationId: {ConversationId}, UserId: {UserId}", 
                         conversationId, userId);
                 }
             });
@@ -232,7 +225,7 @@ public class ConversationService
         // Gjennoppretting en samtale
         public async Task RestoreConversationForUserAsync(int conversationId, int userId)
         {
-            var conversation = await _context.Conversations
+            var conversation = await context.Conversations
                 .Include(c => c.Participants)
                 .FirstOrDefaultAsync(c => c.Id == conversationId);
 
@@ -260,7 +253,7 @@ public class ConversationService
             if (!anyUserStillHasDeleted && conversation.IsApproved)
             {
                 // 🆕 Alternativ: Sjekk MessageRequest hvis nødvendig
-                var isMessageRequestAccepted = await _context.MessageRequests
+                var isMessageRequestAccepted = await context.MessageRequests
                     .AsNoTracking()
                     .AnyAsync(r => r.ConversationId == conversationId && r.IsAccepted);
 
@@ -271,26 +264,26 @@ public class ConversationService
             
                     foreach (var participantId in participantIds)
                     {
-                        await _context.AddCanSendAsync(participantId, conversationId, _msgCache, CanSendReason.MessageRequest);
+                        await context.AddCanSendAsync(participantId, conversationId, msgCache, CanSendReason.MessageRequest);
                     }
             
                     Console.WriteLine($"✅ Gjenopprettet CanSend for {participantIds.Count} brukere i samtale {conversationId}");
                 }
             }
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             
             // 🆕 Hent user data for participants (samme som ApproveMessageRequestAsync)
             var userIds = conversation.Participants.Select(p => p.UserId).ToArray();
-            var userData = await SyncEventExtensions.GetUserDataAsync(_context, userIds);
+            var userData = await SyncEventExtensions.GetUserDataAsync(context, userIds);
 
             var conversationSyncData = conversation.MapConversationToSyncData(userId, userData);
             
             // SYNC EVENT - etter SaveChanges
-            _taskQueue.QueueAsync(async () => 
+            taskQueue.QueueAsync(async () => 
             {
-                using var scope = _scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                using var scope = scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
                 try 
                 {
@@ -306,7 +299,7 @@ public class ConversationService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to create sync event for conversation restoration. ConversationId: {ConversationId}, UserId: {UserId}", 
+                    logger.LogError(ex, "Failed to create sync event for conversation restoration. ConversationId: {ConversationId}, UserId: {UserId}", 
                         conversationId, userId);
                 }
             });

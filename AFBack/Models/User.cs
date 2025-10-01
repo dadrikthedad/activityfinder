@@ -32,6 +32,11 @@ public class User
             .Replace("  ", " ")
             .Trim();
     }
+    
+    // Bilde blir lagret som en Url
+    [MaxLength(500)]
+    public string? ProfileImageUrl { get; set; }
+    
     public DateTime DateOfBirth { get; set; }
     
     // Henter alderen, trenger ikke da å lagre alderen når vi har fødseldag

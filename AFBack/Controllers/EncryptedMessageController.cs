@@ -3,11 +3,13 @@ using System.Text.Json;
 using AFBack.Data;
 using AFBack.DTOs.Crypto;
 using AFBack.DTOs.Crypto.EncryptedMessageAttachments;
+using AFBack.Features.Cache.Interface;
 using AFBack.Hubs;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Services;
 using AFBack.Services.Crypto;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -18,42 +20,29 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class EncryptedMessageController : BaseController
+public class EncryptedMessageController(
+    ApplicationDbContext context,
+    ILogger<FileController> logger,
+    BlobServiceClient blobServiceClient,
+    IHubContext<UserHub> hubContext,
+    IMessageNotificationService messageNotificationService,
+    GroupNotificationService groupNotificationService,
+    IFileService fileService,
+    IMessageService messageService,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    E2EEService e2EeService,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<EncryptedMessageController>(context, logger, userCache, responseService)
 {
-    private readonly ILogger<FileController> _logger;
-    private readonly BlobServiceClient _blobServiceClient;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly GroupNotificationService _groupNotificationService;
-    private readonly IFileService _fileService;
-    private readonly IMessageService _messageService;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly E2EEService _ee2eService;
-
-    public EncryptedMessageController(ApplicationDbContext context,
-        ILogger<FileController> logger,
-        BlobServiceClient blobServiceClient,
-        IHubContext<UserHub> hubContext,
-        MessageNotificationService messageNotificationService,
-        GroupNotificationService groupNotificationService,
-        IFileService fileService,
-        IMessageService messageService,
-        IBackgroundTaskQueue taskQueue,
-        IServiceScopeFactory scopeFactory,
-        E2EEService e2eeService) : base(context)
-    {
-        _logger = logger;
-        _hubContext = hubContext;
-        _blobServiceClient = blobServiceClient;
-        _messageNotificationService = messageNotificationService;
-        _groupNotificationService = groupNotificationService;
-        _fileService = fileService;
-        _messageService = messageService;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _ee2eService = e2eeService;
-    }
+    private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
+    private readonly IHubContext<UserHub> _hubContext = hubContext;
+    private readonly IMessageNotificationService _messageNotificationService = messageNotificationService;
+    private readonly GroupNotificationService _groupNotificationService = groupNotificationService;
+    private readonly IMessageService _messageService = messageService;
+    private readonly IBackgroundTaskQueue _taskQueue = taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory;
 
     [HttpPost("upload-encrypted-json")]
     public async Task<IActionResult> UploadEncryptedJSON([FromBody] SendEncryptedMessageWithFilesRequestDTO request)
@@ -74,6 +63,8 @@ public class EncryptedMessageController : BaseController
             var hasAccess = await _context.ConversationParticipants
                 .AnyAsync(cp => cp.ConversationId == request.ConversationId && cp.UserId == userId);
             
+            
+            
             if (!hasAccess)
                 return Forbid("Not authorized for this conversation");
             
@@ -91,8 +82,6 @@ public class EncryptedMessageController : BaseController
                     !string.IsNullOrEmpty(fileData.EncryptedThumbnailData));
             }
             
-            
-
             var uploadedUrls = new List<string>();
             var encryptedAttachments = new List<EncryptedAttachmentDto>();
 
@@ -130,7 +119,7 @@ public class EncryptedMessageController : BaseController
                     var fileName = $"{Path.GetFileNameWithoutExtension(fileData.FileName)}_{Guid.NewGuid()}.enc";
                     
                     // Upload main encrypted file to blob storage
-                    var uploadedUrl = await _fileService.UploadEncryptedBytesAsync(encryptedBytes, containerName, fileName);
+                    var uploadedUrl = await fileService.UploadEncryptedBytesAsync(encryptedBytes, containerName, fileName);
                     uploadedUrls.Add(uploadedUrl);
 
                     // Process thumbnail if present
@@ -144,7 +133,7 @@ public class EncryptedMessageController : BaseController
                             if (thumbnailBytes.Length > 0)
                             {
                                 var thumbnailFileName = $"thumb_{Path.GetFileNameWithoutExtension(fileData.FileName)}_{Guid.NewGuid()}.enc";
-                                thumbnailUrl = await _fileService.UploadEncryptedBytesAsync(
+                                thumbnailUrl = await fileService.UploadEncryptedBytesAsync(
                                     thumbnailBytes, 
                                     "encrypted-thumbnails", 
                                     thumbnailFileName);
@@ -224,12 +213,12 @@ public class EncryptedMessageController : BaseController
                 }
 
                 // Store encrypted message with attachments
-                var messageResult = await _ee2eService.StoreEncryptedMessageAsync(sendMessageRequest, userId.Value);
+                var messageResult = await e2EeService.StoreEncryptedMessageAsync(sendMessageRequest, userId.Value);
                 
                 if (messageResult == null)
                 {
                     // Cleanup uploaded files if message creation fails
-                    await _fileService.CleanupUploadedFiles(uploadedUrls);
+                    await fileService.CleanupUploadedFiles(uploadedUrls);
                     return StatusCode(500, "Failed to send encrypted message");
                 }
 
@@ -255,7 +244,7 @@ public class EncryptedMessageController : BaseController
                 // Cleanup uploaded files on error
                 if (uploadedUrls.Any())
                 {
-                    await _fileService.CleanupUploadedFiles(uploadedUrls);
+                    await fileService.CleanupUploadedFiles(uploadedUrls);
                 }
                 throw;
             }
@@ -271,4 +260,159 @@ public class EncryptedMessageController : BaseController
             return StatusCode(500, "Internal server error");
         }
     }
+    
+    // [HttpPost("upload-encrypted-multipart")]
+    // [RequestSizeLimit(150_000_000)] // 150MB
+    // [RequestFormLimits(MultipartBodyLengthLimit = 150_000_000)]
+    // public async Task<IActionResult> UploadEncryptedMultipart([FromForm] EncryptedMultipartRequest request)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Invalid user ID");
+    //
+    //     if (request.EncryptedFiles == null || !request.EncryptedFiles.Any())
+    //         return BadRequest("No encrypted files provided");
+    //
+    //     if (request.EncryptedFiles.Count > 10)
+    //         return BadRequest("Maximum 10 files per message");
+    //
+    //     var hasAccess = await _context.ConversationParticipants
+    //         .AnyAsync(cp => cp.ConversationId == request.ConversationId && cp.UserId == userId);
+    //     
+    //     if (!hasAccess)
+    //         return Forbid("Not authorized for this conversation");
+    //
+    //     var uploadedUrls = new List<string>();
+    //     var encryptedAttachments = new List<EncryptedAttachmentDto>();
+    //
+    //     try
+    //     {
+    //         for (int i = 0; i < request.EncryptedFiles.Count; i++)
+    //         {
+    //             var file = request.EncryptedFiles[i];
+    //             var metadata = request.FileMetadata[i]; // JSON string med KeyInfo, IV, etc.
+    //             
+    //             var meta = JsonSerializer.Deserialize<FileMetadataDto>(metadata);
+    //             
+    //             // File er allerede kryptert binary data fra frontend
+    //             using var stream = file.OpenReadStream();
+    //             
+    //             var containerName = meta.FileType.StartsWith("video/") 
+    //                 ? "encrypted-message-videos" 
+    //                 : "encrypted-message-attachments";
+    //
+    //             var fileName = $"{Path.GetFileNameWithoutExtension(meta.FileName)}_{Guid.NewGuid()}.enc";
+    //             
+    //             // Upload direkte fra stream - ingen Base64 konvertering!
+    //             var uploadedUrl = await fileService.UploadEncryptedStreamAsync(stream, containerName, fileName);
+    //             uploadedUrls.Add(uploadedUrl);
+    //
+    //             // Process thumbnail hvis present
+    //             string? thumbnailUrl = null;
+    //             if (request.EncryptedThumbnails?.Count > i && request.EncryptedThumbnails[i] != null)
+    //             {
+    //                 var thumb = request.EncryptedThumbnails[i];
+    //                 using var thumbStream = thumb.OpenReadStream();
+    //                 var thumbnailFileName = $"thumb_{Path.GetFileNameWithoutExtension(meta.FileName)}_{Guid.NewGuid()}.enc";
+    //                 thumbnailUrl = await fileService.UploadEncryptedStreamAsync(thumbStream, "encrypted-thumbnails", thumbnailFileName);
+    //                 uploadedUrls.Add(thumbnailUrl);
+    //             }
+    //
+    //             var encryptedAttachment = new EncryptedAttachmentDto
+    //             {
+    //                 EncryptedFileUrl = uploadedUrl,
+    //                 FileName = meta.FileName,
+    //                 FileType = meta.FileType,
+    //                 FileSize = meta.FileSize,
+    //                 KeyInfo = meta.KeyInfo,
+    //                 IV = meta.IV,
+    //                 Version = meta.Version,
+    //                 EncryptedThumbnailUrl = thumbnailUrl,
+    //                 ThumbnailKeyInfo = meta.ThumbnailKeyInfo,
+    //                 ThumbnailIV = meta.ThumbnailIV,
+    //                 ThumbnailWidth = meta.ThumbnailWidth,
+    //                 ThumbnailHeight = meta.ThumbnailHeight
+    //             };
+    //
+    //             encryptedAttachments.Add(encryptedAttachment);
+    //         }
+    //
+    //         var sendMessageRequest = new SendEncryptedMessageRequestDTO
+    //         {
+    //             EncryptedText = request.Text,
+    //             ConversationId = request.ConversationId,
+    //             ReceiverId = request.ReceiverId?.ToString(),
+    //             ParentMessageId = request.ParentMessageId,
+    //             KeyInfo = request.TextKeyInfo != null 
+    //                 ? JsonSerializer.Deserialize<Dictionary<string, string>>(request.TextKeyInfo) ?? new()
+    //                 : new(),
+    //             IV = request.TextIV ?? string.Empty,
+    //             Version = 1,
+    //             EncryptedAttachments = encryptedAttachments
+    //         };
+    //
+    //         var messageResult = await e2EeService.StoreEncryptedMessageAsync(sendMessageRequest, userId.Value);
+    //         
+    //         if (messageResult == null)
+    //         {
+    //             await fileService.CleanupUploadedFiles(uploadedUrls);
+    //             return StatusCode(500, "Failed to send encrypted message");
+    //         }
+    //
+    //         return Ok(new SendEncryptedMessageResponseDTO
+    //         {
+    //             MessageId = messageResult.Id,
+    //             SentAt = messageResult.SentAt.ToString("O"),
+    //             ConversationId = messageResult.ConversationId,
+    //             Attachments = encryptedAttachments.Select((att, index) => new AttachmentResponseDto
+    //             {
+    //                 Id = messageResult.Attachments.ElementAt(index).Id,
+    //                 OptimisticId = request.OptimisticIds?[index],
+    //                 FileUrl = att.EncryptedFileUrl,
+    //                 ThumbnailUrl = att.EncryptedThumbnailUrl
+    //             }).ToArray()
+    //         });
+    //     }
+    //     catch (Exception)
+    //     {
+    //         if (uploadedUrls.Any())
+    //             await fileService.CleanupUploadedFiles(uploadedUrls);
+    //         throw;
+    //     }
+    // }
+    //
+    // public class EncryptedMultipartRequest
+    // {
+    //     public int ConversationId { get; set; }
+    //     public int? ReceiverId { get; set; }
+    //     public int? ParentMessageId { get; set; }
+    //
+    //     public string? Text { get; set; }
+    //     public string? TextKeyInfo { get; set; } // JSON
+    //     public string? TextIV { get; set; }
+    //
+    //     [Required]
+    //     public List<IFormFile> EncryptedFiles { get; set; } = new(); // Allerede kryptert binary
+    //
+    //     public List<IFormFile>? EncryptedThumbnails { get; set; }
+    //
+    //     [Required]
+    //     public List<string> FileMetadata { get; set; } = new(); // JSON strings med KeyInfo, IV, etc.
+    //
+    //     public List<string>? OptimisticIds { get; set; }
+    // }
+    //
+    // public class FileMetadataDto
+    // {
+    //     public string FileName { get; set; } = string.Empty;
+    //     public string FileType { get; set; } = string.Empty;
+    //     public long FileSize { get; set; }
+    //     public Dictionary<string, string> KeyInfo { get; set; } = new();
+    //     public string IV { get; set; } = string.Empty;
+    //     public int Version { get; set; }
+    //     public Dictionary<string, string>? ThumbnailKeyInfo { get; set; }
+    //     public string? ThumbnailIV { get; set; }
+    //     public int? ThumbnailWidth { get; set; }
+    //     public int? ThumbnailHeight { get; set; }
+    // }
 }

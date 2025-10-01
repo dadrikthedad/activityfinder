@@ -1,4 +1,7 @@
 using AFBack.Data;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -7,17 +10,15 @@ namespace AFBack.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class SupportController : BaseController
+public class SupportController(
+    ApplicationDbContext context,
+    ILogger<SupportController> logger,
+    SupportService supportService,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<SupportController>(context, logger, userCache, responseService)
 {
-    private readonly SupportService _supportService;
     // Loggeren
-    private readonly ILogger<SupportController> _logger;
-        
-    public SupportController(ApplicationDbContext context, ILogger<SupportController> logger, SupportService supportService) :  base(context)
-    {
-            _supportService = supportService;
-            _logger = logger;
-    }
 
     [HttpPost("report")]
     public async Task<IActionResult> SubmitReport([FromBody] ReportRequestDTO request)
@@ -35,7 +36,7 @@ public class SupportController : BaseController
                 deviceId, platform, request.Type);
 
             var userId = GetUserId();
-            var reportId = await _supportService.CreateReportAsync(request, userId);
+            var reportId = await supportService.CreateReportAsync(request, userId);
             
             return Ok(new { 
                 ReportId = reportId, 

@@ -1,12 +1,24 @@
 using AFBack.Hubs;
-using AFBack.Middleware;
+using AFBack.Infrastructure.Middleware;
 
-namespace AFBack.Api.Extensions;
+namespace AFBack.Infrastructure.Extensions;
 
 public static class WebApplicationExtensions
 {
+    /// <summary>
+    /// Her aktivrer vi og setter opp alt vi har tidligere lagt til i builderen etter appen har startet
+    /// </summary>
+    /// <param name="app"></param>
+    /// <returns></returns>
     public static WebApplication UseAppPipeline(this WebApplication app)
     {
+        // Må være først for å fange opp feil på Middlewaren og andre exceptions
+        app.UseExceptionHandler();
+        
+        // Tidlig for å teste APIer
+        app.UseSwagger();
+        app.UseSwaggerUI();
+        
         // Sikrer at vi ikke blir spoofet og at proxiene vi tillater blir sluppet igjennom
         app.UseForwardedHeaders();
         
@@ -22,9 +34,9 @@ public static class WebApplicationExtensions
         //Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization.
         app.UseCors("AllowFrontend");
         
-        // sikrer at vi ikke blir spammet ned av mange requester. Setter en limit pr endepunkt. brukes med RateLimitIpBanMiddleware
+        // sikrer at vi ikke blir spammet ned av mange requester. Setter en limit pr endepunkt. brukes med IpBanMiddleware
+        app.UseMiddleware<IpBanMiddleware>(); 
         app.UseRateLimiter();
-        app.UseMiddleware<RateLimitIpBanMiddleware>(); 
         
         // Aktiverer autentisering vi lagde i AddAuthentication
         app.UseAuthentication();

@@ -2,6 +2,7 @@
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -14,21 +15,15 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/friends")]
 [Authorize]
-public class FriendsController : ControllerBase
+public class FriendsController(
+    ApplicationDbContext context,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    ILogger<FriendsController> logger)
+    : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<FriendsController> _logger;
+    private readonly ILogger<FriendsController> _logger = logger;
 
-    public FriendsController(ApplicationDbContext context, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<FriendsController> logger)
-    {
-        _context = context;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-    }
-    
 
     // GET: Hent alle venner for innlogget bruker, brukes i Friends og skal senere brukes i profilsiden
     [HttpGet]
@@ -40,7 +35,7 @@ public class FriendsController : ControllerBase
         if (pageNumber <= 0 || pageSize <= 0)
             return BadRequest(new { message = "Page number and size must be greater than zero." });
 
-        var query = _context.Friends
+        var query = context.Friends
             .Include(f => f.User).ThenInclude(u => u.Profile)
             .Include(f => f.FriendUser).ThenInclude(u => u.Profile)
             .AsNoTracking()
@@ -62,13 +57,13 @@ public class FriendsController : ControllerBase
                     {
                         Id = f.FriendUser.Id,
                         FullName = f.FriendUser.FullName,
-                        ProfileImageUrl = f.FriendUser.Profile != null ? f.FriendUser.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = f.User.ProfileImageUrl
                     }
                     : new UserSummaryDTO
                     {
                         Id = f.User.Id,
                         FullName = f.User.FullName,
-                        ProfileImageUrl = f.User.Profile != null ? f.User.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = f.User.ProfileImageUrl
                     }
             })
             .ToListAsync();
@@ -91,13 +86,13 @@ public class FriendsController : ControllerBase
             return Unauthorized(new { message = "Invalid user ID in token." });
 
         // Hent ID-er til den innloggede brukerens venner
-        var currentUserFriendIds = await _context.Friends
+        var currentUserFriendIds = await context.Friends
             .Where(f => f.UserId == currentUserId || f.FriendId == currentUserId)
             .Select(f => f.UserId == currentUserId ? f.FriendId : f.UserId)
             .ToListAsync();
 
         // Hent vennelisten til bruker med id `userId`
-        var friends = await _context.Friends
+        var friends = await context.Friends
             .Include(f => f.User).ThenInclude(u => u.Profile)
             .Include(f => f.FriendUser).ThenInclude(u => u.Profile)
             .AsNoTracking()
@@ -114,13 +109,13 @@ public class FriendsController : ControllerBase
                     {
                         Id = f.FriendUser.Id,
                         FullName = f.FriendUser.FullName,
-                        ProfileImageUrl = f.FriendUser.Profile != null ? f.FriendUser.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = f.User.ProfileImageUrl
                     }
                     : new UserSummaryDTO
                     {
                         Id = f.User.Id,
                         FullName = f.User.FullName,
-                        ProfileImageUrl = f.User.Profile != null ? f.User.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = f.User.ProfileImageUrl
                     }
             })
             .ToListAsync();
@@ -143,7 +138,7 @@ public class FriendsController : ControllerBase
             return Unauthorized(new { message = "Invalid user ID in token." });
         }
 
-        var isFriend = await _context.Friends.AnyAsync(f =>
+        var isFriend = await context.Friends.AnyAsync(f =>
             (f.UserId == userId && f.FriendId == otherUserId) ||
             (f.UserId == otherUserId && f.FriendId == userId));
 
@@ -160,7 +155,7 @@ public class FriendsController : ControllerBase
         }
 
         // Finn relasjonen i én retning
-        var friendship = await _context.Friends
+        var friendship = await context.Friends
             .FirstOrDefaultAsync(f =>
                 (f.UserId == userId && f.FriendId == friendId) ||
                 (f.UserId == friendId && f.FriendId == userId));
@@ -172,7 +167,7 @@ public class FriendsController : ControllerBase
         var removedFriendId = friendship.FriendId;
         
         // SLETT ALLE RELATERTE FRIEND INVITATIONS (begge retninger)
-        var existingInvitations = await _context.FriendInvitations
+        var existingInvitations = await context.FriendInvitations
             .Where(inv => 
                 (inv.SenderId == userId && inv.ReceiverId == friendId) ||
                 (inv.SenderId == friendId && inv.ReceiverId == userId))
@@ -182,18 +177,18 @@ public class FriendsController : ControllerBase
         {
             Log.Information("Removing {Count} friend invitations between users {UserId} and {FriendId}", 
                 existingInvitations.Count, userId, friendId);
-            _context.FriendInvitations.RemoveRange(existingInvitations);
+            context.FriendInvitations.RemoveRange(existingInvitations);
         }
 
 
-        _context.Friends.Remove(friendship);
-        await _context.SaveChangesAsync();
+        context.Friends.Remove(friendship);
+        await context.SaveChangesAsync();
         
         // SYNC EVENT - etter SaveChanges
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {

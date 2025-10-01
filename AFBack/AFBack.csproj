@@ -51,9 +51,9 @@
 
    <ItemGroup>
      <Folder Include="Features\Block\DTOs\" />
-     <Folder Include="Features\MessageEncryption\Controllers\" />
-     <Folder Include="Features\MessageEncryption\DTOs\" />
-     <Folder Include="Features\MessageEncryption\Services\" />
+     <Folder Include="Features\Conversation\Mapper\" />
+     <Folder Include="Features\SyncEvents\Mapper\" />
+     <Folder Include="Infrastructure\Interface\" />
      <Folder Include="Services\Block\DTOs\" />
      <Folder Include="Services\User\" />
    </ItemGroup>

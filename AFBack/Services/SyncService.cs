@@ -6,21 +6,13 @@ using AFBack.Models;
 using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO.Sync;
 using AFBack.Extensions;
+using AFBack.Interface.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
 
-public class SyncService
+public class SyncService(ApplicationDbContext context, ILogger<SyncService> logger) : ISyncService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly ILogger<SyncService> _logger;
-
-    public SyncService(ApplicationDbContext context, ILogger<SyncService> logger)
-    {
-        _context = context;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Generer ny sync token
     /// </summary>
@@ -45,7 +37,7 @@ public class SyncService
     /// <summary>
     /// Validér token hash
     /// </summary>
-    private bool ValidateTokenHash(SyncEventExtensions.SyncToken token)
+    public bool ValidateTokenHash(SyncEventExtensions.SyncToken token)
     {
         try
         {
@@ -57,7 +49,7 @@ public class SyncService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to validate token hash");
+            logger.LogWarning(ex, "Failed to validate token hash");
             return false;
         }
     }
@@ -88,7 +80,7 @@ public class SyncService
             
             if (token == null)
             {
-                _logger.LogWarning("Failed to deserialize sync token");
+                logger.LogWarning("Failed to deserialize sync token");
                 return null;
             }
             
@@ -101,7 +93,7 @@ public class SyncService
                 // I ParseSyncToken, legg til explicit token age sjekk:
                 if (DateTime.UtcNow - token.Timestamp > TimeSpan.FromDays(7))
                 {
-                    _logger.LogInformation("Token expired: {Age:F1} days old (created: {Created})", 
+                    logger.LogInformation("Token expired: {Age:F1} days old (created: {Created})", 
                         (DateTime.UtcNow - token.Timestamp).TotalDays,
                         token.Timestamp.ToString("yyyy-MM-dd HH:mm:ss UTC"));
                     return null;
@@ -109,13 +101,13 @@ public class SyncService
                 
                 if (string.IsNullOrEmpty(token.Hash))
                 {
-                    _logger.LogWarning("Sync token missing hash for version 1");
+                    logger.LogWarning("Sync token missing hash for version 1");
                     return null;
                 }
                 
                 if (!ValidateTokenHash(token))
                 {
-                    _logger.LogWarning("Sync token hash validation failed");
+                    logger.LogWarning("Sync token hash validation failed");
                     return null;
                 }
             }
@@ -124,7 +116,7 @@ public class SyncService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to parse sync token: {Token}", tokenString);
+            logger.LogWarning(ex, "Failed to parse sync token: {Token}", tokenString);
             return null;
         }
     }
@@ -150,15 +142,15 @@ public class SyncService
                 CreatedAt = DateTime.UtcNow
             };
 
-            _context.SyncEvents.Add(syncEvent);
-            await _context.SaveChangesAsync();
+            context.SyncEvents.Add(syncEvent);
+            await context.SaveChangesAsync();
             
-            _logger.LogDebug("Created sync event {EventType} for user {UserId}", eventType, userId);
+            logger.LogDebug("Created sync event {EventType} for user {UserId}", eventType, userId);
             return syncToken;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create sync event for user {UserId}", userId);
+            logger.LogError(ex, "Failed to create sync event for user {UserId}", userId);
             throw;
         }
     }
@@ -192,16 +184,16 @@ public class SyncService
                 CreatedAt = createdAt
             }).ToList();
 
-            _context.SyncEvents.AddRange(syncEvents);
-            await _context.SaveChangesAsync();
+            context.SyncEvents.AddRange(syncEvents);
+            await context.SaveChangesAsync();
         
-            _logger.LogDebug("Created {Count} sync events of type {EventType}", 
+            logger.LogDebug("Created {Count} sync events of type {EventType}", 
                 syncEvents.Count, eventType);
             return syncToken;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create sync events for multiple users");
+            logger.LogError(ex, "Failed to create sync events for multiple users");
             throw;
         }
     }
@@ -225,7 +217,7 @@ public class SyncService
                     // Sjekk om token er for gammelt (mer enn 7 dager)
                     if (DateTime.UtcNow - sinceTimestamp > TimeSpan.FromDays(7))
                     {
-                        _logger.LogInformation("Sync token too old for user {UserId}, requiring full refresh", userId);
+                        logger.LogInformation("Sync token too old for user {UserId}, requiring full refresh", userId);
                         return new SyncResponseDTO 
                         { 
                             RequiresFullRefresh = true,
@@ -236,7 +228,7 @@ public class SyncService
                 }
                 else
                 {
-                    _logger.LogWarning("Invalid sync token for user {UserId}", userId);
+                    logger.LogWarning("Invalid sync token for user {UserId}", userId);
                     return new SyncResponseDTO 
                     { 
                         RequiresFullRefresh = true,
@@ -247,7 +239,7 @@ public class SyncService
             }
 
             // Bygg query step-by-step
-            var query = _context.SyncEvents
+            var query = context.SyncEvents
                 .Where(e => e.UserId == userId);
 
             if (sinceTimestamp.HasValue)
@@ -272,7 +264,7 @@ public class SyncService
 
             var newSyncToken = GenerateSyncToken();
             
-            _logger.LogInformation("Retrieved {Count} sync events for user {UserId} since {Since}", 
+            logger.LogInformation("Retrieved {Count} sync events for user {UserId} since {Since}", 
                 events.Count, userId, sinceTimestamp?.ToString() ?? "beginning");
 
             return new SyncResponseDTO
@@ -285,12 +277,12 @@ public class SyncService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get sync events for user {UserId}", userId);
+            logger.LogError(ex, "Failed to get sync events for user {UserId}", userId);
             throw;
         }
     }
     
-    private static string ReserializeEventData(string eventData)
+    public string ReserializeEventData(string eventData)
     {
         if (string.IsNullOrEmpty(eventData))
             return eventData;
@@ -309,21 +301,22 @@ public class SyncService
         }
     }
     
+    // TODO: Må denne inn i cleanupManager/servicen?
     public async Task CleanupOldEventsAsync()
     {
         try
         {
             var cutoffDate = DateTime.UtcNow.AddDays(-30);
         
-            var oldEventsCount = await _context.SyncEvents
+            var oldEventsCount = await context.SyncEvents
                 .Where(e => e.CreatedAt < cutoffDate)
                 .ExecuteDeleteAsync();
 
-            _logger.LogInformation("Cleaned up {Count} old sync events", oldEventsCount);
+            logger.LogInformation("Cleaned up {Count} old sync events", oldEventsCount);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to cleanup old sync events");
+            logger.LogError(ex, "Failed to cleanup old sync events");
             throw; // Re-throw så MaintenanceCleanupService kan håndtere retry
         }
     }
@@ -360,7 +353,7 @@ public class SyncService
 
             if (!userIds.Any())
             {
-                _logger.LogWarning("No target users provided for sync event {EventType}", eventType);
+                logger.LogWarning("No target users provided for sync event {EventType}", eventType);
                 return;
             }
 
@@ -388,12 +381,12 @@ public class SyncService
                 );
             }
 
-            _logger.LogDebug("Created sync event {EventType} for {UserCount} users", 
+            logger.LogDebug("Created sync event {EventType} for {UserCount} users", 
                 eventType, userIds.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create and distribute sync event {EventType}", eventType);
+            logger.LogError(ex, "Failed to create and distribute sync event {EventType}", eventType);
             throw;
         }
     }

@@ -2,37 +2,25 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
 
-public class MessageNotificationService
+public class MessageNotificationService(
+    ApplicationDbContext context,
+    IHubContext<UserHub> hubContext,
+    ILogger<MessageNotificationService> logger,
+    GroupNotificationService groupNotificationService,
+    NotificationSyncService notificationSyncService) : IMessageNotificationService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IHubContext<UserHub> _hubContext; 
-    private readonly ILogger<MessageNotificationService> _logger;
-    private readonly GroupNotificationService _groupNotificationService;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly NotificationSyncService _notificationSyncService;
-    
 
-    public MessageNotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, ILogger<MessageNotificationService> logger, GroupNotificationService groupNotificationService, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, NotificationSyncService notificationSyncService)
-    {
-        _context = context;
-        _hubContext = hubContext;
-        _logger = logger;
-        _groupNotificationService = groupNotificationService;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _notificationSyncService = notificationSyncService;
-    }
-    
+
     public async Task<MessageResponseDTO> CreateSystemMessageAsync(int conversationId, string messageText, List<int>? excludeUserIds = null)
     {
-        _logger.LogInformation("🔍 SYSTEM_MESSAGE: Creating system message for conversation {ConversationId}: {MessageText}", 
+        logger.LogInformation("🔍 SYSTEM_MESSAGE: Creating system message for conversation {ConversationId}: {MessageText}", 
             conversationId, messageText);
         
         var systemMessage = new Message
@@ -42,30 +30,29 @@ public class MessageNotificationService
             EncryptedText = messageText,
             IsSystemMessage = true,
             SentAt = DateTime.UtcNow,
-            IsApproved = true
         };
 
-        _context.Messages.Add(systemMessage);
+        context.Messages.Add(systemMessage);
 
         // Oppdater samtalen
-        var conversation = await _context.Conversations
+        var conversation = await context.Conversations
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.Id == conversationId);
             
         if (conversation != null)
         {
             conversation.LastMessageSentAt = systemMessage.SentAt;
-            _logger.LogInformation("🔍 SYSTEM_MESSAGE: Found conversation {ConversationId} with {ParticipantCount} participants", 
+            logger.LogInformation("🔍 SYSTEM_MESSAGE: Found conversation {ConversationId} with {ParticipantCount} participants", 
                 conversationId, conversation.Participants.Count);
         }
         else
         {
-            _logger.LogWarning("🔍 SYSTEM_MESSAGE: Conversation {ConversationId} not found!", conversationId);
+            logger.LogWarning("🔍 SYSTEM_MESSAGE: Conversation {ConversationId} not found!", conversationId);
         }
 
         // Lagre først så vi får message.Id
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("🔍 SYSTEM_MESSAGE: System message saved with ID: {MessageId}", systemMessage.Id);
+        await context.SaveChangesAsync();
+        logger.LogInformation("🔍 SYSTEM_MESSAGE: System message saved with ID: {MessageId}", systemMessage.Id);
         
         var response = new MessageResponseDTO
         {
@@ -93,27 +80,27 @@ public class MessageNotificationService
                     .Where(id => !string.IsNullOrEmpty(id)) // Extra safety
                     .ToList();
 
-                _logger.LogInformation("🔍 SYSTEM_MESSAGE: Sending system message {MessageId} to {ParticipantCount} participants: [{ParticipantIds}]", 
+                logger.LogInformation("🔍 SYSTEM_MESSAGE: Sending system message {MessageId} to {ParticipantCount} participants: [{ParticipantIds}]", 
                     systemMessage.Id, participantIds.Count, string.Join(", ", participantIds));
 
                 if (participantIds.Any())
                 {
                     // Send til alle deltakere
-                    await _hubContext.Clients.Users(participantIds)
+                    await hubContext.Clients.Users(participantIds)
                         .SendAsync("ReceiveMessage", response);
                         
-                    _logger.LogInformation("🔍 SYSTEM_MESSAGE: Successfully sent system message {MessageId} via SignalR", 
+                    logger.LogInformation("🔍 SYSTEM_MESSAGE: Successfully sent system message {MessageId} via SignalR", 
                         systemMessage.Id);
                 }
                 else
                 {
-                    _logger.LogWarning("🔍 SYSTEM_MESSAGE: No valid participants to send SignalR message to for conversation {ConversationId}", 
+                    logger.LogWarning("🔍 SYSTEM_MESSAGE: No valid participants to send SignalR message to for conversation {ConversationId}", 
                         conversationId);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "🔍 SYSTEM_MESSAGE_ERROR: Failed to send SignalR message for system message {MessageId} in conversation {ConversationId}", 
+                logger.LogError(ex, "🔍 SYSTEM_MESSAGE_ERROR: Failed to send SignalR message for system message {MessageId} in conversation {ConversationId}", 
                     systemMessage.Id, conversationId);
                 // Don't rethrow - system message is already saved
             }
@@ -125,12 +112,12 @@ public class MessageNotificationService
     public async Task CreateMessageNotificationAsync(int recipientUserId, int senderUserId, int conversationId, int messageId)
     {
         // 🚀 SINGLE QUERY: Hent alt vi trenger i én spørring
-        var query = from c in _context.Conversations
+        var query = from c in context.Conversations
                     where c.Id == conversationId
                     select new
                     {
                         ConversationInfo = new { c.IsGroup, c.GroupName, c.GroupImageUrl },
-                        ExistingNotification = _context.MessageNotifications // Group: any sender, 1-1: specific sender
+                        ExistingNotification = context.MessageNotifications // Group: any sender, 1-1: specific sender
                             .FirstOrDefault(n => n.UserId == recipientUserId &&
                                                  n.ConversationId == conversationId &&
                                                  !n.IsRead &&
@@ -170,37 +157,37 @@ public class MessageNotificationService
                 MessageCount = 1
             };
 
-            _context.MessageNotifications.Add(notification);
+            context.MessageNotifications.Add(notification);
             notificationToReturn = notification;
         }
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         // 🎯 SMART: Bruk notification entity til å bygge DTO uten extra query
-        var dto = await BuildNotificationDTO(notificationToReturn, conversation.IsGroup, conversation.GroupName, conversation.GroupImageUrl);
+        var dto = await BuildNotificationDto(notificationToReturn, conversation.IsGroup, conversation.GroupName, conversation.GroupImageUrl);
         
         // 🚀 Automatically queue sync event
-        _notificationSyncService.QueueNotificationSyncEvent(dto, recipientUserId);
+        notificationSyncService.QueueNotificationSyncEvent(dto, recipientUserId);
 
     }
     
     
     //  Helper method for å bygge DTO uten extra queries til CreateMessageNotifiaitonAsync
-    private async Task<MessageNotificationDTO> BuildNotificationDTO(
+    public async Task<MessageNotificationDTO> BuildNotificationDto(
         MessageNotification notification, 
         bool isGroup, 
         string? groupName,
         string? groupImageUrl)
     {
         // Hent kun user data vi trenger
-        var dataQuery = from u in _context.Users
+        var dataQuery = from u in context.Users
             where u.Id == notification.FromUserId
             select new 
             { 
                 u.FullName, 
-                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                ProfileImageUrl = u.ProfileImageUrl,
                 MessageText = notification.MessageId.HasValue 
-                    ? _context.Messages
+                    ? context.Messages
                         .Where(m => m.Id == notification.MessageId.Value)
                         .Select(m => m.EncryptedText)
                         .FirstOrDefault()
@@ -262,7 +249,7 @@ public class MessageNotificationService
     
     public async Task<MessageNotificationDTO?> CreateMessageRequestNotificationAsync(int senderId, int receiverId, int conversationId)
     {
-        var existing = await _context.MessageNotifications
+        var existing = await context.MessageNotifications
             .Include(n => n.FromUser)
             .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
@@ -288,18 +275,18 @@ public class MessageNotificationService
             IsRead = false
         };
 
-        _context.MessageNotifications.Add(notification);
-        await _context.SaveChangesAsync();
+        context.MessageNotifications.Add(notification);
+        await context.SaveChangesAsync();
 
-        var created = await _context.MessageNotifications
+        var created = await context.MessageNotifications
             .Include(n => n.FromUser)
                 .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        var dto = MapToDTO(created!);
+        var dto = MapToDto(created!);
         
-        _notificationSyncService.QueueNotificationSyncEvent(dto, receiverId); 
+        notificationSyncService.QueueNotificationSyncEvent(dto, receiverId); 
         
         return dto;
     }
@@ -319,19 +306,19 @@ public class MessageNotificationService
             IsRead = false
         };
 
-        _context.MessageNotifications.Add(notification);
-        await _context.SaveChangesAsync();
+        context.MessageNotifications.Add(notification);
+        await context.SaveChangesAsync();
 
-        var created = await _context.MessageNotifications
+        var created = await context.MessageNotifications
             .Include(n => n.FromUser)
                 .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        var dto = MapToDTO(created!);
+        var dto = MapToDto(created!);
     
         // Automatically queue sync event
-        _notificationSyncService.QueueNotificationSyncEvent(dto, senderId);
+        notificationSyncService.QueueNotificationSyncEvent(dto, senderId);
         
         return dto;
     }
@@ -344,7 +331,7 @@ public class MessageNotificationService
         string emoji)
     {
         // 🔍 Sjekk om det finnes en eksisterende notifikasjon
-        var existing = await _context.MessageNotifications
+        var existing = await context.MessageNotifications
             .Include(n => n.Message)
             .Include(n => n.FromUser)
                 .ThenInclude(u => u.Profile)
@@ -361,8 +348,8 @@ public class MessageNotificationService
             // 🔁 Oppdater timestamp og mark as unread
             existing.CreatedAt = DateTime.UtcNow;
 
-            await _context.SaveChangesAsync();
-            return MapToDTO(existing, isUpdate: true);
+            await context.SaveChangesAsync();
+            return MapToDto(existing, isUpdate: true);
         }
 
         // ✨ Ny notifikasjon hvis ingen finnes
@@ -377,10 +364,10 @@ public class MessageNotificationService
             IsRead = false
         };
 
-        _context.MessageNotifications.Add(notification);
-        await _context.SaveChangesAsync();
+        context.MessageNotifications.Add(notification);
+        await context.SaveChangesAsync();
 
-        var created = await _context.MessageNotifications
+        var created = await context.MessageNotifications
             .Include(n => n.FromUser)
             .ThenInclude(u => u.Profile) 
             .Include(n => n.Conversation)
@@ -388,10 +375,10 @@ public class MessageNotificationService
             .ThenInclude(m => m.Reactions)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        var dto = MapToDTO(created!);
+        var dto = MapToDto(created!);
     
         // Automatically queue sync event
-        _notificationSyncService.QueueNotificationSyncEvent(dto, receiverUserId);
+        notificationSyncService.QueueNotificationSyncEvent(dto, receiverUserId);
     
         return dto;
     }
@@ -404,7 +391,7 @@ public class MessageNotificationService
         string groupName)
     {
         // Sjekk om det allerede finnes en ulest GroupRequest-notifikasjon
-        var existing = await _context.MessageNotifications
+        var existing = await context.MessageNotifications
             .Include(n => n.FromUser)
             .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
@@ -431,26 +418,26 @@ public class MessageNotificationService
             IsRead = false,
         };
 
-        _context.MessageNotifications.Add(notification);
-        await _context.SaveChangesAsync();
+        context.MessageNotifications.Add(notification);
+        await context.SaveChangesAsync();
 
         // Hent den opprettede notifikasjonen med alle includes
-        var created = await _context.MessageNotifications
+        var created = await context.MessageNotifications
             .Include(n => n.FromUser)
             .ThenInclude(u => u.Profile)
             .Include(n => n.Conversation)
             .FirstOrDefaultAsync(n => n.Id == notification.Id);
 
-        var dto = MapToDTO(created!);
+        var dto = MapToDto(created!);
     
         // Automatically queue sync event
-        _notificationSyncService.QueueNotificationSyncEvent(dto, receiverId);
+        notificationSyncService.QueueNotificationSyncEvent(dto, receiverId);
     
         return dto;
     }
     
     
-    public MessageNotificationDTO MapToDTO(MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)
+    public MessageNotificationDTO MapToDto(MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)
     {
         string preview;
         
@@ -580,7 +567,7 @@ public class MessageNotificationService
             ConversationId = n.ConversationId,
             SenderName = n.FromUser?.FullName,
             SenderId = n.FromUserId,
-            SenderProfileImageUrl = n.FromUser?.Profile?.ProfileImageUrl, 
+            SenderProfileImageUrl = n.FromUser?.ProfileImageUrl, 
             GroupName = n.Conversation?.GroupName,
             GroupImageUrl = n.Conversation?.GroupImageUrl,
             MessagePreview = preview,
@@ -610,7 +597,7 @@ public class MessageNotificationService
     {
         try
         {
-            _logger.LogDebug("🔍 Getting notifications for user {UserId} - Page: {Page}, PageSize: {PageSize}", 
+            logger.LogDebug("🔍 Getting notifications for user {UserId} - Page: {Page}, PageSize: {PageSize}", 
                 userId, page, pageSize);
 
             // Valider input
@@ -620,12 +607,12 @@ public class MessageNotificationService
             }
 
             // 1️⃣ Tell totale antall notifications (nå kun fra MessageNotifications tabellen)
-            var totalCount = await _context.MessageNotifications
+            var totalCount = await context.MessageNotifications
                 .Where(n => n.UserId == userId)
                 .CountAsync();
 
             // 2️⃣ Hent alle notifications inkludert GroupEvent notifikasjoner
-            var messageNotifications = await _context.MessageNotifications
+            var messageNotifications = await context.MessageNotifications
                 .Where(n => n.UserId == userId)
                 .Include(n => n.FromUser)
                 .ThenInclude(u => u.Profile)
@@ -645,7 +632,7 @@ public class MessageNotificationService
                 .Distinct()
                 .ToList();
 
-            var rejectedMessageConversations = await _context.MessageRequests
+            var rejectedMessageConversations = await context.MessageRequests
                 .Where(r =>
                     conversationIds.Contains(r.ConversationId!.Value) &&
                     r.ReceiverId == userId &&
@@ -654,7 +641,7 @@ public class MessageNotificationService
                 .Distinct()
                 .ToListAsync();
 
-            var rejectedGroupConversations = await _context.GroupRequests
+            var rejectedGroupConversations = await context.GroupRequests
                 .Where(gr =>
                     conversationIds.Contains(gr.ConversationId) &&
                     gr.ReceiverId == userId &&
@@ -677,25 +664,25 @@ public class MessageNotificationService
                 if (notification.Type == NotificationType.GroupEvent)
                 {
                     // 🆕 Bruk GroupNotificationService for GroupEvent notifikasjoner
-                    dto = await _groupNotificationService.ConvertToMessageNotificationDTOAsync(notification);
+                    dto = await groupNotificationService.ConvertToMessageNotificationDTOAsync(notification);
                 }
                 else
                 {
                     // Vanlige notifikasjoner
-                    dto = MapToDTO(notification, rejectedConversationSet);
+                    dto = MapToDto(notification, rejectedConversationSet);
                 }
                 
                 allNotificationDTOs.Add(dto);
             }
 
-            _logger.LogDebug("✅ Retrieved {NotificationCount} notifications out of {TotalCount} total", 
+            logger.LogDebug("✅ Retrieved {NotificationCount} notifications out of {TotalCount} total", 
                 allNotificationDTOs.Count, totalCount);
 
             return (allNotificationDTOs, totalCount);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Failed to get notifications for user {UserId}", userId);
+            logger.LogError(ex, "❌ Failed to get notifications for user {UserId}", userId);
             throw; // Re-throw for proper error handling
         }
     }

@@ -1,0 +1,15 @@
+root = true
+
+[*.cs]
+# Indentation and spacing
+indent_style = space
+indent_size = 4
+tab_width = 4
+
+# New line preferences
+end_of_line = crlf
+insert_final_newline = true
+
+# DTOs brukes kun for serialisering
+[**/{DTO,DTOs}/**.cs]
+resharper_unused_auto_property_accessor_global_highlighting = none

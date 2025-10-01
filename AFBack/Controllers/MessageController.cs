@@ -7,6 +7,10 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs.Crypto;
 using AFBack.Extensions;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services.Crypto;
 using Microsoft.EntityFrameworkCore;
@@ -16,34 +20,20 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class MessagesController : BaseController
+public class MessagesController(
+    ApplicationDbContext context,
+    IMessageService messageService,
+    IFileService fileService,
+    IMessageNotificationService messageNotificationService,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    E2EEService e2EeService,
+    ILogger<MessagesController> logger,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<MessagesController>(context, logger, userCache, responseService)
 {
-    private readonly IMessageService _messageService;
-    private readonly IFileService _fileService;
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly E2EEService _e2eeService;
-    private readonly ILogger<MessagesController> _logger;
-
-    public MessagesController(
-        ApplicationDbContext context, 
-        IMessageService messageService, 
-        IFileService fileService, 
-        MessageNotificationService messageNotificationService, 
-        IBackgroundTaskQueue taskQueue, 
-        IServiceScopeFactory scopeFactory, 
-        E2EEService e2eeService, 
-        ILogger<MessagesController> logger) :  base(context)
-    {
-        _messageService = messageService;
-        _taskQueue = taskQueue;
-        _fileService = fileService;
-        _messageNotificationService = messageNotificationService;
-        _scopeFactory = scopeFactory;
-        _e2eeService = e2eeService;
-        _logger = logger;
-    }
+    private readonly IFileService _fileService = fileService;
 
     [HttpPost]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageRequestDTO request)
@@ -60,7 +50,7 @@ public class MessagesController : BaseController
 
         try
         {
-            var response = await _messageService.SendMessageAsync(senderId.Value, request);
+            var response = await messageService.SendMessageAsync(senderId.Value, request);
             return Ok(response);
         }
         catch (Exception ex)
@@ -81,7 +71,7 @@ public class MessagesController : BaseController
 
         try
         {
-            var results = await _messageService.SearchMessagesInConversationAsync(conversationId, userId.Value, query, skip, take);
+            var results = await messageService.SearchMessagesInConversationAsync(conversationId, userId.Value, query, skip, take);
             return Ok(results);
         }
         catch (UnauthorizedAccessException)
@@ -110,7 +100,7 @@ public class MessagesController : BaseController
 
         try
         {
-            var result = await _messageService.GetPendingMessageRequestsAsync(receiverId, page, pageSize);
+            var result = await messageService.GetPendingMessageRequestsAsync(receiverId, page, pageSize);
             return Ok(result);
         }
         catch (Exception ex)
@@ -144,7 +134,7 @@ public class MessagesController : BaseController
                 {
                     Id = cp.UserId,
                     FullName = cp.User.FullName,
-                    ProfileImageUrl = cp.User.Profile?.ProfileImageUrl
+                    ProfileImageUrl = cp.User.ProfileImageUrl
                 })
                 .ToList() ?? new List<UserSummaryDTO>();
 
@@ -152,7 +142,7 @@ public class MessagesController : BaseController
             {
                 SenderId = groupRequest.SenderId,
                 SenderName = groupRequest.Sender.FullName,
-                ProfileImageUrl = groupRequest.Sender.Profile?.ProfileImageUrl,
+                ProfileImageUrl = groupRequest.Sender.ProfileImageUrl,
                 RequestedAt = groupRequest.RequestedAt,
                 ConversationId = groupRequest.ConversationId,
                 GroupName = groupRequest.Conversation?.GroupName,
@@ -177,7 +167,7 @@ public class MessagesController : BaseController
             {
                 SenderId = messageRequest.SenderId,
                 SenderName = messageRequest.Sender.FullName,
-                ProfileImageUrl = messageRequest.Sender.Profile?.ProfileImageUrl,
+                ProfileImageUrl = messageRequest.Sender.ProfileImageUrl,
                 RequestedAt = messageRequest.RequestedAt,
                 ConversationId = messageRequest.ConversationId,
                 GroupName = messageRequest.Conversation?.GroupName,
@@ -201,7 +191,7 @@ public class MessagesController : BaseController
 
         try
         {
-            await _messageService.ApproveMessageRequestAsync(receiverId.Value, conversationId);
+            await messageService.ApproveMessageRequestAsync(receiverId.Value, conversationId);
             return Ok(new { message = "Forespørsel godkjent." });
         }
         catch (Exception ex)
@@ -283,16 +273,16 @@ public class MessagesController : BaseController
         MessageResponseDTO? systemMessage = null;
         if (!string.IsNullOrEmpty(user))
         {
-            systemMessage = await _messageNotificationService.CreateSystemMessageAsync(conversationId,
+            systemMessage = await messageNotificationService.CreateSystemMessageAsync(conversationId,
             $"{user} has left the conversation"
                 );
         }
         
         // 🆕 SYNC EVENTS for Group Request Rejection
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             try 
@@ -358,9 +348,9 @@ public class MessagesController : BaseController
             }
         });
         
-        _taskQueue.QueueAsync(async () =>
+        taskQueue.QueueAsync(async () =>
         {
-            using var scope = _scopeFactory.CreateScope();
+            using var scope = scopeFactory.CreateScope();
             var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
     
             await groupNotifSvc.CreateGroupEventAsync(
@@ -404,10 +394,10 @@ public class MessagesController : BaseController
         await _context.SaveChangesAsync();
         
         // 🆕 SYNC EVENT for Message Request Rejection
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {
@@ -437,7 +427,7 @@ public class MessagesController : BaseController
 
         try
         {
-            var deletedMessage = await _messageService.SoftDeleteMessageAsync(messageId, userId.Value);
+            var deletedMessage = await messageService.SoftDeleteMessageAsync(messageId, userId.Value);
             return Ok(deletedMessage); // 🆕 Returner den slettede meldingen
         }
         catch (KeyNotFoundException ex)
@@ -481,7 +471,7 @@ public class MessagesController : BaseController
                 userId, request.ConversationId);
 
             // Now returns EncryptedMessageResponseDTO instead of MessageResponseDTO
-            var response = await _messageService.SendEncryptedMessageAsync(userId.Value, request);
+            var response = await messageService.SendEncryptedMessageAsync(userId.Value, request);
 
             return Ok(response);
         }
@@ -524,7 +514,7 @@ public class MessagesController : BaseController
                 if (skip < 0) skip = 0;
                 if (take <= 0 || take > 100) take = 50;
 
-                var messages = await _e2eeService.GetEncryptedMessagesForConversationAsync(
+                var messages = await e2EeService.GetEncryptedMessagesForConversationAsync(
                     conversationId, userId.Value, skip, take);
 
                 return Ok(new

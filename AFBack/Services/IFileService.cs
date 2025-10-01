@@ -14,5 +14,7 @@ public interface IFileService
     (bool IsValid, string? ErrorMessage) ValidateImage(IFormFile file);
 
     Task CleanupUploadedFiles(List<string> fileUrls);
+
+    Task TryCleanupFilesAsync(List<string> urls, string method, int userId);
     Task<string> UploadEncryptedBytesAsync(byte[] encryptedData, string containerName, string fileName);
 }

@@ -1,5 +1,9 @@
 ﻿using System.Security.Claims;
 using AFBack.Constants;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 
@@ -16,21 +20,18 @@ using Azure.Storage.Blobs.Models;
 [Route("api/profile")]
 [ApiController]
 [Authorize]
-public class ProfileController : BaseController
+public class ProfileController(
+    ApplicationDbContext context,
+    ILogger<ProfileController> logger,
+    BlobServiceClient blobServiceClient,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<ProfileController>(context, logger, userCache, responseService)
 {
-    private readonly ILogger<ProfileController> _logger;
-    private readonly BlobServiceClient _blobServiceClient;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
 
-    public ProfileController(ApplicationDbContext context, ILogger<ProfileController> logger, BlobServiceClient blobServiceClient, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory) :  base(context)
-    {
-        _logger = logger;
-        _blobServiceClient = blobServiceClient;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-    }
-    
     // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs. Denne brukes både på profile/[id], editprofile og settings
     [AllowAnonymous]
     [HttpGet("{id}")]
@@ -70,7 +71,7 @@ public class ProfileController : BaseController
             MiddleName = profile.User.MiddleName,
             LastName = profile.User.LastName,
             FullName = profile.User.FullName,
-            ProfileImageUrl = profile.ProfileImageUrl,
+            ProfileImageUrl = profile.User.ProfileImageUrl,
             Bio = profile.Bio,
             Websites = profile.Websites,
             Country = profile.User.Country,
@@ -124,10 +125,10 @@ public class ProfileController : BaseController
         }
         
         // Ta vare på gamle verdier for å kunne sammenligne
-        var oldProfileImageUrl = profile.ProfileImageUrl;
+        var oldProfileImageUrl = profile.User.ProfileImageUrl;
         var oldBio = profile.Bio;
 
-        profile.ProfileImageUrl = dto.ProfileImageUrl;
+        profile.User.ProfileImageUrl = dto.ProfileImageUrl;
         profile.Bio = dto.Bio;
         profile.SetWebsites(dto.Websites ?? new List<string>());
         profile.UpdatedAt = DateTime.UtcNow;
@@ -135,10 +136,10 @@ public class ProfileController : BaseController
         await _context.SaveChangesAsync();
         
         // SYNC EVENT - til alle venner
-         _taskQueue.QueueAsync(async () => 
+         taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             try 

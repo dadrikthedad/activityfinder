@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
 using AFBack.DTOs.BoostrapDTO.Sync;
+using AFBack.Features.Cache;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Services;
 using AFBack.Utils;
 using Azure.Core;
@@ -13,25 +16,17 @@ namespace AFBack.Controllers
 {
     [Route("api/me")]
     [Authorize]
-    public class BootstrapController : BaseController
+    public class BootstrapController(
+        ApplicationDbContext context,
+        BootstrapService bootstrapService,
+        UserOnlineService userOnlineService,
+        ISyncService syncService,
+        ILogger<BootstrapController> logger,
+        UserCache userCache,
+        ResponseService responseService)
+        : BaseController<BootstrapController>(context, logger, userCache, responseService)
     {
-        private readonly BootstrapService _bootstrapService;
-        private readonly UserOnlineService _userOnlineService;
-        private readonly SyncService _syncService;
-        private readonly ILogger<BootstrapController> _logger; // ✅ Legg til logger
-
-        public BootstrapController(
-            ApplicationDbContext context, 
-            BootstrapService bootstrapService, 
-            UserOnlineService userOnlineService, 
-            SyncService syncService,
-            ILogger<BootstrapController> logger) : base(context) // ✅ Legg til i constructor
-        {
-            _bootstrapService = bootstrapService;
-            _userOnlineService = userOnlineService;
-            _syncService = syncService;
-            _logger = logger; // ✅ Assign logger
-        }
+        // ✅ Legg til i constructor
 
 
         [HttpGet("bootstrap/critical")]
@@ -45,7 +40,7 @@ namespace AFBack.Controllers
                     return Unauthorized(new { error = "Invalid user token" });
                 }
 
-                var response = await _bootstrapService.GetCriticalBootstrapAsync(userId.Value);
+                var response = await bootstrapService.GetCriticalBootstrapAsync(userId.Value);
                 return Ok(response);
             }
             catch (KeyNotFoundException ex)
@@ -73,7 +68,7 @@ namespace AFBack.Controllers
                     return Unauthorized(new { error = "Invalid user token" });
                 }
 
-                var response = await _bootstrapService.GetSecondaryBootstrapAsync(userId.Value);
+                var response = await bootstrapService.GetSecondaryBootstrapAsync(userId.Value);
                 return Ok(response);
             }
             catch (Exception ex)
@@ -120,7 +115,7 @@ namespace AFBack.Controllers
             }
 
             // ✅ Send deviceId som separat parameter
-            var (success, errorMessage) = await _userOnlineService.MarkUserOnlineAsync(userId.Value, deviceId, request);
+            var (success, errorMessage) = await userOnlineService.MarkUserOnlineAsync(userId.Value, deviceId, request);
 
             if (success)
             {
@@ -169,7 +164,7 @@ namespace AFBack.Controllers
                     deviceId = $"web_{Math.Abs(hash)}";
                 }
 
-                var success = await _userOnlineService.MarkUserOfflineAsync(userId.Value, deviceId);
+                var success = await userOnlineService.MarkUserOfflineAsync(userId.Value, deviceId);
         
                 if (success)
                 {
@@ -228,7 +223,7 @@ namespace AFBack.Controllers
                         deviceId.Substring(0, 8) + "...", userId.Value);
                 }
 
-                await _userOnlineService.UpdateHeartbeatAsync(userId.Value, deviceId);
+                await userOnlineService.UpdateHeartbeatAsync(userId.Value, deviceId);
 
                 return Ok(new { status = "ok", timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
             }
@@ -255,7 +250,7 @@ namespace AFBack.Controllers
                     return Unauthorized(new { error = "Invalid user token" });
                 }
         
-                var response = await _syncService.GetEventsSinceAsync(userId.Value, since);
+                var response = await syncService.GetEventsSinceAsync(userId.Value, since);
         
                 return Ok(response);
             }

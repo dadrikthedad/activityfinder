@@ -4,7 +4,11 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
 using AFBack.Hubs;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Azure.Storage.Blobs;
@@ -19,40 +23,24 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class FileController : BaseController
+public class FileController(
+    ApplicationDbContext context,
+    ILogger<FileController> logger,
+    BlobServiceClient blobServiceClient,
+    IHubContext<UserHub> hubContext,
+    IMessageNotificationService messageNotificationService,
+    GroupNotificationService groupNotificationService,
+    IFileService fileService,
+    IMessageService messageService,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<FileController>(context, logger, userCache, responseService)
 {
-    private readonly ILogger<FileController> _logger;
-    private readonly BlobServiceClient _blobServiceClient;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly GroupNotificationService _groupNotificationService;
-    private readonly IFileService _fileService;
-    private readonly IMessageService _messageService;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    
-    public FileController(ApplicationDbContext context, 
-        ILogger<FileController> logger, 
-        BlobServiceClient blobServiceClient, 
-        IHubContext<UserHub> hubContext, 
-        MessageNotificationService messageNotificationService, 
-        GroupNotificationService groupNotificationService, 
-        IFileService fileService, 
-        IMessageService messageService, 
-        IBackgroundTaskQueue taskQueue, 
-        IServiceScopeFactory scopeFactory) : base(context)
-    {
-        _logger = logger;
-        _hubContext = hubContext;
-        _blobServiceClient = blobServiceClient;
-        _messageNotificationService = messageNotificationService;
-        _groupNotificationService = groupNotificationService;
-        _fileService = fileService;
-        _messageService = messageService;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-    }
-    
+    private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
+    private readonly IHubContext<UserHub> _hubContext = hubContext;
+
     [HttpPost("upload-profile-image")]
     public async Task<IActionResult> UploadProfileImage(IFormFile file = null, [FromForm] string action = null)
     {
@@ -61,8 +49,9 @@ public class FileController : BaseController
 
         try
         {
-            var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
-            if (profile == null) 
+            
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user == null) 
                 return NotFound("Profile not found");
 
             string imageUrl = null;
@@ -82,18 +71,18 @@ public class FileController : BaseController
                     return BadRequest(new { message = "No file provided for upload" });
                 }
 
-                var (isValid, errorMessage) = _fileService.ValidateImage(file);
+                var (isValid, errorMessage) = fileService.ValidateImage(file);
                 if (!isValid)
                     return BadRequest(new { message = errorMessage });
 
-                imageUrl = await _fileService.UploadFileAsync(file, "profile-pictures");
+                imageUrl = await fileService.UploadFileAsync(file, "profile-pictures");
                 _logger.LogInformation("User {UserId} uploaded a profile picture", userId);
             }
 
             // Notify venner og blokkere om profilbilde-endring
             UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
-                _taskQueue,
-                _scopeFactory,
+                taskQueue,
+                scopeFactory,
                 userId, 
                 new List<string> { "profileImageUrl" },
                 new Dictionary<string, object> 
@@ -102,8 +91,8 @@ public class FileController : BaseController
                 }
             );
 
-            profile.ProfileImageUrl = imageUrl;
-            profile.UpdatedAt = DateTime.UtcNow;
+            user.ProfileImageUrl = imageUrl;
+  
             await _context.SaveChangesAsync();
             
             return Ok(new { imageUrl });
@@ -194,7 +183,7 @@ public class FileController : BaseController
                 _logger.LogInformation("📁 File received: {FileName}, size: {FileSize} bytes", 
                     request.File.FileName, request.File.Length);
 
-                var (isValid, errorMessage) = _fileService.ValidateImage(request.File);
+                var (isValid, errorMessage) = fileService.ValidateImage(request.File);
                 if (!isValid)
                 {
                     _logger.LogWarning("❌ File validation failed: {ErrorMessage}", errorMessage);
@@ -203,7 +192,7 @@ public class FileController : BaseController
 
                 _logger.LogInformation("✅ File validation passed");
 
-                imageUrl = await _fileService.UploadFileAsync(request.File, "group-pictures");
+                imageUrl = await fileService.UploadFileAsync(request.File, "group-pictures");
                 _logger.LogInformation("✅ File uploaded successfully: {ImageUrl}", imageUrl);
             }
 
@@ -225,17 +214,17 @@ public class FileController : BaseController
                 var actionText = request.Action == "delete" ? "removed" : "changed";
                 
                 _logger.LogInformation("📝 Creating system message for action: {ActionText}", actionText);
-                var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
+                var systemMessage = await messageNotificationService.CreateSystemMessageAsync(
                     request.GroupId.Value,
                     $"{userName} has {actionText} the group image"
                 );
                 _logger.LogInformation("✅ System message created with ID: {MessageId}", systemMessage.Id);
 
                 _logger.LogInformation("🔄 Queueing background task for sync events");
-                _taskQueue.QueueAsync(async () => 
+                taskQueue.QueueAsync(async () => 
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                    using var scope = scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                     try 
@@ -257,7 +246,7 @@ public class FileController : BaseController
                             .Where(p => p.User != null)
                             .ToDictionary(
                                 p => p.UserId,
-                                p => (p.User.FullName ?? "Unknown User", p.User.Profile?.ProfileImageUrl)
+                                p => (p.User.FullName ?? "Unknown User", p.User.ProfileImageUrl)
                             );
                         
                         _logger.LogInformation("📊 Created userData for {UserCount} participants", userData.Count);
@@ -291,7 +280,7 @@ public class FileController : BaseController
                 });
 
                 _logger.LogInformation("🔔 Creating group notification");
-                await _groupNotificationService.CreateGroupEventAsync(
+                await groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupImageChanged,
                     request.GroupId.Value,
                     userId,
@@ -338,7 +327,7 @@ public class FileController : BaseController
         // ✅ Valider alle filer først
         foreach (var file in request.Files)
         {
-            var (isValid, errorMessage) = _fileService.ValidateFile(file);
+            var (isValid, errorMessage) = fileService.ValidateFile(file);
             if (!isValid)
                 return BadRequest(new { message = $"Feil med fil '{file.FileName}': {errorMessage}" });
         }
@@ -352,7 +341,7 @@ public class FileController : BaseController
                 var containerName = file.ContentType.StartsWith("video/") 
                     ? "message-videos" 
                     : "message-attachments";
-                return _fileService.UploadFileAsync(file, containerName);
+                return fileService.UploadFileAsync(file, containerName);
             });
 
             uploadedFileUrls = (await Task.WhenAll(uploadTasks).ConfigureAwait(false)).ToList();
@@ -376,7 +365,7 @@ public class FileController : BaseController
                 ParentMessageId = request.ParentMessageId
             };
             
-            var response = await _messageService.SendMessageAsync(senderId.Value, sendMessageRequest)
+            var response = await messageService.SendMessageAsync(senderId.Value, sendMessageRequest)
                 .ConfigureAwait(false);
                 
             return Ok(response);
@@ -384,19 +373,19 @@ public class FileController : BaseController
         catch (ValidationException ex)
         {
             _logger.LogWarning("Validation error when sending message for user {UserId}: {Error}", senderId, ex.Message);
-            await _fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
+            await fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return BadRequest(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
             _logger.LogWarning("Business logic error when sending message for user {UserId}: {Error}", senderId, ex.Message);
-            await _fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
+            await fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unexpected error when sending message for user {UserId}", senderId);
-            await _fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
+            await fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return StatusCode(500, new { message = "Feil ved sending av melding" });
         }
     }
@@ -420,7 +409,7 @@ public class FileController : BaseController
             
             foreach (var file in files)
             {
-                var (isValid, errorMessage) = _fileService.ValidateFile(file);
+                var (isValid, errorMessage) = fileService.ValidateFile(file);
                 if (!isValid)
                 {
                     results.Add(new 
@@ -434,7 +423,7 @@ public class FileController : BaseController
 
                 try
                 {
-                    var fileUrl = await _fileService.UploadFileAsync(file, containerName);
+                    var fileUrl = await fileService.UploadFileAsync(file, containerName);
                     results.Add(new 
                     { 
                         fileName = file.FileName, 
@@ -503,12 +492,12 @@ public class FileController : BaseController
                 return BadRequest(new { message = "Maximum number of attachments (5) reached" });
 
             // Valider fil
-            var (isValid, errorMessage) = _fileService.ValidateFile(file);
+            var (isValid, errorMessage) = fileService.ValidateFile(file);
             if (!isValid)
                 return BadRequest(new { message = errorMessage });
 
             // Last opp fil
-            var fileUrl = await _fileService.UploadFileAsync(file, "report-attachments");
+            var fileUrl = await fileService.UploadFileAsync(file, "report-attachments");
             
             // Opprett attachment record
             var attachment = new ReportAttachment
@@ -544,7 +533,7 @@ public class FileController : BaseController
     [HttpPost("validate-file")]
     public IActionResult ValidateFile(IFormFile file)
     {
-        var (isValid, errorMessage) = _fileService.ValidateFile(file);
+        var (isValid, errorMessage) = fileService.ValidateFile(file);
         
         if (!isValid)
             return BadRequest(new { message = errorMessage });

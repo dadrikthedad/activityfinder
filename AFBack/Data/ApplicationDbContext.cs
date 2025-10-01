@@ -212,8 +212,6 @@ public class ApplicationDbContext : DbContext
                 .HasMaxLength(100);
             entity.Property(c => c.CreatorId)
                 .IsRequired();
-            entity.Property(c => c.IsApproved)
-                .HasDefaultValue(false);
             entity.Property(c => c.LastMessageSentAt)
                 .IsRequired(false);
         });

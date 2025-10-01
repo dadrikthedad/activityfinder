@@ -4,35 +4,26 @@ using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
 using AFBack.Hubs;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
 
-public class ReactionService : IReactionService
+public class ReactionService(
+    ApplicationDbContext context,
+    IHubContext<UserHub> hubContext,
+    IMessageNotificationService messageNotificationService,
+    ILogger<UserController> logger,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory)
+    : IReactionService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly ILogger<UserController> _logger;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-
-    public ReactionService(ApplicationDbContext context, IHubContext<UserHub> hubContext, MessageNotificationService messageNotificationService,  ILogger<UserController> logger, IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory)
-    {
-        _context = context;
-        _hubContext = hubContext;
-        _messageNotificationService = messageNotificationService;
-        _logger = logger;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-    }
-
     public async Task AddReactionAsync(int messageId, int userId, string emoji)
     {
         // ✅ Hent meldingen og samtaledeltakere
-        var message = await _context.Messages
+        var message = await context.Messages
             .Include(m => m.Conversation)
                 .ThenInclude(c => c.Participants)
                     .ThenInclude(p => p.User)
@@ -64,7 +55,7 @@ public class ReactionService : IReactionService
         
             if (!isCreator)
             {
-                var hasApprovedGroupRequest = await _context.GroupRequests.AnyAsync(gr =>
+                var hasApprovedGroupRequest = await context.GroupRequests.AnyAsync(gr =>
                     gr.ReceiverId == userId &&
                     gr.ConversationId == conversation.Id &&
                     gr.Status == GroupRequestStatus.Approved);
@@ -81,7 +72,7 @@ public class ReactionService : IReactionService
         
             if (!isCreator)
             {
-                var hasApprovedMessageRequest = await _context.MessageRequests.AnyAsync(mr =>
+                var hasApprovedMessageRequest = await context.MessageRequests.AnyAsync(mr =>
                     mr.ReceiverId == userId &&
                     mr.ConversationId == conversation.Id &&
                     mr.IsAccepted);
@@ -91,7 +82,7 @@ public class ReactionService : IReactionService
             }
         }
 
-        var existingReaction = await _context.Reactions
+        var existingReaction = await context.Reactions
             .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == userId);
 
         var isRemoved = false;
@@ -100,12 +91,12 @@ public class ReactionService : IReactionService
         // Oppdater databasen
         if (existingReaction != null)
         {
-            _context.Reactions.Remove(existingReaction);
+            context.Reactions.Remove(existingReaction);
 
             if (existingReaction.Emoji != emoji)
             {
                 // Bruker bytter emoji
-                _context.Reactions.Add(new Reaction
+                context.Reactions.Add(new Reaction
                 {
                     MessageId = messageId,
                     UserId = userId,
@@ -121,7 +112,7 @@ public class ReactionService : IReactionService
         else
         {
             // Første reaksjon
-            _context.Reactions.Add(new Reaction
+            context.Reactions.Add(new Reaction
             {
                 MessageId = messageId,
                 UserId = userId,
@@ -132,7 +123,7 @@ public class ReactionService : IReactionService
         conversation = message.Conversation;
         conversation.LastMessageSentAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
         
         // 🆕 Bygg conversation sync data ETTER SaveChanges
         var participantIdsArray = conversation.Participants.Select(p => p.UserId).ToArray();
@@ -145,12 +136,12 @@ public class ReactionService : IReactionService
         {
             userData = conversation.Participants.ToDictionary(
                 p => p.UserId,
-                p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+                p => (p.User.FullName, p.User.ProfileImageUrl)
             );
         }
         else
         {
-            userData = await SyncEventExtensions.GetUserDataAsync(_context, participantIdsArray);
+            userData = await SyncEventExtensions.GetUserDataAsync(context, participantIdsArray);
         }
     
         // Hent group request statuses for groups
@@ -158,7 +149,7 @@ public class ReactionService : IReactionService
         if (conversation.IsGroup)
         {
             groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
-                _context, conversation.Id, participantIdsArray);
+                context, conversation.Id, participantIdsArray);
         }
 
         // Bygg conversation sync data
@@ -168,7 +159,7 @@ public class ReactionService : IReactionService
             groupRequestStatuses
         );
 
-        var user = await _context.Users.FindAsync(userId);
+        var user = await context.Users.FindAsync(userId);
 
         var reactionDto = new ReactionDTO
         {
@@ -193,7 +184,7 @@ public class ReactionService : IReactionService
 
         if (!isRemoved && message.SenderId != userId)
         {
-            notificationDto = await _messageNotificationService.CreateMessageReactionNotificationAsync(
+            notificationDto = await messageNotificationService.CreateMessageReactionNotificationAsync(
                 reactingUserId: userId,
                 receiverUserId: message.SenderId.Value,
                 messageId: message.Id,
@@ -202,14 +193,14 @@ public class ReactionService : IReactionService
             );
         }
         
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
             // Først SignalR (for øyeblikkelig UI oppdatering)
             await SendReactionUpdateAsync(participantIds, reactionDto, notificationDto);
 
             // Så Sync Event (for offline/bootstrap sync)
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             
 
             try 
@@ -250,7 +241,7 @@ public class ReactionService : IReactionService
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to create sync event for reaction. MessageId: {MessageId}, UserId: {UserId}", messageId, userId);
+                logger?.LogError(ex, "Failed to create sync event for reaction. MessageId: {MessageId}, UserId: {UserId}", messageId, userId);
             }
         });
     }
@@ -272,12 +263,12 @@ public class ReactionService : IReactionService
             {
                 try
                 {
-                    await _hubContext.Clients.User(userId).SendAsync("ReceiveReaction", payload);
+                    await hubContext.Clients.User(userId).SendAsync("ReceiveReaction", payload);
                 }
                 catch (Exception ex)
                 {
                     // Log feilen, men fortsett med andre brukere
-                    _logger?.LogWarning(ex, "Failed to send reaction to user {UserId}", userId);
+                    logger?.LogWarning(ex, "Failed to send reaction to user {UserId}", userId);
                 }
             });
 

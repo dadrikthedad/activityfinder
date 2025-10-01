@@ -1,4 +1,5 @@
 using AFBack.Constants;
+using AFBack.Interface.Services;
 using AFBack.Models;
 
 namespace AFBack.Services;
@@ -26,7 +27,7 @@ public class NotificationSyncService
         _taskQueue.QueueAsync(async () => 
         {
             using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {

@@ -48,7 +48,7 @@ public class GroupNotificationService
                     {
                         Id = u.Id,
                         FullName = u.FullName,
-                        ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                        ProfileImageUrl = u.ProfileImageUrl,
                         // 🆕 Legg til GroupRequestStatus basert på samtalen
                         GroupRequestStatus = _context.GroupRequests
                             .Where(gr => gr.ConversationId == conversationId && gr.ReceiverId == u.Id)
@@ -237,7 +237,7 @@ public class GroupNotificationService
                 {
                     Id = u.Id,
                     FullName = u.FullName,
-                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null,
+                    ProfileImageUrl = u.ProfileImageUrl,
                     GroupRequestStatus = _context.GroupRequests
                         .Where(gr => gr.ConversationId == notification.ConversationId && gr.ReceiverId == u.Id)
                         .Select(gr => gr.Status)
@@ -265,7 +265,7 @@ public class GroupNotificationService
             ConversationId = notification.ConversationId,
             SenderName = lastEvent?.ActorUser?.FullName,
             SenderId = lastEvent?.ActorUserId,
-            SenderProfileImageUrl = lastEvent?.ActorUser?.Profile?.ProfileImageUrl,
+            SenderProfileImageUrl = lastEvent?.ActorUser?.ProfileImageUrl,
             GroupName = groupName,
             GroupImageUrl = notification.Conversation?.GroupImageUrl,
             MessagePreview = (notification.EventCount ?? 0) > 1 

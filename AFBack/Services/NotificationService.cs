@@ -1,5 +1,6 @@
 ﻿using AFBack.Constants;
 using AFBack.DTOs;
+using AFBack.Interface.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -9,21 +10,13 @@ using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
 using AFBack.Hubs;
 // Her styrer vi Notifications og sikrer at de brukes i SignalR
-public class NotificationService : INotificationService
+public class NotificationService(
+    ApplicationDbContext context,
+    IHubContext<UserHub> hubContext,
+    ISyncService syncService,
+    IBackgroundTaskQueue taskQueue)
+    : INotificationService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly SyncService _syncService; 
-    private readonly IBackgroundTaskQueue _taskQueue;
-
-    public NotificationService(ApplicationDbContext context, IHubContext<UserHub> hubContext, SyncService syncService, IBackgroundTaskQueue taskQueue)
-    {
-        _context = context;
-        _hubContext = hubContext;
-        _syncService = syncService;
-        _taskQueue = taskQueue;
-    }
-
     public async Task CreateNotificationAsync(
         int recipientUserId,
         int? relatedUserId,
@@ -57,7 +50,7 @@ public class NotificationService : INotificationService
         
         if (relatedUserDto == null && relatedUserId.HasValue)
         {
-            var relatedUser = await _context.Users
+            var relatedUser = await context.Users
                 .Include(u => u.Profile)
                 .FirstOrDefaultAsync(u => u.Id == relatedUserId.Value);
 
@@ -67,17 +60,17 @@ public class NotificationService : INotificationService
                 {
                     Id = relatedUser.Id,
                     FullName = relatedUser.FullName,
-                    ProfileImageUrl = relatedUser.Profile?.ProfileImageUrl
+                    ProfileImageUrl = relatedUser.ProfileImageUrl
                 };
             }
         }
 
         Log.Information("🔔 Notification created for user {RecipientUserId} of type {Type}", recipientUserId, type);
 
-        _context.Notifications.Add(notification);
-        await _context.SaveChangesAsync();
+        context.Notifications.Add(notification);
+        await context.SaveChangesAsync();
         
-        _taskQueue.QueueAsync(async () =>
+        taskQueue.QueueAsync(async () =>
         {
             try
             {
@@ -95,7 +88,7 @@ public class NotificationService : INotificationService
                     RelatedUser = relatedUserDto // 🎯 Bruker provided/fetched UserSummary
                 };
 
-                await _syncService.CreateAndDistributeSyncEventAsync(
+                await syncService.CreateAndDistributeSyncEventAsync(
                     eventType: SyncEventTypes.NOTIFICATION_CREATED,
                     eventData: notificationDto,
                     singleUserId: recipientUserId,
@@ -112,7 +105,7 @@ public class NotificationService : INotificationService
 
         Log.Information("📡 Sender notification via SignalR til {UserId}", recipientUserId);
 
-        await _hubContext.Clients.User(recipientUserId.ToString())
+        await hubContext.Clients.User(recipientUserId.ToString())
             .SendAsync("ReceiveNotification", new
             {
                 notification.Id,
@@ -130,7 +123,7 @@ public class NotificationService : INotificationService
     
     public async Task<List<NotificationDTO>> GetUserNotificationsAsync(int userId, int page = 1, int pageSize = 100)
     {
-        var notifications = await _context.Notifications
+        var notifications = await context.Notifications
             .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
             .Where(n => n.RecipientUserId == userId)
             .OrderByDescending(n => n.CreatedAt)
@@ -149,7 +142,7 @@ public class NotificationService : INotificationService
     {
         try
         {
-            var notifications = await _context.Notifications
+            var notifications = await context.Notifications
                 .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
                 .Where(n => n.RecipientUserId == userId)
                 .OrderByDescending(n => n.CreatedAt)
@@ -177,7 +170,7 @@ public class NotificationService : INotificationService
             {
                 Id = n.RelatedUser.Id,
                 FullName = n.RelatedUser.FullName,
-                ProfileImageUrl = n.RelatedUser.Profile?.ProfileImageUrl
+                ProfileImageUrl = n.RelatedUser.ProfileImageUrl
             };
         }
 

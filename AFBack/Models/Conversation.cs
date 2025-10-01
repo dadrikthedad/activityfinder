@@ -19,11 +19,8 @@ public class Conversation
     public bool IsApproved { get; set; } // Er samtalen godkjent (for én-til-én)
     
     public DateTime? LastMessageSentAt { get; set; } // For å gjøre det lett å sortere
-
-    public bool HasUnreadMessages { get; set; } // For å se om vi har uleste meldinger her
     
-    
-    public bool IsDisbanded { get; set; } = false;
+    public bool IsDisbanded { get; set; }
     
     public DateTime? DisbandedAt { get; set; }
     

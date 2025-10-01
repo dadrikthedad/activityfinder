@@ -211,6 +211,26 @@ public class FileService : IFileService
         await Task.WhenAll(cleanupTasks).ConfigureAwait(false);
     }
     
+    /// <summary>
+    /// Vi rydder opp og fjerner lastete filer hvis noe går galt
+    /// </summary>
+    /// <param name="urls"></param>
+    /// <param name="method"></param>
+    /// <param name="userId"></param>
+    public async Task TryCleanupFilesAsync(List<string> urls, string method, int userId)
+    {
+        if (urls.Count == 0)
+            return;
+        try
+        {
+            await CleanupUploadedFiles(urls);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cleanup files after upload failed for user {UserId} in method {Method}", userId, method);
+        }
+    }
+    
     public async Task<string> UploadEncryptedBytesAsync(byte[] encryptedData, string containerName, string fileName)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);

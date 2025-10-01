@@ -1,3 +1,4 @@
+using AFBack.Features.Cache.Interface;
 using AFBack.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,7 +33,7 @@ public static class CanSendFunctions
     
     // 🆕 Overload som også håndterer cache
     public static async Task AddCanSendAsync(this DbContext context, int userId, int conversationId, 
-        SendMessageCache cache, CanSendReason reason = CanSendReason.MessageRequest)
+        ISendMessageCache cache, CanSendReason reason = CanSendReason.MessageRequest)
     {
         var existing = await context.Set<CanSend>()
             .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
@@ -58,7 +59,7 @@ public static class CanSendFunctions
     // 🆕 Bulk add for multiple users med cache
     public static async Task AddMultipleCanSendAsync(this DbContext context, 
         List<(int userId, int conversationId, CanSendReason reason)> entries,
-        SendMessageCache cache)
+        ISendMessageCache cache)
     {
         var canSendEntries = new List<CanSend>();
         
@@ -100,7 +101,7 @@ public static class CanSendFunctions
     
     // 🆕 Overload med cache
     public static async Task RemoveCanSendAsync(this DbContext context, int userId, int conversationId, 
-        SendMessageCache cache)
+        ISendMessageCache cache)
     {
         var existing = await context.Set<CanSend>()
             .FirstOrDefaultAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);

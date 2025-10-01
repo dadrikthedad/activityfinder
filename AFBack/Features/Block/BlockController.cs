@@ -2,8 +2,12 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Domains.Entities;
 using AFBack.Extensions;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
 using AFBack.Functions;
 using AFBack.Hubs;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -16,24 +20,17 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class BlockController : BaseController
+public class BlockController(
+    ApplicationDbContext context,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    ISendMessageCache sendMessageCache,
+    ILogger<BlockController> logger,
+    UserCache userCache,
+    ResponseService responseService)
+    : BaseController<BlockController>(context, logger, userCache, responseService)
 {
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly SendMessageCache _sendMessageCache;
-
-    public BlockController(
-        ApplicationDbContext context,
-        IBackgroundTaskQueue taskQueue, 
-        IServiceScopeFactory scopeFactory,
-        SendMessageCache sendMessageCache) :  base(context)
-    {
-        _taskQueue = taskQueue; 
-        _scopeFactory = scopeFactory;
-        _sendMessageCache = sendMessageCache;
-    }
-    
-     // POST: api/userblocks/block/{userId}
+    // POST: api/userblocks/block/{userId}
      [HttpPost("block/{userId}")]
      public async Task<IActionResult> BlockUser(int userId)
      {
@@ -92,8 +89,8 @@ public class BlockController : BaseController
          // ✅ Fjern CanSend for begge brukere hvis 1-til-1 samtale eksisterer
          if (oneToOneConversation != null)
          {
-             await _context.RemoveCanSendAsync(currentUserId.Value, oneToOneConversation.Id, _sendMessageCache);
-             await _context.RemoveCanSendAsync(userId, oneToOneConversation.Id, _sendMessageCache);
+             await _context.RemoveCanSendAsync(currentUserId.Value, oneToOneConversation.Id, sendMessageCache);
+             await _context.RemoveCanSendAsync(userId, oneToOneConversation.Id, sendMessageCache);
         
              Console.WriteLine($"🚫 Removed CanSend for both users in conversation {oneToOneConversation.Id} due to blocking");
          }
@@ -101,10 +98,10 @@ public class BlockController : BaseController
          await _context.SaveChangesAsync();
          
          // 🆕 Send separate blocking events med komplett UserSummary
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<UserHub>>();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -203,8 +200,8 @@ public class BlockController : BaseController
         {
             var reason = areFriends ? CanSendReason.Friendship : CanSendReason.MessageRequest;
         
-            await _context.AddCanSendAsync(currentUserId.Value, oneToOneConversation.Id, _sendMessageCache, reason);
-            await _context.AddCanSendAsync(userId, oneToOneConversation.Id, _sendMessageCache, reason);
+            await _context.AddCanSendAsync(currentUserId.Value, oneToOneConversation.Id, sendMessageCache, reason);
+            await _context.AddCanSendAsync(userId, oneToOneConversation.Id, sendMessageCache, reason);
         
             Console.WriteLine($"Restored CanSend for both users in conversation {oneToOneConversation.Id} after unblocking. Reason: {reason}");
         }
@@ -212,10 +209,10 @@ public class BlockController : BaseController
         await _context.SaveChangesAsync();
         
         // Send samme struktur som BlockUser - komplette UserSummary objekter
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<UserHub>>();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

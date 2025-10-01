@@ -257,18 +257,7 @@ public static class IpUtils
             
         return firstLang;
     }
-
-    /// <summary>
-    /// Genererer kort fingerprint hash
-    /// </summary>
-    public static string GetMobileDeviceFingerprint(HttpContext context)
-    {
-        var deviceId = context.Request.Headers["X-Device-ID"].FirstOrDefault() ?? "unknown";
-        var appVersion = context.Request.Headers["X-App-Version"].FirstOrDefault() ?? "unknown";
-        var platform = context.Request.Headers["X-Device-Platform"].FirstOrDefault() ?? "unknown";
-        
-        return ComputeFingerprint($"{deviceId}:{appVersion}:{platform}");
-    }
+    
 
     private static string ComputeFingerprint(string input)
     {
@@ -307,32 +296,5 @@ public static class IpUtils
         }
         
         return true;
-    }
-    
-    /// <summary>
-    /// Enkle, adaptive rate limits med kort vindu for bedre UX
-    /// </summary>
-    public static (int permitLimit, int windowMinutes) GetSimpleRateLimit(PathString path, bool isMobileApp, bool isSharedNetwork)
-    {
-        // Kort vindu for bedre UX - mindre "burst cutoff"-frustrasjon
-        var window = 1; // 1 minutt for alle
-        
-        // Basis grenser
-        int basePermit = path.Value?.ToLower() switch
-        {
-            var p when p.StartsWith("/api/auth", StringComparison.OrdinalIgnoreCase) => 12,
-            var p when p.StartsWith("/api/chat", StringComparison.OrdinalIgnoreCase) => 90,
-            _ => 60 // generelt API
-        };
-        
-        // Bonus for mobil og/eller delt nettverk
-        if (isMobileApp) basePermit += 20;
-        if (isSharedNetwork) basePermit += 20;
-        
-        // Cap for auth - ikke la brute force bli for slapp
-        if (path.Value?.StartsWith("/api/auth", StringComparison.OrdinalIgnoreCase) == true)
-            basePermit = Math.Min(basePermit, 20);
-            
-        return (basePermit, window);
     }
 }

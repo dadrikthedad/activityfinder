@@ -4,8 +4,12 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
 using AFBack.Functions;
 using AFBack.Hubs;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
@@ -16,40 +20,20 @@ namespace AFBack.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class GroupConversationController : BaseController
+public class GroupConversationController(
+    ApplicationDbContext context,
+    ILogger<GroupConversationController> logger,
+    ISendMessageCache msgCache,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    IHubContext<UserHub> hubContext,
+    IMessageNotificationService messageNotificationService,
+    GroupNotificationService groupNotificationService,
+    IMessageService messageService,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<GroupConversationController>(context, logger, userCache, responseService)
 {
-    private readonly SendMessageCache _msgCache;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly ILogger<GroupConversationController> _logger;
-    private readonly GroupNotificationService _groupNotificationService;
-    private readonly IMessageService _messageService;
-
-
-
-    public GroupConversationController(
-        ApplicationDbContext context, 
-        ILogger<GroupConversationController> logger, 
-        SendMessageCache msgCache, 
-        IBackgroundTaskQueue taskQueue, 
-        IServiceScopeFactory scopeFactory, 
-        IHubContext<UserHub> hubContext, 
-        MessageNotificationService messageNotificationService, 
-        GroupNotificationService groupNotificationService, 
-        IMessageService messageService) :  base(context)
-    {
-        _logger = logger;
-        _msgCache = msgCache;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _hubContext = hubContext;
-        _messageNotificationService = messageNotificationService;
-        _groupNotificationService = groupNotificationService;
-        _messageService = messageService;
-    }
-
     [HttpPost("send-requests")]
     public async Task<SendGroupRequestsResponseDTO> SendGroupRequestsAsync(SendGroupRequestsDTO request)
     {
@@ -121,7 +105,7 @@ public class GroupConversationController : BaseController
         
         Console.WriteLine("🟡 Queueing background task for group requests...");
         // 6️⃣ Send notifikasjoner i bakgrunnen
-        _taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id, senderId, !isNewConversation, conversation, systemMessageCreated, initialMessageCreated));
+        taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id, senderId, !isNewConversation, conversation, systemMessageCreated, initialMessageCreated));
 
         return new SendGroupRequestsResponseDTO
         {
@@ -247,7 +231,6 @@ public class GroupConversationController : BaseController
             GroupName = groupName,
             GroupImageUrl = request.GroupImageUrl,
             CreatorId = senderId,
-            IsApproved = true
         };
 
         _context.Conversations.Add(newConversation);
@@ -291,7 +274,7 @@ public class GroupConversationController : BaseController
         var senderName = creator?.FullName ?? "En bruker";
 
         // 2️⃣ Lag systemmelding med hjelpefunksjon (inkluderer automatisk SignalR)
-        var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
+        var systemMessage = await messageNotificationService.CreateSystemMessageAsync(
             newConversation.Id,
             $"{senderName} has created the group"
         );
@@ -306,7 +289,6 @@ public class GroupConversationController : BaseController
                 SenderId = senderId,
                 EncryptedText = request.InitialMessage.Trim(),
                 SentAt = DateTime.UtcNow,
-                IsApproved = true,
                 IsSystemMessage = false // 🆕 Eksplisitt vanlig melding
             };
             _context.Messages.Add(creatorMessage);
@@ -316,7 +298,7 @@ public class GroupConversationController : BaseController
             await _context.SaveChangesAsync();
             
             // 🆕 Map til MessageResponseDTO
-            initialMessageDto = await _messageService.MapToResponseDtoOptimized(creatorMessage.Id);
+            initialMessageDto = await messageService.MapToResponseDtoOptimized(creatorMessage.Id);
         }
 
         return (newConversation, true, systemMessage, initialMessageDto);
@@ -331,10 +313,10 @@ public class GroupConversationController : BaseController
         MessageResponseDTO? systemMessageCreated,
         MessageResponseDTO? initialMessage = null)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+        using var scope = scopeFactory.CreateScope();
+        var notifSvc = scope.ServiceProvider.GetRequiredService<IMessageNotificationService>();
         var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
-        var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+        var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
@@ -427,7 +409,7 @@ public class GroupConversationController : BaseController
                 // Send SignalR for GroupRequest
                 if (notification != null)
                 {
-                    await _hubContext.Clients.User(groupRequest.ReceiverId.ToString())
+                    await hubContext.Clients.User(groupRequest.ReceiverId.ToString())
                         .SendAsync("GroupRequestCreated", new GroupRequestCreatedDto
                         {
                             GroupRequestId = groupRequest.Id,
@@ -460,7 +442,7 @@ public class GroupConversationController : BaseController
 
         if (existingPendingUserIds.Any())
         {
-            await _hubContext.Clients.Users(existingPendingUserIds)
+            await hubContext.Clients.Users(existingPendingUserIds)
                 .SendAsync("GroupParticipantsUpdated", new
                 {
                     ConversationId = conversationId
@@ -611,7 +593,7 @@ public class GroupConversationController : BaseController
             _context.ConversationParticipants.Remove(participant);
             
             // Fjernes fra CanSend
-            await _context.RemoveCanSendAsync(userId.Value, conversationId, _msgCache);
+            await _context.RemoveCanSendAsync(userId.Value, conversationId, msgCache);
 
             // 5️⃣ Sett brukerens GroupRequest til Rejected
             var userGroupRequest = await _context.GroupRequests
@@ -650,17 +632,17 @@ public class GroupConversationController : BaseController
             // 8️⃣ Lag systemmelding
             if (!wasCreator)
             {
-                systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
+                systemMessage = await messageNotificationService.CreateSystemMessageAsync(
                     conversationId,
                     $"{user} has left the conversation"
                 );
             }
             
             // 🆕 SYNC EVENTS - etter SaveChanges
-            _taskQueue.QueueAsync(async () => 
+            taskQueue.QueueAsync(async () => 
             {
-                using var scope = _scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                using var scope = scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                 try 
@@ -757,9 +739,9 @@ public class GroupConversationController : BaseController
             });
 
             // 9️⃣ Opprett GroupEvent for å notifisere gjenværende medlemmer
-            _taskQueue.QueueAsync(async () =>
+            taskQueue.QueueAsync(async () =>
             {
-                using var scope = _scopeFactory.CreateScope();
+                using var scope = scopeFactory.CreateScope();
                 var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
                 
                 await groupNotifSvc.CreateGroupEventAsync(
@@ -814,7 +796,7 @@ public class GroupConversationController : BaseController
                 .Select(u => u.FullName)
                 .FirstOrDefaultAsync();
 
-           systemMessageCreatorLeaving = await _messageNotificationService.CreateSystemMessageAsync(
+           systemMessageCreatorLeaving = await messageNotificationService.CreateSystemMessageAsync(
                 conversation.Id,
                 $"{creatorUser} has left the conversation\n{newCreatorUser} is now the group admin"
             );
@@ -870,7 +852,7 @@ public class GroupConversationController : BaseController
                     await _context.SaveChangesAsync(); // Lagre for å få ID
 
                     // Send SignalR om disbanded gruppe
-                    await _hubContext.Clients.User(userId.ToString())
+                    await hubContext.Clients.User(userId.ToString())
                         .SendAsync("GroupDisbanded", new GroupDisbandedDto
                         {
                             ConversationId = conversation.Id,
@@ -1036,7 +1018,7 @@ public class GroupConversationController : BaseController
             // Send system message
             try
             {
-                var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(
+                var systemMessage = await messageNotificationService.CreateSystemMessageAsync(
                     groupId,
                     $"{userName} changed the group name from \"{oldName}\" to \"{newName}\""
                 );
@@ -1051,10 +1033,10 @@ public class GroupConversationController : BaseController
             // 🆕 SYNC EVENT - etter SaveChanges
             try
             {
-                _taskQueue.QueueAsync(async () => 
+                taskQueue.QueueAsync(async () => 
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                    using var scope = scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                     try 
@@ -1062,7 +1044,7 @@ public class GroupConversationController : BaseController
                         // Bygg userData fra allerede hentet data
                         var userData = group.Participants.ToDictionary(
                             p => p.UserId,
-                            p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+                            p => (p.User.FullName, p.User.ProfileImageUrl)
                         );
                         
                         var participantApprovalStatus = await context.GroupRequests
@@ -1110,7 +1092,7 @@ public class GroupConversationController : BaseController
                     newName = newName.Trim()
                 });
                 
-                await _groupNotificationService.CreateGroupEventAsync(
+                await groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupNameChanged,
                     groupId,
                     userId,

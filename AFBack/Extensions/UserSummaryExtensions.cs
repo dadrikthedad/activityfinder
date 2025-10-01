@@ -2,6 +2,7 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Hubs;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.SignalR;
@@ -49,7 +50,7 @@ public static class UserSummaryExtensions
         {
             Id = user.Id,
             FullName = user.FullName,
-            ProfileImageUrl = user.Profile?.ProfileImageUrl,
+            ProfileImageUrl = user.ProfileImageUrl,
             GroupRequestStatus = null,
             isFriend = isFriend ? true : null,
             isBlocked = isBlocked,
@@ -106,7 +107,7 @@ public static class UserSummaryExtensions
         taskQueue.QueueAsync(async () => 
         {
             using var scope = scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<UserHub>>(); 
 

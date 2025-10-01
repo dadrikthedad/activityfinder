@@ -5,77 +5,65 @@ using AFBack.DTOs.BoostrapDTO;
 using AFBack.DTOs.Crypto;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
+using AFBack.Interface.Services;
 
 namespace AFBack.Services
 {
-    public class BootstrapService
+    public class BootstrapService(
+        ApplicationDbContext context,
+        ILogger<BootstrapService> logger,
+        ConversationService conversationService,
+        IServiceProvider serviceProvider,
+        IMessageService messageService,
+        FriendService friendService,
+        INotificationService notificationService,
+        ISyncService syncService,
+        IMessageNotificationService messageNotificationService)
     {
-        private readonly ApplicationDbContext _context;
-        private readonly ILogger<BootstrapService> _logger;
-        private readonly ConversationService _conversationService;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly IMessageService _messageService;
-        private readonly FriendService _friendService;
-        private readonly INotificationService _notificationService;
-        private readonly SyncService _syncService;
-
-        public BootstrapService(ApplicationDbContext context, ILogger<BootstrapService> logger,
-            ConversationService conversationService, IServiceProvider serviceProvider, IMessageService messageService, 
-            FriendService friendService, INotificationService notificationService, SyncService syncService)
-        {
-            _context = context;
-            _logger = logger;
-            _conversationService = conversationService;
-            _serviceProvider = serviceProvider;
-            _messageService = messageService;
-            _friendService = friendService;
-            _notificationService = notificationService;
-            _syncService = syncService;
-        }
 
         public async Task<CriticalBootstrapResponseDTO> GetCriticalBootstrapAsync(int userId)
         {
             try
             {
-                _logger.LogInformation("🚀 Starting parallel critical bootstrap for userId: {UserId}", userId);
+                logger.LogInformation("🚀 Starting parallel critical bootstrap for userId: {UserId}", userId);
 
                 // PARALLEL: Separate scopes for hver operasjon
                 var userTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    _logger.LogDebug("📋 Starting user lookup with separate context");
+                    logger.LogDebug("📋 Starting user lookup with separate context");
                     return await GetCurrentUserWithContext(userId, context);
                 });
 
                 var settingsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    _logger.LogDebug("📋 Starting settings lookup with separate context");
+                    logger.LogDebug("📋 Starting settings lookup with separate context");
                     return await GetUserSettingsWithContext(userId, context);
                 });
 
-                _logger.LogInformation("📋 Waiting for parallel critical tasks to complete...");
+                logger.LogInformation("📋 Waiting for parallel critical tasks to complete...");
                 await Task.WhenAll(userTask, settingsTask);
 
                 var user = await userTask;
                 var settings = await settingsTask;
 
-                _logger.LogInformation("📋 Creating critical response...");
+                logger.LogInformation("📋 Creating critical response...");
                 var response = new CriticalBootstrapResponseDTO
                 {
                     User = user.ToUserSummaryDTO(),
                     Settings = settings?.ToUserSettingsDTO() ?? new UserSettingsDTO(),
-                    SyncToken = _syncService.GenerateSyncToken()
+                    SyncToken = syncService.GenerateSyncToken()
                 };
 
-                _logger.LogInformation("✅ Critical bootstrap completed for user: {UserName}", user.FullName);
+                logger.LogInformation("✅ Critical bootstrap completed for user: {UserName}", user.FullName);
                 return response;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get critical bootstrap for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get critical bootstrap for user {UserId}", userId);
                 throw;
             }
         }
@@ -84,74 +72,74 @@ namespace AFBack.Services
         {
             try
             {
-                _logger.LogInformation("📚 Starting parallel secondary bootstrap for userId: {UserId}", userId);
+                logger.LogInformation("📚 Starting parallel secondary bootstrap for userId: {UserId}", userId);
 
                 // PARALLEL: Separate scopes for hver operasjon
                 var conversationsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var conversationService = scope.ServiceProvider.GetRequiredService<ConversationService>();
-                    _logger.LogDebug("📋 Starting conversations lookup with separate service");
+                    logger.LogDebug("📋 Starting conversations lookup with separate service");
                     return await GetConversationsWithService(userId, 10, conversationService);
                 });
                 
                 var conversationMessagesTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var messageService = scope.ServiceProvider.GetRequiredService<IMessageService>();
-                    _logger.LogDebug("📋 Starting conversation messages lookup with separate service");
+                    logger.LogDebug("📋 Starting conversation messages lookup with separate service");
                     return await GetConversationMessagesWithService(userId, messageService);
                 });
 
                 var userRelationshipsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    _logger.LogDebug("📋 Getting user relationships with separate context");
+                    logger.LogDebug("📋 Getting user relationships with separate context");
                     return await GetUserRelationshipsWithContext(userId, context);
                 });
 
                 var unreadConversationsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    _logger.LogDebug("📋 Getting unread conversation IDs with separate context");
+                    logger.LogDebug("📋 Getting unread conversation IDs with separate context");
                     return await GetUnreadConversationIdsWithContext(userId, context);
                 });
 
                 var pendingRequestsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var messageService = scope.ServiceProvider.GetRequiredService<IMessageService>();
-                    _logger.LogDebug("📋 Getting pending message requests with separate service");
+                    logger.LogDebug("📋 Getting pending message requests with separate service");
                     return await GetPendingMessageRequestsWithService(userId, messageService);
                 });
                 
                 var messageNotificationsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var messageNotificationService = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
-                    _logger.LogDebug("📋 Getting recent notifications with separate service");
+                    logger.LogDebug("📋 Getting recent notifications with separate service");
                     return await GetRecentMessageNotificationsWithService(userId, messageNotificationService);
                 });
                 
                 var friendInvitationsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var friendService = scope.ServiceProvider.GetRequiredService<FriendService>();
-                    _logger.LogDebug("📋 Getting pending friend invitations with separate service");
+                    logger.LogDebug("📋 Getting pending friend invitations with separate service");
                     return await GetPendingFriendInvitationsWithService(userId, friendService);
                 });
                 
                 var appNotificationsTask = Task.Run(async () =>
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    using var scope = serviceProvider.CreateScope();
                     var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
-                    _logger.LogDebug("📋 Getting app notifications with separate service");
+                    logger.LogDebug("📋 Getting app notifications with separate service");
                     return await GetAppNotificationsWithService(userId, notificationService);
                 });
 
-                _logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
+                logger.LogInformation("📋 Waiting for parallel secondary tasks to complete...");
                 await Task.WhenAll(conversationsTask, conversationMessagesTask, userRelationshipsTask, 
                     unreadConversationsTask, pendingRequestsTask, messageNotificationsTask, 
                     friendInvitationsTask, appNotificationsTask);
@@ -165,7 +153,7 @@ namespace AFBack.Services
                 var friendInvitations = await friendInvitationsTask;
                 var notifications = await appNotificationsTask;
 
-                _logger.LogInformation("📋 Creating secondary response...");
+                logger.LogInformation("📋 Creating secondary response...");
                 var response = new SecondaryBootstrapResponseDTO
                 {
                     RecentConversations = conversations,
@@ -178,7 +166,7 @@ namespace AFBack.Services
                     RecentNotifications = notifications,
                 };
 
-                _logger.LogInformation(
+                logger.LogInformation(
                     "✅ Secondary bootstrap completed - Conversations: {ConversationCount}, Messages: {MessageCount}, " +
                     "UserRelationships: {RelationshipCount}, Unread: {UnreadCount}, Pending: {PendingCount}, " +
                     "MessageNotifications: {NotificationCount}, FriendInvitations: {InvitationCount}, " +
@@ -191,7 +179,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get secondary bootstrap for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get secondary bootstrap for user {UserId}", userId);
                 throw;
             }
         }
@@ -201,7 +189,7 @@ namespace AFBack.Services
 
         private async Task<Models.User> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
         {
-            _logger.LogDebug("🔍 Looking up user with ID: {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Looking up user with ID: {UserId} (separate context)", userId);
 
             var user = await context.Users
                 .Include(u => u.Profile)
@@ -209,11 +197,11 @@ namespace AFBack.Services
 
             if (user == null)
             {
-                _logger.LogWarning("⚠️ User with ID {UserId} not found", userId);
+                logger.LogWarning("⚠️ User with ID {UserId} not found", userId);
                 throw new KeyNotFoundException($"User with ID {userId} not found");
             }
 
-            _logger.LogDebug("✅ User found: {UserName}", user.FullName);
+            logger.LogDebug("✅ User found: {UserName}", user.FullName);
 
             // Oppdater LastSeen når brukeren starter appen
             user.LastSeen = DateTime.UtcNow;
@@ -224,12 +212,12 @@ namespace AFBack.Services
 
         private async Task<UserSettings?> GetUserSettingsWithContext(int userId, ApplicationDbContext context)
         {
-            _logger.LogDebug("🔍 Getting settings for user {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Getting settings for user {UserId} (separate context)", userId);
 
             var settings = await context.UserSettings
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
-            _logger.LogDebug("✅ Settings found: {HasSettings}", settings != null);
+            logger.LogDebug("✅ Settings found: {HasSettings}", settings != null);
             return settings;
         }
 
@@ -239,7 +227,7 @@ namespace AFBack.Services
         private async Task<List<ConversationDTO>> GetConversationsWithService(int userId, int limit,
             ConversationService conversationService)
         {
-            _logger.LogDebug("🔍 Getting {Limit} recent conversations for user {UserId} (separate service)", limit,
+            logger.LogDebug("🔍 Getting {Limit} recent conversations for user {UserId} (separate service)", limit,
                 userId);
 
             var conversationResults = await conversationService.GetUserConversationsSortedAsync(
@@ -247,7 +235,7 @@ namespace AFBack.Services
                 includeRejected: false,
                 limit: limit);
 
-            _logger.LogDebug("✅ Found {ConversationCount} conversations", conversationResults.Count);
+            logger.LogDebug("✅ Found {ConversationCount} conversations", conversationResults.Count);
 
             return conversationResults
                 .Select(c => new ConversationDTO
@@ -266,7 +254,7 @@ namespace AFBack.Services
                     {
                         Id = p.User.Id,
                         FullName = p.User.FullName,
-                        ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
+                        ProfileImageUrl = p.User.ProfileImageUrl,
                         GroupRequestStatus = !c.Conversation.IsGroup ? null :
                             p.User.Id == c.Conversation.CreatorId ? GroupRequestStatus.Creator :
                             c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status :
@@ -280,11 +268,11 @@ namespace AFBack.Services
             int userId, 
             IMessageService messageService)
         {
-            _logger.LogDebug("🔍 Getting encrypted messages for user's conversations {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting encrypted messages for user's conversations {UserId} (separate service)", userId);
 
             try
             {
-                using var scope = _serviceProvider.CreateScope();
+                using var scope = serviceProvider.CreateScope();
                 var conversationService = scope.ServiceProvider.GetRequiredService<ConversationService>();
                 
                 var conversationResults = await conversationService.GetUserConversationsSortedAsync(
@@ -296,12 +284,12 @@ namespace AFBack.Services
 
                 var messageTasks = conversationResults.Select(async conversationResult =>
                 {
-                    using var taskScope = _serviceProvider.CreateScope();
+                    using var taskScope = serviceProvider.CreateScope();
                     var taskMessageService = taskScope.ServiceProvider.GetRequiredService<IMessageService>();
 
                     try
                     {
-                        _logger.LogDebug("🔍 Fetching encrypted messages for conversation {ConversationId}", conversationResult.Conversation.Id);
+                        logger.LogDebug("🔍 Fetching encrypted messages for conversation {ConversationId}", conversationResult.Conversation.Id);
 
                         var messages = await taskMessageService.GetMessagesForConversationAsync(
                             conversationResult.Conversation.Id, 
@@ -309,14 +297,14 @@ namespace AFBack.Services
                             skip: 0, 
                             take: 20);
 
-                        _logger.LogDebug("✅ Got {MessageCount} encrypted messages for conversation {ConversationId}", 
+                        logger.LogDebug("✅ Got {MessageCount} encrypted messages for conversation {ConversationId}", 
                             messages.Count, conversationResult.Conversation.Id);
 
                         return new { ConversationId = conversationResult.Conversation.Id, Messages = messages };
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "❌ DETAILED ERROR for conversation {ConversationId}: {ErrorMessage}", 
+                        logger.LogError(ex, "❌ DETAILED ERROR for conversation {ConversationId}: {ErrorMessage}", 
                             conversationResult.Conversation.Id, ex.Message);
                         return new { ConversationId = conversationResult.Conversation.Id, Messages = new List<EncryptedMessageResponseDTO>() };
                     }
@@ -329,7 +317,7 @@ namespace AFBack.Services
                     conversationMessages[result.ConversationId] = result.Messages;
                 }
 
-                _logger.LogDebug("✅ Found encrypted messages for {ConversationCount} conversations with total {MessageCount} messages", 
+                logger.LogDebug("✅ Found encrypted messages for {ConversationCount} conversations with total {MessageCount} messages", 
                     conversationMessages.Count, 
                     conversationMessages.Values.Sum(m => m.Count));
 
@@ -337,14 +325,14 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get conversation messages for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get conversation messages for user {UserId}", userId);
                 return new Dictionary<int, List<EncryptedMessageResponseDTO>>();
             }
         }
 
         private async Task<List<UserSummaryDTO>> GetUserRelationshipsWithContext(int userId, ApplicationDbContext context)
         {
-            _logger.LogDebug("🔍 Getting user relationships for user {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Getting user relationships for user {UserId} (separate context)", userId);
 
             var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
@@ -372,7 +360,7 @@ namespace AFBack.Services
 
             if (!allRelatedUserIds.Any())
             {
-                _logger.LogDebug("✅ No user relationships found");
+                logger.LogDebug("✅ No user relationships found");
                 return new List<UserSummaryDTO>();
             }
 
@@ -383,7 +371,7 @@ namespace AFBack.Services
                 {
                     Id = u.Id,
                     FullName = u.FullName,
-                    ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
+                    ProfileImageUrl = u.Profile != null ? u.ProfileImageUrl : null
                 })
                 .ToListAsync();
 
@@ -399,7 +387,7 @@ namespace AFBack.Services
                 LastUpdated = currentTimestamp
             }).ToList();
 
-            _logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}, HasBlockedMe: {HasBlockedMeCount}", 
+            logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}, HasBlockedMe: {HasBlockedMeCount}", 
                 userRelationships.Count, 
                 userRelationships.Count(ur => ur.isFriend == true),
                 userRelationships.Count(ur => ur.isBlocked == true),
@@ -410,7 +398,7 @@ namespace AFBack.Services
         
         private async Task<List<int>> GetUnreadConversationIdsWithContext(int userId, ApplicationDbContext context)
         {
-            _logger.LogDebug("🔍 Getting unread conversation IDs for user {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Getting unread conversation IDs for user {UserId} (separate context)", userId);
 
             var unreadConvIds = await context.MessageNotifications
                 .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId != null)
@@ -418,13 +406,13 @@ namespace AFBack.Services
                 .Distinct()
                 .ToListAsync();
 
-            _logger.LogDebug("✅ Found {UnreadCount} unread conversations", unreadConvIds.Count);
+            logger.LogDebug("✅ Found {UnreadCount} unread conversations", unreadConvIds.Count);
             return unreadConvIds;
         }
         
         private async Task<List<MessageRequestDTO>> GetPendingMessageRequestsWithService(int userId, IMessageService messageService)
         {
-            _logger.LogDebug("🔍 Getting pending message requests for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting pending message requests for user {UserId} (separate service)", userId);
 
             try
             {
@@ -433,16 +421,16 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get pending message requests for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get pending message requests for user {UserId}", userId);
                 return new List<MessageRequestDTO>();
             }
         }
         
         private async Task<List<MessageNotificationDTO>> GetRecentMessageNotificationsWithService(
             int userId, 
-            MessageNotificationService messageNotificationService)
+            IMessageNotificationService messageNotificationService)
         {
-            _logger.LogDebug("🔍 Getting recent notifications for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting recent notifications for user {UserId} (separate service)", userId);
 
             try
             {
@@ -455,7 +443,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get recent notifications for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get recent notifications for user {UserId}", userId);
                 return new List<MessageNotificationDTO>();
             }
         }
@@ -464,7 +452,7 @@ namespace AFBack.Services
             int userId, 
             FriendService friendService)
         {
-            _logger.LogDebug("🔍 Getting pending friend invitations for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting pending friend invitations for user {UserId} (separate service)", userId);
 
             try
             {
@@ -472,7 +460,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get pending friend invitations for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get pending friend invitations for user {UserId}", userId);
                 return new List<FriendInvitationDTO>();
             }
         }
@@ -481,7 +469,7 @@ namespace AFBack.Services
             int userId, 
             INotificationService notificationService)
         {
-            _logger.LogDebug("🔍 Getting app notifications for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting app notifications for user {UserId} (separate service)", userId);
 
             try
             {
@@ -489,7 +477,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get app notifications for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get app notifications for user {UserId}", userId);
                 return new List<NotificationDTO>();
             }
         }

@@ -24,8 +24,6 @@ public class Message
     [Required]
     public int ConversationId { get; set; }
     public Conversation Conversation { get; set; }
-    
-    public bool IsApproved { get; set; } = true; 
         
     // Parent message for replies (metadata, not encrypted)
     public int? ParentMessageId { get; set; }

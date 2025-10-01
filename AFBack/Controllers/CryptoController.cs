@@ -3,6 +3,9 @@ using AFBack.Data;
 using AFBack.DTOs.Auth;
 using AFBack.DTOs.Crypto;
 using AFBack.Extensions;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
 using AFBack.Services.Crypto;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.AspNetCore.Authorization;
@@ -13,19 +16,15 @@ namespace AFBack.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Authorize] // Require authentication for all E2EE endpoints
-    public class E2EEController : BaseController
+    public class E2EEController(
+        ApplicationDbContext context,
+        E2EEService e2EeService,
+        ILogger<E2EEController> logger,
+        SecretClient secretClient,
+        IUserCache userCache,
+        ResponseService responseService)
+        : BaseController<E2EEController>(context, logger, userCache, responseService)
     {
-        private readonly E2EEService _e2eeService;
-        private readonly ILogger<E2EEController> _logger;
-        private readonly SecretClient _secretClient;
-
-        public E2EEController(ApplicationDbContext context, E2EEService e2eeService, ILogger<E2EEController> logger, SecretClient secretClient) : base(context)
-        {
-            _e2eeService = e2eeService;
-            _logger = logger;
-            _secretClient = secretClient;
-        }
-
         /// <summary>
         /// Store or update user's public key for E2EE
         /// </summary>
@@ -43,7 +42,7 @@ namespace AFBack.Controllers
                 
                 _logger.LogInformation("Storing public key for user {UserId}", userId);
                 
-                var result = await _e2eeService.StoreUserPublicKeyAsync(userId.Value, request.PublicKey);
+                var result = await e2EeService.StoreUserPublicKeyAsync(userId.Value, request.PublicKey);
                 
                 if (result == null)
                 {
@@ -77,7 +76,7 @@ namespace AFBack.Controllers
                 _logger.LogInformation("Getting conversation keys for conversation {ConversationId}, user {UserId}", 
                     conversationId, userId);
                 
-                var result = await _e2eeService.GetConversationKeysAsync(conversationId, userId.Value);
+                var result = await e2EeService.GetConversationKeysAsync(conversationId, userId.Value);
                 
                 if (result == null)
                 {
@@ -110,7 +109,7 @@ namespace AFBack.Controllers
                 _logger.LogInformation("Getting public keys for users {UserIds}, requested by {UserId}", 
                     string.Join(",", userIds), userId);
 
-                var result = await _e2eeService.GetPublicKeysForUsersAsync(userIds);
+                var result = await e2EeService.GetPublicKeysForUsersAsync(userIds);
                 
                 return Ok(result);
             }
@@ -130,7 +129,7 @@ namespace AFBack.Controllers
             try
             {
                 var userId = GetUserId();
-                var publicKeys = await _e2eeService.GetPublicKeysForUsersAsync(new List<int> { userId.Value });
+                var publicKeys = await e2EeService.GetPublicKeysForUsersAsync(new List<int> { userId.Value });
         
                 if (!publicKeys.Any())
                 {
@@ -183,7 +182,7 @@ namespace AFBack.Controllers
                     }
                 };
 
-                await _secretClient.SetSecretAsync(secret);
+                await secretClient.SetSecretAsync(secret);
 
                 _logger.LogInformation($"Recovery seed sent succesfully for user {userId}");
 

@@ -9,6 +9,8 @@ using AFBack.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
+using AFBack.Features.Cache.Interface;
+using AFBack.Interface.Services;
 using AFBack.Models.Crypto;
 using Newtonsoft.Json;
 using EncryptedMessage = AFBack.Models.Message;
@@ -16,31 +18,17 @@ using EncryptedMessage = AFBack.Models.Message;
 // En service for å håndtere alle meldinger
 namespace AFBack.Services;
 
-public class MessageService : IMessageService
+public class MessageService(
+    ApplicationDbContext context,
+    IHubContext<UserHub> hubContext,
+    IMessageNotificationService messageNotificationService,
+    ISendMessageCache msgCache,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    ILogger<UserController> logger,
+    ISyncService syncService)
+    : IMessageService
 {
-    private readonly ApplicationDbContext _context;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly MessageNotificationService _messageNotificationService;
-    private readonly SendMessageCache _msgCache;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<UserController> _logger;
-    private readonly SyncService _syncService;
-
-    public MessageService(ApplicationDbContext context, IHubContext<UserHub> hubContext,
-        MessageNotificationService messageNotificationService, SendMessageCache msgCache,
-        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<UserController> logger, SyncService syncService)
-    {
-        _context = context;
-        _hubContext = hubContext;
-        _messageNotificationService = messageNotificationService;
-        _msgCache = msgCache;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-        _syncService = syncService;
-
-    }
 
     // Her sender vi en melding med SendMessageAsync, sender også med vedlegg
     public async Task<MessageResponseDTO> SendMessageAsync(int senderId, SendMessageRequestDTO dto)
@@ -50,7 +38,7 @@ public class MessageService : IMessageService
         
         if (dto.ParentMessageId.HasValue)
         {
-            var parentExists = await _context.Messages
+            var parentExists = await context.Messages
                 .AsNoTracking()
                 .AnyAsync(m => m.Id == dto.ParentMessageId.Value);
         
@@ -79,14 +67,14 @@ public class MessageService : IMessageService
 
         if (dto.ConversationId <= 0 && !conversation.IsGroup && receiverId.HasValue)
         {
-            userData = await SyncEventExtensions.GetUserDataAsync(_context, senderId, receiverId.Value);
+            userData = await SyncEventExtensions.GetUserDataAsync(context, senderId, receiverId.Value);
         }
         
         if (!conversation.IsGroup && !receiverId.HasValue)
             throw new InvalidOperationException("receiverId skal være satt i 1–1 samtale.");
         
         // Sjekk cahcen om vi kan sende
-        bool canSend = await _msgCache.CanUserSendAsync(senderId, conversation.Id);
+        bool canSend = await msgCache.CanUserSendAsync(senderId, conversation.Id);
 
         MessageResponseDTO response;
         
@@ -96,14 +84,14 @@ public class MessageService : IMessageService
             if (!conversation.IsGroup)
             {
                 // 🚀 Hent participants og blocking-data i separate, effektive queries
-                var participantData = await _context.ConversationParticipants
+                var participantData = await context.ConversationParticipants
                     .AsNoTracking()
                     .Where(p => p.ConversationId == conversation.Id && 
                                 (p.UserId == senderId || p.UserId == receiverId.Value))
                     .Select(p => new { p.UserId, p.HasDeleted })
                     .ToListAsync();
 
-                var blockedRelations = await _context.UserBlocks
+                var blockedRelations = await context.UserBlocks
                     .AsNoTracking() // 🆕 Glem ikke AsNoTracking
                     .Where(ub =>
                         (ub.BlockerId == senderId && ub.BlockedUserId == receiverId.Value) ||
@@ -136,7 +124,7 @@ public class MessageService : IMessageService
             if (conversation.IsGroup)
             {
                 // For gruppesamtaler: sjekk GroupRequest eller om bruker er creator
-                bool hasApprovedGroupRequest = await _context.GroupRequests.AsNoTracking()
+                bool hasApprovedGroupRequest = await context.GroupRequests.AsNoTracking()
                     .AnyAsync(gr => gr.ConversationId == conversation.Id &&
                                     gr.ReceiverId == senderId &&
                                     gr.Status == GroupRequestStatus.Approved);
@@ -170,14 +158,14 @@ public class MessageService : IMessageService
             if (!conversation.IsGroup && requiresApproval)
             {
                 //  Teller meldinger **bare** når det trengs
-                messageCount = await _context.Messages.AsNoTracking()
+                messageCount = await context.Messages.AsNoTracking()
                     .CountAsync(m => m.ConversationId == conversation.Id &&
                                      m.SenderId == senderId);
 
                 if (messageCount >= 5)
                 {
                     MarkLimitReached(senderId, receiverId, conversation.Id);
-                    await _context.SaveChangesAsync();
+                    await context.SaveChangesAsync();
                     throw new Exception(
                         "You have reached the limit of messages you can send while waiting for the receiver to accept your request.");
                 }
@@ -203,15 +191,15 @@ public class MessageService : IMessageService
             else
                 message.ConversationId = conversation.Id;
 
-            _context.Messages.Add(message);
+            context.Messages.Add(message);
             conversation.LastMessageSentAt = message.SentAt;
 
             // 6 ÉN lagring av alt ovenfor
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             
             if (!conversation.IsGroup && requiresApproval && !isRejected && !requestSent)
             {
-                var existingRequest = await _context.MessageRequests
+                var existingRequest = await context.MessageRequests
                     .AsNoTracking()
                     .AnyAsync(r => r.ConversationId == conversation.Id &&
                                    r.ReceiverId == senderId &&
@@ -221,8 +209,8 @@ public class MessageService : IMessageService
                 {
                     await ApproveMessageRequestAsync(senderId, conversation.Id);
                     
-                    await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, CanSendReason.MessageRequest);
-                    await _context.AddCanSendAsync(receiverId.Value, conversation.Id, _msgCache, CanSendReason.MessageRequest);
+                    await context.AddCanSendAsync(senderId, conversation.Id, msgCache, CanSendReason.MessageRequest);
+                    await context.AddCanSendAsync(receiverId.Value, conversation.Id, msgCache, CanSendReason.MessageRequest);
                     
                     nowApproved = true;
                 }
@@ -230,10 +218,10 @@ public class MessageService : IMessageService
             else if (!requiresApproval)
             {
                 // 🚨 BACKUP: Dette burde ikke skje ofte
-                _logger.LogWarning("CanSend backup triggered for user {SenderId} in conversation {ConversationId}. " +
+                logger.LogWarning("CanSend backup triggered for user {SenderId} in conversation {ConversationId}. " +
                                    "Consider adding CanSend at the proper time.", senderId, conversation.Id);
     
-                await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, 
+                await context.AddCanSendAsync(senderId, conversation.Id, msgCache, 
                     conversation.IsGroup ? CanSendReason.GroupRequest : CanSendReason.Friendship);
             }
 
@@ -261,7 +249,7 @@ public class MessageService : IMessageService
             // NotifyAndBroadcastAsync
             if (shouldNotify || needsMessageRequestNotification || isRejectedSender)
             {
-                _taskQueue.QueueAsync(async () => 
+                taskQueue.QueueAsync(async () => 
                 {
                     // Først SignalR
                     await NotifyAndBroadcastAsync(
@@ -279,8 +267,8 @@ public class MessageService : IMessageService
                         isRejectedSender: isRejectedSender);
         
                     // Så sync event med ny scope
-                    using var scope = _scopeFactory.CreateScope();
-                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); // eller hva _syncService heter
+                    using var scope = scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>(); // eller hva _syncService heter
         
                     try 
                     {
@@ -329,7 +317,7 @@ public class MessageService : IMessageService
                         if (conversation.IsGroup)
                         {
                             groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
-                                _context, conversation.Id, participantIds);
+                                context, conversation.Id, participantIds);
                         }
 
                         // Eksisterende NEW_MESSAGE sync event
@@ -347,7 +335,7 @@ public class MessageService : IMessageService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to create sync events for message {MessageId}", response.Id);
+                        logger.LogError(ex, "Failed to create sync events for message {MessageId}", response.Id);
                     }
                 });
             }
@@ -366,8 +354,8 @@ public class MessageService : IMessageService
     int skip = 0, int take = 20)
     {
         // Samme tilgangskontroll logikk som før
-        bool canSend = await _msgCache.CanUserSendAsync(userId, conversationId);
-        bool isCreator = await _context.Conversations
+        bool canSend = await msgCache.CanUserSendAsync(userId, conversationId);
+        bool isCreator = await context.Conversations
             .AsNoTracking()
             .AnyAsync(c => c.Id == conversationId && c.CreatorId == userId);
 
@@ -377,7 +365,7 @@ public class MessageService : IMessageService
         }
 
         // Samme membership sjekk som før...
-        var conversation = await _context.Conversations
+        var conversation = await context.Conversations
             .AsNoTracking()
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.Id == conversationId);
@@ -418,7 +406,7 @@ public class MessageService : IMessageService
         }
 
         // Ikke-creator: begrenset preview (maks 5 fra sender + egne)
-        var allMessages = await _context.Messages // Endret fra Messages til EncryptedMessages
+        var allMessages = await context.Messages // Endret fra Messages til EncryptedMessages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversation.Id && 
                         (m.SenderId == userId || m.SenderId == otherUserId))
@@ -442,7 +430,7 @@ public class MessageService : IMessageService
     
     private async Task<List<EncryptedMessageResponseDTO>> GetFullMessagesAsync(int conversationId, int skip, int take)
     {
-        var messages = await _context.Messages
+        var messages = await context.Messages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversationId)
             .Include(m => m.Attachments)
@@ -480,7 +468,7 @@ public class MessageService : IMessageService
             {
                 Id = message.Sender.Id,
                 FullName = message.Sender.FullName,
-                ProfileImageUrl = message.Sender.Profile?.ProfileImageUrl
+                ProfileImageUrl = message.Sender.ProfileImageUrl
             } : null,
 
             EncryptedAttachments = message.IsDeleted ? new List<EncryptedAttachmentDto>() :
@@ -522,7 +510,7 @@ public class MessageService : IMessageService
         try
         {
             // ✅ SEPARATE QUERIES: Hent message requests
-            var messageRequests = await _context.MessageRequests
+            var messageRequests = await context.MessageRequests
                 .AsNoTracking()
                 .AsSplitQuery()
                 .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected)
@@ -530,7 +518,7 @@ public class MessageService : IMessageService
                 {
                     SenderId = r.SenderId,
                     SenderName = r.Sender.FullName,
-                    ProfileImageUrl = r.Sender.Profile != null ? r.Sender.Profile.ProfileImageUrl : null,
+                    ProfileImageUrl = r.Sender.ProfileImageUrl,
                     RequestedAt = r.RequestedAt,
                     ConversationId = r.ConversationId,
                     GroupName = null,
@@ -543,7 +531,7 @@ public class MessageService : IMessageService
                 .ToListAsync();
 
             // ✅ SEPARATE QUERIES: Hent group requests
-            var groupRequests = await _context.GroupRequests
+            var groupRequests = await context.GroupRequests
                 .AsNoTracking()
                 .AsSplitQuery()
                 .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending)
@@ -551,7 +539,7 @@ public class MessageService : IMessageService
                 {
                     SenderId = gr.SenderId,
                     SenderName = gr.Sender.FullName,
-                    ProfileImageUrl = gr.Sender.Profile != null ? gr.Sender.Profile.ProfileImageUrl : null,
+                    ProfileImageUrl = gr.Sender.ProfileImageUrl,
                     RequestedAt = gr.RequestedAt,
                     ConversationId = gr.ConversationId,
                     GroupName = gr.Conversation.GroupName,
@@ -563,7 +551,7 @@ public class MessageService : IMessageService
                     {
                         Id = p.User.Id,
                         FullName = p.User.FullName,
-                        ProfileImageUrl = p.User.Profile != null ? p.User.Profile.ProfileImageUrl : null
+                        ProfileImageUrl = p.User.ProfileImageUrl
                     }).ToList()
                 })
                 .ToListAsync();
@@ -595,7 +583,7 @@ public class MessageService : IMessageService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Failed to get paginated pending message requests for user {UserId}", receiverId);
+            logger.LogError(ex, "❌ Failed to get paginated pending message requests for user {UserId}", receiverId);
             throw;
         }
     }
@@ -605,7 +593,7 @@ public class MessageService : IMessageService
     public async Task ApproveMessageRequestAsync(int receiverId, int conversationId)
     {
         // Sjekk først hvilken type samtale det er
-        var conversation = await _context.Conversations
+        var conversation = await context.Conversations
             .Include(c => c.Participants)
                 .ThenInclude(p => p.User)
                     .ThenInclude(u => u.Profile) //  Inkluder User og Profile data
@@ -620,7 +608,7 @@ public class MessageService : IMessageService
         if (isGroupRequest)
         {
             //  Håndter GroupRequest
-            var groupRequest = await _context.GroupRequests
+            var groupRequest = await context.GroupRequests
                 .FirstOrDefaultAsync(gr => gr.ReceiverId == receiverId && 
                                           gr.ConversationId == conversationId && 
                                           gr.Status == GroupRequestStatus.Pending);
@@ -632,25 +620,25 @@ public class MessageService : IMessageService
             senderId = groupRequest.SenderId; // Lagre senderId
 
             // Legg til brukeren som participant i gruppen
-            var existingParticipant = await _context.ConversationParticipants
+            var existingParticipant = await context.ConversationParticipants
                 .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == receiverId);
 
             if (!existingParticipant)
             {
-                _context.ConversationParticipants.Add(new ConversationParticipant
+                context.ConversationParticipants.Add(new ConversationParticipant
                 {
                     ConversationId = conversationId,
                     UserId = receiverId
                 });
             }
             
-            await _context.AddCanSendAsync(receiverId, conversationId, _msgCache, CanSendReason.GroupRequest);
+            await context.AddCanSendAsync(receiverId, conversationId, msgCache, CanSendReason.GroupRequest);
             
         }
         else
         {
             // Håndter MessageRequest
-            var messageRequest = await _context.MessageRequests
+            var messageRequest = await context.MessageRequests
                 .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && 
                                           r.ConversationId == conversationId &&
                                           !r.IsAccepted); 
@@ -667,7 +655,7 @@ public class MessageService : IMessageService
             conversation.IsApproved = true;
         
             // Sjekk om avsender har slettet - kun for CanSend-beslutning
-            var senderHasDeleted = await _context.ConversationParticipants
+            var senderHasDeleted = await context.ConversationParticipants
                 .AsNoTracking()
                 .AnyAsync(p => p.ConversationId == conversationId && 
                                p.UserId == senderId && 
@@ -676,13 +664,13 @@ public class MessageService : IMessageService
             // 🎯 Legg til CanSend kun hvis avsender ikke har slettet
             if (!senderHasDeleted)
             {
-                await _context.AddCanSendAsync(receiverId, conversationId, _msgCache, CanSendReason.MessageRequest);
-                await _context.AddCanSendAsync(senderId, conversationId, _msgCache, CanSendReason.MessageRequest);
+                await context.AddCanSendAsync(receiverId, conversationId, msgCache, CanSendReason.MessageRequest);
+                await context.AddCanSendAsync(senderId, conversationId, msgCache, CanSendReason.MessageRequest);
             }
             // Hvis avsender har slettet: godkjenning skjer, men ingen CanSend
         }
         
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
         // Bygg conversation sync data ETTER SaveChanges (når all data er oppdatert)
         var userIds = conversation.Participants.Select(p => p.UserId).ToArray();
     
@@ -695,13 +683,13 @@ public class MessageService : IMessageService
             // Bruk existing user data fra Include
             userData = conversation.Participants.ToDictionary(
                 p => p.UserId,
-                p => (p.User.FullName, p.User.Profile?.ProfileImageUrl)
+                p => (p.User.FullName, p.User.ProfileImageUrl)
             );
         }
         else
         {
             // Hent userData fra database
-            userData = await SyncEventExtensions.GetUserDataAsync(_context, userIds);
+            userData = await SyncEventExtensions.GetUserDataAsync(context, userIds);
         }
         
         // Hent group request statuses for groups
@@ -709,7 +697,7 @@ public class MessageService : IMessageService
         if (conversation.IsGroup)
         {
             groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
-                _context, conversationId, userIds);
+                context, conversationId, userIds);
         }
 
         //  Bygg conversation sync data med group statuses
@@ -721,7 +709,7 @@ public class MessageService : IMessageService
 
         
         // Hent brukeren som godkjenner
-        var approver = await _context.Users
+        var approver = await context.Users
                            .FirstOrDefaultAsync(u => u.Id == receiverId)
                        ?? throw new Exception("Godkjenneren ble ikke funnet.");
 
@@ -730,11 +718,11 @@ public class MessageService : IMessageService
             ? $"{approver.FullName} has joined the group."
             : $"{approver.FullName} has accepted the conversation.";
 
-        var systemMessage = await _messageNotificationService.CreateSystemMessageAsync(conversationId, systemMessageText);
+        var systemMessage = await messageNotificationService.CreateSystemMessageAsync(conversationId, systemMessageText);
 
         if (isGroupRequest)
         {
-            using var scope = _scopeFactory.CreateScope();
+            using var scope = scopeFactory.CreateScope();
             var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
         
             //  Opprett GroupEvent for MemberAccepted - dette vil automatisk:
@@ -751,18 +739,18 @@ public class MessageService : IMessageService
         else
         {
             // Håndter MessageRequest som før
-            var notification = await _messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
+            var notification = await messageNotificationService.CreateMessageRequestApprovedNotificationAsync(
                 receiverId, senderId, conversationId);
 
-            await _hubContext.Clients.User(senderId.ToString())
+            await hubContext.Clients.User(senderId.ToString())
                 .SendAsync("MessageRequestApproved", notification);
         }
         
         // SYNC EVENTS - etter SaveChanges når alle IDer er tilgjengelige
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {
@@ -801,7 +789,7 @@ public class MessageService : IMessageService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create sync event for request approval. ConversationId: {ConversationId}, IsGroup: {IsGroup}", 
+                logger.LogError(ex, "Failed to create sync event for request approval. ConversationId: {ConversationId}, IsGroup: {IsGroup}", 
                     conversationId, isGroupRequest);
             }
         });
@@ -812,8 +800,8 @@ public class MessageService : IMessageService
         string query, int skip = 0, int take = 50)
     {
         // Samme tilgangssjekk som før...
-        bool canSend = await _msgCache.CanUserSendAsync(userId, conversationId);
-        bool isCreator = await _context.Conversations
+        bool canSend = await msgCache.CanUserSendAsync(userId, conversationId);
+        bool isCreator = await context.Conversations
             .AsNoTracking()
             .AnyAsync(c => c.Id == conversationId && c.CreatorId == userId);
 
@@ -822,7 +810,7 @@ public class MessageService : IMessageService
             throw new UnauthorizedAccessException("Du har ikke tilgang til å søke i denne samtalen.");
         }
 
-        var messages = await _context.Messages
+        var messages = await context.Messages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversationId &&
                         !m.IsDeleted &&
@@ -850,7 +838,7 @@ public class MessageService : IMessageService
                 {
                     Id = m.Sender.Id,
                     FullName = m.Sender.FullName,
-                    ProfileImageUrl = m.Sender.Profile != null ? m.Sender.Profile.ProfileImageUrl : null
+                    ProfileImageUrl = m.Sender.ProfileImageUrl
                 } : null,
                 
                 Attachments = m.Attachments
@@ -876,7 +864,7 @@ public class MessageService : IMessageService
                 {
                     Id = m.ParentMessage.Sender.Id,
                     FullName = m.ParentMessage.Sender.FullName,
-                    ProfileImageUrl = m.ParentMessage.Sender.Profile != null ? m.ParentMessage.Sender.Profile.ProfileImageUrl : null
+                    ProfileImageUrl = m.ParentMessage.Sender.ProfileImageUrl
                 } : null
             })
             .ToListAsync();
@@ -888,7 +876,7 @@ public class MessageService : IMessageService
     // Slette meldinger
     public async Task<MessageResponseDTO> SoftDeleteMessageAsync(int messageId, int userId)
     {
-        var message = await _context.Messages
+        var message = await context.Messages
             .Include(m => m.Conversation)
             .ThenInclude(c => c.Participants)
             .FirstOrDefaultAsync(m => m.Id == messageId);
@@ -907,7 +895,7 @@ public class MessageService : IMessageService
         // 🗂️ Fjern vedlegg 
         message.Attachments.Clear();
     
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         // 📤 Hent oppdatert melding via optimalisert metode
         var response = await MapToResponseDtoOptimized(messageId); // Pass messageId, ikke message objekt
@@ -918,13 +906,13 @@ public class MessageService : IMessageService
             .ToArray();
 
         // Send til alle deltakere
-        _taskQueue.QueueAsync(() => NotifyMessageDeleted(
+        taskQueue.QueueAsync(() => NotifyMessageDeleted(
             conversationId: message.ConversationId,
             participantIds: participantIds,
             deletedMessage: response
         ));
         
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
             // Først SignalR (for øyeblikkelig UI oppdatering)
             await NotifyMessageDeleted(
@@ -934,8 +922,8 @@ public class MessageService : IMessageService
             );
 
             // Så Sync Event (for offline/bootstrap sync)
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {
@@ -953,7 +941,7 @@ public class MessageService : IMessageService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create sync event for message deletion. MessageId: {MessageId}", messageId);
+                logger.LogError(ex, "Failed to create sync event for message deletion. MessageId: {MessageId}", messageId);
             }
         });
 
@@ -970,7 +958,7 @@ public class MessageService : IMessageService
         {
             try
             {
-                await _hubContext.Clients.User(uid.ToString())
+                await hubContext.Clients.User(uid.ToString())
                     .SendAsync("MessageDeleted", new { 
                         conversationId = conversationId,
                         message = deletedMessage 
@@ -978,7 +966,7 @@ public class MessageService : IMessageService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to send deleted message notification to user {UserId}", uid);
+                logger.LogWarning(ex, "Failed to send deleted message notification to user {UserId}", uid);
             }
         });
 
@@ -999,7 +987,7 @@ public class MessageService : IMessageService
     // 1. Kombinert bruker-sjekk – 1 query i stedet for 2.
     private async Task CheckUsersExistAsync(int senderId, int receiverId)
     {
-        var usersExist = await _context.Users
+        var usersExist = await context.Users
             .AsNoTracking()
             .Where(u => u.Id == senderId || u.Id == receiverId)
             .Select(u => u.Id)
@@ -1015,7 +1003,7 @@ public class MessageService : IMessageService
     {
         if (dto.ConversationId > 0)
         {
-            var conv = await _context.Conversations
+            var conv = await context.Conversations
                 .Include(c => c.Participants)
                 .FirstOrDefaultAsync(c => c.Id == dto.ConversationId);
 
@@ -1041,7 +1029,7 @@ public class MessageService : IMessageService
 
         await CheckUsersExistAsync(senderId, recId);
 
-        var existing = await _context.Conversations
+        var existing = await context.Conversations
             .Include(c => c.Participants)
                 .ThenInclude(p => p.User)               // ← LEGG TIL DISSE
                 .ThenInclude(u => u.Profile)  
@@ -1066,7 +1054,7 @@ public class MessageService : IMessageService
             }
         };
 
-        _context.Conversations.Add(convNew);
+        context.Conversations.Add(convNew);
         return (convNew, recId);
     }
 
@@ -1077,7 +1065,7 @@ public class MessageService : IMessageService
         if (conv.IsGroup)
         {
             // 🆕 Sjekk GroupRequest i stedet for MessageRequest
-            bool hasApprovedGroupRequest = await _context.GroupRequests.AsNoTracking()
+            bool hasApprovedGroupRequest = await context.GroupRequests.AsNoTracking()
                 .AnyAsync(gr => gr.ConversationId == conv.Id &&
                                 gr.ReceiverId == senderId &&
                                 gr.Status == GroupRequestStatus.Approved);
@@ -1092,12 +1080,12 @@ public class MessageService : IMessageService
         if (conv.IsApproved) return (false, false, false);
 
         // 🆕  Bruk cache
-        bool isFriend = await _context.Friends.AsNoTracking()
+        bool isFriend = await context.Friends.AsNoTracking()
             .AnyAsync(f => (f.UserId == senderId && f.FriendId == receiverId) ||
                            (f.UserId == receiverId && f.FriendId == senderId));
 
         // Om de ikke er venner må vi fortsatt sjekke tidligere MessageRequest
-        var req = await _context.MessageRequests.AsNoTracking()
+        var req = await context.MessageRequests.AsNoTracking()
             .OrderByDescending(r => r.RequestedAt)
             .FirstOrDefaultAsync(r =>
                 r.ConversationId == conv.Id &&
@@ -1117,12 +1105,12 @@ public class MessageService : IMessageService
     // 5. Legg bare til en entity – ingen SaveChanges her
     private bool AddMessageRequestEntityIfMissing(int senderId, int? receiverId, Conversation conv)
     {
-        bool exists = _context.MessageRequests.Local
+        bool exists = context.MessageRequests.Local
                           .Any(r => r.ConversationId == conv.Id &&
                                     ((r.SenderId == senderId && r.ReceiverId == receiverId) ||
                                      (r.SenderId == receiverId && r.ReceiverId == senderId)))
                       ||
-                      _context.MessageRequests
+                      context.MessageRequests
                           .AsNoTracking()
                           .Any(r => r.ConversationId == conv.Id &&
                                     ((r.SenderId == senderId && r.ReceiverId == receiverId) ||
@@ -1130,7 +1118,7 @@ public class MessageService : IMessageService
 
         if (exists) return false; // 🆕 Ingen ny request opprettet
 
-        _context.MessageRequests.Add(new MessageRequest
+        context.MessageRequests.Add(new MessageRequest
         {
             SenderId = senderId,
             ReceiverId = receiverId.Value,
@@ -1143,7 +1131,7 @@ public class MessageService : IMessageService
     // 6. Limit-reached markeres, men vi committer senere
     private void MarkLimitReached(int senderId, int? receiverId, int convId)
     {
-        var req = _context.MessageRequests
+        var req = context.MessageRequests
             .FirstOrDefault(r =>
                 (r.SenderId == senderId && r.ReceiverId == receiverId) ||
                 (r.SenderId == receiverId && r.ReceiverId == senderId));
@@ -1160,7 +1148,6 @@ public class MessageService : IMessageService
             ConversationId = conversationId,
             EncryptedText = request.Text,
             SentAt = DateTime.UtcNow,
-            IsApproved = isApproved,
             ParentMessageId = request.ParentMessageId > 0 ? request.ParentMessageId : null,
             Attachments = request.Attachments?.Select(a => new MessageAttachment
             {
@@ -1179,7 +1166,7 @@ public class MessageService : IMessageService
 
     public async Task<MessageResponseDTO> MapToResponseDtoOptimized(int messageId)
     {
-        var dto = await _context.Messages
+        var dto = await context.Messages
             .AsNoTracking()
             .AsSplitQuery()
             .Where(m => m.Id == messageId)
@@ -1199,9 +1186,7 @@ public class MessageService : IMessageService
                 {
                     Id = m.Sender.Id,
                     FullName = m.Sender.FullName,
-                    ProfileImageUrl = m.Sender.Profile != null
-                        ? m.Sender.Profile.ProfileImageUrl
-                        : null
+                    ProfileImageUrl = m.Sender.ProfileImageUrl
                 } : null,
 
                 ParentSender = m.IsDeleted ? null : 
@@ -1210,9 +1195,7 @@ public class MessageService : IMessageService
                         {
                             Id = m.ParentMessage.Sender.Id,
                             FullName = m.ParentMessage.Sender.FullName,
-                            ProfileImageUrl = m.ParentMessage.Sender.Profile != null
-                                ? m.ParentMessage.Sender.Profile.ProfileImageUrl
-                                : null
+                            ProfileImageUrl = m.ParentMessage.Sender.ProfileImageUrl
                         }
                         : null),
 
@@ -1259,7 +1242,7 @@ public class MessageService : IMessageService
     bool needsMessageRequestNotification = false,
     bool isRejectedSender = false)
     {
-        using var scope = _scopeFactory.CreateScope();
+        using var scope = scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         /* 1. Send over SignalR med per-bruker isSilent */
@@ -1321,12 +1304,12 @@ public class MessageService : IMessageService
                         ParentSender = response.ParentSender
                     };
 
-                    await _hubContext.Clients.User(uid.ToString())
+                    await hubContext.Clients.User(uid.ToString())
                         .SendAsync("ReceiveMessage", userResponse);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to send message to user {UserId}", uid);
+                    logger.LogWarning(ex, "Failed to send message to user {UserId}", uid);
                 }
             });
 
@@ -1334,11 +1317,11 @@ public class MessageService : IMessageService
         }
         else if (isRejectedSender)
         {
-            await _hubContext.Clients.User(senderId.ToString())
+            await hubContext.Clients.User(senderId.ToString())
                 .SendAsync("ReceiveMessage", response);
         }
         
-        var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+        var notifSvc = scope.ServiceProvider.GetRequiredService<IMessageNotificationService>();
         
         
         /* 2. MessageRequest notification hvis nødvendig */
@@ -1350,7 +1333,7 @@ public class MessageService : IMessageService
             // Send SignalR for MessageRequest
             if (notification != null && notification.Type == NotificationType.MessageRequest)
             {
-                await _hubContext.Clients.User(receiverId.Value.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                await hubContext.Clients.User(receiverId.Value.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
                 {
                     SenderId = senderId,
                     ReceiverId = receiverId.Value,
@@ -1393,12 +1376,12 @@ public class MessageService : IMessageService
     private async Task<(bool CanSend, Conversation Conversation)> ValidateExistingConversationFast(int senderId, int conversationId)
     {
         // 1. Sjekk cache først (lynraskt) - dette garanterer membership!
-        bool canSend = await _msgCache.CanUserSendAsync(senderId, conversationId);
+        bool canSend = await msgCache.CanUserSendAsync(senderId, conversationId);
     
         if (canSend)
         {
             // 2. Hent minimal conversation data (kun det vi trenger)
-            var conversation = await _context.Conversations
+            var conversation = await context.Conversations
                 .AsNoTracking()
                 .Select(c => new Conversation
                 {
@@ -1429,14 +1412,14 @@ public class MessageService : IMessageService
         // Opprett melding direkte - vi vet brukeren kan sende
         var message = CreateMessage(senderId, conversation.Id, dto, isApproved: true);
     
-        _context.Messages.Add(message);
+        context.Messages.Add(message);
     
         // 🎯 Intelligent conversation oppdatering
-        var existingEntry = _context.Entry(conversation);
+        var existingEntry = context.Entry(conversation);
         if (existingEntry.State == EntityState.Detached)
         {
             // Conversation er ikke tracked - attach og marker som modified
-            _context.Conversations.Attach(conversation);
+            context.Conversations.Attach(conversation);
             conversation.LastMessageSentAt = message.SentAt;
             
         }
@@ -1447,20 +1430,20 @@ public class MessageService : IMessageService
         }
 
         // Lagre alt i én transaksjon
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
     
         // Hent respons
         var response = await MapToResponseDtoOptimized(message.Id);
     
         // Hent participants for notifikasjoner
-        var participantIds = await _context.ConversationParticipants
+        var participantIds = await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.ConversationId == conversation.Id)
             .Select(cp => cp.UserId)
             .ToArrayAsync();
         
         // Send notifikasjoner
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
             // Først SignalR-notifikasjoner
             await NotifyAndBroadcastAsync(
@@ -1474,8 +1457,8 @@ public class MessageService : IMessageService
                 response: response);
         
             // Så sync event med ny scope (ikke-kritisk)
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); 
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>(); 
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
             try 
@@ -1510,7 +1493,7 @@ public class MessageService : IMessageService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
+                logger.LogError(ex, "Failed to create sync event for message {MessageId}", response.Id);
                 // Ikke krasj - sync event er ikke kritisk
             }
         });
@@ -1521,7 +1504,7 @@ public class MessageService : IMessageService
     // Hjelpemetode for å hente eksisterende samtale
     private async Task<(Conversation conv, int? receiverId)> GetExistingConversation(int senderId, int conversationId)
     {
-        var conv = await _context.Conversations
+        var conv = await context.Conversations
             .Include(c => c.Participants)
             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
@@ -1551,7 +1534,7 @@ public class MessageService : IMessageService
         
         if (dto.ParentMessageId.HasValue)
         {
-            var parentExists = await _context.Messages
+            var parentExists = await context.Messages
                 .AsNoTracking()
                 .AnyAsync(m => m.Id == dto.ParentMessageId.Value);
         
@@ -1589,14 +1572,14 @@ public class MessageService : IMessageService
 
         if (internalDto.ConversationId <= 0 && !conversation.IsGroup && receiverId.HasValue)
         {
-            userData = await SyncEventExtensions.GetUserDataAsync(_context, senderId, receiverId.Value);
+            userData = await SyncEventExtensions.GetUserDataAsync(context, senderId, receiverId.Value);
         }
         
         if (!conversation.IsGroup && !receiverId.HasValue)
             throw new InvalidOperationException("receiverId skal være satt i 1–1 samtale.");
         
         // Sjekk cachen om vi kan sende
-        bool canSend = await _msgCache.CanUserSendAsync(senderId, conversation.Id);
+        bool canSend = await msgCache.CanUserSendAsync(senderId, conversation.Id);
 
         EncryptedMessageResponseDTO response;
         
@@ -1606,14 +1589,14 @@ public class MessageService : IMessageService
             if (!conversation.IsGroup)
             {
                 // 🚀 Hent participants og blocking-data i separate, effektive queries
-                var participantData = await _context.ConversationParticipants
+                var participantData = await context.ConversationParticipants
                     .AsNoTracking()
                     .Where(p => p.ConversationId == conversation.Id && 
                                 (p.UserId == senderId || p.UserId == receiverId.Value))
                     .Select(p => new { p.UserId, p.HasDeleted })
                     .ToListAsync();
 
-                var blockedRelations = await _context.UserBlocks
+                var blockedRelations = await context.UserBlocks
                     .AsNoTracking()
                     .Where(ub =>
                         (ub.BlockerId == senderId && ub.BlockedUserId == receiverId.Value) ||
@@ -1646,7 +1629,7 @@ public class MessageService : IMessageService
             if (conversation.IsGroup)
             {
                 // For gruppesamtaler: sjekk GroupRequest eller om bruker er creator
-                bool hasApprovedGroupRequest = await _context.GroupRequests.AsNoTracking()
+                bool hasApprovedGroupRequest = await context.GroupRequests.AsNoTracking()
                     .AnyAsync(gr => gr.ConversationId == conversation.Id &&
                                     gr.ReceiverId == senderId &&
                                     gr.Status == GroupRequestStatus.Approved);
@@ -1680,14 +1663,14 @@ public class MessageService : IMessageService
             if (!conversation.IsGroup && requiresApproval)
             {
                 // Teller encrypted meldinger **bare** når det trengs
-                messageCount = await _context.Messages.AsNoTracking()
+                messageCount = await context.Messages.AsNoTracking()
                     .CountAsync(m => m.ConversationId == conversation.Id &&
                                      m.SenderId == senderId);
 
                 if (messageCount >= 5)
                 {
                     MarkLimitReached(senderId, receiverId, conversation.Id);
-                    await _context.SaveChangesAsync();
+                    await context.SaveChangesAsync();
                     throw new Exception(
                         "You have reached the limit of messages you can send while waiting for the receiver to accept your request.");
                 }
@@ -1710,7 +1693,7 @@ public class MessageService : IMessageService
             else
                 encryptedMessage.ConversationId = conversation.Id;
 
-            _context.Messages.Add(encryptedMessage);
+            context.Messages.Add(encryptedMessage);
             conversation.LastMessageSentAt = encryptedMessage.SentAt;
 
             // Handle encrypted attachments
@@ -1729,15 +1712,15 @@ public class MessageService : IMessageService
                     CreatedAt = DateTime.UtcNow // Legg til CreatedAt
                 });
 
-                _context.MessageAttachments.AddRange(attachments);
+                context.MessageAttachments.AddRange(attachments);
             }
 
             // 6️⃣ ÉN lagring av alt ovenfor
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
             
             if (!conversation.IsGroup && requiresApproval && !isRejected && !requestSent)
             {
-                var existingRequest = await _context.MessageRequests
+                var existingRequest = await context.MessageRequests
                     .AsNoTracking()
                     .AnyAsync(r => r.ConversationId == conversation.Id &&
                                    r.ReceiverId == senderId &&
@@ -1747,8 +1730,8 @@ public class MessageService : IMessageService
                 {
                     await ApproveMessageRequestAsync(senderId, conversation.Id);
                     
-                    await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, CanSendReason.MessageRequest);
-                    await _context.AddCanSendAsync(receiverId.Value, conversation.Id, _msgCache, CanSendReason.MessageRequest);
+                    await context.AddCanSendAsync(senderId, conversation.Id, msgCache, CanSendReason.MessageRequest);
+                    await context.AddCanSendAsync(receiverId.Value, conversation.Id, msgCache, CanSendReason.MessageRequest);
                     
                     nowApproved = true;
                 }
@@ -1756,10 +1739,10 @@ public class MessageService : IMessageService
             else if (!requiresApproval)
             {
                 // 🚨 BACKUP: Dette burde ikke skje ofte
-                _logger.LogWarning("CanSend backup triggered for user {SenderId} in conversation {ConversationId}. " +
+                logger.LogWarning("CanSend backup triggered for user {SenderId} in conversation {ConversationId}. " +
                                    "Consider adding CanSend at the proper time.", senderId, conversation.Id);
 
-                await _context.AddCanSendAsync(senderId, conversation.Id, _msgCache, 
+                await context.AddCanSendAsync(senderId, conversation.Id, msgCache, 
                     conversation.IsGroup ? CanSendReason.GroupRequest : CanSendReason.Friendship);
             }
 
@@ -1787,7 +1770,7 @@ public class MessageService : IMessageService
             // NotifyAndBroadcastAsync for encrypted messages
             if (shouldNotify || needsMessageRequestNotification || isRejectedSender)
             {
-                _taskQueue.QueueAsync(async () => 
+                taskQueue.QueueAsync(async () => 
                 {
                     // Først SignalR (send encrypted response)
                     await NotifyAndBroadcastEncryptedAsync(
@@ -1805,8 +1788,8 @@ public class MessageService : IMessageService
                         isRejectedSender: isRejectedSender);
         
                     // Så sync event med ny scope
-                    using var scope = _scopeFactory.CreateScope();
-                    var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                    using var scope = scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
         
                     try 
                     {
@@ -1855,7 +1838,7 @@ public class MessageService : IMessageService
                         if (conversation.IsGroup)
                         {
                             groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
-                                _context, conversation.Id, participantIds);
+                                context, conversation.Id, participantIds);
                         }
 
                         // Eksisterende NEW_MESSAGE sync event (med encrypted data)
@@ -1873,7 +1856,7 @@ public class MessageService : IMessageService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to create sync events for encrypted message {MessageId}", response.Id);
+                        logger.LogError(ex, "Failed to create sync events for encrypted message {MessageId}", response.Id);
                     }
                 });
             }
@@ -1903,13 +1886,12 @@ public class MessageService : IMessageService
             SentAt = DateTime.UtcNow,
             IsSystemMessage = false,
             IsDeleted = false,
-            IsApproved = isApproved // Add this field to FileController model
         };
     }
 
    private async Task<EncryptedMessageResponseDTO> MapEncryptedToResponseDtoOptimized(int messageId)
     {
-        var dto = await _context.Messages
+        var dto = await context.Messages
             .AsNoTracking()
             .AsSplitQuery()
             .Where(m => m.Id == messageId)
@@ -1933,9 +1915,7 @@ public class MessageService : IMessageService
                 {
                     Id = m.Sender.Id,
                     FullName = m.Sender.FullName,
-                    ProfileImageUrl = m.Sender.Profile != null
-                        ? m.Sender.Profile.ProfileImageUrl
-                        : null
+                    ProfileImageUrl = m.Sender.ProfileImageUrl
                 } : null,
 
                 ParentSender = m.IsDeleted ? null : 
@@ -1944,9 +1924,7 @@ public class MessageService : IMessageService
                         {
                             Id = m.ParentMessage.Sender.Id,
                             FullName = m.ParentMessage.Sender.FullName,
-                            ProfileImageUrl = m.ParentMessage.Sender.Profile != null
-                                ? m.ParentMessage.Sender.Profile.ProfileImageUrl
-                                : null
+                            ProfileImageUrl = m.ParentMessage.Sender.ProfileImageUrl
                         }
                         : null),
 
@@ -1987,7 +1965,7 @@ public class MessageService : IMessageService
         // Opprett encrypted melding direkte - vi vet brukeren kan sende
         var encryptedMessage = CreateEncryptedMessage(senderId, conversation.Id, dto, isApproved: true);
 
-        _context.Messages.Add(encryptedMessage);
+        context.Messages.Add(encryptedMessage);
 
         // Handle encrypted attachments
         if (dto.EncryptedAttachments?.Any() == true)
@@ -2005,14 +1983,14 @@ public class MessageService : IMessageService
                 CreatedAt = DateTime.UtcNow // Legg til CreatedAt
             });
 
-            _context.MessageAttachments.AddRange(attachments);
+            context.MessageAttachments.AddRange(attachments);
         }
 
         // 🎯 Intelligent conversation oppdatering
-        var existingEntry = _context.Entry(conversation);
+        var existingEntry = context.Entry(conversation);
         if (existingEntry.State == EntityState.Detached)
         {
-            _context.Conversations.Attach(conversation);
+            context.Conversations.Attach(conversation);
             conversation.LastMessageSentAt = encryptedMessage.SentAt;
         }
         else
@@ -2021,20 +1999,20 @@ public class MessageService : IMessageService
         }
 
         // Lagre alt i én transaksjon
-        await _context.SaveChangesAsync();
+        await context.SaveChangesAsync();
 
         // Hent respons
         var response = await MapEncryptedToResponseDtoOptimized(encryptedMessage.Id);
 
         // Hent participants for notifikasjoner
-        var participantIds = await _context.ConversationParticipants
+        var participantIds = await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.ConversationId == conversation.Id)
             .Select(cp => cp.UserId)
             .ToArrayAsync();
         
         // Send encrypted notifikasjoner
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
             // Først SignalR-notifikasjoner
             await NotifyAndBroadcastEncryptedAsync(
@@ -2048,8 +2026,8 @@ public class MessageService : IMessageService
                 response: response);
         
             // Så sync event med ny scope (ikke-kritisk)
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>(); 
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>(); 
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
             try 
@@ -2082,7 +2060,7 @@ public class MessageService : IMessageService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create sync event for encrypted message {MessageId}", response.Id);
+                logger.LogError(ex, "Failed to create sync event for encrypted message {MessageId}", response.Id);
             }
         });
 
@@ -2103,7 +2081,7 @@ public class MessageService : IMessageService
         bool needsMessageRequestNotification = false,
         bool isRejectedSender = false)
     {
-        using var scope = _scopeFactory.CreateScope();
+        using var scope = scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
         /* 1. Send over SignalR med per-bruker isSilent */
@@ -2171,12 +2149,12 @@ public class MessageService : IMessageService
                     };
 
                     // Send encrypted message over SignalR - frontend will decrypt
-                    await _hubContext.Clients.User(uid.ToString())
+                    await hubContext.Clients.User(uid.ToString())
                         .SendAsync("ReceiveEncryptedMessage", userResponse);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Failed to send encrypted message to user {UserId}", uid);
+                    logger.LogWarning(ex, "Failed to send encrypted message to user {UserId}", uid);
                 }
             });
 
@@ -2184,11 +2162,11 @@ public class MessageService : IMessageService
         }
         else if (isRejectedSender)
         {
-            await _hubContext.Clients.User(senderId.ToString())
+            await hubContext.Clients.User(senderId.ToString())
                 .SendAsync("ReceiveEncryptedMessage", response);
         }
         
-        var notifSvc = scope.ServiceProvider.GetRequiredService<MessageNotificationService>();
+        var notifSvc = scope.ServiceProvider.GetRequiredService<IMessageNotificationService>();
         
         /* 2. MessageRequest notification hvis nødvendig */
         if (needsMessageRequestNotification && !isGroup && receiverId.HasValue)
@@ -2199,7 +2177,7 @@ public class MessageService : IMessageService
             // Send SignalR for MessageRequest
             if (notification != null && notification.Type == NotificationType.MessageRequest)
             {
-                await _hubContext.Clients.User(receiverId.Value.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
+                await hubContext.Clients.User(receiverId.Value.ToString()).SendAsync("MessageRequestCreated", new MessageRequestCreatedDto
                 {
                     SenderId = senderId,
                     ReceiverId = receiverId.Value,

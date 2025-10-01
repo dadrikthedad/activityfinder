@@ -1,3 +1,5 @@
+using AFBack.Interface.Services;
+
 namespace AFBack.Services.Maintenance.Tasks;
 
 public class SyncEventsCleanupTask : CleanupTaskBase
@@ -14,7 +16,7 @@ public class SyncEventsCleanupTask : CleanupTaskBase
         return RunWithErrorHandlingAsync(async () =>
         {
             using var scope = ServiceProvider.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
             await syncService.CleanupOldEventsAsync();
             Logger.LogDebug("Completed sync events cleanup");
         }, cancellationToken);

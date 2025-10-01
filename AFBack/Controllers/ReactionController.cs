@@ -1,6 +1,9 @@
 ﻿using System.Security.Claims;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
+using AFBack.Infrastructure.Services;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,15 +11,14 @@ namespace AFBack.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class ReactionController : BaseController
+public class ReactionController(
+    ApplicationDbContext context,
+    IReactionService reactionService,
+    ILogger<ReactionController> logger,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<ReactionController>(context, logger, userCache, responseService)
 {
-    private readonly IReactionService _reactionService;
-
-    public ReactionController(ApplicationDbContext context, IReactionService reactionService) : base(context)
-    {
-        _reactionService = reactionService;
-    }
-    
     // legger til en reaksjon på en melding
     [HttpPost]
     public async Task<IActionResult> AddReaction([FromBody] ReactionRequest request)
@@ -25,7 +27,7 @@ public class ReactionController : BaseController
 
         try
         {
-            await _reactionService.AddReactionAsync(request.MessageId, senderId, request.Emoji);
+            await reactionService.AddReactionAsync(request.MessageId, senderId, request.Emoji);
             return Ok(new { message = "Reaksjon lagt til." });
         }
         catch (KeyNotFoundException ex)

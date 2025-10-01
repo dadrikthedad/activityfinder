@@ -3,8 +3,12 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
 using AFBack.Functions;
 using AFBack.Hubs;
+using AFBack.Infrastructure.Services;
+using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -18,33 +22,21 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/friendinvitations")]
 [Authorize]
-public class FriendInvitationsController : BaseController
+public class FriendInvitationsController(
+    ApplicationDbContext context,
+    INotificationService notificationService,
+    IHubContext<UserHub> hubContext,
+    ISendMessageCache msgCache,
+    FriendService friendService,
+    IBackgroundTaskQueue taskQueue,
+    IServiceScopeFactory scopeFactory,
+    ILogger<FriendInvitationsController> logger,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<FriendInvitationsController>(context, logger, userCache, responseService)
 {
-    private readonly INotificationService _notificationService;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly SendMessageCache       _msgCache;  
-    private readonly FriendService _friendService;
-    private readonly IBackgroundTaskQueue _taskQueue;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<FriendInvitationsController> _logger;
-    
+    private readonly IHubContext<UserHub> _hubContext = hubContext;
 
-    public FriendInvitationsController(ApplicationDbContext context, 
-        INotificationService notificationService, 
-        IHubContext<UserHub> hubContext,  
-        SendMessageCache msgCache, 
-        FriendService friendService, 
-        IBackgroundTaskQueue taskQueue, IServiceScopeFactory scopeFactory, ILogger<FriendInvitationsController> logger) :  base(context)
-    {
-
-        _notificationService = notificationService;
-        _hubContext = hubContext;
-        _msgCache            = msgCache;
-        _friendService = friendService;
-        _taskQueue = taskQueue;
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-    }
 
     // POST: Send venneforespørsel
     [HttpPost]
@@ -224,15 +216,10 @@ public class FriendInvitationsController : BaseController
             existingMessageRequest.IsAccepted = true;
             existingMessageRequest.IsRejected = false;
             
-            if (existingMessageRequest.Conversation != null)
-            {
-                existingMessageRequest.Conversation.IsApproved = true;
-            }
-            
             if (existingMessageRequest.ConversationId.HasValue)
             {
-                await _context.AddCanSendAsync(userId, existingMessageRequest.ConversationId.Value, _msgCache, CanSendReason.Friendship);
-                await _context.AddCanSendAsync(receiverId, existingMessageRequest.ConversationId.Value, _msgCache, CanSendReason.Friendship);
+                await _context.AddCanSendAsync(userId, existingMessageRequest.ConversationId.Value, msgCache, CanSendReason.Friendship);
+                await _context.AddCanSendAsync(receiverId, existingMessageRequest.ConversationId.Value, msgCache, CanSendReason.Friendship);
             }
             
             return existingMessageRequest.ConversationId;
@@ -246,7 +233,7 @@ public class FriendInvitationsController : BaseController
         if (isAutoAccept)
         {
             // For auto-accept: Send "accepted" notifikasjon
-            await _notificationService.CreateNotificationAsync(
+            await notificationService.CreateNotificationAsync(
                 recipientUserId: receiverId,
                 relatedUserId: senderId,
                 type: NotificationEntityType.FriendInvAccepted,
@@ -255,10 +242,10 @@ public class FriendInvitationsController : BaseController
             );
 
             // Send FRIEND_ADDED sync events til begge brukere
-            _taskQueue.QueueAsync(async () => 
+            taskQueue.QueueAsync(async () => 
             {
-                using var scope = _scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                using var scope = scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                 try 
@@ -308,7 +295,7 @@ public class FriendInvitationsController : BaseController
         else
         {
             // For normal request: Send "invitation received" notifikasjon
-            await _notificationService.CreateNotificationAsync(
+            await notificationService.CreateNotificationAsync(
                 recipientUserId: receiverId,
                 relatedUserId: senderId,
                 type: NotificationEntityType.FriendInvitation,
@@ -316,10 +303,10 @@ public class FriendInvitationsController : BaseController
             );
             
             // Send FRIEND_REQUEST_RECEIVED sync event til mottakeren
-            _taskQueue.QueueAsync(async () => 
+            taskQueue.QueueAsync(async () => 
             {
-                using var scope = _scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+                using var scope = scopeFactory.CreateScope();
+                var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
                 try 
@@ -421,7 +408,7 @@ public class FriendInvitationsController : BaseController
                 return Unauthorized(new { message = "Invalid user ID in token." });
 
             // 🎯 Bruk FriendService istedenfor direkte database-logikk
-            var (invitations, totalCount) = await _friendService.GetPendingFriendInvitationsAsync(
+            var (invitations, totalCount) = await friendService.GetPendingFriendInvitationsAsync(
                 userId, pageNumber, pageSize);
 
             var response = new
@@ -540,10 +527,10 @@ public class FriendInvitationsController : BaseController
         await _context.SaveChangesAsync();
         
         // 🆕 SYNC EVENT - fjern fra pending liste
-        _taskQueue.QueueAsync(async () => 
+        taskQueue.QueueAsync(async () => 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<SyncService>();
+            using var scope = scopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
 
             try 
             {

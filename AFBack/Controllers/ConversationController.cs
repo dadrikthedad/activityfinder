@@ -1,6 +1,9 @@
 ﻿using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Features.Cache;
+using AFBack.Features.Cache.Interface;
 using AFBack.Hubs;
+using AFBack.Infrastructure.Services;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -15,20 +18,19 @@ using System.Security.Claims;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class ConversationsController : BaseController
+public class ConversationsController(
+    ConversationService conversationService,
+    IHubContext<UserHub> hubContext,
+    IMessageService messageService,
+    ApplicationDbContext context,
+    ISendMessageCache msgCache,
+    ILogger<ConversationsController> logger,
+    IUserCache userCache,
+    ResponseService responseService)
+    : BaseController<ConversationsController>(context, logger, userCache, responseService)
 {
-    private readonly ConversationService _conversationService;
-    private readonly IHubContext<UserHub> _hubContext;
-    private readonly IMessageService _messageService;
-    private readonly SendMessageCache _msgCache;
+    private readonly IHubContext<UserHub> _hubContext = hubContext;
 
-    public ConversationsController(ConversationService conversationService, IHubContext<UserHub> hubContext, IMessageService messageService, ApplicationDbContext context, SendMessageCache msgCache) : base(context)
-    {
-        _conversationService = conversationService;
-        _hubContext = hubContext;
-        _messageService = messageService;
-        _msgCache = msgCache;
-    }
     // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat
     [HttpGet("my-conversations")]
     public async Task<IActionResult> GetMyConversations([FromQuery] int skip = 0, [FromQuery] int take = 20)
@@ -37,7 +39,7 @@ public class ConversationsController : BaseController
         if (userId == null)
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
         
-        var conversationResults = await _conversationService.GetUserConversationsSortedAsync(userId.Value);
+        var conversationResults = await conversationService.GetUserConversationsSortedAsync(userId.Value);
 
         var totalCount = conversationResults.Count;
 
@@ -55,7 +57,7 @@ public class ConversationsController : BaseController
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
+                    ProfileImageUrl = p.User.ProfileImageUrl,
                     GroupRequestStatus = !c.Conversation.IsGroup ? null :
                         p.User.Id == c.Conversation.CreatorId ? GroupRequestStatus.Creator :  // ✅ Bruk Creator enum
                         c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
@@ -82,7 +84,7 @@ public class ConversationsController : BaseController
 
         try
         {
-            var messages = await _messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
+            var messages = await messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
             return Ok(messages);
         }
         catch (UnauthorizedAccessException ex)
@@ -104,7 +106,7 @@ public class ConversationsController : BaseController
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
 
         // 🚀 LETT OPTIMALISERING: Sjekk CanSend først for rask approval-status
-        bool canSend = await _msgCache.CanUserSendAsync(userId.Value, conversationId);
+        bool canSend = await msgCache.CanUserSendAsync(userId.Value, conversationId);
 
         var conversation = await _context.Conversations
             .AsNoTracking() // 🆕 ReadOnly siden vi ikke endrer data
@@ -200,7 +202,7 @@ public class ConversationsController : BaseController
             {
                 Id = p.User.Id,
                 FullName = p.User.FullName,
-                ProfileImageUrl = p.User.Profile?.ProfileImageUrl,
+                ProfileImageUrl = p.User.ProfileImageUrl,
                 GroupRequestStatus = !conversation.IsGroup ? null :
                     p.User.Id == conversation.CreatorId ? GroupRequestStatus.Creator :
                     groupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
@@ -226,7 +228,7 @@ public class ConversationsController : BaseController
         var searchQuery = query.Trim();
 
         // Hent tillatte samtaler
-        var canSendConversationIds = await _msgCache.GetUserCanSendConversationsAsync(userId.Value);
+        var canSendConversationIds = await msgCache.GetUserCanSendConversationsAsync(userId.Value);
 
         var pendingMessageRequestConvIds = await _context.MessageRequests
             .AsNoTracking()
@@ -259,7 +261,7 @@ public class ConversationsController : BaseController
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile != null ? p.User.Profile.ProfileImageUrl : null,
+                    ProfileImageUrl = p.User.Profile != null ? p.User.ProfileImageUrl : null,
                     GroupRequestStatus = !c.IsGroup ? null :
                         p.User.Id == c.CreatorId ? GroupRequestStatus.Creator : null
                 }).ToList(),
@@ -297,7 +299,7 @@ public class ConversationsController : BaseController
         if (!int.TryParse(userIdClaim, out var userId))
             return Unauthorized("Ugyldig bruker-ID.");
 
-        var summary = await _conversationService.GetUnreadSummaryAsync(userId);
+        var summary = await conversationService.GetUnreadSummaryAsync(userId);
         return Ok(summary);
     }
     
@@ -309,7 +311,7 @@ public class ConversationsController : BaseController
         if (!int.TryParse(userIdClaim, out var userId))
             return Unauthorized("Ugyldig bruker-ID.");
 
-        await _conversationService.MarkConversationAsReadAsync(userId, conversationId);
+        await conversationService.MarkConversationAsReadAsync(userId, conversationId);
         return Ok(new { message = "Samtalen er markert som lest." });
     }
     
@@ -365,7 +367,7 @@ public class ConversationsController : BaseController
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                    ProfileImageUrl = p.User.ProfileImageUrl
                 }).ToList(),
                 IsPendingApproval = false, // Avslåtte samtaler er ikke "pending"
                 IsApproved = false
@@ -384,7 +386,7 @@ public class ConversationsController : BaseController
 
         try
         {
-            await _conversationService.DeleteConversationForUserAsync(conversationId, userId.Value);
+            await conversationService.DeleteConversationForUserAsync(conversationId, userId.Value);
             return Ok(new { message = "Samtalen har blitt slettet." });
         }
         catch (Exception ex)
@@ -402,7 +404,7 @@ public class ConversationsController : BaseController
 
         try
         {
-            await _conversationService.RestoreConversationForUserAsync(conversationId, userId.Value);
+            await conversationService.RestoreConversationForUserAsync(conversationId, userId.Value);
             return Ok(new { message = "Samtalen har blitt gjenopprettet." });
         }
         catch (Exception ex)
@@ -447,7 +449,7 @@ public class ConversationsController : BaseController
                 {
                     Id = p.User.Id,
                     FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile?.ProfileImageUrl
+                    ProfileImageUrl = p.User.ProfileImageUrl
                 }).ToList(),
                 IsPendingApproval = false
             })

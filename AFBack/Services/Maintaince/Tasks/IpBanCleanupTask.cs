@@ -5,28 +5,23 @@ using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Data;
 using AFBack.Constants;
+using AFBack.Interface.Services;
 
 namespace AFBack.Services.Maintenance.Tasks;
 
-public class IpBanCleanupTask : CleanupTaskBase
+public class IpBanCleanupTask(
+    IServiceProvider serviceProvider,
+    ILogger<IpBanCleanupTask> logger,
+    IIpBanService ipBanService,
+    IOptions<IpBanOptions> options)
+    : CleanupTaskBase(serviceProvider, logger)
 {
-    private readonly IpBanService _ipBanService;
-    private readonly IpBanOptions _options;
+    private readonly IIpBanService _ipBanService = ipBanService;
+    private readonly IpBanOptions _options = options.Value;
 
     public override string TaskName => "IP Ban Cleanup";
     public override TimeSpan Interval => _options.CleanupInterval;
     public override TimeSpan InitialDelay => TimeSpan.FromMinutes(5);
-
-    public IpBanCleanupTask(
-        IServiceProvider serviceProvider, 
-        ILogger<IpBanCleanupTask> logger,
-        IpBanService ipBanService,
-        IOptions<IpBanOptions> options) 
-        : base(serviceProvider, logger)
-    {
-        _ipBanService = ipBanService;
-        _options = options.Value;
-    }
 
     public override Task ExecuteAsync(CancellationToken cancellationToken)
     {

@@ -102,12 +102,11 @@ public static class SyncEventExtensions
         var users = await context.Users
             .AsNoTracking()
             .Where(u => userIds.Contains(u.Id))
-            .Include(u => u.Profile)
             .Select(u => new 
             {
                 u.Id,
                 u.FullName,
-                ProfileImageUrl = u.Profile != null ? u.Profile.ProfileImageUrl : null
+                u.ProfileImageUrl
             })
             .ToListAsync();
 
@@ -136,7 +135,7 @@ public static class SyncEventExtensions
             {
                 id = p.UserId,
                 fullName = p.User.FullName,
-                profileImageUrl = p.User.Profile?.ProfileImageUrl,
+                profileImageUrl = p.User.ProfileImageUrl,
                 groupRequestStatus = groupRequestStatuses?.TryGetValue(p.UserId, out var status) == true 
                     ? status 
                     : (object?)null

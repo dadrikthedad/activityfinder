@@ -13,7 +13,7 @@ namespace AFBack.Extensions
             { 
                 Id = user.Id,
                 FullName = user.FullName,
-                ProfileImageUrl = user.Profile?.ProfileImageUrl
+                ProfileImageUrl = user.ProfileImageUrl
                 // GroupRequestStatus settes til null som default (kan overstyres senere)
             };
         }
@@ -25,7 +25,7 @@ namespace AFBack.Extensions
             {
                 Id = user.Id,
                 FullName = user.FullName,
-                ProfileImageUrl = user.Profile?.ProfileImageUrl,
+                ProfileImageUrl = user.ProfileImageUrl,
                 GroupRequestStatus = groupRequestStatus
             };
         }

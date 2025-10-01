@@ -11,10 +11,6 @@ public class Profile
     // Gjør at vi kan hente ut alt fra User i profile.cs
     public User User { get; set; } = null!;
     
-    // Bilde blir lagret som en Url
-    [MaxLength(500)]
-    public string? ProfileImageUrl { get; set; }
-    
     // Bio er tekst
     [MaxLength(1000)]
     public string? Bio { get; set; }
