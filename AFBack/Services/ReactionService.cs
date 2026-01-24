@@ -3,6 +3,8 @@ using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
 using AFBack.Interface.Services;
 using AFBack.Models;
@@ -26,8 +28,8 @@ public class ReactionService(
         var message = await context.Messages
             .Include(m => m.Conversation)
                 .ThenInclude(c => c.Participants)
-                    .ThenInclude(p => p.User)
-                        .ThenInclude(u => u.Profile)
+                    .ThenInclude(p => p.AppUser)
+                        .ThenInclude(u => u.UserProfile)
             .FirstOrDefaultAsync(m => m.Id == messageId);
 
         if (message == null)
@@ -130,13 +132,13 @@ public class ReactionService(
         
         // Bygg userData fra existing data eller hent fra database
         Dictionary<int, (string FullName, string? ProfileImageUrl)> userData;
-        bool hasUserData = conversation.Participants?.Any(p => p.User != null) == true;
+        bool hasUserData = conversation.Participants?.Any(p => p.AppUser != null) == true;
     
         if (hasUserData)
         {
             userData = conversation.Participants.ToDictionary(
                 p => p.UserId,
-                p => (p.User.FullName, p.User.ProfileImageUrl)
+                p => (p.AppUser.FullName, p.AppUser.ProfileImageUrl)
             );
         }
         else
@@ -159,9 +161,9 @@ public class ReactionService(
             groupRequestStatuses
         );
 
-        var user = await context.Users.FindAsync(userId);
+        var user = await context.AppUsers.FindAsync(userId);
 
-        var reactionDto = new ReactionDTO
+        var reactionDto = new ReactionDto
         {
             MessageId = messageId,
             UserId = userId,
@@ -248,7 +250,7 @@ public class ReactionService(
 
 
     
-    private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, ReactionDTO reaction, MessageNotificationDTO? notification)
+    private async Task SendReactionUpdateAsync(IEnumerable<string>? userIds, ReactionDto reaction, MessageNotificationDTO? notification)
     {
         var payload = new
         {
@@ -268,7 +270,7 @@ public class ReactionService(
                 catch (Exception ex)
                 {
                     // Log feilen, men fortsett med andre brukere
-                    logger?.LogWarning(ex, "Failed to send reaction to user {UserId}", userId);
+                    logger?.LogWarning(ex, "Failed to send reaction to appUser {UserId}", userId);
                 }
             });
 

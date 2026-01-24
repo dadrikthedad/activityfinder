@@ -7,17 +7,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services
 {
-    public class FriendService
+    public class FriendService(ApplicationDbContext context, ILogger<FriendService> logger)
     {
-        private readonly ApplicationDbContext _context;
-        private readonly ILogger<FriendService> _logger;
-
-        public FriendService(ApplicationDbContext context, ILogger<FriendService> logger)
-        {
-            _context = context;
-            _logger = logger;
-        }
-
         /// <summary>
         /// Hent ventende venneforespørsler for en bruker med paginering
         /// </summary>
@@ -28,8 +19,8 @@ namespace AFBack.Services
         {
             try
             {
-                _logger.LogDebug(
-                    "🔍 Getting pending friend invitations for user {UserId} - Page: {Page}, PageSize: {PageSize}",
+                logger.LogDebug(
+                    "🔍 Getting pending friend invitations for appUser {UserId} - Page: {Page}, PageSize: {PageSize}",
                     userId, pageNumber, pageSize);
 
                 if (pageNumber <= 0 || pageSize <= 0)
@@ -37,7 +28,7 @@ namespace AFBack.Services
                     throw new ArgumentException("Page number and size must be greater than zero.");
                 }
 
-                var query = _context.FriendInvitations
+                var query = context.FriendInvitations
                     .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
                     .OrderByDescending(i => i.SentAt)
                     .AsNoTracking();
@@ -55,9 +46,9 @@ namespace AFBack.Services
                 foreach (var inv in dbList)
                 {
                     var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                        _context,
+                        context,
                         inv.SenderId,
-                        userId // current user's perspective
+                        userId // current appUser's perspective
                     );
 
                     if (senderSummary != null)
@@ -66,14 +57,14 @@ namespace AFBack.Services
                     }
                 }
 
-                _logger.LogDebug("✅ Retrieved {InvitationCount} friend invitations out of {TotalCount} total",
+                logger.LogDebug("✅ Retrieved {InvitationCount} friend invitations out of {TotalCount} total",
                     dtoList.Count, totalCount);
 
                 return (dtoList, totalCount);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "❌ Failed to get pending friend invitations for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get pending friend invitations for appUser {UserId}", userId);
                 throw;
             }
         }

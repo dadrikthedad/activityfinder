@@ -1,6 +1,6 @@
 import { UserSummaryDTO } from "../UserSummaryDTO";
 import { ConversationDTO } from "../ConversationDTO";
-import { EncryptedMessageDTO } from "@/components/ende-til-ende/EncryptedMessageDto";
+import { EncryptedMessageDTO } from "@/features/crypto/types/EncryptedMessageTypes";
 import { MessageRequestDTO } from "../MessageReqeustDTO";
 import { MessageNotificationDTO } from "../MessageNotificationDTO";
 import { FriendInvitationDTO } from "../FriendInvitationDTO";

@@ -181,7 +181,7 @@ public static class RateLimiterExtensions
                         clientIp,
                         activityType,
                         $"Repeated rate limit violations (strike {strikes})",
-                        httpContext.Request.Headers["User-Agent"].ToString(),
+                        httpContext.Request.Headers["AppUser-Agent"].ToString(),
                         httpContext.Request.Path,
                         deviceId);
                     

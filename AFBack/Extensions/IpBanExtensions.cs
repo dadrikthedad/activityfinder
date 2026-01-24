@@ -14,7 +14,7 @@ public static class IpBanExtensions
         => IpUtils.GetClientIp(httpContext);
 
     public static string GetUserAgent(this HttpContext httpContext)
-        => httpContext.Request.Headers["User-Agent"].FirstOrDefault() ?? "Unknown";
+        => httpContext.Request.Headers["AppUser-Agent"].FirstOrDefault() ?? "Unknown";
 
     public static string? GetDeviceId(this HttpContext httpContext)
         => httpContext.Request.Headers["X-Device-ID"].FirstOrDefault();

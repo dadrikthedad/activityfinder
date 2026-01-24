@@ -4,9 +4,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AFBack.Filters;
+using AFBack.Infrastructure.Filters;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using IPNetwork = Microsoft.AspNetCore.HttpOverrides.IPNetwork;
@@ -134,11 +136,17 @@ public static class WebApplicationBuilderExtensions
     /// <param name="builder"></param>
     public static void ConfigureControllers(this WebApplicationBuilder builder)
     {
-        // Denne koden gjør at API-et kan håndtere HTTP-orespørsler som GET, POST, PUT og DELETE. Nødvendig for at ASP.NET CORE skal håndtere API.
-        // Lagt til kontrllere 10.03
+        // Supresser ASP.NET Core sin vanlige validering slik at vi kan bruke vårt eget filter
+        builder.Services.Configure<ApiBehaviorOptions>(options =>
+        {
+            options.SuppressModelStateInvalidFilter = true;
+        });
+        
+        // Denne koden gjør at API-et kan håndtere HTTP-forespørsler som GET, POST, PUT og DELETE. Nødvendig for at ASP.NET CORE skal håndtere API.
         builder.Services.AddControllers(options =>
             {
-                options.Filters.Add<ValidateModelAttribute>(); // ✅ Global validering
+                // Global validering med custom filter
+                options.Filters.Add<ValidateModelStateAttribute>(); 
             })
             .AddJsonOptions(options =>
             {
@@ -158,7 +166,7 @@ public static class WebApplicationBuilderExtensions
         // Henter vi Key fra miljøvariabelen og issuer og audience fra json.
         var jwtKey = Environment.GetEnvironmentVariable($"JWT_SECRET_KEY");
         if (string.IsNullOrEmpty(jwtKey))
-            throw new Exception("Error: JWT_SECRET_KEY is not set in environment variables. Set it in App Settings.");
+            throw new Exception("Error: JWT_SECRET_KEY is not set in environment variables. Set it in App UserSettings.");
     
         var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
                         ?? throw new Exception("JWT_ISSUER is missing.");

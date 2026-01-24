@@ -32,7 +32,7 @@ public class SupportController(
             var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
             var platform = Request.Headers["X-Device-Platform"].FirstOrDefault();
         
-            _logger.LogInformation("Report submitted - DeviceId: {DeviceId}, Platform: {Platform}, Type: {Type}", 
+            Logger.LogInformation("Report submitted - DeviceId: {DeviceId}, Platform: {Platform}, Type: {Type}", 
                 deviceId, platform, request.Type);
 
             var userId = GetUserId();
@@ -47,7 +47,7 @@ public class SupportController(
         catch (Exception ex)
         {
             var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
-            _logger.LogError("Report submission failed - DeviceId: {DeviceId}, Error: {Error}", deviceId, ex.Message);
+            Logger.LogError("Report submission failed - DeviceId: {DeviceId}, Error: {Error}", deviceId, ex.Message);
             return StatusCode(500, new { Message = "An error occurred while processing your report" });
         }
     }

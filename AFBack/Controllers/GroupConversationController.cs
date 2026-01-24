@@ -1,11 +1,18 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
+using AFBack.Cache;
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.CanSend.Models;
+using AFBack.Features.Conversation.Models;
+using AFBack.Features.MessageNotification.Models;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.Messaging.Models;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
@@ -13,6 +20,7 @@ using AFBack.Interface.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
+using AFBack.Models.Conversation;
 using AFBack.Services;
 using Microsoft.AspNetCore.SignalR;
 
@@ -38,7 +46,7 @@ public class GroupConversationController(
     public async Task<SendGroupRequestsResponseDTO> SendGroupRequestsAsync(SendGroupRequestsDTO request)
     {
         // Henter bruker
-        int senderId = GetUserId() ?? throw new UnauthorizedAccessException("User not authenticated");
+        int senderId = GetUserId() ?? throw new UnauthorizedAccessException("AppUser not authenticated");
         
         // 1️⃣ Valider input
         if (request.InvitedUserIds?.Any() != true)
@@ -55,7 +63,7 @@ public class GroupConversationController(
         if (blockedUsers.Any())
         {
             var blockedNames = string.Join(", ", blockedUsers);
-            throw new Exception($"User has blocked you: {blockedNames}");
+            throw new Exception($"AppUser has blocked you: {blockedNames}");
         }
 
         // 4️⃣ Filtrer bort brukere som allerede er medlemmer eller har pending invitasjoner
@@ -65,9 +73,9 @@ public class GroupConversationController(
         if (!validRecipients.Any())
         {
             if (alreadyInvited.Count == 1)
-                throw new Exception($"User {alreadyInvited.First()} has already been invited.");
+                throw new Exception($"AppUser {alreadyInvited.First()} has already been invited.");
             
-            throw new Exception($"Users {string.Join(", ", alreadyInvited)} have already been invited.");
+            throw new Exception($"AppUsers {string.Join(", ", alreadyInvited)} have already been invited.");
         }
 
         // 5️⃣ Opprett GroupRequests
@@ -86,7 +94,7 @@ public class GroupConversationController(
                 IsRead = false
             };
 
-            _context.GroupRequests.Add(groupRequest);
+            Context.GroupRequests.Add(groupRequest);
             groupRequests.Add(groupRequest);
             
             // 🆕 Legg til som Participant ved invitasjon
@@ -96,12 +104,12 @@ public class GroupConversationController(
                 UserId = userId
             };
 
-            _context.ConversationParticipants.Add(participant);
+            Context.ConversationParticipants.Add(participant);
             newParticipants.Add(participant);
         }
         
         
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         Console.WriteLine("🟡 Queueing background task for group requests...");
         // 6️⃣ Send notifikasjoner i bakgrunnen
@@ -123,7 +131,7 @@ public class GroupConversationController(
     private async Task ValidateUsersExistAsync(IEnumerable<int> userIds)
     {
         var userIdList = userIds.ToList();
-        var existingUsers = await _context.Users
+        var existingUsers = await Context.Users
             .Where(u => userIdList.Contains(u.Id))
             .Select(u => u.Id)
             .ToListAsync();
@@ -135,11 +143,11 @@ public class GroupConversationController(
     
     private async Task<List<string>> CheckBlockedUsersAsyncOptimized(int senderId, List<int> recipientIds)
     {
-        var blockedUserNames = await _context.UserBlocks
+        var blockedUserNames = await Context.UserBlocks
             .AsNoTracking()
             .Where(ub => recipientIds.Contains(ub.BlockerId) && 
                          ub.BlockedUserId == senderId)
-            .Join(_context.Users,
+            .Join(Context.Users,
                 ub => ub.BlockerId,
                 u => u.Id,
                 (ub, u) => u.FullName)
@@ -151,13 +159,13 @@ public class GroupConversationController(
     private async Task<List<int>> FilterValidRecipientsAsync(int conversationId, List<int> userIds)
     {
         // Hent eksisterende participants
-        var existingParticipants = await _context.ConversationParticipants
+        var existingParticipants = await Context.ConversationParticipants
             .Where(cp => cp.ConversationId == conversationId && userIds.Contains(cp.UserId))
             .Select(cp => cp.UserId)
             .ToListAsync();
 
         // Hent alle som har GroupRequests (ALLE statuser - inkludert Rejected)
-        var existingRequestUsers = await _context.GroupRequests
+        var existingRequestUsers = await Context.GroupRequests
             .Where(gr => gr.ConversationId == conversationId && 
                          userIds.Contains(gr.ReceiverId))  // 👈 Ingen status-filter
             .Select(gr => gr.ReceiverId)
@@ -169,13 +177,13 @@ public class GroupConversationController(
             .ToList();
     }
 
-    private async Task<(Conversation conversation, bool isNewConversation, MessageResponseDTO? systemMessageCreated, MessageResponseDTO? initialMesssageCreated )> GetOrCreateGroupConversationAsync(
+    private async Task<(Conversation conversation, bool isNewConversation, MessageResponseDto? systemMessageCreated, MessageResponseDto? initialMesssageCreated )> GetOrCreateGroupConversationAsync(
     int senderId, SendGroupRequestsDTO request)
     {
         // Hvis ConversationId er oppgitt, bruk eksisterende
         if (request.ConversationId.HasValue)
         {
-            var existing = await _context.Conversations
+            var existing = await Context.Conversations
                 .Include(c => c.Participants)
                 .FirstOrDefaultAsync(c => c.Id == request.ConversationId.Value && c.IsGroup);
 
@@ -201,7 +209,7 @@ public class GroupConversationController(
         }
         else
         {
-            var invitedUsers = await _context.Users
+            var invitedUsers = await Context.Users
                 .Where(u => request.InvitedUserIds.Contains(u.Id))
                 .ToListAsync();
 
@@ -210,7 +218,7 @@ public class GroupConversationController(
                 .ToList();
 
             // Valgfritt: legg til senderens navn også
-            var sender = await _context.Users.FindAsync(senderId);
+            var sender = await Context.Users.FindAsync(senderId);
             if (sender != null)
             {
                 invitedNames.Insert(0, $"{sender.FirstName} {sender.LastName}".Trim());
@@ -233,15 +241,15 @@ public class GroupConversationController(
             CreatorId = senderId,
         };
 
-        _context.Conversations.Add(newConversation);
-        await _context.SaveChangesAsync(); // Få ID
+        Context.Conversations.Add(newConversation);
+        await Context.SaveChangesAsync(); // Få ID
         
         var creatorParticipant = new ConversationParticipant
         {
             ConversationId = newConversation.Id,
             UserId = senderId,
         };
-        _context.ConversationParticipants.Add(creatorParticipant);
+        Context.ConversationParticipants.Add(creatorParticipant);
         
         var creatorCanSend = new CanSend
         {
@@ -251,7 +259,7 @@ public class GroupConversationController(
             Reason = CanSendReason.GroupRequestCreator,
             LastUpdated = DateTime.UtcNow
         };
-        _context.CanSend.Add(creatorCanSend);
+        Context.CanSend.Add(creatorCanSend);
         
         var creatorRequest = new GroupRequest
         {
@@ -262,15 +270,15 @@ public class GroupConversationController(
             RequestedAt = DateTime.UtcNow,
             IsRead = true
         };
-        _context.GroupRequests.Add(creatorRequest);
+        Context.GroupRequests.Add(creatorRequest);
 
        
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         
         
         // 1️⃣ Hent creator navn
-        var creator = await _context.Users.FindAsync(senderId);
+        var creator = await Context.Users.FindAsync(senderId);
         var senderName = creator?.FullName ?? "En bruker";
 
         // 2️⃣ Lag systemmelding med hjelpefunksjon (inkluderer automatisk SignalR)
@@ -279,7 +287,7 @@ public class GroupConversationController(
             $"{senderName} has created the group"
         );
         
-        MessageResponseDTO? initialMessageDto = null;
+        MessageResponseDto? initialMessageDto = null;
         // 3️⃣ Legg til creator's melding hvis den finnes
         if (!string.IsNullOrWhiteSpace(request.InitialMessage))
         {
@@ -291,11 +299,11 @@ public class GroupConversationController(
                 SentAt = DateTime.UtcNow,
                 IsSystemMessage = false // 🆕 Eksplisitt vanlig melding
             };
-            _context.Messages.Add(creatorMessage);
+            Context.Messages.Add(creatorMessage);
 
             // Oppdater LastMessageSentAt til creator's message
             newConversation.LastMessageSentAt = creatorMessage.SentAt;
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             // 🆕 Map til MessageResponseDTO
             initialMessageDto = await messageService.MapToResponseDtoOptimized(creatorMessage.Id);
@@ -310,8 +318,8 @@ public class GroupConversationController(
         int senderId, 
         bool isExistingGroup, 
         Conversation conversation,
-        MessageResponseDTO? systemMessageCreated,
-        MessageResponseDTO? initialMessage = null)
+        MessageResponseDto? systemMessageCreated,
+        MessageResponseDto? initialMessage = null)
     {
         using var scope = scopeFactory.CreateScope();
         var notifSvc = scope.ServiceProvider.GetRequiredService<IMessageNotificationService>();
@@ -321,7 +329,7 @@ public class GroupConversationController(
         
         var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
         
-        // 🎯 Hent user data for alle participants én gang
+        // 🎯 Hent appUser data for alle participants én gang
         var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToArray();
         var userData = await SyncEventExtensions.GetUserDataAsync(context, allParticipantIds);
         
@@ -340,19 +348,19 @@ public class GroupConversationController(
             memberConversationData = conversation.MapConversationToSyncData(senderId, userData, groupRequestStatuses);
         }
         
-        MessageResponseDTO? systemMessageInvitedUsersToExistingConv = null;
+        MessageResponseDto? systemMessageInvitedUsersToExistingConv = null;
 
         // 🆕 Lag systemmelding for invitasjoner til eksisterende gruppe
         if (isExistingGroup && groupRequests.Any())
         {
             // Hent inviter navn
-            var inviter = await context.Users
+            var inviter = await context.AppUsers
                 .Where(u => u.Id == senderId)
                 .Select(u => u.FullName)
                 .FirstOrDefaultAsync();
 
             // Hent inviterte brukere navn
-            var invitedUsers = await context.Users
+            var invitedUsers = await context.AppUsers
                 .Where(u => invitedUserIds.Contains(u.Id))
                 .Select(u => u.FullName)
                 .ToListAsync();
@@ -423,12 +431,12 @@ public class GroupConversationController(
                             Notification = notification
                         });
                 
-                    Console.WriteLine($"✅ Sent GroupRequestCreated to user {groupRequest.ReceiverId}");
+                    Console.WriteLine($"✅ Sent GroupRequestCreated to appUser {groupRequest.ReceiverId}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to notify user {groupRequest.ReceiverId} about group invitation: {ex.Message}");
+                Console.WriteLine($"Failed to notify appUser {groupRequest.ReceiverId} about group invitation: {ex.Message}");
             }
         }
         
@@ -469,7 +477,7 @@ public class GroupConversationController(
                     singleUserId: senderId,
                     source: "API",
                     relatedEntityId: conversation.Id,
-                    relatedEntityType: "Conversation"
+                    relatedEntityType: "Conversations"
                 );
             }
             
@@ -522,7 +530,7 @@ public class GroupConversationController(
             // 🆕 Send GROUP_INFO_UPDATED til ALLE eksisterende og pending medlemmer
             if (isExistingGroup && systemMessageInvitedUsersToExistingConv != null)
             {
-                // Hent existing pending user IDs som integers
+                // Hent existing pending appUser IDs som integers
                 var existingPendingUserIdsInt = await context.GroupRequests
                     .Where(gr => gr.ConversationId == conversationId && 
                                  gr.Status == GroupRequestStatus.Pending &&
@@ -544,7 +552,7 @@ public class GroupConversationController(
                         targetUserIds: allRelevantUserIds,
                         source: "API",
                         relatedEntityId: conversation.Id,
-                        relatedEntityType: "Conversation"
+                        relatedEntityType: "Conversations"
                     );
                 }
             }
@@ -565,7 +573,7 @@ public class GroupConversationController(
         try
         {
             // 1️⃣ Valider at gruppen finnes
-            var conversation = await _context.Conversations
+            var conversation = await Context.Conversations
                 .Include(c => c.Participants)
                 .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
 
@@ -581,7 +589,7 @@ public class GroupConversationController(
             
             bool wasCreator = conversation.CreatorId == userId.Value;
 
-            MessageResponseDTO? systemMessageCreatorLeaving = null;
+            MessageResponseDto? systemMessageCreatorLeaving = null;
             
             // 3️⃣ Håndter creator som forlater (tildel ny creator)
             if (conversation.CreatorId == userId.Value)
@@ -590,13 +598,13 @@ public class GroupConversationController(
             }
 
             // 4️⃣ Fjern bruker fra participants
-            _context.ConversationParticipants.Remove(participant);
+            Context.ConversationParticipants.Remove(participant);
             
             // Fjernes fra CanSend
-            await _context.RemoveCanSendAsync(userId.Value, conversationId, msgCache);
+            await Context.RemoveCanSendAsync(userId.Value, conversationId, msgCache);
 
             // 5️⃣ Sett brukerens GroupRequest til Rejected
-            var userGroupRequest = await _context.GroupRequests
+            var userGroupRequest = await Context.GroupRequests
                 .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId.Value);
 
             if (userGroupRequest != null)
@@ -606,7 +614,7 @@ public class GroupConversationController(
             }
 
             // 🆕 6️⃣ Marker relaterte MessageNotifications som lest
-            var relatedNotifications = await _context.MessageNotifications
+            var relatedNotifications = await Context.MessageNotifications
                 .Where(n => n.UserId == userId.Value && 
                             n.ConversationId == conversationId && 
                             (n.Type == NotificationType.GroupRequest || n.Type == NotificationType.GroupEvent) &&
@@ -619,15 +627,15 @@ public class GroupConversationController(
                 notification.ReadAt = DateTime.UtcNow;
             }
 
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
 
             // 7️⃣ Hent bruker-navn for systemmelding
-            var user = await _context.Users
+            var user = await Context.Users
                 .Where(u => u.Id == userId.Value)
                 .Select(u => u.FullName)
                 .FirstOrDefaultAsync();
             
-            MessageResponseDTO? systemMessage = null;
+            MessageResponseDto? systemMessage = null;
             
             // 8️⃣ Lag systemmelding
             if (!wasCreator)
@@ -654,7 +662,7 @@ public class GroupConversationController(
                         singleUserId: userId.Value,
                         source: "API",
                         relatedEntityId: conversationId,
-                        relatedEntityType: "Conversation"
+                        relatedEntityType: "Conversations"
                     );
 
                     // 2️⃣ Event til gjenværende medlemmer om at noen forlot
@@ -669,8 +677,8 @@ public class GroupConversationController(
                         // 🆕 Hent oppdatert conversation med remaining members
                         var updatedConversation = await context.Conversations
                             .Include(c => c.Participants)
-                                .ThenInclude(p => p.User)
-                                    .ThenInclude(u => u.Profile)
+                                .ThenInclude(p => p.AppUser)
+                                    .ThenInclude(u => u.UserProfile)
                             .FirstOrDefaultAsync(c => c.Id == conversationId);
 
                         if (updatedConversation != null)
@@ -698,7 +706,7 @@ public class GroupConversationController(
                                 targetUserIds: remainingMemberIds,
                                 source: "API",
                                 relatedEntityId: conversationId,
-                                relatedEntityType: "Conversation"
+                                relatedEntityType: "Conversations"
                             );
                         }
                     }
@@ -727,7 +735,7 @@ public class GroupConversationController(
                                 targetUserIds: pendingUserIds,
                                 source: "API",
                                 relatedEntityId: conversationId,
-                                relatedEntityType: "Conversation"
+                                relatedEntityType: "Conversations"
                             );
                         }
                     }
@@ -761,28 +769,28 @@ public class GroupConversationController(
     }
     
     // 🆕 Oppdatert hjelpemetode for creator-overføring
-    private async Task<MessageResponseDTO> HandleCreatorLeavingAsync(Conversation conversation, int creatorId)
+    private async Task<MessageResponseDto> HandleCreatorLeavingAsync(Conversation conversation, int creatorId)
     {
         // Hent creator navn først
-        var creatorUser = await _context.Users
+        var creatorUser = await Context.Users
             .Where(u => u.Id == creatorId)
             .Select(u => u.FullName)
             .FirstOrDefaultAsync();
         
         // Finn en ny creator blant gjenværende godkjente medlemmer
-        var approvedMemberIds = await _context.ConversationParticipants
+        var approvedMemberIds = await Context.ConversationParticipants
             .Where(cp => cp.ConversationId == conversation.Id && cp.UserId != creatorId)
             .Select(cp => cp.UserId)
             .ToListAsync();
 
         // Filtrer bort pending medlemmer
-        var pendingUserIds = await _context.GroupRequests
+        var pendingUserIds = await Context.GroupRequests
             .Where(gr => gr.ConversationId == conversation.Id && gr.Status == GroupRequestStatus.Pending)
             .Select(gr => gr.ReceiverId)
             .ToListAsync();
 
         var eligibleMembers = approvedMemberIds.Where(id => !pendingUserIds.Contains(id)).ToList();
-        MessageResponseDTO? systemMessageCreatorLeaving = null;
+        MessageResponseDto? systemMessageCreatorLeaving = null;
 
         if (eligibleMembers.Any())
         {
@@ -791,7 +799,7 @@ public class GroupConversationController(
             conversation.CreatorId = newCreatorId;
 
             // Lag systemmelding om ny creator
-            var newCreatorUser = await _context.Users
+            var newCreatorUser = await Context.Users
                 .Where(u => u.Id == newCreatorId)
                 .Select(u => u.FullName)
                 .FirstOrDefaultAsync();
@@ -840,7 +848,7 @@ public class GroupConversationController(
                     // Opprett disbanded notifikasjon
                     var notification = new MessageNotification
                     {
-                        UserId = userId,
+                        RecipientId = userId,
                         ConversationId = conversation.Id,
                         Type = NotificationType.GroupDisbanded,
                         CreatedAt = DateTime.UtcNow,
@@ -848,8 +856,8 @@ public class GroupConversationController(
                         MessageCount = 1
                     };
 
-                    _context.MessageNotifications.Add(notification);
-                    await _context.SaveChangesAsync(); // Lagre for å få ID
+                    Context.MessageNotifications.Add(notification);
+                    await Context.SaveChangesAsync(); // Lagre for å få ID
 
                     // Send SignalR om disbanded gruppe
                     await hubContext.Clients.User(userId.ToString())
@@ -873,11 +881,11 @@ public class GroupConversationController(
                             }
                         });
 
-                    Console.WriteLine($"📨 Sent disbanded notification to user {userId}");
+                    Console.WriteLine($"📨 Sent disbanded notification to appUser {userId}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Failed to notify user {userId} about disbanded group: {ex.Message}");
+                    Console.WriteLine($"❌ Failed to notify appUser {userId} about disbanded group: {ex.Message}");
                 }
             }
         }
@@ -898,7 +906,7 @@ public class GroupConversationController(
             conversation.DisbandedAt = DateTime.UtcNow;
 
             // Sett alle GroupRequests til Rejected
-            var groupRequests = await _context.GroupRequests
+            var groupRequests = await Context.GroupRequests
                 .Where(gr => gr.ConversationId == conversation.Id)
                 .ToListAsync();
 
@@ -908,10 +916,10 @@ public class GroupConversationController(
             }
 
             // Fjern alle participants (de har allerede forlatt)
-            var participants = await _context.ConversationParticipants
+            var participants = await Context.ConversationParticipants
                 .Where(cp => cp.ConversationId == conversation.Id)
                 .ToListAsync();
-            _context.ConversationParticipants.RemoveRange(participants);
+            Context.ConversationParticipants.RemoveRange(participants);
 
             Console.WriteLine($"✅ Gruppe {conversation.Id} markert som disbanded - bevares i 30 dager");
         }
@@ -931,13 +939,13 @@ public class GroupConversationController(
             // Validering
             if (GetUserId() is not int userId)
             {
-                _logger.LogWarning("Unauthorized attempt to update group name for groupId: {GroupId}", groupId);
+                Logger.LogWarning("Unauthorized attempt to update group name for groupId: {GroupId}", groupId);
                 return Unauthorized(new { message = "Authentication required" });
             }
 
             if (string.IsNullOrWhiteSpace(newName) || newName.Length > 100)
             {
-                _logger.LogWarning("Invalid group name provided by user {UserId} for group {GroupId}: '{NewName}'", 
+                Logger.LogWarning("Invalid group name provided by appUser {UserId} for group {GroupId}: '{NewName}'", 
                     userId, groupId, newName);
                 return BadRequest(new { message = "Group name must be between 1 and 100 characters" });
             }
@@ -946,21 +954,21 @@ public class GroupConversationController(
             Conversation? group;
             try
             {
-                group = await _context.Conversations
+                group = await Context.Conversations
                     .Include(c => c.Participants)
-                    .ThenInclude(p => p.User)
-                    .ThenInclude(u => u.Profile) // Hent user data med én gang
+                    .ThenInclude(p => p.AppUser)
+                    .ThenInclude(u => u.UserProfile) // Hent appUser data med én gang
                     .FirstOrDefaultAsync(c => c.Id == groupId && c.IsGroup);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Database error while fetching group {GroupId} for user {UserId}", groupId, userId);
+                Logger.LogError(ex, "Database error while fetching group {GroupId} for appUser {UserId}", groupId, userId);
                 return StatusCode(500, new { message = "Failed to retrieve group information" });
             }
 
             if (group == null)
             {
-                _logger.LogWarning("Group {GroupId} not found for user {UserId}", groupId, userId);
+                Logger.LogWarning("Group {GroupId} not found for appUser {UserId}", groupId, userId);
                 return NotFound(new { message = "Group not found" });
             }
 
@@ -970,14 +978,14 @@ public class GroupConversationController(
 
             if (!isParticipant && !isCreator)
             {
-                _logger.LogWarning("User {UserId} attempted to update group {GroupId} without permission", userId, groupId);
+                Logger.LogWarning("AppUser {UserId} attempted to update group {GroupId} without permission", userId, groupId);
                 return StatusCode(403, new { message = "You don't have permission to update this group" });
             }
             
             // Sjekk om navnet allerede er satt
             if (group.GroupName?.Trim() == newName.Trim())
             {
-                _logger.LogInformation("User {UserId} tried to set group {GroupId} name to existing value: '{Name}'", 
+                Logger.LogInformation("AppUser {UserId} tried to set group {GroupId} name to existing value: '{Name}'", 
                     userId, groupId, newName.Trim());
                 return BadRequest(new { message = "Group name is already set to this value" });
             }
@@ -991,27 +999,27 @@ public class GroupConversationController(
             // Save endringer
             try
             {
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Successfully saved group name change for group {GroupId}", groupId);
+                await Context.SaveChangesAsync();
+                Logger.LogInformation("Successfully saved group name change for group {GroupId}", groupId);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save group name change for group {GroupId} by user {UserId}", groupId, userId);
+                Logger.LogError(ex, "Failed to save group name change for group {GroupId} by appUser {UserId}", groupId, userId);
                 return StatusCode(500, new { message = "Failed to save group name change" });
             }
             
-            // Hent user name for system message
+            // Hent appUser name for system message
             string userName;
             try
             {
-                userName = await _context.Users
+                userName = await Context.Users
                     .Where(u => u.Id == userId)
                     .Select(u => u.FullName)
                     .FirstOrDefaultAsync() ?? "En bruker";
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to get user name for user {UserId}", userId);
+                Logger.LogError(ex, "Failed to get appUser name for appUser {UserId}", userId);
                 userName = "En bruker"; // Fallback
             }
             
@@ -1025,7 +1033,7 @@ public class GroupConversationController(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create system message for group name change. GroupId: {GroupId}, UserId: {UserId}", 
+                Logger.LogError(ex, "Failed to create system message for group name change. GroupId: {GroupId}, UserId: {UserId}", 
                     groupId, userId);
                 // Ikke returner error her - hovedfunksjonen er fullført
             }
@@ -1044,7 +1052,7 @@ public class GroupConversationController(
                         // Bygg userData fra allerede hentet data
                         var userData = group.Participants.ToDictionary(
                             p => p.UserId,
-                            p => (p.User.FullName, p.User.ProfileImageUrl)
+                            p => (p.AppUser.FullName, p.AppUser.ProfileImageUrl)
                         );
                         
                         var participantApprovalStatus = await context.GroupRequests
@@ -1068,18 +1076,18 @@ public class GroupConversationController(
                             targetUserIds: participantIds,
                             source: "API",
                             relatedEntityId: groupId,
-                            relatedEntityType: "Conversation"
+                            relatedEntityType: "Conversations"
                         );
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to create sync event for group name update. GroupId: {GroupId}", groupId);
+                        Logger.LogError(ex, "Failed to create sync event for group name update. GroupId: {GroupId}", groupId);
                     }
                 });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to queue sync event task for group {GroupId}", groupId);
+                Logger.LogError(ex, "Failed to queue sync event task for group {GroupId}", groupId);
                 // Ikke returner error - hovedfunksjonen er fullført
             }
             
@@ -1102,12 +1110,12 @@ public class GroupConversationController(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create group notification for group name change. GroupId: {GroupId}, UserId: {UserId}", 
+                Logger.LogError(ex, "Failed to create group notification for group name change. GroupId: {GroupId}, UserId: {UserId}", 
                     groupId, userId);
                 // Ikke returner error - hovedfunksjonen er fullført
             }
 
-            _logger.LogInformation("User {UserId} successfully updated group {GroupId} name from '{OldName}' to '{NewName}'", 
+            Logger.LogInformation("AppUser {UserId} successfully updated group {GroupId} name from '{OldName}' to '{NewName}'", 
                 userId, groupId, oldName, newName);
 
             return Ok(new { 
@@ -1120,7 +1128,7 @@ public class GroupConversationController(
         catch (Exception ex)
         {
             // Catch-all for uventede exceptions
-            _logger.LogError(ex, "Unexpected error while updating group name. GroupId: {GroupId}, NewName: '{NewName}'", 
+            Logger.LogError(ex, "Unexpected error while updating group name. GroupId: {GroupId}, NewName: '{NewName}'", 
                 groupId, newName);
             
             return StatusCode(500, new { 
@@ -1140,7 +1148,7 @@ public class GroupConversationController(
         try
         {
             // 1️⃣ Finn GroupRequest først
-            var groupRequest = await _context.GroupRequests
+            var groupRequest = await Context.GroupRequests
                 .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && 
                                            gr.ReceiverId == userId.Value);
 
@@ -1155,7 +1163,7 @@ public class GroupConversationController(
                 return BadRequest(new { message = "Kan ikke slette creator request." });
 
             // 3️⃣ Sjekk conversation-status
-            var conversation = await _context.Conversations
+            var conversation = await Context.Conversations
                 .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
 
             bool conversationExists = conversation != null && !conversation.IsDisbanded;
@@ -1163,7 +1171,7 @@ public class GroupConversationController(
             // 4️⃣ Hvis gruppen fortsatt eksisterer, valider medlemskap
             if (conversationExists)
             {
-                var isStillMember = await _context.ConversationParticipants
+                var isStillMember = await Context.ConversationParticipants
                     .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId.Value);
 
                 if (isStillMember)
@@ -1171,9 +1179,9 @@ public class GroupConversationController(
             }
 
             // 5️⃣ Slett requesten
-            _context.GroupRequests.Remove(groupRequest);
+            Context.GroupRequests.Remove(groupRequest);
 
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
 
             // 7️⃣ Returner forskjellig melding basert på gruppe-status
             if (conversationExists)

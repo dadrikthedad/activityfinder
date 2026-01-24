@@ -6,6 +6,9 @@ using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
 using AFBack.DTOs.BoostrapDTO.Sync;
 using AFBack.Features.Cache;
+using AFBack.Features.SyncEvents.DTOs;
+using AFBack.Features.SyncEvents.Services;
+using AFBack.Infrastructure.Extensions;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Services;
@@ -37,7 +40,7 @@ namespace AFBack.Controllers
                 var userId = GetUserId();
                 if (userId == null)
                 {
-                    return Unauthorized(new { error = "Invalid user token" });
+                    return Unauthorized(new { error = "Invalid appUser token" });
                 }
 
                 var response = await bootstrapService.GetCriticalBootstrapAsync(userId.Value);
@@ -65,7 +68,7 @@ namespace AFBack.Controllers
                 var userId = GetUserId();
                 if (userId == null)
                 {
-                    return Unauthorized(new { error = "Invalid user token" });
+                    return Unauthorized(new { error = "Invalid appUser token" });
                 }
 
                 var response = await bootstrapService.GetSecondaryBootstrapAsync(userId.Value);
@@ -89,7 +92,7 @@ namespace AFBack.Controllers
             var userId = GetUserId();
             
             if (userId == null)
-                return Unauthorized(new { error = "Invalid user token" });
+                return Unauthorized(new { error = "Invalid appUser token" });
 
             // ✅ Prøv først header (mobile), fallback til generert device ID (web)
             var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
@@ -97,20 +100,20 @@ namespace AFBack.Controllers
             if (string.IsNullOrEmpty(deviceId))
             {
                 // ✅ Generer konsistent device ID for web
-                var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+                var userAgent = Request.Headers["AppUser-Agent"].FirstOrDefault() ?? "unknown";
                 var clientIp = IpUtils.GetClientIp(HttpContext) ?? "unknown";
                 
-                // Lag en hash for å holde device ID konsistent per user/browser
+                // Lag en hash for å holde device ID konsistent per appUser/browser
                 var deviceData = $"{userId}_{clientIp}_{userAgent}";
                 var hash = deviceData.GetHashCode();
                 deviceId = $"web_{Math.Abs(hash)}";
                 
-                _logger.LogInformation("Generated web device ID: {DeviceId} for user {UserId}", 
+                Logger.LogInformation("Generated web device ID: {DeviceId} for appUser {UserId}", 
                     deviceId, userId.Value);
             }
             else
             {
-                _logger.LogInformation("Using mobile device ID: {DeviceId} for user {UserId}", 
+                Logger.LogInformation("Using mobile device ID: {DeviceId} for appUser {UserId}", 
                     deviceId.Substring(0, 8) + "...", userId.Value);
             }
 
@@ -134,7 +137,7 @@ namespace AFBack.Controllers
         {
             var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault() ?? "web_unknown";
             return StatusCode(500, new { 
-                error = "Internal server error while marking user online", 
+                error = "Internal server error while marking appUser online", 
                 details = ex.Message,
                 userId = GetUserId(),
                 deviceId = deviceId.Substring(0, Math.Min(8, deviceId.Length)) + "..."
@@ -150,14 +153,14 @@ namespace AFBack.Controllers
             try
             {
                 if (userId == null)
-                    return Unauthorized(new { error = "Invalid user token" });
+                    return Unauthorized(new { error = "Invalid appUser token" });
 
                 // ✅ Samme logic som MarkOnline
                 var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault();
 
                 if (string.IsNullOrEmpty(deviceId))
                 {
-                    var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+                    var userAgent = Request.Headers["AppUser-Agent"].FirstOrDefault() ?? "unknown";
                     var clientIp = IpUtils.GetClientIp(HttpContext) ?? "unknown";
                     var deviceData = $"{userId}_{clientIp}_{userAgent}";
                     var hash = deviceData.GetHashCode();
@@ -172,7 +175,7 @@ namespace AFBack.Controllers
                 }
 
                 return StatusCode(500, new { 
-                    error = "Failed to mark user as offline",
+                    error = "Failed to mark appUser as offline",
                     userId = userId.Value,
                     deviceId = deviceId.Substring(0, 8) + "..."
                 });
@@ -181,7 +184,7 @@ namespace AFBack.Controllers
             {
                 var deviceId = Request.Headers["X-Device-ID"].FirstOrDefault() ?? "web_unknown";
                 return StatusCode(500, new { 
-                    error = "Internal server error while marking user offline", 
+                    error = "Internal server error while marking appUser offline", 
                     details = ex.Message,
                     userId = GetUserId(),
                     deviceId = deviceId.Substring(0, Math.Min(8, deviceId.Length)) + "..."
@@ -198,7 +201,7 @@ namespace AFBack.Controllers
 
                 if (userId == null)
                 {
-                    return Unauthorized(new { error = "Invalid user token" });
+                    return Unauthorized(new { error = "Invalid appUser token" });
                 }
 
                 // ✅ Samme logic som MarkOnline - header først, fallback til generert
@@ -207,19 +210,19 @@ namespace AFBack.Controllers
                 if (string.IsNullOrEmpty(deviceId))
                 {
                     // ✅ Generer konsistent device ID for web (samme som MarkOnline)
-                    var userAgent = Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+                    var userAgent = Request.Headers["AppUser-Agent"].FirstOrDefault() ?? "unknown";
                     var clientIp = IpUtils.GetClientIp(HttpContext) ?? "unknown";
             
                     var deviceData = $"{userId}_{clientIp}_{userAgent}";
                     var hash = deviceData.GetHashCode();
                     deviceId = $"web_{Math.Abs(hash)}";
             
-                    _logger.LogDebug("Generated web device ID for heartbeat: {DeviceId} for user {UserId}", 
+                    Logger.LogDebug("Generated web device ID for heartbeat: {DeviceId} for appUser {UserId}", 
                         deviceId, userId.Value);
                 }
                 else
                 {
-                    _logger.LogDebug("Using mobile device ID for heartbeat: {DeviceId} for user {UserId}", 
+                    Logger.LogDebug("Using mobile device ID for heartbeat: {DeviceId} for appUser {UserId}", 
                         deviceId.Substring(0, 8) + "...", userId.Value);
                 }
 
@@ -239,29 +242,6 @@ namespace AFBack.Controllers
             }
         }
         
-        [HttpGet("sync")]
-        public async Task<ActionResult<SyncResponseDTO>> GetSync([FromQuery] string? since)
-        {
-            try
-            {
-                var userId = GetUserId();
-                if (userId == null)
-                {
-                    return Unauthorized(new { error = "Invalid user token" });
-                }
         
-                var response = await syncService.GetEventsSinceAsync(userId.Value, since);
-        
-                return Ok(response);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new { 
-                    error = "Failed to process sync request", 
-                    details = ex.Message,
-                    userId = GetUserId()
-                });
-            }
-        }
     }
 }

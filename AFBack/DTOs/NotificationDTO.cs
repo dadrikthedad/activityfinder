@@ -14,7 +14,7 @@ public class NotificationDTO
     public DateTime CreatedAt { get; set; }
     
     // Navigasjonsegenskaper - sender med bruker id, fultnavn og bilde som blir da synlig ved en forespørsel
-    public UserSummaryDTO? RelatedUser { get; set; } = null!;
+    public UserSummaryDto? RelatedUser { get; set; } = null!;
     
     public int? PostId { get; set; }
     public int? CommentId { get; set; }

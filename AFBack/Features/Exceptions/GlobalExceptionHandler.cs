@@ -1,10 +1,11 @@
-
 using System.Security.Claims;
+using AFBack.Features.Exceptions.CustomExceptions;
+using AFBack.Infrastructure.Middleware;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace AFBack.Infrastructure.Middleware;
+namespace AFBack.Features.Exceptions;
 
 public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IHostEnvironment env) : IExceptionHandler
 {
@@ -18,15 +19,20 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IHos
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception,
         CancellationToken cancellationToken)
     {
-        // Mapper exceptions til riktig statuskoder,m titler og beskrivelser
+        // Mapper exceptions til riktig statuskoder, titler og beskrivelser
         var (statusCode, title, detail) = exception switch
         {
             ValidationException ex => (StatusCodes.Status400BadRequest, "Validation Error", ex.Message),
             ArgumentException argEx => (StatusCodes.Status400BadRequest, "Bad Request", argEx.Message),
-            KeyNotFoundException => (StatusCodes.Status404NotFound, "Not Found", "The requested resource was not found"),
+            KeyNotFoundException => (StatusCodes.Status404NotFound, "Not Found",
+                "The requested resource was not found"),
+            NotFoundException ex => (StatusCodes.Status404NotFound, "Not Found", ex.Message),
             UnauthorizedAccessException ex => (StatusCodes.Status403Forbidden, "Forbidden", ex.Message),
             InvalidOperationException ex => (StatusCodes.Status409Conflict, "Operation Conflict", ex.Message),
             DbUpdateException => (StatusCodes.Status409Conflict, "Database Conflict", "A database conflict occurred"),
+            AuthorizationException ex => (StatusCodes.Status401Unauthorized, "Unauthorized", ex.Message), 
+            UserNotFoundException ex => (StatusCodes.Status400BadRequest, "Bad Request", ex.Message),
+            
             _ => (StatusCodes.Status500InternalServerError, "Server Error", "An unexpected error occurred")
         };
         
@@ -59,6 +65,30 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IHos
                                            "UserId: {UserId}, TraceId: {TraceId}",
                     requestPath, method, statusCode, userId, traceId);
             }
+            else if (exception is AuthorizationException)
+            {
+                var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
+                var userAgent = httpContext.Request.Headers["AppUser-Agent"].ToString();
+
+                using (logger.BeginScope(new Dictionary<string, object>
+                       {
+                           ["IPAddress"] = ipAddress ?? "unknown",
+                           ["UserAgent"] = userAgent
+                       }))
+                {
+                    logger.LogWarning("Authorization failed. " +
+                                      "Path: {RequestPath}, Method: {Method}, " +
+                                      "UserId: {UserId}, IP: {IpAddress}, Message: {Message}, TraceId: {TraceId}",
+                        requestPath, method, userId, ipAddress, exception.Message, traceId);
+                }
+            }
+            else if (statusCode == 401 && exception is not AuthorizationException)
+            {
+                logger.LogWarning("Authorization failed. " +
+                                  "Path: {RequestPath}, Method: {Method}, " +
+                                  "UserId: {UserId}, Message: {Message}, TraceId: {TraceId}",
+                    requestPath, method, userId, exception.Message, traceId);
+            }
             else if (statusCode == 404)
             {
                 logger.LogWarning("Resource not found. " +
@@ -75,7 +105,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IHos
             }
         }
         
-        // Dette er et ProblemDetials-objekt. Det er et standardisert objektmodell for feil i web-APIer
+        // Dette er et ProblemDetails-objekt. Det er et standardisert objektmodell for feil i web-APIer
         var problemDetails = new ProblemDetails
         {
             Status = statusCode,
@@ -91,7 +121,7 @@ public class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger, IHos
             problemDetails.Extensions["errors"] = validationException.Errors;
         }
         
-        // Hvis vi er i produksjon så legger vi til stackTrace og innerException - ingen annelse hva det er, det får vi finne ut av
+        // Hvis vi er i produksjon så legger vi til stackTrace og innerException for å få hele feilmeldingen
         if (env.IsDevelopment())
         {
             problemDetails.Extensions["stackTrace"] = exception.StackTrace;

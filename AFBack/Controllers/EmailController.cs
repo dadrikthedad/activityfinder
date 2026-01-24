@@ -7,6 +7,7 @@ using AFBack.Features.Cache.Interface;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Models;
+using AFBack.Models.Auth;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -58,7 +59,7 @@ public class EmailController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in VerifyEmail for token {Token}", request.Token);
+            Logger.LogError(ex, "Error in VerifyEmail for token {Token}", request.Token);
             return StatusCode(500, new { message = "Network error" });
         }
     }
@@ -75,7 +76,7 @@ public class EmailController(
                     ipBanService,
                     SuspiciousActivityTypes.API_ABUSE,
                     "Forgot password with empty email",
-                    _logger);
+                    Logger);
                     
                 return BadRequest(new { message = "Email is required." });
             }
@@ -89,7 +90,7 @@ public class EmailController(
                     ipBanService,
                     SuspiciousActivityTypes.API_ABUSE,
                     $"Invalid email format in forgot password: {normalizedEmail}",
-                    _logger);
+                    Logger);
                     
                 return BadRequest(new { message = "Invalid email format." });
             }
@@ -104,7 +105,7 @@ public class EmailController(
                     ipBanService,
                     SuspiciousActivityTypes.EXCESSIVE_PASSWORD_RESET,
                     $"Rate limit exceeded for password reset to: {normalizedEmail}",
-                    _logger);
+                    Logger);
 
                 if (retryAfter.HasValue)
                 {
@@ -134,7 +135,7 @@ public class EmailController(
                 if (success)
                 {
                     emailRateLimitService.RegisterVerificationEmailSent(normalizedEmail);
-                    _logger.LogInformation("Password reset email sent to {Email}", normalizedEmail);
+                    Logger.LogInformation("Password reset email sent to {Email}", normalizedEmail);
                 }
                 else
                 {
@@ -142,9 +143,9 @@ public class EmailController(
                         ipBanService,
                         SuspiciousActivityTypes.VERIFICATION_EMAIL_FAILED,
                         $"Failed to send password reset email to: {normalizedEmail}",
-                        _logger);
+                        Logger);
                         
-                    _logger.LogWarning("Failed to send password reset email to {Email}", normalizedEmail);
+                    Logger.LogWarning("Failed to send password reset email to {Email}", normalizedEmail);
                 }
             }
             else
@@ -154,7 +155,7 @@ public class EmailController(
                     ipBanService,
                     SuspiciousActivityTypes.API_ABUSE,
                     $"Password reset for non-existent email: {normalizedEmail}",
-                    _logger);
+                    Logger);
             }
 
             // Samme melding uansett (security by obscurity)
@@ -166,13 +167,13 @@ public class EmailController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in ForgotPassword for {Email}", request.Email);
+            Logger.LogError(ex, "Error in ForgotPassword for {Email}", request.Email);
             
             await this.ReportSuspiciousActivityAsync(
                 ipBanService,
                 SuspiciousActivityTypes.API_ABUSE,
                 $"Exception in forgot password: {ex.Message}",
-                _logger);
+                Logger);
                 
             return StatusCode(500, new { message = "Internal server error" });
         }
@@ -203,7 +204,7 @@ public class EmailController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in ResetPassword");
+            Logger.LogError(ex, "Error in ResetPassword");
             return StatusCode(500, new { message = "Internal server error" });
         }
     }
@@ -218,7 +219,7 @@ public class EmailController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in ValidateResetToken");
+            Logger.LogError(ex, "Error in ValidateResetToken");
             return StatusCode(500, new { message = "Internal server error" });
         }
     }
@@ -234,7 +235,7 @@ public class EmailController(
                 ipBanService,
                 SuspiciousActivityTypes.API_ABUSE,
                 "Resend verification with empty email",
-                _logger);
+                Logger);
                 
             return BadRequest(new { message = "Email is required." });
         }
@@ -247,14 +248,14 @@ public class EmailController(
                 ipBanService,
                 SuspiciousActivityTypes.API_ABUSE,
                 $"Invalid email format in resend verification: {normalizedEmail}",
-                _logger);
+                Logger);
                 
             return BadRequest(new { message = "Invalid email format." });
         }
 
         try
         {
-            var user = await _context.Users
+            var user = await Context.Users
                 .Include(u => u.VerificationInfo)
                 .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
@@ -264,15 +265,15 @@ public class EmailController(
                     ipBanService,
                     SuspiciousActivityTypes.API_ABUSE,
                     $"Resend verification requested for non-existent email: {normalizedEmail}",
-                    _logger);
+                    Logger);
 
-                _logger.LogInformation("Resend verification requested for non-existent email: {Email}", normalizedEmail);
+                Logger.LogInformation("Resend verification requested for non-existent email: {Email}", normalizedEmail);
                 return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
             }
 
             if (user.EmailConfirmed)
             {
-                _logger.LogInformation("Resend verification requested for already verified email: {Email}", normalizedEmail);
+                Logger.LogInformation("Resend verification requested for already verified email: {Email}", normalizedEmail);
                 return Ok(new
                 {
                     message = "Your email is already verified. You can log in.",
@@ -289,7 +290,7 @@ public class EmailController(
             {
                 user.VerificationInfo = new VerificationInfo
                 {
-                    User = user,
+                    AppUser = user,
                     EmailConfirmationToken = newToken,
                     EmailConfirmationCode = newCode,
                     EmailConfirmationTokenExpires = DateTime.UtcNow.AddHours(1)
@@ -302,7 +303,7 @@ public class EmailController(
                 user.VerificationInfo.EmailConfirmationTokenExpires = DateTime.UtcNow.AddHours(1);
             }
 
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
 
             // Send email
             var emailSent = await emailService.SendVerificationEmailAsync(user.Email, newToken, newCode);
@@ -310,7 +311,7 @@ public class EmailController(
             if (emailSent)
             {
                 await userService.MarkVerificationEmailSentAsync(user.Email);
-                _logger.LogInformation("Verification email resent successfully to {Email}", user.Email);
+                Logger.LogInformation("Verification email resent successfully to {Email}", user.Email);
                 
                 return Ok(new
                 {
@@ -324,21 +325,21 @@ public class EmailController(
                     ipBanService,
                     SuspiciousActivityTypes.VERIFICATION_EMAIL_FAILED,
                     $"Failed to resend verification email to: {user.Email}",
-                    _logger);
+                    Logger);
 
-                _logger.LogWarning("Failed to resend verification email to {Email}", user.Email);
+                Logger.LogWarning("Failed to resend verification email to {Email}", user.Email);
                 return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error resending verification email to {Email}", normalizedEmail);
+            Logger.LogError(ex, "Error resending verification email to {Email}", normalizedEmail);
             
             await this.ReportSuspiciousActivityAsync(
                 ipBanService,
                 SuspiciousActivityTypes.API_ABUSE,
                 $"Exception in resend verification for {normalizedEmail}: {ex.Message}",
-                _logger);
+                Logger);
                 
             return Ok(new { message = "If an account exists for this email, a new verification link has been sent." });
         }

@@ -1,9 +1,15 @@
-namespace AFBack.Interface.Repository;
+using AFBack.DTOs;
+
+namespace AFBack.Repository;
 
 public interface IUserRepository
 {
-    Task<bool> UserExistsAsync(int userId);
+    Task<bool> UserExistsAsync(string userId);
 
     Task<Dictionary<int, (string FullName, string? ProfileImageUrl)>>
         GetUserSummaries(IEnumerable<int> userIds);
+
+
+    Task<UserSummaryDto?> GetUserSummaryAsync(string userId);
+    Task<Dictionary<string, UserSummaryDto>> GetUserSummariesAsync(List<string> userIds);
 }

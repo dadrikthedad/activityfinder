@@ -8,7 +8,7 @@ public static class FriendExtensions
 {
     public static FriendInvitationDTO ToFriendInvitationDto(
         this FriendInvitation inv, 
-        UserSummaryDTO userSummary) =>
+        UserSummaryDto userSummary) =>
         new()
         {
             Id = inv.Id,

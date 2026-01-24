@@ -3,6 +3,8 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Models;
@@ -67,7 +69,7 @@ public class MessageNotificationsController(
     {
         var userId = GetUserId();
 
-        var unreadConvIds = await _context.MessageNotifications
+        var unreadConvIds = await Context.MessageNotifications
             .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId != null)
             .Select(n => n.ConversationId!.Value)
             .Distinct()
@@ -82,7 +84,7 @@ public class MessageNotificationsController(
     {
         var userId = GetUserId();
 
-        var count = await _context.MessageNotifications
+        var count = await Context.MessageNotifications
             .CountAsync(n => n.UserId == userId && !n.IsRead);
 
         return Ok(new { count });
@@ -94,7 +96,7 @@ public class MessageNotificationsController(
     {
         var userId = GetUserId();
 
-        var notification = await _context.MessageNotifications
+        var notification = await Context.MessageNotifications
             .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
 
         if (notification == null)
@@ -104,7 +106,7 @@ public class MessageNotificationsController(
         {
             notification.IsRead = true;
             notification.ReadAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
         }
 
         return NoContent();
@@ -116,7 +118,7 @@ public class MessageNotificationsController(
     {
         var userId = GetUserId();
 
-        var unreadNotifications = await _context.MessageNotifications
+        var unreadNotifications = await Context.MessageNotifications
             .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId == conversationId)
             .ToListAsync();
 
@@ -133,7 +135,7 @@ public class MessageNotificationsController(
             n.ReadAt = readAt;
         }
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         // Send sync event for å oppdatere frontend
         taskQueue.QueueAsync(async () => 
@@ -151,12 +153,12 @@ public class MessageNotificationsController(
                     singleUserId: userId,
                     source: "API",
                     relatedEntityId: conversationId,
-                    relatedEntityType: "Conversation"
+                    relatedEntityType: "Conversations"
                 );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create MARK_AS_READ sync event for conversation {ConversationId}", conversationId);
+                Logger.LogError(ex, "Failed to create MARK_AS_READ sync event for conversation {ConversationId}", conversationId);
             }
         });
 
@@ -169,7 +171,7 @@ public class MessageNotificationsController(
     {
         var userId = GetUserId();
 
-        var unreadNotifications = await _context.MessageNotifications
+        var unreadNotifications = await Context.MessageNotifications
             .Where(n => n.UserId == userId && !n.IsRead)
             .ToListAsync();
 
@@ -185,7 +187,7 @@ public class MessageNotificationsController(
             n.ReadAt = readAt; 
         }
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         // Send sync event for å oppdatere frontend
         taskQueue.QueueAsync(async () => 
@@ -206,7 +208,7 @@ public class MessageNotificationsController(
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to create MARK_AS_READ sync event for all notifications");
+                Logger.LogError(ex, "Failed to create MARK_AS_READ sync event for all notifications");
             }
         });
 

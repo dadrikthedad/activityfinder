@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Constants;
+using AFBack.Models.Enums;
 
 namespace AFBack.Models;
 
@@ -16,7 +17,7 @@ public class ReportRequestDTO
     [StringLength(5000)]
     public string Description { get; set; }
 
-    // For user reports - ID på bruker som rapporteres
+    // For appUser reports - ID på bruker som rapporteres
     public string? ReportedUserId { get; set; }
 
     // For bug reports - steps to reproduce

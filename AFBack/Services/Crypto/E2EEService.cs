@@ -1,6 +1,7 @@
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.DTOs.Crypto;
+using AFBack.Features.Messaging.Models;
 using AFBack.Models;
 using AFBack.Models.Crypto;
 using Microsoft.EntityFrameworkCore;
@@ -57,14 +58,14 @@ public class E2EEService
                 _context.UserPublicKeys.Add(newKey);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Stored new Sodium public key for user {UserId}, version {Version}", 
+                _logger.LogInformation("Stored new Sodium public key for appUser {UserId}, version {Version}", 
                     userId, newKey.KeyVersion);
 
                 return newKey;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to store public key for user {UserId}", userId);
+                _logger.LogError(ex, "Failed to store public key for appUser {UserId}", userId);
                 throw;
             }
         }
@@ -112,20 +113,20 @@ public class E2EEService
             try
             {
                 var conversation = await _context.Conversations
-                    .Include(c => c.Participants.Where(cp => !cp.HasDeleted)) // Filtrer ut slettede
-                    .ThenInclude(cp => cp.User)
+                    .Include(c => c.Participants.Where(cp => !cp.ConversationArchived)) // Filtrer ut slettede
+                    .ThenInclude(cp => cp.AppUser)
                     .FirstOrDefaultAsync(c => c.Id == conversationId);
 
                 if (conversation == null)
                 {
-                    _logger.LogWarning("Conversation {ConversationId} not found", conversationId);
+                    _logger.LogWarning("Conversations {ConversationId} not found", conversationId);
                     return null;
                 }
 
-                // Check if user is participant (og ikke har slettet)
+                // Check if appUser is participant (og ikke har slettet)
                 if (conversation.Participants.All(cp => cp.UserId != requestingUserId))
                 {
-                    _logger.LogWarning("User {UserId} is not a participant in conversation {ConversationId}", 
+                    _logger.LogWarning("AppUser {UserId} is not a participant in conversation {ConversationId}", 
                         requestingUserId, conversationId);
                     return null;
                 }
@@ -191,7 +192,7 @@ public class E2EEService
                     
                     if (!hasAccess)
                     {
-                        throw new UnauthorizedAccessException("User not authorized for this conversation");
+                        throw new UnauthorizedAccessException("AppUser not authorized for this conversation");
                     }
                 }
 
@@ -258,7 +259,7 @@ public class E2EEService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to store encrypted message from user {UserId}", senderId);
+                _logger.LogError(ex, "Failed to store encrypted message from appUser {UserId}", senderId);
                 throw;
             }
         }
@@ -280,13 +281,13 @@ public class E2EEService
         {
             try
             {
-                // Verify user access
+                // Verify appUser access
                 var hasAccess = await _context.ConversationParticipants
                     .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId);
 
                 if (!hasAccess)
                 {
-                    throw new UnauthorizedAccessException("User not authorized for this conversation");
+                    throw new UnauthorizedAccessException("AppUser not authorized for this conversation");
                 }
 
                 var messages = await _context.Messages

@@ -25,7 +25,7 @@ public class UserSettingsController(ApplicationDbContext context, ILogger<UserSe
 
             var settings = await context.UserSettings.FirstOrDefaultAsync(s => s.UserId == userId);
             if (settings == null)
-                return NotFound(new { message = "Settings not found" });
+                return NotFound(new { message = "UserSettings not found" });
 
             settings.PublicProfile = dto.PublicProfile;
             settings.ShowGender = dto.ShowGender;
@@ -44,9 +44,9 @@ public class UserSettingsController(ApplicationDbContext context, ILogger<UserSe
 
             await context.SaveChangesAsync();
         
-            logger.LogInformation("User {UserId} updated settings.", userId);
+            logger.LogInformation("AppUser {UserId} updated settings.", userId);
 
-            return Ok(new { message = "Settings updated successfully" });
+            return Ok(new { message = "UserSettings updated successfully" });
         }
         catch (Exception ex)
         {

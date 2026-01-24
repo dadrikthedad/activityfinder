@@ -5,42 +5,42 @@ namespace AFBack.DTOs;
 public class PublicProfileDTO
 {
    
-    // BrukerID fra user.cs
+    // BrukerID fra appUser.cs
     public int UserId { get; set; }
     // Siden vi bruker samme Get til både bruker og andre brukere så må vi sjekke om det er eieren
     public bool IsOwner { get; set; }
-    // Navn fra User.cs
+    // Navn fra AppUser.cs
     public string FirstName { get; set; } = null!;
     public string? MiddleName { get; set; }
     public string LastName { get; set; } = null!;
     public string FullName { get; set; }
-    // Bilde fra Profile.cs
+    // Bilde fra UserProfile.cs
     public string? ProfileImageUrl { get; set; }
-    // bio fra Profile.cs
+    // bio fra UserProfile.cs
     public string? Bio { get; set; }
-    // websites fra Profile.cs
+    // websites fra UserProfile.cs
     public List<string> Websites { get; set; } = new();
-    // land fra User.cs
+    // land fra AppUser.cs
     public string? Country { get; set; }
-    // region fra User.cs
+    // region fra AppUser.cs
     public string? Region { get; set; }
-    // postalcode fra user.cs
+    // postalcode fra appUser.cs
     public string? PostalCode { get; set; }
-    // fødselsår fra user.cs
+    // fødselsår fra appUser.cs
     public DateTime DateOfBirth { get; set; }
     public int? Age { get; set; }
-    // kjønn fra User.cs
+    // kjønn fra AppUser.cs
     public Gender? Gender { get; set; }
-    // kontaktinfo fra Profile
+    // kontaktinfo fra UserProfile
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
-    // stats fra Profile.cs
+    // stats fra UserProfile.cs
     public int TotalLikesGiven { get; set; }
     public int TotalLikesRecieved { get; set; }
     public int TotalCommentsMade { get; set; }
     public int TotalMessagesRecieved { get; set; }
     public int TotalMessagesSendt { get; set; }
-    // Trenger jeg denne egentlig? Er fra User.cs
+    // Trenger jeg denne egentlig? Er fra AppUser.cs
     public DateTime? LastSeen { get; set; }
     // Denne trenger jeg nok ikke
     public DateTime? UpdatedAt { get; set; }

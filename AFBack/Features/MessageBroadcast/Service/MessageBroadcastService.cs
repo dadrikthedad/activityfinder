@@ -1,12 +1,17 @@
-using AFBack.Constants;
-using AFBack.Data;
-using AFBack.Features.MessageBroadcast.DTO.cs;
+using AFBack.Cache;
+using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.Extensions;
+using AFBack.Features.Conversation.Repository;
 using AFBack.Features.MessageBroadcast.Interface;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.Messaging.DTOs;
+using AFBack.Features.Messaging.DTOs.Response;
+using AFBack.Features.Messaging.Extensions;
+using AFBack.Features.Messaging.Repository;
+using AFBack.Features.SyncEvents.Enums;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
-using AFBack.Infrastructure.Services;
-using AFBack.Interface.Services;
-using AFBack.Models;
-using AFBack.Interface.Repository;
+using AFBack.Models.Enums;
 using AFBack.Services;
 using Microsoft.AspNetCore.SignalR;
 
@@ -14,201 +19,201 @@ using Microsoft.AspNetCore.SignalR;
 namespace AFBack.Features.MessageBroadcast.Service;
 
 public class MessageBroadcastService(
-    ApplicationDbContext context,
     ILogger<MessageBroadcastService> logger,
     IConversationRepository conversationRepository,
     IMessageRepository messageRepository,
     IHubContext<UserHub> hubContext,
-    IUserRepository userRepository,
     ISyncService syncService,
     IMessageNotificationService messageNotificationService,
     IBackgroundTaskQueue backgroundTaskQueue, 
-    IServiceScopeFactory serviceScopeFactory) : BaseService<MessageBroadcastService>(logger), IMessageBroadcastService
+    IServiceScopeFactory serviceScopeFactory,
+    IUserSummaryCacheService userSummariesCache) : IMessageBroadcastService
 {
-    /// <summary>
-    /// Her queuer vi SignalR, notifications og syncevents etter vi har sendt en melding
-    /// </summary>
-    /// <param name="messageId"></param>
-    /// <param name="conversationId"></param>
-    /// <param name="userId"></param>
-    /// <param name="sentAt"></param>
-    public void QueueNewMessageBackgroundTasks(int messageId, int conversationId, int userId, DateTime sentAt)
+    
+    // ======================================== Queue opp bakgrunnstasks ========================================
+    public void QueueNewMessageBackgroundTasks(int messageId, int conversationId, 
+        string? senderId)
     {
         backgroundTaskQueue.QueueAsync(async () =>
         {
             using var scope = serviceScopeFactory.CreateScope();
             var backgroundProcessor = scope.ServiceProvider.GetRequiredService<IMessageBroadcastService>();
-            await backgroundProcessor.ProcessMessageBroadcast(messageId, conversationId, userId, sentAt);
+            await backgroundProcessor.ProcessMessageBroadcast(messageId, conversationId, senderId);
         });
-
     }
+
+    // ======================================== Meldinger ========================================
     
-    /// <summary>
-    /// </summary>
-    /// <param name="messageId"></param>
-    /// <param name="conversationId"></param>
-    /// <param name="userId"></param>
-    /// <param name="sentAt"></param>
-    public async Task ProcessMessageBroadcast(int messageId, int conversationId, int userId, DateTime sentAt)
+    public async Task ProcessMessageBroadcast(int messageId, int conversationId, string? senderId)
     {
-        logger.LogDebug("MessageBroadcastService: Processing message broadcast for message Id {MessageId}", messageId);
+        logger.LogDebug("Processing message broadcast for message Id {MessageId}", messageId);
         
-        //Henter samtalen med participants
-        var conversation = await conversationRepository.GetConversation(conversationId);
-        
-        // Henter ut alle brukerIDene for å itere igjennom de i en dict, med key = UserId og Value = ConversationStatus
-        // De som har rejected uteblir
-        var participantsWithStatus = conversation!.Participants
-            .Where(cp => cp.ConversationStatus != ConversationStatus.Rejected)
-            .ToDictionary(cp => cp.UserId, cp => cp.ConversationStatus);
+        // Raskest mulig SignalR: Kjøre begge databasehentingene parallelt
+        // Henter ut samtalen som et ConversationResponse med cache
+        var getConversationTask = conversationRepository.GetConversationDtoAsync(conversationId);
         
         // Mapper og henter ut meldingen med alle egenskapene vi trenger
-        var response = await messageRepository.GetAndMapMessageEncryptedMessage(messageId);
+        var getMessageTask = messageRepository.GetMessageDtoAsync(messageId);
+        
+        await Task.WhenAll(getConversationTask, getMessageTask);
+
+        var conversationDto = getConversationTask.Result;
+        var messageDto = getMessageTask.Result;
+        
+        // Valider at meldingen og samtalen ble funnet
+        if (messageDto == null || conversationDto == null)
+        {
+            logger.LogError("Message {MessageId} or conversation {ConversationId} not found", 
+                messageId, conversationId);
+            throw new InvalidOperationException($"Message {messageId} or conversation {conversationId} not found" +
+                                                $"while broadcasting message");
+        }
+        
+        // Hent user summaries fra cache
+        var userIds = conversationDto.Participants.Select(p => p.UserId).ToList();
+
+        if (messageDto.SenderId != null)
+            userIds.Add(messageDto.SenderId);
+
+        if (!messageDto.IsDeleted && messageDto.ParentSenderId != null)
+            userIds.Add(messageDto.ParentSenderId);
+        
+        var users = await userSummariesCache.GetUserSummariesAsync(
+            userIds.Distinct().ToList());
+        
+        // Map til response
+        var conversationResponse = conversationDto.ToResponse(users);
+        var messageResponse = messageDto.ToResponse(users);
+        
+        // Oppdaterer samtalen med tiden når meldingen ble sendt
+        conversationResponse.LastMessageSentAt = messageResponse.SentAt;
         
         // Sender SignalR til alle brukerne utenom rejected og oss selv
-        await BroadcastSignalRAsync(participantsWithStatus, response, userId);
+        await BroadcastSignalRAsync(conversationResponse, messageResponse, senderId);
         
-        // Oppdaterer lastMessageSentAt i Conversation
-        conversation.LastMessageSentAt = sentAt;
-        await context.SaveChangesAsync();
+        await Task.WhenAll(
+        // Oppdaterer lastMessageSentAt i Conversations
+        conversationRepository.UpdateLastMessageSentAt(conversationId, messageResponse.SentAt),
         
-        // Oppretter og lager en meldingsforespørsel til brukerne som har godkjent/Creator, utenom brukeren som sender
-        await BroadcastMessageNotificationsAsync(participantsWithStatus, response, userId, conversationId);
-        
+        // Oppretter og lager en meldingsnotifikasjon til brukerne som har godkjent/Creator, utenom brukeren som sender
+        BroadcastMessageNotificationsAsync(conversationResponse, messageResponse, senderId),
+
         // Oppretter en Sync Event til alle brukerene, utenom rejected
-        await BroadcastSyncEventsAsync(participantsWithStatus, response, conversation);
+        BroadcastSyncEventsAsync(conversationResponse, messageResponse)
+        );
     }
 
     /// <summary>
-    /// Her mapper vi en EncryptedMessageBroadcastResponse og sender den via SignalR til brukerne som har godkjent eller
-    /// creator. Til brukerne som har pending så sender vi en IsSilent = true for å legge til meldingen i samtalen, men
-    /// ikke lage varsel/toast.
+    /// Her mapper vi en MessageResponse og sender den via SignalR til brukerne som har Accepted en samtale eller
+    /// creator. Til brukerne som har samtalen Pending så sender vi en IsSilent = true for å legge til meldingen i
+    /// samtalen, men ikke lage varsel/toast. Filtrerer bort Pending i gruppesamtaler
     /// </summary>
-    /// <param name="participantsWithStatus"></param>
+    /// <param name="conversationResponse"></param>
     /// <param name="response"></param>
-    /// <param name="userId"></param>
-    public async Task BroadcastSignalRAsync(Dictionary<int, ConversationStatus?> participantsWithStatus,  EncryptedMessageBroadcastResponse? response, int userId)
+    /// <param name="senderId"></param>
+    private async Task BroadcastSignalRAsync(ConversationResponse conversationResponse, 
+        MessageResponse response, string? senderId)
     {
-        // Sender SignalR til alle participants uten om selve brukeren. De med pedning får en silent for å ikke
-        // lage notifikasjon eller toast
-        var signalRTasks = participantsWithStatus.Where(kvp => kvp.Key != userId).Select(async kvp => 
+        // Sender SignalR til alle participants uten om selve brukern som har godkjent.
+        // De med pending i PendingRequest får en silent for å ikke lage notifikasjon eller toast
+        var signalRTasks = conversationResponse.Participants
+                // Hvis det er en gruppe, så filtrert vi bort Pending
+            .Where(p => p.User.Id != senderId && // Filterer bort avsender
+                        (conversationResponse.Type != ConversationType.GroupChat || // ikke-gruppe: Send til mottaker
+                         p.Status != ConversationStatus.Pending)) // Gruppe: kun accepted
+            .Select(async participant => 
         {
             try
             {
-                var userResponse = new EncryptedMessageBroadcastResponse
+                // Opprett et nytt Record/Response kun med forskjellig isSilent utifra om brukeren skal få notifikasjon
+                // Hvis Pending 1-1 samtale, ingen notifikasjon
+                var userResponse = response with
                 {
-                        
-                    Id = response!.Id,
-                    SenderId = response.Sender!.Id ,
-                    Sender = response.Sender,
-                    EncryptedText = response.EncryptedText,
-                    KeyInfo = response.KeyInfo,
-                    IV = response.IV,
-                    Version = response.Version,
-                    SentAt = response.SentAt,
-                    ConversationId = response.ConversationId, 
-                    // IsSilent bestemmes av om brukeren er pending eller accepted/creator
-                    IsSilent  = kvp.Value == ConversationStatus.Pending,
-                    EncryptedAttachments = response.EncryptedAttachments,
-                    Reactions = response.Reactions,
-                    ParentMessageId = response.ParentMessageId,
-                    ParentMessagePreview = response.ParentMessagePreview,
-                    ParentSender = response.ParentSender,
-                    IsSystemMessage = response.IsSystemMessage,
-                    IsDeleted = response.IsDeleted
+                    IsSilent = participant.Status == ConversationStatus.Pending
                 };
-                    
-                await hubContext.Clients.User(kvp.Key.ToString())
+                
+                await hubContext.Clients.User(participant.User.Id)
                     .SendAsync("IncomingMessage", userResponse);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "MessageBroadcastService: Failed to send message to user {UserId}", kvp.Key);
+                logger.LogWarning(ex, "Failed to send message to appUser {UserId}", participant.User.Id);
             }
-                
         });
         
         // Kjører alle SignalR-sendingene samtidig
         await Task.WhenAll(signalRTasks);
     }
-    
+
     /// <summary>
-    /// Vi filtrerer vekk  avsender og pending-participants, og lager en notification som samtidig blir laget i frontend
+    /// Vi filtrerer vekk avsender og pending-participants, og lager en notification som samtidig blir laget i frontend.
+    /// Systemmeldinger trenger ikke en MessageNotification da de blir laget alltid med egne notifications
     /// </summary>
-    /// <param name="participantsWithStatus"></param>
-    /// <param name="response"></param>
-    /// <param name="userId"></param>
-    /// <param name="conversationId"></param>
-    public async Task BroadcastMessageNotificationsAsync(Dictionary<int, ConversationStatus?> participantsWithStatus,
-        EncryptedMessageBroadcastResponse? response, int userId, int conversationId)
+    /// <param name="conversationResponse">Samtalen som har fått ny melding</param>
+    /// <param name="messageResponse">MessageResponse</param>
+    /// <param name="senderId">Avsender</param>
+    private async Task BroadcastMessageNotificationsAsync(ConversationResponse conversationResponse,
+        MessageResponse messageResponse, string? senderId)
     {
+        // Early return for systemmeldinger.
+        if (messageResponse.IsSystemMessage)
+            return;
+        
         // Sender MessageNotification til hver bruker som har har godkjent samtalen og ikke er oss selv
-        foreach (var kvp in participantsWithStatus.Where(kvp => kvp.Value != ConversationStatus.Pending && kvp.Key != userId))
+        var filteredParticipants = conversationResponse.Participants
+            .Where(p => p.User.Id != senderId
+                    && p.Status == ConversationStatus.Accepted)
+            .ToList();
+        
+        
+        foreach (var participant in filteredParticipants)
         {
             try
             {
-                await messageNotificationService.CreateMessageNotificationAsync(
-                    recipientUserId: kvp.Key,
-                    senderUserId: userId,
-                    conversationId: conversationId,
-                    messageId: response!.Id);
+                await messageNotificationService.CreateNewMessageNotificationAsync(
+                    participant.User.Id,
+                     senderId!,
+                    conversationResponse: conversationResponse,
+                    messageResponse: messageResponse
+                    );
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "MessageBroadcastService: Failed to create Message Notification for {UserId}", kvp.Key);
+                logger.LogWarning(ex, 
+                    "MessageBroadcastService: Failed to create Message Notification for {UserId}", 
+                    participant.User.Id);
             }
         }
     }
-    
+
     /// <summary>
-    /// Vi lager et Sync Event med NEW_MESSAGE og vi mapper meldingen og samtalen til en SyncEvent TODO: SJekke at denne stemmer med frontend
+    ///  Vi lager et Sync Event med NEW_MESSAGE og vi mapper meldingen og samtalen til en SyncEvent
     /// </summary>
-    /// <param name="participantsWithStatus"></param>
-    /// <param name="response"></param>
-    /// <param name="conversation"></param>
-    public async Task BroadcastSyncEventsAsync(Dictionary<int, ConversationStatus?> participantsWithStatus,
-        EncryptedMessageBroadcastResponse? response, Conversation? conversation)
+    /// <param name="conversationResponse"></param>
+    /// <param name="messageResponse"></param>
+    private async Task BroadcastSyncEventsAsync(ConversationResponse conversationResponse, 
+        MessageResponse messageResponse)
     {
         try
         {
-            // Henter bruker objektene. Vi gjør dette her og ikke tidligere for å la SignalR gå så fort som mulig
-            var users = await userRepository.GetUserSummaries(participantsWithStatus.Keys);
-            
-            // Mapper til riktig DTOer både for å lagre det i databasen, og til å senere sende til frontend med samme DTO
-            var mappedNewMessageSyncEvent = new EncryptedMessageSyncEvent
+            // Henter samtalen med participants for SyncEvents
+            var targetedUserIds = conversationResponse.Type == ConversationType.GroupChat
+                ? conversationResponse.Participants
+                    .Where(p => p.Status == ConversationStatus.Accepted)
+                    .Select(p => p.User.Id).ToList()
+                : conversationResponse.Participants
+                    .Select(p => p.User.Id).ToList();
+
+            await syncService.CreateSyncEventsAsync(targetedUserIds, SyncEventType.NewMessage, new
             {
-                Id = conversation!.Id,
-                IsGroup = conversation.IsGroup,
-                GroupName = conversation.GroupName,
-                GroupImageUrl = conversation.GroupImageUrl,
-                LastMessageSentAt = conversation.LastMessageSentAt,
-                Participants = participantsWithStatus.Select(kvp => new EncryptedMessageSyncEventParticipant
-                {
-                    Id = kvp.Key,
-                    FullName = users[kvp.Key].FullName,
-                    ProfileImageUrl = users[kvp.Key].ProfileImageUrl,
-                    ConversationStatus = kvp.Value
-                }).ToList()
-            };
-
-        
-            await syncService.CreateAndDistributeSyncEventAsync(
-                eventType: SyncEventTypes.NEW_MESSAGE,
-                eventData: new
-                {
-                    message = response,
-                    conversation = mappedNewMessageSyncEvent
-                },
-                targetUserIds: participantsWithStatus.Keys,
-                source: "API",
-                relatedEntityId: response!.Id,
-                relatedEntityType: "Message"
-
-            );
+                message = messageResponse,
+                conversation = conversationResponse
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "MessageBroadcastService: Failed to create sync event for encrypted message {MessageId}", response!.Id);
+            logger.LogError(ex, "Failed to create sync event for encrypted message {MessageId}", 
+                messageResponse.Id);
         }
     }
     

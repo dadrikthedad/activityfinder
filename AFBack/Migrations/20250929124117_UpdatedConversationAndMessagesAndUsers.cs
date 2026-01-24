@@ -24,7 +24,7 @@ namespace AFBack.Migrations
 
             migrationBuilder.AddColumn<string>(
                 name: "ProfileImageUrl",
-                table: "Users",
+                table: "AppUsers",
                 type: "character varying(500)",
                 maxLength: 500,
                 nullable: true);
@@ -50,7 +50,7 @@ namespace AFBack.Migrations
         {
             migrationBuilder.DropColumn(
                 name: "ProfileImageUrl",
-                table: "Users");
+                table: "AppUsers");
 
             migrationBuilder.DropColumn(
                 name: "ConversationStatus",

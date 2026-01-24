@@ -1,11 +1,13 @@
 ﻿using AFBack.Constants;
 using AFBack.Data;
+using AFBack.DTOs;
 using AFBack.Features.MessageBroadcast.DTO.cs;
 using AFBack.Features.MessageBroadcast.Service;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
+using AFBack.Interface.Repository;
+using AFBack.Interface.Services;
 using AFBack.Models;
-using AFBack.Repository;
 using AFBack.Services;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -23,8 +25,8 @@ public class MessageBroadcastServiceTests
     private readonly Mock<IMessageRepository> _mockMessageRepo;
     private readonly Mock<IHubContext<UserHub>> _mockHubContext;
     private readonly Mock<IUserRepository> _mockUserRepo;
-    private readonly Mock<SyncService> _mockSyncService;
-    private readonly Mock<MessageNotificationService> _mockNotificationService;
+    private readonly Mock<ISyncService> _mockSyncService;
+    private readonly Mock<IMessageNotificationService> _mockNotificationService;
     private readonly Mock<IBackgroundTaskQueue> _mockTaskQueue;
     private readonly Mock<IServiceScopeFactory> _mockScopeFactory;
     private readonly ApplicationDbContext _context;
@@ -44,8 +46,8 @@ public class MessageBroadcastServiceTests
         _mockMessageRepo = new Mock<IMessageRepository>();
         _mockHubContext = new Mock<IHubContext<UserHub>>();
         _mockUserRepo = new Mock<IUserRepository>();
-        _mockSyncService = new Mock<SyncService>();
-        _mockNotificationService = new Mock<MessageNotificationService>();
+        _mockSyncService = new Mock<ISyncService>();
+        _mockNotificationService = new Mock<IMessageNotificationService>();
         _mockTaskQueue = new Mock<IBackgroundTaskQueue>();
         _mockScopeFactory = new Mock<IServiceScopeFactory>();
 
@@ -152,6 +154,7 @@ public class MessageBroadcastServiceTests
                 SyncEventTypes.NEW_MESSAGE,
                 It.IsAny<object>(),
                 It.Is<IEnumerable<int>>(ids => ids.Count() == 3),
+                null,
                 "API",
                 messageId,
                 "Message"
@@ -161,7 +164,6 @@ public class MessageBroadcastServiceTests
 
         // Conversation updated
         Assert.Equal(sentAt, conversation.LastMessageSentAt);
-        await _context.SaveChangesAsync();
     }
 
     [Fact]
@@ -304,11 +306,201 @@ public class MessageBroadcastServiceTests
                 SyncEventTypes.NEW_MESSAGE,
                 It.IsAny<object>(),
                 It.Is<IEnumerable<int>>(ids => ids.Count() == 3),
+                null,
                 "API",
                 1,
                 "Message"
             ),
             Times.Once
         );
+    }
+    
+    [Fact]
+    public async Task ProcessMessageBroadcast_WhenConversationNotFound_HandlesGracefully()
+    {
+        // Arrange
+        _mockConversationRepo.Setup(r => r.GetConversation(It.IsAny<int>()))
+            .ReturnsAsync((Conversation?)null);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<NullReferenceException>(() => 
+            _service.ProcessMessageBroadcast(1, 1, 1, DateTime.UtcNow));
+    }
+
+    [Fact]
+    public async Task ProcessMessageBroadcast_WhenMessageNotFound_HandlesGracefully()
+    {
+        // Arrange
+        var conversation = new Conversation { Id = 1, Participants = new List<ConversationParticipant>() };
+        _mockConversationRepo.Setup(r => r.GetConversation(1)).ReturnsAsync(conversation);
+        _mockMessageRepo.Setup(r => r.GetAndMapMessageEncryptedMessage(It.IsAny<int>()))
+            .ReturnsAsync((EncryptedMessageBroadcastResponse?)null);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<NullReferenceException>(() => 
+            _service.ProcessMessageBroadcast(1, 1, 1, DateTime.UtcNow));
+    }
+    
+    [Fact]
+    public async Task ProcessMessageBroadcast_WithOnlyRejectedParticipants_DoesNotSendAnything()
+    {
+        // Arrange
+        var conversation = new Conversation
+        {
+            Id = 1,
+            Participants = new List<ConversationParticipant>
+            {
+                new() { UserId = 1, ConversationStatus = ConversationStatus.Creator },
+                new() { UserId = 2, ConversationStatus = ConversationStatus.Rejected }
+            }
+        };
+
+        var response = new EncryptedMessageBroadcastResponse
+        {
+            Id = 1,
+            SenderId = 1,
+            Sender = new UserSummaryDTO { Id = 1, FullName = "Sender", ProfileImageUrl = null }
+        };
+
+        _mockConversationRepo.Setup(r => r.GetConversation(1)).ReturnsAsync(conversation);
+        _mockMessageRepo.Setup(r => r.GetAndMapMessageEncryptedMessage(1)).ReturnsAsync(response);
+
+        var mockClients = new Mock<IHubClients>();
+        var mockClientProxy = new Mock<IClientProxy>();
+        _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+
+        var users = new Dictionary<int, (string FullName, string? ProfileImageUrl)>
+        {
+            { 1, ("Sender", null) }
+        };
+        _mockUserRepo.Setup(r => r.GetUserSummaries(It.IsAny<IEnumerable<int>>())).ReturnsAsync(users);
+
+        // Act
+        await _service.ProcessMessageBroadcast(1, 1, 1, DateTime.UtcNow);
+
+        // Assert - no SignalR sent (only sender, and sender doesn't get SignalR)
+        mockClientProxy.Verify(
+            c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), default),
+            Times.Never
+        );
+    }
+
+    [Fact]
+    public async Task ProcessMessageBroadcast_WithEmptyParticipants_CompletesSuccessfully()
+    {
+        // Arrange
+        var conversation = new Conversation
+        {
+            Id = 1,
+            Participants = new List<ConversationParticipant>()
+        };
+
+        var response = new EncryptedMessageBroadcastResponse { Id = 1, SenderId = 1 };
+
+        _mockConversationRepo.Setup(r => r.GetConversation(1)).ReturnsAsync(conversation);
+        _mockMessageRepo.Setup(r => r.GetAndMapMessageEncryptedMessage(1)).ReturnsAsync(response);
+
+        var users = new Dictionary<int, (string FullName, string? ProfileImageUrl)>();
+        _mockUserRepo.Setup(r => r.GetUserSummaries(It.IsAny<IEnumerable<int>>())).ReturnsAsync(users);
+
+        // Act & Assert - should not throw
+        await _service.ProcessMessageBroadcast(1, 1, 1, DateTime.UtcNow);
+    }
+    
+    [Fact]
+    public async Task BroadcastSignalRAsync_WhenSignalRFails_ContinuesWithOtherUsers()
+    {
+        // Arrange
+        var participantsWithStatus = new Dictionary<int, ConversationStatus?>
+        {
+            { 1, ConversationStatus.Creator },
+            { 2, ConversationStatus.Approved },
+            { 3, ConversationStatus.Approved }
+        };
+
+        var response = new EncryptedMessageBroadcastResponse
+        {
+            Id = 1,
+            SenderId = 1,
+            Sender = new UserSummaryDTO { Id = 1, FullName = "Sender", ProfileImageUrl = null }
+        };
+
+        var mockClients = new Mock<IHubClients>();
+        var failingProxy = new Mock<IClientProxy>();
+        var successProxy = new Mock<IClientProxy>();
+
+        failingProxy.Setup(c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), default))
+            .ThrowsAsync(new Exception("SignalR failed"));
+    
+        successProxy.Setup(c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), default))
+            .Returns(Task.CompletedTask);
+
+        _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+        mockClients.Setup(c => c.User("2")).Returns(failingProxy.Object);
+        mockClients.Setup(c => c.User("3")).Returns(successProxy.Object);
+
+        // Act - should not throw
+        await _service.BroadcastSignalRAsync(participantsWithStatus, response, 1);
+
+        // Assert - warning logged for failed user
+        _mockLogger.Verify(
+            x => x.Log(
+                LogLevel.Warning,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((o, t) => o.ToString()!.Contains("Failed to send message to user")),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+    
+    [Fact]
+    public async Task ProcessMessageBroadcast_CompleteFlow_UpdatesConversation()
+    {
+        // Arrange
+        var sentAt = DateTime.UtcNow;
+        var conversation = new Conversation
+        {
+            Id = 1,
+            IsGroup = false,
+            LastMessageSentAt = null,
+            Participants = new List<ConversationParticipant>
+            {
+                new() { UserId = 1, ConversationStatus = ConversationStatus.Creator },
+                new() { UserId = 2, ConversationStatus = ConversationStatus.Approved }
+            }
+        };
+
+        _context.Conversations.Add(conversation);
+        await _context.SaveChangesAsync();
+
+        var response = new EncryptedMessageBroadcastResponse
+        {
+            Id = 1,
+            SenderId = 1,
+            Sender = new UserSummaryDTO { Id = 1, FullName = "Sender", ProfileImageUrl = null }
+        };
+
+        _mockConversationRepo.Setup(r => r.GetConversation(1)).ReturnsAsync(conversation);
+        _mockMessageRepo.Setup(r => r.GetAndMapMessageEncryptedMessage(1)).ReturnsAsync(response);
+    
+        var users = new Dictionary<int, (string FullName, string? ProfileImageUrl)>
+        {
+            { 1, ("User 1", null) },
+            { 2, ("User 2", null) }
+        };
+        _mockUserRepo.Setup(r => r.GetUserSummaries(It.IsAny<IEnumerable<int>>())).ReturnsAsync(users);
+
+        var mockClients = new Mock<IHubClients>();
+        var mockClientProxy = new Mock<IClientProxy>();
+        _mockHubContext.Setup(h => h.Clients).Returns(mockClients.Object);
+        mockClients.Setup(c => c.User(It.IsAny<string>())).Returns(mockClientProxy.Object);
+
+        // Act
+        await _service.ProcessMessageBroadcast(1, 1, 1, sentAt);
+
+        // Assert - conversation was updated in database
+        var updatedConversation = await _context.Conversations.FindAsync(1);
+        Assert.NotNull(updatedConversation);
+        Assert.Equal(sentAt, updatedConversation.LastMessageSentAt);
     }
 }

@@ -1,0 +1,753 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AFBack</name>
+    </assembly>
+    <members>
+        <member name="M:SendMessageCache.CanUserSendAsync(System.Int32,System.Int32)">
+            <summary>
+            Sjekker om en bruker kan sende meldinger til en samtale (med cache)
+            </summary>
+        </member>
+        <member name="M:SendMessageCache.GetUserCanSendConversationsAsync(System.Int32)">
+            <summary>
+            Henter alle samtaler en bruker kan sende til (med cache)
+            </summary>
+        </member>
+        <member name="M:SendMessageCache.GetConversationIfUserCanSendAsync(System.Int32,System.Int32)">
+            <summary>
+            Henter samtalen bruker prøver å sende melding til (med cache)
+            </summary>
+        </member>
+        <member name="M:SendMessageCache.OnCanSendAddedAsync(System.Int32,System.Int32,AFBack.Models.CanSend)">
+            <summary>
+            Oppdaterer cache når en ny CanSend legges til
+            </summary>
+        </member>
+        <member name="M:SendMessageCache.OnCanSendRemoved(System.Int32,System.Int32)">
+            <summary>
+            Oppdaterer cache når en CanSend fjernes
+            </summary>
+        </member>
+        <member name="M:SendMessageCache.InvalidateUserConversationCache(System.Int32,System.Int32)">
+            <summary>
+            Invaliderer all cache for en bruker og samtale
+            </summary>
+        </member>
+        <member name="M:AFBack.Controllers.BaseController`1.ValidateUserExists">
+            <summary>
+            Validerer at brukeren eksisterer i cache eller databasen. Returnerer ingenting
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Controllers.BaseController`1.FullValidateAndGetIdFromToken">
+            <summary>
+            Validerer UserId fra token og returnerer userId
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Controllers.BaseController`1.ValidateAndGetIdFromToken``1">
+            <summary>
+            Validerer UserId fra token og returnerer userId
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Controllers.BaseController`1.ValidateUser(AFBack.Models.User)">
+            <summary>
+            Valider at det er en token og at den ikke er null
+            </summary>
+            <param name="user"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Controllers.BaseController`1.ValidateCondition(System.Boolean,System.String,System.String,System.Object[])">
+            <summary>
+            Tar inn en condition og returnerer null eller 
+            </summary>
+            <param name="condition"></param>
+            <param name="logMessage"></param>
+            <param name="errorMessage"></param>
+            <param name="logParams"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Controllers.BaseController`1.ValidateCondition``1(System.Boolean,System.String,System.String,System.Object[])">
+            <summary>
+            
+            </summary>
+            <param name="condition"></param>
+            <param name="logMessage"></param>
+            <param name="errorMessage"></param>
+            <param name="logParams"></param>
+            <typeparam name="T"></typeparam>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Controllers.E2EEController.StorePublicKey(AFBack.DTOs.Crypto.StorePublicKeyRequestDTO)">
+            <summary>
+            Store or update user's public key for E2EE
+            </summary>
+        </member>
+        <member name="M:AFBack.Controllers.E2EEController.GetConversationKeys(System.Int32)">
+            <summary>
+            Get public keys for all participants in a conversation
+            </summary>
+        </member>
+        <member name="M:AFBack.Controllers.E2EEController.GetPublicKeysForUsers(System.Collections.Generic.List{System.Int32})">
+            <summary>
+            Get public keys for specific users (for direct messages)
+            </summary>
+        </member>
+        <member name="M:AFBack.Controllers.E2EEController.GetMyPublicKey">
+            <summary>
+            Get current user's public key (for checking E2EE setup status)
+            </summary>
+        </member>
+        <member name="M:AFBack.Controllers.MessagesController.GetEncryptedMessages(System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Get encrypted messages for a conversation
+            </summary>
+        </member>
+        <member name="T:AFBack.DTOs.Crypto.EncryptedMessageAttachments.SendEncryptedMessageWithFilesRequestDTO">
+            <summary>
+            DTOen som kommer som en forespørsel når en bruker sender en melding
+            </summary>
+        </member>
+        <member name="T:AFBack.DTOs.Crypto.EncryptedMessageAttachments.EncryptedFileDataRequestDto">
+            <summary>
+            Inneholder en attachment til en SendEncryptedMessageWithFilesRequestDTO
+            </summary>
+        </member>
+        <member name="T:AFBack.DTOs.Crypto.EncryptedMessageAttachments.SendEncryptedMessageResponseDTO">
+            <summary>
+            Response på en melding til frontend
+            </summary>
+        </member>
+        <member name="T:AFBack.DTOs.Crypto.EncryptedMessageAttachments.AttachmentResponseDto">
+            <summary>
+             Response på en attachment til frontend
+            </summary>
+        </member>
+        <member name="M:AFBack.Extensions.IpBanExtensions.ReportSuspiciousActivityAsync(Microsoft.AspNetCore.Mvc.ControllerBase,AFBack.Interface.Services.IIpBanService,System.String,System.String,Microsoft.Extensions.Logging.ILogger)">
+            <summary>
+            Rapporterer mistenkelig aktivitet fra business logic (duplicate email, validation failures, etc.)
+            </summary>
+        </member>
+        <member name="M:AFBack.Features.Cache.UserCache.UserExistsAsync(System.Int32)">
+            <summary>
+            Sjekker om brukeren eksisterer med cache
+            </summary>
+            <param name="userId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.Cache.UserCache.GetUserAsync(System.Int32)">
+            <summary>
+            Henter bruker objektet med Cache
+            </summary>
+            <param name="userId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.Cache.UserCache.InvalidateUserCache(System.Int32)">
+            <summary>
+            Invaldierer brukeren i UserCache
+            </summary>
+            <param name="userId"></param>
+        </member>
+        <member name="M:AFBack.Features.MessageBroadcast.Service.MessageBroadcastService.QueueNewMessageBackgroundTasks(System.Int32,System.Int32,System.Int32,System.DateTime)">
+            <summary>
+            Her queuer vi SignalR, notifications og syncevents etter vi har sendt en melding
+            </summary>
+            <param name="messageId"></param>
+            <param name="conversationId"></param>
+            <param name="userId"></param>
+            <param name="sentAt"></param>
+        </member>
+        <member name="M:AFBack.Features.MessageBroadcast.Service.MessageBroadcastService.ProcessMessageBroadcast(System.Int32,System.Int32,System.Int32,System.DateTime)">
+            <summary>
+            </summary>
+            <param name="messageId"></param>
+            <param name="conversationId"></param>
+            <param name="userId"></param>
+            <param name="sentAt"></param>
+        </member>
+        <member name="M:AFBack.Features.MessageBroadcast.Service.MessageBroadcastService.BroadcastSignalRAsync(System.Collections.Generic.Dictionary{System.Int32,System.Nullable{AFBack.Models.ConversationStatus}},AFBack.Features.MessageBroadcast.DTO.cs.EncryptedMessageBroadcastResponse,System.Int32)">
+            <summary>
+            Her mapper vi en EncryptedMessageBroadcastResponse og sender den via SignalR til brukerne som har godkjent eller
+            creator. Til brukerne som har pending så sender vi en IsSilent = true for å legge til meldingen i samtalen, men
+            ikke lage varsel/toast.
+            </summary>
+            <param name="participantsWithStatus"></param>
+            <param name="response"></param>
+            <param name="userId"></param>
+        </member>
+        <member name="M:AFBack.Features.MessageBroadcast.Service.MessageBroadcastService.BroadcastMessageNotificationsAsync(System.Collections.Generic.Dictionary{System.Int32,System.Nullable{AFBack.Models.ConversationStatus}},AFBack.Features.MessageBroadcast.DTO.cs.EncryptedMessageBroadcastResponse,System.Int32,System.Int32)">
+            <summary>
+            Vi filtrerer vekk  avsender og pending-participants, og lager en notification som samtidig blir laget i frontend
+            </summary>
+            <param name="participantsWithStatus"></param>
+            <param name="response"></param>
+            <param name="userId"></param>
+            <param name="conversationId"></param>
+        </member>
+        <member name="M:AFBack.Features.MessageBroadcast.Service.MessageBroadcastService.BroadcastSyncEventsAsync(System.Collections.Generic.Dictionary{System.Int32,System.Nullable{AFBack.Models.ConversationStatus}},AFBack.Features.MessageBroadcast.DTO.cs.EncryptedMessageBroadcastResponse,AFBack.Models.Conversation)">
+            <summary>
+            Vi lager et Sync Event med NEW_MESSAGE og vi mapper meldingen og samtalen til en SyncEvent TODO: SJekke at denne stemmer med frontend
+            </summary>
+            <param name="participantsWithStatus"></param>
+            <param name="response"></param>
+            <param name="conversation"></param>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Factories.SendMessageFactory.CreateMessageWithAttachments(AFBack.Features.SendMessage.DTOs.SendMessageRequest,System.Int32,System.Collections.Generic.List{AFBack.Features.SendMessage.DTOs.UploadedAttachment})">
+            <summary>
+            Hjelpemetode for å bestemme om vi skal kune kjøre CreateMessage eller CreateAttachments ogspå
+            </summary>
+            <param name="request"></param>
+            <param name="userId"></param>
+            <param name="attachments"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Factories.SendMessageFactory.CreateMessage(AFBack.Features.SendMessage.DTOs.SendMessageRequest,System.Int32)">
+            <summary>
+            Vi mapper til et Message objekt
+            </summary>
+            <param name="request"></param>
+            <param name="userId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Factories.SendMessageFactory.CreateAttachments(System.Collections.Generic.List{AFBack.Features.SendMessage.DTOs.UploadedAttachment},AFBack.Models.Message)">
+            <summary>
+            Vi mapper attachmetns til message-objektet
+            </summary>
+            <param name="attachments"></param>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.ResponseBuilder.SendMessageResponseBuilder.BuildResponse(AFBack.Models.Message,System.Collections.Generic.List{AFBack.Features.SendMessage.DTOs.UploadedAttachment})">
+            <summary>
+            Bygger responsen for SendMessageAsync
+            </summary>
+            <param name="message"></param>
+            <param name="attachments"></param>
+            <returns></returns>
+            <exception cref="T:System.InvalidOperationException"></exception>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Services.SendMessageService.SendMessageAsync(AFBack.Features.SendMessage.DTOs.SendMessageRequest,System.Int32)">
+            <summary>
+            Validerer og lagrer en melding i databasen, samt setter singalr og syncevent-opprettelse i kø etter rask response
+            </summary>
+            <param name="request"></param>
+            <param name="userId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Services.SendMessageService.UploadAttachment(AFBack.Features.SendMessage.DTOs.SendMessageRequest,System.Int32)">
+            <summary>
+            Her laster vi opp krypterte attachments som kommer SendMessageAsync
+            </summary>
+            <param name="request"></param>
+            <param name="userId"></param>
+            <returns></returns>
+            <exception cref="T:AFBack.Infrastructure.Middleware.ValidationException"></exception>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Validators.SendMessageValidator.ValidateSendMessageAsync(AFBack.Features.SendMessage.DTOs.SendMessageRequest,System.Int32)">
+            <summary>
+            Hovedvalideringsmetoden som kaller de andre valideringene. Brukes i SendMessageAsync. Retunrer ingenting, men
+            kaster exception hvis noe er galt
+            </summary>
+            <param name="request"></param>
+            <param name="userId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Validators.SendMessageValidator.ValidateUserParticipants(AFBack.Models.Conversation,System.Int32)">
+            <summary>
+            Henter oss selv som en participant, sjekker at vi er participant, at vi ikke har slettet samtalen og at
+            vi har godkjent den
+            </summary>
+            <param name="conversation"></param>
+            <param name="userId"></param>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Validators.SendMessageValidator.ValidateParentMessageExists(System.Int32)">
+            <summary>
+            Sjekker at ParentMessage eksisterer
+            </summary>
+            <param name="parentMessageId"></param>
+        </member>
+        <member name="M:AFBack.Features.SendMessage.Validators.SendMessageValidator.ValidateOneOnOneConversation(AFBack.Models.Conversation,System.Int32)">
+            <summary>
+            Vi validerer dataen gjelder 1-1 samtaler. Henter og valdierer mottaker, sjekker blokkeringer og om mottaker
+            har godkjent samtalen
+            </summary>
+            <param name="conversation"></param>
+            <param name="userId"></param>
+            <exception cref="T:AFBack.Infrastructure.Middleware.ValidationException"></exception>
+        </member>
+        <member name="M:AFBack.Infrastructure.Middleware.GlobalExceptionHandler.TryHandleAsync(Microsoft.AspNetCore.Http.HttpContext,System.Exception,System.Threading.CancellationToken)">
+            <summary>
+            Fanger opp alle exceptions vi ikke håndterer selv med egendefinerte feilmeldinger og logginger
+            </summary>
+            <param name="httpContext"></param>
+            <param name="exception"></param>
+            <param name="cancellationToken"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.RateLimiterExtensions.AddCustomRateLimiter(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Tar imot IServiceCollection-objektet og legger til custom Rate limiter.
+            Vi lager GlobalLimit som er et sikkerhetsnett for alle endepunkter, og policyer som brukes på kontrollerne våre
+            </summary>
+            <param name="services"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.RateLimiterExtensions.HandleRateLimitRejection(Microsoft.AspNetCore.RateLimiting.OnRejectedContext,System.Threading.CancellationToken)">
+            <summary>
+            Her håndtere vi strikes og hvis en bruker får mange nok strikes så blir de midlertidig/permanent bannet.
+            Denne metoden kjøres kun hvis en rate limit blir nådd
+            </summary>
+            <param name="context"></param>
+            <param name="cancellationToken"></param>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ServiceCollectionExtensions.AddCoreInfrastructure(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Her legger vi til hovedinfrastrukturen til Program.cs. Dette må være tidlig
+            </summary>
+            <param name="services"></param>
+            <param name="configuration"></param>
+            <returns></returns>
+            <exception cref="T:System.Exception"></exception>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ServiceCollectionExtensions.AddSignalr(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Vi legger til SiglanR med konfiguration om å ha CamelCase og JSON-string
+            </summary>
+            <param name="services"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ServiceCollectionExtensions.AddSecurityServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Legger til sikkerhetsrelatert servicer til Programmet
+            </summary>
+            <param name="services"></param>
+            <param name="configuration"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ServiceCollectionExtensions.AddBackgroundServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Legger til det som kjører i bakgrunn, cleanup og queuing
+            </summary>
+            <param name="services"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ServiceCollectionExtensions.AddRepositories(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Legger til repositories
+            </summary>
+            <param name="services"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ServiceCollectionExtensions.AddBusinessServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
+            <summary>
+            Legger til alle business servicene
+            </summary>
+            <param name="services"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationBuilderExtensions.ConfigureLogging(Microsoft.AspNetCore.Builder.WebApplicationBuilder)">
+            <summary>
+            Setter opp Serilog og relaterte innstillinger
+            </summary>
+            <param name="builder"></param>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationBuilderExtensions.ConfigureForwardHeaders(Microsoft.AspNetCore.Builder.WebApplicationBuilder)">
+            <summary>
+            Her setter vi opp forwardheaders for å hente ip,device etc
+            </summary>
+            <param name="builder"></param>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationBuilderExtensions.ConfigureCors(Microsoft.AspNetCore.Builder.WebApplicationBuilder)">
+            <summary>
+            Legger opp Cors slik at vi kan prate med frontendene
+            </summary>
+            <param name="builder"></param>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationBuilderExtensions.ConfigureControllers(Microsoft.AspNetCore.Builder.WebApplicationBuilder)">
+            <summary>
+             Setter opp kontrollerne med Json Options og validering
+            </summary>
+            <param name="builder"></param>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationBuilderExtensions.ConfigureAuthentication(Microsoft.AspNetCore.Builder.WebApplicationBuilder)">
+            <summary>
+             Setter opp våre JWTToken
+            </summary>
+            <param name="builder"></param>
+            <exception cref="T:System.Exception"></exception>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationBuilderExtensions.ConfigureSwagger(Microsoft.AspNetCore.Builder.WebApplicationBuilder)">
+            <summary>
+            Setter opp Swagger
+            </summary>
+            <param name="builder"></param>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.WebApplicationExtensions.UseAppPipeline(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Her aktivrer vi og setter opp alt vi har tidligere lagt til i builderen etter appen har startet
+            </summary>
+            <param name="app"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.BaseService`1.ValidateAndThrow(System.Boolean,System.String,System.String,System.Object[])">
+            <summary>
+            Vi sjekker en condition om den er true hvis ikke så logger vi det og kaster en exception
+            </summary>
+            <param name="condition"></param>
+            <param name="logMessage"></param>
+            <param name="userMessage"></param>
+            <param name="logParams"></param>
+            <exception cref="T:System.Exception"></exception>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Success``1(``0,System.String)">
+            <summary>
+            Ved suksess så sender vi data med denne metoden
+            </summary>
+            <param name="data">DTOen</param>
+            <param name="message">Suksess meldingen</param>
+            <typeparam name="T">Typen data, feks MessageResponse</typeparam>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Success(System.String)">
+            <summary>
+            Ved suksess når vi ikke har noe data å sende tilbake
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.BadRequest(System.String)">
+            <summary>
+            Hvis noe data ikke er korrekt, så returner vi denne til frontend
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.BadRequest``1(System.String)">
+            <summary>
+            Hvis noe data ikke er korrekt, så returner vi denne til frontend
+            Generisk metode som brukes der det er response
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.ValidationError(Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary)">
+            <summary>
+            Hvis noe ikke er validert korrekt så returner vi en (400)
+            </summary>
+            <param name="modelState"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.NotFound(System.String)">
+            <summary>
+            Hvis et endepunkt ikke finnes så returner vi denne
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.NotFound``1(System.String)">
+            <summary>
+            Hvis et endepunkt ikke finnes så returner vi denne
+            /// Generisk metode som brukes der det er response
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Unauthorized(System.String)">
+            <summary>
+            Vi returnerer denne hvis brukeren ikke er authenticated
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Unauthorized``1(System.String)">
+            <summary>
+            Vi returnerer denne hvis brukeren ikke er authenticated
+            Generisk metode som brukes der det er response
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Forbidden(System.String)">
+            <summary>
+            Hvis en bruker prøver å få tilgang til noe de ikke har
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Forbidden``1(System.String)">
+            <summary>
+            Hvis en bruker prøver å få tilgang til noe de ikke har
+            Generisk metode som brukes der det er response
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Conflict(System.String)">
+            <summary>
+            Hvis vi prøver å opprette noe allerede eksisterende så bruker vi denne
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Conflict``1(System.String)">
+            <summary>
+            Hvis vi prøver å opprette noe allerede eksisterende så bruker vi denne
+            Generisk metode som brukes der det er response
+            </summary>
+            <param name="message"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.ServerError``1(System.String)">
+            <summary>
+            Hvis noe er galt på serveren så returner vi denne
+            </summary>
+            <param name="message"></param>
+            <typeparam name="T"></typeparam>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.Created``1(``0,System.String,System.String)">
+            <summary>
+            Når vi har opprettet et object og trenger å returnere det
+            </summary>
+            <param name="data"></param>
+            <param name="location"></param>
+            <param name="message"></param>
+            <typeparam name="T"></typeparam>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.NotModified">
+            <summary>
+            Når ikke noe innhold har endret seg
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Infrastructure.Services.ResponseService.NoContent">
+            <summary>
+            Når innhold ble slettet
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Interface.Repository.ConversationRepository.GetConversation(System.Int32)">
+            <summary>
+            Henter en samtale fra databasen med participants
+            </summary>
+            <param name="conversationId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Interface.Repository.ConversationRepository.GetConversationWithUsers(System.Int32)">
+            <summary>
+            Henter en samtale fra databasen med participants og tilhørende bruker-objekter
+            </summary>
+            <param name="conversationId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Interface.Repository.MessageRepository.MessageExists(System.Int32)">
+            <summary>
+            Gjør en rask sjekk om en melding eksisterer og returnere en bool
+            </summary>
+            <param name="messageId"></param>
+            <returns>bool</returns>
+        </member>
+        <member name="M:AFBack.Interface.Repository.MessageRepository.GetAndMapMessageEncryptedMessage(System.Int32)">
+            <summary>
+            Rask metode som henter  og mapper en melding og relaterte objekter.
+            Sender, ParentSender, EncryptedAttachment og Reactions.
+            </summary>
+            <param name="messageId"></param>
+            <returns>EncryptedMessageBroadcastResponse</returns>
+        </member>
+        <member name="M:AFBack.Interface.Repository.UserRepository.UserExistsAsync(System.Int32)">
+            <summary>
+            Sjekker om brukeren finnes i databasen. Bruker egentlig Cache for dette
+            </summary>
+            <param name="userId"></param>
+            <returns></returns>
+        </member>
+        <member name="M:AFBack.Interface.Repository.UserRepository.GetUserSummaries(System.Collections.Generic.IEnumerable{System.Int32})">
+            <summary>
+            Henter alle brukere tilhørenende en liste og returner en ordbok med key = UserId og value = user.FulleName og
+            user.ProfileImageUrl
+            </summary>
+            <param name="userIds"></param>
+            <returns></returns>
+        </member>
+        <member name="T:AFBack.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AFBack.Migrations.FixMessageAttachmentForeignKey">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.FixMessageAttachmentForeignKey.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.FixMessageAttachmentForeignKey.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.FixMessageAttachmentForeignKey.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AFBack.Migrations.UpdatedConversationAndMessagesAndUsers">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.UpdatedConversationAndMessagesAndUsers.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.UpdatedConversationAndMessagesAndUsers.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Migrations.UpdatedConversationAndMessagesAndUsers.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AFBack.Services.FriendService.GetPendingFriendInvitationsAsync(System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Hent ventende venneforespørsler for en bruker med paginering
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.FriendService.GetPendingFriendInvitationsForBootstrapAsync(System.Int32,System.Int32)">
+            <summary>
+            Bootstrap wrapper - returnerer kun invitations
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.GroupNotificationService.SendGroupNotificationUpdatesAsync(System.Int32,System.Collections.Generic.List{System.Int32},System.Nullable{AFBack.Models.GroupEventType},System.Collections.Generic.List{System.Int32})">
+            <summary>
+            Sender oppdaterte GroupNotifications til alle godkjente medlemmer i en samtale
+            </summary>
+            <param name="conversationId">ID for samtalen som skal oppdateres</param>
+            <param name="excludeUserIds">Brukere som skal ekskluderes fra oppdateringen (valgfritt)</param>
+        </member>
+        <member name="M:AFBack.Services.IBackgroundTaskQueue.QueueAsync(System.Func{System.Threading.Tasks.Task})">
+            <summary>Legg et asynkront arbeid i køen.</summary>
+        </member>
+        <member name="M:AFBack.Services.IBackgroundTaskQueue.DequeueAsync(System.Threading.CancellationToken)">
+            <summary>Hent neste arbeid når det er klart.</summary>
+        </member>
+        <member name="M:AFBack.Services.MessageService.SendEncryptedMessageAsync(System.Int32,AFBack.DTOs.Crypto.SendEncryptedMessageRequestDTO)">
+            
+            
+            
+            
+        </member>
+        <member name="M:AFBack.Services.IpBanService.PerformDatabaseCleanupAsync(System.Collections.Generic.List{System.String},System.Collections.Generic.List{System.String})">
+            <summary>
+            NYTT: Utfører database cleanup med begrenset samtidighet
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.IpBanService.PerformThrottledCleanupAsync(System.Func{System.Threading.Tasks.Task},System.String,System.String)">
+            <summary>
+            NYTT: Utfører throttled cleanup med semaphore
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.GenerateSyncToken">
+            <summary>
+            Generer ny sync token
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.ValidateTokenHash(AFBack.Extensions.SyncEventExtensions.SyncToken)">
+            <summary>
+            Validér token hash
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.GenerateTokenHash(System.DateTime,System.Int32)">
+            <summary>
+            Generer hash for token (for integritet/validering)
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.ParseSyncToken(System.String)">
+            <summary>
+            Parse sync token
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.CreateSyncEventAsync(System.Int32,System.String,System.Object,System.String,System.Nullable{System.Int32},System.String)">
+            <summary>
+            Lag en sync event
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.CreateSyncEventsForMultipleUsersAsync(System.Collections.Generic.IEnumerable{System.Int32},System.String,System.Object,System.String,System.Nullable{System.Int32},System.String)">
+            <summary>
+            Lag sync events for flere brukere samtidig (f.eks. gruppe meldinger)
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.GetEventsSinceAsync(System.Int32,System.String)">
+            <summary>
+            Hent events siden siste sync
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.SyncService.CreateAndDistributeSyncEventAsync(System.String,System.Object,System.Collections.Generic.IEnumerable{System.Int32},System.Nullable{System.Int32},System.String,System.Nullable{System.Int32},System.String)">
+            <summary>
+            Universal metode for å opprette sync events - kan brukes overalt
+            </summary>
+        </member>
+        <member name="M:AFBack.Services.UserOnlineService.SetWebSocketConnectedAsync(System.Int32,System.String,System.String,System.String,System.String[],System.Object)">
+            <summary>
+            Registrer WebSocket som tilkoblet for spesifikk enhet
+            </summary>
+        </member>
+        <!-- Badly formed XML comment ignored for member "M:AFBack.Services.UserOnlineService.SetWebSocketDisconnectedAsync(System.Int32,System.String,System.String,System.String)" -->
+        <member name="M:AFBack.Services.UserOnlineService.CleanupStaleConnectionsAsync">
+            <summary>
+            Rydd opp /////////////////////////////////////////
+            </summary>
+        </member>
+        <member name="M:AFBack.Utils.IpUtils.IsMobileAppRequest(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Sjekker om request kommer fra mobile app basert på custom headers
+            </summary>
+        </member>
+        <member name="M:AFBack.Utils.IpUtils.IsFromSharedNetwork(System.String)">
+            <summary>
+            Sjekker om IP kommer fra shared network (mobilnettverk etc.)
+            Inkluderer både IPv4 og IPv6 ranges
+            </summary>
+        </member>
+        <member name="M:AFBack.Utils.IpUtils.GetHybridPartitionKey(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Genererer smart partition key for rate limiting
+            Dropper IP på shared networks for bedre device-isolering
+            </summary>
+        </member>
+        <member name="M:AFBack.Utils.IpUtils.GetStableWebFingerprint(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Genererer stabil web fingerprint basert på browser family og major version
+            </summary>
+        </member>
+        <member name="M:AFBack.Utils.IpUtils.ParseBrowserInfo(System.String)">
+            <summary>
+            Parser browser info til family + major version
+            </summary>
+        </member>
+        <member name="M:AFBack.Utils.IpUtils.ParsePrimaryLanguage(System.String)">
+            <summary>
+            Parser primært språk fra Accept-Language header
+            </summary>
+        </member>
+        <member name="T:SuspiciousActivityTypes">
+            <summary>
+            Predefinerte aktivitetstyper for konsistens
+            </summary>
+        </member>
+        <member name="T:AuthIpCheckResult">
+            <summary>
+            Resultat fra IP-ban sjekk for auth endpoints
+            </summary>
+        </member>
+        <member name="M:FileService.TryCleanupFilesAsync(System.Collections.Generic.List{System.String},System.String,System.Int32)">
+            <summary>
+            Vi rydder opp og fjerner lastete filer hvis noe går galt
+            </summary>
+            <param name="urls"></param>
+            <param name="method"></param>
+            <param name="userId"></param>
+        </member>
+    </members>
+</doc>

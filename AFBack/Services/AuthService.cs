@@ -1,12 +1,12 @@
 ﻿using System.Security.Cryptography;
 using AFBack.DTOs.Auth;
+using AFBack.Models.Auth;
 
 namespace AFBack.Services;
 using Microsoft.EntityFrameworkCore;
-using AFBack.Data;
-using AFBack.Models;
+using Data;
+using Models;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
 using System.IdentityModel.Tokens.Jwt;
@@ -32,7 +32,7 @@ public class AuthService
     // Task betyr at vi gjør en oppgave og den skal da returnere en string. Oppgaven er at den henter informasjon fra databasen.
     public async Task<LoginResponseDTO?> LoginAsync(string email, string password)
     {
-        var user = await _context.Users.AsNoTracking()
+        var user = await _context.AppUsers.AsNoTracking()
             .SingleOrDefaultAsync(user => user.Email.ToLower() == email.ToLower());
 
         if (user == null || !user.VerifyPassword(password))
@@ -68,7 +68,7 @@ public class AuthService
     public async Task<LoginResponseDTO?> RefreshTokenAsync(string refreshToken)
     {
         var storedToken = await _context.RefreshTokens
-            .Include(rt => rt.User)
+            .Include(rt => rt.AppUser)
             .SingleOrDefaultAsync(rt => rt.Token == refreshToken && !rt.IsRevoked);
 
         if (storedToken == null || storedToken.ExpiryDate <= DateTime.UtcNow)
@@ -79,7 +79,7 @@ public class AuthService
         
 
         // Generer ny access token
-        var newAccessToken = GenerateJwtToken(storedToken.User);
+        var newAccessToken = GenerateJwtToken(storedToken.AppUser);
         
         // Valgfritt: Generer ny refresh token (rotation)
         var newRefreshToken = GenerateRefreshToken();
@@ -115,7 +115,7 @@ public class AuthService
     }
     
     // Oppdatert JWT-generering med kortere levetid
-    private string GenerateJwtToken(Models.User user)
+    private string GenerateJwtToken(AppUser appUser)
     {
         var jwtKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY") 
                      ?? throw new Exception("JWT Key is missing in environment variables.");
@@ -126,10 +126,10 @@ public class AuthService
 
         var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Name, user.FullName),
-            new Claim(ClaimTypes.Role, user.Role)
+            new Claim(ClaimTypes.NameIdentifier, appUser.Id.ToString()),
+            new Claim(ClaimTypes.Email, appUser.Email),
+            new Claim(ClaimTypes.Name, appUser.FullName),
+            new Claim(ClaimTypes.Role, appUser.Role)
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
@@ -173,7 +173,7 @@ public class AuthService
             foreach (var tokenToRevoke in tokensToRevoke)
             {
                 tokenToRevoke.IsRevoked = true;
-                _logger.LogInformation("Revoked old refresh token for user {UserId} due to limit", userId);
+                _logger.LogInformation("Revoked old refresh token for appUser {UserId} due to limit", userId);
             }
         }
 

@@ -1,5 +1,6 @@
 using AFBack.Constants;
 using AFBack.DTOs.Attachment;
+using AFBack.Models.Enums;
 
 namespace AFBack.Models;
 

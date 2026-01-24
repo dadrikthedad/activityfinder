@@ -47,7 +47,7 @@ public class UserHub : Hub
                 platform, 
                 capabilities,
                 new { 
-                    UserAgent = Context.GetHttpContext()?.Request.Headers["User-Agent"].FirstOrDefault(),
+                    UserAgent = Context.GetHttpContext()?.Request.Headers["AppUser-Agent"].FirstOrDefault(),
                     RemoteIpAddress = Context.GetHttpContext()?.Connection?.RemoteIpAddress?.ToString(),
                     ConnectedAt = DateTime.UtcNow
                 });
@@ -55,7 +55,7 @@ public class UserHub : Hub
             // 🆕 Sjekk om service returnerte collision info
             if (connectionResult?.HasCollision == true && !string.IsNullOrEmpty(connectionResult.PreviousConnectionId))
             {
-                _logger.Information($"🔀 SignalR: Device collision detected for user {userId}, device {deviceId}. Previous connection: {connectionResult.PreviousConnectionId}");
+                _logger.Information($"🔀 SignalR: Device collision detected for appUser {userId}, device {deviceId}. Previous connection: {connectionResult.PreviousConnectionId}");
                 
                 // Send collision event til gamle connection
                 try
@@ -82,14 +82,14 @@ public class UserHub : Hub
                     Timestamp = DateTime.UtcNow
                 });
                 
-                _logger.Information($"📱 SignalR: Notified {connectionResult.OtherDeviceConnections.Count} other devices about new login for user {userId}");
+                _logger.Information($"📱 SignalR: Notified {connectionResult.OtherDeviceConnections.Count} other devices about new login for appUser {userId}");
             }
 
-            _logger.Information($"✅ SignalR: User {userId} connected on device {deviceId} ({platform}) with connection {Context.ConnectionId}");
+            _logger.Information($"✅ SignalR: AppUser {userId} connected on device {deviceId} ({platform}) with connection {Context.ConnectionId}");
         }
         catch (Exception ex)
         {
-            _logger.Error(ex, $"❌ SignalR: Error during connection setup for user {userId}");
+            _logger.Error(ex, $"❌ SignalR: Error during connection setup for appUser {userId}");
             
             // Send error til client
             await Clients.Caller.SendAsync("ConnectionError", new
@@ -122,16 +122,16 @@ public class UserHub : Hub
                 var disconnectionReason = exception?.Message ?? "Normal disconnection";
                 await _onlineService.SetWebSocketDisconnectedAsync(userId, deviceId, Context.ConnectionId, disconnectionReason);
 
-                _logger.Information($"🔌 SignalR: User {userId} disconnected from device {deviceId} (connection {Context.ConnectionId})");
+                _logger.Information($"🔌 SignalR: AppUser {userId} disconnected from device {deviceId} (connection {Context.ConnectionId})");
                 
                 if (exception != null)
                 {
-                    _logger.Warning(exception, $"⚠️ SignalR: User {userId} disconnected with error from device {deviceId}");
+                    _logger.Warning(exception, $"⚠️ SignalR: AppUser {userId} disconnected with error from device {deviceId}");
                 }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, $"❌ SignalR: Error during disconnection cleanup for user {userId}");
+                _logger.Error(ex, $"❌ SignalR: Error during disconnection cleanup for appUser {userId}");
             }
         }
 
@@ -154,7 +154,7 @@ public class UserHub : Hub
             ConnectionId = Context.ConnectionId,
             UserId = userIdClaim,
             ConnectedAt = DateTime.UtcNow,
-            UserAgent = Context.GetHttpContext()?.Request.Headers["User-Agent"].FirstOrDefault()
+            UserAgent = Context.GetHttpContext()?.Request.Headers["AppUser-Agent"].FirstOrDefault()
         };
     }
 }

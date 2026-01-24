@@ -1,116 +1,110 @@
-using System.Collections;
-using AFBack.Data;
-using AFBack.Features.Cache.Interface;
-using AFBack.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
+using AFBack.Interface.Repository;
+using Microsoft.Extensions.Caching.Distributed;
 
-public class SendMessageCache(IMemoryCache cache, IServiceScopeFactory scopeFactory) : ISendMessageCache
+
+namespace AFBack.Cache;
+
+public class SendMessageCache(
+    IDistributedCache cache,
+    IServiceScopeFactory scopeFactory,
+    ILogger<SendMessageCache> logger,
+    IConfiguration configuration) : ISendMessageCache
 {
-    /// <summary>
-    /// Sjekker om en bruker kan sende meldinger til en samtale (med cache)
-    /// </summary>
-    public Task<bool> CanUserSendAsync(int userId, int conversationId)
-        => cache.GetOrCreateAsync(
-            key: $"cansend:{userId}:{conversationId}",
-            factory: async entry =>
-            {
-                entry.SlidingExpiration = TimeSpan.FromMinutes(5);
-                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
+    private const string CAN_SEND_PREFIX = "cansend:";
 
-                using var scope = scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                return await context.CanSend
-                    .AsNoTracking()
-                    .AnyAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
-            });
-
-    /// <summary>
-    /// Henter alle samtaler en bruker kan sende til (med cache)
-    /// </summary>
-    public Task<List<int>?> GetUserCanSendConversationsAsync(int userId)
-        => cache.GetOrCreateAsync(
-            key: $"cansend:user:{userId}",
-            factory: async entry =>
-            {
-                entry.SlidingExpiration = TimeSpan.FromMinutes(10);
-                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
-                
-                using var scope = scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                return await context.CanSend
-                    .AsNoTracking()
-                    .Where(cs => cs.UserId == userId)
-                    .Select(cs => cs.ConversationId)
-                    .ToListAsync();
-            });
+    private readonly int _cacheDurationMinutes = configuration.GetValue(
+        "CacheSettings:CanSendCacheDurationMinutes", 5);
     
-    /// <summary>
-    /// Henter samtalen bruker prøver å sende melding til (med cache)
-    /// </summary>
-    public Task<Conversation?> GetConversationIfUserCanSendAsync(int userId, int conversationId)
-        => cache.GetOrCreateAsync(
-            key: $"conversation:cansend:{userId}:{conversationId}",
-            factory: async entry =>
+    
+    // Metrics for måling
+    private long _cacheHits;
+    private long _cacheMisses;
+    
+    
+    public async Task<bool> CanUserSendAsync(string userId, int conversationId)
+    {
+
+        var cacheKey = $"{CAN_SEND_PREFIX}{userId}:{conversationId}";
+
+        try
+        {
+            // Sjekk først cache
+            var cached = await cache.GetStringAsync(cacheKey);
+            if (cached != null)
             {
-                entry.SlidingExpiration = TimeSpan.FromMinutes(10);
-                
-                using var scope = scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                Interlocked.Increment(ref _cacheHits);
+                logger.LogDebug("Cache HIT for CanSend {UserId}:{ConversationId}", userId, conversationId);
 
-                bool canSend = await context.CanSend
-                    .AsNoTracking()
-                    .AnyAsync(cs => cs.UserId == userId && cs.ConversationId == conversationId);
+                return bool.Parse(cached);
+            }
 
-                if (!canSend)
-                    return null;
-
-                return await context.Conversations
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(c => c.Id == conversationId);
+            Interlocked.Increment(ref _cacheMisses);
+            logger.LogDebug("Cache MISS for CanSend {UserId}:{ConversationId}", userId, conversationId);
+            
+            // Hent fra databasen
+            using var scope = scopeFactory.CreateScope();
+            var canSendRepository = scope.ServiceProvider.GetRequiredService<ICanSendRepository>();
+            var canSend = await canSendRepository.CanSendExistsAsync(userId, conversationId);
+            
+            // Cache for 5 min
+            await cache.SetStringAsync(cacheKey, canSend.ToString(), new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_cacheDurationMinutes)
             });
+
+            return canSend;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error checking CanSend cache for {UserId}:{ConversationId}",
+                userId, conversationId);
+            
+            // Fallback til database
+            using var scope = scopeFactory.CreateScope();
+            var canSendRepository = scope.ServiceProvider.GetRequiredService<ICanSendRepository>();
+            return await canSendRepository.CanSendExistsAsync(userId, conversationId);
+        }
+    }
+
+    
 
     /* --------- Hjelpemetoder for å oppdatere cache når data endres --------- */
     
-    /// <summary>
-    /// Oppdaterer cache når en ny CanSend legges til
-    /// </summary>
-    public async Task OnCanSendAddedAsync(int userId, int conversationId, CanSend canSend)
+    public async Task OnCanSendAddedAsync(string userId, int conversationId)
     {
-        // Sett verdier direkte i cache for raskere oppslag
-        cache.Set($"cansend:{userId}:{conversationId}", true, TimeSpan.FromMinutes(5));
-        cache.Set($"cansend:details:{userId}:{conversationId}", canSend, TimeSpan.FromMinutes(5));
-        
-        // Invalidér lister så de hentes på nytt
-        cache.Remove($"cansend:user:{userId}");
-        cache.Remove($"cansend:conv:{conversationId}");
-    }
+        try
+        {
+            await cache.SetStringAsync($"{CAN_SEND_PREFIX}{userId}:{conversationId}", "True",
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                });
 
-    /// <summary>
-    /// Oppdaterer cache når en CanSend fjernes
-    /// </summary>
-    public void OnCanSendRemoved(int userId, int conversationId)
-    {
-        // Sett false i cache for raskere oppslag
-        cache.Set($"cansend:{userId}:{conversationId}", false, TimeSpan.FromMinutes(5));
-        cache.Remove($"cansend:details:{userId}:{conversationId}");
-        
-        // Invalidér lister
-        cache.Remove($"cansend:user:{userId}");
-        cache.Remove($"cansend:conv:{conversationId}");
+            logger.LogInformation("Cache updated: CanSend added for {UserId}:{ConversationId}", 
+                userId, conversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error updating cache after CanSend added");
+        }
     }
     
-    /// <summary>
-    /// Invaliderer all cache for en bruker og samtale
-    /// </summary>
-    public void InvalidateUserConversationCache(int userId, int conversationId)
+    public async Task OnCanSendRemovedAsync(string userId, int conversationId)
     {
-        cache.Remove($"cansend:{userId}:{conversationId}");
-        cache.Remove($"cansend:details:{userId}:{conversationId}");
-        cache.Remove($"cansend:user:{userId}");
-        cache.Remove($"cansend:conv:{conversationId}");
+        try
+        {
+            await cache.SetStringAsync($"{CAN_SEND_PREFIX}{userId}:{conversationId}", "False",
+                new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_cacheDurationMinutes)
+                });
+
+            logger.LogInformation("Cache updated: CanSend removed for {UserId}:{ConversationId}", 
+                userId, conversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error updating cache after CanSend removed");
+        }
     }
-    
 }

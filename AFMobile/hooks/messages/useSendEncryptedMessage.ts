@@ -6,7 +6,7 @@ import { useChatStore } from '../../store/useChatStore';
 import { SendEncryptedMessageRequestDTO, DecryptedMessageDTO } from '@/features/crypto/types/EncryptedMessageTypes';
 import { validateFiles, RNFile } from '../../utils/files/FileFunctions';
 import { useEncryptedAttachments } from '@/features/cryptoAttachments/hooks/useEncryptedAttachments';
-import { sendEncryptedMessage } from '@/services/messages/messageService';
+import { sendMessage } from '@/features/SendMessage/apiService/SendMessageApiService';
 import { getFileStats } from '../../utils/files/FileFunctions';
 import { useEncryptMessage } from '@/features/crypto/hooks/useEncryptMessage';
 import { useOptimisticMessage } from '@/features/OptimsticMessage/hooks/useOptimisticMessage';
@@ -295,7 +295,7 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
         (payload.text.length > 100 ? payload.text.substring(0, 100) + '...' : payload.text) : null
     };
 
-    const response = await sendEncryptedMessage(request);
+    const response = await sendMessage(request);
     if (!response) {
       throw new Error('Failed to send encrypted message');
     }

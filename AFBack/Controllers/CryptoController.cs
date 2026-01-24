@@ -26,7 +26,7 @@ namespace AFBack.Controllers
         : BaseController<E2EEController>(context, logger, userCache, responseService)
     {
         /// <summary>
-        /// Store or update user's public key for E2EE
+        /// Store or update appUser's public key for E2EE
         /// </summary>
         [HttpPost("public-key")]
         public async Task<IActionResult> StorePublicKey([FromBody] StorePublicKeyRequestDTO request)
@@ -40,7 +40,7 @@ namespace AFBack.Controllers
 
                 var userId = GetUserId();
                 
-                _logger.LogInformation("Storing public key for user {UserId}", userId);
+                Logger.LogInformation("Storing public key for appUser {UserId}", userId);
                 
                 var result = await e2EeService.StoreUserPublicKeyAsync(userId.Value, request.PublicKey);
                 
@@ -58,7 +58,7 @@ namespace AFBack.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error storing public key");
+                Logger.LogError(ex, "Error storing public key");
                 return StatusCode(500, "Internal server error");
             }
         }
@@ -73,21 +73,21 @@ namespace AFBack.Controllers
             {
                 var userId = GetUserId();
                 
-                _logger.LogInformation("Getting conversation keys for conversation {ConversationId}, user {UserId}", 
+                Logger.LogInformation("Getting conversation keys for conversation {ConversationId}, appUser {UserId}", 
                     conversationId, userId);
                 
                 var result = await e2EeService.GetConversationKeysAsync(conversationId, userId.Value);
                 
                 if (result == null)
                 {
-                    return NotFound("Conversation not found or user not authorized");
+                    return NotFound("Conversations not found or appUser not authorized");
                 }
 
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting conversation keys for conversation {ConversationId}", conversationId);
+                Logger.LogError(ex, "Error getting conversation keys for conversation {ConversationId}", conversationId);
                 return StatusCode(500, "Internal server error");
             }
         }
@@ -102,11 +102,11 @@ namespace AFBack.Controllers
             {
                 if (userIds == null || !userIds.Any())
                 {
-                    return BadRequest("User IDs are required");
+                    return BadRequest("AppUser IDs are required");
                 }
 
                 var userId = GetUserId();
-                _logger.LogInformation("Getting public keys for users {UserIds}, requested by {UserId}", 
+                Logger.LogInformation("Getting public keys for users {UserIds}, requested by {UserId}", 
                     string.Join(",", userIds), userId);
 
                 var result = await e2EeService.GetPublicKeysForUsersAsync(userIds);
@@ -115,13 +115,13 @@ namespace AFBack.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting public keys for users");
+                Logger.LogError(ex, "Error getting public keys for users");
                 return StatusCode(500, "Internal server error");
             }
         }
         
         /// <summary>
-        /// Get current user's public key (for checking E2EE setup status)
+        /// Get current appUser's public key (for checking E2EE setup status)
         /// </summary>
         [HttpGet("public-key")]
         public async Task<IActionResult> GetMyPublicKey()
@@ -133,14 +133,14 @@ namespace AFBack.Controllers
         
                 if (!publicKeys.Any())
                 {
-                    return NotFound("No public key found for user");
+                    return NotFound("No public key found for appUser");
                 }
 
                 return Ok(publicKeys.First());
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting user's public key");
+                Logger.LogError(ex, "Error getting appUser's public key");
                 return StatusCode(500, "Internal server error");
             }
         }
@@ -155,7 +155,7 @@ namespace AFBack.Controllers
                 
                 var userId = GetUserId();
                 if (!userId.HasValue)
-                    return Unauthorized("User Id not found");
+                    return Unauthorized("AppUser Id not found");
 
                 var deviceId = HttpContext.GetDeviceId();
                 var timestamp = DateTime.UtcNow;
@@ -163,9 +163,9 @@ namespace AFBack.Controllers
                 if (string.IsNullOrEmpty(deviceId))
                     return BadRequest("DeviceId not found");
                 
-                string secretName = $"user-{userId.Value}-{timestamp:yyyyMMddHHmmss}";
+                string secretName = $"appUser-{userId.Value}-{timestamp:yyyyMMddHHmmss}";
 
-                _logger.LogInformation($"Storing recovery seed for user {userId} with device {deviceId}");
+                Logger.LogInformation($"Storing recovery seed for appUser {userId} with device {deviceId}");
 
                 var secret = new KeyVaultSecret(secretName, dto.Key)
                 {
@@ -184,7 +184,7 @@ namespace AFBack.Controllers
 
                 await secretClient.SetSecretAsync(secret);
 
-                _logger.LogInformation($"Recovery seed sent succesfully for user {userId}");
+                Logger.LogInformation($"Recovery seed sent succesfully for appUser {userId}");
 
                 var respone = new SecretKeyResponseDTO
                 {
@@ -197,7 +197,7 @@ namespace AFBack.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error Secret Key: {ex}");
+                Logger.LogError(ex, $"Error Secret Key: {ex}");
                 return StatusCode(500, $"Error Secret Key: {ex}");
             }
         }

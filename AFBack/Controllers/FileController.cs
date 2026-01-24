@@ -6,10 +6,14 @@ using AFBack.DTOs;
 using AFBack.Extensions;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.Conversation.Models;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Models;
+using AFBack.Models.Conversation;
 using AFBack.Services;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -50,9 +54,9 @@ public class FileController(
         try
         {
             
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            var user = await Context.Users.FirstOrDefaultAsync(u => u.Id == userId);
             if (user == null) 
-                return NotFound("Profile not found");
+                return NotFound("UserProfile not found");
 
             string imageUrl = null;
 
@@ -61,7 +65,7 @@ public class FileController(
             {
                 // Sett profilbilde til null (default avatar)
                 imageUrl = null;
-                _logger.LogInformation("User {UserId} removed their profile picture", userId);
+                Logger.LogInformation("AppUser {UserId} removed their profile picture", userId);
             }
             else
             {
@@ -76,7 +80,7 @@ public class FileController(
                     return BadRequest(new { message = errorMessage });
 
                 imageUrl = await fileService.UploadFileAsync(file, "profile-pictures");
-                _logger.LogInformation("User {UserId} uploaded a profile picture", userId);
+                Logger.LogInformation("AppUser {UserId} uploaded a profile picture", userId);
             }
 
             // Notify venner og blokkere om profilbilde-endring
@@ -93,13 +97,13 @@ public class FileController(
 
             user.ProfileImageUrl = imageUrl;
   
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
             
             return Ok(new { imageUrl });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to process profile image for user {UserId}", userId);
+            Logger.LogError(ex, "Failed to process profile image for appUser {UserId}", userId);
             return StatusCode(500, new { message = "Failed to process image" });
         }
     }
@@ -107,16 +111,16 @@ public class FileController(
     [HttpPost("upload-group-image")]
     public async Task<IActionResult> UploadGroupImage([FromForm] UploadGroupImageDTO request)
     {
-        _logger.LogInformation("🔵 UploadGroupImage called - file: {FileName}, groupId: {GroupId}, action: {Action}", 
+        Logger.LogInformation("🔵 UploadGroupImage called - file: {FileName}, groupId: {GroupId}, action: {Action}", 
             request.File?.FileName, request.GroupId, request.Action);
         
         if (GetUserId() is not int userId)
         {
-            _logger.LogWarning("❌ Unauthorized - no userId");
+            Logger.LogWarning("❌ Unauthorized - no userId");
             return Unauthorized();
         }
 
-        _logger.LogInformation("✅ Authorized user: {UserId}", userId);
+        Logger.LogInformation("✅ Authorized appUser: {UserId}", userId);
 
         Conversation? group = null;
         List<int> participantIds = new();
@@ -125,40 +129,40 @@ public class FileController(
         {
             if (request.GroupId.HasValue)
             {
-                _logger.LogInformation("🔍 Looking for group {GroupId}", request.GroupId.Value);
+                Logger.LogInformation("🔍 Looking for group {GroupId}", request.GroupId.Value);
                 
-                group = await _context.Conversations
+                group = await Context.Conversations
                     .Include(c => c.Participants)
                     .FirstOrDefaultAsync(c => c.Id == request.GroupId.Value && c.IsGroup);
                 
                 if (group == null)
                 {
-                    _logger.LogWarning("❌ Group {GroupId} not found", request.GroupId.Value);
+                    Logger.LogWarning("❌ Group {GroupId} not found", request.GroupId.Value);
                     return NotFound("Group not found");
                 }
 
-                _logger.LogInformation("✅ Found group {GroupId} with {ParticipantCount} participants", 
+                Logger.LogInformation("✅ Found group {GroupId} with {ParticipantCount} participants", 
                     request.GroupId.Value, group.Participants.Count);
 
                 var isParticipant = group.Participants.Any(p => p.UserId == userId);
-                var isCreator = group.CreatorId == userId;
+                var isCreator = jdkslafdjabkfjdaf her må vi fikse
                 
-                _logger.LogInformation("🔍 User {UserId} - isParticipant: {IsParticipant}, isCreator: {IsCreator}", 
+                Logger.LogInformation("🔍 AppUser {UserId} - isParticipant: {IsParticipant}, isCreator: {IsCreator}", 
                     userId, isParticipant, isCreator);
                 
                 if (!isParticipant && !isCreator)
                 {
-                    _logger.LogWarning("❌ User {UserId} has no permission for group {GroupId}", userId, request.GroupId.Value);
+                    Logger.LogWarning("❌ AppUser {UserId} has no permission for group {GroupId}", userId, request.GroupId.Value);
                     return Forbid("You don't have permission to modify this group");
                 }
                 
                 // Hent participant IDs før SaveChanges
                 participantIds = group.Participants.Select(p => p.UserId).ToList();
-                _logger.LogInformation("📊 Participant IDs: [{ParticipantIds}]", string.Join(", ", participantIds));
+                Logger.LogInformation("📊 Participant IDs: [{ParticipantIds}]", string.Join(", ", participantIds));
             }
             else
             {
-                _logger.LogInformation("⚠️ No groupId provided - creating temporary file");
+                Logger.LogInformation("⚠️ No groupId provided - creating temporary file");
             }
 
             string imageUrl = null;
@@ -166,61 +170,61 @@ public class FileController(
             // Sjekk om det er en delete-operasjon
             if (request.Action == "delete")
             {
-                _logger.LogInformation("🗑️ Delete operation detected");
+                Logger.LogInformation("🗑️ Delete operation detected");
                 imageUrl = null;
             }
             else
             {
-                _logger.LogInformation("📤 Upload operation detected");
+                Logger.LogInformation("📤 Upload operation detected");
                 
                 // Normal upload-operasjon - sjekk at fil er oppgitt
                 if (request.File == null)
                 {
-                    _logger.LogWarning("❌ No file provided for upload");
+                    Logger.LogWarning("❌ No file provided for upload");
                     return BadRequest(new { message = "No file provided for upload" });
                 }
 
-                _logger.LogInformation("📁 File received: {FileName}, size: {FileSize} bytes", 
+                Logger.LogInformation("📁 File received: {FileName}, size: {FileSize} bytes", 
                     request.File.FileName, request.File.Length);
 
                 var (isValid, errorMessage) = fileService.ValidateImage(request.File);
                 if (!isValid)
                 {
-                    _logger.LogWarning("❌ File validation failed: {ErrorMessage}", errorMessage);
+                    Logger.LogWarning("❌ File validation failed: {ErrorMessage}", errorMessage);
                     return BadRequest(new { message = errorMessage });
                 }
 
-                _logger.LogInformation("✅ File validation passed");
+                Logger.LogInformation("✅ File validation passed");
 
                 imageUrl = await fileService.UploadFileAsync(request.File, "group-pictures");
-                _logger.LogInformation("✅ File uploaded successfully: {ImageUrl}", imageUrl);
+                Logger.LogInformation("✅ File uploaded successfully: {ImageUrl}", imageUrl);
             }
 
             // Oppdater gruppe hvis det er eksisterende
             if (request.GroupId.HasValue && group != null)
             {
-                _logger.LogInformation("💾 Updating group {GroupId} in database", request.GroupId.Value);
+                Logger.LogInformation("💾 Updating group {GroupId} in database", request.GroupId.Value);
                 group.GroupImageUrl = imageUrl;
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("✅ Group updated in database");
+                await Context.SaveChangesAsync();
+                Logger.LogInformation("✅ Group updated in database");
                 
-                _logger.LogInformation("👤 Getting user name for user {UserId}", userId);
-                var userName = await _context.Users
+                Logger.LogInformation("👤 Getting appUser name for appUser {UserId}", userId);
+                var userName = await Context.Users
                     .Where(u => u.Id == userId)
                     .Select(u => u.FullName)
                     .FirstOrDefaultAsync() ?? "En bruker";
-                _logger.LogInformation("✅ Got user name: {UserName}", userName);
+                Logger.LogInformation("✅ Got appUser name: {UserName}", userName);
 
                 var actionText = request.Action == "delete" ? "removed" : "changed";
                 
-                _logger.LogInformation("📝 Creating system message for action: {ActionText}", actionText);
+                Logger.LogInformation("📝 Creating system message for action: {ActionText}", actionText);
                 var systemMessage = await messageNotificationService.CreateSystemMessageAsync(
                     request.GroupId.Value,
                     $"{userName} has {actionText} the group image"
                 );
-                _logger.LogInformation("✅ System message created with ID: {MessageId}", systemMessage.Id);
+                Logger.LogInformation("✅ System message created with ID: {MessageId}", systemMessage.Id);
 
-                _logger.LogInformation("🔄 Queueing background task for sync events");
+                Logger.LogInformation("🔄 Queueing background task for sync events");
                 taskQueue.QueueAsync(async () => 
                 {
                     using var scope = scopeFactory.CreateScope();
@@ -232,24 +236,24 @@ public class FileController(
                         // Fixed background task code from earlier
                         var groupWithUsers = await context.Conversations
                             .Include(c => c.Participants)
-                                .ThenInclude(p => p.User)
-                                    .ThenInclude(u => u.Profile)
+                                .ThenInclude(p => p.AppUser)
+                                    .ThenInclude(u => u.UserProfile)
                             .FirstOrDefaultAsync(c => c.Id == request.GroupId.Value);
 
                         if (groupWithUsers == null)
                         {
-                            _logger.LogWarning("❌ Could not find group {GroupId} in background task", request.GroupId.Value);
+                            Logger.LogWarning("❌ Could not find group {GroupId} in background task", request.GroupId.Value);
                             return;
                         }
 
                         var userData = groupWithUsers.Participants
-                            .Where(p => p.User != null)
+                            .Where(p => p.AppUser != null)
                             .ToDictionary(
                                 p => p.UserId,
-                                p => (p.User.FullName ?? "Unknown User", p.User.ProfileImageUrl)
+                                p => (p.AppUser.FullName ?? "Unknown AppUser", p.AppUser.ProfileImageUrl)
                             );
                         
-                        _logger.LogInformation("📊 Created userData for {UserCount} participants", userData.Count);
+                        Logger.LogInformation("📊 Created userData for {UserCount} participants", userData.Count);
                         
                         var participantApprovalStatus = await context.GroupRequests
                             .Where(gr => gr.ConversationId == request.GroupId.Value && 
@@ -268,33 +272,33 @@ public class FileController(
                             targetUserIds: participantIds,
                             source: "API",
                             relatedEntityId: request.GroupId.Value,
-                            relatedEntityType: "Conversation"
+                            relatedEntityType: "Conversations"
                         );
                         
-                        _logger.LogInformation("✅ Sync event created successfully for group {GroupId}", request.GroupId.Value);
+                        Logger.LogInformation("✅ Sync event created successfully for group {GroupId}", request.GroupId.Value);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "❌ Failed to create sync event for group image update. GroupId: {GroupId}", request.GroupId.Value);
+                        Logger.LogError(ex, "❌ Failed to create sync event for group image update. GroupId: {GroupId}", request.GroupId.Value);
                     }
                 });
 
-                _logger.LogInformation("🔔 Creating group notification");
+                Logger.LogInformation("🔔 Creating group notification");
                 await groupNotificationService.CreateGroupEventAsync(
                     GroupEventType.GroupImageChanged,
                     request.GroupId.Value,
                     userId,
                     new List<int> { userId }
                 );
-                _logger.LogInformation("✅ Group notification created");
+                Logger.LogInformation("✅ Group notification created");
             }
 
-            _logger.LogInformation("🎯 Returning response with imageUrl: {ImageUrl}", imageUrl);
+            Logger.LogInformation("🎯 Returning response with imageUrl: {ImageUrl}", imageUrl);
             return Ok(new { imageUrl });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ EXCEPTION in UploadGroupImage for user {UserId}, groupId {GroupId}", userId, request.GroupId);
+            Logger.LogError(ex, "❌ EXCEPTION in UploadGroupImage for appUser {UserId}, groupId {GroupId}", userId, request.GroupId);
             return StatusCode(500, new { message = "Failed to process image", error = ex.Message });
         }
     }
@@ -372,19 +376,19 @@ public class FileController(
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning("Validation error when sending message for user {UserId}: {Error}", senderId, ex.Message);
+            Logger.LogWarning("Validation error when sending message for appUser {UserId}: {Error}", senderId, ex.Message);
             await fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return BadRequest(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning("Business logic error when sending message for user {UserId}: {Error}", senderId, ex.Message);
+            Logger.LogWarning("Business logic error when sending message for appUser {UserId}: {Error}", senderId, ex.Message);
             await fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error when sending message for user {UserId}", senderId);
+            Logger.LogError(ex, "Unexpected error when sending message for appUser {UserId}", senderId);
             await fileService.CleanupUploadedFiles(uploadedFileUrls).ConfigureAwait(false);
             return StatusCode(500, new { message = "Feil ved sending av melding" });
         }
@@ -434,7 +438,7 @@ public class FileController(
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to upload file {FileName} for user {UserId}", file.FileName, userId);
+                    Logger.LogError(ex, "Failed to upload file {FileName} for appUser {UserId}", file.FileName, userId);
                     results.Add(new 
                     { 
                         fileName = file.FileName, 
@@ -448,7 +452,7 @@ public class FileController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload files for user {UserId}", userId);
+            Logger.LogError(ex, "Failed to upload files for appUser {UserId}", userId);
             return StatusCode(500, new { message = "Feil ved filopplasting" });
         }
     }
@@ -467,7 +471,7 @@ public class FileController(
             var userId = GetUserId();
             
             // Hent rapporten med eksisterende attachments
-            var report = await _context.Reports
+            var report = await Context.Reports
                 .Include(r => r.Attachments)
                 .FirstOrDefaultAsync(r => r.Id == reportId);
             
@@ -510,8 +514,8 @@ public class FileController(
                 UploadedAt = DateTime.UtcNow
             };
 
-            _context.ReportAttachments.Add(attachment);
-            await _context.SaveChangesAsync();
+            Context.ReportAttachments.Add(attachment);
+            await Context.SaveChangesAsync();
 
             return Ok(new { 
                 AttachmentId = attachment.Id,
@@ -524,7 +528,7 @@ public class FileController(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload attachment for report {ReportId}", reportId);
+            Logger.LogError(ex, "Failed to upload attachment for report {ReportId}", reportId);
             return StatusCode(500, new { message = "Failed to upload attachment" });
         }
     }

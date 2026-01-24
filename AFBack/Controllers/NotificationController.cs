@@ -33,8 +33,8 @@ public class NotificationController(
             return Unauthorized();
 
         // 2. Hent notifikasjonen + RelatedUser
-        var n = await _context.Notifications
-            .Include(x => x.RelatedUser).ThenInclude(u => u.Profile)
+        var n = await Context.Notifications
+            .Include(x => x.RelatedUser).ThenInclude(u => u.UserProfile)
             .FirstOrDefaultAsync(x => x.Id == id && x.RecipientUserId == userId);
 
         if (n == null) return NotFound();
@@ -70,7 +70,7 @@ public class NotificationController(
         if (!int.TryParse(userIdClaim, out var userId))
             return Forbid();
 
-        var updatedCount = await _context.Notifications
+        var updatedCount = await Context.Notifications
             .Where(n => n.RecipientUserId == userId && !n.IsRead)
             .ExecuteUpdateAsync(setters =>
                 setters.SetProperty(n => n.IsRead, true));
@@ -91,7 +91,7 @@ public class NotificationController(
         if (!int.TryParse(userIdClaim, out var userId))
             return Forbid();
 
-        var deletedCount = await _context.Notifications
+        var deletedCount = await Context.Notifications
             .Where(n => n.RecipientUserId == userId)
             .ExecuteDeleteAsync();
 
@@ -105,11 +105,11 @@ public class NotificationController(
     // Hjelpe funksjon til å lage en Notification
     private static NotificationDTO ToDto(Notification n)
     {
-        UserSummaryDTO? related = null;
+        UserSummaryDto? related = null;
 
         if (n.RelatedUser != null)
         {
-            related = new UserSummaryDTO
+            related = new UserSummaryDto
             {
                 Id = n.RelatedUser.Id,
                 FullName = n.RelatedUser.FullName,

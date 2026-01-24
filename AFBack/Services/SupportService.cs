@@ -3,6 +3,7 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs.Attachment;
 using AFBack.Models;
+using AFBack.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;

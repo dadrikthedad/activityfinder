@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Models;
+using AFBack.Models.Auth;
 
 public class GroupEventAffectedUser
 {
@@ -11,7 +12,7 @@ public class GroupEventAffectedUser
     
     [Required]
     public int UserId { get; set; }
-    public User User { get; set; } = null!;
+    public AppUser AppUser { get; set; } = null!;
     
     // Composite index for performance
     // [Index(nameof(GroupEventId), nameof(UserId), IsUnique = true)]

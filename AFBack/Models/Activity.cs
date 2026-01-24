@@ -1,6 +1,6 @@
 ﻿namespace AFBack.Models;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+
 // Her er alle aktivitetene og dens egenskaper.
 public class Activity
 {

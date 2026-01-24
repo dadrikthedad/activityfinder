@@ -2,6 +2,7 @@
 using AFBack.Constants;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Services;
@@ -32,7 +33,7 @@ public class ProfileController(
 {
     private readonly BlobServiceClient _blobServiceClient = blobServiceClient;
 
-    // Henter en bruker sin profil, henter både fra User.cs, Profile.cs og UserSettings.cs. Denne brukes både på profile/[id], editprofile og settings
+    // Henter en bruker sin profil, henter både fra AppUser.cs, UserProfile.cs og UserSettings.cs. Denne brukes både på profile/[id], editprofile og settings
     [AllowAnonymous]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPublicProfile(int id)
@@ -48,38 +49,38 @@ public class ProfileController(
         }
         
         // Henter profilen til brukeren
-        var profile = await _context.Profiles
-            .Include(p => p.User)
+        var profile = await Context.Profiles
+            .Include(p => p.AppUser)
             .FirstOrDefaultAsync(p => p.UserId == id);
         
         if (profile == null)
-            return NotFound(new { message = "Profile not found" });
+            return NotFound(new { message = "UserProfile not found" });
         
         // Henter innstillinger til brukeren
-        var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == id);
+        var settings = await Context.UserSettings.FirstOrDefaultAsync(s => s.UserId == id);
         
         if (settings == null)
-            return NotFound(new { message = "Settings not found" });
+            return NotFound(new { message = "UserSettings not found" });
         
         var dto = new PublicProfileDTO
         {
-            // Henter fra User.cs og profile.cs
+            // Henter fra AppUser.cs og profile.cs
             UserId = profile.UserId,
             // Sjekker om det er bruker sin profil eller noen andres profil
             IsOwner = isOwner,
-            FirstName = profile.User.FirstName,
-            MiddleName = profile.User.MiddleName,
-            LastName = profile.User.LastName,
-            FullName = profile.User.FullName,
-            ProfileImageUrl = profile.User.ProfileImageUrl,
+            FirstName = profile.AppUser.FirstName,
+            MiddleName = profile.AppUser.MiddleName,
+            LastName = profile.AppUser.LastName,
+            FullName = profile.AppUser.FullName,
+            ProfileImageUrl = profile.AppUser.ProfileImageUrl,
             Bio = profile.Bio,
             Websites = profile.Websites,
-            Country = profile.User.Country,
-            Region = profile.User.Region,
-            PostalCode = profile.User.PostalCode,
-            DateOfBirth = profile.User.DateOfBirth,
-            Age = profile.User.Age,
-            Gender = profile.User.Gender,
+            Country = profile.AppUser.Country,
+            Region = profile.AppUser.Region,
+            PostalCode = profile.AppUser.PostalCode,
+            DateOfBirth = profile.AppUser.DateOfBirth,
+            Age = profile.AppUser.Age,
+            Gender = profile.AppUser.Gender,
             ContactEmail = profile.ContactEmail,
             ContactPhone = profile.ContactPhone,
             // Stats
@@ -114,26 +115,26 @@ public class ProfileController(
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
         
-        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await Context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
 
         if (profile == null)
         {
-            return NotFound(new { message = "Profile not found." });
+            return NotFound(new { message = "UserProfile not found." });
         }
         
         // Ta vare på gamle verdier for å kunne sammenligne
-        var oldProfileImageUrl = profile.User.ProfileImageUrl;
+        var oldProfileImageUrl = profile.AppUser.ProfileImageUrl;
         var oldBio = profile.Bio;
 
-        profile.User.ProfileImageUrl = dto.ProfileImageUrl;
+        profile.AppUser.ProfileImageUrl = dto.ProfileImageUrl;
         profile.Bio = dto.Bio;
         profile.SetWebsites(dto.Websites ?? new List<string>());
         profile.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         // SYNC EVENT - til alle venner
          taskQueue.QueueAsync(async () => 
@@ -172,7 +173,7 @@ public class ProfileController(
                         targetUserIds: friendIds,
                         source: "API",
                         relatedEntityId: userId,
-                        relatedEntityType: "User"
+                        relatedEntityType: "AppUser"
                     );
                 }
             }
@@ -183,7 +184,7 @@ public class ProfileController(
             }
         });
 
-        return Ok(new { message = "Profile updated successfully" });
+        return Ok(new { message = "UserProfile updated successfully" });
     }
 
     
@@ -193,17 +194,17 @@ public class ProfileController(
     {   
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
         
-        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await Context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null)
-            return NotFound(new { message = "Profile not found." });
+            return NotFound(new { message = "UserProfile not found." });
 
         profile.Bio = newBio;
         profile.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         return Ok(new { message = "Bio updated successfully." });
     }
     
@@ -213,15 +214,15 @@ public class ProfileController(
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
         
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await Context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null)
-            return NotFound(new { message = "Profile not found." });
+            return NotFound(new { message = "UserProfile not found." });
 
         var cleaned = dto.Websites
             .Where(w => !string.IsNullOrWhiteSpace(w))
@@ -231,7 +232,7 @@ public class ProfileController(
         profile.SetWebsites(cleaned);
         profile.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Websites updated successfully." });
     }
@@ -244,16 +245,16 @@ public class ProfileController(
             return BadRequest(ModelState);
 
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
 
-        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await Context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null)
-            return NotFound(new { message = "Profile not found." });
+            return NotFound(new { message = "UserProfile not found." });
 
         profile.ContactEmail = string.IsNullOrWhiteSpace(dto.ContactEmail) ? null : dto.ContactEmail.Trim();
         profile.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         return Ok(new { message = "Contact email updated." });
     }
     
@@ -264,16 +265,16 @@ public class ProfileController(
             return BadRequest(ModelState);
 
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
 
-        var profile = await _context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        var profile = await Context.Profiles.FirstOrDefaultAsync(p => p.UserId == userId);
         if (profile == null)
-            return NotFound(new { message = "Profile not found." });
+            return NotFound(new { message = "UserProfile not found." });
 
         profile.ContactPhone = string.IsNullOrWhiteSpace(dto.ContactPhone) ? null : dto.ContactPhone.Trim();
         profile.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         return Ok(new { message = "Contact phone updated." });
     }
 }

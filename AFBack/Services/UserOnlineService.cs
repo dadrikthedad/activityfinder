@@ -3,6 +3,7 @@ using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.DTOs.Signalr;
 using AFBack.Models;
+using AFBack.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
@@ -43,7 +44,7 @@ public class UserOnlineService
             else
             {
                 // Opprett ny record
-                var newStatus = new UserOnlineStatus
+                var newStatus = new UserConnection
                 {
                     UserId = userId,
                     DeviceId = deviceId,
@@ -133,12 +134,12 @@ public class UserOnlineService
                 status.LastSeen = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 
-                _logger.LogInformation("User {UserId} marked as offline on device {DeviceId}", 
+                _logger.LogInformation("AppUser {UserId} marked as offline on device {DeviceId}", 
                     userId, deviceId);
             }
             else
             {
-                _logger.LogWarning("Attempted to mark user {UserId} offline on device {DeviceId}, but no online status found", 
+                _logger.LogWarning("Attempted to mark appUser {UserId} offline on device {DeviceId}, but no online status found", 
                     userId, deviceId);
             }
 
@@ -146,7 +147,7 @@ public class UserOnlineService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to mark user {UserId} as offline on device {DeviceId}", 
+            _logger.LogError(ex, "Failed to mark appUser {UserId} as offline on device {DeviceId}", 
                 userId, deviceId);
             return false;
         }
@@ -164,18 +165,18 @@ public class UserOnlineService
                 status.LastSeen = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
                 
-                _logger.LogDebug("Updated heartbeat for User {UserId} on device {DeviceId}", 
+                _logger.LogDebug("Updated heartbeat for AppUser {UserId} on device {DeviceId}", 
                     userId, deviceId);
             }
             else
             {
-                _logger.LogWarning("Heartbeat update failed: No online status found for User {UserId} on device {DeviceId}", 
+                _logger.LogWarning("Heartbeat update failed: No online status found for AppUser {UserId} on device {DeviceId}", 
                     userId, deviceId);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update heartbeat for user {UserId} on device {DeviceId}", 
+            _logger.LogError(ex, "Failed to update heartbeat for appUser {UserId} on device {DeviceId}", 
                 userId, deviceId);
         }
     }
@@ -202,7 +203,7 @@ public class UserOnlineService
                 !string.IsNullOrEmpty(existingStatus.ConnectionId) && 
                 existingStatus.ConnectionId != connectionId)
             {
-                _logger.LogInformation("🔀 Device collision detected: User {UserId}, Device {DeviceId}, Old Connection: {OldConnectionId}, New Connection: {NewConnectionId}", 
+                _logger.LogInformation("🔀 Device collision detected: AppUser {UserId}, Device {DeviceId}, Old Connection: {OldConnectionId}, New Connection: {NewConnectionId}", 
                     userId, deviceId, existingStatus.ConnectionId, connectionId);
                     
                 result.HasCollision = true;
@@ -225,7 +226,7 @@ public class UserOnlineService
             else
             {
                 // Opprett ny status for denne enheten
-                var newStatus = new UserOnlineStatus
+                var newStatus = new UserConnection
                 {
                     UserId = userId,
                     DeviceId = deviceId,
@@ -255,20 +256,20 @@ public class UserOnlineService
             if (otherActiveConnections.Any())
             {
                 result.OtherDeviceConnections = otherActiveConnections;
-                _logger.LogInformation("📱 Found {Count} other active devices for user {UserId}", 
+                _logger.LogInformation("📱 Found {Count} other active devices for appUser {UserId}", 
                     otherActiveConnections.Count, userId);
             }
 
             await _context.SaveChangesAsync();
             
-            _logger.LogInformation("✅ WebSocket connected: User {UserId}, Device {DeviceId}, Connection {ConnectionId}", 
+            _logger.LogInformation("✅ WebSocket connected: AppUser {UserId}, Device {DeviceId}, Connection {ConnectionId}", 
                 userId, deviceId, connectionId);
                 
             return result;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Failed to set WebSocket connected for user {UserId}, device {DeviceId}", userId, deviceId);
+            _logger.LogError(ex, "❌ Failed to set WebSocket connected for appUser {UserId}, device {DeviceId}", userId, deviceId);
             result.Success = false;
             return result;
         }
@@ -294,13 +295,13 @@ public class UserOnlineService
                 status.ConnectionId = null; // Clear connection ID
                 
                 await _context.SaveChangesAsync();
-                _logger.LogInformation("🔌 WebSocket disconnected: User {UserId}, Device {DeviceId}, Reason: {Reason}", 
+                _logger.LogInformation("🔌 WebSocket disconnected: AppUser {UserId}, Device {DeviceId}, Reason: {Reason}", 
                     userId, deviceId, reason ?? "Unknown");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Failed to set WebSocket disconnected for user {UserId}, device {DeviceId}", userId, deviceId);
+            _logger.LogError(ex, "❌ Failed to set WebSocket disconnected for appUser {UserId}, device {DeviceId}", userId, deviceId);
         }
     }
     
@@ -321,7 +322,7 @@ public class UserOnlineService
             foreach (var connection in staleConnections)
             {
                 connection.IsOnline = false;
-                _logger.LogDebug("Marking stale connection offline: User {UserId} on device {DeviceId} (Last seen: {LastSeen})", 
+                _logger.LogDebug("Marking stale connection offline: AppUser {UserId} on device {DeviceId} (Last seen: {LastSeen})", 
                     connection.UserId, connection.DeviceId, connection.LastSeen);
             }
 

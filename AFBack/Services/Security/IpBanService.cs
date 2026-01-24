@@ -7,6 +7,7 @@ using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Interface.Services;
 using AFBack.Models;
+using AFBack.Models.Auth;
 using AFBack.Utils;
 
 namespace AFBack.Services;

@@ -1,5 +1,6 @@
 ﻿using AFBack.Constants;
 using AFBack.DTOs;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Interface.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -27,7 +28,7 @@ public class NotificationService(
         int? friendInvitationId = null,
         int? eventInvitationId = null,
         int? conversationId = null,
-        UserSummaryDTO? relatedUserSummary = null
+        UserSummaryDto? relatedUserSummary = null
     )
     {
         var notification = new Notification
@@ -46,17 +47,17 @@ public class NotificationService(
         };
         
         
-        UserSummaryDTO? relatedUserDto = relatedUserSummary;
+        UserSummaryDto? relatedUserDto = relatedUserSummary;
         
         if (relatedUserDto == null && relatedUserId.HasValue)
         {
-            var relatedUser = await context.Users
-                .Include(u => u.Profile)
+            var relatedUser = await context.AppUsers
+                .Include(u => u.UserProfile)
                 .FirstOrDefaultAsync(u => u.Id == relatedUserId.Value);
 
             if (relatedUser != null)
             {
-                relatedUserDto = new UserSummaryDTO
+                relatedUserDto = new UserSummaryDto
                 {
                     Id = relatedUser.Id,
                     FullName = relatedUser.FullName,
@@ -65,7 +66,7 @@ public class NotificationService(
             }
         }
 
-        Log.Information("🔔 Notification created for user {RecipientUserId} of type {Type}", recipientUserId, type);
+        Log.Information("🔔 Notification created for appUser {RecipientUserId} of type {Type}", recipientUserId, type);
 
         context.Notifications.Add(notification);
         await context.SaveChangesAsync();
@@ -124,7 +125,7 @@ public class NotificationService(
     public async Task<List<NotificationDTO>> GetUserNotificationsAsync(int userId, int page = 1, int pageSize = 100)
     {
         var notifications = await context.Notifications
-            .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
+            .Include(n => n.RelatedUser).ThenInclude(u => u.UserProfile)
             .Where(n => n.RecipientUserId == userId)
             .OrderByDescending(n => n.CreatedAt)
             .Skip((page - 1) * pageSize)
@@ -143,7 +144,7 @@ public class NotificationService(
         try
         {
             var notifications = await context.Notifications
-                .Include(n => n.RelatedUser).ThenInclude(u => u.Profile)
+                .Include(n => n.RelatedUser).ThenInclude(u => u.UserProfile)
                 .Where(n => n.RecipientUserId == userId)
                 .OrderByDescending(n => n.CreatedAt)
                 .Take(limit)
@@ -162,11 +163,11 @@ public class NotificationService(
     // 🆕 FLYTT DENNE HELPER-METODEN HIT (fra controller):
     private static NotificationDTO ToDto(Notification n)
     {
-        UserSummaryDTO? related = null;
+        UserSummaryDto? related = null;
 
         if (n.RelatedUser != null)
         {
-            related = new UserSummaryDTO
+            related = new UserSummaryDto
             {
                 Id = n.RelatedUser.Id,
                 FullName = n.RelatedUser.FullName,

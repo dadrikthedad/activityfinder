@@ -1,9 +1,16 @@
-﻿using System.Text.Json;
-using AFBack.Constants;
-using AFBack.Domains.Entities;
+﻿using AFBack.Features.CanSend.Models;
+using AFBack.Features.Conversation.Models;
+using AFBack.Features.Friendship.Models;
+using AFBack.Features.MessageNotification.Models;
+using AFBack.Features.Messaging.Models;
+using AFBack.Features.SyncEvents.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
+using AFBack.Models.Auth;
+using AFBack.Models.Conversation;
 using AFBack.Models.Crypto;
+using AFBack.Models.Enums;
+using AFBack.Models.User;
 
 
 namespace AFBack.Data;
@@ -14,17 +21,18 @@ public class ApplicationDbContext : DbContext
     // konstruktøren
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) {}
     
-    // Her definerer vi tabellene i databasen. Users er brukere.
-    public DbSet<User> Users { get; set; } // Bruker
+    // Her definerer vi tabellene i databasen. AppUsers er brukere.
+    public DbSet<AppUser> AppUsers { get; set; } // Bruker
     public DbSet<VerificationInfo> VerificationInfos { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
-    public DbSet<Profile> Profiles { get; set; } // profilen til bruker
+    public DbSet<UserProfile> Profiles { get; set; } // profilen til bruker
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
-    public DbSet<Friends> Friends { get; set; } // Venner til bruker
+    public DbSet<Friendship> Friends { get; set; } // Venner til bruker
     public DbSet<FriendInvitation> FriendInvitations { get; set; } // Venne invitasjoner til bruker
     public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
     
-    public DbSet<ConversationParticipant> ConversationParticipants { get; set; } // Her her vi samtaler som kobler meldinger mot brukere/grupper
+    public DbSet<ConversationParticipant> ConversationParticipants { get; set; } 
+    // Her her vi samtaler som kobler meldinger mot brukere/grupper
     public DbSet<Conversation> Conversations { get; set; } // Samtaler mellom brukere
     public DbSet<ConversationReadState> ConversationReadStates { get; set; } // Leste samtaler
     
@@ -43,7 +51,7 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<CanSend> CanSend { get; set; }
     
-    public DbSet<UserOnlineStatus> UserOnlineStatuses { get; set; }
+    public DbSet<UserConnection> UserOnlineStatuses { get; set; }
     
     public DbSet<SyncEvent> SyncEvents { get; set; }
     
@@ -60,35 +68,357 @@ public class ApplicationDbContext : DbContext
     public DbSet<Message> Messages { get; set; } 
     
     public DbSet<MessageAttachment> MessageAttachments { get; set; }
+    
+    public DbSet<DeviceSyncState> DeviceSyncStates { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        // Bruker må ha unik epost
-        modelBuilder.Entity<User>().HasIndex(user => user.Email).IsUnique();
-        // bruker kan kun ha en profil
-        modelBuilder.Entity<Profile>()
-            .HasOne(p => p.User)
-            .WithOne(u => u.Profile)
-            .HasForeignKey<Profile>(p => p.UserId);
+        
+        // ==================== USER ====================
+        modelBuilder.Entity<AppUser>(entity =>
+        {
+            entity.HasIndex(e => e.Email)
+                .IsUnique();
+        
+            entity.HasIndex(e => e.Phone)
+                .IsUnique()
+                .HasFilter("\"Phone\" IS NOT NULL");
+        });
     
-        // Bruker kan kun ha en UserSettings (1:1)
-        modelBuilder.Entity<UserSettings>()
-            .HasOne(s => s.User)
-            .WithOne(u => u.Settings)
-            .HasForeignKey<UserSettings>(s => s.UserId);
+        // ==================== USER PROFILE ====================
+        modelBuilder.Entity<UserProfile>(entity =>
+        {
+            entity.HasOne(p => p.AppUser)
+                .WithOne(u => u.UserProfile)
+                .HasForeignKey<UserProfile>(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== USER SETTINGS  ====================
+        modelBuilder.Entity<UserSettings>(entity =>
+        {
+            entity.HasOne(s => s.AppUser)
+                .WithOne(u => u.UserSettings)
+                .HasForeignKey<UserSettings>(s => s.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== VERIFICATION INFO ====================
+        modelBuilder.Entity<VerificationInfo>(entity =>
+        {
+            entity.HasOne(v => v.AppUser)
+                .WithOne(u => u.VerificationInfo)
+                .HasForeignKey<VerificationInfo>(v => v.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== USER DEVICE ====================
+        modelBuilder.Entity<UserDevice>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.UserId);
+            
+            // --- Relationships --- //
+            entity.HasOne(d => d.AppUser)
+                .WithMany(u => u.Devices)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // ==================== USER CONNECTION ====================
+        modelBuilder.Entity<UserConnection>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.UserDeviceId);
+            
+            // --- Indexes --- //
+            entity.HasIndex(e => e.LastHeartbeat);
+            entity.HasIndex(e => e.ConnectionId)
+                .IsUnique();
+        
+            // --- Relationships --- //
+            entity.HasOne(c => c.AppUser)
+                .WithMany(u => u.Connections)
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        
+            entity.HasOne(c => c.UserDevice)
+                .WithMany(d => d.Connections)
+                .HasForeignKey(c => c.UserDeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== LOGIN HISTORY ====================
+        modelBuilder.Entity<LoginHistory>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.UserDeviceId);
+            entity.HasIndex(e => e.SuspiciousActivityId);
+            
+            // --- Relationships --- //
+            entity.HasOne(l => l.AppUser)
+                .WithMany(u => u.LoginHistory)
+                .HasForeignKey(l => l.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(l => l.UserDevice)
+                .WithMany(d => d.LoginHistory)
+                .HasForeignKey(l => l.UserDeviceId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(l => l.SuspiciousActivity)
+                .WithMany()
+                .HasForeignKey(l => l.SuspiciousActivityId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // ==================== BAN INFO ====================
+        modelBuilder.Entity<BanInfo>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(b => b.UserId); 
+            entity.HasIndex(b => b.UserDeviceId); 
+            entity.HasIndex(b => b.BannedByUserId); 
+            entity.HasIndex(b => b.UnbannedByUserId);
+            
+            // --- Relationships --- //
+            entity.HasOne(b => b.User)
+                .WithMany(u => u.Bans)
+                .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+    
+            entity.HasOne(b => b.UserDevice)
+                .WithMany(d => d.Bans)
+                .HasForeignKey(b => b.UserDeviceId)
+                .OnDelete(DeleteBehavior.SetNull);
+    
+            entity.HasOne(b => b.BannedByUser)
+                .WithMany()
+                .HasForeignKey(b => b.BannedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+    
+            entity.HasOne(b => b.UnbannedByUser)
+                .WithMany()
+                .HasForeignKey(b => b.UnbannedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // ==================== SUSPICIOUS ACTIVITY ====================
+        modelBuilder.Entity<SuspiciousActivity>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.UserDeviceId);
+            
+            // --- Relationships --- //
+            entity.HasOne(s => s.User)
+                .WithMany(u => u.SuspiciousActivities)
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            
+            entity.HasOne(s => s.UserDevice)
+                .WithMany(u => u.SuspiciousActivities)
+                .HasForeignKey(s => s.UserDeviceId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // ==================== REFRESH TOKEN ====================
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.UserDeviceId);
+            
+            // --- Indexes --- //
+            entity.HasIndex(e => e.Token)
+                .IsUnique(); // TODO: Legge til retry hvis vi genrer en lik token som før
+            
+            // --- Relationships --- //
+            entity.HasOne(r => r.AppUser)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+    
+            entity.HasOne(r => r.UserDevice)
+                .WithMany(d => d.RefreshTokens)
+                .HasForeignKey(r => r.UserDeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== USER PUBLIC KEY ====================
+        modelBuilder.Entity<UserPublicKey>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(pk => pk.UserId);
+    
+            // --- Relationships --- //
+            entity.HasOne(pk => pk.User)
+                .WithMany(u => u.PublicKeys)
+                .HasForeignKey(pk => pk.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== CANSEND ====================
+        modelBuilder.Entity<CanSend>(entity =>
+        {
+            // --- Compound Primary Key --- //
+            entity.HasKey(cs => new { cs.UserId, cs.ConversationId });
+            
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(cs => cs.UserId);
+            entity.HasIndex(cs => cs.ConversationId);
+            
+            // --- Relationships --- //
+            entity.HasOne(cs => cs.AppUser)
+                .WithMany(u => u.CanSendTo)
+                .HasForeignKey(cs => cs.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+    
+            entity.HasOne(cs => cs.Conversation)
+                .WithMany(c => c.CanSend)
+                .HasForeignKey(cs => cs.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== CONVERSATION ====================
+        modelBuilder.Entity<Conversation>();
+        
+        // ==================== CONVERSATION PARTICIPANT ====================
+        modelBuilder.Entity<ConversationParticipant>(entity =>
+        {
+            // --- Compound Primary Key --- //
+            entity.HasKey(cp => new { cp.UserId, cp.ConversationId });
+    
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(cp => cp.UserId);
+            entity.HasIndex(cp => cp.ConversationId);
+            
+            // --- Useful composite indexes --- //
+            entity.HasIndex(cp => new { cp.UserId, HasDeleted = cp.ConversationArchived, ConversationStatus = cp.Status });
+            entity.HasIndex(cp => new { cp.UserId, ConversationStatus = cp.Status });
+    
+            // --- Relationships --- //
+            entity.HasOne(cp => cp.AppUser)
+                .WithMany(u => u.ConversationParticipants) 
+                .HasForeignKey(cp => cp.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+    
+            entity.HasOne(cp => cp.Conversation)
+                .WithMany(c => c.Participants)
+                .HasForeignKey(cp => cp.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== MESSAGE ====================
+        modelBuilder.Entity<Message>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(m => m.ConversationId);
+            entity.HasIndex(m => m.SenderId); 
+            
+            // --- Indexes --- //
+            entity.HasIndex(m => m.ParentMessageId);
+    
+            // --- Relationships --- //
+            entity.HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.SetNull);  
+    
+            entity.HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+    
+            entity.HasOne(m => m.ParentMessage)
+                .WithMany()
+                .HasForeignKey(m => m.ParentMessageId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // ==================== MESSAGE ATTACHMENT ====================
+        modelBuilder.Entity<MessageAttachment>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(ma => ma.MessageId);
+    
+            // --- Relationships --- //
+            entity.HasOne(ma => ma.Message)
+                .WithMany(m => m.Attachments)
+                .HasForeignKey(ma => ma.MessageId)
+                .OnDelete(DeleteBehavior.Cascade); 
+        });
+        
+        // ======================== CONVERSATIONLEFTRECORD ========================
+        modelBuilder.Entity<ConversationLeftRecord>(entity =>
+        {
+            // --- Compound Primary Key --- //
+            entity.HasKey(clr => new { clr.UserId, clr.ConversationId });
+            
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(clr => clr.ConversationId);
+        
+            // --- Relationships --- //
+            entity.HasOne(clr => clr.AppUser)
+                .WithMany()
+                .HasForeignKey(clr => clr.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(clr => clr.Conversation)
+                .WithMany(c => c.LeftGroupRecords)
+                .HasForeignKey(clr => clr.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== USERBLOCKS ====================
+        modelBuilder.Entity<UserBlock>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(ub => ub.BlockedUserId);
+
+            // --- Relationships --- //
+            // Relasjon til Blocker (brukeren som blokkerer)
+            entity.HasOne(ub => ub.Blocker)
+                .WithMany()
+                .HasForeignKey(ub => ub.BlockerId)
+                .OnDelete(DeleteBehavior.Restrict); 
+
+            // Relasjon til BlockedUser (brukeren som blir blokkert)
+            entity.HasOne(ub => ub.BlockedAppUser)
+                .WithMany() 
+                .HasForeignKey(ub => ub.BlockedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // ==================== DeviceSyncState ====================
+        modelBuilder.Entity<DeviceSyncState>(entity =>
+        {
+            // --- Primary Key (satt til hver device) --- //
+            entity.HasKey(e => e.UserDeviceId);
+    
+            // --- Relationships --- //
+            entity.HasOne(e => e.UserDevice)
+                .WithOne(ud => ud.SyncState)
+                .HasForeignKey<DeviceSyncState>(e => e.UserDeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        
         // venneliste med composite key. .HasKey definerer en primarykey basert på UserId og FriendId
-        modelBuilder.Entity<Friends>()
+        modelBuilder.Entity<Friendship>()
             .HasKey(f => new { f.UserId, f.FriendId });
         
-        // Knytter User og FriendUser som foreign key, sjekker begge veier fra UserId til FriendId og motsatt
-        modelBuilder.Entity<Friends>()
+        // Knytter AppUser og FriendUser som foreign key, sjekker begge veier fra UserId til FriendId og motsatt
+        modelBuilder.Entity<Friendship>()
             .HasOne(f => f.User)
             .WithMany()
             .HasForeignKey("UserId")
             .OnDelete(DeleteBehavior.Restrict); // onDelete sikrer at vi ikke får slettet en bruker som har venner
         
-        modelBuilder.Entity<Friends>()
+        modelBuilder.Entity<Friendship>()
             .HasOne(f => f.FriendUser)
             .WithMany()
             .HasForeignKey("FriendId")
@@ -124,46 +454,6 @@ public class ApplicationDbContext : DbContext
             .Property(n => n.Type)
             .HasConversion<string>(); // 🔹 konverter enum til string
         
-        // Message entity configuration - alle relationships samlet
-        modelBuilder.Entity<Message>(entity =>
-        {
-            // Primary key og properties
-            entity.HasKey(m => m.Id);
-            entity.Property(m => m.EncryptedText).HasMaxLength(5000);
-            entity.Property(m => m.KeyInfo).IsRequired();
-            entity.Property(m => m.IV).IsRequired();
-
-            // Attachments relationship
-            entity.HasMany(m => m.Attachments)
-                .WithOne(a => a.Message)
-                .HasForeignKey(a => a.MessageId)  // RETTET: var a.Id
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Sender relationship - hvis bruker slettes så slettes ikke meldinger
-            entity.HasOne(m => m.Sender)
-                .WithMany()
-                .HasForeignKey(m => m.SenderId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Reactions relationship
-            entity.HasMany(m => m.Reactions)
-                .WithOne(r => r.Message)
-                .HasForeignKey(r => r.MessageId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Parent message relationship (reply-to)
-            entity.HasOne(m => m.ParentMessage)
-                .WithMany()
-                .HasForeignKey(m => m.ParentMessageId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Conversation relationship
-            entity.HasOne(m => m.Conversation)
-                .WithMany(c => c.Messages)
-                .HasForeignKey(m => m.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
         // MessageAttachment entity configuration
         modelBuilder.Entity<MessageAttachment>(entity =>
         {
@@ -181,12 +471,6 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
-        // Samtaler
-        modelBuilder.Entity<Message>()
-            .HasOne(m => m.Conversation)
-            .WithMany(c => c.Messages)
-            .HasForeignKey(m => m.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
         
         // Reaksjoner
         modelBuilder.Entity<Reaction>()
@@ -202,30 +486,6 @@ public class ApplicationDbContext : DbContext
             .HasOne(r => r.Message)
             .WithMany(m => m.Reactions)
             .HasForeignKey(r => r.MessageId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
-        // Samtaler
-        modelBuilder.Entity<Conversation>(entity =>
-        {
-            entity.HasKey(c => c.Id);
-            entity.Property(c => c.GroupName)
-                .HasMaxLength(100);
-            entity.Property(c => c.CreatorId)
-                .IsRequired();
-            entity.Property(c => c.LastMessageSentAt)
-                .IsRequired(false);
-        });
-
-        modelBuilder.Entity<ConversationParticipant>()
-            .HasOne(cp => cp.Conversation)
-            .WithMany(c => c.Participants)
-            .HasForeignKey(cp => cp.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<ConversationParticipant>()
-            .HasOne(cp => cp.User)
-            .WithMany() // eller .WithMany(u => u.Conversations) hvis du har det i User.cs
-            .HasForeignKey(cp => cp.UserId)
             .OnDelete(DeleteBehavior.Cascade);
         
         // For å sjekke om en bruker har lest samtalene sine
@@ -290,14 +550,14 @@ public class ApplicationDbContext : DbContext
             // FJERNET: LastUpdatedAt (kan beholdes hvis du trenger den til andre formål)
 
             // Relasjoner (samme som før)
-            entity.HasOne(n => n.User)
+            entity.HasOne(n => n.RecipientUser)
                 .WithMany()
-                .HasForeignKey(n => n.UserId)
+                .HasForeignKey(n => n.RecipientId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(n => n.FromUser)
+            entity.HasOne(n => n.SenderUser)
                 .WithMany()
-                .HasForeignKey(n => n.FromUserId)
+                .HasForeignKey(n => n.SenderId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             entity.HasOne(n => n.Message)
@@ -313,11 +573,11 @@ public class ApplicationDbContext : DbContext
             // FJERNET: Ignore GroupEventIds (ikke lenger nødvendig)
 
             // Oppdaterte indekser
-            entity.HasIndex(e => new { e.UserId, e.Type, e.IsRead });
+            entity.HasIndex(e => new { UserId = e.RecipientId, e.Type, e.IsRead });
             entity.HasIndex(e => new { e.ConversationId, e.Type, e.IsRead });
             
             // ENDRET: Unique constraint for GroupEvent notifikasjoner (forenklet)
-            entity.HasIndex(e => new { e.UserId, e.ConversationId, e.Type, e.IsRead })
+            entity.HasIndex(e => new { UserId = e.RecipientId, e.ConversationId, e.Type, e.IsRead })
                 .HasFilter("\"Type\" = 8 AND \"IsRead\" = false")
                 .HasDatabaseName("IX_MessageNotification_UniqueGroupEvent");
         });
@@ -411,7 +671,7 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
     
-            // Unique constraint - en user kan bare være affected én gang per event
+            // Unique constraint - en appUser kan bare være affected én gang per event
             entity.HasIndex(e => new { e.GroupEventId, e.UserId })
                 .IsUnique()
                 .HasDatabaseName("IX_GroupEventAffectedUser_GroupEventId_UserId");
@@ -429,187 +689,10 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.GroupEventId)
                 .OnDelete(DeleteBehavior.Cascade);
         
-            entity.HasOne(e => e.User)
+            entity.HasOne(e => e.AppUser)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere når events slettes
-        });
-        
-        // UserBlock konfigurasjon
-        modelBuilder.Entity<UserBlock>(entity =>
-        {
-            entity.HasKey(ub => ub.Id);
-    
-            // Blocker relationship
-            entity.HasOne(ub => ub.Blocker)
-                .WithMany()
-                .HasForeignKey(ub => ub.BlockerId)
-                .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere hvis de har blokkert noen
-    
-            // BlockedUser relationship
-            entity.HasOne(ub => ub.BlockedUser)
-                .WithMany()
-                .HasForeignKey(ub => ub.BlockedUserId)
-                .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere hvis de er blokkert
-    
-            // Unique constraint - en bruker kan kun blokkere en annen bruker én gang
-            entity.HasIndex(ub => new { ub.BlockerId, ub.BlockedUserId })
-                .IsUnique()
-                .HasDatabaseName("IX_UserBlock_BlockerId_BlockedUserId");
-    
-            // Separate indekser for ytelse
-            entity.HasIndex(ub => ub.BlockerId)
-                .HasDatabaseName("IX_UserBlock_BlockerId");
-        
-            entity.HasIndex(ub => ub.BlockedUserId)
-                .HasDatabaseName("IX_UserBlock_BlockedUserId");
-    
-            // Sørg for at en bruker ikke kan blokkere seg selv
-            entity.HasCheckConstraint("CK_UserBlock_NoSelfBlock", "\"BlockerId\" <> \"BlockedUserId\"");
-        });
-        
-        // CanSend
-        modelBuilder.Entity<CanSend>(entity =>
-        {
-            // Primary key
-            entity.HasKey(cs => cs.Id);
-
-            // Unique constraint på UserId + ConversationId
-            entity.HasIndex(cs => new { cs.UserId, cs.ConversationId })
-                .IsUnique()
-                .HasDatabaseName("IX_CanSend_UserId_ConversationId");
-
-            // Index for rask lookup basert på ConversationId
-            entity.HasIndex(cs => cs.ConversationId)
-                .HasDatabaseName("IX_CanSend_ConversationId");
-      
-            // Index for cleanup/maintenance queries basert på LastUpdated
-            entity.HasIndex(cs => cs.LastUpdated)
-                .HasDatabaseName("IX_CanSend_LastUpdated");
-
-            // 🆕 EKSPLISITT foreign key konfigurasjoner - dette forhindrer shadow properties
-            entity.HasOne(cs => cs.User)
-                .WithMany()
-                .HasForeignKey(cs => cs.UserId)
-                .HasConstraintName("FK_CanSend_Users_UserId") // Eksplisitt navn
-                .OnDelete(DeleteBehavior.Cascade);
-      
-            entity.HasOne(cs => cs.Conversation)
-                .WithMany()
-                .HasForeignKey(cs => cs.ConversationId)
-                .HasConstraintName("FK_CanSend_Conversations_ConversationId") // Eksplisitt navn
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // 🆕 EKSPLISITT ignorer shadow properties
-            entity.Ignore("ConversationId1");
-            entity.Ignore("UserId1");
-
-            // Property konfigurasjoner
-            entity.Property(cs => cs.ApprovedAt).IsRequired();
-            entity.Property(cs => cs.LastUpdated).IsRequired();
-            entity.Property(cs => cs.Reason).IsRequired();
-
-            // Table name
-            entity.ToTable("CanSend");
-        });
-        
-        modelBuilder.Entity<UserOnlineStatus>(entity =>
-        {
-            // Table name
-            entity.ToTable("UserOnlineStatuses");
-
-            // Primary key
-            entity.HasKey(e => e.Id);
-
-            //  Pek til navigation property
-            entity.HasOne(e => e.User)
-                .WithMany(u => u.OnlineStatuses) // : Peker til navigation property
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Indekser
-            entity.HasIndex(e => new { e.UserId, e.DeviceId })
-                .IsUnique()
-                .HasDatabaseName("IX_UserOnlineStatus_UserId_DeviceId");
-
-            entity.HasIndex(e => e.UserId)
-                .HasDatabaseName("IX_UserOnlineStatus_UserId");
-
-            entity.HasIndex(e => e.IsOnline)
-                .HasDatabaseName("IX_UserOnlineStatus_IsOnline");
-
-            entity.HasIndex(e => e.LastSeen)
-                .HasDatabaseName("IX_UserOnlineStatus_LastSeen");
-
-            // 🆕 Nye indekser for WebSocket-felter
-            entity.HasIndex(e => e.ConnectionId)
-                .HasDatabaseName("IX_UserOnlineStatus_ConnectionId");
-
-            entity.HasIndex(e => e.IsWebSocketConnected)
-                .HasDatabaseName("IX_UserOnlineStatus_IsWebSocketConnected");
-
-            entity.HasIndex(e => new { e.IsWebSocketConnected, e.WebSocketConnectedAt })
-                .HasDatabaseName("IX_UserOnlineStatus_WebSocket_ConnectedAt");
-
-            // Property configurations...
-            entity.Property(e => e.DeviceId)
-                .IsRequired()
-                .HasMaxLength(100)
-                .HasColumnType("varchar(100)");
-
-            entity.Property(e => e.Platform)
-                .HasMaxLength(20)
-                .HasColumnType("varchar(20)");
-
-            entity.Property(e => e.LastSeen)
-                .IsRequired()
-                .HasColumnType("timestamp with time zone");
-
-            entity.Property(e => e.LastBootstrapAt)
-                .HasColumnType("timestamp with time zone");
-
-            entity.Property(e => e.IsOnline)
-                .IsRequired()
-                .HasDefaultValue(false);
-
-            // WebSocket-spesifikke property konfigurasjoner
-            entity.Property(e => e.IsWebSocketConnected)
-                .IsRequired()
-                .HasDefaultValue(false);
-
-            entity.Property(e => e.ConnectionId)
-                .HasMaxLength(200)
-                .HasColumnType("varchar(200)");
-
-            entity.Property(e => e.WebSocketConnectedAt)
-                .HasColumnType("timestamp with time zone");
-
-            entity.Property(e => e.WebSocketDisconnectedAt)
-                .HasColumnType("timestamp with time zone");
-
-            entity.Property(e => e.DisconnectionReason)
-                .HasMaxLength(500)
-                .HasColumnType("varchar(500)");
-
-            entity.Property(e => e.ReconnectionAttempts)
-                .IsRequired()
-                .HasDefaultValue(0);
-
-            entity.Property(e => e.LastHeartbeat)
-                .HasColumnType("timestamp with time zone");
-
-            entity.Property(e => e.ConnectionMetadata)
-                .HasMaxLength(1000)
-                .HasColumnType("text");
-
-            entity.Property(e => e.Capabilities)
-                .HasConversion(
-                    v => v == null || v.Length == 0 ? "" : string.Join(',', v),
-                    v => string.IsNullOrEmpty(v) 
-                        ? Array.Empty<string>()
-                        : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                )
-                .HasColumnType("text");
         });
         
         modelBuilder.Entity<SyncEvent>(entity =>
@@ -762,42 +845,7 @@ public class ApplicationDbContext : DbContext
             entity.ToTable("ReportAttachments");
         });
         
-        modelBuilder.Entity<VerificationInfo>()
-            .HasOne(v => v.User)
-            .WithOne(u => u.VerificationInfo)
-            .HasForeignKey<VerificationInfo>(v => v.UserId);
-        
-        modelBuilder.Entity<BanInfo>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.IpAddress);
-            entity.HasIndex(e => new { e.IpAddress, e.IsActive });
-            entity.Property(e => e.IpAddress).HasMaxLength(45); // IPv6 support
-        });
-
-        modelBuilder.Entity<SuspiciousActivity>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.IpAddress);
-            entity.HasIndex(e => e.Timestamp);
-            entity.HasIndex(e => new { e.IpAddress, e.Timestamp });
-            entity.Property(e => e.IpAddress).HasMaxLength(45);
-        });
-
-
         
     }
-    // Sikre oppdatering av FullName ved oppdatering av first, middle eller lastname
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        foreach (var entry in ChangeTracker.Entries<User>())
-        {
-            if (entry.State is EntityState.Added or EntityState.Modified)
-            {
-                entry.Entity.UpdateFullName();
-            }
-        }
 
-        return await base.SaveChangesAsync(cancellationToken);
-    }
 }

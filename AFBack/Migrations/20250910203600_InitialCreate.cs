@@ -113,7 +113,7 @@ namespace AFBack.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Users",
+                name: "AppUsers",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
@@ -192,7 +192,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_CanSend_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -220,7 +220,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_ConversationParticipants_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -247,7 +247,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_ConversationReadStates_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -269,13 +269,13 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_FriendInvitations_Users_ReceiverId",
                         column: x => x.ReceiverId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_FriendInvitations_Users_SenderId",
                         column: x => x.SenderId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -296,13 +296,13 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_Friends_Users_FriendId",
                         column: x => x.FriendId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_Friends_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -331,7 +331,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_GroupEvents_Users_ActorUserId",
                         column: x => x.ActorUserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -361,13 +361,13 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_GroupRequests_Users_ReceiverId",
                         column: x => x.ReceiverId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_GroupRequests_Users_SenderId",
                         column: x => x.SenderId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -399,7 +399,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_MessageRequests_Users_SenderId",
                         column: x => x.SenderId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -441,7 +441,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_Messages_Users_SenderId",
                         column: x => x.SenderId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -470,13 +470,13 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_Notifications_Users_RecipientUserId",
                         column: x => x.RecipientUserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_Notifications_Users_RelatedUserId",
                         column: x => x.RelatedUserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -504,7 +504,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_Profiles_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -527,7 +527,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_RefreshTokens_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -553,7 +553,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_SyncEvents_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -575,13 +575,13 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_UserBlocks_Users_BlockedUserId",
                         column: x => x.BlockedUserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_UserBlocks_Users_BlockerId",
                         column: x => x.BlockerId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -614,7 +614,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_UserOnlineStatuses_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -637,7 +637,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_UserPublicKeys_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -669,7 +669,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_UserSettings_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -693,7 +693,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_VerificationInfos_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -719,7 +719,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_GroupEventAffectedUsers_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -791,12 +791,12 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_MessageNotifications_Users_FromUserId",
                         column: x => x.FromUserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_MessageNotifications_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -822,7 +822,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_Reactions_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -873,7 +873,7 @@ namespace AFBack.Migrations
                     table.ForeignKey(
                         name: "FK_UserActivity_Users_UserId",
                         column: x => x.UserId,
-                        principalTable: "Users",
+                        principalTable: "AppUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -1231,7 +1231,7 @@ namespace AFBack.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Email",
-                table: "Users",
+                table: "AppUsers",
                 column: "Email",
                 unique: true);
         }
@@ -1333,7 +1333,7 @@ namespace AFBack.Migrations
                 name: "Conversations");
 
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "AppUsers");
         }
     }
 }

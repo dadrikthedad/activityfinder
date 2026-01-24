@@ -8,6 +8,8 @@ using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
+using AFBack.Models.Auth;
+using AFBack.Models.User;
 using AFBack.Services.User;
 using AFBack.Utils;
 using Microsoft.AspNetCore.Authorization;
@@ -25,8 +27,8 @@ using AFBack.Services;
 using CountryData.Standard;
 
 
-// Forteller backend at alle API-endepunktene i denne klassen skal ha api/user som base-url
-[Route("api/user")]
+// Forteller backend at alle API-endepunktene i denne klassen skal ha api/appUser som base-url
+[Route("api/appUser")]
 // Gjør klassen til en API-kontroller, automatisk sjekk at det er riktig input, automatisk konvertering JSON-requests til objekter.
 [ApiController]
 public class UserController(
@@ -61,7 +63,7 @@ public class UserController(
 
             if (!countries.Any())
             {
-                _logger.LogWarning("No countries found.");
+                Logger.LogWarning("No countries found.");
                 return NotFound(new { message = "No countries available." });
             }
 
@@ -69,7 +71,7 @@ public class UserController(
         }
         catch (Exception ex)
         {
-            _logger.LogError("Error retrieving countries: {Error}", ex.Message);
+            Logger.LogError("Error retrieving countries: {Error}", ex.Message);
             return StatusCode(500, new { message = "Failed to fetch countries." });
         }
     }
@@ -87,7 +89,7 @@ public class UserController(
 
             if (!regions.Any())
             {
-                _logger.LogInformation("Ingen regioner funnet for {Code}", countryCode);
+                Logger.LogInformation("Ingen regioner funnet for {Code}", countryCode);
                 return Ok(new List<string>());
             }
 
@@ -95,13 +97,13 @@ public class UserController(
         }
         catch (Exception e)
         {
-            _logger.LogError("Feil ved henting av regioner for {Code}: {Error}", countryCode, e.Message);
+            Logger.LogError("Feil ved henting av regioner for {Code}: {Error}", countryCode, e.Message);
             return StatusCode(500, new { message = "Kunne ikke hente regioner. Prøv igjen senere." });
         }
     }
     
     
-    // Brukes til å fortelle at denne metoden skal håndtere POST-requests fra url med api/user/register
+    // Brukes til å fortelle at denne metoden skal håndtere POST-requests fra url med api/appUser/register
     [HttpPost("register")]
     // Async kjører asynkront, slik at den ikke blokkerer hovedtråden. Dette er viktig når vi jobber med databaser, da det kan ta tid å hente og lagre data.
     // Task betyr at metoden er asynkron og vil returnere en verdi i fremtiden. IActionResult er typen returverdi, som betyr at vi returnerer en HTTP-respons.
@@ -112,7 +114,7 @@ public class UserController(
         try
         {
 
-            _logger.LogInformation("Registering user with data: {@UserDto}", userDto);
+            Logger.LogInformation("Registering appUser with data: {@UserDto}", userDto);
        
             var countryName = countryService.GetCountryNameFromCode(userDto.Country);
             if (countryName is null)
@@ -129,14 +131,14 @@ public class UserController(
                 var errors = ModelState.ToDictionary(kvp => kvp.Key,
                     kvp => kvp.Value.Errors.Select(error => error.ErrorMessage).ToList());
 
-                _logger.LogWarning("Validation failed for user registration. Errors: {@Errors}", errors);
+                Logger.LogWarning("Validation failed for appUser registration. Errors: {@Errors}", errors);
                 
                 // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
                 await this.ReportSuspiciousActivityAsync(
                     ipBanService, 
                     SuspiciousActivityTypes.REGISTRATION_VALIDATION_FAILED, 
                     $"Registration validation failed: {string.Join(", ", errors.Values.SelectMany(v => v))}",
-                    _logger);
+                    Logger);
                 
                 return BadRequest(new {message = $"Validation failed. Check errors.", errors});
             }
@@ -145,9 +147,9 @@ public class UserController(
             var longToken = Guid.NewGuid().ToString();
             var shortCode = new Random().Next(100000, 999999).ToString();
             
-            User savedUser;
+            AppUser savedAppUser;
             
-            using (var transaction = await _context.Database.BeginTransactionAsync())
+            using (var transaction = await Context.Database.BeginTransactionAsync())
             {
                 try
                 {   
@@ -168,7 +170,7 @@ public class UserController(
                         return BadRequest(new { message = "Invalid gender value." });
                     }
                 
-                    var user = new User
+                    var user = new AppUser
                     {
                         FirstName = userDto.FirstName,
                         MiddleName = userDto.MiddleName,
@@ -188,7 +190,7 @@ public class UserController(
                     // Opprett VerificationInfo separat
                     var verificationInfo = new VerificationInfo
                     {
-                        User = user,
+                        AppUser = user,
                         EmailConfirmationToken = longToken,
                         EmailConfirmationCode = shortCode,
                         LastVerificationEmailSent = DateTime.UtcNow,
@@ -197,28 +199,28 @@ public class UserController(
 
                     user.UpdateFullName();
                 
-                    var profile = new Profile
+                    var profile = new UserProfile
                     {
-                        User = user,
+                        AppUser = user,
                         UpdatedAt = DateTime.UtcNow,
                     };
                 
                     var settings = new UserSettings
                     {
-                        User = user,
+                        AppUser = user,
                     };
 
-                    await _context.Users.AddAsync(user);
-                    await _context.Profiles.AddAsync(profile);
-                    await _context.UserSettings.AddAsync(settings);
-                    await _context.VerificationInfos.AddAsync(verificationInfo);
-                    await _context.SaveChangesAsync();
+                    await Context.Users.AddAsync(user);
+                    await Context.Profiles.AddAsync(profile);
+                    await Context.UserSettings.AddAsync(settings);
+                    await Context.VerificationInfos.AddAsync(verificationInfo);
+                    await Context.SaveChangesAsync();
 
                     // *** COMMIT TRANSACTION FØR EMAIL-SENDING ***
                     await transaction.CommitAsync();
                     
-                    // Store user reference for later use
-                    savedUser = user;
+                    // Store appUser reference for later use
+                    savedAppUser = user;
                 }
                 catch (DbUpdateException e)
                 {
@@ -227,25 +229,25 @@ public class UserController(
                     if (e.InnerException is Npgsql.PostgresException postgresException && 
                         postgresException.SqlState == "23505")
                     {
-                        _logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
+                        Logger.LogWarning("Duplicate email detected: {Email}", userDto.Email);
                         
                         // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
                         await this.ReportSuspiciousActivityAsync(
                             ipBanService, 
                             SuspiciousActivityTypes.DUPLICATE_EMAIL_REGISTRATION, 
                             $"Attempted registration with existing email: {userDto.Email}",
-                            _logger);
+                            Logger);
                         
                         return BadRequest(new { message = "Email is already registered." });
                     }
 
-                    _logger.LogError("Error saving user: {Error}", e.Message);
-                    return StatusCode(500, new { message = "An error occured while saving the user." });
+                    Logger.LogError("Error saving appUser: {Error}", e.Message);
+                    return StatusCode(500, new { message = "An error occured while saving the appUser." });
                 }
                 catch (Exception e)
                 {
                     await transaction.RollbackAsync();
-                    _logger.LogError("Database connection failed: {Error}", e.Message);
+                    Logger.LogError("Database connection failed: {Error}", e.Message);
                     return StatusCode(500, new { message = "Database connection error. Please try again later." });
                 }
             } // *** TRANSACTION ER NÅ FERDIG OG DISPOSED ***
@@ -254,51 +256,51 @@ public class UserController(
             bool emailSent = false;
             try
             {
-                emailSent = await emailService.SendVerificationEmailAsync(savedUser.Email, longToken, shortCode);
+                emailSent = await emailService.SendVerificationEmailAsync(savedAppUser.Email, longToken, shortCode);
 
                 if (emailSent)
                 {
                     // Registrer for rate limiting (samme som i EmailController)
-                    emailRateLimitService.RegisterVerificationEmailSent(savedUser.Email);
+                    emailRateLimitService.RegisterVerificationEmailSent(savedAppUser.Email);
         
                     // Oppdater UserService timestamp
-                    await userService.MarkVerificationEmailSentAsync(savedUser.Email);
+                    await userService.MarkVerificationEmailSentAsync(savedAppUser.Email);
         
-                    _logger.LogInformation("Verification email sent successfully to {Email}", savedUser.Email);
+                    Logger.LogInformation("Verification email sent successfully to {Email}", savedAppUser.Email);
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to send verification email to {Email}", savedUser.Email);
+                    Logger.LogWarning("Failed to send verification email to {Email}", savedAppUser.Email);
                     
                     // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
                     await this.ReportSuspiciousActivityAsync(
                         ipBanService, 
                         SuspiciousActivityTypes.VERIFICATION_EMAIL_FAILED, 
-                        $"Failed to send verification email to: {savedUser.Email}",
-                        _logger);
+                        $"Failed to send verification email to: {savedAppUser.Email}",
+                        Logger);
                 }
             }
             catch (Exception emailEx)
             {
-                _logger.LogError("Error sending verification email to {Email}: {Error}", savedUser.Email, emailEx.Message);
+                Logger.LogError("Error sending verification email to {Email}: {Error}", savedAppUser.Email, emailEx.Message);
                 // Email failure should not fail the registration
                 
                 // *** RAPPORTER MISTENKELIG AKTIVITET MED EXTENSION ***
                 await this.ReportSuspiciousActivityAsync(
                     ipBanService, 
                     SuspiciousActivityTypes.VERIFICATION_EMAIL_ERROR, 
-                    $"Exception sending verification email to: {savedUser.Email} - {emailEx.Message}",
-                    _logger);
+                    $"Exception sending verification email to: {savedAppUser.Email} - {emailEx.Message}",
+                    Logger);
             }
             
             // *** RETURNER ALLTID SUKSESS ***
-            _logger.LogInformation("Successful registration for user: {Email}", savedUser.Email);
+            Logger.LogInformation("Successful registration for appUser: {Email}", savedAppUser.Email);
             
             return Ok(new
             {
                 message = "Registration successful! We've sent a verification email with both a clickable link and a 6-digit code. Use either method to verify your account.",
-                userId = savedUser.Id,
-                email = savedUser.Email,
+                userId = savedAppUser.Id,
+                email = savedAppUser.Email,
                 emailConfirmationRequired = true,
                 verificationMethods = new 
                 {
@@ -310,7 +312,7 @@ public class UserController(
         }
         catch (Exception e)
         {
-            _logger.LogWarning("Unhandled error: {Error}", e.Message);
+            Logger.LogWarning("Unhandled error: {Error}", e.Message);
             return StatusCode(500, new { message = $"{e.Message} Unexpected server error." });
         }
     }
@@ -331,7 +333,7 @@ public class UserController(
         if (loginResponse == null)
         {
             // Sjekk om det er uverifisert epost
-            var existingUser = await _context.Users
+            var existingUser = await Context.Users
                 .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
 
             if (existingUser != null && !existingUser.EmailConfirmed)
@@ -340,7 +342,7 @@ public class UserController(
                     ipBanService, 
                     SuspiciousActivityTypes.UNVERIFIED_LOGIN_ATTEMPT, 
                     $"Login attempt with unverified email: {normalizedEmail}",
-                    _logger);
+                    Logger);
         
                 return Unauthorized(new { 
                     message = "Please verify your email address before logging in.",
@@ -350,13 +352,13 @@ public class UserController(
             }
 
             // Feil login
-            _logger.LogWarning("Failed login attempt for email: {Email}", userLoginDto.Email);
+            Logger.LogWarning("Failed login attempt for email: {Email}", userLoginDto.Email);
 
             await this.ReportSuspiciousActivityAsync(
                 ipBanService, 
                 SuspiciousActivityTypes.FAILED_LOGIN, 
                 $"Failed login attempt for email: {normalizedEmail}",
-                _logger);
+                Logger);
 
             return Unauthorized(new { message = "Invalid email or password." });
         }
@@ -364,7 +366,7 @@ public class UserController(
         // Oppdater brukerinfo ved vellykket login
         try
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
+            var user = await Context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             if (user != null)
             {
                 var userId = user.Id;
@@ -372,7 +374,7 @@ public class UserController(
                 
                 user.LastLoginIp = clientIp;
                 user.LastSeen = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                await Context.SaveChangesAsync();
 
                 // Background geolocation update
                 _ = Task.Run(async () =>
@@ -386,7 +388,7 @@ public class UserController(
                             using var scope = scopeFactory.CreateScope();
                             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 
-                            var userToUpdate = await context.Users.FindAsync(userId);
+                            var userToUpdate = await context.AppUsers.FindAsync(userId);
                             if (userToUpdate != null)
                             {
                                 userToUpdate.LastLoginCity = locationResult.City;
@@ -394,14 +396,14 @@ public class UserController(
                                 userToUpdate.LastLoginCountry = locationResult.Country;
                                 await context.SaveChangesAsync();
                     
-                                _logger.LogDebug("Updated location for user {UserId}: {City}, {Region}, {Country}", 
+                                Logger.LogDebug("Updated location for appUser {UserId}: {City}, {Region}, {Country}", 
                                     userId, locationResult.City, locationResult.Region, locationResult.Country);
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning("Background geolocation update failed for user {UserId}: {Error}", 
+                        Logger.LogWarning("Background geolocation update failed for appUser {UserId}: {Error}", 
                             userId, ex.Message);
                     }
                 });
@@ -409,7 +411,7 @@ public class UserController(
         }
         catch (Exception e)
         {
-            _logger.LogWarning("Could not save login info for {Email}: {Error}", userLoginDto.Email, e.Message);
+            Logger.LogWarning("Could not save login info for {Email}: {Error}", userLoginDto.Email, e.Message);
         }
         
         return Ok(loginResponse);
@@ -425,11 +427,11 @@ public class UserController(
     
         if (success)
         {
-            _logger.LogInformation("User logged out successfully");
+            Logger.LogInformation("AppUser logged out successfully");
         }
         else
         {
-            _logger.LogWarning("Logout attempt with invalid token");
+            Logger.LogWarning("Logout attempt with invalid token");
         }
 
         // Alltid returner success for å ikke avsløre token-status
@@ -446,7 +448,7 @@ public class UserController(
 
         if (result == null)
         {
-            _logger.LogWarning("Invalid refresh token attempt from IP: {IP}", 
+            Logger.LogWarning("Invalid refresh token attempt from IP: {IP}", 
                 IpUtils.GetClientIp(HttpContext));
             return Unauthorized(new { message = "Invalid or expired refresh token" });
         }
@@ -466,7 +468,7 @@ public class UserController(
                 ipBanService,
                 SuspiciousActivityTypes.API_ABUSE,
                 "Email availability check with empty email",
-                _logger);
+                Logger);
                 
             return BadRequest(new { message = "Email can't be empty." });
         }
@@ -482,7 +484,7 @@ public class UserController(
                     ipBanService,
                     SuspiciousActivityTypes.API_ABUSE,
                     $"Suspicious email pattern detected: {normalizedEmail}",
-                    _logger);
+                    Logger);
                     
                 return BadRequest(new { message = "Invalid email format." });
             }
@@ -493,24 +495,24 @@ public class UserController(
                     ipBanService,
                     SuspiciousActivityTypes.API_ABUSE,
                     $"Invalid email format in availability check: {normalizedEmail}",
-                    _logger);
+                    Logger);
                     
                 return BadRequest(new { message = "Invalid email format." });
             }
             
-            bool emailExists = await _context.Users.AnyAsync(user => user.Email == normalizedEmail);
+            bool emailExists = await Context.Users.AnyAsync(user => user.Email == normalizedEmail);
 
             return Ok(new { exists = emailExists });
         }
         catch (Exception e)
         {
-            _logger.LogError("Error while checking email: {Error}", e.Message);
+            Logger.LogError("Error while checking email: {Error}", e.Message);
             
             await this.ReportSuspiciousActivityAsync(
                 ipBanService,
                 SuspiciousActivityTypes.API_ABUSE,
                 $"Database error during email check: {e.Message}",
-                _logger);
+                Logger);
                 
             return StatusCode(500, new { message = "Database error. Try again later." });
         }
@@ -525,13 +527,13 @@ public class UserController(
         {
             if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             {
-                return Unauthorized(new { message = "Invalid user ID in token." });
+                return Unauthorized(new { message = "Invalid appUser ID in token." });
             }
         
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "AppUser not found." });
 
             var dto = new UserDTO
             {
@@ -558,13 +560,13 @@ public class UserController(
     {
             if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             {
-                return Unauthorized(new { message = "Invalid user ID in token." });
+                return Unauthorized(new { message = "Invalid appUser ID in token." });
             }
         
-            var user = await _context.Users.FindAsync(userId);
+            var user = await Context.Users.FindAsync(userId);
             
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "AppUser not found." });
 
             var dto = new UserProfileSettingDTO
             {
@@ -597,7 +599,7 @@ public class UserController(
         user.FirstName = dto.FirstName;
         user.UpdateFullName();
         
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         // Notify friends and blockers
         UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
@@ -626,7 +628,7 @@ public class UserController(
         user.MiddleName = dto.MiddleName;
         user.UpdateFullName();
         
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         // Notify friends and blockers
         UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
@@ -656,7 +658,7 @@ public class UserController(
         user.LastName = dto.LastName;
         user.UpdateFullName();
         
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         UserSummaryExtensions.NotifyFriendsAndBlockersOfProfileUpdate(
             taskQueue,
@@ -685,7 +687,7 @@ public class UserController(
         if (user == null) return Unauthorized();
 
         user.Phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim();
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Phone updated." });
     }
@@ -710,7 +712,7 @@ public class UserController(
         user.Country = countryName;
         user.Region = dto.Region;
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Location updated." });
     }
@@ -726,7 +728,7 @@ public class UserController(
         if (user == null) return Unauthorized();
 
         user.PostalCode = dto.PostalCode;
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Postal code updated." });
     }
@@ -742,7 +744,7 @@ public class UserController(
         if (user == null) return Unauthorized();
 
         user.Gender = dto.Gender;
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Gender updated." });
     }
@@ -763,13 +765,13 @@ public class UserController(
             return Unauthorized(new { message = "Current password is incorrect." });
         }
 
-        if (await _context.Users.AnyAsync(u => u.Email == dto.NewEmail && u.Id != user.Id))
+        if (await Context.Users.AnyAsync(u => u.Email == dto.NewEmail && u.Id != user.Id))
         {
             return BadRequest(new { message = "This email is already in use." });
         }
 
         user.Email = dto.NewEmail.Trim().ToLowerInvariant();
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Email updated.", newEmail = user.Email });
     }
@@ -792,14 +794,14 @@ public class UserController(
 
         // Hash og lagre nytt passord
         user.PasswordHash = BCrypt.HashPassword(dto.NewPassword);
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
 
         return Ok(new { message = "Password updated successfully." });
     }
     
     // Søke etter en bruker, brukes i søkebaren til navbar. Senere eventuelt lage en egen SearchController.cs feks
     [HttpGet("search")]
-    public async Task<ActionResult<List<UserSummaryDTO>>> SearchUsers([FromQuery] string query)
+    public async Task<ActionResult<List<UserSummaryDto>>> SearchUsers([FromQuery] string query)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -818,18 +820,18 @@ public class UserController(
         // ✅ Kun hent blocked relationships hvis innlogget
         if (currentUserId.HasValue)
         {
-            blockedUserIds = await _context.UserBlocks
+            blockedUserIds = await Context.UserBlocks
                 .Where(b => b.BlockerId == currentUserId || b.BlockedUserId == currentUserId)
                 .Select(b => b.BlockerId == currentUserId ? b.BlockedUserId : b.BlockerId)
                 .ToListAsync();
         }
 
-        var results = await _context.Users
+        var results = await Context.Users
             .Where(u => 
                 u.FullName.ToLower().Contains(normalizedQuery) &&
                 (currentUserId == null || u.Id != currentUserId) && // ✅ Ekskluder seg selv bare hvis innlogget
                 !blockedUserIds.Contains(u.Id)) // ✅ Tom liste hvis ikke innlogget
-            .Select(u => new UserSummaryDTO
+            .Select(u => new UserSummaryDto
             {
                 Id = u.Id,
                 FullName = u.FullName,
@@ -842,7 +844,7 @@ public class UserController(
     }
     
     [HttpGet("search/group-invite/{conversationId}")]
-    public async Task<ActionResult<List<UserSummaryDTO>>> SearchUsersForGroupInvite(
+    public async Task<ActionResult<List<UserSummaryDto>>> SearchUsersForGroupInvite(
     [FromRoute] int conversationId,
     [FromQuery] string query)
     {
@@ -863,29 +865,29 @@ public class UserController(
             .Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
         // ✅ Hent blocked relationships
-        var blockedUserIds = await _context.UserBlocks
+        var blockedUserIds = await Context.UserBlocks
             .Where(b => b.BlockerId == currentUserId || b.BlockedUserId == currentUserId)
             .Select(b => b.BlockerId == currentUserId ? b.BlockedUserId : b.BlockerId)
             .ToListAsync();
 
-        var results = await _context.Users
+        var results = await Context.Users
             .Where(u => 
                 u.FullName.ToLower().Contains(normalizedQuery) &&
                 u.Id != currentUserId &&
                 !blockedUserIds.Contains(u.Id) && // ✅ Ikke blocked users
                 // Ikke eksisterende deltaker
-                !_context.ConversationParticipants
+                !Context.ConversationParticipants
                     .Any(cp => cp.ConversationId == conversationId && cp.UserId == u.Id) &&
                 // Ikke rejected eller pending gruppeforespørsel
-                !_context.GroupRequests
+                !Context.GroupRequests
                     .Any(gr => gr.ConversationId == conversationId && 
                                gr.ReceiverId == u.Id &&
                                (gr.Status == GroupRequestStatus.Rejected || 
                                 gr.Status == GroupRequestStatus.Pending)) &&
-                // Sjekk at current user har tilgang (sikkerhet)
-                _context.ConversationParticipants
+                // Sjekk at current appUser har tilgang (sikkerhet)
+                Context.ConversationParticipants
                     .Any(cp => cp.ConversationId == conversationId && cp.UserId == currentUserId))
-            .Select(u => new UserSummaryDTO
+            .Select(u => new UserSummaryDto
             {
                 Id = u.Id,
                 FullName = u.FullName,
@@ -906,7 +908,7 @@ public class UserController(
 
         var user = await GetUserFromClaims();
         if (user == null)
-            return Unauthorized("User not found.");
+            return Unauthorized("AppUser not found.");
             
         if (!BCrypt.Verify(dto.Password, user.PasswordHash))
         {

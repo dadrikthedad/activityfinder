@@ -1,5 +1,7 @@
 using AFBack.Data;
+using AFBack.Features.Conversation.Models;
 using AFBack.Models;
+using AFBack.Models.Conversation;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Extensions;
@@ -94,12 +96,12 @@ public static class SyncEventExtensions
         };
     }
     
-    // Hjelpemetode for å hente user data når participants mangler det
+    // Hjelpemetode for å hente appUser data når participants mangler det
     public static async Task<Dictionary<int, (string FullName, string? ProfileImageUrl)>> GetUserDataAsync(
         ApplicationDbContext context, 
         params int[] userIds)
     {
-        var users = await context.Users
+        var users = await context.AppUsers
             .AsNoTracking()
             .Where(u => userIds.Contains(u.Id))
             .Select(u => new 
@@ -123,19 +125,19 @@ public static class SyncEventExtensions
         int[] participantIds,
         Dictionary<int, string>? groupRequestStatuses = null)
     {
-        // Sjekk om vi har participant user data
-        bool hasUserData = conversation.Participants?.Any(p => p.User != null) == true;
+        // Sjekk om vi har participant appUser data
+        bool hasUserData = conversation.Participants?.Any(p => p.AppUser != null) == true;
     
         List<object> participantData;
     
         if (hasUserData)
         {
-            // Bruk existing user data
+            // Bruk existing appUser data
             participantData = conversation.Participants.Select(p => new 
             {
                 id = p.UserId,
-                fullName = p.User.FullName,
-                profileImageUrl = p.User.ProfileImageUrl,
+                fullName = p.AppUser.FullName,
+                profileImageUrl = p.AppUser.ProfileImageUrl,
                 groupRequestStatus = groupRequestStatuses?.TryGetValue(p.UserId, out var status) == true 
                     ? status 
                     : (object?)null
@@ -143,7 +145,7 @@ public static class SyncEventExtensions
         }
         else
         {
-            // Hent user data for participants
+            // Hent appUser data for participants
             var userData = await SyncEventExtensions.GetUserDataAsync(context, participantIds);
         
             participantData = participantIds.Select(id => new 

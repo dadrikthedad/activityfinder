@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Text.Json;
+using AFBack.Models.Auth;
 
 namespace AFBack.Models;
 
@@ -9,12 +8,12 @@ public class GroupEvent
     public int Id { get; set; }
 
     [Required] public int ConversationId { get; set; }
-    public Conversation Conversation { get; set; } = null!;
+    public Features.Conversation.Models.Conversation Conversation { get; set; } = null!;
 
     [Required] public GroupEventType EventType { get; set; }
 
     [Required] public int ActorUserId { get; set; }
-    public User ActorUser { get; set; } = null!;
+    public AppUser ActorUser { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using AFBack.DTOs;
+using AFBack.Models.Auth;
 
 namespace AFBack.Models;
 // Notification til en bruker
@@ -23,11 +24,11 @@ public class Notification
     
     // 🔹 Mottaker av notifikasjonen
     public int RecipientUserId { get; set; }
-    public User RecipientUser { get; set; } = null!;
+    public AppUser RecipientUser { get; set; } = null!;
 
     // 🔸 Brukeren som relaterer til denne notif. (f.eks. den som sendte venneforespørsel)
     public int? RelatedUserId { get; set; }
-    public User? RelatedUser { get; set; } = null!;
+    public AppUser? RelatedUser { get; set; } = null!;
     
     public int? PostId { get; set; }
     public int? CommentId { get; set; }

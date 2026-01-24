@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Constants;
+using AFBack.Models.Enums;
 
 namespace AFBack.Models;
 
@@ -25,7 +26,7 @@ public class Report
     [Required]
     public DateTime SubmittedAt { get; set; }
     
-    // For user reports - ID på bruker som rapporteres
+    // For appUser reports - ID på bruker som rapporteres
     public string? ReportedUserId { get; set; }
     
     // For bug reports - steps to reproduce
@@ -57,6 +58,6 @@ public class Report
     public ICollection<ReportAttachment> Attachments { get; set; } = new List<ReportAttachment>();
     
     // Navigation properties hvis du bruker Entity Framework
-    // public User? SubmittedByUser { get; set; }
-    // public User? ReportedUser { get; set; }
+    // public AppUser? SubmittedByUser { get; set; }
+    // public AppUser? ReportedUser { get; set; }
 }

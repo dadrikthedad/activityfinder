@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using AFBack.Models;
+using AFBack.Features.Messaging.Models;
+using AFBack.Models.Auth;
 
 
 namespace AFBack.Models;
@@ -20,5 +21,5 @@ public class Reaction
     public Message Message { get; set; } = null!;
     
     [ForeignKey("UserId")]
-    public User User { get; set; } = null!;
+    public AppUser User { get; set; } = null!;
 }

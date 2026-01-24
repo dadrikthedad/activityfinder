@@ -51,9 +51,9 @@ public class EncryptedMessageResponseDTO
     public bool IsSystemMessage { get; set; }
     public bool IsDeleted { get; set; }
     
-    public List<ReactionDTO> Reactions { get; set; } = new();
-    public UserSummaryDTO? ParentSender { get; set; }
-    public UserSummaryDTO? Sender { get; set; }
+    public List<ReactionDto> Reactions { get; set; } = new();
+    public UserSummaryDto? ParentSender { get; set; }
+    public UserSummaryDto? Sender { get; set; }
     public bool? IsRejectedRequest { get; set; }
     public bool? IsNowApproved { get; set; }
     public bool? IsSilent { get; set; }

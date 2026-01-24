@@ -23,7 +23,7 @@ public class ReactionController(
     [HttpPost]
     public async Task<IActionResult> AddReaction([FromBody] ReactionRequest request)
     {
-        int senderId = GetUserId() ?? throw new UnauthorizedAccessException("User not authenticated");
+        int senderId = GetUserId() ?? throw new UnauthorizedAccessException("AppUser not authenticated");
 
         try
         {

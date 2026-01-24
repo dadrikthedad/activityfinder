@@ -5,7 +5,12 @@ using AFBack.DTOs.BoostrapDTO;
 using AFBack.DTOs.Crypto;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
+using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Interface.Services;
+using AFBack.Models.Auth;
+using AFBack.Models.User;
 
 namespace AFBack.Services
 {
@@ -32,7 +37,7 @@ namespace AFBack.Services
                 {
                     using var scope = serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    logger.LogDebug("📋 Starting user lookup with separate context");
+                    logger.LogDebug("📋 Starting appUser lookup with separate context");
                     return await GetCurrentUserWithContext(userId, context);
                 });
 
@@ -58,12 +63,12 @@ namespace AFBack.Services
                     SyncToken = syncService.GenerateSyncToken()
                 };
 
-                logger.LogInformation("✅ Critical bootstrap completed for user: {UserName}", user.FullName);
+                logger.LogInformation("✅ Critical bootstrap completed for appUser: {UserName}", user.FullName);
                 return response;
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get critical bootstrap for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get critical bootstrap for appUser {UserId}", userId);
                 throw;
             }
         }
@@ -95,7 +100,7 @@ namespace AFBack.Services
                 {
                     using var scope = serviceProvider.CreateScope();
                     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                    logger.LogDebug("📋 Getting user relationships with separate context");
+                    logger.LogDebug("📋 Getting appUser relationships with separate context");
                     return await GetUserRelationshipsWithContext(userId, context);
                 });
 
@@ -179,7 +184,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get secondary bootstrap for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get secondary bootstrap for appUser {UserId}", userId);
                 throw;
             }
         }
@@ -187,21 +192,21 @@ namespace AFBack.Services
         // CRITICAL BOOTSTRAP METHODS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        private async Task<Models.User> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
+        private async Task<AppUser> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
         {
-            logger.LogDebug("🔍 Looking up user with ID: {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Looking up appUser with ID: {UserId} (separate context)", userId);
 
-            var user = await context.Users
-                .Include(u => u.Profile)
+            var user = await context.AppUsers
+                .Include(u => u.UserProfile)
                 .FirstOrDefaultAsync(u => u.Id == userId);
 
             if (user == null)
             {
-                logger.LogWarning("⚠️ User with ID {UserId} not found", userId);
-                throw new KeyNotFoundException($"User with ID {userId} not found");
+                logger.LogWarning("⚠️ AppUser with ID {UserId} not found", userId);
+                throw new KeyNotFoundException($"AppUser with ID {userId} not found");
             }
 
-            logger.LogDebug("✅ User found: {UserName}", user.FullName);
+            logger.LogDebug("✅ AppUser found: {UserName}", user.FullName);
 
             // Oppdater LastSeen når brukeren starter appen
             user.LastSeen = DateTime.UtcNow;
@@ -212,22 +217,22 @@ namespace AFBack.Services
 
         private async Task<UserSettings?> GetUserSettingsWithContext(int userId, ApplicationDbContext context)
         {
-            logger.LogDebug("🔍 Getting settings for user {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Getting settings for appUser {UserId} (separate context)", userId);
 
             var settings = await context.UserSettings
                 .FirstOrDefaultAsync(s => s.UserId == userId);
 
-            logger.LogDebug("✅ Settings found: {HasSettings}", settings != null);
+            logger.LogDebug("✅ UserSettings found: {HasSettings}", settings != null);
             return settings;
         }
 
         // SECONDARY BOOTSTRAP METHODS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        private async Task<List<ConversationDTO>> GetConversationsWithService(int userId, int limit,
+        private async Task<List<ConversationDto>> GetConversationsWithService(int userId, int limit,
             ConversationService conversationService)
         {
-            logger.LogDebug("🔍 Getting {Limit} recent conversations for user {UserId} (separate service)", limit,
+            logger.LogDebug("🔍 Getting {Limit} recent conversations for appUser {UserId} (separate service)", limit,
                 userId);
 
             var conversationResults = await conversationService.GetUserConversationsSortedAsync(
@@ -238,27 +243,22 @@ namespace AFBack.Services
             logger.LogDebug("✅ Found {ConversationCount} conversations", conversationResults.Count);
 
             return conversationResults
-                .Select(c => new ConversationDTO
+                .Select(c => new ConversationDto
                 {
                     Id = c.Conversation.Id,
                     GroupName = c.Conversation.GroupName,
                     IsGroup = c.Conversation.IsGroup,
                     GroupImageUrl = c.Conversation.GroupImageUrl,
-                    CreatorId = c.Conversation.CreatorId,
-                    IsApproved = c.Conversation.IsApproved,
                     LastMessageSentAt = c.Conversation.LastMessageSentAt,
-                    IsPendingApproval = c.IsPendingApproval,
-                    Disbanded = c.Conversation.IsDisbanded,
-                    DisbandedAt = c.Conversation.DisbandedAt,
-                    Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
+                    Participants = c.Conversation.Participants.Select(p => new ConversationParticipantDto
                     {
-                        Id = p.User.Id,
-                        FullName = p.User.FullName,
-                        ProfileImageUrl = p.User.ProfileImageUrl,
-                        GroupRequestStatus = !c.Conversation.IsGroup ? null :
-                            p.User.Id == c.Conversation.CreatorId ? GroupRequestStatus.Creator :
-                            c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status :
-                            null
+                        User = new UserSummaryDto
+                        {
+                            Id = p.User.Id,
+                            FullName = p.User.FullName,
+                            ProfileImageUrl = p.User.ProfileImageUrl,
+                        },
+                        ConversationStatus = p.ConversationStatus ?? ConversationStatus.Pending,
                     }).ToList()
                 })
                 .ToList();
@@ -268,7 +268,7 @@ namespace AFBack.Services
             int userId, 
             IMessageService messageService)
         {
-            logger.LogDebug("🔍 Getting encrypted messages for user's conversations {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting encrypted messages for appUser's conversations {UserId} (separate service)", userId);
 
             try
             {
@@ -325,25 +325,25 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get conversation messages for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get conversation messages for appUser {UserId}", userId);
                 return new Dictionary<int, List<EncryptedMessageResponseDTO>>();
             }
         }
 
-        private async Task<List<UserSummaryDTO>> GetUserRelationshipsWithContext(int userId, ApplicationDbContext context)
+        private async Task<List<UserSummaryDto>> GetUserRelationshipsWithContext(int userId, ApplicationDbContext context)
         {
-            logger.LogDebug("🔍 Getting user relationships for user {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Getting appUser relationships for appUser {UserId} (separate context)", userId);
 
             var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-            // Get all friend relationships for the user (bidirectional)
+            // Get all friend relationships for the appUser (bidirectional)
             var friendIds = await context.Friends
                 .Where(f => f.UserId == userId || f.FriendId == userId)
                 .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
                 .Distinct()
                 .ToListAsync();
 
-            // Get all blocked user relationships (bidirectional)
+            // Get all blocked appUser relationships (bidirectional)
             var blockRelationships = await context.UserBlocks
                 .Where(b => b.BlockerId == userId || b.BlockedUserId == userId)
                 .Select(b => new { 
@@ -355,16 +355,16 @@ namespace AFBack.Services
 
             var blockedUserIds = blockRelationships.Select(b => b.UserId).Distinct().ToList();
 
-            // Combine all related user IDs
+            // Combine all related appUser IDs
             var allRelatedUserIds = friendIds.Union(blockedUserIds).Distinct().ToList();
 
             if (!allRelatedUserIds.Any())
             {
-                logger.LogDebug("✅ No user relationships found");
-                return new List<UserSummaryDTO>();
+                logger.LogDebug("✅ No appUser relationships found");
+                return new List<UserSummaryDto>();
             }
 
-            var users = await context.Users
+            var users = await context.AppUsers
                 .Where(u => allRelatedUserIds.Contains(u.Id))
                 .Include(u => u.Profile)
                 .Select(u => new 
@@ -375,19 +375,18 @@ namespace AFBack.Services
                 })
                 .ToListAsync();
 
-            var userRelationships = users.Select(u => new UserSummaryDTO
+            var userRelationships = users.Select(u => new UserSummaryDto
             {
                 Id = u.Id,
                 FullName = u.FullName,
                 ProfileImageUrl = u.ProfileImageUrl,
-                GroupRequestStatus = null,
                 isFriend = friendIds.Contains(u.Id) ? true : (bool?)null,
                 isBlocked = blockRelationships.Any(b => b.UserId == u.Id && b.IBlockedThem) ? true : (bool?)null,
                 hasBlockedMe = blockRelationships.Any(b => b.UserId == u.Id && b.TheyBlockedMe) ? true : (bool?)null,
                 LastUpdated = currentTimestamp
             }).ToList();
 
-            logger.LogDebug("✅ Found {RelationshipCount} user relationships - Friends: {FriendCount}, Blocked: {BlockedCount}, HasBlockedMe: {HasBlockedMeCount}", 
+            logger.LogDebug("✅ Found {RelationshipCount} appUser relationships - Friends: {FriendCount}, Blocked: {BlockedCount}, HasBlockedMe: {HasBlockedMeCount}", 
                 userRelationships.Count, 
                 userRelationships.Count(ur => ur.isFriend == true),
                 userRelationships.Count(ur => ur.isBlocked == true),
@@ -398,10 +397,10 @@ namespace AFBack.Services
         
         private async Task<List<int>> GetUnreadConversationIdsWithContext(int userId, ApplicationDbContext context)
         {
-            logger.LogDebug("🔍 Getting unread conversation IDs for user {UserId} (separate context)", userId);
+            logger.LogDebug("🔍 Getting unread conversation IDs for appUser {UserId} (separate context)", userId);
 
             var unreadConvIds = await context.MessageNotifications
-                .Where(n => n.UserId == userId && !n.IsRead && n.ConversationId != null)
+                .Where(n => n.RecipientId == userId && !n.IsRead && n.ConversationId != null)
                 .Select(n => n.ConversationId!.Value)
                 .Distinct()
                 .ToListAsync();
@@ -412,7 +411,7 @@ namespace AFBack.Services
         
         private async Task<List<MessageRequestDTO>> GetPendingMessageRequestsWithService(int userId, IMessageService messageService)
         {
-            logger.LogDebug("🔍 Getting pending message requests for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting pending message requests for appUser {UserId} (separate service)", userId);
 
             try
             {
@@ -421,7 +420,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get pending message requests for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get pending message requests for appUser {UserId}", userId);
                 return new List<MessageRequestDTO>();
             }
         }
@@ -430,7 +429,7 @@ namespace AFBack.Services
             int userId, 
             IMessageNotificationService messageNotificationService)
         {
-            logger.LogDebug("🔍 Getting recent notifications for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting recent notifications for appUser {UserId} (separate service)", userId);
 
             try
             {
@@ -443,7 +442,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get recent notifications for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get recent notifications for appUser {UserId}", userId);
                 return new List<MessageNotificationDTO>();
             }
         }
@@ -452,7 +451,7 @@ namespace AFBack.Services
             int userId, 
             FriendService friendService)
         {
-            logger.LogDebug("🔍 Getting pending friend invitations for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting pending friend invitations for appUser {UserId} (separate service)", userId);
 
             try
             {
@@ -460,7 +459,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get pending friend invitations for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get pending friend invitations for appUser {UserId}", userId);
                 return new List<FriendInvitationDTO>();
             }
         }
@@ -469,7 +468,7 @@ namespace AFBack.Services
             int userId, 
             INotificationService notificationService)
         {
-            logger.LogDebug("🔍 Getting app notifications for user {UserId} (separate service)", userId);
+            logger.LogDebug("🔍 Getting app notifications for appUser {UserId} (separate service)", userId);
 
             try
             {
@@ -477,7 +476,7 @@ namespace AFBack.Services
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "❌ Failed to get app notifications for user {UserId}", userId);
+                logger.LogError(ex, "❌ Failed to get app notifications for appUser {UserId}", userId);
                 return new List<NotificationDTO>();
             }
         }

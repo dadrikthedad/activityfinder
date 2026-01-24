@@ -1,3 +1,5 @@
+using Microsoft.OpenApi;
+
 namespace AFBack.Filters;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;

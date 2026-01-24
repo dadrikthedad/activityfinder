@@ -173,7 +173,7 @@ public static class IpUtils
     /// </summary>
     private static string GetStableWebFingerprint(HttpContext context)
     {
-        var userAgent = context.Request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+        var userAgent = context.Request.Headers["AppUser-Agent"].FirstOrDefault() ?? "unknown";
         var acceptLanguage = context.Request.Headers["Accept-Language"].FirstOrDefault() ?? "";
         
         // Parse browser info for stabilt fingerprint

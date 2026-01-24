@@ -1,4 +1,6 @@
+using AFBack.Features.Conversation.Models;
 using AFBack.Models;
+using AFBack.Models.Conversation;
 
 namespace AFBack.DTOs;
 

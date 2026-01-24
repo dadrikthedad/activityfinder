@@ -1,21 +1,32 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using AFBack.Cache;
 using AFBack.Configuration;
 using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.Conversation.Repository;
+using AFBack.Features.Conversation.ResponseBuilder;
+using AFBack.Features.Conversation.Services;
+using AFBack.Features.Exceptions;
+using AFBack.Features.Friendship.Repository;
 using AFBack.Features.MessageBroadcast.Interface;
 using AFBack.Features.MessageBroadcast.Service;
-using AFBack.Features.SendMessage.Factories;
-using AFBack.Features.SendMessage.Interface;
-using AFBack.Features.SendMessage.ResponseBuilder;
-using AFBack.Features.SendMessage.Services;
-using AFBack.Features.SendMessage.Validators;
-using AFBack.Infrastructure.Middleware;
-using AFBack.Infrastructure.Services;
+using AFBack.Features.MessageNotification.Repository;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.Messaging.Factories;
+using AFBack.Features.Messaging.Interface;
+using AFBack.Features.Messaging.Repository;
+using AFBack.Features.Messaging.ResponseBuilder;
+using AFBack.Features.Messaging.Services;
+using AFBack.Features.Messaging.Validators;
+using AFBack.Features.SyncEvents.Repository;
+using AFBack.Features.SyncEvents.Services;
+using AFBack.Infrastructure.Filters;
 using AFBack.Interface;
 using AFBack.Interface.Repository;
+using AFBack.Repository;
 using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
@@ -25,6 +36,7 @@ using AFBack.Services.User;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,6 +78,7 @@ public static class ServiceCollectionExtensions
         
         var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
         if (!string.IsNullOrEmpty(appInsightsConnectionString))
+        {
             services.AddApplicationInsightsTelemetry(options =>
             {
                 options.ConnectionString = appInsightsConnectionString;
@@ -74,10 +87,27 @@ public static class ServiceCollectionExtensions
                 options.EnablePerformanceCounterCollectionModule = true; // Performance metrics? Må sjekke ut
 
             });
+
+            services.AddSingleton<ITelemetryInitializer, SensitiveDataLoggingFilter>();
+        }
+        
+        // ===== Redis Cache =====
+        var redisConnectionString = Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING")
+                                    ?? configuration.GetConnectionString("Redis")
+                                    ?? throw new Exception("Redis connection string is missing. " +
+                                                           "Set REDIS_CONNECTION_STRING environment variable or " +
+                                                           "Redis connection string in appsettings.json");
+            
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.Configuration = redisConnectionString;
+            options.InstanceName = "AFBack:";
+        });
         
         // ===== CACHING =====
         services.AddMemoryCache();
         services.AddSingleton<ISendMessageCache, SendMessageCache>();
+        services.AddSingleton<IUserSummaryCacheService, UserSummaryCacheService>();
         services.AddSingleton<IUserCache, UserCache>();
         
         // ===== HTTP CLIENT =====
@@ -169,6 +199,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserBlockRepository, UserBlockRepository>();
+        services.AddScoped<ICanSendRepository, CanSendRepository>();
+        services.AddScoped<IMessageNotificationRepository, MessageNotificationRepository>();
+        services.AddScoped<ISyncEventRepository, SyncEventRepository>();
+        services.AddScoped<IDeviceSyncStateRepository, DeviceSyncStateRepository>();
+        services.AddScoped<IFriendshipRepository, FriendshipRepository>();
         
         return services;
     }
@@ -185,9 +220,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<UserService, UserService>();
         services.AddScoped<EmailService, EmailService>();
         
-        // ===== CONTROLLER SERVICES =====
-        services.AddScoped<ResponseService>(); //✅
-        
         // ===== RELATIONSHIPSERVICES =====
         
         
@@ -195,6 +227,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISendMessageService, SendMessageService>(); // ✅
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<IReactionService, ReactionService>();
+        services.AddScoped<INewConversationService, NewConversationService>();
+        
         
         
         // ===== NOTIFICATION SERVICES =====
@@ -208,6 +242,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMessageNotificationService, MessageNotificationService>();
         services.AddScoped<ISyncService, SyncService>();
         
+        // ===== BROADCAST SERVICES =====
+        services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>();
+        
         // ===== FILES =====
         services.AddScoped<IFileService, FileService>();
         
@@ -220,6 +257,7 @@ public static class ServiceCollectionExtensions
         
         // ===== RESPONSE BUILDERS =====
         services.AddScoped<ISendMessageResponseBuilder, SendMessageResponseBuilder>();
+        services.AddScoped<INewConversationResponseBuilder, NewConversationResponseBuilder>();
         
         // Til refaktorering
         services.AddScoped<ConversationService>();

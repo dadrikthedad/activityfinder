@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using AFBack.Data;
 using AFBack.Models;
+using AFBack.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
@@ -19,7 +20,7 @@ public class UserService
     public async Task<(string? longToken, string? shortCode)> CreateVerificationTokenAsync(string email)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var user = await _context.Users
+        var user = await _context.AppUsers
             .Include(u => u.VerificationInfo)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             
@@ -34,7 +35,7 @@ public class UserService
         {
             user.VerificationInfo = new VerificationInfo
             {
-                User = user
+                AppUser = user
             };
         }
 
@@ -50,7 +51,7 @@ public class UserService
     public async Task MarkVerificationEmailSentAsync(string email)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var user = await _context.Users
+        var user = await _context.AppUsers
             .Include(u => u.VerificationInfo)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             
@@ -65,15 +66,15 @@ public class UserService
     {
         // Spør direkte på VerificationInfos for bedre ytelse
         var verificationInfo = await _context.VerificationInfos
-            .Include(v => v.User)
+            .Include(v => v.AppUser)
             .FirstOrDefaultAsync(v => 
                 (v.EmailConfirmationToken == tokenOrCode || 
                  v.EmailConfirmationCode == tokenOrCode) &&
                 v.EmailConfirmationTokenExpires > DateTime.UtcNow);
     
-        if (verificationInfo?.User != null)
+        if (verificationInfo?.AppUser != null)
         {
-            verificationInfo.User.EmailConfirmed = true;
+            verificationInfo.AppUser.EmailConfirmed = true;
             verificationInfo.EmailConfirmationToken = null; // Fjern begge etter bruk
             verificationInfo.EmailConfirmationCode = null;
             await _context.SaveChangesAsync();
@@ -83,23 +84,23 @@ public class UserService
         return false;
     }
 
-    public async Task<Models.User?> GetUserByTokenAsync(string tokenOrCode)
+    public async Task<AppUser?> GetUserByTokenAsync(string tokenOrCode)
     {
         // Spør direkte på VerificationInfos
         var verificationInfo = await _context.VerificationInfos
-            .Include(v => v.User)
+            .Include(v => v.AppUser)
             .FirstOrDefaultAsync(v => 
                 v.EmailConfirmationToken == tokenOrCode || 
                 v.EmailConfirmationCode == tokenOrCode);
         
-        return verificationInfo?.User;
+        return verificationInfo?.AppUser;
     }
     
 
     public async Task<(string token, string code)?> CreatePasswordResetTokenAsync(string email)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var user = await _context.Users
+        var user = await _context.AppUsers
             .Include(u => u.VerificationInfo)
             .FirstOrDefaultAsync(u => u.Email == normalizedEmail);
             
@@ -113,7 +114,7 @@ public class UserService
         {
             user.VerificationInfo = new VerificationInfo
             {
-                User = user
+                AppUser = user
             };
         }
 
@@ -151,16 +152,16 @@ public class UserService
     public async Task<bool> ResetPasswordAsync(string tokenOrCode, string newPassword)
     {
         var verificationInfo = await _context.VerificationInfos
-            .Include(v => v.User)
+            .Include(v => v.AppUser)
             .FirstOrDefaultAsync(v => 
                 (v.PasswordResetToken == tokenOrCode || v.PasswordResetCode == tokenOrCode) && 
                 v.PasswordResetTokenExpires > DateTime.UtcNow);
 
-        if (verificationInfo?.User == null)
+        if (verificationInfo?.AppUser == null)
             return false;
 
         // Hash det nye passordet
-        verificationInfo.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        verificationInfo.AppUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
 
         // Fjern begge tokens etter bruk
         verificationInfo.PasswordResetToken = null;

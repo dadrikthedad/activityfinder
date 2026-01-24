@@ -1,10 +1,13 @@
 ﻿using System.Security.Claims;
+using AFBack.Cache;
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.Friendship.Models;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
@@ -46,7 +49,7 @@ public class FriendInvitationsController(
         
         if (userId == null)
         {
-            return Unauthorized("User not authenticated.");
+            return Unauthorized("AppUser not authenticated.");
         }
         
         // Valider at brukeren ikke sender til seg selv
@@ -62,18 +65,18 @@ public class FriendInvitationsController(
         }
 
         // Sjekk om de allerede er venner
-        var existingFriendship = await _context.Friends
+        var existingFriendship = await Context.Friends
             .FirstOrDefaultAsync(f => 
                 (f.UserId == userId.Value && f.FriendId == dto.ReceiverId) ||
                 (f.UserId == dto.ReceiverId && f.FriendId == userId.Value));
 
         if (existingFriendship != null)
         {
-            return BadRequest("You are already friends with this user.");
+            return BadRequest("You are already friends with this appUser.");
         }
 
         // HENT EKSISTERENDE FORESPØRSEL (BEGGE RETNINGER)
-        var existingInvitation = await _context.FriendInvitations
+        var existingInvitation = await Context.FriendInvitations
             .FirstOrDefaultAsync(x => 
                 (x.SenderId == userId.Value && x.ReceiverId == dto.ReceiverId) ||
                 (x.SenderId == dto.ReceiverId && x.ReceiverId == userId.Value));
@@ -84,13 +87,13 @@ public class FriendInvitationsController(
             // Scenario 1: Vi har allerede sendt en pending forespørsel
             if (existingInvitation.SenderId == userId.Value && existingInvitation.Status == InvitationStatus.Pending)
             {
-                return BadRequest("You have already sent a friend request to this user.");
+                return BadRequest("You have already sent a friend request to this appUser.");
             }
             
             // Scenario 2: Vi har tidligere fått avslag, kan ikke sende på nytt
             if (existingInvitation.SenderId == userId.Value && existingInvitation.Status == InvitationStatus.Declined)
             {
-                return BadRequest("You have already sent a friend request to this user.");
+                return BadRequest("You have already sent a friend request to this appUser.");
             }
             
             // Scenario 3: Mottakeren har en pending forespørsel til oss - AUTO-ACCEPT
@@ -135,28 +138,28 @@ public class FriendInvitationsController(
                     Status = InvitationStatus.Accepted,
                     SentAt = DateTime.UtcNow
                 };
-                _context.FriendInvitations.Add(acceptedInvitation);
+                Context.FriendInvitations.Add(acceptedInvitation);
                 originalSenderId = senderId.Value;
                 originalReceiverId = receiverId.Value;
             }
 
             // Opprett vennskap
-            var friendship = new Friends
+            var friendship = new Friendship
             {
                 UserId = originalSenderId,
                 FriendId = originalReceiverId,
                 CreatedAt = DateTime.UtcNow
             };
-            _context.Friends.Add(friendship);
+            Context.Friends.Add(friendship);
 
             // Håndter eksisterende meldingsforespørsel
             var conversationId = await HandleExistingMessageRequest(originalSenderId, originalReceiverId);
 
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
 
             // 🆕 Hent brukerdata FØR sync events (med oppdatert relationship status)
             var friendUserSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                _context, originalReceiverId, originalSenderId);
+                Context, originalReceiverId, originalSenderId);
 
             // Send notifikasjon og sync events (kun én gang!)
             await SendNotificationAndSyncEvents(acceptedInvitation, conversationId, originalSenderId, originalReceiverId, isAutoAccept: true);
@@ -187,8 +190,8 @@ public class FriendInvitationsController(
 
         try
         {
-            _context.FriendInvitations.Add(invitation);
-            await _context.SaveChangesAsync();
+            Context.FriendInvitations.Add(invitation);
+            await Context.SaveChangesAsync();
 
             // Send notifikasjon og sync events (samme logikk som auto-accept, men for pending)
             await SendNotificationAndSyncEvents(invitation, null, senderId, receiverId, isAutoAccept: false);
@@ -204,7 +207,7 @@ public class FriendInvitationsController(
 
     private async Task<int?> HandleExistingMessageRequest(int userId, int receiverId)
     {
-        var existingMessageRequest = await _context.MessageRequests
+        var existingMessageRequest = await Context.MessageRequests
             .Include(mr => mr.Conversation)
             .FirstOrDefaultAsync(r => 
                 ((r.SenderId == userId && r.ReceiverId == receiverId) ||
@@ -218,8 +221,8 @@ public class FriendInvitationsController(
             
             if (existingMessageRequest.ConversationId.HasValue)
             {
-                await _context.AddCanSendAsync(userId, existingMessageRequest.ConversationId.Value, msgCache, CanSendReason.Friendship);
-                await _context.AddCanSendAsync(receiverId, existingMessageRequest.ConversationId.Value, msgCache, CanSendReason.Friendship);
+                await Context.AddCanSendAsync(userId, existingMessageRequest.ConversationId.Value, msgCache, CanSendReason.Friendship);
+                await Context.AddCanSendAsync(receiverId, existingMessageRequest.ConversationId.Value, msgCache, CanSendReason.Friendship);
             }
             
             return existingMessageRequest.ConversationId;
@@ -340,30 +343,30 @@ public class FriendInvitationsController(
     private async Task<IActionResult> CheckBlockingStatus(int userId, int targetUserId, string context = "send")
     {
         // Sjekk om vi har blokkert dem
-        var weBlockedThem = await _context.UserBlocks
+        var weBlockedThem = await Context.UserBlocks
             .FirstOrDefaultAsync(b => b.BlockerId == userId && b.BlockedUserId == targetUserId);
     
         if (weBlockedThem != null)
         {
             return context switch
             {
-                "send" => BadRequest("You cannot send a friend request to a user you have blocked."),
-                "accept" => BadRequest("You cannot accept a friend request from a user you have blocked."),
-                _ => BadRequest("You cannot interact with a user you have blocked.")
+                "send" => BadRequest("You cannot send a friend request to a appUser you have blocked."),
+                "accept" => BadRequest("You cannot accept a friend request from a appUser you have blocked."),
+                _ => BadRequest("You cannot interact with a appUser you have blocked.")
             };
         }
 
         // Sjekk om de har blokkert oss
-        var theyBlockedUs = await _context.UserBlocks
+        var theyBlockedUs = await Context.UserBlocks
             .FirstOrDefaultAsync(b => b.BlockerId == targetUserId && b.BlockedUserId == userId);
     
         if (theyBlockedUs != null)
         {
             return context switch
             {
-                "send" => BadRequest("This user has a private profile and is not accepting friend requests."),
+                "send" => BadRequest("This appUser has a private profile and is not accepting friend requests."),
                 "accept" => BadRequest("This friend request is no longer available."),
-                _ => BadRequest("This user has a private profile.")
+                _ => BadRequest("This appUser has a private profile.")
             };
         }
 
@@ -377,18 +380,18 @@ public class FriendInvitationsController(
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
             return Unauthorized();
 
-        var inv = await _context.FriendInvitations
+        var inv = await Context.FriendInvitations
             .FirstOrDefaultAsync(i =>
                 i.Id == id &&
                 (i.ReceiverId == userId || i.SenderId == userId)); // sikkerhet
 
         if (inv == null) return NotFound();
 
-        // 🎯 Hent sender med relationship data fra current user sitt perspektiv
+        // 🎯 Hent sender med relationship data fra current appUser sitt perspektiv
         var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-            _context,
+            Context,
             inv.SenderId,
-            userId // current user's perspective
+            userId // current appUser's perspective
         );
 
         if (senderSummary == null) return NotFound("Sender not found");
@@ -405,7 +408,7 @@ public class FriendInvitationsController(
         try
         {
             if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-                return Unauthorized(new { message = "Invalid user ID in token." });
+                return Unauthorized(new { message = "Invalid appUser ID in token." });
 
             // 🎯 Bruk FriendService istedenfor direkte database-logikk
             var (invitations, totalCount) = await friendService.GetPendingFriendInvitationsAsync(
@@ -440,7 +443,7 @@ public class FriendInvitationsController(
         if (userId == null)
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
 
-        var invitation = await _context.FriendInvitations.FindAsync(id);
+        var invitation = await Context.FriendInvitations.FindAsync(id);
         if (invitation == null)
             return NotFound("Invitation not found.");
 
@@ -453,13 +456,13 @@ public class FriendInvitationsController(
             return Forbid("You are not authorized to accept this invitation.");
         
         // Sjekk om de allerede er venner
-        var existingFriendship = await _context.Friends
+        var existingFriendship = await Context.Friends
             .FirstOrDefaultAsync(f => 
                 (f.UserId == userId.Value && f.FriendId == invitation.SenderId) ||
                 (f.UserId == invitation.SenderId && f.FriendId == userId.Value));
 
         if (existingFriendship != null)
-            return BadRequest("You are already friends with this user.");
+            return BadRequest("You are already friends with this appUser.");
 
         var blockingCheck = await CheckBlockingStatus(userId.Value, invitation.SenderId, "accept");
         if (blockingCheck != null)
@@ -473,22 +476,22 @@ public class FriendInvitationsController(
             invitation.Status = InvitationStatus.Accepted;
 
             // Opprett vennskap
-            var friendship = new Friends
+            var friendship = new Friendship
             {
                 UserId = invitation.SenderId,
                 FriendId = invitation.ReceiverId,
                 CreatedAt = DateTime.UtcNow
             };
-            _context.Friends.Add(friendship);
+            Context.Friends.Add(friendship);
 
             // Håndter eksisterende meldingsforespørsel
             var conversationId = await HandleExistingMessageRequest(invitation.SenderId, invitation.ReceiverId);
 
-            await _context.SaveChangesAsync();
+            await Context.SaveChangesAsync();
 
             // 🆕 Hent brukerdata FØR sync events (med oppdatert relationship status)
             var friendUserSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                _context, invitation.SenderId, userId.Value);
+                Context, invitation.SenderId, userId.Value);
 
             // Send notifikasjon og sync events
             await SendNotificationAndSyncEvents(invitation, conversationId, userId.Value, invitation.SenderId, isAutoAccept: true);
@@ -513,10 +516,10 @@ public class FriendInvitationsController(
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
         
-        var invitation = await _context.FriendInvitations.FindAsync(id);
+        var invitation = await Context.FriendInvitations.FindAsync(id);
         if (invitation == null || invitation.Status != InvitationStatus.Pending)
             return NotFound("Invitation not found or already handled.");
         
@@ -524,7 +527,7 @@ public class FriendInvitationsController(
             return Forbid("You are not authorized to decline this invitation.");
 
         invitation.Status = InvitationStatus.Declined;
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         // 🆕 SYNC EVENT - fjern fra pending liste
         taskQueue.QueueAsync(async () => 
@@ -559,10 +562,10 @@ public class FriendInvitationsController(
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
         
-        var invitation = await _context.FriendInvitations
+        var invitation = await Context.FriendInvitations
             .Where(x =>
                 (x.SenderId == userId && x.ReceiverId == otherUserId) ||
                 (x.SenderId == otherUserId && x.ReceiverId == userId))
@@ -589,7 +592,7 @@ public class FriendInvitationsController(
             return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
 
         // Hent avslåtte venneforespørsler hvor innlogget bruker er mottaker
-        var rejectedInvitations = await _context.FriendInvitations
+        var rejectedInvitations = await Context.FriendInvitations
             .AsNoTracking()
             .Where(fi => fi.ReceiverId == userId.Value &&  // <-- Endring her
                          fi.Status == InvitationStatus.Declined)
@@ -603,7 +606,7 @@ public class FriendInvitationsController(
         {
             // Hent UserSummary for senderen med relationship info
             var senderSummary = await UserSummaryExtensions.GetUserSummaryWithRelationshipAsync(
-                _context, 
+                Context, 
                 invitation.SenderId, 
                 userId.Value);
 

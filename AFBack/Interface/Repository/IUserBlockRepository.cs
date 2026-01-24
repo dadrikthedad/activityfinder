@@ -1,6 +1,6 @@
-namespace AFBack.Interface.Repository;
+namespace AFBack.Repository;
 
 public interface IUserBlockRepository
 {
-    Task<bool> IsFirstUserBlockedBySecondary(int userId, int blockedBy);
+    Task<bool> IsFirstUserBlockedBySecondary(string userId, string blockedById);
 }

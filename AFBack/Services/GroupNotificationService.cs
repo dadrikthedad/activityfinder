@@ -3,6 +3,7 @@ using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.DTOs;
+using AFBack.Features.MessageNotification.Models;
 using AFBack.Hubs;
 using Microsoft.AspNetCore.SignalR;
 
@@ -39,12 +40,12 @@ public class GroupNotificationService
                 approvedMemberIds = approvedMemberIds.Where(id => !excludeUserIds.Contains(id)).ToList();
             }
             
-            var affectedUsers = new List<UserSummaryDTO>();
+            var affectedUsers = new List<UserSummaryDto>();
             if (affectedUserIds?.Any() == true)
             {
-                affectedUsers = await _context.Users
+                affectedUsers = await _context.AppUsers
                     .Where(u => affectedUserIds.Contains(u.Id))
-                    .Select(u => new UserSummaryDTO
+                    .Select(u => new UserSummaryDto
                     {
                         Id = u.Id,
                         FullName = u.FullName,
@@ -66,7 +67,7 @@ public class GroupNotificationService
                     var notification = await _context.MessageNotifications
                         .Include(n => n.Conversation)
                         .Include(n => n.GroupEvents) // Inkluder GroupEvents relasjonen
-                        .FirstOrDefaultAsync(n => n.UserId == memberId && 
+                        .FirstOrDefaultAsync(n => n.RecipientId == memberId && 
                                                  n.ConversationId == conversationId && 
                                                  n.Type == NotificationType.GroupEvent && 
                                                  !n.IsRead);
@@ -97,7 +98,7 @@ public class GroupNotificationService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Failed to send group notification update to user {memberId}: {ex.Message}");
+                    Console.WriteLine($"❌ Failed to send group notification update to appUser {memberId}: {ex.Message}");
                 }
             }
         }
@@ -155,7 +156,7 @@ public class GroupNotificationService
         {
             // 🆕 Finn eller opprett MessageNotification (GroupEvent type)
             var notification = await _context.MessageNotifications
-                .FirstOrDefaultAsync(n => n.UserId == memberId && 
+                .FirstOrDefaultAsync(n => n.RecipientId == memberId && 
                                           n.ConversationId == conversationId && 
                                           n.Type == NotificationType.GroupEvent && 
                                           !n.IsRead);
@@ -165,7 +166,7 @@ public class GroupNotificationService
                 // Opprett ny MessageNotification
                 notification = new MessageNotification
                 {
-                    UserId = memberId,
+                    RecipientId = memberId,
                     ConversationId = conversationId,
                     Type = NotificationType.GroupEvent,
                     EventCount = 1,
@@ -206,7 +207,7 @@ public class GroupNotificationService
         // Finn den siste hendelsen for å få ActorUser info
         var lastEvent = await _context.GroupEvents
             .Include(ge => ge.ActorUser)
-            .ThenInclude(u => u.Profile)
+            .ThenInclude(u => u.UserProfile)
             .Include(ge => ge.AffectedUsers) // Inkluder affected users
                 .ThenInclude(au => au.User)
             .Where(ge => groupEventIds.Contains(ge.Id))
@@ -217,7 +218,7 @@ public class GroupNotificationService
         var events = await _context.GroupEvents
             .Include(ge => ge.ActorUser)
             .Include(ge => ge.AffectedUsers)
-                .ThenInclude(au => au.User)
+                .ThenInclude(au => au.AppUser)
             .Where(ge => groupEventIds.Contains(ge.Id))
             .OrderBy(ge => ge.CreatedAt)
             .ToListAsync();
@@ -225,15 +226,15 @@ public class GroupNotificationService
         var eventSummaries = await BuildEventSummariesAsync(events);
         
         // 🆕 Hent affected users for den siste hendelsen
-        List<UserSummaryDTO> latestAffectedUsers = new();
+        List<UserSummaryDto> latestAffectedUsers = new();
     
         if (lastEvent?.AffectedUsers?.Any() == true)
         {
             var affectedUserIds = lastEvent.AffectedUsers.Select(au => au.UserId).ToList();
             
-            latestAffectedUsers = await _context.Users
+            latestAffectedUsers = await _context.AppUsers
                 .Where(u => affectedUserIds.Contains(u.Id))
-                .Select(u => new UserSummaryDTO
+                .Select(u => new UserSummaryDto
                 {
                     Id = u.Id,
                     FullName = u.FullName,
@@ -249,7 +250,7 @@ public class GroupNotificationService
         // Sjekk rejected status
         var isRejected = await _context.GroupRequests
             .AnyAsync(gr => gr.ConversationId == notification.ConversationId && 
-                           gr.ReceiverId == notification.UserId && 
+                           gr.ReceiverId == notification.RecipientId && 
                            gr.Status == GroupRequestStatus.Rejected);
 
         var groupName = notification.Conversation?.GroupName ?? "Unknown Group";
@@ -310,7 +311,7 @@ public class GroupNotificationService
             var actorName = currentEvent.ActorUser?.FullName ?? "En bruker";
             // ✅ Bruk allerede inkluderte AffectedUsers
             var currentAffectedUserNames = currentEvent.AffectedUsers
-                .Select(au => au.User.FullName)
+                .Select(au => au.AppUser.FullName)
                 .ToList();
             // 🔄 Konsekutiv gruppering
             var allAffectedUsers = new List<string>(currentAffectedUserNames);
@@ -326,7 +327,7 @@ public class GroupNotificationService
                     {
                         // ✅ Også her: Bruk inkluderte data
                         var nextAffectedUserNames = nextEvent.AffectedUsers
-                            .Select(au => au.User.FullName)
+                            .Select(au => au.AppUser.FullName)
                             .ToList();
                         allAffectedUsers.AddRange(nextAffectedUserNames);
                         eventsToSkip++;
@@ -378,7 +379,7 @@ public class GroupNotificationService
             return $"{otherUsers} and {lastUser} have accepted the invite";
         }
 
-        return "Users have accepted the invite";
+        return "AppUsers have accepted the invite";
     }
     
     // Hjelpemetode for å hente gammelt og nytt navn

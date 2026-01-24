@@ -1,8 +1,8 @@
 
 using AFBack.Data;
 using AFBack.DTOs.Security;
-using AFBack.Models;
 using AFBack.Interface.Services;
+using AFBack.Models.Auth;
 using AFBack.Utils;
 using Microsoft.EntityFrameworkCore;
 

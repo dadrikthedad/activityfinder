@@ -8,5 +8,5 @@ public class FriendDTO
     public int UserToFriendUserScore { get; set; } 
     public int FriendUserToUserScore { get; set; }
     
-    public UserSummaryDTO Friend { get; set; } = null!;
+    public UserSummaryDto Friend { get; set; } = null!;
 }

@@ -1,6 +1,7 @@
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
 using AFBack.Interface.Services;
 using AFBack.Models;
@@ -14,7 +15,7 @@ namespace AFBack.Extensions;
 public static class UserSummaryExtensions
 {
     // Henter alt med kun UserId
-    public static async Task<UserSummaryDTO?> GetUserSummaryWithRelationshipAsync(
+    public static async Task<UserSummaryDto?> GetUserSummaryWithRelationshipAsync(
         ApplicationDbContext context,
         int targetUserId,
         int currentUserId)
@@ -22,8 +23,8 @@ public static class UserSummaryExtensions
         var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         // Hent bruker med profil i én query
-        var user = await context.Users
-            .Include(u => u.Profile)
+        var user = await context.AppUsers
+            .Include(u => u.UserProfile)
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == targetUserId);
 
@@ -46,7 +47,7 @@ public static class UserSummaryExtensions
         bool? isBlocked = blockRelationships.Any(b => b.BlockerId == currentUserId) ? true : null;
         bool? hasBlockedMe = blockRelationships.Any(b => b.BlockerId == targetUserId) ? true : null;
 
-        return new UserSummaryDTO
+        return new UserSummaryDto
         {
             Id = user.Id,
             FullName = user.FullName,
@@ -59,7 +60,7 @@ public static class UserSummaryExtensions
         };
     }
     
-    public static async Task<UserSummaryDTO> MapToUserSummaryWithRelationshipAsync(
+    public static async Task<UserSummaryDto> MapToUserSummaryWithRelationshipAsync(
         ApplicationDbContext context,
         int targetUserId,
         string fullName,
@@ -84,7 +85,7 @@ public static class UserSummaryExtensions
         bool? isBlocked = blockRelationships.Any(b => b.BlockerId == currentUserId) ? true : null;
         bool? hasBlockedMe = blockRelationships.Any(b => b.BlockerId == targetUserId) ? true : null;
 
-        return new UserSummaryDTO
+        return new UserSummaryDto
         {
             Id = targetUserId,
             FullName = fullName,
@@ -144,7 +145,7 @@ public static class UserSummaryExtensions
                         targetUserIds: usersToNotify, // 🎯 Broadcast til alle
                         source: "API",
                         relatedEntityId: userId,
-                        relatedEntityType: "User"
+                        relatedEntityType: "AppUser"
                     );
                     
                     // 🆕 Send SignalR til alle relevante brukere
@@ -152,7 +153,7 @@ public static class UserSummaryExtensions
                     await hubContext.Clients.Users(userIdStrings)
                         .SendAsync("UserProfileUpdated", eventData);
 
-                    Console.WriteLine($"✅ Profile update sent to {usersToNotify.Count} users via sync + SignalR");
+                    Console.WriteLine($"✅ UserProfile update sent to {usersToNotify.Count} users via sync + SignalR");
                 }
             }
             catch (Exception ex)

@@ -2,6 +2,7 @@
 using AFBack.Constants;
 using AFBack.Data;
 using AFBack.DTOs;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
@@ -30,14 +31,14 @@ public class FriendsController(
     public async Task<ActionResult<object>> GetFriends(int pageNumber = 1, int pageSize = 30)
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
 
         if (pageNumber <= 0 || pageSize <= 0)
             return BadRequest(new { message = "Page number and size must be greater than zero." });
 
         var query = context.Friends
-            .Include(f => f.User).ThenInclude(u => u.Profile)
-            .Include(f => f.FriendUser).ThenInclude(u => u.Profile)
+            .Include(f => f.User).ThenInclude(u => u.UserProfile)
+            .Include(f => f.FriendUser).ThenInclude(u => u.UserProfile)
             .AsNoTracking()
             .Where(f => f.UserId == userId || f.FriendId == userId);
 
@@ -53,13 +54,13 @@ public class FriendsController(
                 UserToFriendUserScore = f.UserId == userId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
                 FriendUserToUserScore = f.UserId == userId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
                 Friend = f.UserId == userId
-                    ? new UserSummaryDTO
+                    ? new UserSummaryDto
                     {
                         Id = f.FriendUser.Id,
                         FullName = f.FriendUser.FullName,
                         ProfileImageUrl = f.User.ProfileImageUrl
                     }
-                    : new UserSummaryDTO
+                    : new UserSummaryDto
                     {
                         Id = f.User.Id,
                         FullName = f.User.FullName,
@@ -83,7 +84,7 @@ public class FriendsController(
     {
         // Henter token til brukeren
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var currentUserId))
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
 
         // Hent ID-er til den innloggede brukerens venner
         var currentUserFriendIds = await context.Friends
@@ -93,8 +94,8 @@ public class FriendsController(
 
         // Hent vennelisten til bruker med id `userId`
         var friends = await context.Friends
-            .Include(f => f.User).ThenInclude(u => u.Profile)
-            .Include(f => f.FriendUser).ThenInclude(u => u.Profile)
+            .Include(f => f.User).ThenInclude(u => u.UserProfile)
+            .Include(f => f.FriendUser).ThenInclude(u => u.UserProfile)
             .AsNoTracking()
             .Where(f => (f.UserId == userId || f.FriendId == userId) &&
                         !(f.UserId == userId && f.FriendId == userId)) // Utelukker oss selv
@@ -105,13 +106,13 @@ public class FriendsController(
                 UserToFriendUserScore = f.UserId == userId ? f.UserToFriendUserScore : f.FriendUserToUserScore,
                 FriendUserToUserScore = f.UserId == userId ? f.FriendUserToUserScore : f.UserToFriendUserScore,
                 Friend = f.UserId == userId
-                    ? new UserSummaryDTO
+                    ? new UserSummaryDto
                     {
                         Id = f.FriendUser.Id,
                         FullName = f.FriendUser.FullName,
                         ProfileImageUrl = f.User.ProfileImageUrl
                     }
-                    : new UserSummaryDTO
+                    : new UserSummaryDto
                     {
                         Id = f.User.Id,
                         FullName = f.User.FullName,
@@ -135,7 +136,7 @@ public class FriendsController(
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
 
         var isFriend = await context.Friends.AnyAsync(f =>
@@ -151,7 +152,7 @@ public class FriendsController(
     {
         if (!int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var userId))
         {
-            return Unauthorized(new { message = "Invalid user ID in token." });
+            return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
 
         // Finn relasjonen i én retning

@@ -4,6 +4,7 @@ using AFBack.Data;
 using AFBack.DTOs.Crypto;
 using AFBack.DTOs.Crypto.EncryptedMessageAttachments;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.MessageNotification.Service;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
@@ -51,7 +52,7 @@ public class EncryptedMessageController(
         {
             var userId = GetUserId();
             if (userId == null)
-                return Unauthorized("Invalid user ID");
+                return Unauthorized("Invalid appUser ID");
 
             if (request.EncryptedFilesData == null || !request.EncryptedFilesData.Any())
                 return BadRequest("No encrypted files provided");
@@ -60,7 +61,7 @@ public class EncryptedMessageController(
                 return BadRequest("Maximum 10 files per message");
 
             // Validate conversation access
-            var hasAccess = await _context.ConversationParticipants
+            var hasAccess = await Context.ConversationParticipants
                 .AnyAsync(cp => cp.ConversationId == request.ConversationId && cp.UserId == userId);
             
             
@@ -68,14 +69,14 @@ public class EncryptedMessageController(
             if (!hasAccess)
                 return Forbid("Not authorized for this conversation");
             
-            _logger.LogInformation("🔐🐛 BACKEND RECEIVED: MessageKeyInfo={MessageKeyInfoCount}, AttachmentCount={AttachmentCount}", 
+            Logger.LogInformation("🔐🐛 BACKEND RECEIVED: MessageKeyInfo={MessageKeyInfoCount}, AttachmentCount={AttachmentCount}", 
                 !string.IsNullOrEmpty(request.TextKeyInfo) ? JsonSerializer.Deserialize<Dictionary<string, string>>(request.TextKeyInfo)?.Keys.Count ?? 0 : 0,
                 request.EncryptedFilesData?.Count ?? 0);
 
             // Log hver attachment som kommer inn
             foreach (var fileData in request.EncryptedFilesData ?? new List<EncryptedFileDataRequestDto>())
             {
-                _logger.LogInformation("🔐🐛 INCOMING ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, HasThumbnailData={HasThumbnailData}", 
+                Logger.LogInformation("🔐🐛 INCOMING ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, HasThumbnailData={HasThumbnailData}", 
                     fileData.FileName, 
                     fileData.KeyInfo?.Keys.Count ?? 0,
                     fileData.ThumbnailKeyInfo?.Keys.Count ?? 0,
@@ -139,13 +140,13 @@ public class EncryptedMessageController(
                                     thumbnailFileName);
                                 uploadedUrls.Add(thumbnailUrl); // Track for cleanup
 
-                                _logger.LogInformation("Thumbnail uploaded for {FileName}: {ThumbnailUrl} ({Width}x{Height}, {Size} bytes)", 
+                                Logger.LogInformation("Thumbnail uploaded for {FileName}: {ThumbnailUrl} ({Width}x{Height}, {Size} bytes)", 
                                     fileData.FileName, thumbnailUrl, fileData.ThumbnailWidth, fileData.ThumbnailHeight, thumbnailBytes.Length);
                             }
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogWarning(ex, "Failed to process thumbnail for {FileName}, continuing without thumbnail", fileData.FileName);
+                            Logger.LogWarning(ex, "Failed to process thumbnail for {FileName}, continuing without thumbnail", fileData.FileName);
                             // Continue without thumbnail - ikke kritisk feil
                         }
                     }
@@ -169,7 +170,7 @@ public class EncryptedMessageController(
                         ThumbnailHeight = fileData.ThumbnailHeight
                     };
                     
-                    _logger.LogInformation("🔐🐛 CREATED ATTACHMENT DTO: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, ThumbnailUrl={HasThumbnailUrl}", 
+                    Logger.LogInformation("🔐🐛 CREATED ATTACHMENT DTO: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys, ThumbnailUrl={HasThumbnailUrl}", 
                         encryptedAttachment.FileName,
                         encryptedAttachment.KeyInfo?.Keys.Count ?? 0,
                         encryptedAttachment.ThumbnailKeyInfo?.Keys.Count ?? 0,
@@ -181,7 +182,7 @@ public class EncryptedMessageController(
                         ? $" with thumbnail ({fileData.ThumbnailWidth}x{fileData.ThumbnailHeight})" 
                         : "";
                         
-                    _logger.LogInformation("Encrypted file uploaded: {FileName} -> {Url} ({Size} bytes){ThumbnailInfo}", 
+                    Logger.LogInformation("Encrypted file uploaded: {FileName} -> {Url} ({Size} bytes){ThumbnailInfo}", 
                         fileData.FileName, uploadedUrl, encryptedBytes.Length, thumbnailInfo);
                 }
 
@@ -200,13 +201,13 @@ public class EncryptedMessageController(
                     EncryptedAttachments = encryptedAttachments
                 };
                 
-                _logger.LogInformation("🔐🐛 SENDING TO STORE: TextKeyInfo={TextKeyInfoCount}, AttachmentCount={AttachmentCount}", 
+                Logger.LogInformation("🔐🐛 SENDING TO STORE: TextKeyInfo={TextKeyInfoCount}, AttachmentCount={AttachmentCount}", 
                     sendMessageRequest.KeyInfo?.Keys.Count ?? 0,
                     sendMessageRequest.EncryptedAttachments?.Count ?? 0);
 
                 foreach (var att in sendMessageRequest.EncryptedAttachments ?? new List<EncryptedAttachmentDto>())
                 {
-                    _logger.LogInformation("🔐🐛 STORE ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys", 
+                    Logger.LogInformation("🔐🐛 STORE ATTACHMENT: {FileName}, KeyInfoKeys={KeyInfoCount}, ThumbnailKeyInfo={ThumbnailKeyInfoCount} keys", 
                         att.FileName, 
                         att.KeyInfo?.Keys.Count ?? 0,
                         att.ThumbnailKeyInfo?.Keys.Count ?? 0);
@@ -222,7 +223,7 @@ public class EncryptedMessageController(
                     return StatusCode(500, "Failed to send encrypted message");
                 }
 
-                _logger.LogInformation("Encrypted message with {AttachmentCount} attachments sent successfully. MessageId: {MessageId}", 
+                Logger.LogInformation("Encrypted message with {AttachmentCount} attachments sent successfully. MessageId: {MessageId}", 
                     encryptedAttachments.Count, messageResult.Id);
                 
                 return Ok(new SendEncryptedMessageResponseDTO
@@ -251,12 +252,12 @@ public class EncryptedMessageController(
         }
         catch (ValidationException ex)
         {
-            _logger.LogWarning("Validation error uploading encrypted JSON: {Error}", ex.Message);
+            Logger.LogWarning("Validation error uploading encrypted JSON: {Error}", ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading encrypted JSON attachments for user {UserId}", GetUserId());
+            Logger.LogError(ex, "Error uploading encrypted JSON attachments for appUser {UserId}", GetUserId());
             return StatusCode(500, "Internal server error");
         }
     }
@@ -268,7 +269,7 @@ public class EncryptedMessageController(
     // {
     //     var userId = GetUserId();
     //     if (userId == null)
-    //         return Unauthorized("Invalid user ID");
+    //         return Unauthorized("Invalid appUser ID");
     //
     //     if (request.EncryptedFiles == null || !request.EncryptedFiles.Any())
     //         return BadRequest("No encrypted files provided");

@@ -214,10 +214,10 @@ public class FileService : IFileService
     /// <summary>
     /// Vi rydder opp og fjerner lastete filer hvis noe går galt
     /// </summary>
-    /// <param name="urls"></param>
-    /// <param name="method"></param>
-    /// <param name="userId"></param>
-    public async Task TryCleanupFilesAsync(List<string> urls, string method, int userId)
+    /// <param name="urls">Urlene fra bloben</param>
+    /// <param name="method">Metoden som kaller cleanup</param>
+    /// <param name="userId">Brukeren for logging</param>
+    public async Task TryCleanupFilesAsync(List<string> urls, string method, string userId)
     {
         if (urls.Count == 0)
             return;
@@ -227,7 +227,9 @@ public class FileService : IFileService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to cleanup files after upload failed for user {UserId} in method {Method}", userId, method);
+            _logger.LogError(
+                ex, "Failed to cleanup files after upload failed for appUser {UserId} in method {Method}", 
+                userId, method);
         }
     }
     

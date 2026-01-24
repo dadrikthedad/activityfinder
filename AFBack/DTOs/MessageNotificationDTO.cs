@@ -42,8 +42,5 @@ public class MessageNotificationDTO
     // For å ha riktig notification ved kun 1 groupevent
     public string? LatestGroupEventType { get; set; }
     // Oppdatere participants i sanntid
-    public List<UserSummaryDTO>? LatestAffectedUsers { get; set; }
-    
-    
-
+    public List<UserSummaryDto>? LatestAffectedUsers { get; set; }
 }

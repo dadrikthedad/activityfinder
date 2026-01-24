@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: afback-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass A9fZQ2M8xK4eR7H3D5LJpT0yWmN6B
+    healthcheck: 
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "A9fZQ2M8xK4eR7H3D5LJpT0yWmN6B", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+volumes:
+  redis_data:

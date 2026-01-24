@@ -1,45 +1,45 @@
 using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
 using AFBack.Models;
+using AFBack.Models.Auth;
+using AFBack.Models.User;
 using UserSettingsDTO = AFBack.DTOs.UserSettingsDTO;
 
 namespace AFBack.Extensions
 {
     public static class BoostrapExtensions
     {
-        public static UserSummaryDTO ToUserSummaryDTO(this User user)
+        public static UserSummaryDto ToUserSummaryDTO(this AppUser appUser)
         {
-            return new UserSummaryDTO
+            return new UserSummaryDto
             { 
-                Id = user.Id,
-                FullName = user.FullName,
-                ProfileImageUrl = user.ProfileImageUrl
-                // GroupRequestStatus settes til null som default (kan overstyres senere)
+                Id = appUser.Id,
+                FullName = appUser.FullName,
+                ProfileImageUrl = appUser.ProfileImageUrl
             };
         }
 
         // Overload for når du trenger å sette GroupRequestStatus
-        public static UserSummaryDTO ToUserSummaryDTO(this User user, GroupRequestStatus? groupRequestStatus)
+        public static UserSummaryDto ToUserSummaryDTO(this AppUser appUser, GroupRequestStatus? groupRequestStatus)
         {
-            return new UserSummaryDTO
+            return new UserSummaryDto
             {
-                Id = user.Id,
-                FullName = user.FullName,
-                ProfileImageUrl = user.ProfileImageUrl,
-                GroupRequestStatus = groupRequestStatus
+                Id = appUser.Id,
+                FullName = appUser.FullName,
+                ProfileImageUrl = appUser.ProfileImageUrl,
             };
         }
 
         // Bulk conversion for lists
-        public static List<UserSummaryDTO> ToUserSummaryDTOs(this IEnumerable<User> users)
+        public static List<UserSummaryDto> ToUserSummaryDTOs(this IEnumerable<AppUser> users)
         {
             return users.Select(u => u.ToUserSummaryDTO()).ToList();
         }
 
         // Null-safe bulk conversion
-        public static List<UserSummaryDTO> ToUserSummaryDTOsSafe(this IEnumerable<User>? users) 
+        public static List<UserSummaryDto> ToUserSummaryDTOsSafe(this IEnumerable<AppUser>? users) 
         { 
-            return users?.Select(u => u.ToUserSummaryDTO()).ToList() ?? new List<UserSummaryDTO>();
+            return users?.Select(u => u.ToUserSummaryDTO()).ToList() ?? new List<UserSummaryDto>();
         }
 
         public static UserSettingsDTO ToUserSettingsDTO(this UserSettings? settings)

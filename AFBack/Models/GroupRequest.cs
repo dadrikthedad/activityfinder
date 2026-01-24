@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AFBack.Models.Auth;
 
 namespace AFBack.Models;
 
@@ -16,11 +17,11 @@ public class GroupRequest
     public bool IsRead { get; set; } = false;
     
     public int ConversationId { get; set; } // Settes når gruppen opprettes
-    public Conversation Conversation { get; set; }
+    public Features.Conversation.Models.Conversation Conversation { get; set; }
     
-    public User Sender { get; set; } = null!;
+    public AppUser Sender { get; set; } = null!;
     
-    public User Receiver { get; set; } = null!;
+    public AppUser Receiver { get; set; } = null!;
     
 }
 

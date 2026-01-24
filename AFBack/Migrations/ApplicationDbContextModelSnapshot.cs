@@ -170,7 +170,7 @@ namespace AFBack.Migrations
                     b.ToTable("Community");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Conversation", b =>
+            modelBuilder.Entity("AFBack.Models.Conversations", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -223,10 +223,10 @@ namespace AFBack.Migrations
                     b.Property<int?>("ConversationStatus")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("DeletedAt")
+                    b.Property<DateTime?>("ArchivedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("HasDeleted")
+                    b.Property<bool>("ConversationArchived")
                         .HasColumnType("boolean");
 
                     b.Property<int>("UserId")
@@ -722,7 +722,7 @@ namespace AFBack.Migrations
                     b.ToTable("Notifications");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Profile", b =>
+            modelBuilder.Entity("AFBack.Models.UserProfile", b =>
                 {
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
@@ -1054,7 +1054,7 @@ namespace AFBack.Migrations
                     b.ToTable("SyncEvents");
                 });
 
-            modelBuilder.Entity("AFBack.Models.User", b =>
+            modelBuilder.Entity("AFBack.Models.AppUser", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1151,7 +1151,7 @@ namespace AFBack.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("Users");
+                    b.ToTable("AppUsers");
                 });
 
             modelBuilder.Entity("AFBack.Models.UserActivity", b =>
@@ -1183,7 +1183,7 @@ namespace AFBack.Migrations
                     b.ToTable("UserActivity");
                 });
 
-            modelBuilder.Entity("AFBack.Models.UserOnlineStatus", b =>
+            modelBuilder.Entity("AFBack.Models.UserConnection", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -1397,109 +1397,109 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Domains.Entities.UserBlock", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "BlockedUser")
+                    b.HasOne("AFBack.Models.AppUser", "BlockedAppUser")
                         .WithMany()
                         .HasForeignKey("BlockedUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Blocker")
+                    b.HasOne("AFBack.Models.AppUser", "Blocker")
                         .WithMany()
                         .HasForeignKey("BlockerId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("BlockedUser");
+                    b.Navigation("BlockedAppUser");
 
                     b.Navigation("Blocker");
                 });
 
             modelBuilder.Entity("AFBack.Models.CanSend", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany()
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_CanSend_Conversations_ConversationId");
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_CanSend_Users_UserId");
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.Community", b =>
                 {
-                    b.HasOne("AFBack.Models.Profile", null)
+                    b.HasOne("AFBack.Models.UserProfile", null)
                         .WithMany("Communities")
                         .HasForeignKey("ProfileUserId");
                 });
 
             modelBuilder.Entity("AFBack.Models.ConversationParticipant", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany("Participants")
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.ConversationReadState", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany()
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.Crypto.UserPublicKey", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.FriendInvitation", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "Receiver")
+                    b.HasOne("AFBack.Models.AppUser", "Receiver")
                         .WithMany()
                         .HasForeignKey("ReceiverId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Sender")
+                    b.HasOne("AFBack.Models.AppUser", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1512,13 +1512,13 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.Friends", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "FriendUser")
+                    b.HasOne("AFBack.Models.AppUser", "FriendUser")
                         .WithMany()
                         .HasForeignKey("FriendId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1526,18 +1526,18 @@ namespace AFBack.Migrations
 
                     b.Navigation("FriendUser");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.GroupEvent", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "ActorUser")
+                    b.HasOne("AFBack.Models.AppUser", "ActorUser")
                         .WithMany()
                         .HasForeignKey("ActorUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany()
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1545,30 +1545,30 @@ namespace AFBack.Migrations
 
                     b.Navigation("ActorUser");
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
                 });
 
             modelBuilder.Entity("AFBack.Models.GroupRequest", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany()
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Receiver")
+                    b.HasOne("AFBack.Models.AppUser", "Receiver")
                         .WithMany()
                         .HasForeignKey("ReceiverId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Sender")
+                    b.HasOne("AFBack.Models.AppUser", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
                     b.Navigation("Receiver");
 
@@ -1577,7 +1577,7 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.Message", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany("Messages")
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1588,12 +1588,12 @@ namespace AFBack.Migrations
                         .HasForeignKey("ParentMessageId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("AFBack.Models.User", "Sender")
+                    b.HasOne("AFBack.Models.AppUser", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
                     b.Navigation("ParentMessage");
 
@@ -1613,12 +1613,12 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.MessageNotification", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany()
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("AFBack.Models.User", "FromUser")
+                    b.HasOne("AFBack.Models.AppUser", "FromUser")
                         .WithMany()
                         .HasForeignKey("FromUserId")
                         .OnDelete(DeleteBehavior.NoAction);
@@ -1628,19 +1628,19 @@ namespace AFBack.Migrations
                         .HasForeignKey("MessageId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
                     b.Navigation("FromUser");
 
                     b.Navigation("Message");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.MessageNotificationGroupEvent", b =>
@@ -1664,32 +1664,32 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.MessageRequest", b =>
                 {
-                    b.HasOne("AFBack.Models.Conversation", "Conversation")
+                    b.HasOne("AFBack.Models.Conversations", "Conversations")
                         .WithMany()
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "Sender")
+                    b.HasOne("AFBack.Models.AppUser", "Sender")
                         .WithMany()
                         .HasForeignKey("SenderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Conversation");
+                    b.Navigation("Conversations");
 
                     b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("AFBack.Models.Notification", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "RecipientUser")
+                    b.HasOne("AFBack.Models.AppUser", "RecipientUser")
                         .WithMany()
                         .HasForeignKey("RecipientUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "RelatedUser")
+                    b.HasOne("AFBack.Models.AppUser", "RelatedUser")
                         .WithMany()
                         .HasForeignKey("RelatedUserId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -1699,15 +1699,15 @@ namespace AFBack.Migrations
                     b.Navigation("RelatedUser");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Profile", b =>
+            modelBuilder.Entity("AFBack.Models.UserProfile", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
-                        .WithOne("Profile")
-                        .HasForeignKey("AFBack.Models.Profile", "UserId")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
+                        .WithOne("UserProfile")
+                        .HasForeignKey("AFBack.Models.UserProfile", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.Reaction", b =>
@@ -1718,7 +1718,7 @@ namespace AFBack.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1726,18 +1726,18 @@ namespace AFBack.Migrations
 
                     b.Navigation("Message");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.RefreshToken", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.ReportAttachment", b =>
@@ -1753,13 +1753,13 @@ namespace AFBack.Migrations
 
             modelBuilder.Entity("AFBack.Models.SyncEvent", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.UserActivity", b =>
@@ -1770,11 +1770,11 @@ namespace AFBack.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.Profile", null)
+                    b.HasOne("AFBack.Models.UserProfile", null)
                         .WithMany("Activities")
                         .HasForeignKey("ProfileUserId");
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1782,40 +1782,40 @@ namespace AFBack.Migrations
 
                     b.Navigation("Activity");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
-            modelBuilder.Entity("AFBack.Models.UserOnlineStatus", b =>
+            modelBuilder.Entity("AFBack.Models.UserConnection", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
-                        .WithMany("OnlineStatuses")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
+                        .WithMany("Connections")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.UserSettings", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
-                        .WithOne("Settings")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
+                        .WithOne("UserSettings")
                         .HasForeignKey("AFBack.Models.UserSettings", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("AFBack.Models.VerificationInfo", b =>
                 {
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithOne("VerificationInfo")
                         .HasForeignKey("AFBack.Models.VerificationInfo", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
             modelBuilder.Entity("GroupEventAffectedUser", b =>
@@ -1826,7 +1826,7 @@ namespace AFBack.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AFBack.Models.User", "User")
+                    b.HasOne("AFBack.Models.AppUser", "AppUser")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -1834,10 +1834,10 @@ namespace AFBack.Migrations
 
                     b.Navigation("GroupEvent");
 
-                    b.Navigation("User");
+                    b.Navigation("AppUser");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Conversation", b =>
+            modelBuilder.Entity("AFBack.Models.Conversations", b =>
                 {
                     b.Navigation("Messages");
 
@@ -1861,7 +1861,7 @@ namespace AFBack.Migrations
                     b.Navigation("GroupEvents");
                 });
 
-            modelBuilder.Entity("AFBack.Models.Profile", b =>
+            modelBuilder.Entity("AFBack.Models.UserProfile", b =>
                 {
                     b.Navigation("Activities");
 
@@ -1873,13 +1873,13 @@ namespace AFBack.Migrations
                     b.Navigation("Attachments");
                 });
 
-            modelBuilder.Entity("AFBack.Models.User", b =>
+            modelBuilder.Entity("AFBack.Models.AppUser", b =>
                 {
-                    b.Navigation("OnlineStatuses");
+                    b.Navigation("Connections");
 
-                    b.Navigation("Profile");
+                    b.Navigation("UserProfile");
 
-                    b.Navigation("Settings");
+                    b.Navigation("UserSettings");
 
                     b.Navigation("VerificationInfo");
                 });

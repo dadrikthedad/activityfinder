@@ -1,4 +1,5 @@
-﻿using AFBack.Data;
+﻿using AFBack.Cache;
+using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
@@ -32,48 +33,47 @@ public class ConversationsController(
     private readonly IHubContext<UserHub> _hubContext = hubContext;
 
     // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat
-    [HttpGet("my-conversations")]
-    public async Task<IActionResult> GetMyConversations([FromQuery] int skip = 0, [FromQuery] int take = 20)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-        
-        var conversationResults = await conversationService.GetUserConversationsSortedAsync(userId.Value);
-
-        var totalCount = conversationResults.Count;
-
-        var paged = conversationResults
-            .Skip(skip)
-            .Take(take)
-            .Select(c => new ConversationDTO
-            {
-                Id = c.Conversation.Id,
-                GroupName = c.Conversation.GroupName,
-                IsGroup = c.Conversation.IsGroup,
-                GroupImageUrl = c.Conversation.GroupImageUrl,
-                LastMessageSentAt = c.Conversation.LastMessageSentAt,
-                Participants = c.Conversation.Participants.Select(p => new UserSummaryDTO
-                {
-                    Id = p.User.Id,
-                    FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.ProfileImageUrl,
-                    GroupRequestStatus = !c.Conversation.IsGroup ? null :
-                        p.User.Id == c.Conversation.CreatorId ? GroupRequestStatus.Creator :  // ✅ Bruk Creator enum
-                        c.GroupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
-                        null  // ✅ null = ingen GroupRequest finnes (ikke invitert ennå)
-                }).ToList(),
-                IsPendingApproval = c.IsPendingApproval 
-            })
-            .ToList();
-
-        return Ok(new PagedConversationsResponseDTO
-        {
-            TotalCount = totalCount,
-            Conversations = paged
-        });
-    }
-
+    // [HttpGet("my-conversations")]
+    // public async Task<IActionResult> GetMyConversations([FromQuery] int skip = 0, [FromQuery] int take = 20)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+    //
+    //     var conversations = await conversationService.GetUserConversationsSortedAsync(userId.Value);
+    //
+    //     var totalCount = conversations.Count;
+    //
+    //     var paged = conversations
+    //         .Skip(skip)
+    //         .Take(take)
+    //         .Select(c => new ConversationDto
+    //         {
+    //             Id = c.Id,
+    //             GroupName = c.GroupName,
+    //             IsGroup = c.IsGroup,
+    //             GroupImageUrl = c.GroupImageUrl,
+    //             LastMessageSentAt = c.LastMessageSentAt,
+    //             Participants = c.Participants.Select(p => new ConversationParticipantDto
+    //             {
+    //                 AppUser = new UserSummaryDto
+    //                 {
+    //                     Id = p.AppUser.Id,
+    //                     FullName = p.AppUser.FullName,
+    //                     ProfileImageUrl = p.AppUser.ProfileImageUrl,
+    //                 },
+    //                 ConversationStatus = p.ConversationStatus ?? ConversationStatus.Pending,
+    //             }).ToList(),
+    //         })
+    //         .ToList();
+    //
+    //     return Ok(new PagedConversationsResponseDTO
+    //     {
+    //         TotalCount = totalCount,
+    //         Conversations = paged
+    //     });
+    // }
+    
     // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
     [HttpGet("conversation/{conversationId}")]
     public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
@@ -98,198 +98,191 @@ public class ConversationsController(
     }
     
     // Hente kun en samtale
-    [HttpGet("{conversationId}")]
-    public async Task<IActionResult> GetConversationById(int conversationId)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        // 🚀 LETT OPTIMALISERING: Sjekk CanSend først for rask approval-status
-        bool canSend = await msgCache.CanUserSendAsync(userId.Value, conversationId);
-
-        var conversation = await _context.Conversations
-            .AsNoTracking() // 🆕 ReadOnly siden vi ikke endrer data
-            .Include(c => c.Participants)
-            .ThenInclude(p => p.User)
-            .ThenInclude(u => u.Profile)
-            .Include(c => c.Messages)
-            .FirstOrDefaultAsync(c => c.Id == conversationId);
-
-        if (conversation == null)
-            return NotFound("Samtalen finnes ikke.");
-        
-        var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
-        if (userParticipant == null)
-            return Forbid("You do not have permission to view this conversation.");
-        
-        if (userParticipant.HasDeleted)
-            return BadRequest("You have deleted this conversation. Restore it to regain access.");
-
-        var lastMessage = conversation.Messages
-            .OrderByDescending(m => m.SentAt)
-            .FirstOrDefault();
-        
-        bool isApproved;
-        bool isPending;
-        bool isCreator = conversation.CreatorId == userId;
-        
-        // 🎯 FORENKLET LOGIKK med CanSend
-        if (canSend || isCreator)
-        {
-            // ✅ Bruker kan sende = fullstendig godkjent
-            isApproved = true;
-            isPending = false;
-        }
-        else
-        {
-            // 🔍 Fallback: Sjekk pending status
-            if (conversation.IsGroup)
-            {
-                // For grupper: sjekk GroupRequest status
-                var myGroupRequest = await _context.GroupRequests
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId);
-                
-                isApproved = false; // Ikke i CanSend = ikke godkjent
-                isPending = myGroupRequest?.Status == GroupRequestStatus.Pending;
-            }
-            else
-            {
-                // For 1-1: sjekk MessageRequest status
-                var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
-                
-                if (otherUserId.HasValue)
-                {
-                    var messageRequest = await _context.MessageRequests
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(r =>
-                            r.ConversationId == conversationId &&
-                            ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
-                             (r.SenderId == otherUserId && r.ReceiverId == userId)));
-
-                    isApproved = false; // Ikke i CanSend = ikke godkjent
-                    isPending = messageRequest?.SenderId == userId && 
-                               !messageRequest.IsAccepted && 
-                               !messageRequest.IsRejected;
-                }
-                else
-                {
-                    isApproved = false;
-                    isPending = false;
-                }
-            }
-        }
-        
-        // Hent GroupRequests for participants display (kun hvis gruppe)
-        Dictionary<int, GroupRequestStatus> groupRequestLookup = new();
-        if (conversation.IsGroup)
-        {
-            groupRequestLookup = await _context.GroupRequests
-                .AsNoTracking()
-                .Where(gr => gr.ConversationId == conversationId)
-                .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status);
-        }
-
-        var dto = new ConversationDTO
-        {
-            Id = conversation.Id,
-            GroupName = conversation.GroupName,
-            IsGroup = conversation.IsGroup,
-            GroupImageUrl = conversation.GroupImageUrl,
-            LastMessageSentAt = lastMessage?.SentAt,
-            Participants = conversation.Participants.Select(p => new UserSummaryDTO
-            {
-                Id = p.User.Id,
-                FullName = p.User.FullName,
-                ProfileImageUrl = p.User.ProfileImageUrl,
-                GroupRequestStatus = !conversation.IsGroup ? null :
-                    p.User.Id == conversation.CreatorId ? GroupRequestStatus.Creator :
-                    groupRequestLookup.TryGetValue(p.User.Id, out var status) ? status : 
-                    null
-            }).ToList(),
-            IsApproved = isApproved,
-            IsPendingApproval = isPending
-        };
-
-        return Ok(dto);
-    }
+    // [HttpGet("{conversationId}")]
+    // public async Task<IActionResult> GetConversationById(int conversationId)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+    //
+    //     // 🚀 LETT OPTIMALISERING: Sjekk CanSend først for rask approval-status
+    //     bool canSend = await msgCache.CanUserSendAsync(userId.Value, conversationId);
+    //
+    //     var conversation = await _context.Conversations
+    //         .AsNoTracking() // 🆕 ReadOnly siden vi ikke endrer data
+    //         .Include(c => c.Participants)
+    //         .ThenInclude(p => p.AppUser)
+    //         .ThenInclude(u => u.UserProfile)
+    //         .Include(c => c.Messages)
+    //         .FirstOrDefaultAsync(c => c.Id == conversationId);
+    //
+    //     if (conversation == null)
+    //         return NotFound("Samtalen finnes ikke.");
+    //     
+    //     var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+    //     if (userParticipant == null)
+    //         return Forbid("You do not have permission to view this conversation.");
+    //     
+    //     if (userParticipant.ConversationArchived)
+    //         return BadRequest("You have deleted this conversation. Restore it to regain access.");
+    //
+    //     var lastMessage = conversation.Messages
+    //         .OrderByDescending(m => m.SentAt)
+    //         .FirstOrDefault();
+    //     
+    //     bool isApproved;
+    //     bool isPending;
+    //
+    //     
+    //     // 🎯 FORENKLET LOGIKK med CanSend
+    //     if (canSend || isCreator)
+    //     {
+    //         // ✅ Bruker kan sende = fullstendig godkjent
+    //         isApproved = true;
+    //         isPending = false;
+    //     }
+    //     else
+    //     {
+    //         // 🔍 Fallback: Sjekk pending status
+    //         if (conversation.IsGroup)
+    //         {
+    //             // For grupper: sjekk GroupRequest status
+    //             var myGroupRequest = await _context.GroupRequests
+    //                 .AsNoTracking()
+    //                 .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId);
+    //             
+    //             isApproved = false; // Ikke i CanSend = ikke godkjent
+    //             isPending = myGroupRequest?.Status == GroupRequestStatus.Pending;
+    //         }
+    //         else
+    //         {
+    //             // For 1-1: sjekk MessageRequest status
+    //             var otherUserId = conversation.Participants.FirstOrDefault(p => p.UserId != userId)?.UserId;
+    //             
+    //             if (otherUserId.HasValue)
+    //             {
+    //                 var messageRequest = await _context.MessageRequests
+    //                     .AsNoTracking()
+    //                     .FirstOrDefaultAsync(r =>
+    //                         r.ConversationId == conversationId &&
+    //                         ((r.SenderId == userId && r.ReceiverId == otherUserId) ||
+    //                          (r.SenderId == otherUserId && r.ReceiverId == userId)));
+    //
+    //                 isApproved = false; // Ikke i CanSend = ikke godkjent
+    //                 isPending = messageRequest?.SenderId == userId && 
+    //                            !messageRequest.IsAccepted && 
+    //                            !messageRequest.IsRejected;
+    //             }
+    //             else
+    //             {
+    //                 isApproved = false;
+    //                 isPending = false;
+    //             }
+    //         }
+    //     }
+    //     
+    //     // Hent GroupRequests for participants display (kun hvis gruppe)
+    //     Dictionary<int, GroupRequestStatus> groupRequestLookup = new();
+    //     if (conversation.IsGroup)
+    //     {
+    //         groupRequestLookup = await _context.GroupRequests
+    //             .AsNoTracking()
+    //             .Where(gr => gr.ConversationId == conversationId)
+    //             .ToDictionaryAsync(gr => gr.ReceiverId, gr => gr.Status);
+    //     }
+    //
+    //     var dto = new ConversationDto
+    //     {
+    //         Id = conversation.Id,
+    //         GroupName = conversation.GroupName,
+    //         IsGroup = conversation.IsGroup,
+    //         GroupImageUrl = conversation.GroupImageUrl,
+    //         LastMessageSentAt = lastMessage?.SentAt,
+    //         Participants = conversation.Participants.Select(p => new UserSummaryDto
+    //         {
+    //             Id = p.AppUser.Id,
+    //             FullName = p.AppUser.FullName,
+    //             ProfileImageUrl = p.AppUser.ProfileImageUrl,
+    //         }).ToList(),
+    //         IsApproved = isApproved,
+    //         IsPendingApproval = isPending
+    //     };
+    //
+    //     return Ok(dto);
+    // }
     
-   [HttpGet("search-conversations")]
-    public async Task<IActionResult> SearchConversationsOptimized([FromQuery] string query)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        if (string.IsNullOrWhiteSpace(query))
-            return BadRequest("Søketekst må oppgis.");
-
-        var searchQuery = query.Trim();
-
-        // Hent tillatte samtaler
-        var canSendConversationIds = await msgCache.GetUserCanSendConversationsAsync(userId.Value);
-
-        var pendingMessageRequestConvIds = await _context.MessageRequests
-            .AsNoTracking()
-            .Where(r => r.SenderId == userId.Value && !r.IsAccepted && !r.IsRejected && r.ConversationId.HasValue)
-            .Select(r => r.ConversationId!.Value)
-            .ToListAsync();
-
-        var allowedConversationIds = canSendConversationIds
-            .Concat(pendingMessageRequestConvIds)
-            .ToHashSet();
-
-        // 🎯 PROJECTION: Direkte til DTO i database
-        var conversations = await _context.Conversations
-            .AsNoTracking()
-            .Where(c => c.Participants.Any(p => p.UserId == userId.Value && !p.HasDeleted) &&
-                       (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId.Value) &&
-                       (
-                           (!string.IsNullOrEmpty(c.GroupName) && EF.Functions.ILike(c.GroupName, $"%{searchQuery}%")) ||
-                           c.Participants.Any(p => EF.Functions.ILike(p.User.FullName, $"%{searchQuery}%"))
-                       ))
-            .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
-            .Select(c => new ConversationDTO
-            {
-                Id = c.Id,
-                GroupName = c.GroupName,
-                IsGroup = c.IsGroup,
-                GroupImageUrl = c.GroupImageUrl,
-                LastMessageSentAt = c.LastMessageSentAt,
-                Participants = c.Participants.Select(p => new UserSummaryDTO
-                {
-                    Id = p.User.Id,
-                    FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.Profile != null ? p.User.ProfileImageUrl : null,
-                    GroupRequestStatus = !c.IsGroup ? null :
-                        p.User.Id == c.CreatorId ? GroupRequestStatus.Creator : null
-                }).ToList(),
-                IsPendingApproval = !c.IsApproved && !c.IsGroup && c.CreatorId == userId.Value
-            })
-            .ToListAsync();
-        
-        var sortedConversations = conversations
-            .OrderBy(c => c.IsGroup ? 1 : 0)  // 1-1 samtaler først
-            .ThenBy(c => {
-                // Prioriter eksakte navn-match
-                if (!c.IsGroup)
-                {
-                    var exactMatch = c.Participants.Any(p => 
-                        p.FullName.Equals(searchQuery, StringComparison.OrdinalIgnoreCase));
-                    return exactMatch ? 0 : 1;
-                }
-                else
-                {
-                    var exactMatch = c.GroupName?.Equals(searchQuery, StringComparison.OrdinalIgnoreCase) == true;
-                    return exactMatch ? 0 : 1;
-                }
-            })
-            .ThenByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)  // Så etter aktivitet
-            .ToList();
-
-        return Ok(sortedConversations);
-    }
+   // [HttpGet("search-conversations")]
+   //  public async Task<IActionResult> SearchConversationsOptimized([FromQuery] string query)
+   //  {
+   //      var userId = GetUserId();
+   //      if (userId == null)
+   //          return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+   //
+   //      if (string.IsNullOrWhiteSpace(query))
+   //          return BadRequest("Søketekst må oppgis.");
+   //
+   //      var searchQuery = query.Trim();
+   //
+   //      // Hent tillatte samtaler
+   //      var canSendConversationIds = await msgCache.GetUserCanSendConversationsAsync(userId.Value);
+   //
+   //      var pendingMessageRequestConvIds = await _context.MessageRequests
+   //          .AsNoTracking()
+   //          .Where(r => r.SenderId == userId.Value && !r.IsAccepted && !r.IsRejected && r.ConversationId.HasValue)
+   //          .Select(r => r.ConversationId!.Value)
+   //          .ToListAsync();
+   //
+   //      var allowedConversationIds = canSendConversationIds
+   //          .Concat(pendingMessageRequestConvIds)
+   //          .ToHashSet();
+   //
+   //      // 🎯 PROJECTION: Direkte til DTO i database
+   //      var conversations = await _context.Conversations
+   //          .AsNoTracking()
+   //          .Where(c => c.Participants.Any(p => p.UserId == userId.Value && !p.ConversationArchived) &&
+   //                     (allowedConversationIds.Contains(c.Id) || c.CreatorId == userId.Value) &&
+   //                     (
+   //                         (!string.IsNullOrEmpty(c.GroupName) && EF.Functions.ILike(c.GroupName, $"%{searchQuery}%")) ||
+   //                         c.Participants.Any(p => EF.Functions.ILike(p.AppUser.FullName, $"%{searchQuery}%"))
+   //                     ))
+   //          .OrderByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)
+   //          .Select(c => new ConversationDto
+   //          {
+   //              Id = c.Id,
+   //              GroupName = c.GroupName,
+   //              IsGroup = c.IsGroup,
+   //              GroupImageUrl = c.GroupImageUrl,
+   //              LastMessageSentAt = c.LastMessageSentAt,
+   //              Participants = c.Participants.Select(p => new UserSummaryDto
+   //              {
+   //                  Id = p.AppUser.Id,
+   //                  FullName = p.AppUser.FullName,
+   //                  ProfileImageUrl = p.AppUser.UserProfile != null ? p.AppUser.ProfileImageUrl : null,
+   //              }).ToList(),
+   //          })
+   //          .ToListAsync();
+   //      
+   //      var sortedConversations = conversations
+   //          .OrderBy(c => c.IsGroup ? 1 : 0)  // 1-1 samtaler først
+   //          .ThenBy(c => {
+   //              // Prioriter eksakte navn-match
+   //              if (!c.IsGroup)
+   //              {
+   //                  var exactMatch = c.Participants.Any(p => 
+   //                      p.FullName.Equals(searchQuery, StringComparison.OrdinalIgnoreCase));
+   //                  return exactMatch ? 0 : 1;
+   //              }
+   //              else
+   //              {
+   //                  var exactMatch = c.GroupName?.Equals(searchQuery, StringComparison.OrdinalIgnoreCase) == true;
+   //                  return exactMatch ? 0 : 1;
+   //              }
+   //          })
+   //          .ThenByDescending(c => c.LastMessageSentAt ?? DateTime.MinValue)  // Så etter aktivitet
+   //          .ToList();
+   //
+   //      return Ok(sortedConversations);
+   //  }
     
     // totalt uleste meldinger pr bruker
     [HttpGet("unread-summary")]
@@ -315,85 +308,85 @@ public class ConversationsController(
         return Ok(new { message = "Samtalen er markert som lest." });
     }
     
-    [HttpGet("rejected")]
-    public async Task<IActionResult> GetRejectedConversations()
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        // 🆕 Hent avslåtte 1-til-1 samtaler direkte fra database
-        var rejected1to1Conversations = await _context.Conversations
-            .AsNoTracking()
-            .Include(c => c.Participants)
-                .ThenInclude(p => p.User)
-                    .ThenInclude(u => u.Profile)
-            .Where(c => !c.IsGroup && 
-                       c.Participants.Any(p => p.UserId == userId) && // Bruker er participant
-                       _context.MessageRequests.Any(r => 
-                           r.ConversationId == c.Id &&
-                           r.IsRejected &&
-                           r.SenderId != userId && // Ikke bruker selv som sender
-                           r.ReceiverId == userId)) // Bruker er receiver av rejected request
-            .ToListAsync();
-
-        // 🆕 Hent avslåtte gruppesamtaler direkte fra database  
-        var rejectedGroupConversations = await _context.Conversations
-            .AsNoTracking()
-            .Include(c => c.Participants)
-                .ThenInclude(p => p.User)
-                    .ThenInclude(u => u.Profile)
-            .Where(c => c.IsGroup && 
-                       _context.GroupRequests.Any(gr => 
-                           gr.ConversationId == c.Id &&
-                           gr.ReceiverId == userId &&
-                           gr.Status == GroupRequestStatus.Rejected))
-            .ToListAsync();
-
-        // 🆕 Kombiner resultater
-        var allRejectedConversations = rejected1to1Conversations
-            .Concat(rejectedGroupConversations)
-            .Distinct()
-            .OrderByDescending(c => c.LastMessageSentAt)
-            .Select(c => new ConversationDTO
-            {
-                Id = c.Id,
-                GroupName = c.GroupName,
-                GroupImageUrl = c.GroupImageUrl,
-                IsGroup = c.IsGroup,
-                LastMessageSentAt = c.LastMessageSentAt,
-                CreatorId = c.CreatorId,
-                Participants = c.Participants.Select(p => new UserSummaryDTO
-                {
-                    Id = p.User.Id,
-                    FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.ProfileImageUrl
-                }).ToList(),
-                IsPendingApproval = false, // Avslåtte samtaler er ikke "pending"
-                IsApproved = false
-            })
-            .ToList();
-
-        return Ok(allRejectedConversations);
-    }
+    // [HttpGet("rejected")]
+    // public async Task<IActionResult> GetRejectedConversations()
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+    //
+    //     // 🆕 Hent avslåtte 1-til-1 samtaler direkte fra database
+    //     var rejected1to1Conversations = await _context.Conversations
+    //         .AsNoTracking()
+    //         .Include(c => c.Participants)
+    //             .ThenInclude(p => p.AppUser)
+    //                 .ThenInclude(u => u.UserProfile)
+    //         .Where(c => !c.IsGroup && 
+    //                    c.Participants.Any(p => p.UserId == userId) && // Bruker er participant
+    //                    _context.MessageRequests.Any(r => 
+    //                        r.ConversationId == c.Id &&
+    //                        r.IsRejected &&
+    //                        r.SenderId != userId && // Ikke bruker selv som sender
+    //                        r.ReceiverId == userId)) // Bruker er receiver av rejected request
+    //         .ToListAsync();
+    //
+    //     // 🆕 Hent avslåtte gruppesamtaler direkte fra database  
+    //     var rejectedGroupConversations = await _context.Conversations
+    //         .AsNoTracking()
+    //         .Include(c => c.Participants)
+    //             .ThenInclude(p => p.AppUser)
+    //                 .ThenInclude(u => u.UserProfile)
+    //         .Where(c => c.IsGroup && 
+    //                    _context.GroupRequests.Any(gr => 
+    //                        gr.ConversationId == c.Id &&
+    //                        gr.ReceiverId == userId &&
+    //                        gr.Status == GroupRequestStatus.Rejected))
+    //         .ToListAsync();
+    //
+    //     // 🆕 Kombiner resultater
+    //     var allRejectedConversations = rejected1to1Conversations
+    //         .Concat(rejectedGroupConversations)
+    //         .Distinct()
+    //         .OrderByDescending(c => c.LastMessageSentAt)
+    //         .Select(c => new ConversationDto
+    //         {
+    //             Id = c.Id,
+    //             GroupName = c.GroupName,
+    //             GroupImageUrl = c.GroupImageUrl,
+    //             IsGroup = c.IsGroup,
+    //             LastMessageSentAt = c.LastMessageSentAt,
+    //             CreatorId = c.CreatorId,
+    //             Participants = c.Participants.Select(p => new UserSummaryDto
+    //             {
+    //                 Id = p.AppUser.Id,
+    //                 FullName = p.AppUser.FullName,
+    //                 ProfileImageUrl = p.AppUser.ProfileImageUrl
+    //             }).ToList(),
+    //             IsPendingApproval = false, // Avslåtte samtaler er ikke "pending"
+    //             IsApproved = false
+    //         })
+    //         .ToList();
+    //
+    //     return Ok(allRejectedConversations);
+    // }
     
-    [HttpDelete("{conversationId}/delete")]
-    public async Task<IActionResult> DeleteConversation(int conversationId)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        try
-        {
-            await conversationService.DeleteConversationForUserAsync(conversationId, userId.Value);
-            return Ok(new { message = "Samtalen har blitt slettet." });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
+    // [HttpDelete("{conversationId}/delete")]
+    // public async Task<IActionResult> DeleteConversation(int conversationId)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+    //
+    //     try
+    //     {
+    //         await conversationService.DeleteConversationForUserAsync(conversationId, userId.Value);
+    //         return Ok(new { message = "Samtalen har blitt slettet." });
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return BadRequest(new { error = ex.Message });
+    //     }
+    // }
     
     [HttpPost("{conversationId}/restore")]
     public async Task<IActionResult> RestoreConversation(int conversationId)
@@ -413,49 +406,49 @@ public class ConversationsController(
         }
     }
     
-    [HttpGet("deleted")]
-    public async Task<IActionResult> GetDeletedConversations()
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        // Hent samtaler hvor brukeren har slettet (HasDeleted = true)
-        var deletedConversations = await _context.Conversations
-            .AsNoTracking()
-            .Include(c => c.Participants)
-            .ThenInclude(p => p.User)
-            .ThenInclude(u => u.Profile)
-            .Where(c => 
-                // Kun 1-1 samtaler (gruppesamtaler kan ikke slettes på denne måten)
-                !c.IsGroup &&
-                // Brukeren må være participant og ha slettet
-                c.Participants.Any(p => p.UserId == userId && p.HasDeleted))
-            .ToListAsync(); // 🔧 Hent data først, sorter i minnet
-
-        // 🔧 Sorter i minnet etter DeletedAt
-        var sortedConversations = deletedConversations
-            .OrderByDescending(c => c.Participants
-                .Where(p => p.UserId == userId)
-                .FirstOrDefault()?.DeletedAt ?? DateTime.MinValue)
-            .Select(c => new ConversationDTO
-            {
-                Id = c.Id,
-                GroupName = c.GroupName,
-                GroupImageUrl = c.GroupImageUrl,
-                IsGroup = c.IsGroup,
-                LastMessageSentAt = c.LastMessageSentAt,
-                Participants = c.Participants.Select(p => new UserSummaryDTO
-                {
-                    Id = p.User.Id,
-                    FullName = p.User.FullName,
-                    ProfileImageUrl = p.User.ProfileImageUrl
-                }).ToList(),
-                IsPendingApproval = false
-            })
-            .ToList();
-
-        return Ok(sortedConversations);
-    }
+    // [HttpGet("deleted")]
+    // public async Task<IActionResult> GetDeletedConversations()
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+    //
+    //     // Hent samtaler hvor brukeren har slettet (ConversationArchived = true)
+    //     var deletedConversations = await _context.Conversations
+    //         .AsNoTracking()
+    //         .Include(c => c.Participants)
+    //         .ThenInclude(p => p.AppUser)
+    //         .ThenInclude(u => u.UserProfile)
+    //         .Where(c => 
+    //             // Kun 1-1 samtaler (gruppesamtaler kan ikke slettes på denne måten)
+    //             !c.IsGroup &&
+    //             // Brukeren må være participant og ha slettet
+    //             c.Participants.Any(p => p.UserId == userId && p.ConversationArchived))
+    //         .ToListAsync(); // 🔧 Hent data først, sorter i minnet
+    //
+    //     // 🔧 Sorter i minnet etter ArchivedAt
+    //     var sortedConversations = deletedConversations
+    //         .OrderByDescending(c => c.Participants
+    //             .Where(p => p.UserId == userId)
+    //             .FirstOrDefault()?.ArchivedAt ?? DateTime.MinValue)
+    //         .Select(c => new ConversationDto
+    //         {
+    //             Id = c.Id,
+    //             GroupName = c.GroupName,
+    //             GroupImageUrl = c.GroupImageUrl,
+    //             IsGroup = c.IsGroup,
+    //             LastMessageSentAt = c.LastMessageSentAt,
+    //             Participants = c.Participants.Select(p => new UserSummaryDto
+    //             {
+    //                 Id = p.AppUser.Id,
+    //                 FullName = p.AppUser.FullName,
+    //                 ProfileImageUrl = p.AppUser.ProfileImageUrl
+    //             }).ToList(),
+    //             IsPendingApproval = false
+    //         })
+    //         .ToList();
+    //
+    //     return Ok(sortedConversations);
+    // }
     
 }

@@ -3,7 +3,6 @@ export interface UserSummaryDTO {
     id: number;
     fullName: string;
     profileImageUrl: string | null;
-    groupRequestStatus?: GroupRequestStatus | string | null;
 
     // Ekstra logikk for samhandlig med andre brukere
     isFriend?: boolean;

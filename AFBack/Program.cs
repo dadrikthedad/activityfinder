@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 Console.WriteLine($"ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
 // 1. Logging først for å logge feil
 builder.ConfigureLogging();
-// 2. Settings siden det brukes av alt
+// 2. UserSettings siden det brukes av alt
 builder.ConfigureSettings();
 // 3. Web konfigurasjon
 builder.ConfigureForwardHeaders();

@@ -11,6 +11,6 @@ public class GroupNotificationUpdateDTO
     
     public GroupEventType GroupEventType { get; set; } // Forteller hvilken eventtype det er til frontend for 
     
-    public List<UserSummaryDTO> AffectedUsers { get; set; } = new(); // Oppdaterte brukern med bilde, id og navn
+    public List<UserSummaryDto> AffectedUsers { get; set; } = new(); // Oppdaterte brukern med bilde, id og navn
 }
 

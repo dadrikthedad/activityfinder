@@ -1,9 +1,10 @@
+using AFBack.Cache;
 using AFBack.Constants;
 using AFBack.Data;
-using AFBack.Domains.Entities;
 using AFBack.Extensions;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
@@ -49,14 +50,14 @@ public class BlockController(
          }
 
          // Sjekk at brukeren som skal blokkeres eksisterer
-         var userToBlock = await _context.Users.FindAsync(userId);
+         var userToBlock = await Context.Users.FindAsync(userId);
          if (userToBlock == null)
          {
              return NotFound("Bruker ikke funnet");
          }
 
          // Sjekk om blokkeringen allerede eksisterer
-         var existingBlock = await _context.UserBlocks
+         var existingBlock = await Context.UserBlocks
              .FirstOrDefaultAsync(ub => ub.BlockerId == currentUserId && ub.BlockedUserId == userId);
 
          if (existingBlock != null)
@@ -65,13 +66,13 @@ public class BlockController(
          }
 
          // ✅ Hent 1-til-1 samtale mellom brukerne
-         var oneToOneConversation = await _context.Conversations
+         var oneToOneConversation = await Context.Conversations
              .Where(c => c.IsGroup == false)
-             .Where(c => _context.ConversationParticipants
+             .Where(c => Context.ConversationParticipants
                              .Where(cp => cp.ConversationId == c.Id)
                              .Select(cp => cp.UserId)
                              .Contains(currentUserId.Value) &&
-                         _context.ConversationParticipants
+                         Context.ConversationParticipants
                              .Where(cp => cp.ConversationId == c.Id)
                              .Select(cp => cp.UserId)
                              .Contains(userId))
@@ -84,18 +85,18 @@ public class BlockController(
              BlockedAt = DateTime.UtcNow
          };
 
-         _context.UserBlocks.Add(userBlock);
+         Context.UserBlocks.Add(userBlock);
 
          // ✅ Fjern CanSend for begge brukere hvis 1-til-1 samtale eksisterer
          if (oneToOneConversation != null)
          {
-             await _context.RemoveCanSendAsync(currentUserId.Value, oneToOneConversation.Id, sendMessageCache);
-             await _context.RemoveCanSendAsync(userId, oneToOneConversation.Id, sendMessageCache);
+             await Context.RemoveCanSendAsync(currentUserId.Value, oneToOneConversation.Id, sendMessageCache);
+             await Context.RemoveCanSendAsync(userId, oneToOneConversation.Id, sendMessageCache);
         
              Console.WriteLine($"🚫 Removed CanSend for both users in conversation {oneToOneConversation.Id} due to blocking");
          }
          
-         await _context.SaveChangesAsync();
+         await Context.SaveChangesAsync();
          
          // 🆕 Send separate blocking events med komplett UserSummary
         taskQueue.QueueAsync(async () => 
@@ -142,7 +143,7 @@ public class BlockController(
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to create sync/signalr events for user blocking. BlockerId: {currentUserId}, BlockedId: {userId}, Error: {ex.Message}");
+                Console.WriteLine($"Failed to create sync/signalr events for appUser blocking. BlockerId: {currentUserId}, BlockedId: {userId}, Error: {ex.Message}");
             }
         });
         
@@ -161,7 +162,7 @@ public class BlockController(
         }
 
         // Finn eksisterende blokkering
-        var existingBlock = await _context.UserBlocks
+        var existingBlock = await Context.UserBlocks
             .FirstOrDefaultAsync(ub => ub.BlockerId == currentUserId && ub.BlockedUserId == userId);
 
         if (existingBlock == null)
@@ -170,43 +171,43 @@ public class BlockController(
         }
         
         // Sjekk forhold før unblocking for å vite om CanSend skal gjenopprettes
-        var areFriends = await _context.Friends
+        var areFriends = await Context.Friends
             .AnyAsync(f => (f.UserId == currentUserId && f.FriendId == userId) ||
                            (f.UserId == userId && f.FriendId == currentUserId));
 
         // Sjekk om det finnes godkjent MessageRequest mellom brukerne
-        var hasApprovedMessageRequest = await _context.MessageRequests
+        var hasApprovedMessageRequest = await Context.MessageRequests
             .AnyAsync(mr => ((mr.SenderId == currentUserId && mr.ReceiverId == userId) ||
                              (mr.SenderId == userId && mr.ReceiverId == currentUserId)) &&
                             mr.IsAccepted == true && mr.IsRejected == false);
 
         // Hent 1-til-1 samtale mellom brukerne
-        var oneToOneConversation = await _context.Conversations
+        var oneToOneConversation = await Context.Conversations
             .Where(c => c.IsGroup == false)
-            .Where(c => _context.ConversationParticipants
+            .Where(c => Context.ConversationParticipants
                             .Where(cp => cp.ConversationId == c.Id)
                             .Select(cp => cp.UserId)
                             .Contains(currentUserId.Value) &&
-                        _context.ConversationParticipants
+                        Context.ConversationParticipants
                             .Where(cp => cp.ConversationId == c.Id)
                             .Select(cp => cp.UserId)
                             .Contains(userId))
             .FirstOrDefaultAsync();
 
-        _context.UserBlocks.Remove(existingBlock);
+        Context.UserBlocks.Remove(existingBlock);
 
         // Gjenopprett CanSend hvis forholdene tillater det
         if (oneToOneConversation != null && (areFriends || hasApprovedMessageRequest))
         {
             var reason = areFriends ? CanSendReason.Friendship : CanSendReason.MessageRequest;
         
-            await _context.AddCanSendAsync(currentUserId.Value, oneToOneConversation.Id, sendMessageCache, reason);
-            await _context.AddCanSendAsync(userId, oneToOneConversation.Id, sendMessageCache, reason);
+            await Context.AddCanSendAsync(currentUserId.Value, oneToOneConversation.Id, sendMessageCache, reason);
+            await Context.AddCanSendAsync(userId, oneToOneConversation.Id, sendMessageCache, reason);
         
             Console.WriteLine($"Restored CanSend for both users in conversation {oneToOneConversation.Id} after unblocking. Reason: {reason}");
         }
         
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         // Send samme struktur som BlockUser - komplette UserSummary objekter
         taskQueue.QueueAsync(async () => 
@@ -252,7 +253,7 @@ public class BlockController(
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to create sync/signalr events for user unblocking. UnblockerId: {currentUserId}, UnblockedId: {userId}, Error: {ex.Message}");
+                Console.WriteLine($"Failed to create sync/signalr events for appUser unblocking. UnblockerId: {currentUserId}, UnblockedId: {userId}, Error: {ex.Message}");
             }
         });
 

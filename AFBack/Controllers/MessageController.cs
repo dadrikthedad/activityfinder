@@ -9,6 +9,8 @@ using AFBack.DTOs.Crypto;
 using AFBack.Extensions;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Models;
@@ -86,100 +88,100 @@ public class MessagesController(
     
     
     
-    // Henter alle meldingsforespørsler
-    [HttpGet("pending")]
-    public async Task<IActionResult> GetPendingMessageRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
-    {
-        var receiverIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!int.TryParse(receiverIdClaim, out var receiverId))
-            return Unauthorized("Ugyldig bruker-ID.");
-
-        // Valider pagination parametere
-        if (page < 1) page = 1;
-        if (pageSize < 1 || pageSize > 50) pageSize = 10; // Max 50 per side
-
-        try
-        {
-            var result = await messageService.GetPendingMessageRequestsAsync(receiverId, page, pageSize);
-            return Ok(result);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Feil ved henting av forespørsler.", details = ex.Message });
-        }
-    }
+    // // Henter alle meldingsforespørsler
+    // [HttpGet("pending")]
+    // public async Task<IActionResult> GetPendingMessageRequests([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    // {
+    //     var receiverIdClaim = AppUser.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    //     if (!int.TryParse(receiverIdClaim, out var receiverId))
+    //         return Unauthorized("Ugyldig bruker-ID.");
+    //
+    //     // Valider pagination parametere
+    //     if (page < 1) page = 1;
+    //     if (pageSize < 1 || pageSize > 50) pageSize = 10; // Max 50 per side
+    //
+    //     try
+    //     {
+    //         var result = await messageService.GetPendingMessageRequestsAsync(receiverId, page, pageSize);
+    //         return Ok(result);
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return StatusCode(500, new { message = "Feil ved henting av forespørsler.", details = ex.Message });
+    //     }
+    // }
     
     // 
-    [HttpGet("pending/{conversationId}")]
-    public async Task<IActionResult> GetPendingMessageRequestById(int conversationId)
-    {
-        var receiverIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (!int.TryParse(receiverIdClaim, out var receiverId))
-            return Unauthorized("Ugyldig bruker-ID.");
-
-        // ✅ Prøv å hente GroupRequest først
-        var groupRequest = await _context.GroupRequests
-            .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending && gr.ConversationId == conversationId)
-            .Include(gr => gr.Sender).ThenInclude(u => u.Profile)
-            .Include(gr => gr.Conversation)
-                .ThenInclude(c => c.Participants)
-                    .ThenInclude(cp => cp.User)
-                        .ThenInclude(u => u.Profile)
-            .FirstOrDefaultAsync();
-
-        if (groupRequest != null)
-        {
-            var participants = groupRequest.Conversation?.Participants
-                .Select(cp => new UserSummaryDTO
-                {
-                    Id = cp.UserId,
-                    FullName = cp.User.FullName,
-                    ProfileImageUrl = cp.User.ProfileImageUrl
-                })
-                .ToList() ?? new List<UserSummaryDTO>();
-
-            return Ok(new MessageRequestDTO
-            {
-                SenderId = groupRequest.SenderId,
-                SenderName = groupRequest.Sender.FullName,
-                ProfileImageUrl = groupRequest.Sender.ProfileImageUrl,
-                RequestedAt = groupRequest.RequestedAt,
-                ConversationId = groupRequest.ConversationId,
-                GroupName = groupRequest.Conversation?.GroupName,
-                IsGroup = true,
-                GroupImageUrl = groupRequest.Conversation?.GroupImageUrl,
-                LimitReached = false,
-                IsPendingApproval = true,
-                Participants = participants
-            });
-        }
-
-        // ✅ Hvis ikke gruppe, prøv å hente vanlig MessageRequest
-        var messageRequest = await _context.MessageRequests
-            .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected && r.ConversationId == conversationId)
-            .Include(r => r.Sender).ThenInclude(u => u.Profile)
-            .Include(r => r.Conversation)
-            .FirstOrDefaultAsync();
-
-        if (messageRequest != null)
-        {
-            return Ok(new MessageRequestDTO
-            {
-                SenderId = messageRequest.SenderId,
-                SenderName = messageRequest.Sender.FullName,
-                ProfileImageUrl = messageRequest.Sender.ProfileImageUrl,
-                RequestedAt = messageRequest.RequestedAt,
-                ConversationId = messageRequest.ConversationId,
-                GroupName = messageRequest.Conversation?.GroupName,
-                IsGroup = false,
-                GroupImageUrl = messageRequest.Conversation?.GroupImageUrl,
-                LimitReached = messageRequest.LimitReached,
-                IsPendingApproval = messageRequest.Conversation?.IsApproved == false
-            });
-        }
-
-        return NotFound("Ingen pending samtale eller gruppeforespørsel funnet.");
-    }
+    // [HttpGet("pending/{conversationId}")]
+    // public async Task<IActionResult> GetPendingMessageRequestById(int conversationId)
+    // {
+    //     var receiverIdClaim = AppUser.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    //     if (!int.TryParse(receiverIdClaim, out var receiverId))
+    //         return Unauthorized("Ugyldig bruker-ID.");
+    //
+    //     // ✅ Prøv å hente GroupRequest først
+    //     var groupRequest = await _context.GroupRequests
+    //         .Where(gr => gr.ReceiverId == receiverId && gr.Status == GroupRequestStatus.Pending && gr.ConversationId == conversationId)
+    //         .Include(gr => gr.Sender).ThenInclude(u => u.UserProfile)
+    //         .Include(gr => gr.Conversations)
+    //             .ThenInclude(c => c.Participants)
+    //                 .ThenInclude(cp => cp.AppUser)
+    //                     .ThenInclude(u => u.UserProfile)
+    //         .FirstOrDefaultAsync();
+    //
+    //     if (groupRequest != null)
+    //     {
+    //         var participants = groupRequest.Conversations?.Participants
+    //             .Select(cp => new UserSummaryDto
+    //             {
+    //                 Id = cp.UserId,
+    //                 FullName = cp.AppUser.FullName,
+    //                 ProfileImageUrl = cp.AppUser.ProfileImageUrl
+    //             })
+    //             .ToList() ?? new List<UserSummaryDto>();
+    //
+    //         return Ok(new MessageRequestDTO
+    //         {
+    //             SenderId = groupRequest.SenderId,
+    //             SenderName = groupRequest.Sender.FullName,
+    //             ProfileImageUrl = groupRequest.Sender.ProfileImageUrl,
+    //             RequestedAt = groupRequest.RequestedAt,
+    //             ConversationId = groupRequest.ConversationId,
+    //             GroupName = groupRequest.Conversations?.GroupName,
+    //             IsGroup = true,
+    //             GroupImageUrl = groupRequest.Conversations?.GroupImageUrl,
+    //             LimitReached = false,
+    //             IsPendingApproval = true,
+    //             Participants = participants
+    //         });
+    //     }
+    //
+    //     // ✅ Hvis ikke gruppe, prøv å hente vanlig MessageRequest
+    //     var messageRequest = await _context.MessageRequests
+    //         .Where(r => r.ReceiverId == receiverId && !r.IsAccepted && !r.IsRejected && r.ConversationId == conversationId)
+    //         .Include(r => r.Sender).ThenInclude(u => u.UserProfile)
+    //         .Include(r => r.Conversations)
+    //         .FirstOrDefaultAsync();
+    //
+    //     if (messageRequest != null)
+    //     {
+    //         return Ok(new MessageRequestDTO
+    //         {
+    //             SenderId = messageRequest.SenderId,
+    //             SenderName = messageRequest.Sender.FullName,
+    //             ProfileImageUrl = messageRequest.Sender.ProfileImageUrl,
+    //             RequestedAt = messageRequest.RequestedAt,
+    //             ConversationId = messageRequest.ConversationId,
+    //             GroupName = messageRequest.Conversations?.GroupName,
+    //             IsGroup = false,
+    //             GroupImageUrl = messageRequest.Conversations?.GroupImageUrl,
+    //             LimitReached = messageRequest.LimitReached,
+    //             IsPendingApproval = messageRequest.Conversations?.IsApproved == false
+    //         });
+    //     }
+    //
+    //     return NotFound("Ingen pending samtale eller gruppeforespørsel funnet.");
+    // }
     
     // Her henter vi meldinger etter vi har godtatt meldingsforespørsel
     [HttpPost("approve-request/{conversationId}")]
@@ -225,7 +227,7 @@ public class MessagesController(
     // 🆕 Ny metode for å avslå GroupRequest
     private async Task<IActionResult> RejectGroupRequestAsync(int receiverId, int senderId, int conversationId)
     {
-        var groupRequest = await _context.GroupRequests
+        var groupRequest = await Context.GroupRequests
             .FirstOrDefaultAsync(gr => gr.ReceiverId == receiverId && 
                                        gr.SenderId == senderId && 
                                        gr.ConversationId == conversationId &&
@@ -239,15 +241,15 @@ public class MessagesController(
         groupRequest.IsRead = true;
 
         // 2️⃣ Fjern bruker fra participants 
-        var participant = await _context.ConversationParticipants
+        var participant = await Context.ConversationParticipants
             .FirstOrDefaultAsync(cp => cp.ConversationId == conversationId && cp.UserId == receiverId);
 
         if (participant != null)
         {
-            _context.ConversationParticipants.Remove(participant);
+            Context.ConversationParticipants.Remove(participant);
         }
         
-        var notification = await _context.MessageNotifications
+        var notification = await Context.MessageNotifications
             .FirstOrDefaultAsync(n => n.UserId == receiverId && 
                                       n.ConversationId == conversationId && 
                                       n.Type == NotificationType.GroupRequest &&
@@ -259,12 +261,12 @@ public class MessagesController(
             notification.ReadAt = DateTime.UtcNow;
         }
 
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         
 
         // 3️⃣ Lag systemmelding for avslåing (valgfritt)
-        var user = await _context.Users
+        var user = await Context.Users
             .Where(u => u.Id == receiverId)
             .Select(u => u.FullName)
             .FirstOrDefaultAsync();
@@ -308,8 +310,8 @@ public class MessagesController(
                     // 🆕 Hent oppdatert conversation med remaining members
                     var updatedConversation = await context.Conversations
                         .Include(c => c.Participants)
-                            .ThenInclude(p => p.User)
-                                .ThenInclude(u => u.Profile)
+                            .ThenInclude(p => p.AppUser)
+                                .ThenInclude(u => u.UserProfile)
                         .FirstOrDefaultAsync(c => c.Id == conversationId);
 
                     if (updatedConversation != null)
@@ -337,7 +339,7 @@ public class MessagesController(
                             targetUserIds: existingMemberIds,
                             source: "API",
                             relatedEntityId: conversationId,
-                            relatedEntityType: "Conversation"
+                            relatedEntityType: "Conversations"
                         );
                     }
                 }
@@ -367,7 +369,7 @@ public class MessagesController(
     // 🔄 Eksisterende metode for MessageRequest (uten endringer)
     private async Task<IActionResult> RejectMessageRequestAsync(int receiverId, int senderId)
     {
-        var request = await _context.MessageRequests
+        var request = await Context.MessageRequests
             .FirstOrDefaultAsync(r => r.ReceiverId == receiverId && r.SenderId == senderId);
 
         if (request == null)
@@ -378,7 +380,7 @@ public class MessagesController(
 
         request.IsRejected = true;
         
-        var notification = await _context.MessageNotifications
+        var notification = await Context.MessageNotifications
             .FirstOrDefaultAsync(n => n.UserId == receiverId && 
                                       n.FromUserId == senderId && 
                                       n.Type == NotificationType.MessageRequest &&
@@ -391,7 +393,7 @@ public class MessagesController(
         }
 
         
-        await _context.SaveChangesAsync();
+        await Context.SaveChangesAsync();
         
         // 🆕 SYNC EVENT for Message Request Rejection
         taskQueue.QueueAsync(async () => 
@@ -465,9 +467,9 @@ public class MessagesController(
 
             var userId = GetUserId();
             if (userId == null)
-                return Unauthorized("Invalid user ID in token");
+                return Unauthorized("Invalid appUser ID in token");
 
-            _logger.LogInformation("Sending encrypted message from user {UserId} to conversation {ConversationId}", 
+            Logger.LogInformation("Sending encrypted message from appUser {UserId} to conversation {ConversationId}", 
                 userId, request.ConversationId);
 
             // Now returns EncryptedMessageResponseDTO instead of MessageResponseDTO
@@ -477,17 +479,17 @@ public class MessagesController(
         }
         catch (UnauthorizedAccessException ex)
         {
-            _logger.LogWarning(ex, "Unauthorized access attempt for encrypted message from user {UserId}", GetUserId());
+            Logger.LogWarning(ex, "Unauthorized access attempt for encrypted message from appUser {UserId}", GetUserId());
             return Forbid(ex.Message);
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invalid encrypted message request from user {UserId}: {Error}", GetUserId(), ex.Message);
+            Logger.LogWarning(ex, "Invalid encrypted message request from appUser {UserId}: {Error}", GetUserId(), ex.Message);
             return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending encrypted message from user {UserId}", GetUserId());
+            Logger.LogError(ex, "Error sending encrypted message from appUser {UserId}", GetUserId());
             return StatusCode(500, "Internal server error");
         }
     }
@@ -504,10 +506,10 @@ public class MessagesController(
                 
                 if (userId == null) // Håndter null-tilfellet
                 {
-                    return Unauthorized("Invalid user ID in token");
+                    return Unauthorized("Invalid appUser ID in token");
                 }
                 
-                _logger.LogInformation("Getting encrypted messages for conversation {ConversationId}, user {UserId}", 
+                Logger.LogInformation("Getting encrypted messages for conversation {ConversationId}, appUser {UserId}", 
                     conversationId, userId);
 
                 // Validate pagination
@@ -530,12 +532,12 @@ public class MessagesController(
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogWarning(ex, "Unauthorized access to conversation {ConversationId}", conversationId);
+                Logger.LogWarning(ex, "Unauthorized access to conversation {ConversationId}", conversationId);
                 return Forbid();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting encrypted messages for conversation {ConversationId}", conversationId);
+                Logger.LogError(ex, "Error getting encrypted messages for conversation {ConversationId}", conversationId);
                 return StatusCode(500, "Internal server error");
             }
         }

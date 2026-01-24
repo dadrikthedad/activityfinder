@@ -1,6 +1,8 @@
 using AFBack.Data;
 using AFBack.Features.Cache.Interface;
 using AFBack.Models;
+using AFBack.Models.Auth;
+using AFBack.Repository;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -15,9 +17,9 @@ public class UserCache(
     /// </summary>
     /// <param name="userId"></param>
     /// <returns></returns>
-    public Task<bool> UserExistsAsync(int userId) => 
+    public Task<bool> UserExistsAsync(string userId) => 
         cache.GetOrCreateAsync(
-            key: $"user:exists:{userId}",
+            key: $"appUser:exists:{userId}",
             factory: async entry =>
             {
                 entry.SlidingExpiration = TimeSpan.FromMinutes(30);
@@ -25,10 +27,9 @@ public class UserCache(
                 entry.Priority = CacheItemPriority.Normal;
 
                 using var scope = scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
 
-                return await context.Users.AsNoTracking()
-                    .AnyAsync(user => user.Id == userId);
+                return await userRepository.UserExistsAsync(userId);
             }
         );
 
@@ -38,9 +39,9 @@ public class UserCache(
     /// </summary>
     /// <param name="userId"></param>
     /// <returns></returns>
-    public Task<User?> GetUserAsync(int userId) =>
+    public Task<AppUser?> GetUserAsync(string userId) =>
         cache.GetOrCreateAsync(
-            key: $"user:info:{userId}",
+            key: $"appUser:info:{userId}",
             factory: async entry =>
             {
                 entry.SlidingExpiration = TimeSpan.FromMinutes(15);
@@ -49,7 +50,7 @@ public class UserCache(
                 using var scope = scopeFactory.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-                return await context.Users.AsNoTracking().FirstOrDefaultAsync(user => user.Id == userId);
+                return await context.AppUsers.AsNoTracking().FirstOrDefaultAsync(user => user.Id == userId);
             });
     
     
@@ -57,9 +58,9 @@ public class UserCache(
     /// Invaldierer brukeren i UserCache
     /// </summary>
     /// <param name="userId"></param>
-    public void InvalidateUserCache(int userId)
+    public void InvalidateUserCache(string userId)
     {
-        cache.Remove($"user:exists:{userId}");
-        cache.Remove($"user:info:{userId}");
+        cache.Remove($"appUser:exists:{userId}");
+        cache.Remove($"appUser:info:{userId}");
     }
 }

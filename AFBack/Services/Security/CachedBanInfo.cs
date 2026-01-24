@@ -1,5 +1,6 @@
 using AFBack.Constants;
 using AFBack.Models;
+using AFBack.Models.Auth;
 
 namespace AFBack.Services;
 

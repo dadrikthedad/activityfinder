@@ -4,7 +4,7 @@ namespace AFBack.DTOs;
 using System.ComponentModel.DataAnnotations;
 using CountryData.Standard;
 
-// Denne klassen brukes kun til å ta imot data når en bruker registerer seg. Blir ikke lagret direkte i databasen, vi konverterer den til User først.
+// Denne klassen brukes kun til å ta imot data når en bruker registerer seg. Blir ikke lagret direkte i databasen, vi konverterer den til AppUser først.
 // Så henter fra FrontEnd, og inneholder Required-attributter og andre attributter for å validere input at det er ritkig før lagring
 public class UserRegisterDTO
 {
