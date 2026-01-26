@@ -1,7 +1,6 @@
-using AFBack.DTOs;
 using AFBack.Models.Enums;
 
-namespace AFBack.Features.Conversation.DTOs;
+namespace AFBack.Features.Conversation.DTOs.Response;
 
 /// <summary>
 /// Egenskapene frontend trenger relevant til en samtale

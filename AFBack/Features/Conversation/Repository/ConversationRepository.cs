@@ -157,7 +157,7 @@ public class ConversationRepository(
     public async Task<Models.Conversation> CreateConversationWithParticipantsAsync(
         Models.Conversation conversation, 
         List<ConversationParticipant> participants,
-        Message message)
+        Message? message = null)
     {
         // Kjør transaksjon
         await using var transaction = await context.Database.BeginTransactionAsync();
@@ -174,12 +174,14 @@ public class ConversationRepository(
             // Legg til Participants i databasen
             await context.ConversationParticipants.AddRangeAsync(participants);
             
-            // Legg til samtalen melding hører til og legg til melding i databasen
-            message.ConversationId = conversation.Id;
-            await context.Messages.AddAsync(message);
+            // Legg til melding hvis den finnes (1-1 samtaler har første melding, gruppesamtaler har ikke)
+            if (message != null)
+            {
+                message.ConversationId = conversation.Id;
+                await context.Messages.AddAsync(message);
+                conversation.LastMessageSentAt = message.SentAt;
+            }
             
-            // Oppdatere når melding er sendt
-            conversation.LastMessageSentAt = message.SentAt;
             await context.SaveChangesAsync();
             
             // Bekrefter databaselagringen
@@ -216,4 +218,17 @@ public class ConversationRepository(
         await context.SaveChangesAsync();
     }
     
+    ////////////////////////////////////////////// PARTICIPANT OPERATIONS /////////////////////////////////////////////
+    
+    // Sjekk interface for summary
+    public async Task<ConversationParticipant?> GetParticipantAsync(string userId, int conversationId) =>
+        await context.ConversationParticipants
+            .FirstOrDefaultAsync(cp => cp.UserId == userId && cp.ConversationId == conversationId);
+    
+    // Sjekk interface for summary
+    public async Task RemoveParticipantAsync(ConversationParticipant participant)
+    {
+        context.ConversationParticipants.Remove(participant);
+        await context.SaveChangesAsync();
+    }
 }

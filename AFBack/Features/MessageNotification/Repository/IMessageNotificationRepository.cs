@@ -1,4 +1,5 @@
 using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.DTOs.Response;
 
 namespace AFBack.Features.MessageNotification.Repository;
 

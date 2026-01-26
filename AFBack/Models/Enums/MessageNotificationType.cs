@@ -3,8 +3,8 @@ namespace AFBack.Models.Enums;
 public enum MessageNotificationType
 {
     NewMessage = 1,
-    MessageRequest = 2,
-    MessageRequestApproved = 3,
+    PendingMessageRequestReceived = 2,
+    PendingConversationRequestApproved = 3,
     MessageReaction = 4,
     GroupRequest = 5,
     GroupRequestApproved = 6,

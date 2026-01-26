@@ -204,6 +204,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISyncEventRepository, SyncEventRepository>();
         services.AddScoped<IDeviceSyncStateRepository, DeviceSyncStateRepository>();
         services.AddScoped<IFriendshipRepository, FriendshipRepository>();
+        services.AddScoped<IConversationLeftRecordRepository, ConversationLeftRecordRepository>();
+         
         
         return services;
     }
@@ -228,6 +230,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<IReactionService, ReactionService>();
         services.AddScoped<INewConversationService, NewConversationService>();
+        services.AddScoped<IGroupConversationService, GroupConversationService>();
+        
         
         
         

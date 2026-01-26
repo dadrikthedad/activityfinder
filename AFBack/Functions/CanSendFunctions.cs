@@ -2,7 +2,6 @@ using AFBack.Cache;
 using AFBack.Features.Cache.Interface;
 using AFBack.Features.CanSend.Models;
 using AFBack.Models;
-using AFBack.Models.Conversation;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Functions;

@@ -20,7 +20,6 @@ using AFBack.Interface.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
-using AFBack.Models.Conversation;
 using AFBack.Services;
 using Microsoft.AspNetCore.SignalR;
 

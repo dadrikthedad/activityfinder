@@ -7,7 +7,6 @@ using AFBack.Features.SyncEvents.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.Models.Auth;
-using AFBack.Models.Conversation;
 using AFBack.Models.Crypto;
 using AFBack.Models.Enums;
 using AFBack.Models.User;
@@ -70,6 +69,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<MessageAttachment> MessageAttachments { get; set; }
     
     public DbSet<DeviceSyncState> DeviceSyncStates { get; set; }
+    
+    public DbSet<ConversationLeftRecord> ConversationLeftRecords { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -362,7 +363,7 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(clr => clr.ConversationId);
         
             // --- Relationships --- //
-            entity.HasOne(clr => clr.AppUser)
+            entity.HasOne(clr => clr.User)
                 .WithMany()
                 .HasForeignKey(clr => clr.UserId)
                 .OnDelete(DeleteBehavior.Cascade);

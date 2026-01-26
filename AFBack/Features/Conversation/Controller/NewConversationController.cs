@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using AFBack.Common.DTOs;
 using AFBack.Controllers;
 using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.DTOs.Request;
+using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Services;
 using AFBack.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -163,12 +165,12 @@ public class NewConversationController(
     /// <param name="conversationId">Samtalen bruker vil ha arkivert</param>
     /// <returns>204 No Content</returns>
     [HttpDelete("{conversationId}")]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<ProblemDetails>> ArchiveConversation(
+    public async Task<ActionResult> ArchiveConversation(
         [FromRoute]
         [Required(ErrorMessage = "ConversationId is required")]
         [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
@@ -189,13 +191,13 @@ public class NewConversationController(
     /// </summary>
     /// <param name="conversationId">Samtalen bruker vil ha gjenopprettet</param>
     /// <returns>Ok 200 med en ConversationResponse for å gjenopprette samtalen</returns>
-    [HttpPost("restore/{conversationId}")]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status204NoContent)]
+    [HttpPost("{conversationId:int}/restore")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<ProblemDetails>> RestoreArchivedConversation(
+    public async Task<ActionResult<ConversationResponse>> RestoreArchivedConversation(
         [FromRoute]
         [Required(ErrorMessage = "ConversationId is required")]
         [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
@@ -210,9 +212,25 @@ public class NewConversationController(
 
         return Ok(result.Value);
     }
-
+    
+    /// <summary>
+    /// Brukes i NewMessage-komponenten.
+    /// Sender en melding til en bruker for 1-1 samtaler, og håndterer både eksisterende samtaler og opprettelse
+    /// av nye samtaler. Auto-aksepterer samtalen hvis avsender av melding er pending i samtalen.
+    /// Er brukerne venner så opprettes en samtale, men en melding vises som vanlig for brukeren. Metoden putter
+    /// brukerne i CanSend hvis begge er venner.
+    /// Sender SignalR, lager MessageNotification og SyncEvent hvis samtalen blir opprettet
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns>Ok 200 med en SendMessageToUserResponse</returns>
     [HttpPost("send-to-user")]
-    public async Task<ActionResult<ProblemDetails>> SendMessageToUser([FromBody] SendMessageToUserRequest request)
+    [ProducesResponseType(typeof(SendMessageToUserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<SendMessageToUserResponse>> SendMessageToUser(
+        [FromBody] SendMessageToUserRequest request)
     {
         var userId = User.GetUserId();
 
@@ -222,6 +240,66 @@ public class NewConversationController(
             return HandleFailure(result);
 
         return Ok(result.Value);
+    }
+    
+    
+    /// <summary>
+    /// Aksepterer en pending conversation request. Endrer conversation type fra PendingRequest til DirectChat,
+    /// oppdaterer begge participants til Accepted status, legger begge brukere inn i CanSend cache,
+    /// sender systemmelding, oppretter SyncEvent for begge brukere, sender SignalR til mottaker sine andre enheter,
+    /// og oppretter notification for mottaker
+    /// </summary>
+    /// <param name="conversationId">Samtalen som ble godkjent</param>
+    /// <returns>ConversationResponse til frontend for å legge rett i riktig samtale</returns>
+    [HttpPost("{conversationId:int}/accept")]
+    [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationResponse>> AcceptPendingConversationRequest( 
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId)
+    {
+        var userId = User.GetUserId();
+
+        var result = await newConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
+    
+    
+    /// <summary>
+    /// Avslår en pending conversation request. Oppdaterer brukerens participant status til Rejected.
+    /// Sender ikke notifikasjon til sender (de skal ikke vite om avslag).
+    /// </summary>
+    /// <param name="conversationId">Samtalen som skal avslås</param>
+    /// <returns>204 No Content</returns>
+    [HttpPost("{conversationId:int}/reject")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult> RejectedPendingConversationRequest( 
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId)
+    {
+        var userId = User.GetUserId();
+
+        var result = await newConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return NoContent();
     }
 
 }

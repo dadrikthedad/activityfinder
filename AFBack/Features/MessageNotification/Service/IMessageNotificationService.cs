@@ -1,4 +1,5 @@
 using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Models;
 
@@ -30,7 +31,26 @@ public interface IMessageNotificationService
     /// <param name="conversationResponse">ConversationResponse med samtale info</param>
     /// <param name="messageResponse">MessageResponse med meldings info</param>
     Task CreatePendingConversationNotificationAsync(string recipientId, string senderId,
-        ConversationResponse conversationResponse, MessageResponse messageResponse);
+        ConversationResponse conversationResponse);
+    
+    /// <summary>
+    /// Oppretter en notification til brukeren som har sendt en Pending Conversation Request og fått den akseptert
+    /// </summary>
+    /// <param name="recipientId">Sender av forespørselen</param>
+    /// <param name="senderId">Mottaker av forespørselen som har godkjent</param>
+    /// <param name="conversationResponse">ConversationResponse med samtale info</param>
+    Task CreateConversationAcceptedNotificationAsync(string recipientId, string senderId,
+        ConversationResponse conversationResponse);
+    
+    /// <summary>
+    /// Oppretter en notification for når en bruker blir med i en gruppesamtale.
+    /// Sendes til alle eksisterende medlemmer med Accepted status.
+    /// </summary>
+    /// <param name="recipientId">Mottaker av notifikasjonen (eksisterende gruppemedlem)</param>
+    /// <param name="joinedUserId">Brukeren som ble med i gruppen</param>
+    /// <param name="conversationResponse">ConversationResponse med samtale info</param>
+    Task CreateGroupMemberJoinedNotificationAsync(string recipientId, string joinedUserId,
+        ConversationResponse conversationResponse);
     
 
     Task<MessageNotificationDTO> CreateMessageRequestApprovedNotificationAsync(

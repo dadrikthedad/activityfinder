@@ -1,4 +1,4 @@
-using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.MessageNotification.DTOs;
 using AFBack.Features.MessageNotification.Extensions;
 using AFBack.Features.MessageNotification.Repository;
@@ -75,26 +75,132 @@ public class MessageNotificationService(
     
     // Sjekk interface for summary
     public async Task CreatePendingConversationNotificationAsync(string recipientId, string senderId,
-        ConversationResponse conversationResponse, MessageResponse messageResponse)
+        ConversationResponse conversationResponse)
     {
-        
+        // Oppretter en ny notification
         var notification = new Models.MessageNotification
         {
             RecipientId = recipientId,
             SenderId = senderId,
-            MessageId = messageResponse.Id,
             ConversationId = conversationResponse.Id,
-            Type = MessageNotificationType.MessageRequest,
+            Type = MessageNotificationType.PendingMessageRequestReceived,
             CreatedAt = DateTime.UtcNow,
             LastUpdatedAt = DateTime.UtcNow,
         };
-
+        
+        // Lagrer i databasen
         await messageNotificationService.CreateMessageNotificationAsync(notification);
         
-        var preview = $"{messageResponse.Sender!.FullName} wants to message you";
+        // Henter Sender for SyncEvent
+        var senderParticipant = conversationResponse.Participants
+            .FirstOrDefault(p => p.User.Id == senderId);
         
-        var messageNotificationResponse = notification.ToResponse(conversationResponse, messageResponse, preview);
+        if (senderParticipant == null)
+        {
+            logger.LogError("Sender {SenderId} not found in conversation {ConversationId}",
+                senderId, conversationResponse.Id);
+            return;
+        }
+        
+        // Preview for Notification
+        var preview = conversationResponse.Type != ConversationType.GroupChat
+            ? $"{senderParticipant.User.FullName} wants to message you"
+            : $"{senderParticipant.User.FullName} invited you to join {conversationResponse.GroupName}";
+        
+        // Oppretter en MessageNotificaitonResponse
+        var messageNotificationResponse = notification.ToResponse(
+            senderParticipant.User, 
+            preview);
 
+        await syncService.CreateSyncEventsAsync(
+            new List<string> {recipientId}, 
+            SyncEventType.MessageNotificationCreated,
+            messageNotificationResponse);
+    }
+    
+    
+    
+    // Sjekk interface for summary
+    public async Task CreateConversationAcceptedNotificationAsync(string recipientId, string senderId,
+        ConversationResponse conversationResponse)
+    {
+        // Oppretter en ny notification
+        var notification = new Models.MessageNotification
+        {
+            RecipientId = recipientId,
+            SenderId = senderId,
+            ConversationId = conversationResponse.Id,
+            Type = MessageNotificationType.PendingConversationRequestApproved,
+            CreatedAt = DateTime.UtcNow,
+            LastUpdatedAt = DateTime.UtcNow,
+        };
+        
+        // Lagrer i databasen
+        await messageNotificationService.CreateMessageNotificationAsync(notification);
+        
+        // Henter Sender for SyncEvent
+        var senderParticipant = conversationResponse.Participants
+            .FirstOrDefault(p => p.User.Id == senderId);
+        
+        if (senderParticipant == null)
+        {
+            logger.LogError("Sender {SenderId} not found in conversation {ConversationId}",
+                senderId, conversationResponse.Id);
+            return;
+        }
+        
+        // Preview for ConversationAcceptedNotification
+        var preview = $"{senderParticipant.User.FullName} has accepted your conversation request";
+
+        var messageNotificationResponse = notification.ToResponse(
+            senderParticipant.User, 
+            preview);
+        
+        await syncService.CreateSyncEventsAsync(
+            new List<string> {recipientId}, 
+            SyncEventType.MessageNotificationCreated,
+            messageNotificationResponse);
+    }
+    
+    
+    // Sjekk interface for summary
+    public async Task CreateGroupMemberJoinedNotificationAsync(string recipientId, string joinedUserId,
+        ConversationResponse conversationResponse)
+    {
+        // Oppretter en ny notification
+        var notification = new Models.MessageNotification
+        {
+            RecipientId = recipientId,
+            SenderId = joinedUserId,
+            ConversationId = conversationResponse.Id,
+            Type = MessageNotificationType.GroupRequestApproved,
+            CreatedAt = DateTime.UtcNow,
+            LastUpdatedAt = DateTime.UtcNow,
+        };
+        
+        // Lagrer i databasen
+        await messageNotificationService.CreateMessageNotificationAsync(notification);
+        
+        // Henter brukeren som ble med for SyncEvent
+        var joinedParticipant = conversationResponse.Participants
+            .FirstOrDefault(p => p.User.Id == joinedUserId);
+        
+        if (joinedParticipant == null)
+        {
+            logger.LogError("Joined user {JoinedUserId} not found in conversation {ConversationId}",
+                joinedUserId, conversationResponse.Id);
+            return;
+        }
+        
+        // Preview for GroupMemberJoinedNotification
+        var preview = $"{joinedParticipant.User.FullName} has joined \"{conversationResponse.GroupName}\"";
+
+        var messageNotificationResponse = notification.ToResponse(
+            joinedParticipant.User, 
+            preview,
+            conversationResponse.GroupName,
+            conversationResponse.GroupImageUrl);
+        
         await syncService.CreateSyncEventsAsync(
             new List<string> {recipientId}, 
             SyncEventType.MessageNotificationCreated,
@@ -129,7 +235,8 @@ public class MessageNotificationService(
                 : $"There are {messageCount} new messages in {conversationResponse.GroupName}";
 
 
-        return notification.ToResponse(conversationResponse, messageResponse, preview);
+        return notification.ToResponse(messageResponse.Sender!, preview,
+            conversationResponse.GroupName, conversationResponse.GroupImageUrl);
     }
     
     /// <summary>

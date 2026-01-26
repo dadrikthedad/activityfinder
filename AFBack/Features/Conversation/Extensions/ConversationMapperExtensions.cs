@@ -1,5 +1,6 @@
 using AFBack.DTOs;
 using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Models;
 using AFBack.Models.Enums;
 using Microsoft.EntityFrameworkCore;

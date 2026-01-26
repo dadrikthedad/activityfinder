@@ -15,7 +15,6 @@ using AFBack.Features.Conversation.Models;
 using AFBack.Features.MessageNotification.Service;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Interface.Services;
-using AFBack.Models.Conversation;
 using AFBack.Models.Crypto;
 using Newtonsoft.Json;
 using EncryptedMessage = AFBack.Features.Messaging.Models.Message;

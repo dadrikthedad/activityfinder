@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using AFBack.Models.Conversation;
 using AFBack.Models.Enums;
 
 namespace AFBack.Features.Conversation.Models;
@@ -22,6 +21,9 @@ public class Conversation
     
     [MaxLength(512)]
     public string? GroupImageUrl { get; set; }
+    
+    [MaxLength(1000)]
+    public string? GroupDescription { get; set; }
     
     // ======================== Group disbanded ========================
     public bool IsDisbanded { get; set; }

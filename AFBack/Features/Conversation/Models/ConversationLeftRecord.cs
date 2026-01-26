@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Models.Auth;
 
-namespace AFBack.Models.Conversation;
+namespace AFBack.Features.Conversation.Models;
 
 public class ConversationLeftRecord
 {
@@ -15,6 +15,6 @@ public class ConversationLeftRecord
     public DateTime LeftAt { get; set; } = DateTime.UtcNow;
     
     // ======================== Navigasjonsegenskaper ========================
-    public AppUser AppUser { get; set; } = null!;
-    public Features.Conversation.Models.Conversation Conversation { get; set; } = null!;
+    public AppUser User { get; set; } = null!;
+    public Conversation Conversation { get; set; } = null!;
 }

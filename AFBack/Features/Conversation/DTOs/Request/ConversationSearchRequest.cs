@@ -1,8 +1,7 @@
 
 using System.ComponentModel.DataAnnotations;
 
-
-namespace AFBack.Features.Conversation.DTOs;
+namespace AFBack.Features.Conversation.DTOs.Request;
 
 public class ConversationSearchRequest
 {

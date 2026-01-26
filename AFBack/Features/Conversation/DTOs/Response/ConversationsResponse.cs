@@ -1,10 +1,8 @@
-using AFBack.DTOs;
+namespace AFBack.Features.Conversation.DTOs.Response;
 
-namespace AFBack.Features.Conversation.DTOs;
-
-public class ConversationSearchResponse
+public class ConversationsResponse
 {
-    public List<ConversationDto> Conversations { get; set; } = [];
+    public List<ConversationResponse> Conversations { get; set; } = [];
     
     //Paginering
     public int TotalCount { get; set; }

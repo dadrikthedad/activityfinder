@@ -1,7 +1,6 @@
 using AFBack.Data;
 using AFBack.Features.Conversation.Models;
 using AFBack.Models;
-using AFBack.Models.Conversation;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Extensions;

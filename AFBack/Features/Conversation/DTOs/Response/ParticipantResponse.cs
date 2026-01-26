@@ -1,7 +1,7 @@
 using AFBack.DTOs;
 using AFBack.Models.Enums;
 
-namespace AFBack.Features.Conversation.DTOs;
+namespace AFBack.Features.Conversation.DTOs.Response;
 
 public class ParticipantResponse
 {

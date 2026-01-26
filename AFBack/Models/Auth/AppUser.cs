@@ -2,7 +2,6 @@
 using System.Text.Json.Serialization;
 using AFBack.Features.CanSend.Models;
 using AFBack.Features.Conversation.Models;
-using AFBack.Models.Conversation;
 using AFBack.Models.Crypto;
 using AFBack.Models.User;
 

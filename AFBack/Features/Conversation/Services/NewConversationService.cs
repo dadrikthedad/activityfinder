@@ -3,6 +3,8 @@ using AFBack.Common;
 using AFBack.Common.DTOs;
 using AFBack.Common.Results;
 using AFBack.Features.Conversation.DTOs;
+using AFBack.Features.Conversation.DTOs.Request;
+using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
@@ -16,6 +18,7 @@ using AFBack.Features.Messaging.Repository;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
+using AFBack.Interface.Repository;
 using AFBack.Models.Enums;
 using AFBack.Repository;
 using Microsoft.AspNetCore.SignalR;
@@ -442,7 +445,10 @@ public class NewConversationService(
                     "User {UserId} is accepting pending conversation {ConversationId} by sending a message",
                     userId, existingConversation.Id);
                 
-                var acceptResult = await conversationService.AcceptConversationAsync(
+                
+                // Bruker dedikert accept-metode for konsistens og fullstendig flyt
+                // (inkluderer cache-oppdatering, sync events, notifications, etc.)
+                var acceptResult = await AcceptPendingConversationRequestAsync(
                     userId, existingConversation.Id);
                 
                 if (acceptResult.IsFailure)
@@ -620,7 +626,8 @@ public class NewConversationService(
             "User {SenderId} successfully created {Type} conversation {ConversationId} with {ReceiverId}",
             userId, conversationDto.Type, createdConversation.Id, request.ReceiverId);
         
-        // Send SignalR
+        // Hvis brukeren ikke var venner så oppretter vi en Pending Conversatiuon Request, eller en direkte samtale
+        // Sender SignalR, lagrer Notifcaiton og SyncEvent deretter
         if (createdConversation.Type == ConversationType.PendingRequest)
         {
             // Mottaker får pending conversation notification
@@ -636,13 +643,13 @@ public class NewConversationService(
             
             // SyncEvent for SENDER
             await syncService.CreateSyncEventsAsync(
-                new List<string> { userId },
+                [userId],
                 SyncEventType.ConversationCreated, 
                 sendMessageToUserResponse);
             
             // SyncEvent for MOTTAKER
             await syncService.CreateSyncEventsAsync(
-                new List<string> { request.ReceiverId },
+                [request.ReceiverId],
                 SyncEventType.PendingConversationCreated,
                 sendMessageToUserResponse);
         }
@@ -661,17 +668,276 @@ public class NewConversationService(
             
             // SyncEvent for SENDER
             await syncService.CreateSyncEventsAsync(
-                new List<string> { userId },
+                [userId],
                 SyncEventType.ConversationCreated,
                 sendMessageToUserResponse);
             
             // SyncEvent for MOTTAKER
             await syncService.CreateSyncEventsAsync(
-                new List<string> { request.ReceiverId },
+                [request.ReceiverId],
                 SyncEventType.ConversationCreated,
                 sendMessageToUserResponse);
         }
         
         return Result<SendMessageToUserResponse>.Success(sendMessageToUserResponse);
+    }
+    
+    
+    // Sjekk interface for summary
+    public async Task<Result<ConversationResponse>> AcceptPendingConversationRequestAsync(string userId, 
+        int conversationId)
+    {
+        logger.LogInformation("User {UserId} is attempting to accept pending conversation {ConversationId}", 
+            userId, conversationId);
+        
+        // Henter samtalen med tracking for å kunne oppdatere
+        var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
+        
+        // Samtalen eksisterer ikke
+        if (conversation == null)
+        {
+            logger.LogError("User {UserId} tried to accept non-existent conversation {ConversationId}",
+                userId, conversationId);
+            return Result<ConversationResponse>.Failure("Conversation not found", ErrorTypeEnum.NotFound);
+        }
+        
+        // Sjekk at samtalen er en PendingRequest
+        if (conversation.Type != ConversationType.PendingRequest)
+        {
+            logger.LogError("User {UserId} tried to accept conversation {ConversationId} that is not pending " +
+                            "(Type: {Type})",
+                userId, conversationId, conversation.Type);
+            return Result<ConversationResponse>.Failure("Conversation is not a pending request");
+        }
+        
+        // Finn brukerens participant-record
+        var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+        
+        // Sjekker at brukeren er participant
+        if (userParticipant == null)
+        {
+            logger.LogError("User {UserId} tried to accept conversation {ConversationId} without being a participant",
+                userId, conversationId);
+            return Result<ConversationResponse>.Failure("Conversation not found", ErrorTypeEnum.Forbidden);
+        }
+        
+        // Sjekk at brukeren er mottakeren (PendingRecipient)
+        if (userParticipant.Role != ParticipantRole.PendingRecipient)
+        {
+            logger.LogError("User {UserId} tried to accept conversation {ConversationId} but is not the recipient " +
+                            "(Role: {Role})",
+                userId, conversationId, userParticipant.Role);
+            return Result<ConversationResponse>.Failure("You cannot accept a conversation you initiated");
+        }
+        
+        // Sjekk at brukeren har Pending status
+        if (userParticipant.Status == ConversationStatus.Accepted)
+        {
+            logger.LogError("User {UserId} tried to accept conversation {ConversationId} but status is {Status}",
+                userId, conversationId, userParticipant.Status);
+            return Result<ConversationResponse>.Failure("Conversation has already been accepted");
+        }
+        
+        // Finn den andre participanten (senderen)
+        var senderParticipant = conversation.Participants.FirstOrDefault(p => p.UserId != userId);
+        
+        if (senderParticipant == null)
+        {
+            logger.LogCritical("Conversation {ConversationId} has no sender participant", conversationId);
+            return Result<ConversationResponse>.Failure("Server error. Try again later or contact support", 
+                ErrorTypeEnum.InternalServerError);
+        }
+        
+        // ============ TRANSAKSJON: Oppdater database ============
+        
+        // Oppdater Conversation
+        conversation.Type = ConversationType.DirectChat;
+        
+        // Oppdater begge participants
+        userParticipant.Status = ConversationStatus.Accepted;
+        userParticipant.JoinedAt = DateTime.UtcNow;
+        
+        senderParticipant.Status = ConversationStatus.Accepted;
+        
+        // Lagre endringer
+        await conversationRepository.SaveChangesAsync();
+        
+        logger.LogInformation("User {UserId} successfully accepted conversation {ConversationId}", 
+            userId, conversationId);
+        
+        // ============ POST-COMMIT: Cache, SignalR, Notifications ============
+        
+        // Legg begge brukere inn i CanSend cache
+        try
+        {
+            await msgCache.OnCanSendAddedAsync(userId, conversationId);
+            await msgCache.OnCanSendAddedAsync(senderParticipant.UserId, conversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to add users to CanSend cache for conversation {ConversationId}", 
+                conversationId);
+        }
+        
+        // Send systemmelding
+        try
+        {
+            await messageService.SendSystemMessageAsync(
+                conversationId, 
+                "Conversation accepted");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send system message for accepted conversation {ConversationId}", 
+                conversationId);
+        }
+        
+        // Henter ConversationDto for SyncEvent
+        var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
+        if (conversationDto == null)
+        {
+            logger.LogCritical("Created conversation {ConversationId} not found after creation",
+                conversationId);
+            return Result<ConversationResponse>.Failure(
+                "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
+        }
+        
+        // Hent users for cache
+        var conversationUserIds = new List<string> { userId, senderParticipant.UserId };
+        var conversationUsers = 
+            await userSummariesCache.GetUserSummariesAsync(conversationUserIds);
+
+        var conversationResponse = conversationDto.ToResponse(conversationUsers);
+        
+        // Opprett SyncEvent for begge brukere
+        try
+        {
+            // For brukeren som godkjente (mottaker)
+            await syncService.CreateSyncEventsAsync(
+                [userId],
+                SyncEventType.ConversationAccepted,
+                conversationResponse);
+
+            // For brukeren som sendte requesten (avsender)
+            await syncService.CreateSyncEventsAsync(
+                [senderParticipant.UserId],
+                SyncEventType.ConversationRequestAccepted,
+                conversationResponse);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create sync events for accepted conversation {ConversationId}", 
+                conversationId);
+        }
+        
+        // Send SignalR til mottaker (sender av requesten) sine andre enheter
+        try
+        {
+            await hubContext.Clients.User(senderParticipant.UserId)
+                .SendAsync("ConversationAccepted", new { conversationId });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send SignalR for accepted conversation {ConversationId}", 
+                conversationId);
+        }
+        
+        // Opprett notificaiton for brukern som har sendt requesten
+        try
+        {
+            await messageNotificationService.CreateConversationAcceptedNotificationAsync(
+                senderParticipant.UserId, userId, conversationResponse);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create notification for accepted conversation {ConversationId}", 
+                conversationId);
+        }
+        
+        return Result<ConversationResponse>.Success(conversationResponse);
+    }
+    
+    // Sjekk interface for summary
+    public async Task<Result> RejectPendingConversationRequestAsync(string userId, int conversationId)
+    {
+        logger.LogInformation("User {UserId} is attempting to reject pending conversation {ConversationId}", 
+            userId, conversationId);
+        
+        // Henter samtalen med tracking for å kunne oppdatere
+        var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
+        
+        // Samtalen eksisterer ikke
+        if (conversation == null)
+        {
+            logger.LogError("User {UserId} tried to reject non-existent conversation {ConversationId}",
+                userId, conversationId);
+            return Result.Failure("Conversation not found", ErrorTypeEnum.NotFound);
+        }
+        
+        // Sjekk at samtalen er en PendingRequest
+        if (conversation.Type != ConversationType.PendingRequest)
+        {
+            logger.LogError("User {UserId} tried to reject conversation {ConversationId} that is not pending " +
+                            "(Type: {Type})",
+                userId, conversationId, conversation.Type);
+            return Result.Failure("Conversation is not a pending request", ErrorTypeEnum.BadRequest);
+        }
+        
+        // Finn brukerens participant-record
+        var userParticipant = conversation.Participants.FirstOrDefault(p => p.UserId == userId);
+        
+        // Sjekker at brukeren er participant
+        if (userParticipant == null)
+        {
+            logger.LogError("User {UserId} tried to reject conversation {ConversationId} without being a participant",
+                userId, conversationId);
+            return Result.Failure("Conversation not found", ErrorTypeEnum.Forbidden);
+        }
+        
+        // Sjekk at brukeren er mottakeren (PendingRecipient)
+        if (userParticipant.Role != ParticipantRole.PendingRecipient)
+        {
+            logger.LogError("User {UserId} tried to reject conversation {ConversationId} but is not the recipient " +
+                            "(Role: {Role})",
+                userId, conversationId, userParticipant.Role);
+            return Result.Failure("You cannot reject a conversation you initiated", ErrorTypeEnum.BadRequest);
+        }
+        
+        // Sjekk at brukeren ikke allerede har akseptert
+        if (userParticipant.Status != ConversationStatus.Pending)
+        {
+            logger.LogError("User {UserId} tried to reject conversation {ConversationId} but status is not pending. " +
+                            "Status: {Status}", userId, conversationId, userParticipant.Status);
+            return Result.Failure("Conversation has already been accepted", ErrorTypeEnum.BadRequest);
+        }
+        
+        // ============ TRANSAKSJON: Oppdater database ============
+        
+        // Oppdater kun mottakerens status til Rejected
+        userParticipant.Status = ConversationStatus.Rejected;
+        
+        // Lagre endringer
+        await conversationRepository.SaveChangesAsync();
+        
+        logger.LogInformation("User {UserId} successfully rejected conversation {ConversationId}", 
+            userId, conversationId);
+        
+        // ============ POST-COMMIT: Sync til brukerens andre enheter ============
+        
+        // Opprett SyncEvent kun for brukeren som avslår (sender skal ikke vite)
+        try
+        {
+            await syncService.CreateSyncEventsAsync(
+                [userId],
+                SyncEventType.ConversationRejected,
+                conversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create sync event for rejected conversation {ConversationId}", 
+                conversationId);
+        }
+        
+        return Result.Success();
     }
 }

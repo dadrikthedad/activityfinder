@@ -1,6 +1,6 @@
 using AFBack.DTOs;
 
-namespace AFBack.Repository;
+namespace AFBack.Interface.Repository;
 
 public interface IUserRepository
 {

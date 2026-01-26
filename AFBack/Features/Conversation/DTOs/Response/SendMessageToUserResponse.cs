@@ -1,6 +1,6 @@
 using AFBack.Features.Messaging.DTOs.Response;
 
-namespace AFBack.Features.Conversation.DTOs;
+namespace AFBack.Features.Conversation.DTOs.Response;
 
 /// <summary>
 /// Response når man sender melding til en bruker

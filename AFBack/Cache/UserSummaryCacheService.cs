@@ -1,6 +1,6 @@
 using System.Text.Json;
 using AFBack.DTOs;
-using AFBack.Repository;
+using AFBack.Interface.Repository;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace AFBack.Cache;
@@ -15,9 +15,9 @@ public class UserSummaryCacheService(
     private readonly bool _cachingEnabled = configuration.GetValue<bool>("CacheSettings:EnableCaching", true);
     
     // Metrics for måling
-    private long _cacheHits = 0;
-    private long _cacheMisses = 0;
-    private long _cacheRefreshes = 0;
+    private long _cacheHits;
+    private long _cacheMisses;
+    private long _cacheRefreshes;
     
     // ==================== Hente fra cache/database ====================
     

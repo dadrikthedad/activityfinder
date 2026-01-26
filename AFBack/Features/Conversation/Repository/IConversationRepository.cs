@@ -143,16 +143,16 @@ public interface IConversationRepository
 
     /// <summary>
     /// Oppretter en Conversation med ConverationParticipants med rollback hvis noe går galt.
-    /// Første melding en bruker sender i en samtale blir lagret direkte i databasen
+    /// For 1-1 samtaler sendes første melding med. For gruppesamtaler opprettes kun samtalen.
     /// </summary>
     /// <param name="conversation">Samtale-objektet som skal lages (kun type er forskjellig)</param>
     /// <param name="participants">Participants vi legger til (uten ID, men vi mapper det i metoden)</param>
-    /// <param name="message">Første melding sendt i samtalen</param>
+    /// <param name="message">Første melding sendt i samtalen (valgfri for gruppesamtaler)</param>
     /// <returns>Conversation med ID og ConversationParticipants med ID-er</returns>
     Task<Models.Conversation> CreateConversationWithParticipantsAsync(
         Models.Conversation conversation,
         List<ConversationParticipant> participants,
-        Message message);
+        Message? message = null);
     
     ////////////////////////////////////////////// UPDATE CONVERSATIONS /////////////////////////////////////////////
     /// 
@@ -175,4 +175,21 @@ public interface IConversationRepository
     /// </summary>
     /// <param name="conversationId">Samtalen som skal slettes</param>
     Task DeleteConversationAsync(int conversationId);
+    
+    ////////////////////////////////////////////// PARTICIPANT OPERATIONS /////////////////////////////////////////////
+    
+    /// <summary>
+    /// Henter en participant basert på composite primary key.
+    /// </summary>
+    /// <param name="userId">Brukeren som er participant</param>
+    /// <param name="conversationId">Samtalen brukeren er participant i</param>
+    /// <returns>ConversationParticipant hvis den finnes, null ellers</returns>
+    Task<ConversationParticipant?> GetParticipantAsync(string userId, int conversationId);
+
+    /// <summary>
+    /// Fjerner en participant fra en samtale. Brukes når en bruker forlater eller avslår en gruppesamtale.
+    /// </summary>
+    /// <param name="participant">Brukeren som skal bli fjernet</param>
+    /// <returns>True hvis participant ble fjernet, false hvis den ikke fantes</returns>
+    Task RemoveParticipantAsync(ConversationParticipant participant);
 }

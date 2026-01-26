@@ -148,6 +148,44 @@ Se @.claude/rules/testing.md for detaljerte test-scenarios (når opprettet)
 - **GroupConversationLeftRecord:** Må slettes for å bli med i gruppe igjen
 - **SignalR i tx:** Aldri. Commit først, deretter SignalR.
 
+## Refaktoreringskonvensjon
+
+**Ferdig refaktorerte metoder** markeres med:
+```csharp
+// Sjekk interface for summary
+public async Task<Result<ConversationResponse>> GetConversationAsync(...)
+```
+
+- Kommentaren `// Sjekk interface for summary` over metoden i servicen indikerer at metoden er ferdig refaktorert
+- XML summary kun i interface, ikke i implementasjonen
+- Metoder er "så og si ferdige" - mindre justeringer kan skje, men arkitektur og logikk er komplett
+
+## DTO Navnekonvensjon
+
+**DTOer har suffixes som indikerer deres bruk:**
+
+- **`Request`** - Data fra frontend til backend (f.eks. `SendMessageToUserRequest`, `ConversationSearchRequest`)
+- **`Response`** - Data fra backend til frontend (f.eks. `ConversationResponse`, `MessageResponse`)
+- **`Dto`** - Intern bruk i backend, mapping mellom lag (f.eks. `ConversationDto`, `UserSummaryDto`)
+
+**Eksempel:**
+```csharp
+// Frontend sender:
+public class SendMessageToUserRequest { ... }
+
+// Backend bruker internt:
+public class ConversationDto { ... }
+
+// Backend returnerer:
+public class SendMessageToUserResponse { ... }
+```
+
+## Regler for Claude
+
+- **ALDRI opprett nye modeller eller legg til egenskaper på eksisterende modeller uten eksplisitt bekreftelse fra Magee**
+- Hvis du ser behov for modellendringer, spør først og beskriv hvorfor
+- Foreslå alltid løsninger med eksisterende modeller først
+
 ## Neste
 
 - Refaktorer User + Friendship til Vertical Slice

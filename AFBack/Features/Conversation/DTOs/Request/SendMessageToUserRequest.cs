@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace AFBack.Features.Conversation.DTOs;
+namespace AFBack.Features.Conversation.DTOs.Request;
 
 /// <summary>
 /// Request for å sende en melding til en bruker. Oppretter ny samtale hvis ingen finnes.
