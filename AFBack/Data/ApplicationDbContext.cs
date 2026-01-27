@@ -48,7 +48,7 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<UserBlock> UserBlocks { get; set; }
     
-    public DbSet<CanSend> CanSend { get; set; }
+    public DbSet<CanSend> CanSends { get; set; }
     
     public DbSet<UserConnection> UserOnlineStatuses { get; set; }
     

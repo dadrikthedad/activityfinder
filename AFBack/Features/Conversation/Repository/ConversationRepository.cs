@@ -210,11 +210,9 @@ public class ConversationRepository(
     ////////////////////////////////////////////// DELETE CONVERSATIONS /////////////////////////////////////////////
     
     // Sjekk interface for summary
-    public async Task DeleteConversationAsync(int conversationId)
+    public async Task DeleteConversationAsync(Models.Conversation conversation)
     {
-        var conversation = await GetConversationWithTrackingAsync(conversationId);
-        
-        context.Conversations.Remove(conversation!);
+        context.Conversations.Remove(conversation);
         await context.SaveChangesAsync();
     }
     
@@ -231,4 +229,31 @@ public class ConversationRepository(
         context.ConversationParticipants.Remove(participant);
         await context.SaveChangesAsync();
     }
+    
+    // Sjekk interface for summary
+    public async Task<HashSet<int>> GetUserAcceptedConversationIdsAsync(string userId, List<int> conversationIds)
+    {
+        if (conversationIds.Count == 0)
+            return [];
+        
+        var ids = await context.ConversationParticipants
+            .AsNoTracking()
+            .Where(cp => cp.UserId == userId 
+                         && conversationIds.Contains(cp.ConversationId)
+                         && cp.Status == ConversationStatus.Accepted)
+            .Select(cp => cp.ConversationId)
+            .ToListAsync();
+        
+        return ids.ToHashSet();
+    }
+    
+    
+    // Sjekk interface for summary
+    public async Task<ConversationParticipant?> GetNextCreatorCandidateAsync(int conversationId, string excludeUserId) =>
+        await context.ConversationParticipants
+            .Where(cp => cp.ConversationId == conversationId
+                         && cp.UserId != excludeUserId
+                         && cp.Status == ConversationStatus.Accepted)
+            .OrderBy(cp => cp.InvitedAt)
+            .FirstOrDefaultAsync();
 }

@@ -1,36 +1,36 @@
-﻿using AFBack.Cache;
-using AFBack.Data;
-using AFBack.DTOs;
-using AFBack.Features.Cache;
-using AFBack.Features.Cache.Interface;
-using AFBack.Hubs;
-using AFBack.Infrastructure.Services;
-using AFBack.Models;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-
-namespace AFBack.Controllers;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using AFBack.Services;
-using System.Security.Claims;
-
-
-[ApiController]
-[Route("api/[controller]")]
-[Authorize]
-public class ConversationsController(
-    ConversationService conversationService,
-    IHubContext<UserHub> hubContext,
-    IMessageService messageService,
-    ApplicationDbContext context,
-    ISendMessageCache msgCache,
-    ILogger<ConversationsController> logger,
-    IUserCache userCache,
-    ResponseService responseService)
-    : BaseController<ConversationsController>(context, logger, userCache, responseService)
-{
-    private readonly IHubContext<UserHub> _hubContext = hubContext;
+﻿// using AFBack.Cache;
+// using AFBack.Data;
+// using AFBack.DTOs;
+// using AFBack.Features.Cache;
+// using AFBack.Features.Cache.Interface;
+// using AFBack.Hubs;
+// using AFBack.Infrastructure.Services;
+// using AFBack.Models;
+// using Microsoft.AspNetCore.SignalR;
+// using Microsoft.EntityFrameworkCore;
+//
+// namespace AFBack.Controllers;
+// using Microsoft.AspNetCore.Authorization;
+// using Microsoft.AspNetCore.Mvc;
+// using AFBack.Services;
+// using System.Security.Claims;
+//
+//
+// [ApiController]
+// [Route("api/[controller]")]
+// [Authorize]
+// public class ConversationsController(
+//     ConversationService conversationService,
+//     IHubContext<UserHub> hubContext,
+//     IMessageService messageService,
+//     ApplicationDbContext context,
+//     ISendMessageCache msgCache,
+//     ILogger<ConversationsController> logger,
+//     IUserCache userCache,
+//     ResponseService responseService)
+//     : BaseController<ConversationsController>(context, logger, userCache, responseService)
+// {
+//     private readonly IHubContext<UserHub> _hubContext = hubContext;
 
     // Endepunkt for å hente alle samtalene til en bruker. Funker i frontend i /chat
     // [HttpGet("my-conversations")]
@@ -74,29 +74,29 @@ public class ConversationsController(
     //     });
     // }
     
-    // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
-    [HttpGet("conversation/{conversationId}")]
-    public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized(new { message = "Ugyldig eller manglende bruker-ID i token." });
-
-        try
-        {
-            var messages = await messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
-            return Ok(messages);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return BadRequest(new { message = ex.Message }); // 400 with proper error message
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = "Det oppstod en feil ved henting av meldinger.", details = ex.Message });
-        }
-    }
-    
+    // // Endepunkt for å hente meldinger utifra ConversationId, med skip og take til å hente kun noen omgangen. Funker i frontend i /chat
+    // [HttpGet("conversation/{conversationId}")]
+    // public async Task<IActionResult> GetMessagesForConversation(int conversationId, [FromQuery] int skip = 0, [FromQuery] int take = 20)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized(new { message = "Ugyldig eller manglende bruker-ID i token." });
+    //
+    //     try
+    //     {
+    //         var messages = await messageService.GetMessagesForConversationAsync(conversationId, userId.Value, skip, take);
+    //         return Ok(messages);
+    //     }
+    //     catch (UnauthorizedAccessException ex)
+    //     {
+    //         return BadRequest(new { message = ex.Message }); // 400 with proper error message
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return StatusCode(500, new { message = "Det oppstod en feil ved henting av meldinger.", details = ex.Message });
+    //     }
+    // }
+    //
     // Hente kun en samtale
     // [HttpGet("{conversationId}")]
     // public async Task<IActionResult> GetConversationById(int conversationId)
@@ -387,25 +387,25 @@ public class ConversationsController(
     //         return BadRequest(new { error = ex.Message });
     //     }
     // }
-    
-    [HttpPost("{conversationId}/restore")]
-    public async Task<IActionResult> RestoreConversation(int conversationId)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
-
-        try
-        {
-            await conversationService.RestoreConversationForUserAsync(conversationId, userId.Value);
-            return Ok(new { message = "Samtalen har blitt gjenopprettet." });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-    
+    //
+    // [HttpPost("{conversationId}/restore")]
+    // public async Task<IActionResult> RestoreConversation(int conversationId)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized("Ugyldig eller manglende bruker-ID i token.");
+    //
+    //     try
+    //     {
+    //         await conversationService.RestoreConversationForUserAsync(conversationId, userId.Value);
+    //         return Ok(new { message = "Samtalen har blitt gjenopprettet." });
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return BadRequest(new { error = ex.Message });
+    //     }
+    // }
+    //
     // [HttpGet("deleted")]
     // public async Task<IActionResult> GetDeletedConversations()
     // {

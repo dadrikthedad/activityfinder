@@ -277,38 +277,6 @@ public class MessageNotificationService(
             : $"sent {attachmentText} to {groupName}";
     }
     
-    public async Task<MessageNotificationDTO> CreateMessageRequestApprovedNotificationAsync(
-        int approverId,
-        int senderId,
-        int conversationId)
-    {
-        var notification = new Models.MessageNotification
-        {
-            RecipientId = senderId,
-            SenderId = approverId,
-            ConversationId = conversationId,
-            Type = NotificationType.MessageRequestApproved,
-            CreatedAt = DateTime.UtcNow,
-            IsRead = false
-        };
-
-        context.MessageNotifications.Add(notification);
-        await context.SaveChangesAsync();
-
-        var created = await context.MessageNotifications
-            .Include(n => n.FromUser)
-                .ThenInclude(u => u.UserProfile)
-            .Include(n => n.Conversation)
-            .FirstOrDefaultAsync(n => n.Id == notification.Id);
-
-        var dto = MapToDto(created!);
-    
-        // Automatically queue sync event
-        notificationSyncService.QueueNotificationSyncEvent(dto, senderId);
-        
-        return dto;
-    }
-    
     public async Task<MessageNotificationDTO> CreateMessageReactionNotificationAsync(
         int reactingUserId,
         int receiverUserId,
@@ -369,58 +337,6 @@ public class MessageNotificationService(
         return dto;
     }
     
-    public async Task<MessageNotificationDTO?> CreateGroupRequestNotificationAsync(
-        int senderId, 
-        int receiverId, 
-        int conversationId,
-        int groupRequestId,
-        string groupName)
-    {
-        // Sjekk om det allerede finnes en ulest GroupRequest-notifikasjon
-        var existing = await context.MessageNotifications
-            .Include(n => n.FromUser)
-            .ThenInclude(u => u.UserProfile)
-            .Include(n => n.Conversation)
-            .FirstOrDefaultAsync(n =>
-                n.UserId == receiverId &&
-                n.FromUserId == senderId &&
-                n.ConversationId == conversationId &&
-                n.Type == NotificationType.GroupRequest &&
-                !n.IsRead);
-
-        if (existing != null)
-        {
-            return null; // Allerede sendt – ikke send igjen
-        }
-
-        // Opprett ny GroupRequest-notifikasjon
-        var notification = new Models.MessageNotification
-        {
-            RecipientId = receiverId,
-            SenderId = senderId,
-            ConversationId = conversationId,
-            Type = NotificationType.GroupRequest,
-            CreatedAt = DateTime.UtcNow,
-            IsRead = false,
-        };
-
-        context.MessageNotifications.Add(notification);
-        await context.SaveChangesAsync();
-
-        // Hent den opprettede notifikasjonen med alle includes
-        var created = await context.MessageNotifications
-            .Include(n => n.FromUser)
-            .ThenInclude(u => u.UserProfile)
-            .Include(n => n.Conversation)
-            .FirstOrDefaultAsync(n => n.Id == notification.Id);
-
-        var dto = MapToDto(created!);
-    
-        // Automatically queue sync event
-        notificationSyncService.QueueNotificationSyncEvent(dto, receiverId);
-    
-        return dto;
-    }
     
     
     public MessageNotificationDTO MapToDto(Models.MessageNotification n, HashSet<int>? rejectedConversations = null, bool isUpdate = false)

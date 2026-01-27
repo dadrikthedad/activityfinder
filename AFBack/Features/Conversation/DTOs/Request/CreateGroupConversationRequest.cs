@@ -11,8 +11,9 @@ public class CreateGroupConversationRequest
     [MinLength(1, ErrorMessage = "ReceiverId cannot be empty")]
     public List<string> ReceiverIds { get; set; } = null!;
     
-    [MaxLength(100)]
-    public string? GroupName { get; set; } 
+    [Required(ErrorMessage = "Group name is required")]
+    [StringLength(100, MinimumLength = 1, ErrorMessage = "Group name cannot be between 1-100 characters")]
+    public string GroupName { get; set; } = null!; 
     
     [MaxLength(512)]
     public string? GroupImageUrl { get; set; }

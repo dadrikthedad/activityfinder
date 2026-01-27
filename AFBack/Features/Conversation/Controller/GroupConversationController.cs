@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AFBack.Common.DTOs;
 using AFBack.Controllers;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
@@ -117,5 +118,80 @@ public class GroupConversationController(IGroupConversationService groupConversa
             return HandleFailure(result);
 
         return Ok(result.Value);
+    }
+    
+    /// <summary>
+    /// Forlater en gruppesamtale.
+    /// Brukeren må ha Accepted status i samtalen.
+    /// Brukeren blir fjernet fra gruppen og kan ikke bli invitert på nytt.
+    /// </summary>
+    [HttpPost("{conversationId:int}/leave")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> LeaveGroup(
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId)
+    {
+        var userId = User.GetUserId();
+
+        var result = await groupConversationService.LeaveGroupConversationAsync(userId, conversationId);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return NoContent();
+    }
+    
+    /// <summary>
+    /// Henter alle grupper brukeren har forlatt eller avslått.
+    /// Brukes for å vise en liste over grupper brukeren kan bli invitert til igjen.
+    /// </summary>
+    [HttpGet("left")]
+    [ProducesResponseType(typeof(ConversationLeftRecordsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationLeftRecordsResponse>> GetLeftConversations(
+        [FromQuery] PaginationRequest request)
+    {
+        var userId = User.GetUserId();
+
+        var result = await groupConversationService.GetLeftConversationsAsync(userId, request.Page, request.PageSize);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
+    
+    /// <summary>
+    /// Sletter en ConversationLeftRecord slik at brukeren kan bli invitert på nytt.
+    /// </summary>
+    [HttpDelete("left/{conversationId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteLeftConversationRecord(
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId)
+    {
+        var userId = User.GetUserId();
+
+        var result = await groupConversationService.DeleteLeftConversationRecordAsync(userId, conversationId);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return NoContent();
     }
 }

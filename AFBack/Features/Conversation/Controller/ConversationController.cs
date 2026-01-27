@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Common.DTOs;
 using AFBack.Controllers;
-using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Services;
@@ -14,8 +13,11 @@ namespace AFBack.Features.Conversation.Controller;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class NewConversationController(
-    INewConversationService newConversationService) : BaseController
+public class ConversationController(
+    IGetConversationsService getConversationsService,
+    IDirectConversationService directConversationService,
+    IArchiveConversationService archiveConversationService,
+    ISearchConversationsService searchConversationsService) : BaseController
 {
     
     /// <summary>
@@ -37,7 +39,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
         
-        var result = await newConversationService.GetConversationAsync(userId, conversationId);
+        var result = await getConversationsService.GetConversationAsync(userId, conversationId);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -59,7 +61,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
         
-        var result = await newConversationService.GetActiveConversationsAsync(userId, request);
+        var result = await getConversationsService.GetActiveConversationsAsync(userId, request);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -81,7 +83,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
         
-        var result = await newConversationService.GetPendingConversationsAsync(userId, request);
+        var result = await getConversationsService.GetPendingConversationsAsync(userId, request);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -103,7 +105,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
         
-        var result = await newConversationService.GetArchivedConversationsAsync(userId, request);
+        var result = await getConversationsService.GetArchivedConversationsAsync(userId, request);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -125,7 +127,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
         
-        var result = await newConversationService.GetRejectedConversationsAsync(userId, request);
+        var result = await getConversationsService.GetRejectedConversationsAsync(userId, request);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -150,7 +152,7 @@ public class NewConversationController(
         // Validerer at brukeren eksistere
         var userId = User.GetUserId(); 
         
-        var result = await newConversationService.SearchConversationsAsync(userId, request);
+        var result = await searchConversationsService.SearchConversationsAsync(userId, request);
 
         if (result.IsFailure)
             return HandleFailure(result);
@@ -178,7 +180,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
 
-        var result = await newConversationService.ArchiveConversationAsync(userId, conversationId);
+        var result = await archiveConversationService.ArchiveConversationAsync(userId, conversationId);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -205,7 +207,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId(); 
 
-        var result = await newConversationService.RestoreArchivedConversationAsync(userId, conversationId);
+        var result = await archiveConversationService.RestoreArchivedConversationAsync(userId, conversationId);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -234,7 +236,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId();
 
-        var result = await newConversationService.SendMessageToUserAsync(userId, request);
+        var result = await directConversationService.SendMessageToUserAsync(userId, request);
 
         if (result.IsFailure)
             return HandleFailure(result);
@@ -265,7 +267,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId();
 
-        var result = await newConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
+        var result = await directConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
 
         if (result.IsFailure)
             return HandleFailure(result);
@@ -294,7 +296,7 @@ public class NewConversationController(
     {
         var userId = User.GetUserId();
 
-        var result = await newConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
+        var result = await directConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
 
         if (result.IsFailure)
             return HandleFailure(result);

@@ -98,6 +98,22 @@ public enum SyncEventType
     /// </summary>
     GroupInviteAcceptedByMe,
     
+    /// <summary>
+    /// Bruker avviste gruppeinvitasjon - sendes til alle andre med Accepted status
+    /// EventData: { ConversationResponse }
+    /// Hvorfor: ConversationResponse for å oppdatere participant-listen i samtalen.
+    /// Fjerner brukeren fra pending-listen og viser at invitasjonen ble avvist.
+    /// </summary>
+    GroupInviteDeclined,
+    
+    /// <summary>
+    /// Bruker forlot gruppesamtalen - sendes til alle gjenstående medlemmer med Accepted status
+    /// EventData: { ConversationResponse }
+    /// Hvorfor: ConversationResponse for å oppdatere participant-listen i samtalen.
+    /// Fjerner brukeren fra medlemslisten.
+    /// </summary>
+    GroupMemberLeft,
+    
     // TODO: IkkeFerdig ------------------------------------------------------------------------------
     
     /// <summary>

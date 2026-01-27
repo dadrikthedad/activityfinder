@@ -31,6 +31,23 @@ public interface IConversationLeftRecordRepository
     Task<List<ConversationLeftRecord>> GetByUserIdAsync(string userId);
     
     /// <summary>
+    /// Henter ConversationLeftRecords for en bruker med paginering.
+    /// Inkluderer Conversation for å kunne vise gruppenavn og bilde.
+    /// </summary>
+    /// <param name="userId">Brukeren som skal hentes records for</param>
+    /// <param name="page">Sidenummer (1-indeksert)</param>
+    /// <param name="pageSize">Antall per side</param>
+    /// <returns>Liste med ConversationLeftRecords</returns>
+    Task<List<ConversationLeftRecord>> GetByUserIdPaginatedAsync(string userId, int page, int pageSize);
+    
+    /// <summary>
+    /// Teller antall ConversationLeftRecords for en bruker.
+    /// </summary>
+    /// <param name="userId">Brukeren som skal telles records for</param>
+    /// <returns>Antall records</returns>
+    Task<int> GetCountByUserIdAsync(string userId);
+    
+    /// <summary>
     /// Oppretter en ConversationLeftRecord når en bruker forlater eller avslår en gruppesamtale.
     /// </summary>
     /// <param name="record">ConversationLeftRecord som skal opprettes</param>
@@ -42,4 +59,12 @@ public interface IConversationLeftRecordRepository
     /// </summary>
     /// <param name="record">Recorden som skal bli slettet</param>
     Task DeleteAsync(ConversationLeftRecord record);
+    
+    /// <summary>
+    /// Sletter alle ConversationLeftRecords for en samtale.
+    /// Brukes når en gruppe blir disbanded.
+    /// </summary>
+    /// <param name="conversationId">Samtalen som skal slettes records for</param>
+    /// <returns>Antall slettede records</returns>
+    Task<int> DeleteAllByConversationIdAsync(int conversationId);
 }

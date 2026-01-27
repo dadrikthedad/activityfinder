@@ -30,6 +30,23 @@ public class ConversationLeftRecordRepository(ApplicationDbContext context) : IC
             .Where(r => r.UserId == userId)
             .Include(r => r.Conversation)
             .ToListAsync();
+    
+    // Sjekk interface for summary
+    public async Task<List<ConversationLeftRecord>> GetByUserIdPaginatedAsync(
+        string userId, int page, int pageSize) =>
+        await context.ConversationLeftRecords
+            .AsNoTracking()
+            .Where(r => r.UserId == userId)
+            .Include(r => r.Conversation)
+            .OrderByDescending(r => r.LeftAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    
+    // Sjekk interface for summary
+    public async Task<int> GetCountByUserIdAsync(string userId) =>
+        await context.ConversationLeftRecords
+            .CountAsync(r => r.UserId == userId);
 
     // Sjekk interface for summary
     public async Task DeleteAsync(ConversationLeftRecord record)
@@ -37,4 +54,10 @@ public class ConversationLeftRecordRepository(ApplicationDbContext context) : IC
         context.ConversationLeftRecords.Remove(record);
         await context.SaveChangesAsync();
     }
+    
+    // Sjekk interface for summary
+    public async Task<int> DeleteAllByConversationIdAsync(int conversationId) =>
+        await context.ConversationLeftRecords
+            .Where(r => r.ConversationId == conversationId)
+            .ExecuteDeleteAsync();
 }

@@ -152,6 +152,6 @@ public static class ConversationMapperExtensions
             Status = cp.Status,
             Role = cp.Role,
             PendingMessagesReceived = cp.PendingMessagesReceived
-        }).ToList();
+        }).ToList()
     };
 }

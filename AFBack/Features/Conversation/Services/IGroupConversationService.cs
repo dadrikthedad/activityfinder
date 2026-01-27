@@ -51,4 +51,43 @@ public interface IGroupConversationService
     /// <returns>ConversationResponse med oppdatert samtale inkludert nye inviterte brukere</returns>
     Task<Result<ConversationResponse>> InviteGroupMembersAsync(
         string userId, int conversationId, InviteGroupMemberRequest request);
+    
+    /// <summary>
+    /// Forlater en gruppesamtale. Brukeren må ha Accepted status. Oppretter en ConversationLeftRecord
+    /// for å hindre re-invitasjon, fjerner brukeren fra Participants, sender systemmelding om at brukeren
+    /// forlot gruppen, og notifiserer gjenstående medlemmer via SignalR og SyncEvents.
+    /// </summary>
+    /// <param name="userId">Brukeren som forlater gruppen (må ha Accepted status)</param>
+    /// <param name="conversationId">Gruppesamtalen som forlates</param>
+    /// <returns>Result uten data (NoContent)</returns>
+    Task<Result> LeaveGroupConversationAsync(string userId, int conversationId);
+    
+    /// <summary>
+    /// Henter alle grupper brukeren har forlatt/avslått med paginering.
+    /// Brukes for å vise en liste over grupper brukeren kan bli med i igjen.
+    /// </summary>
+    /// <param name="userId">Brukeren som skal hentes records for</param>
+    /// <param name="page">Sidenummer (1-indeksert)</param>
+    /// <param name="pageSize">Antall per side</param>
+    /// <returns>ConversationLeftRecordsResponse med paginert liste</returns>
+    Task<Result<ConversationLeftRecordsResponse>> GetLeftConversationsAsync(string userId, int page, int pageSize);
+    
+    /// <summary>
+    /// Sletter en ConversationLeftRecord slik at brukeren kan bli invitert på nytt til gruppen.
+    /// </summary>
+    /// <param name="userId">Brukeren som ønsker å fjerne recorden</param>
+    /// <param name="conversationId">Samtalen recorden tilhører</param>
+    /// <returns>Result uten data (NoContent)</returns>
+    Task<Result> DeleteLeftConversationRecordAsync(string userId, int conversationId);
+    
+    /// <summary>
+    /// Oppdaterer gruppenavnet. Kun Creator har tilgang til dette.
+    /// Sender systemmelding, SignalR, Notification og SyncEvent til alle deltakere (Accepted og Pending).
+    /// </summary>
+    /// <param name="userId">Brukeren som oppdaterer navnet (må være Creator)</param>
+    /// <param name="conversationId">Gruppesamtalen som oppdateres</param>
+    /// <param name="request">UpdateGroupNameRequest med nytt gruppenavn</param>
+    /// <returns>ConversationResponse med oppdatert samtale</returns>
+    Task<Result<ConversationResponse>> UpdateGroupNameAsync(
+        string userId, int conversationId, UpdateGroupNameRequest request);
 }

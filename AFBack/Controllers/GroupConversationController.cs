@@ -1,129 +1,129 @@
-using System.ComponentModel.DataAnnotations;
-using System.Text.Json;
-using AFBack.Cache;
-using AFBack.Constants;
-using AFBack.Data;
-using AFBack.DTOs;
-using AFBack.Extensions;
-using AFBack.Features.Cache;
-using AFBack.Features.Cache.Interface;
-using AFBack.Features.CanSend.Models;
-using AFBack.Features.Conversation.Models;
-using AFBack.Features.MessageNotification.Models;
-using AFBack.Features.MessageNotification.Service;
-using AFBack.Features.Messaging.Models;
-using AFBack.Features.SyncEvents.Services;
-using AFBack.Functions;
-using AFBack.Hubs;
-using AFBack.Infrastructure.Services;
-using AFBack.Interface.Services;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using AFBack.Models;
-using AFBack.Services;
-using Microsoft.AspNetCore.SignalR;
-
-namespace AFBack.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class GroupConversationController(
-    ApplicationDbContext context,
-    ILogger<GroupConversationController> logger,
-    ISendMessageCache msgCache,
-    IBackgroundTaskQueue taskQueue,
-    IServiceScopeFactory scopeFactory,
-    IHubContext<UserHub> hubContext,
-    IMessageNotificationService messageNotificationService,
-    GroupNotificationService groupNotificationService,
-    IMessageService messageService,
-    IUserCache userCache,
-    ResponseService responseService)
-    : BaseController<GroupConversationController>(context, logger, userCache, responseService)
-{
-    [HttpPost("send-requests")]
-    public async Task<SendGroupRequestsResponseDTO> SendGroupRequestsAsync(SendGroupRequestsDTO request)
-    {
-        // Henter bruker
-        int senderId = GetUserId() ?? throw new UnauthorizedAccessException("AppUser not authenticated");
-        
-        // 1️⃣ Valider input
-        if (request.InvitedUserIds?.Any() != true)
-            throw new Exception("Ingen brukere å invitere");
-        
-        // Sjekker om alle brukerne er med
-        await ValidateUsersExistAsync(request.InvitedUserIds.Concat([senderId]));
-
-        // 2️⃣ Finn eller opprett samtale
-        var (conversation, isNewConversation, systemMessageCreated, initialMessageCreated) = await GetOrCreateGroupConversationAsync(senderId, request);
-
-        // 3️⃣ Sjekk blokkeringer for alle mottakere
-        var blockedUsers = await CheckBlockedUsersAsyncOptimized(senderId, request.InvitedUserIds);
-        if (blockedUsers.Any())
-        {
-            var blockedNames = string.Join(", ", blockedUsers);
-            throw new Exception($"AppUser has blocked you: {blockedNames}");
-        }
-
-        // 4️⃣ Filtrer bort brukere som allerede er medlemmer eller har pending invitasjoner
-        var validRecipients = await FilterValidRecipientsAsync(conversation.Id, request.InvitedUserIds);
-        var alreadyInvited = request.InvitedUserIds.Except(validRecipients).ToList();
-        
-        if (!validRecipients.Any())
-        {
-            if (alreadyInvited.Count == 1)
-                throw new Exception($"AppUser {alreadyInvited.First()} has already been invited.");
-            
-            throw new Exception($"AppUsers {string.Join(", ", alreadyInvited)} have already been invited.");
-        }
-
-        // 5️⃣ Opprett GroupRequests
-        var groupRequests = new List<GroupRequest>();
-        var newParticipants = new List<ConversationParticipant>();
-        
-        foreach (var userId in validRecipients)
-        {
-            var groupRequest = new GroupRequest
-            {
-                SenderId = senderId,
-                ReceiverId = userId,
-                ConversationId = conversation.Id,
-                Status = GroupRequestStatus.Pending,
-                RequestedAt = DateTime.UtcNow,
-                IsRead = false
-            };
-
-            Context.GroupRequests.Add(groupRequest);
-            groupRequests.Add(groupRequest);
-            
-            // 🆕 Legg til som Participant ved invitasjon
-            var participant = new ConversationParticipant
-            {
-                ConversationId = conversation.Id,
-                UserId = userId
-            };
-
-            Context.ConversationParticipants.Add(participant);
-            newParticipants.Add(participant);
-        }
-        
-        
-        await Context.SaveChangesAsync();
-        
-        Console.WriteLine("🟡 Queueing background task for group requests...");
-        // 6️⃣ Send notifikasjoner i bakgrunnen
-        taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id, senderId, !isNewConversation, conversation, systemMessageCreated, initialMessageCreated));
-
-        return new SendGroupRequestsResponseDTO
-        {
-            ConversationId = conversation.Id,
-            IsNewConversation = isNewConversation,
-            InvitationsSent = validRecipients.Count,
-            TotalRequestedUsers = request.InvitedUserIds.Count
-        };
-        
-    }
-    
+// using System.ComponentModel.DataAnnotations;
+// using System.Text.Json;
+// using AFBack.Cache;
+// using AFBack.Constants;
+// using AFBack.Data;
+// using AFBack.DTOs;
+// using AFBack.Extensions;
+// using AFBack.Features.Cache;
+// using AFBack.Features.Cache.Interface;
+// using AFBack.Features.CanSend.Models;
+// using AFBack.Features.Conversation.Models;
+// using AFBack.Features.MessageNotification.Models;
+// using AFBack.Features.MessageNotification.Service;
+// using AFBack.Features.Messaging.Models;
+// using AFBack.Features.SyncEvents.Services;
+// using AFBack.Functions;
+// using AFBack.Hubs;
+// using AFBack.Infrastructure.Services;
+// using AFBack.Interface.Services;
+// using Microsoft.AspNetCore.Mvc;
+// using Microsoft.EntityFrameworkCore;
+// using AFBack.Models;
+// using AFBack.Services;
+// using Microsoft.AspNetCore.SignalR;
+//
+// namespace AFBack.Controllers;
+//
+// [ApiController]
+// [Route("api/[controller]")]
+// public class GroupConversationController(
+//     ApplicationDbContext context,
+//     ILogger<GroupConversationController> logger,
+//     ISendMessageCache msgCache,
+//     IBackgroundTaskQueue taskQueue,
+//     IServiceScopeFactory scopeFactory,
+//     IHubContext<UserHub> hubContext,
+//     IMessageNotificationService messageNotificationService,
+//     GroupNotificationService groupNotificationService,
+//     IMessageService messageService,
+//     IUserCache userCache,
+//     ResponseService responseService)
+//     : BaseController<GroupConversationController>(context, logger, userCache, responseService)
+// {
+//     [HttpPost("send-requests")]
+//     public async Task<SendGroupRequestsResponseDTO> SendGroupRequestsAsync(SendGroupRequestsDTO request)
+//     {
+//         // Henter bruker
+//         int senderId = GetUserId() ?? throw new UnauthorizedAccessException("AppUser not authenticated");
+//         
+//         // 1️⃣ Valider input
+//         if (request.InvitedUserIds?.Any() != true)
+//             throw new Exception("Ingen brukere å invitere");
+//         
+//         // Sjekker om alle brukerne er med
+//         await ValidateUsersExistAsync(request.InvitedUserIds.Concat([senderId]));
+//
+//         // 2️⃣ Finn eller opprett samtale
+//         var (conversation, isNewConversation, systemMessageCreated, initialMessageCreated) = await GetOrCreateGroupConversationAsync(senderId, request);
+//
+//         // 3️⃣ Sjekk blokkeringer for alle mottakere
+//         var blockedUsers = await CheckBlockedUsersAsyncOptimized(senderId, request.InvitedUserIds);
+//         if (blockedUsers.Any())
+//         {
+//             var blockedNames = string.Join(", ", blockedUsers);
+//             throw new Exception($"AppUser has blocked you: {blockedNames}");
+//         }
+//
+//         // 4️⃣ Filtrer bort brukere som allerede er medlemmer eller har pending invitasjoner
+//         var validRecipients = await FilterValidRecipientsAsync(conversation.Id, request.InvitedUserIds);
+//         var alreadyInvited = request.InvitedUserIds.Except(validRecipients).ToList();
+//         
+//         if (!validRecipients.Any())
+//         {
+//             if (alreadyInvited.Count == 1)
+//                 throw new Exception($"AppUser {alreadyInvited.First()} has already been invited.");
+//             
+//             throw new Exception($"AppUsers {string.Join(", ", alreadyInvited)} have already been invited.");
+//         }
+//
+//         // 5️⃣ Opprett GroupRequests
+//         var groupRequests = new List<GroupRequest>();
+//         var newParticipants = new List<ConversationParticipant>();
+//         
+//         foreach (var userId in validRecipients)
+//         {
+//             var groupRequest = new GroupRequest
+//             {
+//                 SenderId = senderId,
+//                 ReceiverId = userId,
+//                 ConversationId = conversation.Id,
+//                 Status = GroupRequestStatus.Pending,
+//                 RequestedAt = DateTime.UtcNow,
+//                 IsRead = false
+//             };
+//
+//             Context.GroupRequests.Add(groupRequest);
+//             groupRequests.Add(groupRequest);
+//             
+//             // 🆕 Legg til som Participant ved invitasjon
+//             var participant = new ConversationParticipant
+//             {
+//                 ConversationId = conversation.Id,
+//                 UserId = userId
+//             };
+//
+//             Context.ConversationParticipants.Add(participant);
+//             newParticipants.Add(participant);
+//         }
+//         
+//         
+//         await Context.SaveChangesAsync();
+//         
+//         Console.WriteLine("🟡 Queueing background task for group requests...");
+//         // 6️⃣ Send notifikasjoner i bakgrunnen
+//         taskQueue.QueueAsync(() => NotifyAndBroadcastGroupRequestAsync(groupRequests, conversation.Id, senderId, !isNewConversation, conversation, systemMessageCreated, initialMessageCreated));
+//
+//         return new SendGroupRequestsResponseDTO
+//         {
+//             ConversationId = conversation.Id,
+//             IsNewConversation = isNewConversation,
+//             InvitationsSent = validRecipients.Count,
+//             TotalRequestedUsers = request.InvitedUserIds.Count
+//         };
+//         
+//     }
+//     
     
     // Hjelpefunksjoenr til SendGroupRerquerstsAsync
     
@@ -176,759 +176,759 @@ public class GroupConversationController(
             .ToList();
     }
 
-    private async Task<(Conversation conversation, bool isNewConversation, MessageResponseDto? systemMessageCreated, MessageResponseDto? initialMesssageCreated )> GetOrCreateGroupConversationAsync(
-    int senderId, SendGroupRequestsDTO request)
-    {
-        // Hvis ConversationId er oppgitt, bruk eksisterende
-        if (request.ConversationId.HasValue)
-        {
-            var existing = await Context.Conversations
-                .Include(c => c.Participants)
-                .FirstOrDefaultAsync(c => c.Id == request.ConversationId.Value && c.IsGroup);
-
-            if (existing == null)
-                throw new Exception("Gruppe ikke funnet");
-
-            // Sjekk at sender er medlem
-            var senderParticipant = existing.Participants
-                .FirstOrDefault(p => p.UserId == senderId);
-            
-            if (senderParticipant == null)
-                throw new Exception("Du er ikke medlem av denne gruppen eller har ikke akseptert invitasjonen");
-
-            return (existing, false, null, null);
-        }
-
-        // Opprett ny gruppe
-        string groupName;
-
-        if (!string.IsNullOrWhiteSpace(request.GroupName))
-        {
-            groupName = request.GroupName;
-        }
-        else
-        {
-            var invitedUsers = await Context.Users
-                .Where(u => request.InvitedUserIds.Contains(u.Id))
-                .ToListAsync();
-
-            var invitedNames = invitedUsers
-                .Select(u => $"{u.FirstName} {u.LastName}".Trim())
-                .ToList();
-
-            // Valgfritt: legg til senderens navn også
-            var sender = await Context.Users.FindAsync(senderId);
-            if (sender != null)
-            {
-                invitedNames.Insert(0, $"{sender.FirstName} {sender.LastName}".Trim());
-            }
-
-            groupName = string.Join(", ", invitedNames);
-
-            // Begrens lengde hvis ønskelig
-            if (groupName.Length > 100)
-            {
-                groupName = string.Join(", ", invitedNames.Take(3)) + " ...";
-            }
-        }
-
-        var newConversation = new Conversation
-        {
-            IsGroup = true,
-            GroupName = groupName,
-            GroupImageUrl = request.GroupImageUrl,
-            CreatorId = senderId,
-        };
-
-        Context.Conversations.Add(newConversation);
-        await Context.SaveChangesAsync(); // Få ID
-        
-        var creatorParticipant = new ConversationParticipant
-        {
-            ConversationId = newConversation.Id,
-            UserId = senderId,
-        };
-        Context.ConversationParticipants.Add(creatorParticipant);
-        
-        var creatorCanSend = new CanSend
-        {
-            ConversationId = newConversation.Id,
-            UserId = senderId,
-            ApprovedAt = DateTime.UtcNow,
-            Reason = CanSendReason.GroupRequestCreator,
-            LastUpdated = DateTime.UtcNow
-        };
-        Context.CanSend.Add(creatorCanSend);
-        
-        var creatorRequest = new GroupRequest
-        {
-            SenderId = senderId,
-            ReceiverId = senderId,
-            ConversationId = newConversation.Id,
-            Status = GroupRequestStatus.Creator,
-            RequestedAt = DateTime.UtcNow,
-            IsRead = true
-        };
-        Context.GroupRequests.Add(creatorRequest);
-
-       
-        await Context.SaveChangesAsync();
-        
-        
-        
-        // 1️⃣ Hent creator navn
-        var creator = await Context.Users.FindAsync(senderId);
-        var senderName = creator?.FullName ?? "En bruker";
-
-        // 2️⃣ Lag systemmelding med hjelpefunksjon (inkluderer automatisk SignalR)
-        var systemMessage = await messageNotificationService.CreateSystemMessageAsync(
-            newConversation.Id,
-            $"{senderName} has created the group"
-        );
-        
-        MessageResponseDto? initialMessageDto = null;
-        // 3️⃣ Legg til creator's melding hvis den finnes
-        if (!string.IsNullOrWhiteSpace(request.InitialMessage))
-        {
-            var creatorMessage = new Message
-            {
-                ConversationId = newConversation.Id,
-                SenderId = senderId,
-                EncryptedText = request.InitialMessage.Trim(),
-                SentAt = DateTime.UtcNow,
-                IsSystemMessage = false // 🆕 Eksplisitt vanlig melding
-            };
-            Context.Messages.Add(creatorMessage);
-
-            // Oppdater LastMessageSentAt til creator's message
-            newConversation.LastMessageSentAt = creatorMessage.SentAt;
-            await Context.SaveChangesAsync();
-            
-            // 🆕 Map til MessageResponseDTO
-            initialMessageDto = await messageService.MapToResponseDtoOptimized(creatorMessage.Id);
-        }
-
-        return (newConversation, true, systemMessage, initialMessageDto);
-    }
-    
-        private async Task NotifyAndBroadcastGroupRequestAsync(
-        List<GroupRequest> groupRequests, 
-        int conversationId, 
-        int senderId, 
-        bool isExistingGroup, 
-        Conversation conversation,
-        MessageResponseDto? systemMessageCreated,
-        MessageResponseDto? initialMessage = null)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var notifSvc = scope.ServiceProvider.GetRequiredService<IMessageNotificationService>();
-        var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
-        var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        
-        var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
-        
-        // 🎯 Hent appUser data for alle participants én gang
-        var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToArray();
-        var userData = await SyncEventExtensions.GetUserDataAsync(context, allParticipantIds);
-        
-        // 🆕 Hent group request statuses for alle participants
-        var groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
-            context, conversationId, allParticipantIds);
-        
-        // Beregn eksisterende medlemmer (de som var der før invitasjonene)
-        var existingMemberIds = allParticipantIds.Where(id => !invitedUserIds.Contains(id)).ToList();
-        
-        // Pre-beregn conversation data for eksisterende medlemmer (gjenbrukes)
-        Object? memberConversationData = null;
-        
-        if (isExistingGroup && (existingMemberIds.Any() || groupRequests.Any()))
-        {
-            memberConversationData = conversation.MapConversationToSyncData(senderId, userData, groupRequestStatuses);
-        }
-        
-        MessageResponseDto? systemMessageInvitedUsersToExistingConv = null;
-
-        // 🆕 Lag systemmelding for invitasjoner til eksisterende gruppe
-        if (isExistingGroup && groupRequests.Any())
-        {
-            // Hent inviter navn
-            var inviter = await context.AppUsers
-                .Where(u => u.Id == senderId)
-                .Select(u => u.FullName)
-                .FirstOrDefaultAsync();
-
-            // Hent inviterte brukere navn
-            var invitedUsers = await context.AppUsers
-                .Where(u => invitedUserIds.Contains(u.Id))
-                .Select(u => u.FullName)
-                .ToListAsync();
-
-            // Generer systemmelding-tekst
-            string systemMessageText;
-            if (invitedUsers.Count == 1)
-            {
-                systemMessageText = $"{inviter} has invited {invitedUsers[0]}";
-            }
-            else if (invitedUsers.Count == 2)
-            {
-                systemMessageText = $"{inviter} has invited {invitedUsers[0]} and {invitedUsers[1]}";
-            }
-            else
-            {
-                var lastUser = invitedUsers.Last();
-                var otherUsers = string.Join(", ", invitedUsers.Take(invitedUsers.Count - 1));
-                systemMessageText = $"{inviter} has invited {otherUsers} and {lastUser}";
-            }
-            
-            // Lag systemmelding (inkluderer automatisk SignalR)
-            systemMessageInvitedUsersToExistingConv = await notifSvc.CreateSystemMessageAsync(
-                conversationId, 
-                systemMessageText, 
-                excludeUserIds: invitedUserIds
-            );
-        }
-
-        // 1️⃣ Opprett GroupEvent for invitasjoner (til godkjente medlemmer)
-        if (isExistingGroup)
-        {
-            await groupNotifSvc.CreateGroupEventAsync(
-                GroupEventType.MemberInvited, 
-                conversation.Id, 
-                senderId, 
-                invitedUserIds);
-        }
-
-        // 2️⃣ Send individuelle GroupRequest notifikasjoner til nye inviterte
-        foreach (var groupRequest in groupRequests)
-        {
-            try
-            {
-                // Opprett notifikasjon
-                var notification = await notifSvc.CreateGroupRequestNotificationAsync(
-                    senderId: groupRequest.SenderId,
-                    receiverId: groupRequest.ReceiverId,
-                    conversationId: groupRequest.ConversationId,
-                    groupRequestId: groupRequest.Id,
-                    groupName: conversation.GroupName
-                );
-
-                // Send SignalR for GroupRequest
-                if (notification != null)
-                {
-                    await hubContext.Clients.User(groupRequest.ReceiverId.ToString())
-                        .SendAsync("GroupRequestCreated", new GroupRequestCreatedDto
-                        {
-                            GroupRequestId = groupRequest.Id,
-                            SenderId = groupRequest.SenderId,
-                            ReceiverId = groupRequest.ReceiverId,
-                            ConversationId = groupRequest.ConversationId,
-                            GroupName = conversation.GroupName,
-                            GroupImageUrl = conversation.GroupImageUrl,
-                            CreatorId = conversation.CreatorId,
-                            RequestedAt = groupRequest.RequestedAt,
-                            Notification = notification
-                        });
-                
-                    Console.WriteLine($"✅ Sent GroupRequestCreated to appUser {groupRequest.ReceiverId}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to notify appUser {groupRequest.ReceiverId} about group invitation: {ex.Message}");
-            }
-        }
-        
-        // 3️⃣ Send GroupParticipantsUpdated til eksisterende inviterte medlemmer som ikke har akseptert
-        var existingPendingUserIds = await context.GroupRequests
-            .Where(gr => gr.ConversationId == conversationId && 
-                         gr.Status == GroupRequestStatus.Pending &&
-                         !invitedUserIds.Contains(gr.ReceiverId))
-            .Select(gr => gr.ReceiverId.ToString())
-            .ToListAsync();
-
-        if (existingPendingUserIds.Any())
-        {
-            await hubContext.Clients.Users(existingPendingUserIds)
-                .SendAsync("GroupParticipantsUpdated", new
-                {
-                    ConversationId = conversationId
-                });
-
-            Console.WriteLine($"🔁 Sent GroupParticipantsUpdated to existing pending members: {string.Join(", ", existingPendingUserIds)}");
-        }
-        
-        // SYNC EVENTS
-        try 
-        {
-            // Hvis ny gruppe ble opprettet
-            if (!isExistingGroup)
-            {
-                var creatorConversationData = conversation.MapConversationToSyncData(senderId, userData, groupRequestStatuses);
-
-                await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.CONVERSATION_CREATED,
-                    eventData: new {
-                        conversationData = creatorConversationData, 
-                        systemMessage = systemMessageCreated, 
-                        message = initialMessage
-                    }, 
-                    singleUserId: senderId,
-                    source: "API",
-                    relatedEntityId: conversation.Id,
-                    relatedEntityType: "Conversations"
-                );
-            }
-            
-            // Event til hver inviterte bruker om group request
-            foreach (var groupRequest in groupRequests)
-            {
-                var groupRequestData = conversation.MapToRequestDTO(
-                    senderId: groupRequest.SenderId,
-                    requestedAt: groupRequest.RequestedAt,
-                    userData: userData,
-                    isGroupRequest: true
-                );
-
-                // Velg riktig systemmelding basert på om gruppen eksisterer
-                var relevantSystemMessage = isExistingGroup 
-                    ? systemMessageInvitedUsersToExistingConv 
-                    : systemMessageCreated;
-
-                // 🆕 Bygg eventData dynamisk basert på om det er ny gruppe med initial message
-                object eventData;
-
-                if (!isExistingGroup && initialMessage != null)
-                {
-                    // Ny gruppe med initial message: send både systemmelding og initial message
-                    eventData = new { 
-                        groupRequestData, 
-                        systemMessage = relevantSystemMessage,
-                        message = initialMessage
-                    };
-                }
-                else
-                {
-                    // Eksisterende gruppe eller ny gruppe uten initial message: kun systemmelding
-                    eventData = new { 
-                        groupRequestData, 
-                        systemMessage = relevantSystemMessage
-                    };
-                }
-
-                await syncService.CreateAndDistributeSyncEventAsync(
-                    eventType: SyncEventTypes.REQUEST_RECEIVED,
-                    eventData: eventData,
-                    singleUserId: groupRequest.ReceiverId,
-                    source: "API",
-                    relatedEntityId: groupRequest.Id,
-                    relatedEntityType: "GroupRequest"
-                );
-            }
-
-            // 🆕 Send GROUP_INFO_UPDATED til ALLE eksisterende og pending medlemmer
-            if (isExistingGroup && systemMessageInvitedUsersToExistingConv != null)
-            {
-                // Hent existing pending appUser IDs som integers
-                var existingPendingUserIdsInt = await context.GroupRequests
-                    .Where(gr => gr.ConversationId == conversationId && 
-                                 gr.Status == GroupRequestStatus.Pending &&
-                                 !invitedUserIds.Contains(gr.ReceiverId))
-                    .Select(gr => gr.ReceiverId)
-                    .ToListAsync();
-
-                // Kombiner alle relevante brukere
-                var allRelevantUserIds = existingMemberIds.Concat(existingPendingUserIdsInt).ToList();
-
-                if (allRelevantUserIds.Any())
-                {
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.GROUP_INFO_UPDATED,
-                        eventData: new {
-                            conversation = memberConversationData,
-                            message = systemMessageInvitedUsersToExistingConv
-                        },
-                        targetUserIds: allRelevantUserIds,
-                        source: "API",
-                        relatedEntityId: conversation.Id,
-                        relatedEntityType: "Conversations"
-                    );
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to create sync events for group requests: {ex.Message}");
-        }
-    }
-    
-    [HttpPost("leave-group")]
-    public async Task<IActionResult> LeaveGroupAsync([FromBody] int conversationId)
-    {
-        var userId = GetUserId();
-        if (userId == null)
-            return Unauthorized();
-
-        try
-        {
-            // 1️⃣ Valider at gruppen finnes
-            var conversation = await Context.Conversations
-                .Include(c => c.Participants)
-                .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
-
-            if (conversation == null)
-                return NotFound(new { message = "Gruppen finnes ikke." });
-
-            // 2️⃣ Sjekk at brukeren er medlem av gruppen
-            var participant = conversation.Participants
-                .FirstOrDefault(p => p.UserId == userId.Value);
-
-            if (participant == null)
-                return BadRequest(new { message = "Du er ikke medlem av denne gruppen." });
-            
-            bool wasCreator = conversation.CreatorId == userId.Value;
-
-            MessageResponseDto? systemMessageCreatorLeaving = null;
-            
-            // 3️⃣ Håndter creator som forlater (tildel ny creator)
-            if (conversation.CreatorId == userId.Value)
-            {
-                systemMessageCreatorLeaving = await HandleCreatorLeavingAsync(conversation, userId.Value);
-            }
-
-            // 4️⃣ Fjern bruker fra participants
-            Context.ConversationParticipants.Remove(participant);
-            
-            // Fjernes fra CanSend
-            await Context.RemoveCanSendAsync(userId.Value, conversationId, msgCache);
-
-            // 5️⃣ Sett brukerens GroupRequest til Rejected
-            var userGroupRequest = await Context.GroupRequests
-                .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId.Value);
-
-            if (userGroupRequest != null)
-            {
-                userGroupRequest.Status = GroupRequestStatus.Rejected;
-                userGroupRequest.IsRead = true; // 🆕 Marker som lest
-            }
-
-            // 🆕 6️⃣ Marker relaterte MessageNotifications som lest
-            var relatedNotifications = await Context.MessageNotifications
-                .Where(n => n.UserId == userId.Value && 
-                            n.ConversationId == conversationId && 
-                            (n.Type == NotificationType.GroupRequest || n.Type == NotificationType.GroupEvent) &&
-                            !n.IsRead)
-                .ToListAsync();
-
-            foreach (var notification in relatedNotifications)
-            {
-                notification.IsRead = true;
-                notification.ReadAt = DateTime.UtcNow;
-            }
-
-            await Context.SaveChangesAsync();
-
-            // 7️⃣ Hent bruker-navn for systemmelding
-            var user = await Context.Users
-                .Where(u => u.Id == userId.Value)
-                .Select(u => u.FullName)
-                .FirstOrDefaultAsync();
-            
-            MessageResponseDto? systemMessage = null;
-            
-            // 8️⃣ Lag systemmelding
-            if (!wasCreator)
-            {
-                systemMessage = await messageNotificationService.CreateSystemMessageAsync(
-                    conversationId,
-                    $"{user} has left the conversation"
-                );
-            }
-            
-            // 🆕 SYNC EVENTS - etter SaveChanges
-            taskQueue.QueueAsync(async () => 
-            {
-                using var scope = scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                try 
-                {
-                    // 1️⃣ Event til brukeren som forlot - fjern gruppen fra listen -- FERDIG BACKEND OG FRONTEND
-                    await syncService.CreateAndDistributeSyncEventAsync(
-                        eventType: SyncEventTypes.CONVERSATION_LEFT,
-                        eventData: conversationId,
-                        singleUserId: userId.Value,
-                        source: "API",
-                        relatedEntityId: conversationId,
-                        relatedEntityType: "Conversations"
-                    );
-
-                    // 2️⃣ Event til gjenværende medlemmer om at noen forlot
-                    var remainingMemberIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
-                        .ConversationParticipants
-                        .Where(cp => cp.ConversationId == conversationId)
-                        .Select(cp => cp.UserId)
-                        .ToListAsync();
-
-                     if (remainingMemberIds.Any())
-                    {
-                        // 🆕 Hent oppdatert conversation med remaining members
-                        var updatedConversation = await context.Conversations
-                            .Include(c => c.Participants)
-                                .ThenInclude(p => p.AppUser)
-                                    .ThenInclude(u => u.UserProfile)
-                            .FirstOrDefaultAsync(c => c.Id == conversationId);
-
-                        if (updatedConversation != null)
-                        {
-                            // Hent userData for remaining members
-                            var userData = await SyncEventExtensions.GetUserDataAsync(context, remainingMemberIds.ToArray());
-
-                            // Hent group request statuses
-                            var groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
-                                context, conversationId, remainingMemberIds.ToArray());
-
-                            // Bygg conversation data (bruk leftUserId som userId parameter)
-                            var conversationData = updatedConversation.MapConversationToSyncData(
-                                userId.Value, // 🆕 Endre fra leftUserId til userId.Value
-                                userData, 
-                                groupRequestStatuses
-                            );
-                            
-                            await syncService.CreateAndDistributeSyncEventAsync(
-                                eventType: SyncEventTypes.GROUP_INFO_UPDATED,
-                                eventData: new { 
-                                    conversationData,
-                                    systemMessage = systemMessageCreatorLeaving ?? systemMessage // 🆕 Velg riktig systemmelding
-                                },
-                                targetUserIds: remainingMemberIds,
-                                source: "API",
-                                relatedEntityId: conversationId,
-                                relatedEntityType: "Conversations"
-                            );
-                        }
-                    }
-
-                    // 3️⃣ Sjekk om gruppen ble disbanded (existing code...)
-                    var updatedConversationForDisbanded = await context.Conversations
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(c => c.Id == conversationId);
-
-                    if (updatedConversationForDisbanded?.IsDisbanded == true)
-                    {
-                        // Event til alle pending brukere om disbanded gruppe
-                        var pendingUserIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
-                            .GroupRequests
-                            .Where(gr => gr.ConversationId == conversationId && 
-                                         gr.Status == GroupRequestStatus.Pending)
-                            .Select(gr => gr.ReceiverId)
-                            .ToListAsync();
-
-                        if (pendingUserIds.Any())
-                        {
-                            // Hvis en gruppe blir disbanded
-                            await syncService.CreateAndDistributeSyncEventAsync(
-                                eventType: SyncEventTypes.CONVERSATION_LEFT,
-                                eventData: conversationId,
-                                targetUserIds: pendingUserIds,
-                                source: "API",
-                                relatedEntityId: conversationId,
-                                relatedEntityType: "Conversations"
-                            );
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Failed to create sync events for group leave: {ex.Message}");
-                }
-            });
-
-            // 9️⃣ Opprett GroupEvent for å notifisere gjenværende medlemmer
-            taskQueue.QueueAsync(async () =>
-            {
-                using var scope = scopeFactory.CreateScope();
-                var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
-                
-                await groupNotifSvc.CreateGroupEventAsync(
-                    GroupEventType.MemberLeft,
-                    conversationId,
-                    userId.Value, // ActorUserId - den som forlot
-                    new List<int> { userId.Value } // AffectedUsers - den som forlot
-                );
-            });
-
-            return Ok(new { message = "Du har forlatt gruppen." });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
-    
-    // 🆕 Oppdatert hjelpemetode for creator-overføring
-    private async Task<MessageResponseDto> HandleCreatorLeavingAsync(Conversation conversation, int creatorId)
-    {
-        // Hent creator navn først
-        var creatorUser = await Context.Users
-            .Where(u => u.Id == creatorId)
-            .Select(u => u.FullName)
-            .FirstOrDefaultAsync();
-        
-        // Finn en ny creator blant gjenværende godkjente medlemmer
-        var approvedMemberIds = await Context.ConversationParticipants
-            .Where(cp => cp.ConversationId == conversation.Id && cp.UserId != creatorId)
-            .Select(cp => cp.UserId)
-            .ToListAsync();
-
-        // Filtrer bort pending medlemmer
-        var pendingUserIds = await Context.GroupRequests
-            .Where(gr => gr.ConversationId == conversation.Id && gr.Status == GroupRequestStatus.Pending)
-            .Select(gr => gr.ReceiverId)
-            .ToListAsync();
-
-        var eligibleMembers = approvedMemberIds.Where(id => !pendingUserIds.Contains(id)).ToList();
-        MessageResponseDto? systemMessageCreatorLeaving = null;
-
-        if (eligibleMembers.Any())
-        {
-            // Velg den første godkjente medlemmet som ny creator
-            var newCreatorId = eligibleMembers.First();
-            conversation.CreatorId = newCreatorId;
-
-            // Lag systemmelding om ny creator
-            var newCreatorUser = await Context.Users
-                .Where(u => u.Id == newCreatorId)
-                .Select(u => u.FullName)
-                .FirstOrDefaultAsync();
-
-           systemMessageCreatorLeaving = await messageNotificationService.CreateSystemMessageAsync(
-                conversation.Id,
-                $"{creatorUser} has left the conversation\n{newCreatorUser} is now the group admin"
-            );
-        }
-        else
-        {
-            // 🆕 Sjekk om det finnes pending invitasjoner
-            var hasPendingInvites = pendingUserIds.Any();
-            
-            if (hasPendingInvites)
-            {
-                // 🆕 Disbanded gruppe - notifiser pending brukere først
-                Console.WriteLine($"💥 Disbanding gruppe {conversation.Id} '{conversation.GroupName}' - {pendingUserIds.Count} pending invitasjoner kanselleres");
-                
-                // Send disbanded notifikasjoner til alle pending brukere
-                await NotifyGroupDisbandedAsync(conversation, pendingUserIds);
-                
-                // Slett gruppen etter notifikasjoner er sendt
-                await MarkGroupAsDisbandedAsync(conversation);
-            }
-            else
-            {
-                // Ingen medlemmer og ingen pending invitasjoner - slett stille
-                await MarkGroupAsDisbandedAsync(conversation);
-            }
-        }
-
-        return systemMessageCreatorLeaving;
-    }
-
-    // Ny metode for å notifisere om disbanded gruppe
-    private async Task NotifyGroupDisbandedAsync(Conversation conversation, List<int> pendingUserIds)
-    {
-        try
-        {
-            // Send disbanded notifikasjoner til alle pending brukere
-            foreach (var userId in pendingUserIds)
-            {
-                try
-                {
-                    // Opprett disbanded notifikasjon
-                    var notification = new MessageNotification
-                    {
-                        RecipientId = userId,
-                        ConversationId = conversation.Id,
-                        Type = NotificationType.GroupDisbanded,
-                        CreatedAt = DateTime.UtcNow,
-                        IsRead = false,
-                        MessageCount = 1
-                    };
-
-                    Context.MessageNotifications.Add(notification);
-                    await Context.SaveChangesAsync(); // Lagre for å få ID
-
-                    // Send SignalR om disbanded gruppe
-                    await hubContext.Clients.User(userId.ToString())
-                        .SendAsync("GroupDisbanded", new GroupDisbandedDto
-                        {
-                            ConversationId = conversation.Id,
-                            GroupName = conversation.GroupName,
-                            GroupImageUrl = conversation.GroupImageUrl,
-                            DisbandedAt = DateTime.UtcNow,
-                            Notification = new MessageNotificationDTO
-                            {
-                                Id = notification.Id,
-                                Type = NotificationType.GroupDisbanded,
-                                ConversationId = conversation.Id,
-                                GroupName = conversation.GroupName,
-                                GroupImageUrl = conversation.GroupImageUrl,
-                                MessagePreview = $"Group '{conversation.GroupName}' has been disbanded",
-                                CreatedAt = notification.CreatedAt,
-                                IsRead = false,
-                                IsConversationRejected = true // 🆕 Marker som rejected/disbanded
-                            }
-                        });
-
-                    Console.WriteLine($"📨 Sent disbanded notification to appUser {userId}");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"❌ Failed to notify appUser {userId} about disbanded group: {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Feil ved disbanded notifikasjoner for gruppe {conversation.Id}: {ex.Message}");
-        }
-    }
-    
-    private async Task MarkGroupAsDisbandedAsync(Conversation conversation)
-    {
-        try
-        {
-            Console.WriteLine($"💥 Markerer gruppe {conversation.Id} '{conversation.GroupName}' som disbanded");
-
-            // Marker conversation som disbanded
-            conversation.IsDisbanded = true;
-            conversation.DisbandedAt = DateTime.UtcNow;
-
-            // Sett alle GroupRequests til Rejected
-            var groupRequests = await Context.GroupRequests
-                .Where(gr => gr.ConversationId == conversation.Id)
-                .ToListAsync();
-
-            foreach (var request in groupRequests)
-            {
-                request.Status = GroupRequestStatus.Rejected;
-            }
-
-            // Fjern alle participants (de har allerede forlatt)
-            var participants = await Context.ConversationParticipants
-                .Where(cp => cp.ConversationId == conversation.Id)
-                .ToListAsync();
-            Context.ConversationParticipants.RemoveRange(participants);
-
-            Console.WriteLine($"✅ Gruppe {conversation.Id} markert som disbanded - bevares i 30 dager");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"❌ Feil ved markering av disbanded gruppe {conversation.Id}: {ex.Message}");
-            throw;
-        }
-    }
-    
+    // private async Task<(Conversation conversation, bool isNewConversation, MessageResponseDto? systemMessageCreated, MessageResponseDto? initialMesssageCreated )> GetOrCreateGroupConversationAsync(
+    // int senderId, SendGroupRequestsDTO request)
+    // {
+    //     // Hvis ConversationId er oppgitt, bruk eksisterende
+    //     if (request.ConversationId.HasValue)
+    //     {
+    //         var existing = await Context.Conversations
+    //             .Include(c => c.Participants)
+    //             .FirstOrDefaultAsync(c => c.Id == request.ConversationId.Value && c.IsGroup);
+    //
+    //         if (existing == null)
+    //             throw new Exception("Gruppe ikke funnet");
+    //
+    //         // Sjekk at sender er medlem
+    //         var senderParticipant = existing.Participants
+    //             .FirstOrDefault(p => p.UserId == senderId);
+    //         
+    //         if (senderParticipant == null)
+    //             throw new Exception("Du er ikke medlem av denne gruppen eller har ikke akseptert invitasjonen");
+    //
+    //         return (existing, false, null, null);
+    //     }
+    //
+    //     // Opprett ny gruppe
+    //     string groupName;
+    //
+    //     if (!string.IsNullOrWhiteSpace(request.GroupName))
+    //     {
+    //         groupName = request.GroupName;
+    //     }
+    //     else
+    //     {
+    //         var invitedUsers = await Context.Users
+    //             .Where(u => request.InvitedUserIds.Contains(u.Id))
+    //             .ToListAsync();
+    //
+    //         var invitedNames = invitedUsers
+    //             .Select(u => $"{u.FirstName} {u.LastName}".Trim())
+    //             .ToList();
+    //
+    //         // Valgfritt: legg til senderens navn også
+    //         var sender = await Context.Users.FindAsync(senderId);
+    //         if (sender != null)
+    //         {
+    //             invitedNames.Insert(0, $"{sender.FirstName} {sender.LastName}".Trim());
+    //         }
+    //
+    //         groupName = string.Join(", ", invitedNames);
+    //
+    //         // Begrens lengde hvis ønskelig
+    //         if (groupName.Length > 100)
+    //         {
+    //             groupName = string.Join(", ", invitedNames.Take(3)) + " ...";
+    //         }
+    //     }
+    //
+    //     var newConversation = new Conversation
+    //     {
+    //         IsGroup = true,
+    //         GroupName = groupName,
+    //         GroupImageUrl = request.GroupImageUrl,
+    //         CreatorId = senderId,
+    //     };
+    //
+    //     Context.Conversations.Add(newConversation);
+    //     await Context.SaveChangesAsync(); // Få ID
+    //     
+    //     var creatorParticipant = new ConversationParticipant
+    //     {
+    //         ConversationId = newConversation.Id,
+    //         UserId = senderId,
+    //     };
+    //     Context.ConversationParticipants.Add(creatorParticipant);
+    //     
+    //     var creatorCanSend = new CanSend
+    //     {
+    //         ConversationId = newConversation.Id,
+    //         UserId = senderId,
+    //         ApprovedAt = DateTime.UtcNow,
+    //         Reason = CanSendReason.GroupRequestCreator,
+    //         LastUpdated = DateTime.UtcNow
+    //     };
+    //     Context.CanSend.Add(creatorCanSend);
+    //     
+    //     var creatorRequest = new GroupRequest
+    //     {
+    //         SenderId = senderId,
+    //         ReceiverId = senderId,
+    //         ConversationId = newConversation.Id,
+    //         Status = GroupRequestStatus.Creator,
+    //         RequestedAt = DateTime.UtcNow,
+    //         IsRead = true
+    //     };
+    //     Context.GroupRequests.Add(creatorRequest);
+    //
+    //    
+    //     await Context.SaveChangesAsync();
+    //     
+    //     
+    //     
+    //     // 1️⃣ Hent creator navn
+    //     var creator = await Context.Users.FindAsync(senderId);
+    //     var senderName = creator?.FullName ?? "En bruker";
+    //
+    //     // 2️⃣ Lag systemmelding med hjelpefunksjon (inkluderer automatisk SignalR)
+    //     var systemMessage = await messageNotificationService.CreateSystemMessageAsync(
+    //         newConversation.Id,
+    //         $"{senderName} has created the group"
+    //     );
+    //     
+    //     MessageResponseDto? initialMessageDto = null;
+    //     // 3️⃣ Legg til creator's melding hvis den finnes
+    //     if (!string.IsNullOrWhiteSpace(request.InitialMessage))
+    //     {
+    //         var creatorMessage = new Message
+    //         {
+    //             ConversationId = newConversation.Id,
+    //             SenderId = senderId,
+    //             EncryptedText = request.InitialMessage.Trim(),
+    //             SentAt = DateTime.UtcNow,
+    //             IsSystemMessage = false // 🆕 Eksplisitt vanlig melding
+    //         };
+    //         Context.Messages.Add(creatorMessage);
+    //
+    //         // Oppdater LastMessageSentAt til creator's message
+    //         newConversation.LastMessageSentAt = creatorMessage.SentAt;
+    //         await Context.SaveChangesAsync();
+    //         
+    //         // 🆕 Map til MessageResponseDTO
+    //         initialMessageDto = await messageService.MapToResponseDtoOptimized(creatorMessage.Id);
+    //     }
+    //
+    //     return (newConversation, true, systemMessage, initialMessageDto);
+    // }
+    //
+    //     private async Task NotifyAndBroadcastGroupRequestAsync(
+    //     List<GroupRequest> groupRequests, 
+    //     int conversationId, 
+    //     int senderId, 
+    //     bool isExistingGroup, 
+    //     Conversation conversation,
+    //     MessageResponseDto? systemMessageCreated,
+    //     MessageResponseDto? initialMessage = null)
+    // {
+    //     using var scope = scopeFactory.CreateScope();
+    //     var notifSvc = scope.ServiceProvider.GetRequiredService<IMessageNotificationService>();
+    //     var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
+    //     var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
+    //     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    //     
+    //     var invitedUserIds = groupRequests.Select(gr => gr.ReceiverId).ToList();
+    //     
+    //     // 🎯 Hent appUser data for alle participants én gang
+    //     var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToArray();
+    //     var userData = await SyncEventExtensions.GetUserDataAsync(context, allParticipantIds);
+    //     
+    //     // 🆕 Hent group request statuses for alle participants
+    //     var groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+    //         context, conversationId, allParticipantIds);
+    //     
+    //     // Beregn eksisterende medlemmer (de som var der før invitasjonene)
+    //     var existingMemberIds = allParticipantIds.Where(id => !invitedUserIds.Contains(id)).ToList();
+    //     
+    //     // Pre-beregn conversation data for eksisterende medlemmer (gjenbrukes)
+    //     Object? memberConversationData = null;
+    //     
+    //     if (isExistingGroup && (existingMemberIds.Any() || groupRequests.Any()))
+    //     {
+    //         memberConversationData = conversation.MapConversationToSyncData(senderId, userData, groupRequestStatuses);
+    //     }
+    //     
+    //     MessageResponseDto? systemMessageInvitedUsersToExistingConv = null;
+    //
+    //     // 🆕 Lag systemmelding for invitasjoner til eksisterende gruppe
+    //     if (isExistingGroup && groupRequests.Any())
+    //     {
+    //         // Hent inviter navn
+    //         var inviter = await context.AppUsers
+    //             .Where(u => u.Id == senderId)
+    //             .Select(u => u.FullName)
+    //             .FirstOrDefaultAsync();
+    //
+    //         // Hent inviterte brukere navn
+    //         var invitedUsers = await context.AppUsers
+    //             .Where(u => invitedUserIds.Contains(u.Id))
+    //             .Select(u => u.FullName)
+    //             .ToListAsync();
+    //
+    //         // Generer systemmelding-tekst
+    //         string systemMessageText;
+    //         if (invitedUsers.Count == 1)
+    //         {
+    //             systemMessageText = $"{inviter} has invited {invitedUsers[0]}";
+    //         }
+    //         else if (invitedUsers.Count == 2)
+    //         {
+    //             systemMessageText = $"{inviter} has invited {invitedUsers[0]} and {invitedUsers[1]}";
+    //         }
+    //         else
+    //         {
+    //             var lastUser = invitedUsers.Last();
+    //             var otherUsers = string.Join(", ", invitedUsers.Take(invitedUsers.Count - 1));
+    //             systemMessageText = $"{inviter} has invited {otherUsers} and {lastUser}";
+    //         }
+    //         
+    //         // Lag systemmelding (inkluderer automatisk SignalR)
+    //         systemMessageInvitedUsersToExistingConv = await notifSvc.CreateSystemMessageAsync(
+    //             conversationId, 
+    //             systemMessageText, 
+    //             excludeUserIds: invitedUserIds
+    //         );
+    //     }
+    //
+    //     // 1️⃣ Opprett GroupEvent for invitasjoner (til godkjente medlemmer)
+    //     if (isExistingGroup)
+    //     {
+    //         await groupNotifSvc.CreateGroupEventAsync(
+    //             GroupEventType.MemberInvited, 
+    //             conversation.Id, 
+    //             senderId, 
+    //             invitedUserIds);
+    //     }
+    //
+    //     // 2️⃣ Send individuelle GroupRequest notifikasjoner til nye inviterte
+    //     foreach (var groupRequest in groupRequests)
+    //     {
+    //         try
+    //         {
+    //             // Opprett notifikasjon
+    //             var notification = await notifSvc.CreateGroupRequestNotificationAsync(
+    //                 senderId: groupRequest.SenderId,
+    //                 receiverId: groupRequest.ReceiverId,
+    //                 conversationId: groupRequest.ConversationId,
+    //                 groupRequestId: groupRequest.Id,
+    //                 groupName: conversation.GroupName
+    //             );
+    //
+    //             // Send SignalR for GroupRequest
+    //             if (notification != null)
+    //             {
+    //                 await hubContext.Clients.User(groupRequest.ReceiverId.ToString())
+    //                     .SendAsync("GroupRequestCreated", new GroupRequestCreatedDto
+    //                     {
+    //                         GroupRequestId = groupRequest.Id,
+    //                         SenderId = groupRequest.SenderId,
+    //                         ReceiverId = groupRequest.ReceiverId,
+    //                         ConversationId = groupRequest.ConversationId,
+    //                         GroupName = conversation.GroupName,
+    //                         GroupImageUrl = conversation.GroupImageUrl,
+    //                         CreatorId = conversation.CreatorId,
+    //                         RequestedAt = groupRequest.RequestedAt,
+    //                         Notification = notification
+    //                     });
+    //             
+    //                 Console.WriteLine($"✅ Sent GroupRequestCreated to appUser {groupRequest.ReceiverId}");
+    //             }
+    //         }
+    //         catch (Exception ex)
+    //         {
+    //             Console.WriteLine($"Failed to notify appUser {groupRequest.ReceiverId} about group invitation: {ex.Message}");
+    //         }
+    //     }
+    //     
+    //     // 3️⃣ Send GroupParticipantsUpdated til eksisterende inviterte medlemmer som ikke har akseptert
+    //     var existingPendingUserIds = await context.GroupRequests
+    //         .Where(gr => gr.ConversationId == conversationId && 
+    //                      gr.Status == GroupRequestStatus.Pending &&
+    //                      !invitedUserIds.Contains(gr.ReceiverId))
+    //         .Select(gr => gr.ReceiverId.ToString())
+    //         .ToListAsync();
+    //
+    //     if (existingPendingUserIds.Any())
+    //     {
+    //         await hubContext.Clients.Users(existingPendingUserIds)
+    //             .SendAsync("GroupParticipantsUpdated", new
+    //             {
+    //                 ConversationId = conversationId
+    //             });
+    //
+    //         Console.WriteLine($"🔁 Sent GroupParticipantsUpdated to existing pending members: {string.Join(", ", existingPendingUserIds)}");
+    //     }
+    //     
+    //     // SYNC EVENTS
+    //     try 
+    //     {
+    //         // Hvis ny gruppe ble opprettet
+    //         if (!isExistingGroup)
+    //         {
+    //             var creatorConversationData = conversation.MapConversationToSyncData(senderId, userData, groupRequestStatuses);
+    //
+    //             await syncService.CreateAndDistributeSyncEventAsync(
+    //                 eventType: SyncEventTypes.CONVERSATION_CREATED,
+    //                 eventData: new {
+    //                     conversationData = creatorConversationData, 
+    //                     systemMessage = systemMessageCreated, 
+    //                     message = initialMessage
+    //                 }, 
+    //                 singleUserId: senderId,
+    //                 source: "API",
+    //                 relatedEntityId: conversation.Id,
+    //                 relatedEntityType: "Conversations"
+    //             );
+    //         }
+    //         
+    //         // Event til hver inviterte bruker om group request
+    //         foreach (var groupRequest in groupRequests)
+    //         {
+    //             var groupRequestData = conversation.MapToRequestDTO(
+    //                 senderId: groupRequest.SenderId,
+    //                 requestedAt: groupRequest.RequestedAt,
+    //                 userData: userData,
+    //                 isGroupRequest: true
+    //             );
+    //
+    //             // Velg riktig systemmelding basert på om gruppen eksisterer
+    //             var relevantSystemMessage = isExistingGroup 
+    //                 ? systemMessageInvitedUsersToExistingConv 
+    //                 : systemMessageCreated;
+    //
+    //             // 🆕 Bygg eventData dynamisk basert på om det er ny gruppe med initial message
+    //             object eventData;
+    //
+    //             if (!isExistingGroup && initialMessage != null)
+    //             {
+    //                 // Ny gruppe med initial message: send både systemmelding og initial message
+    //                 eventData = new { 
+    //                     groupRequestData, 
+    //                     systemMessage = relevantSystemMessage,
+    //                     message = initialMessage
+    //                 };
+    //             }
+    //             else
+    //             {
+    //                 // Eksisterende gruppe eller ny gruppe uten initial message: kun systemmelding
+    //                 eventData = new { 
+    //                     groupRequestData, 
+    //                     systemMessage = relevantSystemMessage
+    //                 };
+    //             }
+    //
+    //             await syncService.CreateAndDistributeSyncEventAsync(
+    //                 eventType: SyncEventTypes.REQUEST_RECEIVED,
+    //                 eventData: eventData,
+    //                 singleUserId: groupRequest.ReceiverId,
+    //                 source: "API",
+    //                 relatedEntityId: groupRequest.Id,
+    //                 relatedEntityType: "GroupRequest"
+    //             );
+    //         }
+    //
+    //         // 🆕 Send GROUP_INFO_UPDATED til ALLE eksisterende og pending medlemmer
+    //         if (isExistingGroup && systemMessageInvitedUsersToExistingConv != null)
+    //         {
+    //             // Hent existing pending appUser IDs som integers
+    //             var existingPendingUserIdsInt = await context.GroupRequests
+    //                 .Where(gr => gr.ConversationId == conversationId && 
+    //                              gr.Status == GroupRequestStatus.Pending &&
+    //                              !invitedUserIds.Contains(gr.ReceiverId))
+    //                 .Select(gr => gr.ReceiverId)
+    //                 .ToListAsync();
+    //
+    //             // Kombiner alle relevante brukere
+    //             var allRelevantUserIds = existingMemberIds.Concat(existingPendingUserIdsInt).ToList();
+    //
+    //             if (allRelevantUserIds.Any())
+    //             {
+    //                 await syncService.CreateAndDistributeSyncEventAsync(
+    //                     eventType: SyncEventTypes.GROUP_INFO_UPDATED,
+    //                     eventData: new {
+    //                         conversation = memberConversationData,
+    //                         message = systemMessageInvitedUsersToExistingConv
+    //                     },
+    //                     targetUserIds: allRelevantUserIds,
+    //                     source: "API",
+    //                     relatedEntityId: conversation.Id,
+    //                     relatedEntityType: "Conversations"
+    //                 );
+    //             }
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine($"Failed to create sync events for group requests: {ex.Message}");
+    //     }
+    // }
+    //
+    // [HttpPost("leave-group")]
+    // public async Task<IActionResult> LeaveGroupAsync([FromBody] int conversationId)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null)
+    //         return Unauthorized();
+    //
+    //     try
+    //     {
+    //         // 1️⃣ Valider at gruppen finnes
+    //         var conversation = await Context.Conversations
+    //             .Include(c => c.Participants)
+    //             .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
+    //
+    //         if (conversation == null)
+    //             return NotFound(new { message = "Gruppen finnes ikke." });
+    //
+    //         // 2️⃣ Sjekk at brukeren er medlem av gruppen
+    //         var participant = conversation.Participants
+    //             .FirstOrDefault(p => p.UserId == userId.Value);
+    //
+    //         if (participant == null)
+    //             return BadRequest(new { message = "Du er ikke medlem av denne gruppen." });
+    //         
+    //         bool wasCreator = conversation.CreatorId == userId.Value;
+    //
+    //         MessageResponseDto? systemMessageCreatorLeaving = null;
+    //         
+    //         // 3️⃣ Håndter creator som forlater (tildel ny creator)
+    //         if (conversation.CreatorId == userId.Value)
+    //         {
+    //             systemMessageCreatorLeaving = await HandleCreatorLeavingAsync(conversation, userId.Value);
+    //         }
+    //
+    //         // 4️⃣ Fjern bruker fra participants
+    //         Context.ConversationParticipants.Remove(participant);
+    //         
+    //         // Fjernes fra CanSend
+    //         await Context.RemoveCanSendAsync(userId.Value, conversationId, msgCache);
+    //
+    //         // 5️⃣ Sett brukerens GroupRequest til Rejected
+    //         var userGroupRequest = await Context.GroupRequests
+    //             .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && gr.ReceiverId == userId.Value);
+    //
+    //         if (userGroupRequest != null)
+    //         {
+    //             userGroupRequest.Status = GroupRequestStatus.Rejected;
+    //             userGroupRequest.IsRead = true; // 🆕 Marker som lest
+    //         }
+    //
+    //         // 🆕 6️⃣ Marker relaterte MessageNotifications som lest
+    //         var relatedNotifications = await Context.MessageNotifications
+    //             .Where(n => n.UserId == userId.Value && 
+    //                         n.ConversationId == conversationId && 
+    //                         (n.Type == NotificationType.GroupRequest || n.Type == NotificationType.GroupEvent) &&
+    //                         !n.IsRead)
+    //             .ToListAsync();
+    //
+    //         foreach (var notification in relatedNotifications)
+    //         {
+    //             notification.IsRead = true;
+    //             notification.ReadAt = DateTime.UtcNow;
+    //         }
+    //
+    //         await Context.SaveChangesAsync();
+    //
+    //         // 7️⃣ Hent bruker-navn for systemmelding
+    //         var user = await Context.Users
+    //             .Where(u => u.Id == userId.Value)
+    //             .Select(u => u.FullName)
+    //             .FirstOrDefaultAsync();
+    //         
+    //         MessageResponseDto? systemMessage = null;
+    //         
+    //         // 8️⃣ Lag systemmelding
+    //         if (!wasCreator)
+    //         {
+    //             systemMessage = await messageNotificationService.CreateSystemMessageAsync(
+    //                 conversationId,
+    //                 $"{user} has left the conversation"
+    //             );
+    //         }
+    //         
+    //         // 🆕 SYNC EVENTS - etter SaveChanges
+    //         taskQueue.QueueAsync(async () => 
+    //         {
+    //             using var scope = scopeFactory.CreateScope();
+    //             var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
+    //             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    //
+    //             try 
+    //             {
+    //                 // 1️⃣ Event til brukeren som forlot - fjern gruppen fra listen -- FERDIG BACKEND OG FRONTEND
+    //                 await syncService.CreateAndDistributeSyncEventAsync(
+    //                     eventType: SyncEventTypes.CONVERSATION_LEFT,
+    //                     eventData: conversationId,
+    //                     singleUserId: userId.Value,
+    //                     source: "API",
+    //                     relatedEntityId: conversationId,
+    //                     relatedEntityType: "Conversations"
+    //                 );
+    //
+    //                 // 2️⃣ Event til gjenværende medlemmer om at noen forlot
+    //                 var remainingMemberIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+    //                     .ConversationParticipants
+    //                     .Where(cp => cp.ConversationId == conversationId)
+    //                     .Select(cp => cp.UserId)
+    //                     .ToListAsync();
+    //
+    //                  if (remainingMemberIds.Any())
+    //                 {
+    //                     // 🆕 Hent oppdatert conversation med remaining members
+    //                     var updatedConversation = await context.Conversations
+    //                         .Include(c => c.Participants)
+    //                             .ThenInclude(p => p.AppUser)
+    //                                 .ThenInclude(u => u.UserProfile)
+    //                         .FirstOrDefaultAsync(c => c.Id == conversationId);
+    //
+    //                     if (updatedConversation != null)
+    //                     {
+    //                         // Hent userData for remaining members
+    //                         var userData = await SyncEventExtensions.GetUserDataAsync(context, remainingMemberIds.ToArray());
+    //
+    //                         // Hent group request statuses
+    //                         var groupRequestStatuses = await SyncEventExtensions.GetGroupRequestStatusesAsync(
+    //                             context, conversationId, remainingMemberIds.ToArray());
+    //
+    //                         // Bygg conversation data (bruk leftUserId som userId parameter)
+    //                         var conversationData = updatedConversation.MapConversationToSyncData(
+    //                             userId.Value, // 🆕 Endre fra leftUserId til userId.Value
+    //                             userData, 
+    //                             groupRequestStatuses
+    //                         );
+    //                         
+    //                         await syncService.CreateAndDistributeSyncEventAsync(
+    //                             eventType: SyncEventTypes.GROUP_INFO_UPDATED,
+    //                             eventData: new { 
+    //                                 conversationData,
+    //                                 systemMessage = systemMessageCreatorLeaving ?? systemMessage // 🆕 Velg riktig systemmelding
+    //                             },
+    //                             targetUserIds: remainingMemberIds,
+    //                             source: "API",
+    //                             relatedEntityId: conversationId,
+    //                             relatedEntityType: "Conversations"
+    //                         );
+    //                     }
+    //                 }
+    //
+    //                 // 3️⃣ Sjekk om gruppen ble disbanded (existing code...)
+    //                 var updatedConversationForDisbanded = await context.Conversations
+    //                     .AsNoTracking()
+    //                     .FirstOrDefaultAsync(c => c.Id == conversationId);
+    //
+    //                 if (updatedConversationForDisbanded?.IsDisbanded == true)
+    //                 {
+    //                     // Event til alle pending brukere om disbanded gruppe
+    //                     var pendingUserIds = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+    //                         .GroupRequests
+    //                         .Where(gr => gr.ConversationId == conversationId && 
+    //                                      gr.Status == GroupRequestStatus.Pending)
+    //                         .Select(gr => gr.ReceiverId)
+    //                         .ToListAsync();
+    //
+    //                     if (pendingUserIds.Any())
+    //                     {
+    //                         // Hvis en gruppe blir disbanded
+    //                         await syncService.CreateAndDistributeSyncEventAsync(
+    //                             eventType: SyncEventTypes.CONVERSATION_LEFT,
+    //                             eventData: conversationId,
+    //                             targetUserIds: pendingUserIds,
+    //                             source: "API",
+    //                             relatedEntityId: conversationId,
+    //                             relatedEntityType: "Conversations"
+    //                         );
+    //                     }
+    //                 }
+    //             }
+    //             catch (Exception ex)
+    //             {
+    //                 Console.WriteLine($"Failed to create sync events for group leave: {ex.Message}");
+    //             }
+    //         });
+    //
+    //         // 9️⃣ Opprett GroupEvent for å notifisere gjenværende medlemmer
+    //         taskQueue.QueueAsync(async () =>
+    //         {
+    //             using var scope = scopeFactory.CreateScope();
+    //             var groupNotifSvc = scope.ServiceProvider.GetRequiredService<GroupNotificationService>();
+    //             
+    //             await groupNotifSvc.CreateGroupEventAsync(
+    //                 GroupEventType.MemberLeft,
+    //                 conversationId,
+    //                 userId.Value, // ActorUserId - den som forlot
+    //                 new List<int> { userId.Value } // AffectedUsers - den som forlot
+    //             );
+    //         });
+    //
+    //         return Ok(new { message = "Du har forlatt gruppen." });
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return BadRequest(new { message = ex.Message });
+    //     }
+    // }
+    //
+    // // 🆕 Oppdatert hjelpemetode for creator-overføring
+    // private async Task<MessageResponseDto> HandleCreatorLeavingAsync(Conversation conversation, int creatorId)
+    // {
+    //     // Hent creator navn først
+    //     var creatorUser = await Context.Users
+    //         .Where(u => u.Id == creatorId)
+    //         .Select(u => u.FullName)
+    //         .FirstOrDefaultAsync();
+    //     
+    //     // Finn en ny creator blant gjenværende godkjente medlemmer
+    //     var approvedMemberIds = await Context.ConversationParticipants
+    //         .Where(cp => cp.ConversationId == conversation.Id && cp.UserId != creatorId)
+    //         .Select(cp => cp.UserId)
+    //         .ToListAsync();
+    //
+    //     // Filtrer bort pending medlemmer
+    //     var pendingUserIds = await Context.GroupRequests
+    //         .Where(gr => gr.ConversationId == conversation.Id && gr.Status == GroupRequestStatus.Pending)
+    //         .Select(gr => gr.ReceiverId)
+    //         .ToListAsync();
+    //
+    //     var eligibleMembers = approvedMemberIds.Where(id => !pendingUserIds.Contains(id)).ToList();
+    //     MessageResponseDto? systemMessageCreatorLeaving = null;
+    //
+    //     if (eligibleMembers.Any())
+    //     {
+    //         // Velg den første godkjente medlemmet som ny creator
+    //         var newCreatorId = eligibleMembers.First();
+    //         conversation.CreatorId = newCreatorId;
+    //
+    //         // Lag systemmelding om ny creator
+    //         var newCreatorUser = await Context.Users
+    //             .Where(u => u.Id == newCreatorId)
+    //             .Select(u => u.FullName)
+    //             .FirstOrDefaultAsync();
+    //
+    //        systemMessageCreatorLeaving = await messageNotificationService.CreateSystemMessageAsync(
+    //             conversation.Id,
+    //             $"{creatorUser} has left the conversation\n{newCreatorUser} is now the group admin"
+    //         );
+    //     }
+    //     else
+    //     {
+    //         // 🆕 Sjekk om det finnes pending invitasjoner
+    //         var hasPendingInvites = pendingUserIds.Any();
+    //         
+    //         if (hasPendingInvites)
+    //         {
+    //             // 🆕 Disbanded gruppe - notifiser pending brukere først
+    //             Console.WriteLine($"💥 Disbanding gruppe {conversation.Id} '{conversation.GroupName}' - {pendingUserIds.Count} pending invitasjoner kanselleres");
+    //             
+    //             // Send disbanded notifikasjoner til alle pending brukere
+    //             await NotifyGroupDisbandedAsync(conversation, pendingUserIds);
+    //             
+    //             // Slett gruppen etter notifikasjoner er sendt
+    //             await MarkGroupAsDisbandedAsync(conversation);
+    //         }
+    //         else
+    //         {
+    //             // Ingen medlemmer og ingen pending invitasjoner - slett stille
+    //             await MarkGroupAsDisbandedAsync(conversation);
+    //         }
+    //     }
+    //
+    //     return systemMessageCreatorLeaving;
+    // }
+
+    // // Ny metode for å notifisere om disbanded gruppe
+    // private async Task NotifyGroupDisbandedAsync(Conversation conversation, List<int> pendingUserIds)
+    // {
+    //     try
+    //     {
+    //         // Send disbanded notifikasjoner til alle pending brukere
+    //         foreach (var userId in pendingUserIds)
+    //         {
+    //             try
+    //             {
+    //                 // Opprett disbanded notifikasjon
+    //                 var notification = new MessageNotification
+    //                 {
+    //                     RecipientId = userId,
+    //                     ConversationId = conversation.Id,
+    //                     Type = NotificationType.GroupDisbanded,
+    //                     CreatedAt = DateTime.UtcNow,
+    //                     IsRead = false,
+    //                     MessageCount = 1
+    //                 };
+    //
+    //                 Context.MessageNotifications.Add(notification);
+    //                 await Context.SaveChangesAsync(); // Lagre for å få ID
+    //
+    //                 // Send SignalR om disbanded gruppe
+    //                 await hubContext.Clients.User(userId.ToString())
+    //                     .SendAsync("GroupDisbanded", new GroupDisbandedDto
+    //                     {
+    //                         ConversationId = conversation.Id,
+    //                         GroupName = conversation.GroupName,
+    //                         GroupImageUrl = conversation.GroupImageUrl,
+    //                         DisbandedAt = DateTime.UtcNow,
+    //                         Notification = new MessageNotificationDTO
+    //                         {
+    //                             Id = notification.Id,
+    //                             Type = NotificationType.GroupDisbanded,
+    //                             ConversationId = conversation.Id,
+    //                             GroupName = conversation.GroupName,
+    //                             GroupImageUrl = conversation.GroupImageUrl,
+    //                             MessagePreview = $"Group '{conversation.GroupName}' has been disbanded",
+    //                             CreatedAt = notification.CreatedAt,
+    //                             IsRead = false,
+    //                             IsConversationRejected = true // 🆕 Marker som rejected/disbanded
+    //                         }
+    //                     });
+    //
+    //                 Console.WriteLine($"📨 Sent disbanded notification to appUser {userId}");
+    //             }
+    //             catch (Exception ex)
+    //             {
+    //                 Console.WriteLine($"❌ Failed to notify appUser {userId} about disbanded group: {ex.Message}");
+    //             }
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine($"❌ Feil ved disbanded notifikasjoner for gruppe {conversation.Id}: {ex.Message}");
+    //     }
+    // }
+    //
+    // private async Task MarkGroupAsDisbandedAsync(Conversation conversation)
+    // {
+    //     try
+    //     {
+    //         Console.WriteLine($"💥 Markerer gruppe {conversation.Id} '{conversation.GroupName}' som disbanded");
+    //
+    //         // Marker conversation som disbanded
+    //         conversation.IsDisbanded = true;
+    //         conversation.DisbandedAt = DateTime.UtcNow;
+    //
+    //         // Sett alle GroupRequests til Rejected
+    //         var groupRequests = await Context.GroupRequests
+    //             .Where(gr => gr.ConversationId == conversation.Id)
+    //             .ToListAsync();
+    //
+    //         foreach (var request in groupRequests)
+    //         {
+    //             request.Status = GroupRequestStatus.Rejected;
+    //         }
+    //
+    //         // Fjern alle participants (de har allerede forlatt)
+    //         var participants = await Context.ConversationParticipants
+    //             .Where(cp => cp.ConversationId == conversation.Id)
+    //             .ToListAsync();
+    //         Context.ConversationParticipants.RemoveRange(participants);
+    //
+    //         Console.WriteLine($"✅ Gruppe {conversation.Id} markert som disbanded - bevares i 30 dager");
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine($"❌ Feil ved markering av disbanded gruppe {conversation.Id}: {ex.Message}");
+    //         throw;
+    //     }
+    // }
+    //
     
     [HttpPut("update-group-name")]
     public async Task<IActionResult> UpdateGroupName(int groupId, string newName)
@@ -1137,65 +1137,65 @@ public class GroupConversationController(
         }
     }
     
-    // Sletter en gruppeforespørsel for å kunne bli invitert tilbake i en gruppe
-    [HttpDelete("group-request/{conversationId}")]
-    public async Task<IActionResult> DeleteGroupRequestAsync(int conversationId)
-    {
-        var userId = GetUserId();
-        if (userId == null) return Unauthorized();
-        
-        try
-        {
-            // 1️⃣ Finn GroupRequest først
-            var groupRequest = await Context.GroupRequests
-                .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && 
-                                           gr.ReceiverId == userId.Value);
-
-            if (groupRequest == null)
-                return NotFound(new { message = "Ingen grupperequest funnet." });
-
-            // 2️⃣ Sjekk spesielle statuser tidlig
-            if (groupRequest.Status == GroupRequestStatus.Pending)
-                return BadRequest(new { message = "Kan ikke slette en pending request. Avslå den først." });
-
-            if (groupRequest.Status == GroupRequestStatus.Creator)
-                return BadRequest(new { message = "Kan ikke slette creator request." });
-
-            // 3️⃣ Sjekk conversation-status
-            var conversation = await Context.Conversations
-                .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
-
-            bool conversationExists = conversation != null && !conversation.IsDisbanded;
-
-            // 4️⃣ Hvis gruppen fortsatt eksisterer, valider medlemskap
-            if (conversationExists)
-            {
-                var isStillMember = await Context.ConversationParticipants
-                    .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId.Value);
-
-                if (isStillMember)
-                    return BadRequest(new { message = "Du må først forlate gruppen." });
-            }
-
-            // 5️⃣ Slett requesten
-            Context.GroupRequests.Remove(groupRequest);
-
-            await Context.SaveChangesAsync();
-
-            // 7️⃣ Returner forskjellig melding basert på gruppe-status
-            if (conversationExists)
-            {
-                return Ok(new { message = "Grouprequest deleted. You can now be invited again." });
-            }
-            else
-            {
-                return Ok(new { message = "Grouprequest deleted. The group no longer exists." });
-            }
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+    // // Sletter en gruppeforespørsel for å kunne bli invitert tilbake i en gruppe
+    // [HttpDelete("group-request/{conversationId}")]
+    // public async Task<IActionResult> DeleteGroupRequestAsync(int conversationId)
+    // {
+    //     var userId = GetUserId();
+    //     if (userId == null) return Unauthorized();
+    //     
+    //     try
+    //     {
+    //         // 1️⃣ Finn GroupRequest først
+    //         var groupRequest = await Context.GroupRequests
+    //             .FirstOrDefaultAsync(gr => gr.ConversationId == conversationId && 
+    //                                        gr.ReceiverId == userId.Value);
+    //
+    //         if (groupRequest == null)
+    //             return NotFound(new { message = "Ingen grupperequest funnet." });
+    //
+    //         // 2️⃣ Sjekk spesielle statuser tidlig
+    //         if (groupRequest.Status == GroupRequestStatus.Pending)
+    //             return BadRequest(new { message = "Kan ikke slette en pending request. Avslå den først." });
+    //
+    //         if (groupRequest.Status == GroupRequestStatus.Creator)
+    //             return BadRequest(new { message = "Kan ikke slette creator request." });
+    //
+    //         // 3️⃣ Sjekk conversation-status
+    //         var conversation = await Context.Conversations
+    //             .FirstOrDefaultAsync(c => c.Id == conversationId && c.IsGroup);
+    //
+    //         bool conversationExists = conversation != null && !conversation.IsDisbanded;
+    //
+    //         // 4️⃣ Hvis gruppen fortsatt eksisterer, valider medlemskap
+    //         if (conversationExists)
+    //         {
+    //             var isStillMember = await Context.ConversationParticipants
+    //                 .AnyAsync(cp => cp.ConversationId == conversationId && cp.UserId == userId.Value);
+    //
+    //             if (isStillMember)
+    //                 return BadRequest(new { message = "Du må først forlate gruppen." });
+    //         }
+    //
+    //         // 5️⃣ Slett requesten
+    //         Context.GroupRequests.Remove(groupRequest);
+    //
+    //         await Context.SaveChangesAsync();
+    //
+    //         // 7️⃣ Returner forskjellig melding basert på gruppe-status
+    //         if (conversationExists)
+    //         {
+    //             return Ok(new { message = "Grouprequest deleted. You can now be invited again." });
+    //         }
+    //         else
+    //         {
+    //             return Ok(new { message = "Grouprequest deleted. The group no longer exists." });
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         return BadRequest(new { message = ex.Message });
+    //     }
+    // }
         
 }

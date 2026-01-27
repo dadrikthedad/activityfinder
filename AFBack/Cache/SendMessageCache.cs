@@ -1,4 +1,5 @@
-using AFBack.Interface.Repository;
+using AFBack.Features.CanSend.Models;
+using AFBack.Features.CanSend.Repository;
 using Microsoft.Extensions.Caching.Distributed;
 
 
@@ -20,7 +21,7 @@ public class SendMessageCache(
     private long _cacheHits;
     private long _cacheMisses;
     
-    
+    // Sjekk interface for summary
     public async Task<bool> CanUserSendAsync(string userId, int conversationId)
     {
 
@@ -69,42 +70,97 @@ public class SendMessageCache(
     
 
     /* --------- Hjelpemetoder for å oppdatere cache når data endres --------- */
-    
+    // Sjekk interface for summary
     public async Task OnCanSendAddedAsync(string userId, int conversationId)
     {
         try
         {
+            using var scope = scopeFactory.CreateScope();
+            var canSendRepository = scope.ServiceProvider.GetRequiredService<ICanSendRepository>();
+        
+            var canSend = new CanSend
+            {
+                UserId = userId,
+                ConversationId = conversationId
+            };
+        
+            await canSendRepository.AddAsync(canSend);
+        
             await cache.SetStringAsync($"{CAN_SEND_PREFIX}{userId}:{conversationId}", "True",
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-                });
-
-            logger.LogInformation("Cache updated: CanSend added for {UserId}:{ConversationId}", 
-                userId, conversationId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Error updating cache after CanSend added");
-        }
-    }
-    
-    public async Task OnCanSendRemovedAsync(string userId, int conversationId)
-    {
-        try
-        {
-            await cache.SetStringAsync($"{CAN_SEND_PREFIX}{userId}:{conversationId}", "False",
                 new DistributedCacheEntryOptions
                 {
                     AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(_cacheDurationMinutes)
                 });
 
-            logger.LogInformation("Cache updated: CanSend removed for {UserId}:{ConversationId}", 
+            logger.LogInformation("CanSend added to database and cache for {UserId}:{ConversationId}", 
                 userId, conversationId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error updating cache after CanSend removed");
+            logger.LogError(ex, "Error adding CanSend for {UserId}:{ConversationId}", userId, conversationId);
+            throw;
+        }
+    }
+    
+    // Sjekk interface for summary
+    public async Task OnCanSendRemovedAsync(string userId, int conversationId)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var canSendRepository = scope.ServiceProvider.GetRequiredService<ICanSendRepository>();
+        
+            await canSendRepository.RemoveAsync(userId, conversationId);
+        
+            await cache.RemoveAsync($"{CAN_SEND_PREFIX}{userId}:{conversationId}");
+
+            logger.LogInformation("CanSend removed from database and cache for {UserId}:{ConversationId}", 
+                userId, conversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error removing CanSend for {UserId}:{ConversationId}", userId, conversationId);
+            throw;
+        }
+    }
+    
+    // Sjekk interface for summary
+    public async Task RemoveAllUsersFromConversationAsync(int conversationId)
+    {
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            var canSendRepository = scope.ServiceProvider.GetRequiredService<ICanSendRepository>();
+        
+            var userIds = await canSendRepository.GetUserIdsByConversationIdAsync(conversationId);
+        
+            if (!userIds.Any())
+            {
+                logger.LogDebug("No users with CanSend found for conversation {ConversationId}", conversationId);
+                return;
+            }
+
+            foreach (var userId in userIds)
+            {
+                try
+                {
+                    await OnCanSendRemovedAsync(userId, conversationId);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to remove CanSend for {UserId}:{ConversationId}", 
+                        userId, conversationId);
+                }
+            }
+
+            logger.LogInformation("Removed CanSend for {Count} users from conversation {ConversationId}", 
+                userIds.Count(), conversationId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to fetch users for CanSend removal from conversation {ConversationId}", 
+                conversationId);
+            throw;
         }
     }
 }

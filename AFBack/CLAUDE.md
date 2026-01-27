@@ -65,7 +65,7 @@ if (result.IsFailure)
     return HandleFailure(result); // Mapper ErrorType → HTTP status
 ```
 
-Bruk Result for forretningsfeil, exceptions for tekniske feil. Result<T> er definert i Common/Results.
+Bruk Result/Result<T> for forretningsfeil, exceptions for tekniske feil. Result/Result<T> er definert i Common/Results.
 
 ### Transaksjonsmønster
 

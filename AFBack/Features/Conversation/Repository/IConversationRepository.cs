@@ -169,12 +169,12 @@ public interface IConversationRepository
     Task UpdateLastMessageSentAt(int conversationId, DateTime sentAt);
     
     ////////////////////////////////////////////// DELETE CONVERSATIONS /////////////////////////////////////////////
-    
+
     /// <summary>
     /// Henter og sletter en samtale
     /// </summary>
-    /// <param name="conversationId">Samtalen som skal slettes</param>
-    Task DeleteConversationAsync(int conversationId);
+    /// <param name="conversation">Samtalen som skal slettes</param>
+    Task DeleteConversationAsync(Models.Conversation conversation);
     
     ////////////////////////////////////////////// PARTICIPANT OPERATIONS /////////////////////////////////////////////
     
@@ -192,4 +192,24 @@ public interface IConversationRepository
     /// <param name="participant">Brukeren som skal bli fjernet</param>
     /// <returns>True hvis participant ble fjernet, false hvis den ikke fantes</returns>
     Task RemoveParticipantAsync(ConversationParticipant participant);
+    
+    /// <summary>
+    /// Returnerer hvilke av de gitte samtale-IDene brukeren har Accepted status i.
+    /// Optimalisert for batch-validering av tilgang.
+    /// </summary>
+    /// <param name="userId">Brukeren som skal sjekkes</param>
+    /// <param name="conversationIds">Liste med samtale-IDer å sjekke</param>
+    /// <returns>HashSet med samtale-IDer brukeren har tilgang til</returns>
+    Task<HashSet<int>> GetUserAcceptedConversationIdsAsync(string userId, List<int> conversationIds);
+    
+    
+    /// <summary>
+    /// Henter den eldste inviterte brukeren med Accepted status i en gruppesamtale (etter creator).
+    /// Brukes for å overføre Creator-rollen når creator forlater.
+    /// Sorterer etter InvitedAt ascending og tar første som ikke er excludeUserId.
+    /// </summary>
+    /// <param name="conversationId">Samtalen å søke i</param>
+    /// <param name="excludeUserId">Brukeren som skal ekskluderes (creator som forlater)</param>
+    /// <returns>ConversationParticipant hvis kandidat finnes, null ellers</returns>
+    Task<ConversationParticipant?> GetNextCreatorCandidateAsync(int conversationId, string excludeUserId);
 }
