@@ -407,6 +407,48 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
+        // ==================== GroupEvent ====================
+        modelBuilder.Entity<GroupEvent>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(ge => ge.ConversationId);
+            entity.HasIndex(ge => ge.TriggeredByUserId);
+    
+            // --- Relationships --- //
+            entity.HasOne(ge => ge.Conversation)
+                .WithOne()
+                .HasForeignKey<GroupEvent>(ge => ge.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            // --- Relationships --- //
+            entity.HasOne(ge => ge.TriggeredByUser)
+                .WithOne()
+                .HasForeignKey<GroupEvent>(ge => ge.TriggeredByUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        // ==================== MessageNotificationGroupEvent ====================
+        modelBuilder.Entity<MessageNotificationGroupEvent>(entity =>
+        {
+            // --- Compound Primary Key --- //
+            entity.HasKey(e => new { e.MessageNotificationId, e.GroupEventId });
+
+            // --- Relationships --- //
+            // Relasjon til GruppeEventer
+            entity.HasOne(mge => mge.GroupEvent)
+                .WithMany()
+                .HasForeignKey(mge => mge.GroupEventId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Relasjon til MessageNotificaiton
+            entity.HasOne(mge => mge.MessageNotification)
+                .WithMany()
+                .HasForeignKey(mge => mge.MessageNotificationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+        
+        
         
         // venneliste med composite key. .HasKey definerer en primarykey basert på UserId og FriendId
         modelBuilder.Entity<Friendship>()
@@ -655,16 +697,16 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(e => e.ActorUser)
+            entity.HasOne(e => e.TriggeredByUser)
                 .WithMany()
-                .HasForeignKey(e => e.ActorUserId)
+                .HasForeignKey(e => e.TriggeredByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // FJERNET: Ignore AffectedUserIds (ikke lenger nødvendig)
 
             // Indekser (samme som før)
             entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
-            entity.HasIndex(e => e.ActorUserId);
+            entity.HasIndex(e => e.TriggeredByUserId);
         });
 
 // NY: Legg til konfigurasjon for GroupEventAffectedUser

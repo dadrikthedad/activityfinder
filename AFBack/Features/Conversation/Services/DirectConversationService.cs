@@ -1,7 +1,10 @@
 using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.Results;
+using AFBack.DTOs;
 using AFBack.Features.Block;
+using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
@@ -9,18 +12,13 @@ using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.Friendship.Repository;
-using AFBack.Features.MessageNotification.Service;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.Extensions;
 using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Models;
 using AFBack.Features.Messaging.Repository;
-using AFBack.Features.SyncEvents.Enums;
-using AFBack.Features.SyncEvents.Services;
-using AFBack.Hubs;
 using AFBack.Interface.Repository;
 using AFBack.Models.Enums;
-using Microsoft.AspNetCore.SignalR;
 using Newtonsoft.Json;
 
 namespace AFBack.Features.Conversation.Services;
@@ -33,13 +31,10 @@ public class DirectConversationService(
     IConversationValidator conversationValidator,
     IBlockService blockService,
     ISendMessageService sendMessageService,
-    ISyncService syncService,
+    IConversationBroadcastService broadcastService,
     ISendMessageCache sendMessageCache,
     IUserSummaryCacheService userSummariesCache,
-    IHubContext<UserHub> hubContext,
-    IFriendshipRepository friendshipRepository,
-    IMessageNotificationService messageNotificationService,
-    ISendMessageService messageService) : IDirectConversationService
+    IFriendshipRepository friendshipRepository) : IDirectConversationService
 {
      // Sjekk interface for summary
     public async Task<Result<SendMessageToUserResponse>> SendMessageToUserAsync(string userId, 
@@ -47,6 +42,8 @@ public class DirectConversationService(
     {
         logger.LogInformation("User {SenderId} is attempting to send a message to {ReceiverId}", 
             userId, request.ReceiverId);
+        
+        // ============ VALIDERING ============
         
         // Sjekk om mottaker eksisterer
         var receiverExists = await userRepository.UserExistsAsync(request.ReceiverId);
@@ -63,92 +60,8 @@ public class DirectConversationService(
         
         // Samtale eksisterer - send melding i eksisterende samtale
         if (existingConversation != null)
-        {
-            
-            // Sjekker om avsender er den som har mottat en pending forespørsel
-            var isSenderPending = existingConversation.Type == ConversationType.PendingRequest 
-                                  && existingConversation.Participants
-                                      .Any(cp => cp.UserId == userId 
-                                                 && cp.Status == ConversationStatus.Pending);
-            // Variabel hvis brukeren er pending og godkjenner samtalen
-            var wasAccepted = false; 
-            
-            if (isSenderPending)
-            {
-                // Auto-accept ved å sende melding
-                logger.LogInformation(
-                    "User {UserId} is accepting pending conversation {ConversationId} by sending a message",
-                    userId, existingConversation.Id);
-                
-                
-                // Bruker dedikert accept-metode for konsistens og fullstendig flyt
-                // (inkluderer cache-oppdatering, sync events, notifications, etc.)
-                var acceptResult = await AcceptPendingConversationRequestAsync(
-                    userId, existingConversation.Id);
-                
-                if (acceptResult.IsFailure)
-                {
-                    return Result<SendMessageToUserResponse>.Failure(
-                        acceptResult.Error, acceptResult.ErrorType);
-                }
-                
-                wasAccepted = true; 
-                
-                existingConversation = await conversationRepository
-                    .GetConversationBetweenUsersAsync(userId, request.ReceiverId);
-            }
-                
-            
-            // Opprett en MessageRequest
-            var messageRequest = new MessageRequest
-            {
-                ConversationId = existingConversation!.Id,
-                EncryptedText = request.EncryptedText,
-                KeyInfo = request.KeyInfo,
-                IV = request.IV,
-                Version = request.Version,
-                EncryptedAttachments = null
-            };
-            
-            // Sender en melding som vanlig hot path og verfiserer at den ble sendt
-            var messageResult = await sendMessageService.SendMessageAsync(messageRequest, userId);
-            if (messageResult.IsFailure)
-            {
-                logger.LogCritical("Message by User {SenderId} failed to send to User {ReceiverId} in conversation " +
-                                   "{ConversationId}",
-                    userId, request.ReceiverId, existingConversation.Id);
-                return Result<SendMessageToUserResponse>.Failure(
-                    messageResult.Error, messageResult.ErrorType);
-            }
-            
-            // Hent full messageDTO for SendMessageToUserResponse
-            var messageDtoFromHotPath = await messageRepository.GetMessageDtoAsync(messageResult.Value!.MessageId);
-            if (messageDtoFromHotPath == null)
-            {
-                logger.LogCritical("Sent message {MessageId} not found after sending",
-                    messageResult.Value.MessageId);
-                return Result<SendMessageToUserResponse>.Failure(
-                    "Failed to retrieve sent message", ErrorTypeEnum.InternalServerError);
-            }
-            
-            // Henter brukere for cache
-            var userIds = existingConversation.Participants
-                .Select(p => p.UserId)
-                .Distinct()
-                .ToList();
-        
-            // Henter cachede brukere
-            var users = await userSummariesCache.GetUserSummariesAsync(userIds);
-            
-            return Result<SendMessageToUserResponse>.Success(new SendMessageToUserResponse
-            {
-                ConversationId = existingConversation.Id,
-                WasAccepted = wasAccepted,
-                IsNewConversation = false,
-                Conversation = existingConversation.ToResponse(users),
-                Message = messageDtoFromHotPath.ToResponse(users[userId])
-            });
-        }
+            return await SendMessageToExistingConversationAsync(userId, request.ReceiverId, existingConversation, 
+                request);
         
         // Sjekk blokkeringer begge veier
         var blockResult = await blockService.ValidateNoBlockingsAsync(userId, request.ReceiverId);
@@ -158,7 +71,8 @@ public class DirectConversationService(
         // Sjekk om de er venner for å bestemme samtale-type
         var areFriends = await friendshipRepository.FriendshipExistsAsync(userId, request.ReceiverId);
         
-        ////////// Opprett samtalen //////////
+        // ============ DATABASE: Opprett samtalen med nye entiteter ============
+        
         //  Opprett ny samtale-entitet
         var newConversation = new Models.Conversation
         {
@@ -201,17 +115,8 @@ public class DirectConversationService(
         // Legger til CanSend igjen hvis begge brukerne var venner
         if (createdConversation.Type == ConversationType.DirectChat)
         {
-            try
-            {
-                await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
-                await sendMessageCache.OnCanSendAddedAsync(request.ReceiverId, createdConversation.Id);
-            }
-            catch (Exception ex)
-            { 
-                logger.LogError(ex, "Error during adding to CanSend. " +
-                                    "User: {UserId}, Receiver: {ReceiverId}, Conversations: {ConversationId}", 
-                    userId, request.ReceiverId, createdConversation.Id);
-            }
+            await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
+            await sendMessageCache.OnCanSendAddedAsync(request.ReceiverId, createdConversation.Id);
         }
         
         // Hent den opprettede samtalen som ConversationDto, deretter valider at samtalen eksisterer
@@ -250,59 +155,104 @@ public class DirectConversationService(
             "User {SenderId} successfully created {Type} conversation {ConversationId} with {ReceiverId}",
             userId, conversationDto.Type, createdConversation.Id, request.ReceiverId);
         
-        // Hvis brukeren ikke var venner så oppretter vi en Pending Conversatiuon Request, eller en direkte samtale
-        // Sender SignalR, lagrer Notifcaiton og SyncEvent deretter
+        // ============ POST-COMMIT: Broadcast ============
+        
         if (createdConversation.Type == ConversationType.PendingRequest)
         {
-            // Mottaker får pending conversation notification
-            await hubContext.Clients.User(request.ReceiverId)
-                .SendAsync("IncomingPendingRequest", sendMessageToUserResponse);
-            
-            await messageNotificationService.CreatePendingConversationNotificationAsync(
-                request.ReceiverId,
-                userId,
-                conversationResponse: conversationDto.ToResponse(conversationUsers)
-            );
-            
-            // SyncEvent for SENDER
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.ConversationCreated, 
-                sendMessageToUserResponse);
-            
-            // SyncEvent for MOTTAKER
-            await syncService.CreateSyncEventsAsync(
-                [request.ReceiverId],
-                SyncEventType.PendingConversationCreated,
-                sendMessageToUserResponse);
+            await broadcastService.BroadcastNewPendingRequestAsync(
+                userId, request.ReceiverId, sendMessageToUserResponse);
         }
         else
         {
-            // Mottaker får ny samtale notification
-            await hubContext.Clients.User(request.ReceiverId)
-                .SendAsync("IncomingDirectConversation", sendMessageToUserResponse);
-            
-            await messageNotificationService.CreateNewMessageNotificationAsync(
-                request.ReceiverId,
-                userId,
-                conversationResponse: conversationDto.ToResponse(conversationUsers),
-                messageResponse: messageDto.ToResponse(conversationUsers[userId])
-            );
-            
-            // SyncEvent for SENDER
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.ConversationCreated,
-                sendMessageToUserResponse);
-            
-            // SyncEvent for MOTTAKER
-            await syncService.CreateSyncEventsAsync(
-                [request.ReceiverId],
-                SyncEventType.ConversationCreated,
-                sendMessageToUserResponse);
+            await broadcastService.BroadcastNewDirectConversationAsync(
+                userId, request.ReceiverId, sendMessageToUserResponse);
         }
         
         return Result<SendMessageToUserResponse>.Success(sendMessageToUserResponse);
+    }
+    
+    /// <summary>
+    /// Sender en melding til en eksisterende samtale. Hvis avsender har mottatt en pending forespørsel,
+    /// aksepteres samtalen automatisk før meldingen sendes.
+    /// </summary>
+    /// <param name="userId">Avsender</param>
+    /// <param name="receiverId">Mottaker</param>
+    /// <param name="conversation">Eksisterende samtale mellom brukerne</param>
+    /// <param name="request">Meldingsdata med kryptert innhold</param>
+    /// <returns>SendMessageToUserResponse med samtale, melding og wasAccepted-flagg</returns>
+    private async Task<Result<SendMessageToUserResponse>> SendMessageToExistingConversationAsync(
+    string userId,
+    string receiverId,
+    ConversationDto conversation,
+    SendMessageToUserRequest request)
+    {
+        var wasAccepted = false;
+        
+        // Sjekker om avsender er den som har mottatt en pending forespørsel
+        var isSenderPending = conversation.Type == ConversationType.PendingRequest 
+                              && conversation.Participants
+                                  .Any(cp => cp.UserId == userId 
+                                             && cp.Status == ConversationStatus.Pending);
+        
+        if (isSenderPending)
+        {
+            // Auto-accept ved å sende melding
+            logger.LogInformation(
+                "User {UserId} is accepting pending conversation {ConversationId} by sending a message",
+                userId, conversation.Id);
+            
+            var acceptResult = await AcceptPendingConversationRequestAsync(userId, conversation.Id);
+            
+            if (acceptResult.IsFailure)
+                return Result<SendMessageToUserResponse>.Failure(acceptResult.Error, acceptResult.ErrorType);
+            
+            wasAccepted = true;
+            
+            // Hent oppdatert samtale etter accept
+            conversation = (await conversationRepository.GetConversationBetweenUsersAsync(userId, receiverId))!;
+        }
+        
+        // Opprett og send melding
+        var messageRequest = new MessageRequest
+        {
+            ConversationId = conversation.Id,
+            EncryptedText = request.EncryptedText,
+            KeyInfo = request.KeyInfo,
+            IV = request.IV,
+            Version = request.Version,
+            EncryptedAttachments = null
+        };
+        
+        var messageResult = await sendMessageService.SendMessageAsync(messageRequest, userId);
+        if (messageResult.IsFailure)
+        {
+            logger.LogCritical(
+                "Message by User {SenderId} failed to send to User {ReceiverId} in conversation {ConversationId}",
+                userId, receiverId, conversation.Id);
+            return Result<SendMessageToUserResponse>.Failure(messageResult.Error, messageResult.ErrorType);
+        }
+        
+        // Hent full messageDTO for response
+        var messageDto = await messageRepository.GetMessageDtoAsync(messageResult.Value!.MessageId);
+        if (messageDto == null)
+        {
+            logger.LogCritical("Sent message {MessageId} not found after sending", messageResult.Value.MessageId);
+            return Result<SendMessageToUserResponse>.Failure(
+                "Failed to retrieve sent message", ErrorTypeEnum.InternalServerError);
+        }
+        
+        // Hent brukere fra cache
+        var userIds = conversation.Participants.Select(p => p.UserId).Distinct().ToList();
+        var users = await userSummariesCache.GetUserSummariesAsync(userIds);
+        
+        return Result<SendMessageToUserResponse>.Success(new SendMessageToUserResponse
+        {
+            ConversationId = conversation.Id,
+            WasAccepted = wasAccepted,
+            IsNewConversation = false,
+            Conversation = conversation.ToResponse(users),
+            Message = messageDto.ToResponse(users[userId])
+        });
     }
     
     
@@ -317,34 +267,11 @@ public class DirectConversationService(
         
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
         
-        // Sjekker at samtalen eksisterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result<ConversationResponse>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        var validationResult = conversationValidator.ValidatePendingRequestAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
         
-        // Validerer at det er en pending request
-        var pendingRequestResult = conversationValidator.ValidateIsPendingRequest(userId, conversation!);
-        if (pendingRequestResult.IsFailure)
-            return Result<ConversationResponse>.Failure(pendingRequestResult.Error, pendingRequestResult.ErrorType);
-        
-        // Validerer at brukeren er medlem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result<ConversationResponse>.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        var userParticipant = participantResult.Value!;
-        
-        // Sjekk at brukeren er mottakeren (PendingRecipient)
-        var recipientResult = conversationValidator.ValidateIsPendingRecipient(userParticipant);
-        if (recipientResult.IsFailure)
-            return Result<ConversationResponse>.Failure(
-                "You cannot accept a conversation you initiated", recipientResult.ErrorType);
-        
-        // Sjekker at brukeren har pending status (ikke allerede akseptert)
-        var pendingResult = conversationValidator.ValidateParticipantPending(userParticipant);
-        if (pendingResult.IsFailure)
-            return Result<ConversationResponse>.Failure(
-                "Conversation has already been accepted", pendingResult.ErrorType);
+        var userParticipant = validationResult.Value!;
         
         // Finn den andre participanten (senderen)
         var senderParticipant = conversation!.Participants.FirstOrDefault(p => p.UserId != userId);
@@ -373,34 +300,16 @@ public class DirectConversationService(
         logger.LogInformation("User {UserId} successfully accepted conversation {ConversationId}", 
             userId, conversationId);
         
-        // ============ POST-COMMIT: Cache, SignalR, Notifications ============
+        // ============ POST-COMMIT: Cache ============
         
         // Legg begge brukere inn i CanSend cache
-        try
-        {
-            await sendMessageCache.OnCanSendAddedAsync(userId, conversationId);
-            await sendMessageCache.OnCanSendAddedAsync(senderParticipant.UserId, conversationId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to add users to CanSend cache for conversation {ConversationId}", 
-                conversationId);
-        }
+       
+        await sendMessageCache.OnCanSendAddedAsync(userId, conversationId);
+        await sendMessageCache.OnCanSendAddedAsync(senderParticipant.UserId, conversationId);
         
-        // Send systemmelding
-        try
-        {
-            await messageService.SendSystemMessageAsync(
-                conversationId, 
-                "Conversation accepted");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send system message for accepted conversation {ConversationId}", 
-                conversationId);
-        }
         
-        // Henter ConversationDto for SyncEvent
+        // ============ HENT DATA FOR RESPONSE ============
+        
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
         {
@@ -414,53 +323,35 @@ public class DirectConversationService(
         var conversationUserIds = new List<string> { userId, senderParticipant.UserId };
         var conversationUsers = 
             await userSummariesCache.GetUserSummariesAsync(conversationUserIds);
-
+        
+        // Bygg Response
         var conversationResponse = conversationDto.ToResponse(conversationUsers);
         
-        // Opprett SyncEvent for begge brukere
-        try
-        {
-            // For brukeren som godkjente (mottaker)
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.ConversationAccepted,
-                conversationResponse);
+        // ============ POST-COMMIT: Broadcast ============
+        
+        // Hent UserSummaryDto for brukeren som aksepterte (for notification)
+        var acceptingUserSummary = conversationUsers.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        
+        // Systemmelding - nøytral
+        var systemMessage = $"{acceptingUserSummary.FullName} has accepted the conversation request";
 
-            // For brukeren som sendte requesten (avsender)
-            await syncService.CreateSyncEventsAsync(
-                [senderParticipant.UserId],
-                SyncEventType.ConversationRequestAccepted,
-                conversationResponse);
+        // Notification summary - personlig til mottaker
+        var notificationSummary = $"{acceptingUserSummary.FullName} has accepted your conversation request";
+        
+        // Send systemmelding
+        try
+        {
+            await sendMessageService.SendSystemMessageAsync(conversationId, systemMessage);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create sync events for accepted conversation {ConversationId}", 
+            logger.LogError(ex, "Failed to send system message for accepted conversation {ConversationId}", 
                 conversationId);
         }
         
-        // Send SignalR til mottaker (sender av requesten) sine andre enheter
-        try
-        {
-            await hubContext.Clients.User(senderParticipant.UserId)
-                .SendAsync("ConversationAccepted", new { conversationId });
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send SignalR for accepted conversation {ConversationId}", 
-                conversationId);
-        }
         
-        // Opprett notificaiton for brukern som har sendt requesten
-        try
-        {
-            await messageNotificationService.CreateConversationAcceptedNotificationAsync(
-                senderParticipant.UserId, userId, conversationResponse);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to create notification for accepted conversation {ConversationId}", 
-                conversationId);
-        }
+        await broadcastService.BroadcastPendingRequestAcceptedAsync(
+            userId, senderParticipant.UserId, conversationResponse, notificationSummary,acceptingUserSummary );
         
         return Result<ConversationResponse>.Success(conversationResponse);
     }
@@ -475,34 +366,11 @@ public class DirectConversationService(
         
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
         
-        // Sjekker at samtalen eksisterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result.Failure(conversationResult.Error, conversationResult.ErrorType);
+        var validationResult = conversationValidator.ValidatePendingRequestAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result.Failure(validationResult.Error, validationResult.ErrorType);
         
-        // Validerer at det er en pending request
-        var pendingRequestResult = conversationValidator.ValidateIsPendingRequest(userId, conversation!);
-        if (pendingRequestResult.IsFailure)
-            return Result.Failure(pendingRequestResult.Error, pendingRequestResult.ErrorType);
-        
-        // Validerer at brukeren er medlem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        var userParticipant = participantResult.Value!;
-        
-        // Sjekk at brukeren er mottakeren (PendingRecipient)
-        var recipientResult = conversationValidator.ValidateIsPendingRecipient(userParticipant);
-        if (recipientResult.IsFailure)
-            return Result.Failure(
-                "You cannot reject a conversation you initiated", recipientResult.ErrorType);
-        
-        // Sjekker at brukeren har pending status (ikke allerede akseptert)
-        var pendingResult = conversationValidator.ValidateParticipantPending(userParticipant);
-        if (pendingResult.IsFailure)
-            return Result.Failure(
-                "Conversation has already been accepted", pendingResult.ErrorType);
+        var userParticipant = validationResult.Value!;
         
         // ============ DATABASE: Oppdater database ============
         
@@ -515,21 +383,9 @@ public class DirectConversationService(
         logger.LogInformation("User {UserId} successfully rejected conversation {ConversationId}", 
             userId, conversationId);
         
-        // ============ POST-COMMIT: Sync til brukerens andre enheter ============
+        // ============ POST-COMMIT: Broadcast ============
         
-        // Opprett SyncEvent kun for brukeren som avslår (sender skal ikke vite)
-        try
-        {
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.ConversationRejected,
-                conversationId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to create sync event for rejected conversation {ConversationId}", 
-                conversationId);
-        }
+        await broadcastService.BroadcastPendingRequestRejectedAsync(userId, conversationId);
         
         return Result.Success();
     }

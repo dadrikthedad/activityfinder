@@ -1,4 +1,4 @@
-namespace AFBack.Models.Enums;
+namespace AFBack.Features.MessageNotification.Models.Enum;
 
 public enum MessageNotificationType
 {

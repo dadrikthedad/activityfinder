@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using AFBack.Models;
+using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Models.Auth;
-using AFBack.Models.Enums;
 namespace AFBack.Features.MessageNotification.Models;
 
 public class MessageNotification
@@ -19,7 +18,6 @@ public class MessageNotification
     // ======================== Foreign Keys ========================
     public int? MessageId { get; set; }
     public int ConversationId { get; set; }
-
     
     // ======================== MessageNotificationData ========================
     public MessageNotificationType Type { get; set; }
@@ -27,6 +25,10 @@ public class MessageNotification
     
     public bool IsRead { get; set; }
     public DateTime? ReadAt { get; set; }
+    
+    // ======================== Summary/Preview ========================
+    [MaxLength(500)]
+    public string Summary { get; set; } = string.Empty;
     
     // ======================== New or Aggregate Notification Properties ========================
     public int MessageCount { get; set; } = 1;// Øker MessageCount ved ny notifikasjon istedenfor å lage ny notifikasjon

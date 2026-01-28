@@ -1,7 +1,7 @@
 using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.Results;
-using AFBack.Features.MessageBroadcast.Interface;
+using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Messaging.DTOs;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.DTOs.Response;

@@ -10,12 +10,11 @@ using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.ResponseBuilder;
 using AFBack.Features.Conversation.Services;
 using AFBack.Features.Block;
+using AFBack.Features.Broadcast.Services;
 using AFBack.Features.CanSend.Repository;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.Exceptions;
 using AFBack.Features.Friendship.Repository;
-using AFBack.Features.MessageBroadcast.Interface;
-using AFBack.Features.MessageBroadcast.Service;
 using AFBack.Features.MessageNotification.Repository;
 using AFBack.Features.MessageNotification.Service;
 using AFBack.Features.Messaging.Factories;
@@ -240,24 +239,25 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IGroupConversationService, GroupConversationService>(); // ✅
         services.AddScoped<IArchiveConversationService, ArchiveConversationService>(); // ✅
         services.AddScoped<ISearchConversationsService, SearchConversationsService>(); // ✅
+        services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>(); // ✅
         
         
         
         
         // ===== NOTIFICATION SERVICES =====
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IGroupNotificationService, GroupNotificationService>();
         
         // ===== MESSAGE NOTIFICATION SERVICES =====
         
         
         // ===== MESSAGE BROADCAST SERVICES =====
-        services.AddScoped<IMessageBroadcastService, MessageBroadcastService>(); // ✅
-        services.AddScoped<IDeleteMessageBroadcastService, DeleteMessageBroadcastService>(); // ✅
+        services.AddScoped<IMessageBroadcastService, MessageBroadcastService>(); 
         services.AddScoped<IMessageNotificationService, MessageNotificationService>();
         services.AddScoped<ISyncService, SyncService>();
         
         // ===== BROADCAST SERVICES =====
-        services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>();
+
         
         // ===== FILES =====
         services.AddScoped<IFileService, FileService>();
@@ -267,13 +267,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISendMessageValidator, SendMessageValidator>();
         services.AddScoped<IGroupInviteValidator, GroupInviteValidator>();
         services.AddScoped<IConversationValidator, ConversationValidator>();
+   
         
         // ===== FACTORIES =====
         services.AddScoped<ISendMessageFactory, SendMessageFactory>();
         
         // ===== RESPONSE BUILDERS =====
         services.AddScoped<ISendMessageResponseBuilder, SendMessageResponseBuilder>();
-        services.AddScoped<INewConversationResponseBuilder, NewConversationResponseBuilder>();
+
         
         // Til refaktorering
         services.AddScoped<ConversationService>();

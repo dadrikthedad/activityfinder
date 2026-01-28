@@ -54,25 +54,32 @@ Bruker A kan aldri komme inn i samtalen igjen, før de selv sletter sin Conversa
 Bruker B blir nå Creator
 
 
-Sending av melding:
+# Sending av melding (MessageBroadcastService):
+
 Før SignalR, MessageNotification og SyncEvent så filterer vi bort brukere som har avslått og slettet/arkivert
 når vi henter fra databasen.
 
-Vi filtrerer vekk oss selv før Signalr.
-SignalR sendes til alle Accepted brukere hvis det er DirectChat eller GroupChat.
-Er det Pending-chat så får mottaker en silent melding (ingen visuell feedback for bruker, men hvis de sjekker
-samtalen så er meldingen der. Redusere spam)
+## SignalR (sendes først for raskest mulig levering):
+- Filtrerer vekk avsender
+- DirectChat/GroupChat: Sendes til alle Accepted brukere
+- PendingRequest: Mottaker får melding med IsSilent=true (ingen toast/notifikasjon, men meldingen vises i samtalen)
+- GroupChat: Pending-brukere får IKKE SignalR
 
-Vi filtrerer vekk oss selv før MessageNotification.
-MessageNotification lagres til alle godkjente brukerne utenom avsender. 
+## MessageNotification:
+- Filtrerer vekk avsender
+- Filtrerer vekk systemmeldinger
+- Opprettes KUN for Accepted brukere (Pending får ikke notification)
+- Returnerer MessageNotificationResponse til BroadcastService (lager ikke egen SyncEvent)
 
-SyncEvent lagres til:
+## SyncEvent (én samlet event med message + conversation + notification):
 - DirectChat: Begge brukerne (inkl. sender for andre enheter)
-- PendingRequest: Begge brukerne (inkl. sender for andre enheter)
-- GroupChat: Kun Accepted/Creator (IKKE Pending)
+- PendingRequest: Begge brukerne (mottaker får notification=null)
+- GroupChat: Kun Accepted brukere (IKKE Pending)
+- Notification-feltet er null for: avsender, systemmeldinger, og Pending-brukere
 
 
-Systemmelding:
+# Systemmelding:
  
 1. CreateSystemMessageAsync lager en melding til en samtale
-2. 
+2. Systemmeldinger får IKKE MessageNotification (de har egne notification-typer)
+3. Systemmeldinger får SyncEvent med Notification=null

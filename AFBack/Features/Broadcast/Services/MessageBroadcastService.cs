@@ -1,11 +1,9 @@
 using AFBack.Cache;
-using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Repository;
-using AFBack.Features.MessageBroadcast.Interface;
+using AFBack.Features.MessageNotification.DTOs;
 using AFBack.Features.MessageNotification.Service;
-using AFBack.Features.Messaging.DTOs;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Extensions;
 using AFBack.Features.Messaging.Repository;
@@ -16,8 +14,7 @@ using AFBack.Models.Enums;
 using AFBack.Services;
 using Microsoft.AspNetCore.SignalR;
 
-
-namespace AFBack.Features.MessageBroadcast.Service;
+namespace AFBack.Features.Broadcast.Services;
 
 public class MessageBroadcastService(
     ILogger<MessageBroadcastService> logger,
@@ -92,15 +89,10 @@ public class MessageBroadcastService(
         // Sender SignalR til alle brukerne utenom rejected og oss selv
         await BroadcastSignalRAsync(conversationResponse, messageResponse, senderId);
         
+        // Oppretter notifikasjon og synceventer til alle brukerne (både avsender og alle deltakerne)
         await Task.WhenAll(
-        // Oppdaterer lastMessageSentAt i Conversations
-        conversationRepository.UpdateLastMessageSentAt(conversationId, messageResponse.SentAt),
-        
-        // Oppretter og lager en meldingsnotifikasjon til brukerne som har godkjent/Creator, utenom brukeren som sender
-        BroadcastMessageNotificationsAsync(conversationResponse, messageResponse, senderId),
-
-        // Oppretter en Sync Event til alle brukerene, utenom rejected
-        BroadcastSyncEventsAsync(conversationResponse, messageResponse)
+            conversationRepository.UpdateLastMessageSentAt(conversationId, messageResponse.SentAt),
+            BroadcastNotificationsAndSyncEventsAsync(conversationResponse, messageResponse, senderId)
         );
     }
 
@@ -145,77 +137,165 @@ public class MessageBroadcastService(
         // Kjører alle SignalR-sendingene samtidig
         await Task.WhenAll(signalRTasks);
     }
-
+    
+    
     /// <summary>
-    /// Vi filtrerer vekk avsender og pending-participants, og lager en notification som samtidig blir laget i frontend.
-    /// Systemmeldinger trenger ikke en MessageNotification da de blir laget alltid med egne notifications
+    /// Oppretter MessageNotifications og SyncEvents for alle mottakere i én operasjon.
+    /// Avsender får SyncEvent uten notification, mottakere får begge deler.
     /// </summary>
     /// <param name="conversationResponse">Samtalen som har fått ny melding</param>
     /// <param name="messageResponse">MessageResponse</param>
     /// <param name="senderId">Avsender</param>
-    private async Task BroadcastMessageNotificationsAsync(ConversationResponse conversationResponse,
-        MessageResponse messageResponse, string? senderId)
+    private async Task BroadcastNotificationsAndSyncEventsAsync(
+        ConversationResponse conversationResponse,
+        MessageResponse messageResponse,
+        string? senderId)
     {
-        // Early return for systemmeldinger.
-        if (messageResponse.IsSystemMessage)
-            return;
+        // Hent alle brukere som skal få SyncEvent
+        var targetedUserIds = conversationResponse.Type == ConversationType.GroupChat
+            ? conversationResponse.Participants
+                .Where(p => p.Status == ConversationStatus.Accepted)
+                .Select(p => p.User.Id).ToList()
+            : conversationResponse.Participants
+                .Select(p => p.User.Id).ToList();
         
-        // Sender MessageNotification til hver bruker som har har godkjent samtalen og ikke er oss selv
-        var filteredParticipants = conversationResponse.Participants
-            .Where(p => p.User.Id != senderId
-                    && p.Status == ConversationStatus.Accepted)
-            .ToList();
-        
-        
-        foreach (var participant in filteredParticipants)
+        // For hver bruker så oppretter vi MessageNotification (hvis brukern er accepted, og ikke avsender) og syncevent
+        var tasks = targetedUserIds.Select(async userId =>
         {
+            // MessageNotificationResponse er null til avsender og systemmeldinger
+            MessageNotificationResponse? notification = null;
+
+            // Lag notification kun for mottakere (ikke avsender, ikke systemmeldinger) Pending brukere får kun
+            // SyncEvent som frontend håndterer stille
+            var isAccepted = conversationResponse.Participants
+                .Any(p => p.User.Id == userId && p.Status == ConversationStatus.Accepted);
+
+            var shouldCreateNotification = userId != senderId 
+                                           && !messageResponse.IsSystemMessage
+                                           && isAccepted;
+
+            if (shouldCreateNotification)
+            {
+                try
+                {
+                    notification = await messageNotificationService.CreateNewMessageNotificationAsync(
+                        userId,
+                        senderId!,
+                        conversationResponse,
+                        messageResponse);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to create MessageNotification for {UserId}", userId);
+                }
+            }
+
+            // Lag SyncEvent for alle (med eller uten notification - Systemmeldinger skal ha en silent syncevent)
             try
             {
-                await messageNotificationService.CreateNewMessageNotificationAsync(
-                    participant.User.Id,
-                     senderId!,
-                    conversationResponse: conversationResponse,
-                    messageResponse: messageResponse
-                    );
+                await syncService.CreateSyncEventsAsync(
+                    [userId],
+                    SyncEventType.NewMessage,
+                    new
+                    {
+                        Message = messageResponse,
+                        Conversation = conversationResponse,
+                        Notification = notification
+                    });
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, 
-                    "MessageBroadcastService: Failed to create Message Notification for {UserId}", 
-                    participant.User.Id);
+                logger.LogError(ex, "Failed to create SyncEvent for {UserId}", userId);
             }
-        }
-    }
+        });
 
-    /// <summary>
-    ///  Vi lager et Sync Event med NEW_MESSAGE og vi mapper meldingen og samtalen til en SyncEvent
-    /// </summary>
-    /// <param name="conversationResponse"></param>
-    /// <param name="messageResponse"></param>
-    private async Task BroadcastSyncEventsAsync(ConversationResponse conversationResponse, 
-        MessageResponse messageResponse)
+        await Task.WhenAll(tasks);
+    }
+    
+    
+    
+     // Se interface for summary
+    public void QueueDeleteMessageBroadcast(int messageId, int conversationId, string deletedByUserId)
     {
+        backgroundTaskQueue.QueueAsync(async () =>
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var processor = scope.ServiceProvider.GetRequiredService<IMessageBroadcastService>();
+            await processor.ProcessDeleteMessageBroadcastAsync(messageId, conversationId, deletedByUserId);
+        });
+    }
+    
+    // Se interface for summary
+    public async Task ProcessDeleteMessageBroadcastAsync(int messageId, int conversationId, string deletedByUserId)
+    {
+        logger.LogDebug(
+            "Processing delete message broadcast for message {MessageId} in conversation {ConversationId}",
+            messageId, conversationId);
+        
+        // Hent samtalen for å få deltakerne
+        var conversation = await conversationRepository.GetConversationAsync(conversationId);
+        
+        if (conversation == null)
+        {
+            logger.LogError("Conversation {ConversationId} not found while broadcasting message deletion", 
+                conversationId);
+            return;
+        }
+        
+        // Filtrer til kun aksepterte deltakere
+        var acceptedParticipants = conversation.Participants
+            .Where(p => p.Status == ConversationStatus.Accepted)
+            .ToList();
+        
+        // Payload for SignalR og SyncEvent
+        var deletePayload = new
+        {
+            MessageId = messageId,
+            ConversationId = conversationId
+        };
+        
+        // ============ SIGNALR ============
+        
+        var signalRTasks = acceptedParticipants
+            .Select(async participant =>
+            {
+                try
+                {
+                    await hubContext.Clients.User(participant.UserId)
+                        .SendAsync("MessageDeleted", deletePayload);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, 
+                        "Failed to send MessageDeleted SignalR to user {UserId}", 
+                        participant.UserId);
+                }
+            });
+        
+        await Task.WhenAll(signalRTasks);
+        
+        // ============ SYNC EVENTS ============
+        
         try
         {
-            // Henter samtalen med participants for SyncEvents
-            var targetedUserIds = conversationResponse.Type == ConversationType.GroupChat
-                ? conversationResponse.Participants
-                    .Where(p => p.Status == ConversationStatus.Accepted)
-                    .Select(p => p.User.Id).ToList()
-                : conversationResponse.Participants
-                    .Select(p => p.User.Id).ToList();
-
-            await syncService.CreateSyncEventsAsync(targetedUserIds, SyncEventType.NewMessage, new
-            {
-                message = messageResponse,
-                conversation = conversationResponse
-            });
+            var targetUserIds = acceptedParticipants
+                .Select(p => p.UserId)
+                .ToList();
+            
+            await syncService.CreateSyncEventsAsync(
+                targetUserIds, 
+                SyncEventType.MessageDeleted, 
+                deletePayload);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create sync event for encrypted message {MessageId}", 
-                messageResponse.Id);
+            logger.LogError(ex, 
+                "Failed to create sync events for deleted message {MessageId}", 
+                messageId);
         }
+        
+        logger.LogDebug(
+            "Successfully broadcast message deletion for message {MessageId} to {Count} participants",
+            messageId, acceptedParticipants.Count);
     }
-    
 }

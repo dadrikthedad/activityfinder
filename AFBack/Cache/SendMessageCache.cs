@@ -98,7 +98,6 @@ public class SendMessageCache(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error adding CanSend for {UserId}:{ConversationId}", userId, conversationId);
-            throw;
         }
     }
     
@@ -120,7 +119,6 @@ public class SendMessageCache(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error removing CanSend for {UserId}:{ConversationId}", userId, conversationId);
-            throw;
         }
     }
     
@@ -160,7 +158,6 @@ public class SendMessageCache(
         {
             logger.LogError(ex, "Failed to fetch users for CanSend removal from conversation {ConversationId}", 
                 conversationId);
-            throw;
         }
     }
 }

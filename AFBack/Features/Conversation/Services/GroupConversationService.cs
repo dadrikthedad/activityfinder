@@ -2,19 +2,18 @@ using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.Results;
 using AFBack.DTOs;
+using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
-using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.Messaging.Interface;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Hubs;
 using AFBack.Models.Enums;
-using Microsoft.AspNetCore.SignalR;
 
 namespace AFBack.Features.Conversation.Services;
 
@@ -24,8 +23,7 @@ public class GroupConversationService(
     IConversationLeftRecordRepository conversationLeftRecordRepository,
     ISyncService syncService,
     ISendMessageService messageService,
-    IHubContext<UserHub> hubContext,
-    IMessageNotificationService messageNotificationService,
+    IConversationBroadcastService broadcastService,
     IUserSummaryCacheService userSummariesCache,
     IGroupInviteValidator groupInviteValidator,
     IConversationValidator conversationValidator,
@@ -85,15 +83,9 @@ public class GroupConversationService(
         
         // ============ POST-COMMIT: Cache ============
         
-        try
-        {
-            await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to add creator to CanSend cache for conversation {ConversationId}",
-                createdConversation.Id);
-        }
+      
+        await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
+   
         
         // ============ POST-COMMIT: Systemmeldinger ============
         
@@ -176,30 +168,14 @@ public class GroupConversationService(
             userId, conversationId);
         
         // ============ VALIDERING ============
-        
+
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
-        
-        // Sjekker at samtalen eksisterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result<ConversationResponse>.Failure(conversationResult.Error, conversationResult.ErrorType);
-        
-        // Validerer at det er en gruppesamtale
-        var groupChatResult = conversationValidator.ValidateIsGroupChat(userId, conversation!);
-        if (groupChatResult.IsFailure)
-            return Result<ConversationResponse>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
-        
-        // Validerer at brukeren er medlem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result<ConversationResponse>.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        var userParticipant = participantResult.Value!;
-        
-        // Sjekker at brukeren har pending status (ikke allerede akseptert)
-        var pendingResult = conversationValidator.ValidateParticipantPending(userParticipant);
-        if (pendingResult.IsFailure)
-            return Result<ConversationResponse>.Failure(pendingResult.Error, pendingResult.ErrorType);
+
+        var validationResult = conversationValidator.ValidatePendingGroupInviteAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+
+        var userParticipant = validationResult.Value!;
         
         // ============ DATABASE: Oppdater participant ============
         
@@ -214,15 +190,8 @@ public class GroupConversationService(
         
         // ============ POST-COMMIT: Cache ============
         
-        try
-        {
-            await sendMessageCache.OnCanSendAddedAsync(userId, conversationId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to add user {UserId} to CanSend cache for group {ConversationId}", 
-                userId, conversationId);
-        }
+        await sendMessageCache.OnCanSendAddedAsync(userId, conversationId);
+      
         
         // ============ HENT DATA FOR RESPONSE ============
         
@@ -230,17 +199,6 @@ public class GroupConversationService(
             .Select(p => p.UserId)
             .ToList();
         var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
-        
-        var userName = users.TryGetValue(userId, out var user) ? user.FullName : "Someone";
-        
-        try
-        {
-            await messageService.SendSystemMessageAsync(conversationId, $"{userName} joined the group");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
-        }
         
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
@@ -252,55 +210,37 @@ public class GroupConversationService(
 
         var conversationResponse = conversationDto.ToResponse(users);
         
-        // ============ POST-COMMIT: SignalR, SyncEvents, Notifications ============
+        // ============ POST-COMMIT: Broadcast ============
         
         var otherAcceptedMemberIds = conversation.Participants
             .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
         
+        // Hent UserSummary for brukeren som joiner
+        var joiningUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+
+        // Bygg summary (samme som systemmelding)
+        var summary = $"{joiningUserSummary.FullName} joined the group";
+
+        // Systemmelding
         try
         {
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.GroupInviteAcceptedByMe,
-                conversationResponse);
+            await messageService.SendSystemMessageAsync(conversationId, summary);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create sync event for user {UserId} accepting group {ConversationId}", 
-                userId, conversationId);
+            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
         }
+
+        // Broadcast
+        await broadcastService.BroadcastGroupInviteAcceptedAsync(
+            userId, 
+            otherAcceptedMemberIds, 
+            conversationResponse,
+            summary,
+            joiningUserSummary);
         
-        if (otherAcceptedMemberIds.Any())
-        {
-            var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-            {
-                try
-                {
-                    var signalRTask = hubContext.Clients.User(memberId)
-                        .SendAsync("GroupMemberJoined", new { Conversation = conversationResponse });
-            
-                    var notificationTask = messageNotificationService.CreateGroupMemberJoinedNotificationAsync(
-                        memberId, userId, conversationResponse);
-            
-                    var syncTask = syncService.CreateSyncEventsAsync(
-                        [memberId],
-                        SyncEventType.GroupInviteAccepted,
-                        conversationResponse);
-
-                    await Task.WhenAll(signalRTask, notificationTask, syncTask);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, 
-                        "Failed to notify member {MemberId} about user {UserId} joining group {ConversationId}",
-                        memberId, userId, conversationId);
-                }
-            });
-
-            await Task.WhenAll(memberTasks);
-        }
         
         logger.LogInformation(
             "User {UserId} successfully joined group {ConversationId}. Notified {MemberCount} other members.",
@@ -316,32 +256,14 @@ public class GroupConversationService(
             userId, conversationId);
         
         // ============ VALIDERING ============
-        
+
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
-        
-        // Sjekker at samtalen eksisterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result.Failure(conversationResult.Error, conversationResult.ErrorType);
-        
-        // Validerer at det er en gruppesamtale
-        var groupChatResult = conversationValidator.ValidateIsGroupChat(userId, conversation!);
-        if (groupChatResult.IsFailure)
-            return Result.Failure(groupChatResult.Error, groupChatResult.ErrorType);
-        
-        // Validerer at brukeren er medlem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        var userParticipant = participantResult.Value!;
-        
-        // Sjekker at brukeren har pending status (ikke allerede akseptert)
-        var pendingResult = conversationValidator.ValidateParticipantPending(userParticipant);
-        if (pendingResult.IsFailure)
-            return Result.Failure(
-                "You are already a member of this group. Use the leave endpoint instead.", 
-                pendingResult.ErrorType);
+
+        var validationResult = conversationValidator.ValidatePendingGroupInviteAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result.Failure(validationResult.Error, validationResult.ErrorType);
+
+        var userParticipant = validationResult.Value!;
         
         // ============ DATABASE: Opprett ConversationLeftRecord og fjern participant ============
         
@@ -364,25 +286,13 @@ public class GroupConversationService(
             userId, conversationId);
         
         // ============ HENT DATA FOR RESPONSE ============
-        
-        var allParticipantIds = conversation.Participants
-            .Where(p => p.UserId != userId) // Ekskluder brukeren som avviste
-            .Select(p => p.UserId)
-            .ToList();
-        var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
-        
-        var userName = (await userSummariesCache.GetUserSummaryAsync(userId))?.FullName ?? "Someone";
-        
-        // Send systemmelding om at brukeren avviste invitasjonen
-        try
-        {
-            await messageService.SendSystemMessageAsync(conversationId, $"{userName} declined the invitation");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
-        }
-        
+    
+        // Hent alle brukere inkludert den som avviste
+        var allUserIds = conversation.Participants.Select(p => p.UserId).ToList();
+        var users = await userSummariesCache.GetUserSummariesAsync(allUserIds);
+    
+        var decliningUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+    
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
         {
@@ -390,56 +300,31 @@ public class GroupConversationService(
             return Result.Failure(
                 "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
         }
+    
+        // Ekskluder brukeren som avviste fra response
+        var usersForResponse = users
+            .Where(u => u.Key != userId)
+            .ToDictionary(u => u.Key, u => u.Value);
+    
+        var conversationResponse = conversationDto.ToResponse(usersForResponse);
         
-        var conversationResponse = conversationDto.ToResponse(users);
-        
-        // ============ POST-COMMIT: SignalR, SyncEvents, Notifications ============
-        
-        // SyncEvent for brukeren som avviste
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+    
+        // Bygg summary (én gang - brukes til både systemmelding og notification)
+        var summary = $"{decliningUserSummary.FullName} declined the invitation";
+    
         try
         {
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.ConversationRejected,
-                conversationId);
+            await messageService.SendSystemMessageAsync(conversationId, summary);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create sync event for rejected group {ConversationId}", 
-                conversationId);
+            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
         }
-        
-        // Varsle andre godkjente medlemmer om at brukeren avviste
-        if (otherAcceptedMemberIds.Any())
-        {
-            var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-            {
-                try
-                {
-                    var signalRTask = hubContext.Clients.User(memberId)
-                        .SendAsync("GroupMemberDeclined", new { Conversation = conversationResponse });
-                    
-                    // TODO: Implementer denne metoden i IMessageNotificationService
-                    // var notificationTask = messageNotificationService.CreateGroupMemberDeclinedNotificationAsync(
-                    //     memberId, userId, conversationResponse);
-                    
-                    var syncTask = syncService.CreateSyncEventsAsync(
-                        [memberId],
-                        SyncEventType.GroupInviteDeclined,
-                        conversationResponse);
-                    
-                    await Task.WhenAll(signalRTask, syncTask);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, 
-                        "Failed to notify member {MemberId} about user {UserId} declining group {ConversationId}",
-                        memberId, userId, conversationId);
-                }
-            });
-            
-            await Task.WhenAll(memberTasks);
-        }
+           
+        await broadcastService.BroadcastGroupInviteDeclinedAsync(userId, otherAcceptedMemberIds, 
+            conversationResponse, summary, decliningUserSummary);
+
         
         logger.LogInformation(
             "User {UserId} successfully rejected group {ConversationId}. Notified {MemberCount} other members.",
@@ -457,33 +342,12 @@ public class GroupConversationService(
             userId, request.ReceiverIds.Count, conversationId);
         
         // ============ VALIDERING ============
-        
-        // Henter samtalen
+
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
-        
-        // Sjekker samtalen esksiterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result<ConversationResponse>.Failure(conversationResult.Error, conversationResult.ErrorType);
-        
-        // Validerer at det er en gruppesamtale
-        var groupChatResult = conversationValidator.ValidateIsGroupChat(userId, conversation!);
-        if (groupChatResult.IsFailure)
-            return Result<ConversationResponse>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
-        
-        // Validerer at brukeren er meldem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result<ConversationResponse>.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        // Brukeren som inviterer sin ConversationParticipant
-        var inviterParticipant = participantResult.Value!;
-        
-        // Sjekker at vi har godkjent samtalen
-        var acceptedResult = conversationValidator.ValidateParticipantAccepted(inviterParticipant);
-        if (acceptedResult.IsFailure)
-            return Result<ConversationResponse>.Failure(
-                "You must accept the group invitation before inviting others", acceptedResult.ErrorType);
+
+        var validationResult = conversationValidator.ValidateGroupMemberAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
         
         // ============ VALIDERING: Inviterte brukere ============
         
@@ -526,28 +390,13 @@ public class GroupConversationService(
             "User {UserId} invited {Count} users to group {ConversationId}",
             userId, uniqueReceiverIds.Count, conversationId);
         
-        // ============ POST-COMMIT: Systemmelding ============
-        
-        var allUserIds = new List<string> { userId };
-        allUserIds.AddRange(uniqueReceiverIds);
-        var users = await userSummariesCache.GetUserSummariesAsync(allUserIds);
-        
-        try
-        {
-            var inviterName = users.TryGetValue(userId, out var inviter) ? inviter.FullName : "Someone";
-            var systemMessage = BuildInviteSystemMessage(inviterName, uniqueReceiverIds, users);
-            await messageService.SendSystemMessageAsync(conversationId, systemMessage);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
-        }
-        
         // ============ HENT DATA FOR RESPONSE ============
-        
+    
         var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
-        users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
-        
+        var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
+    
+        var inviterUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+    
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
         {
@@ -555,81 +404,30 @@ public class GroupConversationService(
             return Result<ConversationResponse>.Failure(
                 "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
         }
-        
+    
         var conversationResponse = conversationDto.ToResponse(users);
         
-        // ============ POST-COMMIT: SignalR, SyncEvents, Notifications ============
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+    
+        // Bygg summary (samme som systemmelding)
+        var summary = BuildInviteSystemMessage(inviterUserSummary.FullName, uniqueReceiverIds, users);
+    
+        try
+        {
+            await messageService.SendSystemMessageAsync(conversationId, summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
+        }
         
         var otherAcceptedMemberIds = conversation.Participants
             .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
         
-        try
-        {
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.GroupInfoUpdated,
-                conversationResponse);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to create sync event for inviter {UserId}", userId);
-        }
-        
-        if (otherAcceptedMemberIds.Any())
-        {
-            var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-            {
-                try
-                {
-                    var signalRTask = hubContext.Clients.User(memberId)
-                        .SendAsync("GroupMembersInvited", new { Conversation = conversationResponse });
-                    
-                    var syncTask = syncService.CreateSyncEventsAsync(
-                        [memberId],
-                        SyncEventType.GroupInfoUpdated,
-                        conversationResponse);
-                    
-                    await Task.WhenAll(signalRTask, syncTask);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex,
-                        "Failed to notify member {MemberId} about invites to group {ConversationId}",
-                        memberId, conversationId);
-                }
-            });
-            
-            await Task.WhenAll(memberTasks);
-        }
-        
-        var inviteTasks = uniqueReceiverIds.Select(async receiverId =>
-        {
-            try
-            {
-                var signalRTask = hubContext.Clients.User(receiverId)
-                    .SendAsync("GroupInviteReceived", new { Conversation = conversationResponse });
-                
-                var notificationTask = messageNotificationService.CreatePendingConversationNotificationAsync(
-                    receiverId, userId, conversationResponse);
-                
-                var syncTask = syncService.CreateSyncEventsAsync(
-                    [receiverId],
-                    SyncEventType.GroupInviteReceived,
-                    conversationResponse);
-                
-                await Task.WhenAll(signalRTask, notificationTask, syncTask);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex,
-                    "Failed to notify invited user {ReceiverId} for group {ConversationId}",
-                    receiverId, conversationId);
-            }
-        });
-        
-        await Task.WhenAll(inviteTasks);
+        await broadcastService.BroadcastGroupInvitesSentAsync(userId, uniqueReceiverIds, otherAcceptedMemberIds, 
+            conversationResponse, summary, inviterUserSummary);
         
         logger.LogInformation(
             "User {UserId} successfully invited {InviteCount} users to group {ConversationId}. " +
@@ -667,67 +465,27 @@ public class GroupConversationService(
             userId, conversationId);
         
         // ============ VALIDERING ============
-        
+
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
+
+        var validationResult = conversationValidator.ValidateGroupMemberAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result.Failure(validationResult.Error, validationResult.ErrorType);
+
+        var userParticipant = validationResult.Value!;
         
-        // Sjekker at samtalen eksisterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result.Failure(conversationResult.Error, conversationResult.ErrorType);
-        
-        // Validerer at det er en gruppesamtale
-        var groupChatResult = conversationValidator.ValidateIsGroupChat(userId, conversation!);
-        if (groupChatResult.IsFailure)
-            return Result.Failure(groupChatResult.Error, groupChatResult.ErrorType);
-        
-        // Validerer at brukeren er medlem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        var userParticipant = participantResult.Value!;
-        
-        // Sjekker at brukeren har Accepted status (er faktisk medlem, ikke pending)
-        var acceptedResult = conversationValidator.ValidateParticipantAccepted(userParticipant);
-        if (acceptedResult.IsFailure)
-            return Result.Failure(
-                "You must accept the group invitation before you can leave. Use reject endpoint instead.", 
-                acceptedResult.ErrorType);
-        
-        // ============ SJEKK CREATOR SCENARIO ============
-        
-        var isCreator = userParticipant.Role == ParticipantRole.Creator;
-        ConversationParticipant? newCreator = null;
-        
-        if (isCreator)
-        {
-            // Finn neste kandidat for Creator-rollen (eldste inviterte med Accepted status)
-            newCreator = await conversationRepository.GetNextCreatorCandidateAsync(conversationId, userId);
-            
-            if (newCreator == null)
-            {
-                // Ingen andre Accepted medlemmer - disband gruppen
-                logger.LogInformation(
-                    "Creator {UserId} is leaving group {ConversationId} with no other accepted members. Disbanding group.",
-                    userId, conversationId);
-                
-                await DisbandGroupAsync(userId, conversation!);
-                
-                return Result.Success();
-            }
-            
-            // Overfør Creator-rollen til neste kandidat
-            newCreator.Role = ParticipantRole.Creator;
-            
-            logger.LogInformation(
-                "Transferring Creator role from {OldCreator} to {NewCreator} in group {ConversationId}",
-                userId, newCreator.UserId, conversationId);
-        }
+        // ============ HÅNDTER CREATOR SCENARIO ============
+    
+        var (shouldDisband, newCreator) = await HandleCreatorLeavingAsync(
+            userId, conversationId, userParticipant, conversation!);
+    
+        if (shouldDisband)
+            return Result.Success();
         
         // ============ DATABASE: Opprett ConversationLeftRecord og fjern participant ============
         
         // Hent andre godkjente medlemmer FØR vi fjerner participant
-        var otherAcceptedMemberIds = conversation!.Participants
+        var remainingMemberIds = conversation!.Participants
             .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
@@ -746,44 +504,21 @@ public class GroupConversationService(
         
         // ============ POST-COMMIT: Cache ============
         
-        try
-        {
-            await sendMessageCache.OnCanSendRemovedAsync(userId, conversationId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to remove user {UserId} from CanSend cache for group {ConversationId}", 
-                userId, conversationId);
-        }
-        
+        await sendMessageCache.OnCanSendRemovedAsync(userId, conversationId);
         
         // ============ HENT DATA FOR RESPONSE ============
         
-        var allParticipantIds = conversation.Participants
-            .Where(p => p.UserId != userId) // Ekskluder brukeren som forlot
-            .Select(p => p.UserId)
-            .ToList();
-        var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
         
-        var userName = (await userSummariesCache.GetUserSummaryAsync(userId))?.FullName ?? "Someone";
+        // Henter alle brukere fra cache
+        var users = await userSummariesCache.GetUserSummariesAsync(
+            conversation.Participants.Select(p => p.UserId).ToList());
+        
+        // Hent UserSummary for brukeren som forlater
+        var leavingUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        
         var newCreatorName = newCreator != null && users.TryGetValue(newCreator.UserId, out var newCreatorUser) 
             ? newCreatorUser.FullName 
             : null;
-        
-        // ============ SYSTEMMELDING ============
-        
-        try
-        {
-            var systemMessage = newCreatorName != null
-                ? $"{userName} left the group. {newCreatorName} is now the group leader"
-                : $"{userName} left the group";
-            
-            await messageService.SendSystemMessageAsync(conversationId, systemMessage);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
-        }
         
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
@@ -793,62 +528,70 @@ public class GroupConversationService(
                 "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
         }
         
-        var conversationResponse = conversationDto.ToResponse(users);
+        // Ekskluder brukeren som forlot fra response
+        var usersForResponse = users
+            .Where(u => u.Key != userId)
+            .ToDictionary(u => u.Key, u => u.Value);
+
+        var conversationResponse = conversationDto.ToResponse(usersForResponse);
         
-        // ============ POST-COMMIT: SignalR, SyncEvents ============
-        
-        // SyncEvent for brukeren som forlot (til andre enheter)
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+    
+        // Bygg summary - systemmelding og notification
+        var summary = newCreatorName != null
+            ? $"{leavingUserSummary.FullName} left the group. {newCreatorName} is now the group leader"
+            : $"{leavingUserSummary.FullName} left the group";
+    
         try
         {
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.ConversationLeft,
-                conversationId);
+            await messageService.SendSystemMessageAsync(conversationId, summary);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to create sync event for user {UserId} leaving group {ConversationId}", 
-                userId, conversationId);
+            logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
         }
         
-        // Varsle gjenstående medlemmer om at brukeren forlot
-        if (otherAcceptedMemberIds.Any())
-        {
-            var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-            {
-                try
-                {
-                    var signalRTask = hubContext.Clients.User(memberId)
-                        .SendAsync("GroupMemberLeft", new { Conversation = conversationResponse });
-                    
-                    // TODO: Implementer denne metoden i IMessageNotificationService
-                    // var notificationTask = messageNotificationService.CreateGroupMemberLeftNotificationAsync(
-                    //     memberId, userId, conversationResponse);
-                    
-                    var syncTask = syncService.CreateSyncEventsAsync(
-                        [memberId],
-                        SyncEventType.GroupMemberLeft,
-                        conversationResponse);
-                    
-                    await Task.WhenAll(signalRTask, syncTask);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, 
-                        "Failed to notify member {MemberId} about user {UserId} leaving group {ConversationId}",
-                        memberId, userId, conversationId);
-                }
-            });
-            
-            await Task.WhenAll(memberTasks);
-        }
+        await broadcastService.BroadcastGroupMemberLeftAsync(userId, remainingMemberIds, conversationResponse,
+            summary, leavingUserSummary);
         
         logger.LogInformation(
             "User {UserId} successfully left group {ConversationId}. Notified {MemberCount} remaining members." +
             (newCreator != null ? " New creator: {NewCreatorId}" : ""),
-            userId, conversationId, otherAcceptedMemberIds.Count, newCreator?.UserId);
+            userId, conversationId, remainingMemberIds.Count, newCreator?.UserId);
         
         return Result.Success();
+    }
+    
+    /// <summary>
+    /// Håndterer creator-scenario når bruker forlater gruppe.
+    /// Returnerer ny creator hvis rollen overføres, eller null hvis gruppen skal disbandes.
+    /// </summary>
+    /// <returns>Tuple med (shouldDisband, newCreator)</returns>
+    private async Task<(bool ShouldDisband, ConversationParticipant? NewCreator)> HandleCreatorLeavingAsync(
+        string userId, int conversationId, ConversationParticipant userParticipant, Models.Conversation conversation)
+    {
+        if (userParticipant.Role != ParticipantRole.Creator)
+            return (false, null);
+    
+        var newCreator = await conversationRepository.GetNextCreatorCandidateAsync(conversationId, userId);
+    
+        if (newCreator == null)
+        {
+            logger.LogInformation(
+                "Creator {UserId} is leaving group {ConversationId} with no other accepted members. Disbanding group.",
+                userId, conversationId);
+        
+            await DisbandGroupAsync(userId, conversation);
+            return (true, null);
+        }
+    
+        newCreator.Role = ParticipantRole.Creator;
+    
+        logger.LogInformation(
+            "Transferring Creator role from {OldCreator} to {NewCreator} in group {ConversationId}",
+            userId, newCreator.UserId, conversationId);
+    
+        return (false, newCreator);
     }
 
     /// <summary>
@@ -957,35 +700,12 @@ public class GroupConversationService(
             userId, conversationId);
         
         // ============ VALIDERING ============
-        
+
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
-        
-        // Sjekker at samtalen eksisterer
-        var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
-        if (conversationResult.IsFailure)
-            return Result<ConversationResponse>.Failure(conversationResult.Error, conversationResult.ErrorType);
-        
-        // Validerer at det er en gruppesamtale
-        var groupChatResult = conversationValidator.ValidateIsGroupChat(userId, conversation!);
-        if (groupChatResult.IsFailure)
-            return Result<ConversationResponse>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
-        
-        // Validerer at brukeren er medlem av samtalen
-        var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
-        if (participantResult.IsFailure)
-            return Result<ConversationResponse>.Failure(participantResult.Error, participantResult.ErrorType);
-        
-        var userParticipant = participantResult.Value!;
-        
-        // Sjekker at brukeren har Accepted status
-        var acceptedResult = conversationValidator.ValidateParticipantAccepted(userParticipant);
-        if (acceptedResult.IsFailure)
-            return Result<ConversationResponse>.Failure(acceptedResult.Error, acceptedResult.ErrorType);
-        
-        // Sjekker at brukeren er Creator
-        var creatorResult = conversationValidator.ValidateIsCreator(userParticipant);
-        if (creatorResult.IsFailure)
-            return Result<ConversationResponse>.Failure(creatorResult.Error, creatorResult.ErrorType);
+
+        var validationResult = conversationValidator.ValidateGroupCreatorAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
         
         // ============ DATABASE: Oppdater gruppenavn ============
         
@@ -999,28 +719,14 @@ public class GroupConversationService(
             userId, conversationId, oldGroupName, request.GroupName);
         
         // ============ HENT DATA FOR RESPONSE ============
-        
+
         var allParticipantIds = conversation.Participants
             .Select(p => p.UserId)
             .ToList();
         var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
-        
-        var userName = users.TryGetValue(userId, out var user) ? user.FullName : "Someone";
-        
-        // ============ POST-COMMIT: Systemmelding ============
-        
-        try
-        {
-            var systemMessage = $"{userName} changed the group name to '{request.GroupName}'";
-            
-            await messageService.SendSystemMessageAsync(conversationId, systemMessage);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to send system message for group name update {ConversationId}",
-                conversationId);
-        }
-        
+
+        var updaterUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
         {
@@ -1028,12 +734,24 @@ public class GroupConversationService(
             return Result<ConversationResponse>.Failure(
                 "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
         }
-        
+
         var conversationResponse = conversationDto.ToResponse(users);
-        
-        // ============ POST-COMMIT: SignalR, SyncEvents, Notifications ============
-        
-        // Hent alle deltakere med Accepted og Pending status (unntatt brukeren selv)
+
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+
+        // Bygg summary (én gang - brukes til både systemmelding og notification)
+        var summary = $"{updaterUserSummary.FullName} changed the group name to '{request.GroupName}'";
+
+        try
+        {
+            await messageService.SendSystemMessageAsync(conversationId, summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send system message for group name update {ConversationId}",
+                conversationId);
+        }
+
         var otherParticipantIds = conversation.Participants
             .Where(p => (p.Status == ConversationStatus.Accepted 
                          || p.Status == ConversationStatus.Pending) 
@@ -1041,50 +759,8 @@ public class GroupConversationService(
             .Select(p => p.UserId)
             .ToList();
         
-        // SyncEvent for brukeren som endret navnet (til andre enheter)
-        try
-        {
-            await syncService.CreateSyncEventsAsync(
-                [userId],
-                SyncEventType.GroupInfoUpdated,
-                conversationResponse);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to create sync event for user {UserId} updating group name", userId);
-        }
-        
-        // Varsle alle andre deltakere (Accepted og Pending)
-        if (otherParticipantIds.Any())
-        {
-            var participantTasks = otherParticipantIds.Select(async participantId =>
-            {
-                try
-                {
-                    var signalRTask = hubContext.Clients.User(participantId)
-                        .SendAsync("GroupNameUpdated", new { Conversation = conversationResponse });
-                    
-                    // TODO: Implementer denne metoden i IMessageNotificationService
-                    // var notificationTask = messageNotificationService.CreateGroupNameUpdatedNotificationAsync(
-                    //     participantId, userId, conversationResponse);
-                    
-                    var syncTask = syncService.CreateSyncEventsAsync(
-                        [participantId],
-                        SyncEventType.GroupInfoUpdated,
-                        conversationResponse);
-                    
-                    await Task.WhenAll(signalRTask, syncTask);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex,
-                        "Failed to notify participant {ParticipantId} about group name update {ConversationId}",
-                        participantId, conversationId);
-                }
-            });
-            
-            await Task.WhenAll(participantTasks);
-        }
+        await broadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
+            summary, updaterUserSummary, GroupEventType.GroupNameChanged, "GroupNameUpdated");
         
         logger.LogInformation(
             "User {UserId} successfully updated group {ConversationId} name. Notified {Count} other participants.",

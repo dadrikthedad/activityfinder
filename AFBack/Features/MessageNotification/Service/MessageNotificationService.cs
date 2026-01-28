@@ -1,13 +1,15 @@
+using AFBack.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.MessageNotification.DTOs;
 using AFBack.Features.MessageNotification.Extensions;
+using AFBack.Features.MessageNotification.Models;
+using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotification.Repository;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Models;
 using AFBack.Models.Enums;
-using AFBack.Services;
 
 namespace AFBack.Features.MessageNotification.Service;
 
@@ -15,19 +17,18 @@ public class MessageNotificationService(
     ILogger<MessageNotificationService> logger,
     GroupNotificationService groupNotificationService,
     ISyncService syncService,
-    IMessageNotificationRepository messageNotificationService) : IMessageNotificationService
+    IMessageNotificationRepository messageNotificationRepository) : IMessageNotificationService
 {
     private readonly int _previewMessageLength = 40;
     
+    // ======================== Ny meldings notifikasjon ========================
+    
     // Sjekk interface for summary
-    public async Task CreateNewMessageNotificationAsync(
-        string recipientId,
-        string senderId,
-        ConversationResponse conversationResponse,
-        MessageResponse messageResponse)
+    public async Task<MessageNotificationResponse> CreateNewMessageNotificationAsync(string recipientId, 
+        string senderId, ConversationResponse conversationResponse, MessageResponse messageResponse)
     {
         // Henter en eksisterende MessageNotification hvis det eksisterer en
-        var existingMessageNotification = await messageNotificationService.GetMessageNotificationAsync(recipientId,
+        var existingMessageNotification = await messageNotificationRepository.GetMessageNotificationAsync(recipientId,
             senderId, conversationResponse);
 
         Models.MessageNotification messageNotification;
@@ -40,11 +41,24 @@ public class MessageNotificationService(
             existingMessageNotification.MessageId = messageResponse.Id; // Endrer nå til nyeste melding for å vise riktig Id
             existingMessageNotification.SenderId = senderId; // Nyeste avsender for å vise riktig navn i Gruppe
             
-            await messageNotificationService.SaveMessageNotificationAsync();
+            // Oppdater summary for flere meldinger
+            existingMessageNotification.Summary = BuildMultipleMessagesSummary(
+                existingMessageNotification.MessageCount,
+                conversationResponse.Type,
+                conversationResponse.GroupName);
+            
+            await messageNotificationRepository.SaveMessageNotificationAsync();
             messageNotification = existingMessageNotification;
         }
         else
         {
+            // Bygg summary for første melding
+            var summary = BuildFirstMessageSummary(
+                messageResponse.EncryptedText,
+                messageResponse.EncryptedAttachments?.Count ?? 0,
+                conversationResponse.Type,
+                conversationResponse.GroupName);
+            
             // Oppretter en ny notificaiton
             var notification = new Models.MessageNotification
             {
@@ -54,43 +68,79 @@ public class MessageNotificationService(
                 ConversationId = conversationResponse.Id,
                 Type = MessageNotificationType.NewMessage,
                 CreatedAt = DateTime.UtcNow,
+                Summary = summary,
                 LastUpdatedAt = DateTime.UtcNow
             };
             
             // Lagrer den i databasen
-            await messageNotificationService.CreateMessageNotificationAsync(notification);
+            await messageNotificationRepository.CreateMessageNotificationAsync(notification);
             messageNotification = notification;
         }
         
-        // Bygger en NotificaitonResponse med en preview for syncevent
-        var messageNotificationResponse = BuildNotificationResponse(messageNotification, conversationResponse,
-            messageResponse);
-
-        await syncService.CreateSyncEventsAsync(
-            new List<string> {recipientId}, 
-            SyncEventType.MessageNotificationCreated,
-            messageNotificationResponse);
+        // Hent sender for response
+        var sender = conversationResponse.Participants
+            .FirstOrDefault(p => p.User.Id == senderId)?.User;
+    
+        return messageNotification.ToResponse(sender!, conversationResponse.GroupName, 
+            conversationResponse.GroupImageUrl);
     }
     
+    /// <summary>
+    /// Bygger summary for første uleste melding i en notification. Egen summary hvis det er med tekst, og hvis det er
+    /// kun attachments så blir det en egen summary for det
+    /// </summary>
+    /// <param name="messageText">Teksten i meldingen</param>
+    /// <param name="numberOfAttachments">Antall attachments for å bygge summary hvis det er ingen tekst</param>
+    /// <param name="conversationType">Forskjellige fra gruppe og vanlig samtale</param>
+    /// <param name="groupName">Navnet på gruppen</param>
+    /// <returns>En summary string</returns>
+    private string BuildFirstMessageSummary(string? messageText, int numberOfAttachments, 
+        ConversationType conversationType, string? groupName)
+    {
+        if (!string.IsNullOrEmpty(messageText))
+        {
+            var msgPreview = messageText.Length > _previewMessageLength 
+                ? messageText[.._previewMessageLength] + "..." 
+                : messageText;
+
+            return conversationType != ConversationType.GroupChat
+                ? $"said: {msgPreview}"
+                : $"sent to {groupName}: {msgPreview}";
+        }
+
+        if (numberOfAttachments > 0)
+        {
+            var attachmentText = numberOfAttachments == 1
+                ? "1 attachment"
+                : $"{numberOfAttachments} attachments";
+
+            return conversationType != ConversationType.GroupChat
+                ? $"sent {attachmentText}"
+                : $"sent {attachmentText} to {groupName}";
+        }
+    
+        return "sent a message";
+    }
+
+    /// <summary>
+    /// Bygger summary for flere uleste meldinger i en notification. Forskjellige mellom gruppesamtaler og vanlig
+    /// </summary>
+    /// <param name="messageCount">Antall meldinger sendt</param>
+    /// <param name="conversationType">Type samtale (Gruppe eller 1-1)</param>
+    /// <param name="groupName">Navnet på gruppen</param>
+    /// <returns>En summary tekst</returns>
+    private string BuildMultipleMessagesSummary(int messageCount, ConversationType conversationType, string? groupName)
+         => conversationType != ConversationType.GroupChat
+            ? $"has sent you {messageCount} messages"
+            : $"There are {messageCount} new messages in {groupName}";
+    
+    
+    // ======================== Direct Chat Notifikasjoner ========================
     
     // Sjekk interface for summary
-    public async Task CreatePendingConversationNotificationAsync(string recipientId, string senderId,
-        ConversationResponse conversationResponse)
+    public async Task<MessageNotificationResponse> CreatePendingConversationNotificationAsync(string recipientId, 
+        string senderId, ConversationResponse conversationResponse)
     {
-        // Oppretter en ny notification
-        var notification = new Models.MessageNotification
-        {
-            RecipientId = recipientId,
-            SenderId = senderId,
-            ConversationId = conversationResponse.Id,
-            Type = MessageNotificationType.PendingMessageRequestReceived,
-            CreatedAt = DateTime.UtcNow,
-            LastUpdatedAt = DateTime.UtcNow,
-        };
-        
-        // Lagrer i databasen
-        await messageNotificationService.CreateMessageNotificationAsync(notification);
-        
         // Henter Sender for SyncEvent
         var senderParticipant = conversationResponse.Participants
             .FirstOrDefault(p => p.User.Id == senderId);
@@ -99,30 +149,41 @@ public class MessageNotificationService(
         {
             logger.LogError("Sender {SenderId} not found in conversation {ConversationId}",
                 senderId, conversationResponse.Id);
-            return;
+            throw new InvalidOperationException(
+                $"Sender {senderId} not found in conversation {conversationResponse.Id}");
         }
         
         // Preview for Notification
-        var preview = conversationResponse.Type != ConversationType.GroupChat
+        var summary = conversationResponse.Type != ConversationType.GroupChat
             ? $"{senderParticipant.User.FullName} wants to message you"
             : $"{senderParticipant.User.FullName} invited you to join {conversationResponse.GroupName}";
         
+        // Oppretter en ny notification
+        var notification = new Models.MessageNotification
+        {
+            RecipientId = recipientId,
+            SenderId = senderId,
+            ConversationId = conversationResponse.Id,
+            Type = MessageNotificationType.PendingMessageRequestReceived,
+            CreatedAt = DateTime.UtcNow,
+            Summary = summary,
+            LastUpdatedAt = DateTime.UtcNow,
+        };
+        
+        // Lagrer i databasen
+        await messageNotificationRepository.CreateMessageNotificationAsync(notification);
+        
         // Oppretter en MessageNotificaitonResponse
-        var messageNotificationResponse = notification.ToResponse(
-            senderParticipant.User, 
-            preview);
-
-        await syncService.CreateSyncEventsAsync(
-            new List<string> {recipientId}, 
-            SyncEventType.MessageNotificationCreated,
-            messageNotificationResponse);
+        return notification.ToResponse(
+            senderParticipant.User);
     }
     
     
     
     // Sjekk interface for summary
-    public async Task CreateConversationAcceptedNotificationAsync(string recipientId, string senderId,
-        ConversationResponse conversationResponse)
+    public async Task<MessageNotificationResponse> CreateConversationAcceptedNotificationAsync(string recipientId, 
+        string senderId, ConversationResponse conversationResponse, string notificationSummary,
+        UserSummaryDto senderUserSummary)
     {
         // Oppretter en ny notification
         var notification = new Models.MessageNotification
@@ -132,38 +193,19 @@ public class MessageNotificationService(
             ConversationId = conversationResponse.Id,
             Type = MessageNotificationType.PendingConversationRequestApproved,
             CreatedAt = DateTime.UtcNow,
+            Summary = notificationSummary,
             LastUpdatedAt = DateTime.UtcNow,
         };
         
         // Lagrer i databasen
-        await messageNotificationService.CreateMessageNotificationAsync(notification);
+        await messageNotificationRepository.CreateMessageNotificationAsync(notification);
         
-        // Henter Sender for SyncEvent
-        var senderParticipant = conversationResponse.Participants
-            .FirstOrDefault(p => p.User.Id == senderId);
-        
-        if (senderParticipant == null)
-        {
-            logger.LogError("Sender {SenderId} not found in conversation {ConversationId}",
-                senderId, conversationResponse.Id);
-            return;
-        }
-        
-        // Preview for ConversationAcceptedNotification
-        var preview = $"{senderParticipant.User.FullName} has accepted your conversation request";
-
-        var messageNotificationResponse = notification.ToResponse(
-            senderParticipant.User, 
-            preview);
-        
-        await syncService.CreateSyncEventsAsync(
-            new List<string> {recipientId}, 
-            SyncEventType.MessageNotificationCreated,
-            messageNotificationResponse);
+        return notification.ToResponse(
+            senderUserSummary);
     }
     
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task CreateGroupMemberJoinedNotificationAsync(string recipientId, string joinedUserId,
         ConversationResponse conversationResponse)
     {
@@ -179,7 +221,7 @@ public class MessageNotificationService(
         };
         
         // Lagrer i databasen
-        await messageNotificationService.CreateMessageNotificationAsync(notification);
+        await messageNotificationRepository.CreateMessageNotificationAsync(notification);
         
         // Henter brukeren som ble med for SyncEvent
         var joinedParticipant = conversationResponse.Participants
@@ -208,74 +250,75 @@ public class MessageNotificationService(
     }
     
     
-    /// <summary>
-    /// Bygger en MessageNotificationResponse for SyncEvent med en tilpasset MessagePreview utifra eksisterende og
-    /// 1-1 eller gruppesamtale
-    /// </summary>
-    /// <param name="notification">Notifikasjonen vi opprettet</param>
-    /// <param name="conversationResponse">Samtalen med participants</param>
-    /// <param name="messageResponse">Meldingen</param>
-    /// <returns>MessageNotificationResponse ferdig for frontend</returns>
-    private MessageNotificationResponse BuildNotificationResponse(Models.MessageNotification notification,
-        ConversationResponse conversationResponse,
-        MessageResponse messageResponse)
-    {
-        // En preview til å vise i toast/notifikasjonsvindu lages her i Preview
-        string preview;
-        var messageCount = notification.MessageCount;
+    
 
-        if (messageCount == 1)
+    public async Task CreateGroupNotificationEventAsync(string recipientId, 
+        string senderId, ConversationResponse conversationResponse, GroupEventType type, string summary,
+        List<int> receivingUsers)
+    {
+        // Oppretter gruppeeventen
+        var groupEvent = new GroupEvent
         {
-            preview = BuildPreviewIfFirstMessageNotification(messageResponse.SenderId!, messageResponse.EncryptedText,
-                messageResponse.EncryptedAttachments.Count, conversationResponse.Type, conversationResponse.GroupName);
+            ConversationId = conversationResponse.Id,
+            EventType = type,
+            TriggeredByUserId = recipientId,
+            Summary = summary,
+            CreatedAt = DateTime.UtcNow
+        };
+        
+        // Lagrer gruppeeventen
+        await messageNotificationRepository.CreateGroupEventAsync(groupEvent);
+        
+        // Finner eller oppretter en MessageNotification med gruppeeventen
+        var notification = await messageNotificationRepository
+            .GetUnreadGroupEventNotificationAsync(recipientId, conversationResponse.Id);
+
+        if (notification == null)
+        {
+            notification = new Models.MessageNotification
+            {
+                RecipientId = recipientId,
+                SenderId = senderId,
+                ConversationId = conversationResponse.Id,
+                Type = MessageNotificationType.GroupEvent,
+                CreatedAt = DateTime.UtcNow,
+                LastUpdatedAt = DateTime.UtcNow,
+                EventCount = 1
+            };
+            
+            // Lagrer i databasen
+            await messageNotificationRepository.CreateMessageNotificationAsync(notification);
+
+            var messageNotificationGroupEvent = new MessageNotificationGroupEvent
+            {
+                MessageNotificationId = notification.Id,
+                GroupEventId = groupEvent.Id
+            };
+            
+            await messageNotificationRepository.CreateGroupMessageNotificationGroupEventAsync(
+                messageNotificationGroupEvent);
         }
         else
-            preview = conversationResponse.Type != ConversationType.GroupChat
-                ? $"has sent you {messageCount} messages"
-                : $"There are {messageCount} new messages in {conversationResponse.GroupName}";
-
-
-        return notification.ToResponse(messageResponse.Sender!, preview,
-            conversationResponse.GroupName, conversationResponse.GroupImageUrl);
-    }
-    
-    /// <summary>
-    /// Bygger en preview for å vise en tekst i frontend sin toast og notifikasjonsvindu
-    /// </summary>
-    /// <param name="senderId">Brukeren sendte meldingen</param>
-    /// <param name="messageText">Meldingen som gjøres om til en preview</param>
-    /// <param name="numberOfAttachments">Vise en melding for antall attachments hvis det er ingen tekst i melding</param>
-    /// <param name="conversationType">Skille mellom 1-1 og gruppe</param>
-    /// <param name="groupName">Vise gruppenavn ved siden av avsender i preview</param>
-    /// <returns></returns>
-    private string BuildPreviewIfFirstMessageNotification(string senderId, string? messageText, int numberOfAttachments,
-        ConversationType conversationType, string? groupName)
-    {
-        if (string.IsNullOrEmpty(messageText) && numberOfAttachments == 0)
         {
-            logger.LogCritical("User {UserId} has somehow sent a message without text", senderId);
-            return "has somehow sent an empty message";
+            var messageNotificationGroupEvent = new MessageNotificationGroupEvent
+            {
+                MessageNotificationId = notification.Id,
+                GroupEventId = groupEvent.Id
+            };
+            
+            await messageNotificationRepository.CreateGroupMessageNotificationGroupEventAsync(
+                messageNotificationGroupEvent);
+
+            notification.EventCount++;
+
+            await messageNotificationRepository.SaveMessageNotificationAsync();
         }
         
-        if (!string.IsNullOrEmpty(messageText))
-        {
-            var msgPreview = messageText.Length > _previewMessageLength 
-                ? messageText.Substring(0, _previewMessageLength) + "..." 
-                : messageText;
-
-            return conversationType != ConversationType.GroupChat
-                ? $"said: {msgPreview}"
-                : $"sent to {groupName}: {msgPreview}";
-        }
-
-        var attachmentText = numberOfAttachments == 1
-            ? "1 attachment"
-            : $"{numberOfAttachments} attachments";
-
-        return conversationType != ConversationType.GroupChat
-            ? $"sent {attachmentText}"
-            : $"sent {attachmentText} to {groupName}";
+        
+        
+        return // TODO: Som en Response
     }
+    
     
     public async Task<MessageNotificationDTO> CreateMessageReactionNotificationAsync(
         int reactingUserId,

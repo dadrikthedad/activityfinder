@@ -8,7 +8,7 @@ namespace AFBack.Features.Conversation.Validators;
 public class ConversationValidator(
     ILogger<ConversationValidator> logger) : IConversationValidator
 {
-    // ============ SAMTALE VALIDERING ============
+    // ============ ENKELT-VALIDERINGER ============
     
     // Sjekk interface for summary
     public Result<Models.Conversation> ValidateConversationExists(
@@ -25,8 +25,6 @@ public class ConversationValidator(
         
         return Result<Models.Conversation>.Success(conversation);
     }
-    
-    // ============ PARTICIPANT VALIDERING ============
     
     // Sjekk interface for summary
     public Result<ConversationParticipant> ValidateParticipant(
@@ -81,8 +79,6 @@ public class ConversationValidator(
         return Result.Success();
     }
     
-    // ============ SAMTALE TYPE VALIDERING ============
-    
     // Sjekk interface for summary
     public Result ValidateIsGroupChat(string userId, Models.Conversation conversation)
     {
@@ -125,8 +121,6 @@ public class ConversationValidator(
         return Result.Success();
     }
     
-    // ============ ARKIVERING VALIDERING ============
-    
     // Sjekk interface for summary
     public Result ValidateNotArchived(ConversationParticipant participant)
     {
@@ -159,8 +153,6 @@ public class ConversationValidator(
         return Result.Success();
     }
     
-    // ============ ROLLE VALIDERING ============
-    
     // Sjekk interface for summary
     public Result ValidateIsPendingRecipient(ConversationParticipant participant)
     {
@@ -176,8 +168,6 @@ public class ConversationValidator(
         
         return Result.Success();
     }
-    
-    // ============ BRUKER VALIDERING ============
     
     // Sjekk interface for summary
     public Result ValidateUserExists(string userId, bool exists)
@@ -205,5 +195,205 @@ public class ConversationValidator(
         }
         
         return Result.Success();
+    }
+    
+    // ============ KOMBINERTE VALIDERINGER ============
+    
+    // Sjekk interface for summary
+    public Result<ConversationParticipant> ValidatePendingRequestAction(
+        string userId,
+        int conversationId,
+        Models.Conversation? conversation)
+    {
+        // Sjekker at samtalen eksisterer
+        var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
+        if (conversationResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        
+        // Validerer at det er en pending request
+        var pendingRequestResult = ValidateIsPendingRequest(userId, conversation!);
+        if (pendingRequestResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(pendingRequestResult.Error, pendingRequestResult.ErrorType);
+        
+        // Validerer at brukeren er medlem av samtalen
+        var participantResult = ValidateParticipant(userId, conversation!);
+        if (participantResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+        
+        var userParticipant = participantResult.Value!;
+        
+        // Sjekk at brukeren er mottakeren (PendingRecipient)
+        var recipientResult = ValidateIsPendingRecipient(userParticipant);
+        if (recipientResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(
+                "You cannot perform this action on a conversation you initiated", recipientResult.ErrorType);
+        
+        // Sjekker at brukeren har pending status (ikke allerede akseptert)
+        var pendingResult = ValidateParticipantPending(userParticipant);
+        if (pendingResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.ErrorType);
+        
+        return Result<ConversationParticipant>.Success(userParticipant);
+    }
+    
+    // Sjekk interface for summary
+    public Result<ConversationParticipant> ValidatePendingGroupInviteAction(
+        string userId,
+        int conversationId,
+        Models.Conversation? conversation)
+    {
+        // Sjekker at samtalen eksisterer
+        var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
+        if (conversationResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        
+        // Validerer at det er en gruppesamtale
+        var groupChatResult = ValidateIsGroupChat(userId, conversation!);
+        if (groupChatResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
+        
+        // Validerer at brukeren er medlem av samtalen
+        var participantResult = ValidateParticipant(userId, conversation!);
+        if (participantResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+        
+        var userParticipant = participantResult.Value!;
+        
+        // Sjekker at brukeren har pending status (ikke allerede akseptert)
+        var pendingResult = ValidateParticipantPending(userParticipant);
+        if (pendingResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.ErrorType);
+        
+        return Result<ConversationParticipant>.Success(userParticipant);
+    }
+    
+    // Sjekk interface for summary
+    public Result<ConversationParticipant> ValidateGroupMemberAction(
+        string userId,
+        int conversationId,
+        Models.Conversation? conversation)
+    {
+        // Sjekker at samtalen eksisterer
+        var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
+        if (conversationResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        
+        // Validerer at det er en gruppesamtale
+        var groupChatResult = ValidateIsGroupChat(userId, conversation!);
+        if (groupChatResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
+        
+        // Validerer at brukeren er medlem av samtalen
+        var participantResult = ValidateParticipant(userId, conversation!);
+        if (participantResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+        
+        var userParticipant = participantResult.Value!;
+        
+        // Sjekker at brukeren har Accepted status
+        var acceptedResult = ValidateParticipantAccepted(userParticipant);
+        if (acceptedResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.ErrorType);
+        
+        return Result<ConversationParticipant>.Success(userParticipant);
+    }
+    
+    // Sjekk interface for summary
+    public Result<ConversationParticipant> ValidateGroupCreatorAction(
+        string userId,
+        int conversationId,
+        Models.Conversation? conversation)
+    {
+        // Sjekker at samtalen eksisterer
+        var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
+        if (conversationResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        
+        // Validerer at det er en gruppesamtale
+        var groupChatResult = ValidateIsGroupChat(userId, conversation!);
+        if (groupChatResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
+        
+        // Validerer at brukeren er medlem av samtalen
+        var participantResult = ValidateParticipant(userId, conversation!);
+        if (participantResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+        
+        var userParticipant = participantResult.Value!;
+        
+        // Sjekker at brukeren har Accepted status
+        var acceptedResult = ValidateParticipantAccepted(userParticipant);
+        if (acceptedResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.ErrorType);
+        
+        // Sjekker at brukeren er Creator
+        var creatorResult = ValidateIsCreator(userParticipant);
+        if (creatorResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(creatorResult.Error, creatorResult.ErrorType);
+        
+        return Result<ConversationParticipant>.Success(userParticipant);
+    }
+    
+    // Sjekk interface for summary
+    public Result<ConversationParticipant> ValidateArchiveAction(
+        string userId,
+        int conversationId,
+        Models.Conversation? conversation)
+    {
+        // Sjekker at samtalen eksisterer
+        var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
+        if (conversationResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        
+        // Validerer at brukeren er medlem av samtalen
+        var participantResult = ValidateParticipant(userId, conversation!);
+        if (participantResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+        
+        var userParticipant = participantResult.Value!;
+        
+        // Sjekker at brukeren ikke allerede har arkivert samtalen
+        var notArchivedResult = ValidateNotArchived(userParticipant);
+        if (notArchivedResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(
+                "You have already deleted this conversation", notArchivedResult.ErrorType);
+        
+        // Validerer at det IKKE er en gruppesamtale
+        var notGroupResult = ValidateIsNotGroupChat(userId, conversation!);
+        if (notGroupResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.ErrorType);
+        
+        return Result<ConversationParticipant>.Success(userParticipant);
+    }
+    
+    // Sjekk interface for summary
+    public Result<ConversationParticipant> ValidateRestoreArchiveAction(
+        string userId,
+        int conversationId,
+        Models.Conversation? conversation)
+    {
+        // Sjekker at samtalen eksisterer
+        var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
+        if (conversationResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+        
+        // Validerer at brukeren er medlem av samtalen
+        var participantResult = ValidateParticipant(userId, conversation!);
+        if (participantResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+        
+        var userParticipant = participantResult.Value!;
+        
+        // Sjekker at brukeren har arkivert samtalen
+        var archivedResult = ValidateIsArchived(userParticipant);
+        if (archivedResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(archivedResult.Error, archivedResult.ErrorType);
+        
+        // Validerer at det IKKE er en gruppesamtale
+        var notGroupResult = ValidateIsNotGroupChat(userId, conversation!);
+        if (notGroupResult.IsFailure)
+            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.ErrorType);
+        
+        return Result<ConversationParticipant>.Success(userParticipant);
     }
 }

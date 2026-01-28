@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using AFBack.DTOs;
+using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Models.Enums;
 
 namespace AFBack.Features.MessageNotification.DTOs;
@@ -24,12 +25,12 @@ public class MessageNotificationResponse
     // ==================== NewMessage Data ==================== 
 
     public int? MessageId { get; set; }
-    public string? MessagePreview { get; set; } // For "Ola: Hei!"-type visninger
+    public string? Summary { get; set; } // For "Ola: Hei!"-type visninger
     public int? MessageCount { get; set; }
     
     // ==================== Brukeren som har trigget oppretting av notifikasjonen ==================== 
 
-    public UserSummaryDto SenderUserSummary { get; set; } = new();
+    public UserSummaryDto SenderUserDto { get; set; } = new();
   
     // ==================== Gruppe Egenskaper ==================== 
     
@@ -46,7 +47,8 @@ public class MessageNotificationResponse
     // ==================== Gruppe Event egenskaper ==================== // 
     public int? EventCount { get; set; }            // For GroupEvent notifikasjoner
     // Visning av hendelser
-    public List<string>? EventSummaries { get; set; }
+    public List<GroupEventResponse>? GroupEvents { get; set; } 
+    
     // For å ha riktig notification ved kun 1 groupevent
     public string? LatestGroupEventType { get; set; }
 }

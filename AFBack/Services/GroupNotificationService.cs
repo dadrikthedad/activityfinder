@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.DTOs;
 using AFBack.Features.MessageNotification.Models;
+using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Hubs;
 using Microsoft.AspNetCore.SignalR;
 
@@ -117,7 +118,7 @@ public class GroupNotificationService
         {
             ConversationId = conversationId,
             EventType = eventType,
-            ActorUserId = actorUserId,
+            TriggeredByUserId = actorUserId,
             Metadata = metadata,
             CreatedAt = DateTime.UtcNow
         };
@@ -206,7 +207,7 @@ public class GroupNotificationService
 
         // Finn den siste hendelsen for å få ActorUser info
         var lastEvent = await _context.GroupEvents
-            .Include(ge => ge.ActorUser)
+            .Include(ge => ge.TriggeredByUser)
             .ThenInclude(u => u.UserProfile)
             .Include(ge => ge.AffectedUsers) // Inkluder affected users
                 .ThenInclude(au => au.User)
@@ -216,7 +217,7 @@ public class GroupNotificationService
 
         // Bygg event summaries
         var events = await _context.GroupEvents
-            .Include(ge => ge.ActorUser)
+            .Include(ge => ge.TriggeredByUser)
             .Include(ge => ge.AffectedUsers)
                 .ThenInclude(au => au.AppUser)
             .Where(ge => groupEventIds.Contains(ge.Id))
@@ -308,7 +309,7 @@ public class GroupNotificationService
         for (int i = 0; i < sortedEvents.Count; i++)
         {
             var currentEvent = sortedEvents[i];
-            var actorName = currentEvent.ActorUser?.FullName ?? "En bruker";
+            var actorName = currentEvent.TriggeredByUser?.FullName ?? "En bruker";
             // ✅ Bruk allerede inkluderte AffectedUsers
             var currentAffectedUserNames = currentEvent.AffectedUsers
                 .Select(au => au.AppUser.FullName)
@@ -323,7 +324,7 @@ public class GroupNotificationService
                 {
                     var nextEvent = sortedEvents[j];
                     if (nextEvent.EventType == currentEvent.EventType && 
-                        nextEvent.ActorUserId == currentEvent.ActorUserId)
+                        nextEvent.TriggeredByUserId == currentEvent.TriggeredByUserId)
                     {
                         // ✅ Også her: Bruk inkluderte data
                         var nextAffectedUserNames = nextEvent.AffectedUsers
