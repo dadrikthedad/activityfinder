@@ -10,10 +10,10 @@ namespace AFBack.Services;
 
 public class SupportService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly AppDbContext _context;
         private readonly ILogger<SupportService> _logger; // Legg til denne
     
-        public SupportService(ApplicationDbContext context, ILogger<SupportService> logger) // Legg til logger parameter
+        public SupportService(AppDbContext context, ILogger<SupportService> logger) // Legg til logger parameter
         {
             _context = context;
             _logger = logger; // Legg til denne

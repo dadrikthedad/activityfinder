@@ -14,7 +14,7 @@ public class MessageQueryService(
     ILogger<MessageQueryService> logger,
     IMessageRepository messageRepository,
     IUserSummaryCacheService userSummariesCache,
-    IDeleteMessageBroadcastService deleteMessageBroadcastService) : IMessageQueryService
+    IMessageBroadcastService messageBroadcastService) : IMessageQueryService
 {
     // ======================================== GET MESSAGES ========================================
     
@@ -192,7 +192,7 @@ public class MessageQueryService(
         
         // ============ BROADCAST (SignalR + SyncEvents) ============
         
-        deleteMessageBroadcastService.QueueDeleteMessageBroadcast(
+        messageBroadcastService.QueueDeleteMessageBroadcast(
             messageId, message.ConversationId, userId);
         
         // ============ BYGG RESPONSE ============

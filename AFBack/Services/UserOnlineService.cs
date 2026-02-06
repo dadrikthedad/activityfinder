@@ -2,18 +2,18 @@ using System.Text.Json;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.DTOs.Signalr;
+using AFBack.Features.SignalR.Models;
 using AFBack.Models;
-using AFBack.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
 
 public class UserOnlineService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly AppDbContext _context;
     private readonly ILogger<UserOnlineService> _logger;
 
-    public UserOnlineService(ApplicationDbContext context, ILogger<UserOnlineService> logger)
+    public UserOnlineService(AppDbContext context, ILogger<UserOnlineService> logger)
     {
         _context = context;
         _logger = logger;

@@ -3,7 +3,7 @@ using AFBack.Controllers;
 using AFBack.Data;
 using AFBack.DTOs;
 using AFBack.Extensions;
-using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
 using AFBack.Interface.Services;
@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore;
 namespace AFBack.Services;
 
 public class ReactionService(
-    ApplicationDbContext context,
+    AppDbContext context,
     IHubContext<UserHub> hubContext,
     IMessageNotificationService messageNotificationService,
     ILogger<UserController> logger,

@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using AFBack.DTOs;
-using AFBack.Models;
 using AFBack.Data;
 using Microsoft.AspNetCore.Authorization;
 
@@ -10,7 +9,7 @@ namespace AFBack.Controllers;
 // Kontroller KUN for innstillinger til bruker/profil
 [ApiController]
 [Route("api/usersettings")]
-public class UserSettingsController(ApplicationDbContext context, ILogger<UserSettingsController> logger)
+public class UserSettingsController(AppDbContext context, ILogger<UserSettingsController> logger)
     : ControllerBase
 {
     // Denne brukes for å oppdatere innstillinger til bruker/profil fra /profilesettings. Hentes fra Frontend: updateUserSettings() via hooken useUpdateUserSettings.ts

@@ -1,4 +1,4 @@
-﻿using AFBack.Models.Auth;
+﻿using AFBack.Features.Auth.Models;
 
 namespace AFBack.Models;
 // Brukes for å sjekke om en bruker ønsker å prate med en annen bruker

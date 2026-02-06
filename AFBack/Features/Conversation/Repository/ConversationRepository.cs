@@ -9,7 +9,7 @@ using ConversationDto = AFBack.Features.Conversation.DTOs.ConversationDto;
 namespace AFBack.Features.Conversation.Repository;
 
 public class ConversationRepository(
-    ApplicationDbContext context) : IConversationRepository
+    AppDbContext context) : IConversationRepository
 {   
     
     ////////////////////////////////////////////// GET SINGLE CONVERSATION ////////////////////////////////////////////

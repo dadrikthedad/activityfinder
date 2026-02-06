@@ -23,13 +23,13 @@ public class GroupConversationService(
     IConversationLeftRecordRepository conversationLeftRecordRepository,
     ISyncService syncService,
     ISendMessageService messageService,
-    IConversationBroadcastService broadcastService,
+    IGroupConversationBroadcastService groupBroadcastService,
     IUserSummaryCacheService userSummariesCache,
     IGroupInviteValidator groupInviteValidator,
     IConversationValidator conversationValidator,
     ISendMessageCache sendMessageCache) : IGroupConversationService
 {
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<CreateGroupConversationResponse>> CreateGroupConversationAsync(
         string userId, CreateGroupConversationRequest request)
     {
@@ -160,7 +160,7 @@ public class GroupConversationService(
         return Result<CreateGroupConversationResponse>.Success(createGroupConversationResponse);
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationResponse>> AcceptPendingGroupConversationRequestAsync(
         string userId, int conversationId)
     {
@@ -234,7 +234,7 @@ public class GroupConversationService(
         }
 
         // Broadcast
-        await broadcastService.BroadcastGroupInviteAcceptedAsync(
+        await groupBroadcastService.BroadcastGroupInviteAcceptedAsync(
             userId, 
             otherAcceptedMemberIds, 
             conversationResponse,
@@ -249,7 +249,7 @@ public class GroupConversationService(
         return Result<ConversationResponse>.Success(conversationResponse);
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result> RejectPendingGroupConversationRequestAsync(string userId, int conversationId)
     {
         logger.LogInformation("User {UserId} is attempting to reject group invitation {ConversationId}", 
@@ -322,7 +322,7 @@ public class GroupConversationService(
             logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
         }
            
-        await broadcastService.BroadcastGroupInviteDeclinedAsync(userId, otherAcceptedMemberIds, 
+        await groupBroadcastService.BroadcastGroupInviteDeclinedAsync(userId, otherAcceptedMemberIds, 
             conversationResponse, summary, decliningUserSummary);
 
         
@@ -333,7 +333,7 @@ public class GroupConversationService(
         return Result.Success();
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationResponse>> InviteGroupMembersAsync(
         string userId, int conversationId, InviteGroupMemberRequest request)
     {
@@ -426,7 +426,7 @@ public class GroupConversationService(
             .Select(p => p.UserId)
             .ToList();
         
-        await broadcastService.BroadcastGroupInvitesSentAsync(userId, uniqueReceiverIds, otherAcceptedMemberIds, 
+        await groupBroadcastService.BroadcastGroupInvitesSentAsync(userId, uniqueReceiverIds, otherAcceptedMemberIds, 
             conversationResponse, summary, inviterUserSummary);
         
         logger.LogInformation(
@@ -458,7 +458,7 @@ public class GroupConversationService(
         };
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result> LeaveGroupConversationAsync(string userId, int conversationId)
     {
         logger.LogInformation("User {UserId} is attempting to leave group {ConversationId}", 
@@ -551,7 +551,7 @@ public class GroupConversationService(
             logger.LogError(ex, "Failed to send system message for group {ConversationId}", conversationId);
         }
         
-        await broadcastService.BroadcastGroupMemberLeftAsync(userId, remainingMemberIds, conversationResponse,
+        await groupBroadcastService.BroadcastGroupMemberLeftAsync(userId, remainingMemberIds, conversationResponse,
             summary, leavingUserSummary);
         
         logger.LogInformation(
@@ -637,7 +637,7 @@ public class GroupConversationService(
             conversation.Id, userId);
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationLeftRecordsResponse>> GetLeftConversationsAsync(
         string userId, int page, int pageSize)
     {
@@ -669,7 +669,7 @@ public class GroupConversationService(
         return Result<ConversationLeftRecordsResponse>.Success(response);
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result> DeleteLeftConversationRecordAsync(string userId, int conversationId)
     {
         logger.LogInformation("User {UserId} is attempting to delete left record for conversation {ConversationId}",
@@ -692,7 +692,7 @@ public class GroupConversationService(
         return Result.Success();
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationResponse>> UpdateGroupNameAsync(
         string userId, int conversationId, UpdateGroupNameRequest request)
     {
@@ -759,7 +759,7 @@ public class GroupConversationService(
             .Select(p => p.UserId)
             .ToList();
         
-        await broadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
+        await groupBroadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
             summary, updaterUserSummary, GroupEventType.GroupNameChanged, "GroupNameUpdated");
         
         logger.LogInformation(

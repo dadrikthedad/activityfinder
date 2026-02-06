@@ -10,7 +10,7 @@ using AttachmentDto = AFBack.Features.Messaging.DTOs.AttachmentDto;
 namespace AFBack.Features.Messaging.Repository;
 
 public class MessageRepository(
-    ApplicationDbContext context) : IMessageRepository
+    AppDbContext context) : IMessageRepository
 {
     // Se interface for summary
     public Task<bool> MessageExistsAsync(int messageId) =>

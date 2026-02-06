@@ -2,17 +2,18 @@ using AFBack.Cache;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Repository;
-using AFBack.Features.MessageNotification.DTOs;
-using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.MessageNotifications.DTOs;
+using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Extensions;
 using AFBack.Features.Messaging.Repository;
+using AFBack.Features.SignalR.Constants;
+using AFBack.Features.SignalR.Services;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Hubs;
 using AFBack.Models.Enums;
 using AFBack.Services;
-using Microsoft.AspNetCore.SignalR;
+
 
 namespace AFBack.Features.Broadcast.Services;
 
@@ -20,15 +21,17 @@ public class MessageBroadcastService(
     ILogger<MessageBroadcastService> logger,
     IConversationRepository conversationRepository,
     IMessageRepository messageRepository,
-    IHubContext<UserHub> hubContext,
+    ISignalRNotificationService signalRNotificationService,
     ISyncService syncService,
     IMessageNotificationService messageNotificationService,
-    IBackgroundTaskQueue backgroundTaskQueue, 
+    IBackgroundTaskQueue backgroundTaskQueue,
+    IConversationPresenceService presenceService,
     IServiceScopeFactory serviceScopeFactory,
     IUserSummaryCacheService userSummariesCache) : IMessageBroadcastService
 {
     
     // ======================================== Queue opp bakgrunnstasks ========================================
+    /// <inheritdoc />
     public void QueueNewMessageBackgroundTasks(int messageId, int conversationId, 
         string? senderId)
     {
@@ -42,6 +45,7 @@ public class MessageBroadcastService(
 
     // ======================================== Meldinger ========================================
     
+    /// <inheritdoc />
     public async Task ProcessMessageBroadcast(int messageId, int conversationId, string? senderId)
     {
         logger.LogDebug("Processing message broadcast for message Id {MessageId}", messageId);
@@ -116,22 +120,16 @@ public class MessageBroadcastService(
                          p.Status != ConversationStatus.Pending)) // Gruppe: kun accepted
             .Select(async participant => 
         {
-            try
+            var userResponse = response with
             {
-                // Opprett et nytt Record/Response kun med forskjellig isSilent utifra om brukeren skal få notifikasjon
-                // Hvis Pending 1-1 samtale, ingen notifikasjon
-                var userResponse = response with
-                {
-                    IsSilent = participant.Status == ConversationStatus.Pending
-                };
-                
-                await hubContext.Clients.User(participant.User.Id)
-                    .SendAsync("IncomingMessage", userResponse);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to send message to appUser {UserId}", participant.User.Id);
-            }
+                IsSilent = participant.Status == ConversationStatus.Pending
+            };
+            
+            await signalRNotificationService.SendToUserAsync(
+                participant.User.Id,
+                HubConstants.ClientEvents.ReceiveMessage,
+                userResponse,
+                $"message to user {participant.User.Id}");
         });
         
         // Kjører alle SignalR-sendingene samtidig
@@ -146,10 +144,8 @@ public class MessageBroadcastService(
     /// <param name="conversationResponse">Samtalen som har fått ny melding</param>
     /// <param name="messageResponse">MessageResponse</param>
     /// <param name="senderId">Avsender</param>
-    private async Task BroadcastNotificationsAndSyncEventsAsync(
-        ConversationResponse conversationResponse,
-        MessageResponse messageResponse,
-        string? senderId)
+    private async Task BroadcastNotificationsAndSyncEventsAsync(ConversationResponse conversationResponse,
+        MessageResponse messageResponse, string? senderId)
     {
         // Hent alle brukere som skal få SyncEvent
         var targetedUserIds = conversationResponse.Type == ConversationType.GroupChat
@@ -159,9 +155,15 @@ public class MessageBroadcastService(
             : conversationResponse.Participants
                 .Select(p => p.User.Id).ToList();
         
+        // Hent alle brukere som er aktive i samtalen
+        var activeUsers = await presenceService
+            .GetActiveUsersInConversationAsync(conversationResponse.Id);
+        var activeUserSet = activeUsers.ToHashSet(); 
+        
         // For hver bruker så oppretter vi MessageNotification (hvis brukern er accepted, og ikke avsender) og syncevent
         var tasks = targetedUserIds.Select(async userId =>
         {
+            
             // MessageNotificationResponse er null til avsender og systemmeldinger
             MessageNotificationResponse? notification = null;
 
@@ -169,10 +171,14 @@ public class MessageBroadcastService(
             // SyncEvent som frontend håndterer stille
             var isAccepted = conversationResponse.Participants
                 .Any(p => p.User.Id == userId && p.Status == ConversationStatus.Accepted);
-
+            
+            // Sjekk om brukeren er aktive i samtalen
+            var isActiveInConversation = activeUserSet.Contains(userId);
+            
             var shouldCreateNotification = userId != senderId 
                                            && !messageResponse.IsSystemMessage
-                                           && isAccepted;
+                                           && isAccepted
+                                           && !isActiveInConversation;
 
             if (shouldCreateNotification)
             {
@@ -191,22 +197,15 @@ public class MessageBroadcastService(
             }
 
             // Lag SyncEvent for alle (med eller uten notification - Systemmeldinger skal ha en silent syncevent)
-            try
-            {
-                await syncService.CreateSyncEventsAsync(
-                    [userId],
-                    SyncEventType.NewMessage,
-                    new
-                    {
-                        Message = messageResponse,
-                        Conversation = conversationResponse,
-                        Notification = notification
-                    });
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to create SyncEvent for {UserId}", userId);
-            }
+            await syncService.CreateSyncEventsAsync(
+                [userId],
+                SyncEventType.NewMessage,
+                new
+                {
+                    Message = messageResponse,
+                    Conversation = conversationResponse,
+                    Notification = notification
+                });
         });
 
         await Task.WhenAll(tasks);
@@ -256,43 +255,21 @@ public class MessageBroadcastService(
         
         // ============ SIGNALR ============
         
-        var signalRTasks = acceptedParticipants
-            .Select(async participant =>
-            {
-                try
-                {
-                    await hubContext.Clients.User(participant.UserId)
-                        .SendAsync("MessageDeleted", deletePayload);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, 
-                        "Failed to send MessageDeleted SignalR to user {UserId}", 
-                        participant.UserId);
-                }
-            });
+        var targetUserIds = acceptedParticipants.Select(p => p.UserId).ToList();
         
-        await Task.WhenAll(signalRTasks);
+        await signalRNotificationService.SendToUsersAsync(
+            targetUserIds,
+            HubConstants.ClientEvents.MessageDeleted,
+            deletePayload,
+            $"message {messageId} deleted");
         
         // ============ SYNC EVENTS ============
         
-        try
-        {
-            var targetUserIds = acceptedParticipants
-                .Select(p => p.UserId)
-                .ToList();
-            
-            await syncService.CreateSyncEventsAsync(
-                targetUserIds, 
-                SyncEventType.MessageDeleted, 
-                deletePayload);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, 
-                "Failed to create sync events for deleted message {MessageId}", 
-                messageId);
-        }
+        // SyncEvents
+        await syncService.CreateSyncEventsAsync(
+            targetUserIds, 
+            SyncEventType.MessageDeleted, 
+            deletePayload);
         
         logger.LogDebug(
             "Successfully broadcast message deletion for message {MessageId} to {Count} participants",

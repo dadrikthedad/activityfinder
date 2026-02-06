@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.SyncEvents.Repository;
 
-public class SyncEventRepository(ApplicationDbContext context) : ISyncEventRepository
+public class SyncEventRepository(AppDbContext context) : ISyncEventRepository
 {   
     /// <summary>
     /// Lagrer flere SyncEvents i en liste til databasen

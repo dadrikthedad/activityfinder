@@ -4,14 +4,15 @@ using System.Text.Json;
 using AFBack.Constants;
 using AFBack.DTOs.Auth;
 using AFBack.Extensions;
+using AFBack.Features.Auth.Models;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.Geography.Services;
+using AFBack.Infrastructure.Security.Utils;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
-using AFBack.Models.Auth;
 using AFBack.Models.User;
 using AFBack.Services.User;
-using AFBack.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -32,9 +33,9 @@ using CountryData.Standard;
 // Gjør klassen til en API-kontroller, automatisk sjekk at det er riktig input, automatisk konvertering JSON-requests til objekter.
 [ApiController]
 public class UserController(
-    ApplicationDbContext context,
+    AppDbContext context,
     ILogger<UserController> logger,
-    AuthService authService,
+    OldAuthService oldAuthService,
     CountryService countryService,
     IBackgroundTaskQueue taskQueue,
     IServiceScopeFactory scopeFactory,
@@ -328,7 +329,7 @@ public class UserController(
 
         string normalizedEmail = userLoginDto.Email.Trim().ToLowerInvariant();
 
-        var loginResponse = await authService.LoginAsync(normalizedEmail, userLoginDto.Password);
+        var loginResponse = await oldAuthService.LoginAsync(normalizedEmail, userLoginDto.Password);
 
         if (loginResponse == null)
         {
@@ -386,7 +387,7 @@ public class UserController(
                         if (locationResult.Success)
                         {
                             using var scope = scopeFactory.CreateScope();
-                            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 
                             var userToUpdate = await context.AppUsers.FindAsync(userId);
                             if (userToUpdate != null)
@@ -423,7 +424,7 @@ public class UserController(
         if (string.IsNullOrWhiteSpace(request.RefreshToken))
             return Ok(new { message = "Logged out successfully" }); // Soft fail
 
-        var success = await authService.LogoutAsync(request.RefreshToken);
+        var success = await oldAuthService.LogoutAsync(request.RefreshToken);
     
         if (success)
         {
@@ -444,7 +445,7 @@ public class UserController(
         if (string.IsNullOrWhiteSpace(request.RefreshToken))
             return BadRequest(new { message = "Refresh token is required" });
 
-        var result = await authService.RefreshTokenAsync(request.RefreshToken);
+        var result = await oldAuthService.RefreshTokenAsync(request.RefreshToken);
 
         if (result == null)
         {

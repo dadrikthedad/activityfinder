@@ -5,10 +5,10 @@ using Microsoft.Extensions.Options;
 using AFBack.Configuration;
 using AFBack.Constants;
 using AFBack.Data;
+using AFBack.Infrastructure.Security.Models;
+using AFBack.Infrastructure.Security.Utils;
 using AFBack.Interface.Services;
 using AFBack.Models;
-using AFBack.Models.Auth;
-using AFBack.Utils;
 
 namespace AFBack.Services;
 
@@ -40,7 +40,7 @@ public class IpBanService : IIpBanService, IDisposable
     {
         ThrowIfDisposed();
         
-        var normalizedIp = IpUtils.NormalizeIp(ipAddress);
+        var normalizedIp = IpUtils.NormalizeIpAdress(ipAddress);
         if (string.IsNullOrEmpty(normalizedIp)) return false;
 
         // Sjekk whitelist (supports CIDR ranges now)
@@ -110,7 +110,7 @@ public class IpBanService : IIpBanService, IDisposable
 
         // Database lookup
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         
         var activeBan = await context.BanInfos
             .Where(b => b.DeviceId == deviceId && b.IsActive)
@@ -170,7 +170,7 @@ public class IpBanService : IIpBanService, IDisposable
 
         // Database lookup
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         
         var activeBan = await context.BanInfos
             .Where(b => b.IpAddress == normalizedIp && b.IsActive && string.IsNullOrEmpty(b.DeviceId))
@@ -201,7 +201,7 @@ public class IpBanService : IIpBanService, IDisposable
     {
         ThrowIfDisposed();
         
-        var normalizedIp = IpUtils.NormalizeIp(ipAddress);
+        var normalizedIp = IpUtils.NormalizeIpAdress(ipAddress);
         if (string.IsNullOrEmpty(normalizedIp)) return;
 
         var isFromSharedNetwork = IpUtils.IsFromSharedNetwork(normalizedIp);
@@ -211,7 +211,7 @@ public class IpBanService : IIpBanService, IDisposable
             return;
 
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // FORBEDRET: Lagre device ID i suspicious activity
         var activity = new SuspiciousActivity
@@ -232,7 +232,7 @@ public class IpBanService : IIpBanService, IDisposable
         await HandleSuspiciousActivityEscalationAsync(context, normalizedIp, deviceId, activityType, isFromSharedNetwork);
     }
 
-    public async Task HandleSuspiciousActivityEscalationAsync(ApplicationDbContext context, string ipAddress, 
+    public async Task HandleSuspiciousActivityEscalationAsync(AppDbContext context, string ipAddress, 
         string? deviceId, string activityType, bool isFromSharedNetwork)
     {
         if (isFromSharedNetwork && !string.IsNullOrEmpty(deviceId))
@@ -283,7 +283,7 @@ public class IpBanService : IIpBanService, IDisposable
             throw new ArgumentException("Device ID cannot be null or empty", nameof(deviceId));
 
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Deactivate existing device bans
         await context.BanInfos
@@ -314,7 +314,7 @@ public class IpBanService : IIpBanService, IDisposable
     }
 
     // FORBEDRET: Support både IP og device lookup
-    public async Task<int> GetRecentSuspiciousCountAsync(ApplicationDbContext context, string? ipAddress, string? deviceId)
+    public async Task<int> GetRecentSuspiciousCountAsync(AppDbContext context, string? ipAddress, string? deviceId)
     {
         var cutoff = DateTime.UtcNow.Subtract(_options.SuspiciousWindow);
         var query = context.SuspiciousActivities.Where(a => a.Timestamp > cutoff);
@@ -364,7 +364,7 @@ public class IpBanService : IIpBanService, IDisposable
     private async Task DeactivateDeviceBanAsync(string deviceId)
     {
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var updatedCount = await context.BanInfos
             .Where(b => b.DeviceId == deviceId && b.IsActive && b.BanType == BanType.Temporary && DateTime.UtcNow > b.ExpiresAt)
@@ -381,7 +381,7 @@ public class IpBanService : IIpBanService, IDisposable
         try
         {
             using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var activeBans = await context.BanInfos
                 .Where(b => b.IsActive)
@@ -394,7 +394,7 @@ public class IpBanService : IIpBanService, IDisposable
 
             foreach (var ban in activeBans)
             {
-                var normalizedIp = IpUtils.NormalizeIp(ban.IpAddress);
+                var normalizedIp = IpUtils.NormalizeIpAdress(ban.IpAddress);
                 
                 // Sjekk om temporary ban er utløpt
                 if (ban.BanType == BanType.Temporary && now > ban.ExpiresAt)
@@ -445,7 +445,7 @@ public class IpBanService : IIpBanService, IDisposable
     private async Task<bool> RevalidateBanAsync(string ipAddress, CachedBanInfo cachedBan)
     {
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var activeBan = await context.BanInfos
             .Where(b => b.IpAddress == ipAddress && b.IsActive && string.IsNullOrEmpty(b.DeviceId))
@@ -464,7 +464,7 @@ public class IpBanService : IIpBanService, IDisposable
         return true;
     }
 
-    private async Task BanIpInternalAsync(ApplicationDbContext context, string ipAddress, BanType banType, 
+    private async Task BanIpInternalAsync(AppDbContext context, string ipAddress, BanType banType, 
         string reason, string bannedBy = "System")
     {
         // Bulk deactivate existing IP bans
@@ -501,7 +501,7 @@ public class IpBanService : IIpBanService, IDisposable
     private async Task DeactivateBanAsync(string ipAddress)
     {
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var updatedCount = await context.BanInfos
             .Where(b => b.IpAddress == ipAddress && b.IsActive && b.BanType == BanType.Temporary && 

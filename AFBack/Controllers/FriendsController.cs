@@ -17,7 +17,7 @@ namespace AFBack.Controllers;
 [Route("api/friends")]
 [Authorize]
 public class FriendsController(
-    ApplicationDbContext context,
+    AppDbContext context,
     IBackgroundTaskQueue taskQueue,
     IServiceScopeFactory scopeFactory,
     ILogger<FriendsController> logger)

@@ -1,25 +1,25 @@
-﻿using AFBack.Cache;
-using AFBack.Constants;
-using AFBack.Data;
-using AFBack.Models;
-using Microsoft.EntityFrameworkCore;
-using AFBack.DTOs;
-using AFBack.Extensions;
-using AFBack.Features.Cache.Interface;
-using AFBack.Features.SyncEvents.Services;
-using AFBack.Functions;
-using AFBack.Interface.Services;
-
-namespace AFBack.Services;
-
-public class ConversationService(
-    ApplicationDbContext context,
-    ISendMessageCache msgCache,
-    IBackgroundTaskQueue taskQueue,
-    IServiceScopeFactory scopeFactory,
-    ILogger<ConversationService> logger)
-{
-        // Hente alle samtalene til en bruker som er godkjente
+﻿// using AFBack.Cache;
+// using AFBack.Constants;
+// using AFBack.Data;
+// using AFBack.Models;
+// using Microsoft.EntityFrameworkCore;
+// using AFBack.DTOs;
+// using AFBack.Extensions;
+// using AFBack.Features.Cache.Interface;
+// using AFBack.Features.SyncEvents.Services;
+// using AFBack.Functions;
+// using AFBack.Interface.Services;
+//
+// namespace AFBack.Services;
+//
+// public class ConversationService(
+//     ApplicationDbContext context,
+//     ISendMessageCache msgCache,
+//     IBackgroundTaskQueue taskQueue,
+//     IServiceScopeFactory scopeFactory,
+//     ILogger<ConversationService> logger)
+// {
+//         // Hente alle samtalene til en bruker som er godkjente
         // public async Task<List<Conversations>> GetUserConversationsSortedAsync(
         //     int userId, bool includeRejected = false, int? limit = null)
         // {

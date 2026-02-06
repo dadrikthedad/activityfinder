@@ -2,7 +2,7 @@ using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.Results;
 using AFBack.DTOs;
-using AFBack.Features.Block;
+using AFBack.Features.Blocking.Services;
 using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Request;
@@ -29,14 +29,14 @@ public class DirectConversationService(
     IMessageRepository messageRepository,
     IUserRepository userRepository,
     IConversationValidator conversationValidator,
-    IBlockService blockService,
+    IBlockingService blockingService,
     ISendMessageService sendMessageService,
     IConversationBroadcastService broadcastService,
     ISendMessageCache sendMessageCache,
     IUserSummaryCacheService userSummariesCache,
     IFriendshipRepository friendshipRepository) : IDirectConversationService
 {
-     // Sjekk interface for summary
+     /// <inheritdoc />
     public async Task<Result<SendMessageToUserResponse>> SendMessageToUserAsync(string userId, 
         SendMessageToUserRequest request)
     {
@@ -64,7 +64,7 @@ public class DirectConversationService(
                 request);
         
         // Sjekk blokkeringer begge veier
-        var blockResult = await blockService.ValidateNoBlockingsAsync(userId, request.ReceiverId);
+        var blockResult = await blockingService.ValidateNoBlockingsAsync(userId, request.ReceiverId);
         if (blockResult.IsFailure)
             return Result<SendMessageToUserResponse>.Failure(blockResult.Error, blockResult.ErrorType);
         
@@ -256,7 +256,7 @@ public class DirectConversationService(
     }
     
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationResponse>> AcceptPendingConversationRequestAsync(string userId, 
         int conversationId)
     {
@@ -356,7 +356,7 @@ public class DirectConversationService(
         return Result<ConversationResponse>.Success(conversationResponse);
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result> RejectPendingConversationRequestAsync(string userId, int conversationId)
     {
         logger.LogInformation("User {UserId} is attempting to reject pending conversation {ConversationId}", 

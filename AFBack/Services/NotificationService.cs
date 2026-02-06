@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.SignalR;
 using AFBack.Hubs;
 // Her styrer vi Notifications og sikrer at de brukes i SignalR
 public class NotificationService(
-    ApplicationDbContext context,
+    AppDbContext context,
     IHubContext<UserHub> hubContext,
     ISyncService syncService,
     IBackgroundTaskQueue taskQueue)

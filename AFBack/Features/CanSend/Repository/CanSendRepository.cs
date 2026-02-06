@@ -2,7 +2,7 @@ using AFBack.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.CanSend.Repository;
-public class CanSendRepository(ApplicationDbContext context) : ICanSendRepository
+public class CanSendRepository(AppDbContext context) : ICanSendRepository
 {
     // Sjekk interface for summary
     public async Task<bool> CanSendExistsAsync(string userId, int conversationId) =>

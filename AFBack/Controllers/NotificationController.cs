@@ -17,7 +17,7 @@ using System.Security.Claims;
 [Route("api/notifications")]
 [Authorize] 
 public class NotificationController(
-    ApplicationDbContext context,
+    AppDbContext context,
     INotificationService notificationService,
     ILogger<NotificationController> logger,
     IUserCache userCache,

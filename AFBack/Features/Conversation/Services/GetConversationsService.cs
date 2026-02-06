@@ -14,7 +14,7 @@ public class GetConversationsService(
     IConversationRepository conversationRepository,
     IUserSummaryCacheService userSummariesCache) : IGetConversationsService
 {
-     // SJekk interface for summary
+     /// <inheritdoc />
     public async Task<Result<ConversationResponse>> GetConversationAsync(string userId, int conversationId)
     {
         logger.LogInformation("Getting conversation {ConversationId} for User {UserId}", 
@@ -54,7 +54,7 @@ public class GetConversationsService(
     }
     
     
-    // SJekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationsResponse>> GetActiveConversationsAsync(
         string userId, PaginationRequest request)
     {
@@ -67,7 +67,7 @@ public class GetConversationsService(
             conversationRepository.GetActiveConversationsAsync);
     }
     
-    // SJekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationsResponse>> GetPendingConversationsAsync(
         string userId, PaginationRequest request)
     {
@@ -80,7 +80,7 @@ public class GetConversationsService(
             conversationRepository.GetPendingConversationsAsync);
     }
     
-    // SJekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationsResponse>> GetArchivedConversationsAsync(
         string userId, PaginationRequest request)
     {
@@ -93,7 +93,7 @@ public class GetConversationsService(
             conversationRepository.GetArchivedConversationsAsync);
     }
     
-    // SJekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationsResponse>> GetRejectedConversationsAsync(
         string userId, PaginationRequest request)
     {

@@ -1,5 +1,5 @@
+using AFBack.Features.Auth.Models;
 using AFBack.Models;
-using AFBack.Models.Auth;
 
 namespace AFBack.Features.Cache.Interface;
 

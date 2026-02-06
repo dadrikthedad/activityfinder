@@ -18,26 +18,36 @@ public class SyncService(
     private readonly int _maxEventTreshold = 30;
     
     
-    // SJekk interface for summary
+    /// <inheritdoc />
     public async Task CreateSyncEventsAsync(List<string> targetUserIds, SyncEventType eventType, object eventData)
     {
         if (targetUserIds.Count == 0)
-            throw new ArgumentException($"No users to create Sync Event for type {eventType}", nameof(targetUserIds));
-        
-        // Serialiserer eventData til Json for enklere lagring - gjøres kun engang før lagring
-        var eventDataJson = JsonSerializer.Serialize(eventData);
-
-        var syncEvents = targetUserIds.Select(userId => new SyncEvent
         {
-            UserId = userId,
-            EventType = eventType,
-            EventData = eventDataJson
-        }).ToList();
+            logger.LogWarning("No users to create SyncEvent for type {EventType}", eventType);
+            return;
+        }
 
-        await syncEventRepository.SaveSyncEventsAsync(syncEvents);
-        
-        logger.LogDebug("Created {Count} sync events of type {EventType}", 
-            syncEvents.Count, eventType);
+        try
+        {
+            var eventDataJson = JsonSerializer.Serialize(eventData);
+
+            var syncEvents = targetUserIds.Select(userId => new SyncEvent
+            {
+                UserId = userId,
+                EventType = eventType,
+                EventData = eventDataJson
+            }).ToList();
+
+            await syncEventRepository.SaveSyncEventsAsync(syncEvents);
+    
+            logger.LogDebug("Created {Count} sync events of type {EventType}", 
+                syncEvents.Count, eventType);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create SyncEvent '{EventType}' for {Count} users", 
+                eventType, targetUserIds.Count);
+        }
     }
     
     /// <summary>

@@ -5,17 +5,17 @@ using AFBack.DTOs.BoostrapDTO;
 using AFBack.DTOs.Crypto;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Extensions;
+using AFBack.Features.Auth.Models;
 using AFBack.Features.Conversation.DTOs;
-using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Interface.Services;
-using AFBack.Models.Auth;
 using AFBack.Models.User;
 
 namespace AFBack.Services
 {
     public class BootstrapService(
-        ApplicationDbContext context,
+        AppDbContext context,
         ILogger<BootstrapService> logger,
         ConversationService conversationService,
         IServiceProvider serviceProvider,
@@ -36,7 +36,7 @@ namespace AFBack.Services
                 var userTask = Task.Run(async () =>
                 {
                     using var scope = serviceProvider.CreateScope();
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     logger.LogDebug("📋 Starting appUser lookup with separate context");
                     return await GetCurrentUserWithContext(userId, context);
                 });
@@ -44,7 +44,7 @@ namespace AFBack.Services
                 var settingsTask = Task.Run(async () =>
                 {
                     using var scope = serviceProvider.CreateScope();
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     logger.LogDebug("📋 Starting settings lookup with separate context");
                     return await GetUserSettingsWithContext(userId, context);
                 });
@@ -99,7 +99,7 @@ namespace AFBack.Services
                 var userRelationshipsTask = Task.Run(async () =>
                 {
                     using var scope = serviceProvider.CreateScope();
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     logger.LogDebug("📋 Getting appUser relationships with separate context");
                     return await GetUserRelationshipsWithContext(userId, context);
                 });
@@ -107,7 +107,7 @@ namespace AFBack.Services
                 var unreadConversationsTask = Task.Run(async () =>
                 {
                     using var scope = serviceProvider.CreateScope();
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     logger.LogDebug("📋 Getting unread conversation IDs with separate context");
                     return await GetUnreadConversationIdsWithContext(userId, context);
                 });
@@ -192,7 +192,7 @@ namespace AFBack.Services
         // CRITICAL BOOTSTRAP METHODS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        private async Task<AppUser> GetCurrentUserWithContext(int userId, ApplicationDbContext context)
+        private async Task<AppUser> GetCurrentUserWithContext(int userId, AppDbContext context)
         {
             logger.LogDebug("🔍 Looking up appUser with ID: {UserId} (separate context)", userId);
 
@@ -215,7 +215,7 @@ namespace AFBack.Services
             return user;
         }
 
-        private async Task<UserSettings?> GetUserSettingsWithContext(int userId, ApplicationDbContext context)
+        private async Task<UserSettings?> GetUserSettingsWithContext(int userId, AppDbContext context)
         {
             logger.LogDebug("🔍 Getting settings for appUser {UserId} (separate context)", userId);
 
@@ -330,7 +330,7 @@ namespace AFBack.Services
             }
         }
 
-        private async Task<List<UserSummaryDto>> GetUserRelationshipsWithContext(int userId, ApplicationDbContext context)
+        private async Task<List<UserSummaryDto>> GetUserRelationshipsWithContext(int userId, AppDbContext context)
         {
             logger.LogDebug("🔍 Getting appUser relationships for appUser {UserId} (separate context)", userId);
 
@@ -395,7 +395,7 @@ namespace AFBack.Services
             return userRelationships;
         }
         
-        private async Task<List<int>> GetUnreadConversationIdsWithContext(int userId, ApplicationDbContext context)
+        private async Task<List<int>> GetUnreadConversationIdsWithContext(int userId, AppDbContext context)
         {
             logger.LogDebug("🔍 Getting unread conversation IDs for appUser {UserId} (separate context)", userId);
 

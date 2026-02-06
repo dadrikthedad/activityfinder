@@ -7,7 +7,6 @@ using AFBack.Features.Cache.Interface;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Models;
-using AFBack.Models.Auth;
 using AFBack.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -22,7 +21,7 @@ public class EmailController(
     UserService userService,
     EmailRateLimitService emailRateLimitService,
     ILogger<EmailController> logger,
-    ApplicationDbContext context,
+    AppDbContext context,
     IIpBanService ipBanService,
     IUserCache userCache,
     ResponseService responseService)

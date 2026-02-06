@@ -17,7 +17,7 @@ namespace AFBack.Controllers
     [Route("api/[controller]")]
     [Authorize] // Require authentication for all E2EE endpoints
     public class E2EEController(
-        ApplicationDbContext context,
+        AppDbContext context,
         E2EEService e2EeService,
         ILogger<E2EEController> logger,
         SecretClient secretClient,

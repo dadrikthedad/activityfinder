@@ -1,17 +1,17 @@
 using System.Security.Cryptography;
 using AFBack.Data;
+using AFBack.Features.Auth.Models;
 using AFBack.Models;
-using AFBack.Models.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services;
 
 public class UserService
 {
-    private readonly ApplicationDbContext _context;
+    private readonly AppDbContext _context;
     private readonly ILogger<UserService> _logger;
 
-    public UserService(ApplicationDbContext context, ILogger<UserService> logger)
+    public UserService(AppDbContext context, ILogger<UserService> logger)
     {
         _context = context;
         _logger = logger;

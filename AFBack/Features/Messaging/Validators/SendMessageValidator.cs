@@ -1,6 +1,7 @@
 using AFBack.Common;
 using AFBack.Common.Results;
-using AFBack.Features.Block;
+using AFBack.Features.Blocking;
+using AFBack.Features.Blocking.Services;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.Messaging.DTOs.Request;
@@ -14,7 +15,7 @@ public class SendMessageValidator(
     IMessageRepository messageRepository,
     IConversationRepository conversationRepository,
     IConversationValidator conversationValidator,
-    IBlockService blockService,
+    IBlockingService blockingService,
     ILogger<SendMessageValidator> logger) : ISendMessageValidator
 {
     
@@ -121,7 +122,7 @@ public class SendMessageValidator(
         }
 
         // Sjekker blokkeringer begge veier
-        var blockResult = await blockService.ValidateNoBlockingsAsync(userId, messageReceiver.UserId);
+        var blockResult = await blockingService.ValidateNoBlockingsAsync(userId, messageReceiver.UserId);
         if (blockResult.IsFailure)
             return blockResult;
         

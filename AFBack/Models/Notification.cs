@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using AFBack.DTOs;
-using AFBack.Models.Auth;
+using AFBack.Features.Auth.Models;
 
 namespace AFBack.Models;
 // Notification til en bruker

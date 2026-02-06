@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.Conversation.Repository;
 
-public class ConversationLeftRecordRepository(ApplicationDbContext context) : IConversationLeftRecordRepository 
+public class ConversationLeftRecordRepository(AppDbContext context) : IConversationLeftRecordRepository 
 {
     // Sjekk interface for summary
     public async Task<bool> ExistsAsync(string userId, int conversationId) =>

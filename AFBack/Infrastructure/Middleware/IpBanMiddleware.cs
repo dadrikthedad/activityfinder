@@ -1,9 +1,9 @@
 
 using AFBack.Data;
 using AFBack.DTOs.Security;
+using AFBack.Infrastructure.Security.Models;
+using AFBack.Infrastructure.Security.Utils;
 using AFBack.Interface.Services;
-using AFBack.Models.Auth;
-using AFBack.Utils;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Infrastructure.Middleware;
@@ -45,7 +45,7 @@ public class IpBanMiddleware(
     private async Task<BanInfo?> GetBanInfoAsync(string? ipAddress, string? deviceId)
     {
         using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         if (!string.IsNullOrEmpty(deviceId))
         {

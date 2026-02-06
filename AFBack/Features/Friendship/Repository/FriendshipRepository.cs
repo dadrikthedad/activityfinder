@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.Friendship.Repository;
 
-public class FriendshipRepository(ApplicationDbContext context) : IFriendshipRepository
+public class FriendshipRepository(AppDbContext context) : IFriendshipRepository
 {
 
         

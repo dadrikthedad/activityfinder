@@ -11,10 +11,10 @@ namespace AFBack.Services.Crypto;
 
 public class E2EEService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly AppDbContext _context;
         private readonly ILogger<E2EEService> _logger;
 
-        public E2EEService(ApplicationDbContext context, ILogger<E2EEService> logger)
+        public E2EEService(AppDbContext context, ILogger<E2EEService> logger)
         {
             _context = context;
             _logger = logger;

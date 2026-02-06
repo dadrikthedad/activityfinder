@@ -9,7 +9,7 @@ namespace AFBack.Infrastructure.Extensions;
 public static class ClaimsPrincipalExtensions
 {
     /// <summary>
-    /// Henter ut UserId fra token (NameIdentifier)
+    /// Henter ut UserId fra token (NameIdentifier). Brukes i kontrollerne da den kaster feil
     /// </summary>
     /// <param name="user">Brukeren som har sendt en forespørsel</param>
     /// <returns>UserId som string</returns>
@@ -22,6 +22,16 @@ public static class ClaimsPrincipalExtensions
             throw new AuthorizationException("UserId not found in token");
 
         return userId;
+    }
+    
+    /// <summary>
+    /// Returner UserId eller Null hvis ingen finnes - brukes i feks RateLimit
+    /// </summary>
+    /// <param name="user"></param>
+    /// <returns></returns>
+    public static string? GetUserIdOrDefault(this ClaimsPrincipal user)
+    {
+        return user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     }
     
     /// <summary>

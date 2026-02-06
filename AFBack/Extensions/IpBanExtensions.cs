@@ -1,8 +1,8 @@
 using AFBack.DTOs.Security;
+using AFBack.Infrastructure.Security.Utils;
 using AFBack.Interface.Services;
 using Microsoft.AspNetCore.Mvc;
 using AFBack.Services;
-using AFBack.Utils;
 
 namespace AFBack.Extensions;
 

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using AFBack.Features.Auth.Models;
 using AFBack.Models;
-using AFBack.Models.Auth;
 
 namespace AFBack.Features.Messaging.Models;
 

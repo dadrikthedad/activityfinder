@@ -1,5 +1,8 @@
 using Serilog;
 using AFBack.Infrastructure.Extensions;
+using AFBack.Infrastructure.Extensions.ApplicationExtensions;
+using AFBack.Infrastructure.Extensions.BuilderExtensions;
+using AFBack.Infrastructure.Extensions.ServiceExtensions;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
@@ -13,12 +16,12 @@ builder.ConfigureSettings();
 builder.ConfigureForwardHeaders();
 builder.ConfigureCors();
 builder.ConfigureControllers();
-builder.ConfigureAuthentication();
 builder.ConfigureSwagger();
 
 // 4. Services i riktig rekkefølge
 builder.Services.AddCoreInfrastructure(builder.Configuration);
-builder.Services.AddSignalr();
+builder.Services.AddIdentityAndAuthentication();
+builder.Services.AddSignalRServices();
 builder.Services.AddSecurityServices(builder.Configuration);
 builder.Services.AddBackgroundServices();
 builder.Services.AddRepositories();

@@ -22,7 +22,7 @@ using Azure.Storage.Blobs.Models;
 [ApiController]
 [Authorize]
 public class ProfileController(
-    ApplicationDbContext context,
+    AppDbContext context,
     ILogger<ProfileController> logger,
     BlobServiceClient blobServiceClient,
     IBackgroundTaskQueue taskQueue,
@@ -141,7 +141,7 @@ public class ProfileController(
         {
             using var scope = scopeFactory.CreateScope();
             var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             try 
             {

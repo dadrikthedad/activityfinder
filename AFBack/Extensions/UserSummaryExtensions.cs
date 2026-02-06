@@ -16,7 +16,7 @@ public static class UserSummaryExtensions
 {
     // Henter alt med kun UserId
     public static async Task<UserSummaryDto?> GetUserSummaryWithRelationshipAsync(
-        ApplicationDbContext context,
+        AppDbContext context,
         int targetUserId,
         int currentUserId)
     {
@@ -61,7 +61,7 @@ public static class UserSummaryExtensions
     }
     
     public static async Task<UserSummaryDto> MapToUserSummaryWithRelationshipAsync(
-        ApplicationDbContext context,
+        AppDbContext context,
         int targetUserId,
         string fullName,
         string? profileImageUrl,
@@ -109,7 +109,7 @@ public static class UserSummaryExtensions
         {
             using var scope = scopeFactory.CreateScope();
             var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<UserHub>>(); 
 
             try 

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using AFBack.Models.Auth;
+using AFBack.Features.Auth.Models;
 
 namespace AFBack.Models;
 // Her håndtere vi vennskaps-forespørseler mellom to brukere, brukes for å ta ansvar fra Friends.cs og for at man ikke er venner før faktisk godkjent

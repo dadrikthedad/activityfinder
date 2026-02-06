@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using AFBack.Models.Auth;
+using AFBack.Features.Auth.Models;
 
 namespace AFBack.Models.Crypto;
 

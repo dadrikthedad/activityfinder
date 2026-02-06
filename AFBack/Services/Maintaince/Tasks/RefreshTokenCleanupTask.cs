@@ -21,7 +21,7 @@ public class RefreshTokenCleanupTask : CleanupTaskBase
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             
             using var scope = ServiceProvider.CreateScope();
-            var authService = scope.ServiceProvider.GetRequiredService<AuthService>();
+            var authService = scope.ServiceProvider.GetRequiredService<OldAuthService>();
             
             // Bruk den eksisterende metoden
             await authService.CleanupExpiredTokensAsync();

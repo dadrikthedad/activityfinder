@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using AFBack.Models.Auth;
+using AFBack.Features.Auth.Models;
 using AFBack.Models.Enums;
 
 namespace AFBack.Models.User;

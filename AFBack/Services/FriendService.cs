@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services
 {
-    public class FriendService(ApplicationDbContext context, ILogger<FriendService> logger)
+    public class FriendService(AppDbContext context, ILogger<FriendService> logger)
     {
         /// <summary>
         /// Hent ventende venneforespørsler for en bruker med paginering

@@ -1,7 +1,8 @@
 using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.Results;
-using AFBack.Features.Block;
+using AFBack.Features.Blocking;
+using AFBack.Features.Blocking.Services;
 using AFBack.Features.Conversation.Repository;
 
 namespace AFBack.Features.Conversation.Validators;
@@ -9,7 +10,7 @@ namespace AFBack.Features.Conversation.Validators;
 public class GroupInviteValidator(
     ILogger<GroupInviteValidator> logger,
     IUserSummaryCacheService userSummariesCache,
-    IBlockService blockService,
+    IBlockingService blockingService,
     IConversationLeftRecordRepository conversationLeftRecordRepository) : IGroupInviteValidator
 {
     // Sjekk interface for summary
@@ -106,7 +107,7 @@ public class GroupInviteValidator(
         
         foreach (var receiverId in uniqueReceiverIds)
         {
-            var blockResult = await blockService.ValidateNoBlockingsAsync(inviterId, receiverId);
+            var blockResult = await blockingService.ValidateNoBlockingsAsync(inviterId, receiverId);
             if (blockResult.IsFailure)
             {
                 blockedUsers.Add(receiverId);

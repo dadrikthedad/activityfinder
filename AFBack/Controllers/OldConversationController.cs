@@ -285,28 +285,28 @@
    //  }
     
     // totalt uleste meldinger pr bruker
-    [HttpGet("unread-summary")]
-    public async Task<IActionResult> GetUnreadSummary()
-    {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdClaim, out var userId))
-            return Unauthorized("Ugyldig bruker-ID.");
-
-        var summary = await conversationService.GetUnreadSummaryAsync(userId);
-        return Ok(summary);
-    }
-    
-    // Går inn på en samtale og markerer meldingen som lest
-    [HttpPost("{conversationId}/mark-read")]
-    public async Task<IActionResult> MarkConversationAsRead(int conversationId)
-    {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!int.TryParse(userIdClaim, out var userId))
-            return Unauthorized("Ugyldig bruker-ID.");
-
-        await conversationService.MarkConversationAsReadAsync(userId, conversationId);
-        return Ok(new { message = "Samtalen er markert som lest." });
-    }
+    // [HttpGet("unread-summary")]
+    // public async Task<IActionResult> GetUnreadSummary()
+    // {
+    //     var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    //     if (!int.TryParse(userIdClaim, out var userId))
+    //         return Unauthorized("Ugyldig bruker-ID.");
+    //
+    //     var summary = await conversationService.GetUnreadSummaryAsync(userId);
+    //     return Ok(summary);
+    // }
+    //
+    // // Går inn på en samtale og markerer meldingen som lest
+    // [HttpPost("{conversationId}/mark-read")]
+    // public async Task<IActionResult> MarkConversationAsRead(int conversationId)
+    // {
+    //     var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    //     if (!int.TryParse(userIdClaim, out var userId))
+    //         return Unauthorized("Ugyldig bruker-ID.");
+    //
+    //     await conversationService.MarkConversationAsReadAsync(userId, conversationId);
+    //     return Ok(new { message = "Samtalen er markert som lest." });
+    // }
     
     // [HttpGet("rejected")]
     // public async Task<IActionResult> GetRejectedConversations()
@@ -451,4 +451,3 @@
     //     return Ok(sortedConversations);
     // }
     
-}

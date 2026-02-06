@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.SyncEvents.Repository;
 
-public class DeviceSyncStateRepository(ApplicationDbContext context) : IDeviceSyncStateRepository
+public class DeviceSyncStateRepository(AppDbContext context) : IDeviceSyncStateRepository
 {   
     
     /// <summary>

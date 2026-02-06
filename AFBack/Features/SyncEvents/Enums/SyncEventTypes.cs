@@ -189,11 +189,18 @@ public enum SyncEventType
     UserProfileUpdated,
     
     /// <summary>
-    /// Blokkeringsstatus endret
-    /// EventData: { UserId, IsBlocked }
-    /// Hvorfor: Må fylles ut
+    /// Bruker har blokkert en annen bruker
+    /// EventData: { UserId } - Brukeren som blir blokkert
+    /// Hvorfor: Frontend legger til brukeren i en liste med blokkerte brukere for å skille fra søkeresulateter etc
     /// </summary>
-    UserBlockedUpdated,
+    UserBlocked,
+    
+    /// <summary>
+    /// Bruker har fjernet blokkering av en annen bruker
+    /// EventData: { UserId } - Brukeren som ikke blokkert lenger
+    /// Hvorfor: Frontend fjerner brukeren fra en liste med blokkerte brukere
+    /// </summary>
+    UserUnblocked,
     
     // ==================== Notifications ====================
     

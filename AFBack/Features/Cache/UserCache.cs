@@ -1,8 +1,8 @@
 using AFBack.Data;
+using AFBack.Features.Auth.Models;
 using AFBack.Features.Cache.Interface;
 using AFBack.Interface.Repository;
 using AFBack.Models;
-using AFBack.Models.Auth;
 using AFBack.Repository;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -49,7 +49,7 @@ public class UserCache(
                 entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2);
                 
                 using var scope = scopeFactory.CreateScope();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 return await context.AppUsers.AsNoTracking().FirstOrDefaultAsync(user => user.Id == userId);
             });

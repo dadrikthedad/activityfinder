@@ -26,7 +26,7 @@ namespace AFBack.Controllers;
 [Route("api/friendinvitations")]
 [Authorize]
 public class FriendInvitationsController(
-    ApplicationDbContext context,
+    AppDbContext context,
     INotificationService notificationService,
     IHubContext<UserHub> hubContext,
     ISendMessageCache msgCache,
@@ -249,7 +249,7 @@ public class FriendInvitationsController(
             {
                 using var scope = scopeFactory.CreateScope();
                 var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 try 
                 {
@@ -310,7 +310,7 @@ public class FriendInvitationsController(
             {
                 using var scope = scopeFactory.CreateScope();
                 var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                 try 
                 {

@@ -11,7 +11,7 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class SupportController(
-    ApplicationDbContext context,
+    AppDbContext context,
     ILogger<SupportController> logger,
     SupportService supportService,
     IUserCache userCache,

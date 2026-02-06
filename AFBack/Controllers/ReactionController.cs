@@ -12,7 +12,7 @@ namespace AFBack.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 public class ReactionController(
-    ApplicationDbContext context,
+    AppDbContext context,
     IReactionService reactionService,
     ILogger<ReactionController> logger,
     IUserCache userCache,

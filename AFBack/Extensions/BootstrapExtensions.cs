@@ -1,7 +1,7 @@
 using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
+using AFBack.Features.Auth.Models;
 using AFBack.Models;
-using AFBack.Models.Auth;
 using AFBack.Models.User;
 using UserSettingsDTO = AFBack.DTOs.UserSettingsDTO;
 

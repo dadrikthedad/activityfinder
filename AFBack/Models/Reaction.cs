@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using AFBack.Features.Auth.Models;
 using AFBack.Features.Messaging.Models;
-using AFBack.Models.Auth;
 
 
 namespace AFBack.Models;

@@ -9,10 +9,10 @@ using AFBack.Features.Cache;
 using AFBack.Features.SyncEvents.DTOs;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Extensions;
+using AFBack.Infrastructure.Security.Utils;
 using AFBack.Infrastructure.Services;
 using AFBack.Interface.Services;
 using AFBack.Services;
-using AFBack.Utils;
 using Azure.Core;
 
 namespace AFBack.Controllers
@@ -20,7 +20,7 @@ namespace AFBack.Controllers
     [Route("api/me")]
     [Authorize]
     public class BootstrapController(
-        ApplicationDbContext context,
+        AppDbContext context,
         BootstrapService bootstrapService,
         UserOnlineService userOnlineService,
         ISyncService syncService,

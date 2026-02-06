@@ -17,7 +17,7 @@ public class ArchiveConversationService(
     ISendMessageCache sendMessageCache,
     IGetConversationsService getConversationService) : IArchiveConversationService
 {
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result> ArchiveConversationAsync(string userId, int conversationId)
     {
         // Henter samtalen
@@ -56,7 +56,7 @@ public class ArchiveConversationService(
         return Result.Success();
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Result<ConversationResponse>> RestoreArchivedConversationAsync(string userId, int conversationId)
     {
         // Henter samtalen   

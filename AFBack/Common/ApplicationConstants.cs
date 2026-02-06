@@ -1,6 +1,6 @@
 namespace AFBack.Common;
 
-public class ApplicationConstants
+public static class ApplicationConstants
 {
     public static class Groups
     {

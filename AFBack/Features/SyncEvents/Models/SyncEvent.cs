@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using AFBack.Features.Auth.Models;
 using AFBack.Features.SyncEvents.Enums;
-using AFBack.Models.Auth;
 
 namespace AFBack.Features.SyncEvents.Models;
 

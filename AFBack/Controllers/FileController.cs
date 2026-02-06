@@ -7,7 +7,7 @@ using AFBack.Extensions;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
 using AFBack.Features.Conversation.Models;
-using AFBack.Features.MessageNotification.Service;
+using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
@@ -27,7 +27,7 @@ namespace AFBack.Controllers;
 [Route("api/[controller]")]
 [Authorize]
 public class FileController(
-    ApplicationDbContext context,
+    AppDbContext context,
     ILogger<FileController> logger,
     BlobServiceClient blobServiceClient,
     IHubContext<UserHub> hubContext,
@@ -228,7 +228,7 @@ public class FileController(
                 {
                     using var scope = scopeFactory.CreateScope();
                     var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-                    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                     try 
                     {

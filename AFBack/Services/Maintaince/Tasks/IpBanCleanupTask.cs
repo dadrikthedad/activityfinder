@@ -30,7 +30,7 @@ public class IpBanCleanupTask(
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             
             using var scope = ServiceProvider.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
             var now = DateTime.UtcNow;
             var cleanupCutoff = now.Subtract(_options.SuspiciousWindow.Add(TimeSpan.FromDays(7)));
