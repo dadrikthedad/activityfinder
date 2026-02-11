@@ -1,10 +1,14 @@
 ﻿namespace AFBack.DTOs;
-// denne bruker vi for å sende kun brukerens id, navn og profilbilde til å brukes i venneforespørsler, kommentarer, poster osv for å raskt se litt informasjon om brukeren.
-// Kan legge til flere ting (skjønn, alder, osv) etterhvert
+
+/// <summary>
+/// Denne bruker vi for å sende kun brukerens id, navn og profilbilde til å brukes i
+/// venneforespørsler, kommentarer, poster osv for å raskt se litt informasjon om brukeren.
+/// Kan legge til flere ting (skjønn, alder, osv) etterhvert
+/// </summary>
 public class UserSummaryDto
 {
-    public string Id { get; set; } // Bruker-ID
-    public string FullName { get; set; } = string.Empty; // Fornavn + etternavn (eller med mellomnavn)
+    public string Id { get; set; } = string.Empty;
+    public string FullName { get; set; } = string.Empty;
     public string? ProfileImageUrl { get; set; } // Profilbilde (kan være null hvis ikke satt)
     
     // Logikk for samhandling mellom brukere

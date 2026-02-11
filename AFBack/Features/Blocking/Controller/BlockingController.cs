@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Controllers;
+using AFBack.Features.Blocking.DTOs;
 using AFBack.Features.Blocking.Services;
 using AFBack.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -64,5 +65,25 @@ public class BlockingController(IBlockingService blockingService) : BaseControll
             return HandleFailure(result);
 
         return NoContent();
+    }
+    
+    /// <summary>
+    /// Henter alle brukere som innlogget bruker har blokkert
+    /// </summary>
+    /// <returns>Liste med blokkerte brukere</returns>
+    [HttpGet]
+    [ProducesResponseType(typeof(List<BlockedUserResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetBlockedUsers()
+    {
+        var userId = User.GetUserId();
+        
+        var result = await blockingService.GetBlockedUsersAsync(userId);
+        
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
     }
 }

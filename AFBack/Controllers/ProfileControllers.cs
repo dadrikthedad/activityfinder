@@ -4,7 +4,6 @@ using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Services;
-using AFBack.Interface.Services;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
 

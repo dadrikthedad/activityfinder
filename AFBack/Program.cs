@@ -1,5 +1,4 @@
 using Serilog;
-using AFBack.Infrastructure.Extensions;
 using AFBack.Infrastructure.Extensions.ApplicationExtensions;
 using AFBack.Infrastructure.Extensions.BuilderExtensions;
 using AFBack.Infrastructure.Extensions.ServiceExtensions;
@@ -31,6 +30,7 @@ builder.Services.AddBusinessServices();
 // Kjører applikasjonen med alle tjenester, middleware og avhengigheter. Alle servicesene og alt vi har lagt til blir låst
 // og klart til bruk. 
 var app = builder.Build();
+
 
 // Setter opp hele HTTP-pipelinen med middlewares. Den kobler opp middlewaren i ritkig rekkefølge. Rekkefølgen er veldig viktig
 app.UseAppPipeline();

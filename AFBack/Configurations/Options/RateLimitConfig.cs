@@ -38,16 +38,4 @@ public static class RateLimitConfig
     // Antall rate limit violations før rapportering til IpBanService
     public static readonly int StrikesBeforeBan = 5;
     public static readonly int StrikeWindowMinutes = 10;
-
-    // ===== EMAIL =====
-    // Minimum tid mellom emails til samme adresse
-    public static readonly int EmailCooldownMinutes = 5;
-    // Maks emails per adresse per dag
-    public static readonly int MaxEmailsPerDay = 5;
-    // Tidsvindu for daglig grense
-    public static readonly int EmailDayWindowHours = 24;
-    // Maks emails per IP per time (beskytter mot kostnadsangrep)
-    public static readonly int MaxEmailsPerIpPerHour = 10;
-    // Cleanup-intervall for gamle entries
-    public static readonly int EmailCleanupIntervalMinutes = 30;
 }

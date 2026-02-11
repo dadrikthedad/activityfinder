@@ -11,7 +11,7 @@ namespace AFBack.Infrastructure.Middleware;
 /// <param name="logger"></param>
 public class RequestResponseLoggingMiddleware(RequestDelegate next, ILogger<RequestResponseLoggingMiddleware> logger)
 {
-    
+    // TODO: SLETT?
     public async Task InvokeAsync(HttpContext context)
     {
         await LogRequest(context);

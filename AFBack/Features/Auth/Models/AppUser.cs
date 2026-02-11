@@ -1,9 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Conversation.Models;
+using AFBack.Features.Profile.Models;
+using AFBack.Features.Settings.Models;
 using AFBack.Features.SignalR.Models;
 using AFBack.Infrastructure.Security.Models;
 using AFBack.Models.Crypto;
-using AFBack.Models.User;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Models;
@@ -42,26 +43,28 @@ public class AppUser : IdentityUser
     [MaxLength(500)]
     public string? ProfileImageUrl { get; set; }
     
-    // ======================== Metoder ========================
     
-    public void UpdateFullName()
-    {
-        FullName = $"{FirstName} {LastName}".Trim();
-    }
-
     
     // ======================== Metadata  ========================
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
     
     public DateTime? OnBoardingCompletedAt { get; set; }
     
+    // ======================== Metoder ========================
+    
+    public void UpdateFullName()
+    {
+        FullName = $"{FirstName} {LastName}".Trim();
+    }
+    
+    public bool IsVerified => EmailConfirmed && PhoneNumberConfirmed;
+    
     // ======================== Navigasjonsegenskaper ========================
-    public required UserProfile UserProfile { get; set; }
+    public UserProfile? UserProfile { get; set; }
     public UserSettings? UserSettings { get; set; }
     public ICollection<UserDevice> Devices { get; set; } = new List<UserDevice>();
     public ICollection<UserConnection> Connections { get; set; } = new List<UserConnection>();
     public ICollection<LoginHistory> LoginHistory { get; set; } = new List<LoginHistory>();
-    public ICollection<BanInfo> Bans { get; set; } = new List<BanInfo>();
     public ICollection<SuspiciousActivity> SuspiciousActivities { get; set; } = new List<SuspiciousActivity>();
     
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
@@ -71,6 +74,8 @@ public class AppUser : IdentityUser
     
     public ICollection<ConversationParticipant> ConversationParticipants { get; set; } 
         = new List<ConversationParticipant>();
+    
+    public VerificationInfo? VerificationInfo { get; set; }
 }
 
 

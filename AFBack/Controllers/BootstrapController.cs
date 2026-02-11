@@ -4,14 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using AFBack.DTOs;
 using AFBack.DTOs.BoostrapDTO;
-using AFBack.DTOs.BoostrapDTO.Sync;
 using AFBack.Features.Cache;
 using AFBack.Features.SyncEvents.DTOs;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Extensions;
 using AFBack.Infrastructure.Security.Utils;
-using AFBack.Infrastructure.Services;
-using AFBack.Interface.Services;
 using AFBack.Services;
 using Azure.Core;
 
@@ -25,8 +22,7 @@ namespace AFBack.Controllers
         UserOnlineService userOnlineService,
         ISyncService syncService,
         ILogger<BootstrapController> logger,
-        UserCache userCache,
-        ResponseService responseService)
+        UserCache userCache)
         : BaseController<BootstrapController>(context, logger, userCache, responseService)
     {
         // ✅ Legg til i constructor

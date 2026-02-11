@@ -6,20 +6,23 @@ using AFBack.Features.Friendship.Models;
 using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotifications.Models;
 using AFBack.Features.Messaging.Models;
+using AFBack.Features.Profile.Models;
+using AFBack.Features.Settings.Models;
 using AFBack.Features.SignalR.Models;
 using AFBack.Features.SyncEvents.Models;
+using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Security.Models;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Models;
 using AFBack.Models.Crypto;
 using AFBack.Models.Enums;
-using AFBack.Models.User;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
 
 namespace AFBack.Data;
-// 10.03
-// Denne klassen gjør at vi kan jobbe med databasen uten å skrive SQL, kun brukek C# objekter.
+
+
 public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<AppUser>(options)
 {
     
@@ -58,7 +61,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     
     public DbSet<ReportAttachment> ReportAttachments { get; set; }
     
-    public DbSet<BanInfo> BanInfos { get; set; }
+    public DbSet<IpBan> IpBans { get; set; }
     
     public DbSet<SuspiciousActivity> SuspiciousActivities { get; set; }
     
@@ -71,6 +74,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<DeviceSyncState> DeviceSyncStates { get; set; }
     
     public DbSet<ConversationLeftRecord> ConversationLeftRecords { get; set; }
+    
+    public DbSet<UserDevice> UserDevices { get; set; }
+    
+    public DbSet<VerificationInfo> VerificationInfos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -81,8 +88,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         modelBuilder.Entity<AppUser>(entity =>
         {
             entity.HasIndex(e => e.PhoneNumber)
-                .IsUnique()
-                .HasFilter("\"PhoneNumber\" IS NOT NULL");
+                .IsUnique();
         });
     
         // ==================== USER PROFILE ====================
@@ -91,6 +97,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             entity.HasOne(p => p.AppUser)
                 .WithOne(u => u.UserProfile)
                 .HasForeignKey<UserProfile>(p => p.UserId)
+                .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
@@ -100,6 +107,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             entity.HasOne(s => s.AppUser)
                 .WithOne(u => u.UserSettings)
                 .HasForeignKey<UserSettings>(s => s.UserId)
+                .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
@@ -166,25 +174,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         });
         
         // ==================== BAN INFO ====================
-        modelBuilder.Entity<BanInfo>(entity =>
+        modelBuilder.Entity<IpBan>(entity =>
         {
             // --- Foreign Key Indexes --- //
-            entity.HasIndex(b => b.UserId); 
-            entity.HasIndex(b => b.UserDeviceId); 
             entity.HasIndex(b => b.BannedByUserId); 
             entity.HasIndex(b => b.UnbannedByUserId);
             
             // --- Relationships --- //
-            entity.HasOne(b => b.User)
-                .WithMany(u => u.Bans)
-                .HasForeignKey(b => b.UserId)
-                .OnDelete(DeleteBehavior.SetNull);
-    
-            entity.HasOne(b => b.UserDevice)
-                .WithMany(d => d.Bans)
-                .HasForeignKey(b => b.UserDeviceId)
-                .OnDelete(DeleteBehavior.SetNull);
-    
             entity.HasOne(b => b.BannedByUser)
                 .WithMany()
                 .HasForeignKey(b => b.BannedByUserId)
@@ -436,8 +432,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
+        // ==================== SyncEvent TODO: Denne må fikses ====================
         
         
+        // ==================== VerificationInfo ====================
+        
+        modelBuilder.Entity<VerificationInfo>(entity =>
+        {
+            // --- Primary Key (satt til hver device) --- //
+            entity.HasKey(vi => vi.UserId);
+    
+            // --- Relationships --- //
+            entity.HasOne(vi => vi.AppUser)
+                .WithOne(u => u.VerificationInfo)
+                .HasForeignKey<VerificationInfo>(vi => vi.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         
         // venneliste med composite key. .HasKey definerer en primarykey basert på UserId og FriendId
         modelBuilder.Entity<Friendship>()
@@ -613,35 +623,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .HasFilter("\"Type\" = 8 AND \"IsRead\" = false")
                 .HasDatabaseName("IX_MessageNotification_UniqueGroupEvent");
         });
-
-        // NY: Legg til konfigurasjon for MessageNotificationGroupEvent
-        modelBuilder.Entity<MessageNotificationGroupEvent>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            
-            // Unique constraint - samme GroupEvent kan ikke være knyttet til samme notification flere ganger
-            entity.HasIndex(e => new { e.MessageNotificationId, e.GroupEventId })
-                .IsUnique()
-                .HasDatabaseName("IX_MessageNotificationGroupEvent_NotificationId_EventId");
-            
-            // Separate indekser for ytelse
-            entity.HasIndex(e => e.MessageNotificationId)
-                .HasDatabaseName("IX_MessageNotificationGroupEvent_NotificationId");
-                
-            entity.HasIndex(e => e.GroupEventId)
-                .HasDatabaseName("IX_MessageNotificationGroupEvent_EventId");
-            
-            // Relasjoner
-            entity.HasOne(e => e.MessageNotification)
-                .WithMany(n => n.GroupEvents)
-                .HasForeignKey(e => e.MessageNotificationId)
-                .OnDelete(DeleteBehavior.Cascade);
-                
-            entity.HasOne(e => e.GroupEvent)
-                .WithMany()
-                .HasForeignKey(e => e.GroupEventId)
-                .OnDelete(DeleteBehavior.Restrict); // Ikke slett GroupEvents når notifications slettes
-        });
+        
 
 
         modelBuilder.Entity<GroupRequest>()
@@ -665,67 +647,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
         modelBuilder.Entity<GroupRequest>()
             .HasIndex(gr => new { gr.ReceiverId, gr.ConversationId })
             .IsUnique(true); // Sett til true hvis du vil nekte duplikater
-        
-        // Gruppe events
-        modelBuilder.Entity<GroupEvent>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-    
-            entity.Property(e => e.EventType)
-                .IsRequired()
-                .HasConversion<int>();
-    
-            // FJERNET: AffectedUserIdsJson property (ikke lenger nødvendig)
-    
-            entity.Property(e => e.Metadata)
-                .HasMaxLength(4000);
-
-            // Relasjoner
-            entity.HasOne(e => e.Conversation)
-                .WithMany()
-                .HasForeignKey(e => e.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.TriggeredByUser)
-                .WithMany()
-                .HasForeignKey(e => e.TriggeredByUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // FJERNET: Ignore AffectedUserIds (ikke lenger nødvendig)
-
-            // Indekser (samme som før)
-            entity.HasIndex(e => new { e.ConversationId, e.CreatedAt });
-            entity.HasIndex(e => e.TriggeredByUserId);
-        });
-
-// NY: Legg til konfigurasjon for GroupEventAffectedUser
-        modelBuilder.Entity<GroupEventAffectedUser>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-    
-            // Unique constraint - en appUser kan bare være affected én gang per event
-            entity.HasIndex(e => new { e.GroupEventId, e.UserId })
-                .IsUnique()
-                .HasDatabaseName("IX_GroupEventAffectedUser_GroupEventId_UserId");
-    
-            // Separate indekser for ytelse
-            entity.HasIndex(e => e.UserId)
-                .HasDatabaseName("IX_GroupEventAffectedUser_UserId");
-        
-            entity.HasIndex(e => e.GroupEventId)
-                .HasDatabaseName("IX_GroupEventAffectedUser_GroupEventId");
-    
-            // Relasjoner
-            entity.HasOne(e => e.GroupEvent)
-                .WithMany(g => g.AffectedUsers)
-                .HasForeignKey(e => e.GroupEventId)
-                .OnDelete(DeleteBehavior.Cascade);
-        
-            entity.HasOne(e => e.AppUser)
-                .WithMany()
-                .HasForeignKey(e => e.UserId)
-                .OnDelete(DeleteBehavior.Restrict); // Ikke slett brukere når events slettes
-        });
         
         modelBuilder.Entity<SyncEvent>(entity =>
         {
@@ -877,7 +798,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             entity.ToTable("ReportAttachments");
         });
         
-        
+        // Seeder roller
+        modelBuilder.Entity<IdentityRole>().HasData(
+            new IdentityRole
+            {
+                Id = "1",
+                Name = AppRoles.Admin,
+                NormalizedName = AppRoles.Admin.ToUpperInvariant()
+            },
+            new IdentityRole
+            {
+                Id = "2",
+                Name = AppRoles.User,
+                NormalizedName = AppRoles.User.ToUpperInvariant()
+            });
+
     }
 
 }

@@ -11,7 +11,6 @@ using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
-using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Azure.Storage.Blobs;

@@ -1,69 +1,38 @@
-
-using AFBack.Data;
-using AFBack.DTOs.Security;
-using AFBack.Infrastructure.Security.Models;
+using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Security.Utils;
-using AFBack.Interface.Services;
-using Microsoft.EntityFrameworkCore;
+
 
 namespace AFBack.Infrastructure.Middleware;
 
 public class IpBanMiddleware(
     RequestDelegate next,
-    ILogger<IpBanMiddleware> logger,
-    IServiceScopeFactory scopeFactory)
+    ILogger<IpBanMiddleware> logger)
 {
+    /// <summary>
+    /// Utfører en sjekk på hver http forespørsel for å sjekke om brukeren er bannet
+    /// </summary>
+    /// <param name="context">Http-forespørselen</param>
+    /// <param name="ipBanService">IpBanService vi utfører operasjoner på</param>
     public async Task InvokeAsync(HttpContext context, IIpBanService ipBanService)
     {
-        // Etter app.UseForwardedHeaders() er dette den ekte klient-IPen
+        // Henter brukerens IP
         var clientIp = IpUtils.GetClientIp(context);
-        var deviceId  = context.Request.Headers["X-Device-ID"].FirstOrDefault();
-
-        if (await ipBanService.IsIpOrDeviceBannedAsync(clientIp, deviceId))
+        
+        // Sjekker om brukeren er banned eller ikke
+        if (await ipBanService.IsIpBannedAsync(clientIp))
         {
-            var banInfo = await GetBanInfoAsync(clientIp, deviceId);
-
-            var response = new BanResponseDto
-            {
-                Message = "Your access has been temporarily restricted due to suspicious activity.",
-                BannedUntil = banInfo?.ExpiresAt,
-            };
-
+            logger.LogWarning("Blocked banned IP {IP} on {Path}",
+                clientIp, context.Request.Path);
+                
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
-            
-            logger.LogWarning("Blocked banned client (ip={IP}, device={DeviceId}) on {Path}",
-                clientIp, deviceId ?? "n/a", context.Request.Path);
-            
-            await context.Response.WriteAsJsonAsync(response);
+            await context.Response.WriteAsJsonAsync(new
+            {
+                message = "Your access has been restricted due to suspicious activity."
+            });
             return;
         }
 
         await next(context);
-    }
-
-    private async Task<BanInfo?> GetBanInfoAsync(string? ipAddress, string? deviceId)
-    {
-        using var scope = scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        if (!string.IsNullOrEmpty(deviceId))
-        {
-            var deviceBan = await context.BanInfos
-                .Where(b => b.DeviceId == deviceId && b.IsActive)
-                .FirstOrDefaultAsync();
-
-            if (deviceBan != null)
-                return deviceBan;
-        }
-
-        if (!string.IsNullOrEmpty(ipAddress))
-        {
-            return await context.BanInfos
-                .Where(b => b.IpAddress == ipAddress && b.IsActive && string.IsNullOrEmpty(b.DeviceId))
-                .FirstOrDefaultAsync();
-        }
-
-        return null;
     }
 }

@@ -1,6 +1,5 @@
 using AFBack.Data;
 using AFBack.Features.Blocking.Models;
-using AFBack.Interface.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.Blocking.Repository;
@@ -32,5 +31,12 @@ public class UserBlockRepository(AppDbContext context) : IUserBlockRepository
         await context.SaveChangesAsync();
     }
     
-    
+    /// <inheritdoc />
+    public async Task<List<UserBlock>> GetBlockedUsersAsync(string blockerId) =>
+        await context.UserBlocks
+            .AsNoTracking()
+            .Include(ub => ub.BlockedAppUser)
+            .Where(ub => ub.BlockerId == blockerId)
+            .OrderByDescending(ub => ub.BlockedAt)
+            .ToListAsync();
 }

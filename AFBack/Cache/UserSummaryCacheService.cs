@@ -1,6 +1,6 @@
 using System.Text.Json;
 using AFBack.DTOs;
-using AFBack.Interface.Repository;
+using AFBack.Features.Auth.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace AFBack.Cache;

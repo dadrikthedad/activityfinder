@@ -1,5 +1,5 @@
 using AFBack.Cache;
-using AFBack.Common;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Conversation.DTOs.Response;

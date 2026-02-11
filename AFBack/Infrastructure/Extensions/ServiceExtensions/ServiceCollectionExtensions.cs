@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AFBack.Cache;
-using AFBack.Configuration;
 using AFBack.Configurations.Options;
 using AFBack.Data;
 using AFBack.Features.Auth.Models;
+using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services;
 using AFBack.Features.Blocking.Repository;
 using AFBack.Features.Blocking.Services;
@@ -30,14 +30,19 @@ using AFBack.Features.SignalR.Providers;
 using AFBack.Features.SignalR.Services;
 using AFBack.Features.SyncEvents.Repository;
 using AFBack.Features.SyncEvents.Services;
+using AFBack.Infrastructure.Cleanup;
+using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Filters;
-using AFBack.Interface;
-using AFBack.Interface.Repository;
-using AFBack.Interface.Services;
+using AFBack.Infrastructure.Security.Extensions;
+using AFBack.Infrastructure.Security.Repositories;
+using AFBack.Infrastructure.Security.Services;
+using AFBack.Infrastructure.Sms.Services;
 using AFBack.Services;
 using AFBack.Services.Crypto;
 using AFBack.Services.Maintenance.Tasks;
 using AFBack.Services.User;
+using Azure.Communication.Email;
+using Azure.Communication.Sms;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
@@ -46,6 +51,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using EmailService = AFBack.Infrastructure.Email.EmailService;
 using IHubConnectionService = AFBack.Features.SignalR.Services.IHubConnectionService;
 
 namespace AFBack.Infrastructure.Extensions.ServiceExtensions;
@@ -121,6 +127,15 @@ public static class ServiceCollectionExtensions
         // ===== HTTP CLIENT =====
         // Brukes til flere tjenester
         services.AddHttpClient<GeolocationService>();
+    
+        
+        // ===== EMAIL & SMS =====
+        var acsConnectionString = configuration["AzureCommunication:ConnectionString"];
+        services.AddSingleton(new EmailClient(acsConnectionString));
+        services.AddScoped<IEmailService, EmailService>();
+        services.AddSingleton(new SmsClient(acsConnectionString));
+        services.AddScoped<ISmsService, SmsService>();
+        
         
         // ===== EXCEPTION HANDLING =====
         services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -220,14 +235,13 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddSecurityServices(this IServiceCollection services, IConfiguration configuration)
     {
         // ===== IP BAN =====
-        services.Configure<IpBanOptions>(configuration.GetSection("IpBan"));
         services.AddSingleton<IIpBanService, IpBanService>();
+        services.AddScoped<ISuspiciousActivityService, SuspiciousActivityService>();
         
         // ===== RATE LIMITING =====
         services.AddCustomRateLimiter();
-        services.AddEmailRateLimit();
-        
-        
+        services.AddSingleton<ISmsRateLimitService, SmsRateLimitService>();
+        services.AddSingleton<IEmailRateLimitService, EmailRateLimitService>();
         
         return services;
     }
@@ -266,7 +280,6 @@ public static class ServiceCollectionExtensions
         // ===== REPOSITORIES =====
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
-        services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserBlockRepository, UserBlockRepository>();
         services.AddScoped<ICanSendRepository, CanSendRepository>();
         services.AddScoped<IMessageNotificationRepository, MessageNotificationRepository>();
@@ -274,8 +287,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDeviceSyncStateRepository, DeviceSyncStateRepository>();
         services.AddScoped<IFriendshipRepository, FriendshipRepository>();
         services.AddScoped<IConversationLeftRecordRepository, ConversationLeftRecordRepository>();
-         
+        services.AddScoped<IUserRepository, UserRepository>(); 
         
+        services.AddScoped<IIpBanRepository, IpBanRepository>();
+        services.AddScoped<ISuspiciousActivityRepository, SuspiciousActivityRepository>();
+        services.AddScoped<IVerificationRepository, VerificationRepository>();
         return services;
     }
     
@@ -289,7 +305,7 @@ public static class ServiceCollectionExtensions
         // ===== AUTHENTICATION & USER SERVICES =====
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<UserService, UserService>();
-        services.AddScoped<EmailService, EmailService>();
+        services.AddScoped<IVerificationService, VerificationService>();
         
         // ===== RELATIONSHIPSERVICES =====
         

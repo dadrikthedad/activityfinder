@@ -1,5 +1,4 @@
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Interface.Services;
 
 namespace AFBack.Services.Maintenance.Tasks;
 

@@ -1,12 +1,13 @@
 using AFBack.Cache;
-using AFBack.Common;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Auth.Models;
+using AFBack.Features.Blocking.DTOs;
 using AFBack.Features.Blocking.Models;
+using AFBack.Features.Blocking.Repository;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Interface.Repository;
 using AFBack.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 
@@ -194,5 +195,21 @@ public class BlockingService(
         }
         
         return Result.Success();
+    }
+    
+    // Sjekk interface for summary
+    public async Task<Result<List<BlockedUserResponse>>> GetBlockedUsersAsync(string userId)
+    {
+        var blockedUsers = await userBlockRepository.GetBlockedUsersAsync(userId);
+        
+        var response = blockedUsers.Select(ub => new BlockedUserResponse
+        {
+            UserId = ub.BlockedUserId,
+            FullName = ub.BlockedAppUser.FullName,
+            ProfileImageUrl = ub.BlockedAppUser.ProfileImageUrl,
+            BlockedAt = ub.BlockedAt
+        }).ToList();
+        
+        return Result<List<BlockedUserResponse>>.Success(response);
     }
 }

@@ -1,4 +1,5 @@
 using AFBack.Common.Results;
+using AFBack.Features.Blocking.DTOs;
 
 namespace AFBack.Features.Blocking.Services;
 
@@ -41,4 +42,11 @@ public interface IBlockingService
     /// <param name="blockedId">Bruker B</param>
     /// <returns>Result success hvis A ikke har blokkert B</returns>
     Task<Result> ValidateNotBlockedByUserAsync(string blockerId, string blockedId);
+    
+    /// <summary>
+    /// Henter alle brukere som userId har blokkert
+    /// </summary>
+    /// <param name="userId">Brukeren som har blokkert</param>
+    /// <returns>Liste med BlockedUserResponse</returns>
+    Task<Result<List<BlockedUserResponse>>> GetBlockedUsersAsync(string userId);
 }

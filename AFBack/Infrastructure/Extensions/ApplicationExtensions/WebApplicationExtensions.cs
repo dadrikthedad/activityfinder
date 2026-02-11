@@ -1,4 +1,11 @@
+using AFBack.Features.Auth.Models;
+using AFBack.Features.Profile.Models;
+using AFBack.Features.Settings.Models;
+using AFBack.Features.SignalR.Hubs;
+using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Middleware;
+using AFBack.Models.Enums;
+using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Infrastructure.Extensions.ApplicationExtensions;
 

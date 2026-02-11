@@ -1,7 +1,6 @@
 ﻿using AFBack.Constants;
 using AFBack.DTOs;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Interface.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 

@@ -1,4 +1,4 @@
-namespace AFBack.Common;
+namespace AFBack.Common.Enum;
 
 public enum ErrorTypeEnum
 {
@@ -9,5 +9,6 @@ public enum ErrorTypeEnum
     Conflict = 409,
     Gone = 410,
     Validation = 422, 
+    TooManyRequests = 429,
     InternalServerError = 500
 }

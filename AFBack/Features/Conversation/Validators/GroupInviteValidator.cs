@@ -1,5 +1,6 @@
 using AFBack.Cache;
 using AFBack.Common;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Blocking;
 using AFBack.Features.Blocking.Services;

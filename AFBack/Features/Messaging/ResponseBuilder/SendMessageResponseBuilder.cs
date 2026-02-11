@@ -13,7 +13,7 @@ public class SendMessageResponseBuilder : ISendMessageResponseBuilder
     /// <param name="attachments"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    public SendMessageResponse BuildResponse(Messaging.Models.Message message, List<UploadedAttachmentDto>? attachments)
+    public SendMessageResponse BuildResponse(Models.Message message, List<UploadedAttachmentDto>? attachments)
     {
         // lager responsen som brukes uansett type melding
         var response = new SendMessageResponse

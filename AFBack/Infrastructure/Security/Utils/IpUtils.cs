@@ -79,9 +79,4 @@ public static class IpUtils
         
         return hasDeviceId && hasAppVersion && hasPlatform;
     }
-    
-
-    
-    
-    
 }

@@ -1,9 +1,9 @@
 using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace AFBack.Filters;
 using Microsoft.OpenApi.Models;
-usi
-
+// TODO: Slettes?
 public class FileUploadOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)

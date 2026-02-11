@@ -4,6 +4,7 @@ using AFBack.Controllers;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Interface;
+using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -76,6 +77,7 @@ public class MessageController(
     /// Sender en melding til en eksisterende samtale.
     /// Krever at brukeren er deltaker med Accepted status.
     /// </summary>
+    [EnableRateLimiting(RateLimitPolicies.Messaging)]
     [HttpPost]
     [ProducesResponseType(typeof(SendMessageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

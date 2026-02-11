@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using AFBack.Common;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 
 
@@ -8,6 +8,7 @@ namespace AFBack.Controllers
     [ApiController]
     public abstract class BaseController : ControllerBase
     {
+        
         /// <summary>
         /// Method we use to send the correct error message in the controller. This keeps our controllers small,
         /// while also we send correct status codes as a <see cref="ProblemDetails"/>-object
@@ -27,6 +28,7 @@ namespace AFBack.Controllers
                 ErrorTypeEnum.Unauthorized => (StatusCodes.Status401Unauthorized, "Unauthorized"),
                 ErrorTypeEnum.Forbidden => (StatusCodes.Status403Forbidden, "Forbidden"),
                 ErrorTypeEnum.Gone => (StatusCodes.Status410Gone, "Resource Gone"),
+                ErrorTypeEnum.TooManyRequests => (StatusCodes.Status429TooManyRequests, "Too Many Requests"),
                 ErrorTypeEnum.Validation => (StatusCodes.Status422UnprocessableEntity, "Validation Error"),
                 _ => (StatusCodes.Status400BadRequest, "Bad Request")
             };
@@ -59,6 +61,7 @@ namespace AFBack.Controllers
                 ErrorTypeEnum.Unauthorized => (StatusCodes.Status401Unauthorized, "Unauthorized"),
                 ErrorTypeEnum.Forbidden => (StatusCodes.Status403Forbidden, "Forbidden"),
                 ErrorTypeEnum.Gone => (StatusCodes.Status410Gone, "Resource Gone"),
+                ErrorTypeEnum.TooManyRequests => (StatusCodes.Status429TooManyRequests, "Too Many Requests"),
                 ErrorTypeEnum.Validation => (StatusCodes.Status422UnprocessableEntity, "Validation Error"),
                 _ => (StatusCodes.Status400BadRequest, "Bad Request")
             };

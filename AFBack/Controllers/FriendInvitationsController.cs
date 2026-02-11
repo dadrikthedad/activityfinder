@@ -11,7 +11,6 @@ using AFBack.Features.SyncEvents.Services;
 using AFBack.Functions;
 using AFBack.Hubs;
 using AFBack.Infrastructure.Services;
-using AFBack.Interface.Services;
 using AFBack.Models;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;

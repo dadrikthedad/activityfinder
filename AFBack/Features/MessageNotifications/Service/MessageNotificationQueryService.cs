@@ -1,6 +1,7 @@
 using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.DTOs;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.DTOs;
 using AFBack.Features.MessageNotification.Models.Enum;

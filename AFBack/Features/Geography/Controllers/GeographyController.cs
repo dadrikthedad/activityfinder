@@ -1,15 +1,16 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Geography.Services;
+using AFBack.Infrastructure.Constants;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AFBack.Features.Geography.Controllers;
 
 [ApiController]
+[EnableRateLimiting(RateLimitPolicies.Public)]
 [Route("api/[controller]")]
 public class GeographyController(ICountryService countryService) : ControllerBase
-{
-    // TODO: Må ha rate limiting her
-    
+{   
     [HttpGet("countries")]
     public IActionResult GetAllCountries() =>
         Ok(countryService.Countries);

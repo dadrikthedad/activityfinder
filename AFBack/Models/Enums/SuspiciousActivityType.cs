@@ -15,12 +15,35 @@ public enum SuspiciousActivityType
     // ======================== Rate Limiting ========================
     TooManyRequests = 10,
     APIAbuse = 11,
+    
+    /// <summary>
+    /// Hvis brukeren når RateLimit
+    /// </summary>
     RateLimitExceeded = 12,
+    
+    /// <summary>
+    /// Hvis brukeren når RateLimit på eposter
+    /// </summary>
+    EmailRateLimitExceeded = 13,
+    
+    /// <summary>
+    /// Hvis brukeren når RateLimit på SMS
+    /// </summary>
+    SmsRateLimitExceeded = 14,
+    
     
     // ======================== Account-relatert ========================
     SuspiciousRegistration = 20,
     MultipleAccountCreation = 21,
-    EmailEnumeration = 22,          
+    
+    /// <summary>
+    /// Hvis brukeren prøver å sjekke om eposter eksisterer
+    /// </summary>
+    EmailEnumeration = 22,     
+    /// <summary>
+    /// Hvis brukeren prøver å sjekke om telefonen eksisterer
+    /// </summary>
+    PhoneEnumeration = 23,    
     
     // ======================== Data-relatert ========================
     UnauthorizedAccess = 30,

@@ -47,7 +47,6 @@ public class UserDevice
     public AppUser AppUser { get; set; } = null!;
     public ICollection<UserConnection> Connections { get; set; } = new List<UserConnection>();
     public ICollection<LoginHistory> LoginHistory { get; set; } = new List<LoginHistory>();
-    public ICollection<BanInfo> Bans { get; set; } = new List<BanInfo>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<SuspiciousActivity> SuspiciousActivities { get; set; } = new List<SuspiciousActivity>();
     

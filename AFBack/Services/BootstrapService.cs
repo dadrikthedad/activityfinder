@@ -8,9 +8,8 @@ using AFBack.Extensions;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.MessageNotifications.Service;
+using AFBack.Features.Settings.Models;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Interface.Services;
-using AFBack.Models.User;
 
 namespace AFBack.Services
 {

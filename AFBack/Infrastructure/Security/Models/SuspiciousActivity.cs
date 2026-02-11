@@ -37,21 +37,6 @@ public class SuspiciousActivity
     [MaxLength(200)]
     public string? Endpoint { get; set; }
     
-    public bool WasBlocked { get; set; }
-    
-    [EnumDataType(typeof(SecurityAction))]
-    public SecurityAction ActionTaken { get; set; } = SecurityAction.None;
-    
-    // ======================== Location ========================
-    [MaxLength(100)]
-    public string? Location { get; set; } 
-    
-    [MaxLength(100)]
-    public string? Country { get; set; }
-    
-    [MaxLength(100)]
-    public string? City { get; set; }
-    
     // ======================== Navigasjonsegenskaper ========================
     public AppUser? User { get; set; }
     public UserDevice? UserDevice { get; set; }

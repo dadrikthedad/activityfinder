@@ -1,3 +1,5 @@
+using AFBack.Common.Enum;
+
 namespace AFBack.Common.Results;
 
 /// <summary>

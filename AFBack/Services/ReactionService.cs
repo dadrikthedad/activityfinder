@@ -6,7 +6,6 @@ using AFBack.Extensions;
 using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Hubs;
-using AFBack.Interface.Services;
 using AFBack.Models;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;

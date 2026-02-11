@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using AFBack.Data;
 using AFBack.Constants;
-using AFBack.Interface.Services;
+using AFBack.Infrastructure.Security.Services;
 
 namespace AFBack.Services.Maintenance.Tasks;
 
@@ -36,7 +36,7 @@ public class IpBanCleanupTask(
             var cleanupCutoff = now.Subtract(_options.SuspiciousWindow.Add(TimeSpan.FromDays(7)));
 
             // Bulk update expired temporary bans
-            var expiredBansCount = await context.BanInfos
+            var expiredBansCount = await context.IpBans
                 .Where(b => b.IsActive && b.BanType == BanType.Temporary && now > b.ExpiresAt)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(b => b.IsActive, false));
 
