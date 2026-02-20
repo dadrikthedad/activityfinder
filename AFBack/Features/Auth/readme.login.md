@@ -1,7 +1,7 @@
 # Login, Token Management & Session Handling
 
-Håndterer innlogging, token-generering, token-fornyelse, utlogging og sesjons-sikkerhet.
-Bygget for en meldingsapp der brukere forblir innlogget på tvers av enheter over lang tid.
+Detaljert dokumentasjon av innlogging, token-generering, token-fornyelse, utlogging og sesjons-sikkerhet.
+For oversikt over hele Auth-featurem, se `readme.auth.md`.
 
 ## Arkitektur-oversikt
 
@@ -91,9 +91,9 @@ Body: { Email, Password, Device: { DeviceFingerprint, DeviceName, ... } }
      │         └─ Returner "Wrong email or password"
      └─ Riktig ↓
   5. Epost-verifisering-sjekk
-     └─ Ikke verifisert → Sender ny verifiseringsepost, returner feil
+     └─ Ikke verifisert → Sender ny verifiseringsepost via IAccountVerificationService
   6. Telefon-verifisering-sjekk
-     └─ Ikke verifisert → Sender ny verifiserings-SMS, returner feil
+     └─ Ikke verifisert → Sender ny verifiserings-SMS via IAccountVerificationService
   7. Nullstill failed attempts
   8. Resolve/opprett UserDevice
   9. Generer token-par (AccessToken + RefreshToken)
@@ -255,66 +255,6 @@ Identity sin innebygde lockout:
 ### LoginHistory
 
 Logger hvert login/logout for audit trail. Knyttet til bruker og enhet.
-
-## Filstruktur
-
-```
-Features/Auth/
-├── Controllers/
-│   ├── AuthController.cs         ← Login, Logout, Logout-all + verifisering/passord
-│   └── TokenController.cs        ← Refresh token-endepunkt
-├── DTOs/
-│   ├── Request/
-│   │   ├── LoginRequest.cs       ← Email, Password, DeviceInfoRequest
-│   │   ├── DeviceInfoRequest.cs  ← Fingerprint, DeviceName, DeviceType, OS
-│   │   ├── RefreshRequest.cs     ← RefreshToken, DeviceFingerprint
-│   │   └── LogoutRequest.cs      ← RefreshToken
-│   └── Response/
-│       ├── LoginResponse.cs      ← Arver TokenResponse + UserSummaryDto
-│       ├── TokenResponse.cs      ← AccessToken, RefreshToken, expiry-tider
-│       └── RefreshTokenRequest.cs← Brukes av TokenController
-├── Models/
-│   ├── AppUser.cs                ← IdentityUser med utvidet profil
-│   ├── RefreshToken.cs           ← Refresh token med device-binding
-│   ├── UserDevice.cs             ← Enhet-registrering
-│   ├── LoginHistory.cs           ← Innloggingslogg
-│   └── VerificationInfo.cs       ← Verifiseringskoder og tokens
-├── Repositories/
-│   ├── IRefreshTokenRepository / RefreshTokenRepository.cs
-│   ├── IUserDeviceRepository / UserDeviceRepository.cs
-│   ├── ILoginHistoryRepository / LoginHistoryRepository.cs
-│   ├── IUserRepository / UserRepository.cs
-│   └── IVerificationRepository / VerificationRepository.cs
-├── Services/
-│   ├── IAuthService / AuthService.cs          ← Login, logout, verifisering, passord
-│   ├── IJwtService / JwtService.cs            ← JWT-generering med claims
-│   ├── ITokenService / TokenService.cs        ← Token-par, refresh, revokering, blacklist
-│   ├── IPasswordHashService / PasswordHashService.cs  ← Argon2id hashing
-│   ├── IUserDeviceService / UserDeviceService.cs      ← Enhet-håndtering
-│   ├── ILoginHistoryService / LoginHistoryService.cs  ← Innloggingslogg
-│   └── IVerificationService / VerificationService.cs  ← Kode-generering og validering
-├── readme.login.md               ← Denne filen
-└── readme.accountverification.md ← Verifisering, passord-reset, epost/telefon-bytte
-
-Configurations/Options/
-├── JwtSettings.cs                ← Key, Issuer, Audience fra appsettings
-├── ConfigureJwtBearerOptions.cs  ← JWT-validering + SignalR query-token støtte
-├── TokenConfig.cs                ← Levetider, størrelser, ClockSkew
-└── VerificationConfig.cs         ← Kode-utløp og forsøksgrenser
-
-Infrastructure/
-├── Middleware/
-│   ├── TokenBlacklistMiddleware.cs  ← Redis blacklist-sjekk per request
-│   └── IpBanMiddleware.cs           ← IP-ban sjekk
-├── Security/
-│   ├── SuspiciousActivityService    ← Logging av mistenkelig aktivitet
-│   ├── RateLimitService             ← Email/SMS rate limiting
-│   └── IpBanService                 ← IP-banning
-├── Extensions/
-│   └── ClaimsPrincipalExtensions.cs ← GetUserId, GetJti, GetDeviceId, etc.
-└── Constants/
-    └── CustomClaimTypes.cs          ← "device_id"
-```
 
 ## Avhengigheter
 

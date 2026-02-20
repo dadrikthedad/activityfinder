@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.Auth.Repositories;
 
-public class VerificationRepository(AppDbContext context) : IVerificationRepository
+public class VerificationInfoRepository(AppDbContext context) : IVerificationInfoRepository
 {
     /// <inheritdoc />
     public async Task<VerificationInfo?> GetByUserIdAsync(string userId) =>

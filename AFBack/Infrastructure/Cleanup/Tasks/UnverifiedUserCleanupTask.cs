@@ -3,9 +3,12 @@ using AFBack.Configurations.Options;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using Microsoft.AspNetCore.Identity;
-
-
 namespace AFBack.Infrastructure.Cleanup.Tasks;
+
+/// <summary>
+/// Rydder opp brukere som ikke har verifisert seg selv. Forskjellig lengde om de har
+/// verifisert epost, men ikke telefon, eller ingen av delene
+/// </summary>
 
 public class UnverifiedUserCleanupTask(
     IServiceScopeFactory scopeFactory,

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace AFBack.Features.Auth.DTOs.Request;
+namespace AFBack.Features.Account.DTOs.Requests;
 
 public class VerifyCodeRequest
 {

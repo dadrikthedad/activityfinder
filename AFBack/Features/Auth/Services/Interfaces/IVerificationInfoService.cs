@@ -1,9 +1,8 @@
 using AFBack.Common.Results;
 
+namespace AFBack.Features.Auth.Services.Interfaces;
 
-namespace AFBack.Features.Auth.Services;
-
-public interface IVerificationService
+public interface IVerificationInfoService
 {
     // ======================== Epost verifisiering ======================== 
     

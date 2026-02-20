@@ -1,5 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
-using AFBack.Features.Auth.Services;
+using AFBack.Features.Auth.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AFBack.Infrastructure.Middleware;

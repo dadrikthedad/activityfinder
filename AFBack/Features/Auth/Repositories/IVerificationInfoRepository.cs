@@ -2,7 +2,7 @@ using AFBack.Features.Auth.Models;
 
 namespace AFBack.Features.Auth.Repositories;
 
-public interface IVerificationRepository
+public interface IVerificationInfoRepository
 {
     /// <summary>
     /// Henter VerificationInfo for en bruker

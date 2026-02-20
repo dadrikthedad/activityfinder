@@ -3,12 +3,13 @@ using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Configurations.Options;
 using AFBack.Features.Auth.Repositories;
+using AFBack.Features.Auth.Services.Interfaces;
 
 namespace AFBack.Features.Auth.Services;
 
-public class VerificationService(
-    IVerificationRepository verificationRepository,
-    ILogger<VerificationService> logger) : IVerificationService
+public class VerificationInfoService(
+    IVerificationInfoRepository verificationInfoRepository,
+    ILogger<VerificationInfoService> logger) : IVerificationInfoService
 {
     // Henter settings fra Config-filen
     private static readonly TimeSpan EmailCodeExpiry = 
@@ -27,7 +28,7 @@ public class VerificationService(
         var code = GenerateSecureCode();
 
         // Hent eller opprett VerificationInfo
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId) 
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId) 
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: " +
                                    $"{userId}. Was it created during signup?");
@@ -40,7 +41,7 @@ public class VerificationService(
         verificationInfo.LastVerificationEmailSentAt = DateTime.UtcNow;
         
         // Lagerer i databasen
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
 
         logger.LogInformation("Email verification generated for UserId: {UserId}", userId);
         return code;
@@ -50,7 +51,7 @@ public class VerificationService(
     public async Task<Result> ValidateEmailCodeAsync(string userId, string code)
     {
         // Henter verificationInfo
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId) 
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId) 
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: " +
                                    $"{userId}. Was it created during signup?");
@@ -74,7 +75,7 @@ public class VerificationService(
         if (verificationInfo.EmailConfirmationCode != code)
         {
             verificationInfo.EmailCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             var remaining = VerificationConfig.MaxFailedAttempts - verificationInfo.EmailCodeFailedAttempts;
             logger.LogWarning(
@@ -89,7 +90,7 @@ public class VerificationService(
         verificationInfo.EmailCodeFailedAttempts = 0;
         
         // Lagrer i databasen
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
 
         return Result.Success();
     }
@@ -101,7 +102,7 @@ public class VerificationService(
     {
         var code = GenerateSecureCode();
 
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
 
@@ -110,7 +111,7 @@ public class VerificationService(
         verificationInfo.PhoneCodeFailedAttempts = 0;
         verificationInfo.LastVerificationSmsSentAt = DateTime.UtcNow;
 
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
 
         logger.LogInformation("Phone verification generated for UserId: {UserId}", userId);
         return code;
@@ -118,7 +119,7 @@ public class VerificationService(
 
     public async Task<Result> ValidatePhoneCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
 
@@ -138,7 +139,7 @@ public class VerificationService(
         if (verificationInfo.PhoneVerificationCode != code)
         {
             verificationInfo.PhoneCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
 
             var remaining = VerificationConfig.MaxFailedAttempts - verificationInfo.PhoneCodeFailedAttempts;
             logger.LogWarning(
@@ -151,7 +152,7 @@ public class VerificationService(
         verificationInfo.PhoneCodeExpiresAt = null;
         verificationInfo.PhoneCodeFailedAttempts = 0;
 
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
 
         return Result.Success();
     }
@@ -164,7 +165,7 @@ public class VerificationService(
         // Generer 6-sifret kode for app og epost
         var code = GenerateSecureCode();
 
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId) 
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId) 
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: " +
                                    $"{userId}. Was it created during signup?");
@@ -183,7 +184,7 @@ public class VerificationService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         
         // Lagerer i databasen
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
 
         logger.LogInformation("Password reset generated for UserId: {UserId}", userId);
         return code;
@@ -192,7 +193,7 @@ public class VerificationService(
      /// <inheritdoc />
      public async Task<Result> ValidateEmailPasswordResetCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId) 
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId) 
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: " +
                                    $"{userId}. Was it created during signup?");
@@ -215,7 +216,7 @@ public class VerificationService(
         if (verificationInfo.EmailPasswordResetCode != code)
         {
             verificationInfo.EmailPasswordResetCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
         
             var remaining = VerificationConfig.MaxFailedAttempts - 
                             verificationInfo.EmailPasswordResetCodeFailedAttempts;
@@ -231,7 +232,7 @@ public class VerificationService(
         verificationInfo.EmailPasswordResetCodeFailedAttempts = 0;
         verificationInfo.EmailPasswordResetVerified = true;
     
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         logger.LogInformation("Password reset email code verified for UserId: {UserId}. SMS step unlocked.",
             userId);
@@ -243,7 +244,7 @@ public class VerificationService(
 
     public async Task<string> GenerateSmsPasswordResetCodeAsync(string userId)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId) 
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId) 
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: " +
                                    $"{userId}. Was it created during signup?");
@@ -264,7 +265,7 @@ public class VerificationService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.LastSmsPasswordResetSentAt = DateTime.UtcNow;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
     
         logger.LogInformation(
             "SMS password reset code generated for UserId: {UserId}", userId);
@@ -276,7 +277,7 @@ public class VerificationService(
    /// <inheritdoc />
    public async Task<Result> ValidateSmsPasswordResetCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId) 
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId) 
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: " +
                                    $"{userId}. Was it created during signup?");
@@ -309,7 +310,7 @@ public class VerificationService(
         if (verificationInfo.SmsPasswordResetCode != code)
         {
             verificationInfo.SmsPasswordResetCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             var remaining = VerificationConfig.MaxFailedAttempts - 
                             verificationInfo.SmsPasswordResetCodeFailedAttempts;
@@ -325,7 +326,7 @@ public class VerificationService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.SmsPasswordResetVerified = true;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         logger.LogInformation(
             "SMS password reset code verified for UserId: {UserId}. Password reset unlocked.", userId);
@@ -340,7 +341,7 @@ public class VerificationService(
     {
         var code = GenerateSecureCode();
     
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
     
@@ -359,7 +360,7 @@ public class VerificationService(
         verificationInfo.NewEmailChangeCodeExpiresAt = null;
         verificationInfo.NewEmailChangeCodeFailedAttempts = 0;
     
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
     
         logger.LogInformation("Old email change verification code generated for UserId: {UserId}", userId);
         return code;
@@ -370,7 +371,7 @@ public class VerificationService(
     /// <inheritdoc />
     public async Task<Result<string>> ValidateOldEmailChangeCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
         
@@ -396,7 +397,7 @@ public class VerificationService(
         if (verificationInfo.OldEmailChangeCode != code)
         {
             verificationInfo.OldEmailChangeCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             var remaining = VerificationConfig.MaxFailedAttempts - 
                             verificationInfo.OldEmailChangeCodeFailedAttempts;
@@ -412,7 +413,7 @@ public class VerificationService(
         verificationInfo.OldEmailChangeCodeFailedAttempts = 0;
         verificationInfo.CurrentEmailChangeVerified = true;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         var newEmail = verificationInfo.PendingEmail;
         
@@ -428,7 +429,7 @@ public class VerificationService(
     {
         var code = GenerateSecureCode();
     
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
     
@@ -448,7 +449,7 @@ public class VerificationService(
         verificationInfo.NewEmailChangeCodeFailedAttempts = 0;
         verificationInfo.LastNewEmailChangeSentAt = DateTime.UtcNow;
     
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
     
         logger.LogInformation("New email change code generated for UserId: {UserId}", userId);
         return code;
@@ -457,7 +458,7 @@ public class VerificationService(
     /// <inheritdoc />
     public async Task<Result<string>> ValidateNewEmailChangeCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
         
@@ -494,7 +495,7 @@ public class VerificationService(
         if (verificationInfo.NewEmailChangeCode != code)
         {
             verificationInfo.NewEmailChangeCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             var remaining = VerificationConfig.MaxFailedAttempts - 
                             verificationInfo.NewEmailChangeCodeFailedAttempts;
@@ -516,7 +517,7 @@ public class VerificationService(
         verificationInfo.NewEmailChangeCodeExpiresAt = null;
         verificationInfo.NewEmailChangeCodeFailedAttempts = 0;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         logger.LogInformation("New email code verified for UserId: {UserId}", userId);
         return Result<string>.Success(newEmail);
@@ -531,7 +532,7 @@ public class VerificationService(
     {
         var code = GenerateSecureCode();
     
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
     
@@ -550,7 +551,7 @@ public class VerificationService(
         verificationInfo.NewPhoneChangeCodeExpiresAt = null;
         verificationInfo.NewPhoneChangeCodeFailedAttempts = 0;
     
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
     
         logger.LogInformation(
             "Phone change email verification code generated for UserId: {UserId}", userId);
@@ -560,7 +561,7 @@ public class VerificationService(
     /// <inheritdoc />
     public async Task<Result<string>> ValidatePhoneChangeEmailCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
         
@@ -587,7 +588,7 @@ public class VerificationService(
         if (verificationInfo.PhoneChangeEmailCode != code)
         {
             verificationInfo.PhoneChangeEmailCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             var remaining = VerificationConfig.MaxFailedAttempts - 
                             verificationInfo.PhoneChangeEmailCodeFailedAttempts;
@@ -603,7 +604,7 @@ public class VerificationService(
         verificationInfo.PhoneChangeEmailCodeFailedAttempts = 0;
         verificationInfo.CurrentPhoneChangeVerified = true;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         var newPhone = verificationInfo.PendingPhoneNumber;
         
@@ -620,7 +621,7 @@ public class VerificationService(
     {
         var code = GenerateSecureCode();
     
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
     
@@ -639,7 +640,7 @@ public class VerificationService(
         verificationInfo.NewPhoneChangeCodeFailedAttempts = 0;
         verificationInfo.LastNewPhoneChangeSentAt = DateTime.UtcNow;
     
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
     
         logger.LogInformation("New phone change SMS code generated for UserId: {UserId}", userId);
         return code;
@@ -648,7 +649,7 @@ public class VerificationService(
     /// <inheritdoc />
     public async Task<Result<string>> ValidateNewPhoneChangeCodeAsync(string userId, string code)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
         
@@ -685,7 +686,7 @@ public class VerificationService(
         if (verificationInfo.NewPhoneChangeCode != code)
         {
             verificationInfo.NewPhoneChangeCodeFailedAttempts++;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             var remaining = VerificationConfig.MaxFailedAttempts - 
                             verificationInfo.NewPhoneChangeCodeFailedAttempts;
@@ -707,7 +708,7 @@ public class VerificationService(
         verificationInfo.NewPhoneChangeCodeExpiresAt = null;
         verificationInfo.NewPhoneChangeCodeFailedAttempts = 0;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         logger.LogInformation("New phone code verified for UserId: {UserId}", userId);
         return Result<string>.Success(newPhone);
@@ -718,7 +719,7 @@ public class VerificationService(
     /// <inheritdoc />
     public async Task<string> GenerateSecurityAlertTokenAsync(string userId)
     {
-        var verificationInfo = await verificationRepository.GetByUserIdAsync(userId)
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(userId)
                                ?? throw new InvalidOperationException(
                                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
         
@@ -727,7 +728,7 @@ public class VerificationService(
         verificationInfo.SecurityAlertToken = token;
         verificationInfo.SecurityAlertTokenExpiresAt = DateTime.UtcNow.Add(SecurityAlertTokenExpiry);
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         logger.LogInformation("Security alert token generated for UserId: {UserId}", userId);
         return token;
@@ -736,7 +737,7 @@ public class VerificationService(
     /// <inheritdoc />
     public async Task<Result<string>> ValidateSecurityAlertTokenAsync(string token)
     {
-        var verificationInfo = await verificationRepository.GetBySecurityAlertTokenAsync(token);
+        var verificationInfo = await verificationInfoRepository.GetBySecurityAlertTokenAsync(token);
         
         if (verificationInfo == null)
         {
@@ -750,7 +751,7 @@ public class VerificationService(
             // Nullstill utgått token
             verificationInfo.SecurityAlertToken = null;
             verificationInfo.SecurityAlertTokenExpiresAt = null;
-            await verificationRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync();
             
             logger.LogWarning("Expired security alert token used for UserId: {UserId}", verificationInfo.UserId);
             return Result<string>.Failure("Security token has expired");
@@ -800,7 +801,7 @@ public class VerificationService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.SmsPasswordResetVerified = false;
         
-        await verificationRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync();
         
         logger.LogWarning(
             "Security alert token consumed for UserId: {UserId}. All pending changes cleared.", userId);

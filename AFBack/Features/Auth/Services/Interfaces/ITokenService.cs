@@ -2,7 +2,7 @@ using AFBack.Common.Results;
 using AFBack.Features.Auth.DTOs.Response;
 using AFBack.Features.Auth.Models;
 
-namespace AFBack.Features.Auth.Services;
+namespace AFBack.Features.Auth.Services.Interfaces;
 
 /// <summary>
 /// Håndterer alt relatert til access tokens og refresh tokens:

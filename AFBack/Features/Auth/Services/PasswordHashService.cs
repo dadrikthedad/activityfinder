@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using AFBack.Features.Auth.Models;
+using AFBack.Features.Auth.Services.Interfaces;
 using Konscious.Security.Cryptography;
 using Microsoft.AspNetCore.Identity;
 

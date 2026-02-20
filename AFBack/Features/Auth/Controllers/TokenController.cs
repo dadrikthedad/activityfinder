@@ -2,6 +2,7 @@ using AFBack.Common.Controllers;
 using AFBack.Features.Auth.DTOs.Request;
 using AFBack.Features.Auth.DTOs.Response;
 using AFBack.Features.Auth.Services;
+using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Constants;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

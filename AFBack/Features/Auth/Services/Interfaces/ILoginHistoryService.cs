@@ -1,4 +1,4 @@
-namespace AFBack.Features.Auth.Services;
+namespace AFBack.Features.Auth.Services.Interfaces;
 
 public interface ILoginHistoryService
 {

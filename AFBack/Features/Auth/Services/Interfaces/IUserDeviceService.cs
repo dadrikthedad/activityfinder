@@ -1,7 +1,7 @@
 using AFBack.Features.Auth.DTOs.Request;
 using AFBack.Features.Auth.Models;
 
-namespace AFBack.Features.Auth.Services;
+namespace AFBack.Features.Auth.Services.Interfaces;
 
 public interface IUserDeviceService
 {

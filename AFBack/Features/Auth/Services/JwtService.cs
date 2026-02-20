@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using AFBack.Configurations.Options;
+using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Constants;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;

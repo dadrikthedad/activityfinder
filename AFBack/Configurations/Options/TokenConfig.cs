@@ -30,4 +30,21 @@ public static class TokenConfig
     /// Håndterer klokkeforskjeller mellom servere.
     /// </summary>
     public const int ClockSkewSeconds = 30;
+    
+    /// <summary>
+    /// Hvor ofte cleanup-jobben kjører (i timer).
+    /// </summary>
+    public const int CleanupIntervalHours = 24;
+
+    /// <summary>
+    /// Antall dager revokerte tokens beholdes for audit trail
+    /// før de slettes av cleanup-jobben.
+    /// </summary>
+    public const int RevokedTokenRetentionDays = 30;
+
+    /// <summary>
+    /// Forsinkelse før cleanup-jobben starter etter oppstart (i minutter).
+    /// Gir applikasjonen tid til å starte opp fullstendig.
+    /// </summary>
+    public const int CleanupInitialDelayMinutes = 10;
 }

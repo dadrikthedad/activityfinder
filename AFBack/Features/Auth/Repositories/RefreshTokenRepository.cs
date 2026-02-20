@@ -6,6 +6,7 @@ namespace AFBack.Features.Auth.Repositories;
 
 public class RefreshTokenRepository(AppDbContext context) : IRefreshTokenRepository
 {
+    // ======================== GET  ======================== 
     /// <inheritdoc/>
     public async Task<RefreshToken?> GetByTokenAsync(string token) =>
         await context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == token);
@@ -35,10 +36,24 @@ public class RefreshTokenRepository(AppDbContext context) : IRefreshTokenReposit
             .Where(rt => rt.ExpiresAt > DateTime.UtcNow) // Filtrerer bort de utgåtte
             .ToListAsync();
     
+    // ======================== CREATE ======================== 
     
     /// <inheritdoc/>
     public async Task AddAsync(RefreshToken refreshToken) =>
         await context.RefreshTokens.AddAsync(refreshToken);
+    
+    // ======================== DELETE ======================== 
+    
+    public async Task<int> DeleteExpiredAndOldRevokedAsync(
+        DateTime expiredBefore, DateTime revokedBefore, CancellationToken cancellationToken) => 
+        await context.RefreshTokens
+            .Where(t =>
+                t.ExpiresAt < expiredBefore ||
+                (t.IsRevoked && t.RevokedAt < revokedBefore))
+            .ExecuteDeleteAsync(cancellationToken);
+    
+    
+    // ======================== SAVE ======================== 
 
     public async Task SaveChangesAsync() => await context.SaveChangesAsync();
 }

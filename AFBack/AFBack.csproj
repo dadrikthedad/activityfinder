@@ -53,12 +53,12 @@
   </ItemGroup>
 
    <ItemGroup>
+     <Folder Include="Features\Account\DTOs\Responses\" />
+     <Folder Include="Features\Account\Repositories\" />
      <Folder Include="Features\Blocking\DTOs\" />
      <Folder Include="Features\Reactions\" />
      <Folder Include="Infrastructure\Security\DTOs\" />
      <Folder Include="Models\User\" />
-     <Folder Include="Services\Block\DTOs\" />
-     <Folder Include="Services\User\" />
    </ItemGroup>
 
    <ItemGroup>

@@ -33,6 +33,17 @@ public interface IRefreshTokenRepository
     /// <returns>Liste med aktive tokens</returns>
     Task<List<RefreshToken>> GetActiveTokensByDeviceIdAsync(int deviceId);
     
+    /// <summary>
+    /// Sletter utløpte tokens og revokerte tokens eldre enn cutoff-datoen.
+    /// Returnerer antall slettede rader.
+    /// </summary>
+    /// <param name="expiredBefore">Tokens som har utgått før cutoff-datoen</param>
+    /// <param name="revokedBefore">Tokens som har blitt revoked før cutoff-datoen</param>
+    /// <param name="cancellationToken">CancellationToken</param>
+    /// <returns>Int med antall slettede</returns>
+    Task<int> DeleteExpiredAndOldRevokedAsync(DateTime expiredBefore, DateTime revokedBefore, 
+        CancellationToken cancellationToken);
+    
     Task AddAsync(RefreshToken refreshToken);
     Task SaveChangesAsync();
 }

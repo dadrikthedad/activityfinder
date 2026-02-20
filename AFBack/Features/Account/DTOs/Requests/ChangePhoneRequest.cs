@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace AFBack.Features.Auth.DTOs.Request;
+namespace AFBack.Features.Account.DTOs.Requests;
 
 /// <summary>
 /// Request for å starte telefonnummer-bytte. Krever passord for å bekrefte identitet.

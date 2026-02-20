@@ -3,9 +3,11 @@ using System.Text.Json.Serialization;
 using AFBack.Cache;
 using AFBack.Configurations.Options;
 using AFBack.Data;
+using AFBack.Features.Account.Services;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services;
+using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Features.Blocking.Repository;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Broadcast.Services;
@@ -32,7 +34,6 @@ using AFBack.Features.SyncEvents.Repository;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.Cleanup;
 using AFBack.Infrastructure.Email;
-using AFBack.Infrastructure.Filters;
 using AFBack.Infrastructure.Security.Extensions;
 using AFBack.Infrastructure.Security.Repositories;
 using AFBack.Infrastructure.Security.Services;
@@ -46,7 +47,6 @@ using Azure.Communication.Sms;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Azure.Storage.Blobs;
-using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
@@ -102,8 +102,6 @@ public static class ServiceCollectionExtensions
                 options.EnablePerformanceCounterCollectionModule = true; // Performance metrics? Må sjekke ut
 
             });
-
-            services.AddSingleton<ITelemetryInitializer, SensitiveDataLoggingFilter>();
         }
         
         // ===== Redis Cache =====
@@ -285,7 +283,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
         services.AddScoped<IIpBanRepository, IpBanRepository>();
         services.AddScoped<ISuspiciousActivityRepository, SuspiciousActivityRepository>();
-        services.AddScoped<IVerificationRepository, VerificationRepository>();
+        services.AddScoped<IVerificationInfoRepository, VerificationInfoRepository>();
         
         
         services.AddScoped<IConversationRepository, ConversationRepository>();
@@ -312,13 +310,13 @@ public static class ServiceCollectionExtensions
     {
         // ===== AUTHENTICATION & USER SERVICES =====
         services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<UserService, UserService>();
-        services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<IVerificationInfoService, VerificationInfoService>();
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IUserDeviceService, UserDeviceService>();
         services.AddScoped<ILoginHistoryService, LoginHistoryService>();
-        
-        
+        services.AddScoped<IAccountVerificationService, AccountVerificationService>();
+        services.AddScoped<IAccountChangeService, AccountChangeService>();
+        services.AddScoped<IPasswordService, PasswordService>();
         
         
         // ===== RELATIONSHIPSERVICES =====

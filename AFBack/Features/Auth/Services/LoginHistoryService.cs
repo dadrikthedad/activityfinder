@@ -1,5 +1,6 @@
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
+using AFBack.Features.Auth.Services.Interfaces;
 
 namespace AFBack.Features.Auth.Services;
 
