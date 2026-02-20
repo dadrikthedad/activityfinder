@@ -13,10 +13,11 @@ public static class VerificationConfig
     // ===== E-POST VERIFISERING =====
     public static readonly int EmailCodeExpiryMinutes = 60;
     
-    // ===== PASSORD RESET =====
-    public static readonly int PasswordResetCodeExpiryMinutes = 60;
-    
     // ===== TELEFON VERIFISERING =====
     // Kortere enn epost fordi SMS er mindre sikkert (SIM-swap, SS7-angrep)
     public static readonly int PhoneCodeExpiryMinutes = 10;
+    
+    // ===== SIKKERHETSVARSLING =====
+    // Bruker har 24 t på rapportere mistenksomhandling
+    public static readonly int SecurityAlertTokenExpiryHours = 24;
 }

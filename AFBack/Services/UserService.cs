@@ -132,7 +132,7 @@ public class UserService
         var expiry = DateTime.UtcNow.AddHours(1);
         
         user.VerificationInfo.PasswordResetToken = token;
-        user.VerificationInfo.PasswordResetCode = code;
+        user.VerificationInfo.EmailPasswordResetCode = code;
         user.VerificationInfo.PasswordResetTokenExpires = expiry; // Samme utløpstid for begge
 
         await _context.SaveChangesAsync();
@@ -143,7 +143,7 @@ public class UserService
     {
         var verificationInfo = await _context.VerificationInfos
             .FirstOrDefaultAsync(v => 
-                (v.PasswordResetToken == tokenOrCode || v.PasswordResetCode == tokenOrCode) && 
+                (v.PasswordResetToken == tokenOrCode || v.EmailPasswordResetCode == tokenOrCode) && 
                 v.PasswordResetTokenExpires > DateTime.UtcNow);
 
         return verificationInfo != null;
@@ -154,7 +154,7 @@ public class UserService
         var verificationInfo = await _context.VerificationInfos
             .Include(v => v.AppUser)
             .FirstOrDefaultAsync(v => 
-                (v.PasswordResetToken == tokenOrCode || v.PasswordResetCode == tokenOrCode) && 
+                (v.PasswordResetToken == tokenOrCode || v.EmailPasswordResetCode == tokenOrCode) && 
                 v.PasswordResetTokenExpires > DateTime.UtcNow);
 
         if (verificationInfo?.AppUser == null)
@@ -165,7 +165,7 @@ public class UserService
 
         // Fjern begge tokens etter bruk
         verificationInfo.PasswordResetToken = null;
-        verificationInfo.PasswordResetCode = null;
+        verificationInfo.EmailPasswordResetCode = null;
         verificationInfo.PasswordResetTokenExpires = null;
 
         await _context.SaveChangesAsync();

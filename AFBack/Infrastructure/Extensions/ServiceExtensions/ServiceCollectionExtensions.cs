@@ -51,6 +51,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.JsonWebTokens;
 using EmailService = AFBack.Infrastructure.Email.EmailService;
 using IHubConnectionService = AFBack.Features.SignalR.Services.IHubConnectionService;
 
@@ -201,7 +202,7 @@ public static class ServiceCollectionExtensions
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
          
-         
+        JsonWebTokenHandler.DefaultInboundClaimTypeMap.Clear();
         
         // Her forteller vi ASP.NET Core at vi skal bruke JWT-tokens for autentisering
         services.AddAuthentication(options =>
@@ -277,7 +278,16 @@ public static class ServiceCollectionExtensions
     /// <returns></returns>
     public static IServiceCollection AddRepositories(this IServiceCollection services)
     {
-        // ===== REPOSITORIES =====
+        // ===== AUTHENTICATION & USER SERVICES =====
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+        services.AddScoped<IUserDeviceRepository, UserDeviceRepository>();
+        services.AddScoped<ILoginHistoryRepository, LoginHistoryRepository>();
+        services.AddScoped<IIpBanRepository, IpBanRepository>();
+        services.AddScoped<ISuspiciousActivityRepository, SuspiciousActivityRepository>();
+        services.AddScoped<IVerificationRepository, VerificationRepository>();
+        
+        
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IUserBlockRepository, UserBlockRepository>();
@@ -287,11 +297,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDeviceSyncStateRepository, DeviceSyncStateRepository>();
         services.AddScoped<IFriendshipRepository, FriendshipRepository>();
         services.AddScoped<IConversationLeftRecordRepository, ConversationLeftRecordRepository>();
-        services.AddScoped<IUserRepository, UserRepository>(); 
         
-        services.AddScoped<IIpBanRepository, IpBanRepository>();
-        services.AddScoped<ISuspiciousActivityRepository, SuspiciousActivityRepository>();
-        services.AddScoped<IVerificationRepository, VerificationRepository>();
+        
+        
         return services;
     }
     
@@ -306,6 +314,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<UserService, UserService>();
         services.AddScoped<IVerificationService, VerificationService>();
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IUserDeviceService, UserDeviceService>();
+        services.AddScoped<ILoginHistoryService, LoginHistoryService>();
+        
+        
+        
         
         // ===== RELATIONSHIPSERVICES =====
         

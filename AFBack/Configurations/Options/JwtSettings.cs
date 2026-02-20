@@ -3,8 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace AFBack.Configurations.Options;
 
 /// <summary>
-/// JwtSettings er innstillingene relatert til JWT-token satt i appsettings.json. Dette brukes for å kaste en feil
-/// hvis noe ikke stemmer i appsettings. Kan bruke DataAnnotations
+/// JwtSettings er innstillingene relatert til JWT-token satt i appsettings.json.
+/// Dette brukes for å kaste en feil hvis noe ikke stemmer i appsettings. Kan bruke DataAnnotations
 /// </summary>
 public class JwtSettings
 {
@@ -19,8 +19,5 @@ public class JwtSettings
   
     [Required(ErrorMessage = "Audience is required")]
     public string Audience { get; set; } = string.Empty;
-  
-    [Range(1, 1440, ErrorMessage = "TokenValidityMinutes must be between 1 minute and 24 hours")]
-    public int TokenValidityMinutes { get; set; }
 }
 

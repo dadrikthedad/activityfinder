@@ -7,5 +7,7 @@ namespace AFBack.Infrastructure.Email.Enums;
 public enum EmailType
 {
     Verification,
-    PasswordReset
+    PasswordReset,
+    EmailChange,
+    PhoneChange
 }

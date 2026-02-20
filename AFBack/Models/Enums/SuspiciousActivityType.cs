@@ -45,6 +45,12 @@ public enum SuspiciousActivityType
     /// </summary>
     PhoneEnumeration = 23,    
     
+    /// <summary>
+    /// Bruker rapporterte via "This wasn't me"-lenke at en endring ikke var autorisert.
+    /// Kontoen ble låst og pending-endringer ble nullstilt.
+    /// </summary>
+    UnauthorizedChangeReported = 24,
+    
     // ======================== Data-relatert ========================
     UnauthorizedAccess = 30,
     DataExfiltration = 31,

@@ -110,9 +110,9 @@ public class PasswordHashService : IPasswordHashService, IPasswordHasher<AppUser
       return argon2.GetBytes(HashSize);
   }
 
-    
+
   public string HashPassword(AppUser user, string password) => HashPassword(password);
-  
+
   public PasswordVerificationResult VerifyHashedPassword(AppUser user, string hashedPassword, string providedPassword)
   {
       var isValid = VerifyPassword(providedPassword, hashedPassword);

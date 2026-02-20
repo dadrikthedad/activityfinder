@@ -10,8 +10,8 @@ public class ConversationLeftRecordRepository(AppDbContext context) : IConversat
     public async Task<bool> ExistsAsync(string userId, int conversationId) =>
         await context.ConversationLeftRecords
             .AnyAsync(r => r.UserId == userId && r.ConversationId == conversationId);
-    
-    
+
+
     public async Task<ConversationLeftRecord?> GetAsync(string userId, int conversationId) =>
         await context.ConversationLeftRecords
             .FirstOrDefaultAsync(r => r.UserId == userId && r.ConversationId == conversationId);

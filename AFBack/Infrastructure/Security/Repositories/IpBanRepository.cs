@@ -40,6 +40,6 @@ public class IpBanRepository(AppDbContext context) : IIpBanRepository
         await context.IpBans.AddAsync(ipBan);
         await context.SaveChangesAsync();
     }
-    
+
     public async Task SaveChangesAsync() => await context.SaveChangesAsync();
 }

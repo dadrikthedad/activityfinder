@@ -1,9 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using AFBack.Common.Enum;
+﻿using AFBack.Common.Enum;
 using AFBack.Common.Results;
+using Microsoft.AspNetCore.Mvc;
 
-
-namespace AFBack.Controllers
+namespace AFBack.Common.Controllers
 {
     [ApiController]
     public abstract class BaseController : ControllerBase

@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
@@ -49,7 +50,12 @@ public class ConfigureJwtBearerOptions(IOptions<JwtSettings> jwtSettings) : ICon
            // Dette feltet sikrer at tokenet får en livstids slik vi har definert i appsettings
            ValidateLifetime = true,
            // Her setter vi hvor mye tid over satt tid hvor tokenet er gyldig
-           ClockSkew = TimeSpan.FromSeconds(30)
+           ClockSkew = TimeSpan.FromSeconds(TokenConfig.ClockSkewSeconds),
+           
+           // Forteller ASP.NET Core hvilke claim-navn vi bruker i tokenet
+           // siden vi har slått av den automatiske mappingen
+           RoleClaimType = "role",
+           NameClaimType = JwtRegisteredClaimNames.Sub
        };
        
        // Vi sender token som query parameter

@@ -78,6 +78,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<UserDevice> UserDevices { get; set; }
     
     public DbSet<VerificationInfo> VerificationInfos { get; set; }
+    
+    public DbSet<LoginHistory> LoginHistories { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

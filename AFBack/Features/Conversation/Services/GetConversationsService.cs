@@ -16,7 +16,7 @@ public class GetConversationsService(
     IUserSummaryCacheService userSummariesCache) : IGetConversationsService
 {
      /// <inheritdoc />
-    public async Task<Result<ConversationResponse>> GetConversationAsync(string userId, int conversationId)
+     public async Task<Result<ConversationResponse>> GetConversationAsync(string userId, int conversationId)
     {
         logger.LogInformation("Getting conversation {ConversationId} for User {UserId}", 
             conversationId, userId);

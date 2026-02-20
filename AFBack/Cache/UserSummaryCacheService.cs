@@ -20,7 +20,7 @@ public class UserSummaryCacheService(
     private long _cacheRefreshes;
     
     // ==================== Hente fra cache/database ====================
-    
+
     public async Task<UserSummaryDto?> GetUserSummaryAsync(string userId)
     {
         if (!_cachingEnabled)
@@ -73,8 +73,8 @@ public class UserSummaryCacheService(
             return await userRepo.GetUserSummaryAsync(userId);
         }
     }
-    
-    
+
+
     public async Task<Dictionary<string, UserSummaryDto>> GetUserSummariesAsync(List<string> userIds)
     {   
         // Sjekker at det er ikke doble brukere

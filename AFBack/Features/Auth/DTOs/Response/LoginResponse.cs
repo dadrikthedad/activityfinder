@@ -2,11 +2,10 @@ using AFBack.DTOs;
 
 namespace AFBack.Features.Auth.DTOs.Response;
 
-public class LoginResponse
+/// <summary>
+/// LoginResponse arver fra TokenResponse, samt legger til UserSummary for brukerens profilinfo som frontend trenger
+/// </summary>
+public class LoginResponse : TokenResponse
 {
-    public required string AccessToken { get; init; }
-    public required string RefreshToken { get; init; }
-    public required DateTime AccessTokenExpires { get; init; }
-    public required DateTime RefreshTokenExpires { get; init; }
     public required UserSummaryDto User { get; init; }
 }

@@ -37,10 +37,6 @@ public static class WebApplicationExtensions
         // UseRouting() betemmer hvilken URL som skal håndtere sine spesifikke API-metoder/kontroller. 
         app.UseRouting();
         
-        // Request/Response logging. Brukes kun i Development for debugging
-        if (app.Environment.IsDevelopment())
-            app.UseMiddleware<RequestResponseLoggingMiddleware>();
-        
         //Denne linjen aktiviterer den policien vi la til tidligere med AddCors(). Den må være etter Routing men før UseAuthorization.
         app.UseCors("AllowFrontend");
         
@@ -50,6 +46,9 @@ public static class WebApplicationExtensions
         
         // Aktiverer autentisering vi lagde i AddAuthentication
         app.UseAuthentication();
+        
+        // Sjekker om brukeren sin AccessToken er blacklsited
+        app.UseMiddleware<TokenBlacklistMiddleware>();
         
         // Aktiverer autorisasjon slik at et API kan kontrollere hvem som har tilgang til hva. Vi kan da bruke [Authorize]
         app.UseAuthorization();

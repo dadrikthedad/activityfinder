@@ -12,4 +12,7 @@ public class LoginRequest
     
     [Required(ErrorMessage = "Password is required")]
     public string Password { get; init; } = null!;
+    
+    [Required(ErrorMessage = "Device info is required")]
+    public required DeviceInfoRequest Device { get; init; }
 }

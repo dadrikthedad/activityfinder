@@ -1,5 +1,4 @@
 using AFBack.Cache;
-using AFBack.Common;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Broadcast.Services;
@@ -42,8 +41,8 @@ public class SendMessageService(
     
     // TODO: Legge oss i Participants i backend
     // TODO: Frontend må oppdatere participants samt der vi sender Melding/Sync/Notification/Signalr
-    
-    
+
+
     public async Task<Result<SendMessageResponse>> SendMessageAsync(MessageRequest request, string userId)
     {
         logger.LogInformation("Sending message for user {UserId} to conversation {ConversationId}", userId,
@@ -241,8 +240,8 @@ public class SendMessageService(
     }
     
     // ======================================== System melding ========================================
-    
-    
+
+
     public async Task SendSystemMessageAsync(int conversationId, string messageText)
     {
         logger.LogInformation("Creating system message for conversation {ConversationId}: {MessageText}", 

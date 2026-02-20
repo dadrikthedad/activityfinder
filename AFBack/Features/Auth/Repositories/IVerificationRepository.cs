@@ -12,6 +12,14 @@ public interface IVerificationRepository
     Task<VerificationInfo?> GetByUserIdAsync(string userId);
     
     /// <summary>
+    /// Henter VerificationInfo basert på SecurityAlertToken.
+    /// Brukes for uautentisert "This wasn't me"-flyt.
+    /// </summary>
+    /// <param name="token">Security alert token</param>
+    /// <returns>VerificationInfo eller null hvis tokenet ikke finnes</returns>
+    Task<VerificationInfo?> GetBySecurityAlertTokenAsync(string token);
+    
+    /// <summary>
     /// Lagerer i databasen
     /// </summary>
     Task SaveChangesAsync();

@@ -192,7 +192,7 @@ public class FileService : IFileService
         
         return $"{timestamp}_{uniqueId}{extension}";
     }
-    
+
     public async Task CleanupUploadedFiles(List<string> fileUrls)
     {
         if (fileUrls.Count == 0) return;
@@ -232,7 +232,7 @@ public class FileService : IFileService
                 userId, method);
         }
     }
-    
+
     public async Task<string> UploadEncryptedBytesAsync(byte[] encryptedData, string containerName, string fileName)
     {
         var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);

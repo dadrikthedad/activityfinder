@@ -120,7 +120,7 @@ public class NotificationService(
                 RelatedUser = relatedUserDto
             });
     }
-    
+
     public async Task<List<NotificationDTO>> GetUserNotificationsAsync(int userId, int page = 1, int pageSize = 100)
     {
         var notifications = await context.Notifications

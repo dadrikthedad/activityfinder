@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AFBack.Features.Auth.DTOs.Request;
 
+/// <summary>
+/// Brukes til både bekreftelse av epost og Steg 2. verifisering av epost passord reset
+/// </summary>
 public class VerifyEmailRequest
 {
     [Required(ErrorMessage = "Email is required")]

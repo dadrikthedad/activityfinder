@@ -5,5 +5,7 @@ namespace AFBack.Infrastructure.Sms.Enums;
 /// </summary>
 public enum SmsType
 {
-    Verification
+    Verification,
+    PasswordReset,
+    PhoneChange
 }

@@ -61,7 +61,7 @@ public class GroupConversationBroadcastService(
     }
     
      /// <inheritdoc />
-    public async Task BroadcastGroupInviteDeclinedAsync(
+     public async Task BroadcastGroupInviteDeclinedAsync(
         string decliningUserId,
         List<string> otherAcceptedMemberIds,
         ConversationResponse response,
@@ -103,7 +103,7 @@ public class GroupConversationBroadcastService(
     }
     
      /// <inheritdoc />
-    public async Task BroadcastGroupMemberLeftAsync(string leavingUserId, List<string> remainingMemberIds,
+     public async Task BroadcastGroupMemberLeftAsync(string leavingUserId, List<string> remainingMemberIds,
         ConversationResponse response, string summary, UserSummaryDto leavingUserSummary)
     {
         var conversationId = response.Id;
@@ -141,7 +141,7 @@ public class GroupConversationBroadcastService(
     }
     
      /// <inheritdoc />
-    public async Task BroadcastGroupInvitesSentAsync(string inviterUserId, List<string> invitedUserIds, 
+     public async Task BroadcastGroupInvitesSentAsync(string inviterUserId, List<string> invitedUserIds, 
         List<string> otherAcceptedMemberIds, ConversationResponse response, string summary,
         UserSummaryDto inviterUserSummary)
     {
@@ -205,7 +205,7 @@ public class GroupConversationBroadcastService(
     }
     
      /// <inheritdoc />
-    public async Task BroadcastGroupInfoUpdatedAsync(
+     public async Task BroadcastGroupInfoUpdatedAsync(
         string updaterUserId,
         List<string> otherParticipantIds,
         ConversationResponse response,

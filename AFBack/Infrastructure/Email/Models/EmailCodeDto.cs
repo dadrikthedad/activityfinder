@@ -1,7 +1,7 @@
 namespace AFBack.Infrastructure.Email.Models;
 
-public sealed record PasswordResetEmailDto(
+public sealed record EmailCodeDto(
     string Email,
-    string ResetCode,
+    string Code,
     string BaseUrl
 );

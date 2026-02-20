@@ -214,7 +214,7 @@ public class MessageBroadcastService(
     
     
      // Se interface for summary
-    public void QueueDeleteMessageBroadcast(int messageId, int conversationId, string deletedByUserId)
+     public void QueueDeleteMessageBroadcast(int messageId, int conversationId, string deletedByUserId)
     {
         backgroundTaskQueue.QueueAsync(async () =>
         {

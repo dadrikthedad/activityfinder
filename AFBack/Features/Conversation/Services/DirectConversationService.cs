@@ -37,7 +37,7 @@ public class DirectConversationService(
     IFriendshipRepository friendshipRepository) : IDirectConversationService
 {
      /// <inheritdoc />
-    public async Task<Result<SendMessageToUserResponse>> SendMessageToUserAsync(string userId, 
+     public async Task<Result<SendMessageToUserResponse>> SendMessageToUserAsync(string userId, 
         SendMessageToUserRequest request)
     {
         logger.LogInformation("User {SenderId} is attempting to send a message to {ReceiverId}", 
