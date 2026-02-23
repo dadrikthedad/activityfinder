@@ -1,4 +1,5 @@
 using AFBack.Common.Results;
+using AFBack.Features.FileHandling.DTOs.Responses;
 
 namespace AFBack.Features.Account.Services;
 
@@ -80,11 +81,26 @@ public interface IAccountChangeService
     // ======================== Bytte navn ======================== 
     
     /// <summary>
-    /// 
+    /// Bytter navn på en bruker (både fornavn og etternavn).Broadcaster det til venner/samtalepartnere
     /// </summary>
-    /// <param name="userId"></param>
-    /// <param name="firstName"></param>
-    /// <param name="lastName"></param>
-    /// <returns></returns>
-    Task<Result> ChangeNameAsync(string userId, string firstName, string lastName);
+    Task<Result> UpdateNameAsync(string userId, string firstName, string lastName);
+    
+    // ======================== Bytte Profile Image ======================== 
+    /// <summary>
+    /// Bytter profileimage for en bruker. Validerer, laster opp til Blob, oppdaterer databasen og
+    /// broadcaster det til venner/samtalepartnere
+    /// </summary>
+    /// <param name="userId">Brukerens ID fra JWT-token</param>
+    /// <param name="image">Image som en IFormFile</param>
+    /// <returns>FileUrlResponse med URL</returns>
+    Task<Result<FileUrlResponse>> UpdateProfileImageAsync(string userId, IFormFile image);
+    
+    // ======================== Fjerne Profile Image ======================== 
+    /// <summary>
+    /// Fjerner profilbilde for en bruker. Sletter fra Blob Storage, nullstiller URL i databasen
+    /// og broadcaster endringen til venner/samtalepartnere.
+    /// </summary>
+    /// <param name="userId">Brukerens ID fra JWT-token</param>
+    /// <returns>Result med Success eller Failure</returns>
+    Task<Result> RemoveProfileImageAsync(string userId);
 }

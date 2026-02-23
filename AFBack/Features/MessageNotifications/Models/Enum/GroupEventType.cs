@@ -1,4 +1,4 @@
-namespace AFBack.Features.MessageNotification.Models.Enum;
+namespace AFBack.Features.MessageNotifications.Models.Enum;
 
 public enum GroupEventType
 {
@@ -8,7 +8,6 @@ public enum GroupEventType
     MemberRemoved = 4,      // Bruker ble fjernet fra gruppen
     MemberDeclined = 6,     // Bruker har forlatt gruppen
     GroupCreated = 7,       // Gruppe opprettet
-    GroupNameChanged = 8,   // Gruppenavn endret
-    GroupImageChanged = 9   // Gruppebilde endret
+    GroupInfoUpdated = 8    // Gruppe info endret
 }
 

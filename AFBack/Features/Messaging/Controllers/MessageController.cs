@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Common.Controllers;
 using AFBack.Common.DTOs;
+using AFBack.Configurations.Options;
 using AFBack.Controllers;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.DTOs.Response;
@@ -74,12 +75,16 @@ public class MessageController(
         return Ok(result.Value);
     }
     
+    
+    
+    
     /// <summary>
     /// Sender en melding til en eksisterende samtale.
     /// Krever at brukeren er deltaker med Accepted status.
     /// </summary>
     [EnableRateLimiting(RateLimitPolicies.Messaging)]
     [HttpPost]
+    [RequestSizeLimit(EncryptedFileConfig.MaxTotalAttachmentSizeBytes)] 
     [ProducesResponseType(typeof(SendMessageResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -125,4 +130,6 @@ public class MessageController(
         
         return NoContent();
     }
+    
+    
 }

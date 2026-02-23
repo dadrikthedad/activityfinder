@@ -9,5 +9,5 @@ public class SendMessageResponse
     
     public DateTime SentAt { get; set; }
     
-    public AttachmentResponse[]? Attachments { get; set; }
+    public SendMessageAttachmentResponse[]? Attachments { get; set; }
 }

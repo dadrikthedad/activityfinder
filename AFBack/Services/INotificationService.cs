@@ -1,4 +1,5 @@
-﻿using AFBack.DTOs;
+﻿using AFBack.Common.DTOs;
+using AFBack.DTOs;
 using AFBack.Models;
 
 namespace AFBack.Services;

@@ -180,6 +180,12 @@ public enum SyncEventType
     FriendRemoved,
     
     // ==================== User Profile ====================
+    /// <summary>
+    /// Brukerens eget profilnavn/bilde ble oppdatert — synkroniseres til egne andre enheter
+    /// EventData: { UserSummary }
+    /// Hvorfor: Frontend oppdaterer profilvisningen på andre enheter
+    /// </summary>
+    MyProfileUpdated,
     
     /// <summary>
     /// Brukerprofil oppdatert (navn, bilde)
@@ -187,6 +193,20 @@ public enum SyncEventType
     /// Hvorfor: Må fylles ut
     /// </summary>
     UserProfileUpdated,
+    
+    /// <summary>
+    /// Brukerens egens profil ble oppdatert
+    /// EventData: { MyProfileResponse }
+    /// Hvorfor: Frontend oppdaterer profilcache på andre enheter
+    /// </summary>
+    MyProfileDetailsUpdated,
+    
+    /// <summary>
+    /// Brukerens settings ble oppdatert
+    /// EventData: { MySettingsResponse }
+    /// Hvorfor: Frontend oppdaterer settingscache på andre enheter
+    /// </summary>
+    MySettingsUpdated ,
     
     /// <summary>
     /// Bruker har blokkert en annen bruker

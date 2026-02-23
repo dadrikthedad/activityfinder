@@ -1,7 +1,9 @@
+using AFBack.Common.DTOs;
 using AFBack.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.DTOs;
+using AFBack.Features.MessageNotifications.Models.Enum;
 
 namespace AFBack.Features.MessageNotifications.Service;
 

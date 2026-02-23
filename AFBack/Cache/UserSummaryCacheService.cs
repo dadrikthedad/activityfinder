@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AFBack.Common.DTOs;
 using AFBack.DTOs;
 using AFBack.Features.Auth.Repositories;
 using Microsoft.Extensions.Caching.Distributed;

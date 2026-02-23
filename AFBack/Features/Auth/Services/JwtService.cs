@@ -41,8 +41,7 @@ public class JwtService(IOptions<JwtSettings> jwtSettings) : IJwtService
             expires: DateTime.UtcNow.AddMinutes(TokenConfig.AccessTokenMinutes),
             signingCredentials: credentials
         );
-
-
+        
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

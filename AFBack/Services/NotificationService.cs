@@ -1,4 +1,5 @@
-﻿using AFBack.Constants;
+﻿using AFBack.Common.DTOs;
+using AFBack.Constants;
 using AFBack.DTOs;
 using AFBack.Features.SyncEvents.Services;
 using Microsoft.EntityFrameworkCore;

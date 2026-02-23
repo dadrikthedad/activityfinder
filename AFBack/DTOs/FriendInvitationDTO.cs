@@ -1,4 +1,5 @@
-﻿using AFBack.Models;
+﻿using AFBack.Common.DTOs;
+using AFBack.Models;
 
 namespace AFBack.DTOs;
 // brukes til å sjekke om bruker har sendt forespørsel og status på forespørsel mellom to brukere

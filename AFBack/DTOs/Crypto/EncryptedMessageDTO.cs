@@ -1,3 +1,5 @@
+using AFBack.Common.DTOs;
+
 namespace AFBack.DTOs.Crypto;
 
 public class EncryptedAttachmentDto

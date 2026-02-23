@@ -31,10 +31,7 @@ public class AuthController(IAuthService authService) : BaseController
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<SignupResponse>> SignUp([FromBody] SignupRequest request)
     {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        if (string.IsNullOrEmpty(ipAddress))
-            return Problem(detail: "Unable to determine client IP address", 
-                statusCode: StatusCodes.Status400BadRequest);
+        var ipAddress = GetIpAddress();
         
         var result = await authService.SignupAsync(request, ipAddress);
         
@@ -53,10 +50,7 @@ public class AuthController(IAuthService authService) : BaseController
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        if (string.IsNullOrEmpty(ipAddress))
-            return Problem(detail: "Unable to determine client IP address",
-                statusCode: StatusCodes.Status400BadRequest);
+        var ipAddress = GetIpAddress();
     
         var userAgent = Request.Headers.UserAgent.ToString();
     
@@ -129,10 +123,7 @@ public class AuthController(IAuthService authService) : BaseController
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReportUnauthorizedChange([FromQuery] string token)
     {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        if (string.IsNullOrEmpty(ipAddress))
-            return Problem(detail: "Unable to determine client IP address",
-                statusCode: StatusCodes.Status400BadRequest);
+        var ipAddress = GetIpAddress();
     
         var result = await authService.ReportUnauthorizedChangeAsync(token, ipAddress);
     

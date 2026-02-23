@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using AFBack.Common.DTOs;
 using AFBack.DTOs;
 
 namespace AFBack.Models;

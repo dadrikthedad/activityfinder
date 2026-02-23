@@ -23,6 +23,10 @@ public class UserSettings
     public bool ShowEmail { get; set; }
     public bool ShowPhone { get; set; } 
     public bool ShowRegion { get; set; } = true;
+    
+    public bool ShowBio { get; set; } = true;
+    
+    public bool ShowFriendsList { get; set; } = true;
     public bool ShowStats { get; set; } = true;
     public bool ShowWebsites { get; set; } = true;
     public bool ShowPostalCode { get; set; }
@@ -32,6 +36,6 @@ public class UserSettings
     public bool ReceivePushNotifications { get; set; } = true;
     
     // ======================== Navigasjonsegenskaper ========================
-    public AppUser? AppUser { get; set; } = null!;
+    public AppUser? AppUser { get; set; }
 
 }   

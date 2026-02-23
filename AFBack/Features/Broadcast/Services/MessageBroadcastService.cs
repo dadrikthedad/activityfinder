@@ -2,6 +2,7 @@ using AFBack.Cache;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Repository;
+using AFBack.Features.FileHandling.Services;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.Messaging.DTOs.Response;
@@ -27,7 +28,8 @@ public class MessageBroadcastService(
     IBackgroundTaskQueue backgroundTaskQueue,
     IConversationPresenceService presenceService,
     IServiceScopeFactory serviceScopeFactory,
-    IUserSummaryCacheService userSummariesCache) : IMessageBroadcastService
+    IUserSummaryCacheService userSummariesCache,
+    IBlobUrlBuilder blobUrlBuilder) : IMessageBroadcastService
 {
     
     // ======================================== Queue opp bakgrunnstasks ========================================
@@ -85,7 +87,7 @@ public class MessageBroadcastService(
         
         // Map til response
         var conversationResponse = conversationDto.ToResponse(users);
-        var messageResponse = messageDto.ToResponse(users);
+        var messageResponse = messageDto.ToResponse(users, blobUrlBuilder);
         
         // Oppdaterer samtalen med tiden når meldingen ble sendt
         conversationResponse.LastMessageSentAt = messageResponse.SentAt;

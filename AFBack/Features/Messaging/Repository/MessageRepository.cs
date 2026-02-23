@@ -5,18 +5,17 @@ using AFBack.Features.Messaging.Models;
 using AFBack.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
-using AttachmentDto = AFBack.Features.Messaging.DTOs.AttachmentDto;
 
 namespace AFBack.Features.Messaging.Repository;
 
 public class MessageRepository(
     AppDbContext context) : IMessageRepository
 {
-    // Se interface for summary
+    /// <inheritdoc/>
     public Task<bool> MessageExistsAsync(int messageId) =>
         context.Messages.AsNoTracking().AnyAsync(message => messageId == message.Id);
     
-    // Se interface for summary
+    /// <inheritdoc/>
     public async Task<MessageDto?> GetMessageDtoAsync(int messageId) =>
         await context.Messages
             .AsNoTracking()
@@ -42,7 +41,7 @@ public class MessageRepository(
                     ? new List<AttachmentDto>()
                     : m.Attachments.Select(att => new AttachmentDto
                         {
-                            EncryptedFileUrl = att.EncryptedFileUrl,
+                            EncryptedFileStorageKey = att.EncryptedFileStorageKey,
                             FileType = att.FileType,
                             FileName = att.OriginalFileName,
                             FileSize = att.OriginalFileSize,
@@ -50,7 +49,7 @@ public class MessageRepository(
                                       ?? new Dictionary<string, string>(),
                             IV = att.IV,
                             Version = att.Version,
-                            EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                            EncryptedThumbnailStorageKey = att.EncryptedThumbnailStorageKey,
                             ThumbnailKeyInfo = string.IsNullOrEmpty(att.ThumbnailKeyInfo)
                                 ? null
                                 : JsonConvert.DeserializeObject<Dictionary<string, string>>(att.ThumbnailKeyInfo),
@@ -73,17 +72,16 @@ public class MessageRepository(
             .SingleOrDefaultAsync();
 
     
-    // Se interface for summary
-    public async Task<Models.Message> SaveMessageAsync(Models.Message message)
+    /// <inheritdoc/>
+    public async Task<Message> SaveMessageAsync(Message message)
     {
         context.Messages.Add(message);
         await context.SaveChangesAsync();
         return message;
     }
     
-    // Se interface for summary
-    public async Task<List<MessageDto>> GetMessagesByConversationIdAsync(
-        int conversationId, int page, int pageSize) =>
+    /// <inheritdoc/>
+    public async Task<List<MessageDto>> GetMessagesByConversationIdAsync(int conversationId, int page, int pageSize) =>
         await context.Messages
             .AsNoTracking()
             .AsSplitQuery()
@@ -111,7 +109,7 @@ public class MessageRepository(
                     ? new List<AttachmentDto>()
                     : m.Attachments.Select(att => new AttachmentDto
                         {
-                            EncryptedFileUrl = att.EncryptedFileUrl,
+                            EncryptedFileStorageKey = att.EncryptedFileStorageKey,
                             FileType = att.FileType,
                             FileName = att.OriginalFileName,
                             FileSize = att.OriginalFileSize,
@@ -119,7 +117,7 @@ public class MessageRepository(
                                       ?? new Dictionary<string, string>(),
                             IV = att.IV,
                             Version = att.Version,
-                            EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                            EncryptedThumbnailStorageKey = att.EncryptedThumbnailStorageKey,
                             ThumbnailKeyInfo = string.IsNullOrEmpty(att.ThumbnailKeyInfo)
                                 ? null
                                 : JsonConvert.DeserializeObject<Dictionary<string, string>>(att.ThumbnailKeyInfo),
@@ -141,14 +139,14 @@ public class MessageRepository(
             })
             .ToListAsync();
     
-    // Se interface for summary
+    /// <inheritdoc/>
     public async Task<int> GetMessageCountByConversationIdAsync(int conversationId) =>
         await context.Messages
             .CountAsync(m => m.ConversationId == conversationId);
     
-    // Se interface for summary
-    public async Task<ConversationMessagesDto> GetMessagesWithValidationAsync(
-        string userId, int conversationId, int page, int pageSize)
+    /// <inheritdoc/>
+    public async Task<ConversationMessagesDto> GetMessagesWithValidationAsync(string userId, int conversationId, 
+        int page, int pageSize)
     {
         // Henter valideringsdata og meldinger i én spørring
         // Bruker subqueries for å få alt i én database roundtrip
@@ -205,7 +203,7 @@ public class MessageRepository(
 
                 Attachments = m.Attachments.Select(att => new AttachmentDto
                 {
-                    EncryptedFileUrl = att.EncryptedFileUrl,
+                    EncryptedFileStorageKey = att.EncryptedFileStorageKey,
                     FileType = att.FileType,
                     FileName = att.OriginalFileName,
                     FileSize = att.OriginalFileSize,
@@ -213,7 +211,7 @@ public class MessageRepository(
                               ?? new Dictionary<string, string>(),
                     IV = att.IV,
                     Version = att.Version,
-                    EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                    EncryptedThumbnailStorageKey = att.EncryptedThumbnailStorageKey,
                     ThumbnailKeyInfo = string.IsNullOrEmpty(att.ThumbnailKeyInfo)
                         ? null
                         : JsonConvert.DeserializeObject<Dictionary<string, string>>(att.ThumbnailKeyInfo),
@@ -240,7 +238,7 @@ public class MessageRepository(
         };
     }
     
-    // Se interface for summary
+    /// <inheritdoc/>
     public async Task<Dictionary<int, List<MessageDto>>> GetMessagesForConversationsAsync(
         List<int> conversationIds, int messagesPerConversation)
     {
@@ -274,7 +272,7 @@ public class MessageRepository(
 
                     Attachments = m.Attachments.Select(att => new AttachmentDto
                     {
-                        EncryptedFileUrl = att.EncryptedFileUrl,
+                        EncryptedFileStorageKey = att.EncryptedFileStorageKey,
                         FileType = att.FileType,
                         FileName = att.OriginalFileName,
                         FileSize = att.OriginalFileSize,
@@ -282,7 +280,7 @@ public class MessageRepository(
                                   ?? new Dictionary<string, string>(),
                         IV = att.IV,
                         Version = att.Version,
-                        EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                        EncryptedThumbnailStorageKey = att.EncryptedThumbnailStorageKey,
                         ThumbnailKeyInfo = string.IsNullOrEmpty(att.ThumbnailKeyInfo)
                             ? null
                             : JsonConvert.DeserializeObject<Dictionary<string, string>>(att.ThumbnailKeyInfo),
@@ -310,7 +308,7 @@ public class MessageRepository(
             );
     }
     
-    // Se interface for summary
+    /// <inheritdoc/>
     public async Task<Dictionary<int, List<MessageDto>>> GetMessagesForConversationsWithValidationAsync(
         string userId, List<int> conversationIds, int messagesPerConversation)
     {
@@ -348,7 +346,7 @@ public class MessageRepository(
 
                     Attachments = m.Attachments.Select(att => new AttachmentDto
                     {
-                        EncryptedFileUrl = att.EncryptedFileUrl,
+                        EncryptedFileStorageKey = att.EncryptedFileStorageKey,
                         FileType = att.FileType,
                         FileName = att.OriginalFileName,
                         FileSize = att.OriginalFileSize,
@@ -356,7 +354,7 @@ public class MessageRepository(
                                   ?? new Dictionary<string, string>(),
                         IV = att.IV,
                         Version = att.Version,
-                        EncryptedThumbnailUrl = att.EncryptedThumbnailUrl,
+                        EncryptedThumbnailStorageKey = att.EncryptedThumbnailStorageKey,
                         ThumbnailKeyInfo = string.IsNullOrEmpty(att.ThumbnailKeyInfo)
                             ? null
                             : JsonConvert.DeserializeObject<Dictionary<string, string>>(att.ThumbnailKeyInfo),
@@ -384,10 +382,27 @@ public class MessageRepository(
             );
     }
     
-    // Se interface for summary
+    /// <inheritdoc/>
+    public async Task<AttachmentDownloadDto?> GetAttachmentKeysForDownloadAsync(string userId, int attachmentId)
+        => await context.MessageAttachments
+            .AsNoTracking()
+            .Where(att => att.Id == attachmentId
+                          && !att.Message.IsDeleted
+                          && att.Message.Conversation.Participants
+                              .Any(p => p.UserId == userId 
+                                        && p.Status == ConversationStatus.Accepted))
+            .Select(att => new AttachmentDownloadDto
+            {
+                EncryptedFileStorageKey = att.EncryptedFileStorageKey,
+                EncryptedThumbnailStorageKey = att.EncryptedThumbnailStorageKey
+            })
+            .SingleOrDefaultAsync();
+    
+    
+    /// <inheritdoc/>
     public async Task<Message?> GetMessageForDeletionAsync(string userId, int messageId) =>
         await context.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
     
-    // Se interface for summary
+    /// <inheritdoc/>
     public async Task SaveChangesAsync() => await context.SaveChangesAsync();
 }

@@ -1,5 +1,5 @@
 using AFBack.Cache;
-using AFBack.Common;
+using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.DTOs;
@@ -10,7 +10,9 @@ using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
-using AFBack.Features.MessageNotification.Models.Enum;
+using AFBack.Features.FileHandling.Constants;
+using AFBack.Features.FileHandling.Services;
+using AFBack.Features.MessageNotifications.Models.Enum;
 using AFBack.Features.Messaging.Interface;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
@@ -28,17 +30,17 @@ public class GroupConversationService(
     IUserSummaryCacheService userSummariesCache,
     IGroupInviteValidator groupInviteValidator,
     IConversationValidator conversationValidator,
-    ISendMessageCache sendMessageCache) : IGroupConversationService
+    ISendMessageCache sendMessageCache,
+    IFileOrchestrator fileOrchestrator) : IGroupConversationService
 {
     /// <inheritdoc />
     public async Task<Result<CreateGroupConversationResponse>> CreateGroupConversationAsync(
         string userId, CreateGroupConversationRequest request)
     {
-        logger.LogInformation("User {UserId} is attempting to create group conversation with {Count} participants",
-            userId, request.ReceiverIds.Count);
+        logger.LogInformation("User {UserId} is attempting to create group conversation with " +
+                              "{Count} participants", userId, request.ReceiverIds.Count);
         
         // ============ VALIDERING: Creator eksisterer ============
-        
         var creatorSummary = await userSummariesCache.GetUserSummaryAsync(userId);
         if (creatorSummary == null)
         {
@@ -47,23 +49,17 @@ public class GroupConversationService(
         }
         
         // ============ VALIDERING: Inviterte brukere ============
-        
-        var validationResult = await groupInviteValidator.ValidateInviteAsync(
-            userId,
-            request.ReceiverIds);
-        
+        var validationResult = await groupInviteValidator.ValidateInviteAsync(userId, request.ReceiverIds);
         if (validationResult.IsFailure)
-        {
-            return Result<CreateGroupConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
-        }
+            return Result<CreateGroupConversationResponse>.Failure(validationResult.Error, 
+                validationResult.ErrorType);
+        
         
         // ============ DATABASE: Opprett gruppe med kun creator ============
-        
         var conversation = new Models.Conversation
         {
             Type = ConversationType.GroupChat,
             GroupName = request.GroupName,
-            GroupImageUrl = request.GroupImageUrl,
             GroupDescription = request.GroupDescription
         };
         
@@ -77,19 +73,38 @@ public class GroupConversationService(
         };
         
         var createdConversation = await conversationRepository
-            .CreateConversationWithParticipantsAsync(conversation, [creatorParticipant]);
+            .CreateConversationWithParticipantsAsync(conversation, 
+                [creatorParticipant]);
         
         logger.LogInformation("User {UserId} created group conversation {ConversationId}",
             userId, createdConversation.Id);
         
-        // ============ POST-COMMIT: Cache ============
+        // ============ OPTIONAL: Last opp gruppebilde ============
         
-      
+        // Variabelen for feilmelding hvis den er med
+        string? groupImageUploadError = null;
+        if (request.GroupImage != null)
+        {
+            var storageKey = StorageKeys.GroupImage(createdConversation.Id);
+            var uploadResult = await fileOrchestrator.UploadPublicImageAsync(request.GroupImage, storageKey);
+            if (uploadResult.IsFailure)
+            {
+                logger.LogError("Failed to upload group image for group {ConversationId}: {Error}",
+                    createdConversation.Id, uploadResult.Error);
+                groupImageUploadError = uploadResult.Error;
+            }
+            else
+            {
+                createdConversation.GroupImageUrl = uploadResult.Value;
+                await conversationRepository.SaveChangesAsync();
+            }
+        }
+        
+        // ============ POST-COMMIT: Oppdater Cache ============
         await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
    
         
         // ============ POST-COMMIT: Systemmeldinger ============
-        
         try
         {
             await messageService.SendSystemMessageAsync(createdConversation.Id,
@@ -139,7 +154,8 @@ public class GroupConversationService(
         var createGroupConversationResponse = new CreateGroupConversationResponse
         {
             ConversationId = createdConversation.Id,
-            Conversation = inviteResult.Value!
+            Conversation = inviteResult.Value!,
+            GroupImageUploadError = groupImageUploadError
         };
         
         try
@@ -172,7 +188,8 @@ public class GroupConversationService(
 
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
 
-        var validationResult = conversationValidator.ValidatePendingGroupInviteAction(userId, conversationId, conversation);
+        var validationResult = conversationValidator.ValidatePendingGroupInviteAction(userId, 
+            conversationId, conversation);
         if (validationResult.IsFailure)
             return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
 
@@ -214,15 +231,18 @@ public class GroupConversationService(
         // ============ POST-COMMIT: Broadcast ============
         
         var otherAcceptedMemberIds = conversation.Participants
-            .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
+            .Where(p => p.Status == ConversationStatus.Accepted 
+                        && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
         
         // Hent UserSummary for brukeren som joiner
-        var joiningUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
-
+        var joiningUserSummary = users.GetValueOrDefault(userId);
+        if (joiningUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
+        
         // Bygg summary (samme som systemmelding)
-        var summary = $"{joiningUserSummary.FullName} joined the group";
+        var summary = $"{joiningUserSummary!.FullName} joined the group";
 
         // Systemmelding
         try
@@ -235,12 +255,8 @@ public class GroupConversationService(
         }
 
         // Broadcast
-        await groupBroadcastService.BroadcastGroupInviteAcceptedAsync(
-            userId, 
-            otherAcceptedMemberIds, 
-            conversationResponse,
-            summary,
-            joiningUserSummary);
+        await groupBroadcastService.BroadcastGroupInviteAcceptedAsync(userId, otherAcceptedMemberIds, 
+            conversationResponse, summary, joiningUserSummary);
         
         
         logger.LogInformation(
@@ -260,7 +276,8 @@ public class GroupConversationService(
 
         var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
 
-        var validationResult = conversationValidator.ValidatePendingGroupInviteAction(userId, conversationId, conversation);
+        var validationResult = conversationValidator.ValidatePendingGroupInviteAction(userId, 
+            conversationId, conversation);
         if (validationResult.IsFailure)
             return Result.Failure(validationResult.Error, validationResult.ErrorType);
 
@@ -270,7 +287,8 @@ public class GroupConversationService(
         
         // Hent andre godkjente medlemmer FØR vi fjerner participant
         var otherAcceptedMemberIds = conversation!.Participants
-            .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
+            .Where(p => p.Status == ConversationStatus.Accepted 
+                        && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
         
@@ -291,8 +309,10 @@ public class GroupConversationService(
         // Hent alle brukere inkludert den som avviste
         var allUserIds = conversation.Participants.Select(p => p.UserId).ToList();
         var users = await userSummariesCache.GetUserSummariesAsync(allUserIds);
-    
-        var decliningUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        
+        var decliningUserSummary = users.GetValueOrDefault(userId);
+        if (decliningUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
     
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
@@ -312,7 +332,7 @@ public class GroupConversationService(
         // ============ POST-COMMIT: Systemmelding og Broadcast ============
     
         // Bygg summary (én gang - brukes til både systemmelding og notification)
-        var summary = $"{decliningUserSummary.FullName} declined the invitation";
+        var summary = $"{decliningUserSummary!.FullName} declined the invitation";
     
         try
         {
@@ -393,10 +413,14 @@ public class GroupConversationService(
         
         // ============ HENT DATA FOR RESPONSE ============
     
-        var allParticipantIds = conversation.Participants.Select(p => p.UserId).ToList();
+        var allParticipantIds = conversation.Participants.
+            Select(p => p.UserId)
+            .ToList();
         var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
-    
-        var inviterUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        
+        var inviterUserSummary = users.GetValueOrDefault(userId);
+        if (inviterUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
     
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
@@ -411,7 +435,7 @@ public class GroupConversationService(
         // ============ POST-COMMIT: Systemmelding og Broadcast ============
     
         // Bygg summary (samme som systemmelding)
-        var summary = BuildInviteSystemMessage(inviterUserSummary.FullName, uniqueReceiverIds, users);
+        var summary = BuildInviteSystemMessage(inviterUserSummary!.FullName, uniqueReceiverIds, users);
     
         try
         {
@@ -423,7 +447,8 @@ public class GroupConversationService(
         }
         
         var otherAcceptedMemberIds = conversation.Participants
-            .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
+            .Where(p => p.Status == ConversationStatus.Accepted 
+                        && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
         
@@ -487,7 +512,8 @@ public class GroupConversationService(
         
         // Hent andre godkjente medlemmer FØR vi fjerner participant
         var remainingMemberIds = conversation!.Participants
-            .Where(p => p.Status == ConversationStatus.Accepted && p.UserId != userId)
+            .Where(p => p.Status == ConversationStatus.Accepted 
+                        && p.UserId != userId)
             .Select(p => p.UserId)
             .ToList();
         
@@ -515,7 +541,9 @@ public class GroupConversationService(
             conversation.Participants.Select(p => p.UserId).ToList());
         
         // Hent UserSummary for brukeren som forlater
-        var leavingUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        var leavingUserSummary = users.GetValueOrDefault(userId);
+        if (leavingUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
         
         var newCreatorName = newCreator != null && users.TryGetValue(newCreator.UserId, out var newCreatorUser) 
             ? newCreatorUser.FullName 
@@ -540,8 +568,8 @@ public class GroupConversationService(
     
         // Bygg summary - systemmelding og notification
         var summary = newCreatorName != null
-            ? $"{leavingUserSummary.FullName} left the group. {newCreatorName} is now the group leader"
-            : $"{leavingUserSummary.FullName} left the group";
+            ? $"{leavingUserSummary!.FullName} left the group. {newCreatorName} is now the group leader"
+            : $"{leavingUserSummary!.FullName} left the group";
     
         try
         {
@@ -574,7 +602,8 @@ public class GroupConversationService(
         if (userParticipant.Role != ParticipantRole.Creator)
             return (false, null);
     
-        var newCreator = await conversationRepository.GetNextCreatorCandidateAsync(conversationId, userId);
+        var newCreator = await conversationRepository
+            .GetNextCreatorCandidateAsync(conversationId, userId);
     
         if (newCreator == null)
         {
@@ -693,9 +722,12 @@ public class GroupConversationService(
         return Result.Success();
     }
     
+    
+    // ======================== Oppdatere gruppesamtalen ======================== 
+    
     /// <inheritdoc />
     public async Task<Result<ConversationResponse>> UpdateGroupNameAsync(
-        string userId, int conversationId, UpdateGroupNameRequest request)
+        string userId, int conversationId, string groupName)
     {
         logger.LogInformation("User {UserId} is attempting to update name for group {ConversationId}",
             userId, conversationId);
@@ -711,13 +743,13 @@ public class GroupConversationService(
         // ============ DATABASE: Oppdater gruppenavn ============
         
         var oldGroupName = conversation!.GroupName;
-        conversation.GroupName = request.GroupName;
+        conversation.GroupName = groupName;
         
         await conversationRepository.SaveChangesAsync();
         
         logger.LogInformation(
             "User {UserId} updated group {ConversationId} name from '{OldName}' to '{NewName}'",
-            userId, conversationId, oldGroupName, request.GroupName);
+            userId, conversationId, oldGroupName, groupName);
         
         // ============ HENT DATA FOR RESPONSE ============
 
@@ -725,8 +757,10 @@ public class GroupConversationService(
             .Select(p => p.UserId)
             .ToList();
         var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
-
-        var updaterUserSummary = users.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        
+        var updaterUserSummary = users.GetValueOrDefault(userId);
+        if (updaterUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
 
         var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
         if (conversationDto == null)
@@ -741,7 +775,7 @@ public class GroupConversationService(
         // ============ POST-COMMIT: Systemmelding og Broadcast ============
 
         // Bygg summary (én gang - brukes til både systemmelding og notification)
-        var summary = $"{updaterUserSummary.FullName} changed the group name to '{request.GroupName}'";
+        var summary = $"{updaterUserSummary!.FullName} changed the group name to '{groupName}'";
 
         try
         {
@@ -761,10 +795,267 @@ public class GroupConversationService(
             .ToList();
         
         await groupBroadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
-            summary, updaterUserSummary, GroupEventType.GroupNameChanged, "GroupNameUpdated");
+            summary, updaterUserSummary, GroupEventType.GroupInfoUpdated);
         
         logger.LogInformation(
             "User {UserId} successfully updated group {ConversationId} name. Notified {Count} other participants.",
+            userId, conversationId, otherParticipantIds.Count);
+        
+        return Result<ConversationResponse>.Success(conversationResponse);
+    }
+    
+    // ======================== Bytte gruppebilde ========================
+    
+    /// <inheritdoc />
+    public async Task<Result<ConversationResponse>> UpdateGroupImageAsync(string userId, int conversationId, 
+        IFormFile image)
+    {
+        logger.LogInformation("User {UserId} is attempting to update groupimage for group {ConversationId}",
+            userId, conversationId);
+        
+        // ============ VALIDERING ============
+        var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
+
+        var validationResult = conversationValidator.ValidateGroupCreatorAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+        
+        // Opprett en storagekey
+        var storageKey = StorageKeys.GroupImage(conversationId);
+        
+        // Valider og last opp filen som en stream
+        var uploadImageResult = await fileOrchestrator.UploadPublicImageAsync(image, storageKey);
+        if (uploadImageResult.IsFailure)
+            return Result<ConversationResponse>.Failure(uploadImageResult.Error);
+        var imageUrl = uploadImageResult.Value;
+        
+        // ============ DATABASE: Oppdater gruppenavn ============
+        
+        conversation!.GroupImageUrl = imageUrl;
+        
+        await conversationRepository.SaveChangesAsync();
+        
+        logger.LogInformation("User {UserId} updated group {ConversationId} profileimage", userId, conversationId);
+        
+        // ============ HENT DATA FOR RESPONSE ============
+        var allParticipantIds = conversation.Participants
+            .Select(p => p.UserId)
+            .ToList();
+        var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
+        
+        // Hent brukeren som oppdaterer sin UserSummary
+        var updaterUserSummary = users.GetValueOrDefault(userId);
+        if (updaterUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
+        
+        var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
+        if (conversationDto == null)
+        {
+            logger.LogCritical("Group conversation {ConversationId} not found after updating name", conversationId);
+            return Result<ConversationResponse>.Failure(
+                "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
+        }
+
+        var conversationResponse = conversationDto.ToResponse(users);
+
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+
+        // Bygg summary (én gang - brukes til både systemmelding og notification)
+        var summary = $"{updaterUserSummary!.FullName} updated the group image";
+
+        try
+        {
+            await messageService.SendSystemMessageAsync(conversationId, summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send system message for group image update {ConversationId}",
+                conversationId);
+        }
+
+        var otherParticipantIds = conversation.Participants
+            .Where(p => (p.Status == ConversationStatus.Accepted 
+                         || p.Status == ConversationStatus.Pending) 
+                        && p.UserId != userId)
+            .Select(p => p.UserId)
+            .ToList();
+        
+        await groupBroadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
+            summary, updaterUserSummary, GroupEventType.GroupInfoUpdated);
+        
+        logger.LogInformation(
+            "User {UserId} successfully updated image forgroup {ConversationId}. Notified {Count} other participants.",
+            userId, conversationId, otherParticipantIds.Count);
+        
+        return Result<ConversationResponse>.Success(conversationResponse);
+    }
+    
+    /// <inheritdoc />
+    public async Task<Result<ConversationResponse>> RemoveGroupImageAsync(string userId, int conversationId)
+    {
+        logger.LogInformation("User {UserId} is attempting to remove group image for group {ConversationId}",
+            userId, conversationId);
+        
+        // ============ VALIDERING ============
+        var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
+
+        var validationResult = conversationValidator.ValidateGroupCreatorAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+        
+        if (string.IsNullOrWhiteSpace(conversation!.GroupImageUrl))
+        {
+            logger.LogWarning("User {UserId} tried to remove group image for group {ConversationId} but none exists",
+                userId, conversationId);
+            return Result<ConversationResponse>.Failure("Group has no image to remove");
+        }
+        
+        // ============ STORAGE: Slett bildet ============
+        
+        var storageKey = StorageKeys.GroupImage(conversationId);
+        var deleteResult = await fileOrchestrator.DeletePublicImageAsync(storageKey);
+        if (deleteResult.IsFailure)
+        {
+            logger.LogError("Failed to delete group image from storage for group {ConversationId}: {Error}",
+                conversationId, deleteResult.Error);
+            return Result<ConversationResponse>.Failure(
+                "Failed to delete group image", ErrorTypeEnum.InternalServerError);
+        }
+        
+        // ============ DATABASE: Nullstill GroupImageUrl ============
+        
+        conversation.GroupImageUrl = null;
+        
+        await conversationRepository.SaveChangesAsync();
+        
+        logger.LogInformation("User {UserId} removed group image for group {ConversationId}",
+            userId, conversationId);
+        
+        // ============ HENT DATA FOR RESPONSE ============
+
+        var allParticipantIds = conversation.Participants
+            .Select(p => p.UserId)
+            .ToList();
+        var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
+        
+        var updaterUserSummary = users.GetValueOrDefault(userId);
+        if (updaterUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
+
+        var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
+        if (conversationDto == null)
+        {
+            logger.LogCritical("Group conversation {ConversationId} not found after removing image", conversationId);
+            return Result<ConversationResponse>.Failure(
+                "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
+        }
+
+        var conversationResponse = conversationDto.ToResponse(users);
+
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+
+        var summary = $"{updaterUserSummary!.FullName} removed the group image";
+
+        try
+        {
+            await messageService.SendSystemMessageAsync(conversationId, summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send system message for group image removal {ConversationId}",
+                conversationId);
+        }
+
+        var otherParticipantIds = conversation.Participants
+            .Where(p => (p.Status == ConversationStatus.Accepted 
+                         || p.Status == ConversationStatus.Pending) 
+                        && p.UserId != userId)
+            .Select(p => p.UserId)
+            .ToList();
+        
+        await groupBroadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
+            summary, updaterUserSummary, GroupEventType.GroupInfoUpdated);
+        
+        logger.LogInformation(
+            "User {UserId} successfully removed group image for group {ConversationId}. " +
+            "Notified {Count} other participants.", userId, conversationId, otherParticipantIds.Count);
+        
+        return Result<ConversationResponse>.Success(conversationResponse);
+    }
+    
+    /// <inheritdoc />
+    public async Task<Result<ConversationResponse>> UpdateGroupDescriptionAsync(string userId, 
+        int conversationId, string? groupDescription)
+    {
+        logger.LogInformation("User {UserId} is attempting to update description for group {ConversationId}",
+            userId, conversationId);
+        
+        // ============ VALIDERING ============
+
+        var conversation = await conversationRepository.GetConversationWithTrackingAsync(conversationId);
+        var validationResult = conversationValidator.ValidateGroupCreatorAction(userId, conversationId, conversation);
+        if (validationResult.IsFailure)
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+        
+        // ============ DATABASE: Oppdater gruppebeskrivelse ============
+        conversation!.GroupDescription = groupDescription;
+        
+        await conversationRepository.SaveChangesAsync();
+        
+        logger.LogInformation(
+            "User {UserId} updated group {ConversationId} description",
+            userId, conversationId);
+        
+        // ============ HENT DATA FOR RESPONSE ============
+
+        var allParticipantIds = conversation.Participants
+            .Select(p => p.UserId)
+            .ToList();
+        var users = await userSummariesCache.GetUserSummariesAsync(allParticipantIds);
+        
+        var updaterUserSummary = users.GetValueOrDefault(userId);
+        if (updaterUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
+
+        var conversationDto = await conversationRepository.GetConversationDtoAsync(conversationId);
+        if (conversationDto == null)
+        {
+            logger.LogCritical("Group conversation {ConversationId} not found after updating description", 
+                conversationId);
+            return Result<ConversationResponse>.Failure(
+                "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
+        }
+
+        var conversationResponse = conversationDto.ToResponse(users);
+
+        // ============ POST-COMMIT: Systemmelding og Broadcast ============
+
+        var summary = string.IsNullOrWhiteSpace(groupDescription)
+            ? $"{updaterUserSummary!.FullName} removed the group description"
+            : $"{updaterUserSummary!.FullName} updated the group description";
+
+        try
+        {
+            await messageService.SendSystemMessageAsync(conversationId, summary);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to send system message for group description update {ConversationId}",
+                conversationId);
+        }
+
+        var otherParticipantIds = conversation.Participants
+            .Where(p => (p.Status == ConversationStatus.Accepted 
+                         || p.Status == ConversationStatus.Pending) 
+                        && p.UserId != userId)
+            .Select(p => p.UserId)
+            .ToList();
+        
+        await groupBroadcastService.BroadcastGroupInfoUpdatedAsync(userId, otherParticipantIds, conversationResponse,
+            summary, updaterUserSummary, GroupEventType.GroupInfoUpdated);
+        
+        logger.LogInformation(
+            "User {UserId} successfully updated group {ConversationId} description. Notified {Count} other participants.",
             userId, conversationId, otherParticipantIds.Count);
         
         return Result<ConversationResponse>.Success(conversationResponse);

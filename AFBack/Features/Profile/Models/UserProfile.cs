@@ -1,7 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using AFBack.Features.Auth.Models;
-using AFBack.Models;
 using AFBack.Models.Enums;
 
 namespace AFBack.Features.Profile.Models;
@@ -23,6 +22,9 @@ public class UserProfile
     [Required]
     [MaxLength(100)]
     public string Region { get; set; } = string.Empty;
+    
+    [MaxLength(100)]
+    public string? City { get; set; }
     
     [MaxLength(25)]
     public string? PostalCode { get; set; }
@@ -81,12 +83,4 @@ public class UserProfile
     
     public AppUser? AppUser { get; set; } = null!;
     
-    [NotMapped]
-    public List<AppUser>? Friends { get; set; }
-    
-    // Aktiviteter brukeren er interresert i
-    public List<UserActivity>? Activities { get; set; }
-    
-    // Communitites brukeren er medlem av
-    public List<Community>? Communities { get; set; }
 }

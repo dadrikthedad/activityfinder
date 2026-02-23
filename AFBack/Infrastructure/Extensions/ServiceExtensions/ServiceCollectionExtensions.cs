@@ -18,16 +18,20 @@ using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Services;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.Exceptions;
+using AFBack.Features.FileHandling.Services;
+using AFBack.Features.FileHandling.Validators;
 using AFBack.Features.Friendship.Repository;
 using AFBack.Features.Geography.Services;
 using AFBack.Features.MessageNotifications.Repository;
 using AFBack.Features.MessageNotifications.Service;
-using AFBack.Features.Messaging.Factories;
 using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Repository;
-using AFBack.Features.Messaging.ResponseBuilder;
 using AFBack.Features.Messaging.Services;
 using AFBack.Features.Messaging.Validators;
+using AFBack.Features.Profile.Repository;
+using AFBack.Features.Profile.Services;
+using AFBack.Features.Settings.Repositories;
+using AFBack.Features.Settings.Services;
 using AFBack.Features.SignalR.Providers;
 using AFBack.Features.SignalR.Services;
 using AFBack.Features.SyncEvents.Repository;
@@ -84,10 +88,13 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUrl), new DefaultAzureCredential()));
         }
-        // Kobler oss til blob-databasen
-        var blobConnectionString = Environment.GetEnvironmentVariable("AZURE_BLOB_CONNECTION_STRING")
-                                   ?? throw new Exception("AZURE_BLOB_CONNECTION_STRING is not set.");
-        services.AddSingleton(new BlobServiceClient(blobConnectionString));
+        
+        // Kobler oss til Azure Blob Storage via Managed Identity
+        var blobAccountUrl = configuration["Azure:BlobAccountUrl"]
+                             ?? throw new InvalidOperationException("Azure:BlobAccountUrl is not configured");
+        services.AddSingleton(new BlobServiceClient(new Uri(blobAccountUrl), new DefaultAzureCredential()));
+        services.AddScoped<IStorageService, AzureBlobStorageService>();
+        services.AddSingleton<IBlobUrlBuilder, BlobUrlBuilder>();
         
         // ===== APPLICATION INSIGHT =====
         
@@ -284,6 +291,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IIpBanRepository, IpBanRepository>();
         services.AddScoped<ISuspiciousActivityRepository, SuspiciousActivityRepository>();
         services.AddScoped<IVerificationInfoRepository, VerificationInfoRepository>();
+        services.AddScoped<IProfileRepository, ProfileRepository>();
+        services.AddScoped<ISettingsRepository, SettingsRepository>();
         
         
         services.AddScoped<IConversationRepository, ConversationRepository>();
@@ -317,6 +326,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAccountVerificationService, AccountVerificationService>();
         services.AddScoped<IAccountChangeService, AccountChangeService>();
         services.AddScoped<IPasswordService, PasswordService>();
+        services.AddScoped<IProfileService, ProfileService>();
+        services.AddScoped<ISettingsService, SettingsService>();
         
         
         // ===== RELATIONSHIPSERVICES =====
@@ -352,16 +363,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMessageNotificationStateService, MessageNotificationStateService>();
         
         
-        
-        
-        // ===== MESSAGE BROADCAST SERVICES =====
-        
+        // ===== BROADCAST SERVICES =====
         services.AddScoped<IMessageNotificationService, MessageNotificationService>();
         services.AddScoped<ISyncService, SyncService>();
         
-        // ===== BROADCAST SERVICES =====
         services.AddScoped<IMessageBroadcastService, MessageBroadcastService>(); 
-        services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>(); // ✅
+        services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>();
+        services.AddScoped<IProfileBroadcastService, ProfileBroadcastService>();
+        
+        
+        
         
         // ===== FILES =====
         services.AddScoped<IFileService, FileService>();
@@ -371,13 +382,12 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISendMessageValidator, SendMessageValidator>();
         services.AddScoped<IGroupInviteValidator, GroupInviteValidator>();
         services.AddScoped<IConversationValidator, ConversationValidator>();
+        services.AddScoped<IFileValidator, FileValidator>();
    
+        // ===== Orchestrators =====
+        services.AddScoped<IFileOrchestrator, FileOrchestrator>();
         
-        // ===== FACTORIES =====
-        services.AddScoped<ISendMessageFactory, SendMessageFactory>();
-        
-        // ===== RESPONSE BUILDERS =====
-        services.AddScoped<ISendMessageResponseBuilder, SendMessageResponseBuilder>();
+
 
         
         // Til refaktorering

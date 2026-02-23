@@ -14,20 +14,20 @@ public class ConversationRepository(
     
     ////////////////////////////////////////////// GET SINGLE CONVERSATION ////////////////////////////////////////////
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Models.Conversation?> GetConversationAsync(int conversationId) => await context.Conversations
         .Include(conversation => conversation.Participants)
         .AsNoTracking()
         .FirstOrDefaultAsync(conversation => conversation.Id == conversationId);
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Models.Conversation?> GetConversationWithTrackingAsync(int conversationId) => await 
         context.Conversations
         .Include(conversation => conversation.Participants)
         .FirstOrDefaultAsync(conversation => conversation.Id == conversationId);
     
    
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<ConversationDto?> GetConversationDtoAsync(int conversationId) => 
          await context.Conversations
         .AsNoTracking()
@@ -35,7 +35,7 @@ public class ConversationRepository(
         .ToConversationDtoQuery()
         .FirstOrDefaultAsync();
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<ConversationDto?> GetConversationBetweenUsersAsync(string userId, string receiverId) =>
         await context.Conversations
             .Where(c => c.Type != ConversationType.GroupChat
@@ -47,7 +47,7 @@ public class ConversationRepository(
     
     ////////////////////////////////////////////// GET MANY CONVERSATIONS /////////////////////////////////////////////
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<List<ConversationDto>> GetActiveConversationsAsync(string userId, int page, int pageSize) =>
         await context.ConversationParticipants
             .AsNoTracking()
@@ -61,7 +61,7 @@ public class ConversationRepository(
             .ToConversationDtoQuery() // Mapper til extensions-metode
             .ToListAsync();
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<int> GetActiveConversationsCountAsync(string userId) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
@@ -69,7 +69,7 @@ public class ConversationRepository(
                               && cp.Status == ConversationStatus.Accepted);
     
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<List<ConversationDto>> GetPendingConversationsAsync(string userId, int page, int pageSize) =>
         await context.ConversationParticipants
             .AsNoTracking()
@@ -82,14 +82,14 @@ public class ConversationRepository(
             .ToConversationDtoQuery() // Mapper til extensions-metode
             .ToListAsync();
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<int> GetPendingConversationsCountAsync(string userId) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
                               && cp.Status == ConversationStatus.Pending);
     
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<List<ConversationDto>> GetArchivedConversationsAsync(string userId, int page, int pageSize) =>
         await context.ConversationParticipants
             .AsNoTracking()
@@ -102,13 +102,13 @@ public class ConversationRepository(
             .ToConversationDtoQuery() // Mapper til extensions-metode
             .ToListAsync();
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<int> GetArchivedConversationsCountAsync(string userId) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
                               && cp.ConversationArchived == true);
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<List<ConversationDto>> GetRejectedConversationsAsync(string userId, int page, int pageSize) =>
         await context.ConversationParticipants
             .AsNoTracking()
@@ -121,15 +121,27 @@ public class ConversationRepository(
             .ToConversationDtoQuery() // Mapper til extensions-metode
             .ToListAsync();
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<int> GetRejectedConversationsCountAsync(string userId) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
                               && cp.Status == ConversationStatus.Rejected);
     
+    /// <inheritdoc />
+    public async Task<List<string>> GetAllConversationPartnerIdsAsync(string userId) =>
+        await context.ConversationParticipants
+            .Where(cp => cp.Conversation.Participants 
+                .Any(p => p.UserId == userId)) // Alle samtaler brukeren er participant
+            .Where(cp => cp.UserId != userId) // Filtrerer bort oss selv
+            .Where(cp => cp.Status == ConversationStatus.Accepted 
+                         || cp.Status == ConversationStatus.Pending) // Ingen rejected
+            .Select(cp => cp.UserId)
+            .Distinct()
+            .ToListAsync();
+    
     ////////////////////////////////////////////// SEARCH CONVERSATIONS /////////////////////////////////////////////
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<int> GetTotalConversationsBySearch(string userId, string searchQuery) => 
         await context.ConversationParticipants
             .FilterBySearchQuery(userId, searchQuery)
@@ -137,7 +149,7 @@ public class ConversationRepository(
     
     
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<List<ConversationDto>> GetConversationDtosBySearch(string userId, string searchQuery, 
         int page, int pageSize) 
         => await context
@@ -153,7 +165,7 @@ public class ConversationRepository(
     
     ////////////////////////////////////////////// CREATE CONVERSATIONS /////////////////////////////////////////////
 
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<Models.Conversation> CreateConversationWithParticipantsAsync(
         Models.Conversation conversation, 
         List<ConversationParticipant> participants,
@@ -198,10 +210,10 @@ public class ConversationRepository(
     
     ////////////////////////////////////////////// UPDATE CONVERSATIONS /////////////////////////////////////////////
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task SaveChangesAsync() => await context.SaveChangesAsync();
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task UpdateLastMessageSentAt(int conversationId, DateTime sentAt) => await context.Conversations
         .Where(c => c.Id == conversationId)
         .ExecuteUpdateAsync(s => 
@@ -209,7 +221,7 @@ public class ConversationRepository(
 
     ////////////////////////////////////////////// DELETE CONVERSATIONS /////////////////////////////////////////////
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task DeleteConversationAsync(Models.Conversation conversation)
     {
         context.Conversations.Remove(conversation);
@@ -218,19 +230,19 @@ public class ConversationRepository(
     
     ////////////////////////////////////////////// PARTICIPANT OPERATIONS /////////////////////////////////////////////
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<ConversationParticipant?> GetParticipantAsync(string userId, int conversationId) =>
         await context.ConversationParticipants
             .FirstOrDefaultAsync(cp => cp.UserId == userId && cp.ConversationId == conversationId);
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task RemoveParticipantAsync(ConversationParticipant participant)
     {
         context.ConversationParticipants.Remove(participant);
         await context.SaveChangesAsync();
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<HashSet<int>> GetUserAcceptedConversationIdsAsync(string userId, List<int> conversationIds)
     {
         if (conversationIds.Count == 0)
@@ -248,7 +260,7 @@ public class ConversationRepository(
     }
     
     
-    // Sjekk interface for summary
+    /// <inheritdoc />
     public async Task<ConversationParticipant?> GetNextCreatorCandidateAsync(int conversationId, string excludeUserId) =>
         await context.ConversationParticipants
             .Where(cp => cp.ConversationId == conversationId

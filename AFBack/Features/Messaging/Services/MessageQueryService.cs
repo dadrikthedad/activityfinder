@@ -1,8 +1,8 @@
 using AFBack.Cache;
-using AFBack.Common;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Broadcast.Services;
+using AFBack.Features.FileHandling.Services;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Extensions;
 using AFBack.Features.Messaging.Interface;
@@ -15,7 +15,8 @@ public class MessageQueryService(
     ILogger<MessageQueryService> logger,
     IMessageRepository messageRepository,
     IUserSummaryCacheService userSummariesCache,
-    IMessageBroadcastService messageBroadcastService) : IMessageQueryService
+    IMessageBroadcastService messageBroadcastService,
+    IBlobUrlBuilder blobUrlBuilder) : IMessageQueryService
 {
     // ======================================== GET MESSAGES ========================================
     
@@ -79,9 +80,13 @@ public class MessageQueryService(
         
         // ============ BYGG RESPONSE ============
         
+        // Bygger MessageResponse fr DTO
+        var messages = queryResult.Messages.Select(m => m.ToResponse(users, 
+            blobUrlBuilder)).ToList();
+        
         var response = new MessagesResponse
         {
-            Messages = queryResult.Messages.Select(m => m.ToResponse(users)).ToList(),
+            Messages = messages,
             TotalCount = queryResult.TotalCount,
             Page = page,
             PageSize = pageSize
@@ -107,9 +112,9 @@ public class MessageQueryService(
                 new Dictionary<int, List<MessageResponse>>());
         
         // ============ HENT MELDINGER MED VALIDERING I ÉN SPØRRING ============
-        
         var messageDtosByConversation = await messageRepository
-            .GetMessagesForConversationsWithValidationAsync(userId, conversationIds, messagesPerConversation);
+            .GetMessagesForConversationsWithValidationAsync(userId, conversationIds,
+                messagesPerConversation);
         
         if (messageDtosByConversation.Count == 0)
             return Result<Dictionary<int, List<MessageResponse>>>.Success(
@@ -129,18 +134,17 @@ public class MessageQueryService(
         var users = await userSummariesCache.GetUserSummariesAsync(allUserIds);
         
         // ============ BYGG RESPONSE ============
-        
         var result = messageDtosByConversation.ToDictionary(
             kvp => kvp.Key,
-            kvp => kvp.Value.Select(m => m.ToResponse(users)).ToList()
+            kvp => kvp.Value.Select(m => m.ToResponse(users, blobUrlBuilder)).ToList()
         );
         
-        logger.LogDebug(
-            "User {UserId} fetched messages for {Count} conversations",
-            userId, result.Count);
+        logger.LogDebug("User {UserId} fetched messages for {Count} conversations", userId, result.Count);
         
         return Result<Dictionary<int, List<MessageResponse>>>.Success(result);
     }
+    
+    
     
     // ======================================== DELETE MESSAGE ========================================
     

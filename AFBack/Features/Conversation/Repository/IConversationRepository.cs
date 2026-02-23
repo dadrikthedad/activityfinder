@@ -114,6 +114,14 @@ public interface IConversationRepository
     /// <param name="userId">Brukeren vi teller for</param>
     /// <returns>Totalt ntall samtaler som finnes for denne brukeren</returns>
     Task<int> GetRejectedConversationsCountAsync(string userId);
+
+    /// <summary>
+    /// Henter alle unike bruker-IDer som er i en samtale med brukeren.
+    /// Inkluderer både Accepted og Pending participants
+    /// </summary>
+    /// <param name="userId">Brukeren vi skal hente samtalepartnere for</param>
+    /// <returns>En liste med ID-er</returns>
+    Task<List<string>> GetAllConversationPartnerIdsAsync(string userId);
     
     ////////////////////////////////////////////// SEARCH CONVERSATIONS /////////////////////////////////////////////
     
@@ -149,10 +157,8 @@ public interface IConversationRepository
     /// <param name="participants">Participants vi legger til (uten ID, men vi mapper det i metoden)</param>
     /// <param name="message">Første melding sendt i samtalen (valgfri for gruppesamtaler)</param>
     /// <returns>Conversation med ID og ConversationParticipants med ID-er</returns>
-    Task<Models.Conversation> CreateConversationWithParticipantsAsync(
-        Models.Conversation conversation,
-        List<ConversationParticipant> participants,
-        Message? message = null);
+    Task<Models.Conversation> CreateConversationWithParticipantsAsync(Models.Conversation conversation,
+        List<ConversationParticipant> participants, Message? message = null);
     
     ////////////////////////////////////////////// UPDATE CONVERSATIONS /////////////////////////////////////////////
     /// 

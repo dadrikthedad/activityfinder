@@ -18,6 +18,14 @@ public class IpBanMiddleware(
         // Henter brukerens IP
         var clientIp = IpUtils.GetClientIp(context);
         
+        // Avviser forespørsler uten IP
+        if (string.IsNullOrEmpty(clientIp))
+        {
+            logger.LogWarning("Request without IP blocked on {Path}", context.Request.Path);
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+        
         // Sjekker om brukeren er banned eller ikke
         if (await ipBanService.IsIpBannedAsync(clientIp))
         {

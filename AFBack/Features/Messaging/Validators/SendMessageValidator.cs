@@ -1,12 +1,9 @@
-using AFBack.Common;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using AFBack.Features.Blocking;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.Messaging.DTOs.Request;
-using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Repository;
 using AFBack.Models.Enums;
 
@@ -20,12 +17,7 @@ public class SendMessageValidator(
     ILogger<SendMessageValidator> logger) : ISendMessageValidator
 {
     
-    /// <summary>
-    /// Hovedvalideringsmetoden som kaller de andre valideringene. Brukes i SendMessageAsync.
-    /// </summary>
-    /// <param name="request">SendMessageRequest</param>
-    /// <param name="senderId">Brukeren som sender melding</param>
-    /// <returns>Result med success eller result med errorMessage</returns>
+    /// <inheritdoc/>
     public async Task<Result> ValidateSendMessageAsync(string senderId, MessageRequest request)
     {
         // Henter samtalen

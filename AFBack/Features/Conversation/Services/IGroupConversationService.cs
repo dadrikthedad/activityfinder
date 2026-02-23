@@ -80,14 +80,51 @@ public interface IGroupConversationService
     /// <returns>Result uten data (NoContent)</returns>
     Task<Result> DeleteLeftConversationRecordAsync(string userId, int conversationId);
     
+    // ======================== Oppdatere gruppe ======================== 
+    // ======================== Bytte gruppenavn ======================== 
+    
     /// <summary>
     /// Oppdaterer gruppenavnet. Kun Creator har tilgang til dette.
     /// Sender systemmelding, SignalR, Notification og SyncEvent til alle deltakere (Accepted og Pending).
     /// </summary>
     /// <param name="userId">Brukeren som oppdaterer navnet (må være Creator)</param>
     /// <param name="conversationId">Gruppesamtalen som oppdateres</param>
-    /// <param name="request">UpdateGroupNameRequest med nytt gruppenavn</param>
+    /// <param name="groupName">String med nytt gruppenavn</param>
     /// <returns>ConversationResponse med oppdatert samtale</returns>
     Task<Result<ConversationResponse>> UpdateGroupNameAsync(
-        string userId, int conversationId, UpdateGroupNameRequest request);
+        string userId, int conversationId, string groupName);
+    
+    // ======================== Bytte gruppebilde ========================
+    /// <summary>
+    /// Oppdaterer gruppebilde. Kun Creator har tilgang til dette.
+    /// Sender systemmelding, SignalR, Notification og SyncEvent til alle deltakere (Accepted og Pending).
+    /// </summary>
+    /// <param name="userId">Brukeren som oppdaterer navnet (må være Creator)</param>
+    /// <param name="conversationId">Gruppesamtalen som oppdateres</param>
+    /// <param name="image">Gruppebilde som en IFormFile</param>
+    /// <returns>ConversationResponse med oppdatert samtale</returns>
+    Task<Result<ConversationResponse>> UpdateGroupImageAsync(string userId, int conversationId,
+        IFormFile image);
+    
+    /// <summary>
+    /// Fjerner gruppebildet. Kun Creator har tilgang til dette.
+    /// Sletter bildet fra storage, nullstiller URL i databasen,
+    /// sender systemmelding, SignalR, Notification og SyncEvent til alle deltakere (Accepted og Pending).
+    /// </summary>
+    /// <param name="userId">Brukeren som fjerner bildet (må være Creator)</param>
+    /// <param name="conversationId">Gruppesamtalen som oppdateres</param>
+    /// <returns>ConversationResponse med oppdatert samtale</returns>
+    Task<Result<ConversationResponse>> RemoveGroupImageAsync(string userId, int conversationId);
+    
+    // ======================== Bytte groupdescription ========================
+    /// <summary>
+    /// Oppdaterer gruppebeskrivelsen. Kun Creator har tilgang til dette.
+    /// Sender systemmelding, SignalR, Notification og SyncEvent til alle deltakere (Accepted og Pending).
+    /// </summary>
+    /// <param name="userId">Brukeren som oppdaterer beskrivelsen (må være Creator)</param>
+    /// <param name="conversationId">Gruppesamtalen som oppdateres</param>
+    /// <param name="groupDescription">Ny gruppebeskrivelse, eller null for å fjerne</param>
+    /// <returns>ConversationResponse med oppdatert samtale</returns>
+    Task<Result<ConversationResponse>> UpdateGroupDescriptionAsync(
+        string userId, int conversationId, string? groupDescription);
 }

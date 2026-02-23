@@ -1,13 +1,16 @@
+
+
+using AFBack.Common.DTOs;
 using AFBack.DTOs;
+using AFBack.Features.Broadcast.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
-using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.DTOs;
+using AFBack.Features.MessageNotifications.Models.Enum;
 using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.SignalR.Constants;
 using AFBack.Features.SignalR.Services;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
-
 
 namespace AFBack.Features.Broadcast.Services;
 
@@ -19,165 +22,85 @@ public class GroupConversationBroadcastService(
     ISignalRNotificationService signalRNotificationService,
     IConversationPresenceService conversationPresenceService) : IGroupConversationBroadcastService   
 {
+    
+    // ===================================== Public methods =====================================
+    
     /// <inheritdoc />
     public async Task BroadcastGroupInviteAcceptedAsync(string joiningUserId, List<string> otherAcceptedMemberIds,
-        ConversationResponse response, string summary, UserSummaryDto joiningUserSummary) 
+        ConversationResponse response, string summary, UserSummaryDto joiningUserSummaryDto) 
     {
-        var conversationId = response.Id;
-    
-        // SyncEvent for brukeren som aksepterte (ingen notification)
-        await syncService.CreateSyncEventsAsync(
-            [joiningUserId],
-            SyncEventType.GroupInviteAcceptedByMe,
-            new { Conversation = response, Notification = (MessageNotificationResponse?)null });
-
-    
-        // Varsle andre medlemmer
-        if (otherAcceptedMemberIds.Count == 0) return;
-        
-        // Henter om brukerne er aktive i samtalen
-        var memberReadStatus = await GetMemberReadStatusAsync(conversationId, otherAcceptedMemberIds);
-    
-        // Opprett notifications for alle mottakere
-        var notifications = await groupNotificationService
-            .CreateGroupNotificationEventAsync(otherAcceptedMemberIds, joiningUserSummary, response,
-            GroupEventType.MemberAccepted, summary, memberReadStatus);
-    
-        // Send SignalR og SyncEvent til hver mottaker med deres notification
-        var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-        {
-            notifications.TryGetValue(memberId, out var notification);
-        
-            var payload = new { Conversation = response, Notification = notification };
-        
-            await signalRNotificationService.SendToUserAsync(memberId, 
-                HubConstants.ClientEvents.GroupMemberJoined, payload,
-                $"member {memberId} about user {joiningUserId} joining group {conversationId}");
-        
-            await syncService.CreateSyncEventsAsync([memberId], SyncEventType.GroupInviteAccepted, payload);
-        });
-    
-        await Task.WhenAll(memberTasks);
+        await BroadcastToGroupMembersAsync(new GroupBroadcastRecord(
+            ActorUserId: joiningUserId,
+            RecipientIds: otherAcceptedMemberIds,
+            Response: response,
+            Summary: summary,
+            ActorUserSummaryDto: joiningUserSummaryDto,
+            GroupEventType: GroupEventType.MemberAccepted,
+            ActorSyncEventType: SyncEventType.GroupInviteAcceptedByMe,
+            ActorSyncPayload: response,
+            RecipientSyncEventType: SyncEventType.GroupInviteAccepted,
+            SignalREvent: HubConstants.ClientEvents.GroupMemberJoined,
+            LogContext: $"user {joiningUserId} joining group {response.Id}"));
     }
     
-     /// <inheritdoc />
-     public async Task BroadcastGroupInviteDeclinedAsync(
-        string decliningUserId,
-        List<string> otherAcceptedMemberIds,
-        ConversationResponse response,
-        string summary,
-        UserSummaryDto decliningUserSummary)
+    /// <inheritdoc />
+    public async Task BroadcastGroupInviteDeclinedAsync(string decliningUserId, List<string> otherAcceptedMemberIds,
+        ConversationResponse response, string summary, UserSummaryDto decliningUserSummaryDto)
     {
-        var conversationId = response.Id;
-    
-        // SyncEvent for brukeren som avviste
-        await syncService.CreateSyncEventsAsync(
-            [decliningUserId],
-            SyncEventType.ConversationRejected,
-            conversationId);
-    
-        // Varsle andre medlemmer
-        if (otherAcceptedMemberIds.Count == 0) return;
-        
-        // Henter om brukerne er aktive i samtalen
-        var memberReadStatus = await GetMemberReadStatusAsync(conversationId, otherAcceptedMemberIds);
-    
-        // Opprett notifications for alle mottakere
-        var notifications = await groupNotificationService
-            .CreateGroupNotificationEventAsync(otherAcceptedMemberIds, decliningUserSummary, response,
-            GroupEventType.MemberDeclined, summary, memberReadStatus);
-    
-        // Send SignalR og SyncEvent til hver mottaker
-        var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-        {
-            notifications.TryGetValue(memberId, out var notification);
-            var payload = new { Conversation = response, Notification = notification };
-        
-            await signalRNotificationService.SendToUserAsync(memberId, HubConstants.ClientEvents.GroupMemberDeclined, payload,
-                $"member {memberId} about user {decliningUserId} declining group {conversationId}");
-        
-            await syncService.CreateSyncEventsAsync([memberId], SyncEventType.GroupInviteDeclined, payload);
-        });
-    
-        await Task.WhenAll(memberTasks);
+        await BroadcastToGroupMembersAsync(new GroupBroadcastRecord(
+            ActorUserId: decliningUserId,
+            RecipientIds: otherAcceptedMemberIds,
+            Response: response,
+            Summary: summary,
+            ActorUserSummaryDto: decliningUserSummaryDto,
+            GroupEventType: GroupEventType.MemberDeclined,
+            ActorSyncEventType: SyncEventType.ConversationRejected,
+            ActorSyncPayload: response.Id,
+            RecipientSyncEventType: SyncEventType.GroupInviteDeclined,
+            SignalREvent: HubConstants.ClientEvents.GroupMemberDeclined,
+            LogContext: $"user {decliningUserId} declining group {response.Id}"));
     }
     
-     /// <inheritdoc />
-     public async Task BroadcastGroupMemberLeftAsync(string leavingUserId, List<string> remainingMemberIds,
-        ConversationResponse response, string summary, UserSummaryDto leavingUserSummary)
+    /// <inheritdoc />
+    public async Task BroadcastGroupMemberLeftAsync(string leavingUserId, List<string> remainingMemberIds,
+        ConversationResponse response, string summary, UserSummaryDto leavingUserSummaryDto)
     {
-        var conversationId = response.Id;
-    
-        // SyncEvent for brukeren som forlot
-        await syncService.CreateSyncEventsAsync(
-            [leavingUserId],
-            SyncEventType.ConversationLeft,
-            conversationId);
-    
-        // Varsle gjenværende medlemmer
-        if (remainingMemberIds.Count == 0) return;
-        
-        // Henter om brukerne er aktive i samtalen
-        var memberReadStatus = await GetMemberReadStatusAsync(conversationId, remainingMemberIds);
-    
-        // Opprett notifications for alle mottakere
-        var notifications = await 
-            groupNotificationService.CreateGroupNotificationEventAsync(remainingMemberIds, leavingUserSummary,
-            response, GroupEventType.MemberLeft, summary, memberReadStatus);
-    
-        // Send SignalR og SyncEvent til hver mottaker
-        var memberTasks = remainingMemberIds.Select(async memberId =>
-        {
-            notifications.TryGetValue(memberId, out var notification);
-            var payload = new { Conversation = response, Notification = notification };
-        
-            await signalRNotificationService.SendToUserAsync(memberId, HubConstants.ClientEvents.GroupMemberLeft, payload,
-                $"member {memberId} about user {leavingUserId} leaving group {conversationId}");
-        
-            await syncService.CreateSyncEventsAsync([memberId], SyncEventType.GroupMemberLeft, payload);
-        });
-    
-        await Task.WhenAll(memberTasks);
+        await BroadcastToGroupMembersAsync(new GroupBroadcastRecord(
+            ActorUserId: leavingUserId,
+            RecipientIds: remainingMemberIds,
+            Response: response,
+            Summary: summary,
+            ActorUserSummaryDto: leavingUserSummaryDto,
+            GroupEventType: GroupEventType.MemberLeft,
+            ActorSyncEventType: SyncEventType.ConversationLeft,
+            ActorSyncPayload: response.Id,
+            RecipientSyncEventType: SyncEventType.GroupMemberLeft,
+            SignalREvent: HubConstants.ClientEvents.GroupMemberLeft,
+            LogContext: $"user {leavingUserId} leaving group {response.Id}"));
     }
     
-     /// <inheritdoc />
-     public async Task BroadcastGroupInvitesSentAsync(string inviterUserId, List<string> invitedUserIds, 
+    /// <inheritdoc />
+    public async Task BroadcastGroupInvitesSentAsync(string inviterUserId, List<string> invitedUserIds, 
         List<string> otherAcceptedMemberIds, ConversationResponse response, string summary,
-        UserSummaryDto inviterUserSummary)
+        UserSummaryDto inviterUserSummaryDto)
     {
         var conversationId = response.Id;
         
-        // SyncEvent for brukeren som inviterte (ingen notification)
-        await syncService.CreateSyncEventsAsync(
-            [inviterUserId],
-            SyncEventType.GroupInfoUpdated,
-            new { Conversation = response, Notification = (MessageNotificationResponse?)null });
+        // Varsle eksisterende medlemmer via felles metode
+        await BroadcastToGroupMembersAsync(new GroupBroadcastRecord(
+            ActorUserId: inviterUserId,
+            RecipientIds: otherAcceptedMemberIds,
+            Response: response,
+            Summary: summary,
+            ActorUserSummaryDto: inviterUserSummaryDto,
+            GroupEventType: GroupEventType.MemberInvited,
+            ActorSyncEventType: SyncEventType.GroupInfoUpdated,
+            ActorSyncPayload: response,
+            RecipientSyncEventType: SyncEventType.GroupInfoUpdated,
+            SignalREvent: HubConstants.ClientEvents.GroupMembersInvited,
+            LogContext: $"invites to group {conversationId}"));
         
-        // Henter om brukerne er aktive i samtalen
-        var memberReadStatus = await GetMemberReadStatusAsync(conversationId, otherAcceptedMemberIds);
-        
-        // Varsle eksisterende medlemmer med GroupEvent notification
-        if (otherAcceptedMemberIds.Count > 0)
-        {
-            var memberNotifications = await 
-                groupNotificationService.CreateGroupNotificationEventAsync(otherAcceptedMemberIds, inviterUserSummary,
-                response, GroupEventType.MemberInvited, summary, memberReadStatus);
-            
-            var memberTasks = otherAcceptedMemberIds.Select(async memberId =>
-            {
-                memberNotifications.TryGetValue(memberId, out var notification);
-                var payload = new { Conversation = response, Notification = notification };
-                
-                await signalRNotificationService.SendToUserAsync(memberId, HubConstants.ClientEvents.GroupMembersInvited, payload,
-                    $"member {memberId} about invites to group {conversationId}");
-                
-                await syncService.CreateSyncEventsAsync([memberId], SyncEventType.GroupInfoUpdated, payload);
-            });
-            
-            await Task.WhenAll(memberTasks);
-        }
-        
-        // Varsle inviterte brukere med PendingConversation notification
+        // Varsle inviterte brukere med PendingConversation notification (custom logikk)
         var inviteTasks = invitedUserIds.Select(async receiverId =>
         {
             MessageNotificationResponse? notification = null;
@@ -191,7 +114,11 @@ public class GroupConversationBroadcastService(
                 logger.LogError(ex, "Failed to create pending notification for user {UserId}", receiverId);
             }
             
-            var payload = new { Conversation = response, Notification = notification };
+            var payload = new BroadcastPayload
+            { 
+                ConversationResponse = response, 
+                MessageNotificationResponse = notification 
+            };
             
             await signalRNotificationService.SendToUserAsync(receiverId, 
                 HubConstants.ClientEvents.GroupInviteReceived, payload,
@@ -204,58 +131,85 @@ public class GroupConversationBroadcastService(
         await Task.WhenAll(inviteTasks);
     }
     
-     /// <inheritdoc />
-     public async Task BroadcastGroupInfoUpdatedAsync(
+    /// <inheritdoc />
+    public async Task BroadcastGroupInfoUpdatedAsync(
         string updaterUserId,
         List<string> otherParticipantIds,
         ConversationResponse response,
         string summary,
-        UserSummaryDto updaterUserSummary,
-        GroupEventType eventType,
-        string signalREventName = HubConstants.ClientEvents.GroupInfoUpdated)
+        UserSummaryDto updaterUserSummaryDto,
+        GroupEventType eventType)
     {
-        var conversationId = response.Id;
+        await BroadcastToGroupMembersAsync(new GroupBroadcastRecord(
+            ActorUserId: updaterUserId,
+            RecipientIds: otherParticipantIds,
+            Response: response,
+            Summary: summary,
+            ActorUserSummaryDto: updaterUserSummaryDto,
+            GroupEventType: eventType,
+            ActorSyncEventType: SyncEventType.GroupInfoUpdated,
+            ActorSyncPayload: response,
+            RecipientSyncEventType: SyncEventType.GroupInfoUpdated,
+            SignalREvent: HubConstants.ClientEvents.GroupInfoUpdated,
+            LogContext: $"group {response.Id} update"));
+    }
     
-        // SyncEvent for brukeren som oppdaterte (ingen notification)
-        await syncService.CreateSyncEventsAsync(
-            [updaterUserId],
-            SyncEventType.GroupInfoUpdated,
-            new { Conversation = response, Notification = (MessageNotificationResponse?)null });
+    // ===================================== Private helper methods =====================================
     
-        // Varsle andre deltakere
-        if (otherParticipantIds.Count == 0) return;
+    /// <summary>
+    /// Felles broadcast-logikk for alle gruppekonversasjons-hendelser.
+    /// 1. Oppretter SyncEvent for aktøren (den som utførte handlingen)
+    /// 2. Henter read status for mottakerne
+    /// 3. Oppretter notifications via groupNotificationService
+    /// 4. Sender SignalR og SyncEvent til hver mottaker med deres notification
+    /// </summary>
+    /// <param name="record"></param>
+    private async Task BroadcastToGroupMembersAsync(GroupBroadcastRecord record)
+    {
+        // SyncEvent for aktøren (ingen notification)
+        await syncService.CreateSyncEventsAsync([record.ActorUserId], record.ActorSyncEventType, 
+            record.ActorSyncPayload);
+        
+        // Siste bruker som forlater en gruppe skal kun ha syncevent - early return
+        if (record.RecipientIds.Count == 0) 
+            return;
         
         // Henter om brukerne er aktive i samtalen
-        var memberReadStatus = await GetMemberReadStatusAsync(conversationId, otherParticipantIds);
-    
+        var memberReadStatus = await GetMemberReadStatusAsync(record.Response.Id, 
+            record.RecipientIds);
+        
         // Opprett notifications for alle mottakere
         var notifications = await groupNotificationService
-            .CreateGroupNotificationEventAsync(otherParticipantIds, updaterUserSummary, response, eventType,
-            summary, memberReadStatus);
-    
-        // Send SignalR og SyncEvent til hver mottaker
-        var participantTasks = otherParticipantIds.Select(async participantId =>
+            .CreateGroupNotificationEventAsync(record.RecipientIds, record.ActorUserSummaryDto, record.Response,
+                record.GroupEventType, record.Summary, memberReadStatus);
+        
+        // Send SignalR og SyncEvent til hver mottaker med deres notification
+        var tasks = record.RecipientIds.Select(async memberId =>
         {
-            notifications.TryGetValue(participantId, out var notification);
-            var payload = new { Conversation = response, Notification = notification };
-        
-            await signalRNotificationService.SendToUserAsync(participantId, signalREventName, payload,
-                $"participant {participantId} about group {conversationId} update");
-        
-            await syncService.CreateSyncEventsAsync([participantId], 
-                SyncEventType.GroupInfoUpdated, payload);
+            // Henter ut notification - fallback hvis noe galt skjer under opprettelsen av en notifikasjon
+            notifications.TryGetValue(memberId, out var notification);
+            
+            var payload = new BroadcastPayload
+            {
+                ConversationResponse = record.Response,
+                MessageNotificationResponse = notification
+            };
+            
+            await signalRNotificationService.SendToUserAsync(memberId, record.SignalREvent, payload,
+                $"{record.LogContext} - member {memberId}");
+            
+            await syncService.CreateSyncEventsAsync([memberId], record.RecipientSyncEventType, payload);
         });
-    
-        await Task.WhenAll(participantTasks);
+        
+        await Task.WhenAll(tasks);
     }
-     // ===================================== Private helper methods =====================================
-     
-     /// <summary>
-     /// Henter om en bruker er aktive i samtalen for øyeblikket og setter en notification som lest
-     /// </summary>
-     /// <param name="conversationId">Samtalen som sjekkes</param>
-     /// <param name="memberIds">Brukerne som sjekkes</param>
-     /// <returns>En Dictionary med Key = brukerId, Value = bool med true i samtalen, false hvis ikke</returns>
+    
+    /// <summary>
+    /// Henter om en bruker er aktive i samtalen for øyeblikket og setter en notification som lest
+    /// </summary>
+    /// <param name="conversationId">Samtalen som sjekkes</param>
+    /// <param name="memberIds">Brukerne som sjekkes</param>
+    /// <returns>En Dictionary med Key = brukerId, Value = bool med true i samtalen, false hvis ikke</returns>
     private async Task<Dictionary<string, bool>> GetMemberReadStatusAsync(int conversationId, List<string> memberIds)
     {
         var activeUsers = await conversationPresenceService

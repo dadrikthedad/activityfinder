@@ -3,6 +3,10 @@ using AFBack.Common.Results;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services.Interfaces;
+using AFBack.Features.Broadcast.Services;
+using AFBack.Features.FileHandling.Constants;
+using AFBack.Features.FileHandling.DTOs.Responses;
+using AFBack.Features.FileHandling.Services;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Models;
@@ -25,7 +29,9 @@ public class AccountChangeService(
     ISmsService smsService,
     IEmailRateLimitService emailRateLimitService,
     ISmsRateLimitService smsRateLimitService,
-    ISuspiciousActivityService suspiciousActivityService) : IAccountChangeService
+    ISuspiciousActivityService suspiciousActivityService,
+    IProfileBroadcastService profileBroadcastService,
+    IFileOrchestrator fileOrchestrator) : IAccountChangeService
 {
     // ======================== Bytte e-post — Steg 1 ======================== 
 
@@ -422,18 +428,20 @@ public class AccountChangeService(
     }
     
     // ======================== Bytte navn ======================== 
-    // TODO: Invalidere Cache, sende SignalR og SyncEvent til alle venner og samtalepartnere
-    public async Task<Result> ChangeNameAsync(string userId, string firstName, string lastName)
+    /// <inheritdoc/>
+    public async Task<Result> UpdateNameAsync(string userId, string firstName, string lastName)
     {
         logger.LogInformation("ChangeNameAsync. UserId: {UserId}", userId);
 
+        // ====== Finn bruker ======
         var user = await userManager.FindByIdAsync(userId);
         if (user == null)
         {
             logger.LogWarning("User not found. UserId: {UserId}", userId);
             return Result.Failure("User not found", ErrorTypeEnum.NotFound);
         }
-        
+
+        // ====== Oppdater navn ======
         user.FirstName = firstName;
         user.LastName = lastName;
         user.FullName = $"{firstName} {lastName}";
@@ -446,7 +454,99 @@ public class AccountChangeService(
             return Result.Failure("Failed to update name");
         }
 
+        // ====== Broadcaster til alle venner/samtalepartnere + egne enheter ======
+        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl);
+
         logger.LogInformation("Name changed to {FullName} for UserId: {UserId}", user.FullName, userId);
+        return Result.Success();
+    }
+    
+    // ======================== Bytte Profile Image ======================== 
+    /// <inheritdoc/>
+    public async Task<Result<FileUrlResponse>> UpdateProfileImageAsync(string userId, IFormFile image)
+    {
+        logger.LogInformation("UpdateProfileImage. UserId: {UserId}", userId);
+
+        // ====== Finn bruker ======
+        var user = await userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            logger.LogWarning("User not found. UserId: {UserId}", userId);
+            return Result<FileUrlResponse>.Failure("User not found", ErrorTypeEnum.NotFound);
+        }
+        
+        var storageKey = StorageKeys.ProfileImage(userId);
+        
+        // Valider og last opp filen som en stream
+        var uploadImageResult = await fileOrchestrator.UploadPublicImageAsync(image, storageKey);
+        if (uploadImageResult.IsFailure)
+            return Result<FileUrlResponse>.Failure(uploadImageResult.Error);
+        var imageUrl = uploadImageResult.Value;
+        
+        // ====== Oppdater profileimage ======
+        user.ProfileImageUrl = imageUrl;
+        
+        
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
+            logger.LogError("Failed to update profileImage for UserId: {UserId}. Errors: {Errors}", userId, errors);
+            return Result<FileUrlResponse>.Failure("Failed to update profile image");
+        }
+
+        // ====== Broadcaster til alle venner/samtalepartnere + egne enheter ======
+        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl);
+
+        logger.LogInformation("ProfileImage changed for UserId: {UserId}", userId);
+        return Result<FileUrlResponse>.Success(new FileUrlResponse { FileUrl = imageUrl!});
+    }
+    
+    // ======================== Fjerne Profile Image ======================== 
+    /// <inheritdoc/>
+    public async Task<Result> RemoveProfileImageAsync(string userId)
+    {
+        logger.LogInformation("RemoveProfileImage. UserId: {UserId}", userId);
+
+        // ====== Finn bruker ======
+        var user = await userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            logger.LogWarning("User not found. UserId: {UserId}", userId);
+            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+        }
+    
+        if (string.IsNullOrWhiteSpace(user.ProfileImageUrl))
+        {
+            logger.LogWarning("User {UserId} tried to remove profile image but none exists", userId);
+            return Result.Failure("No profile image to remove", ErrorTypeEnum.BadRequest);
+        }
+    
+        // ====== Storage: Slett bildet ======
+        var storageKey = StorageKeys.ProfileImage(userId);
+        var deleteResult = await fileOrchestrator.DeletePublicImageAsync(storageKey);
+        if (deleteResult.IsFailure)
+        {
+            logger.LogError("Failed to delete profile image from storage for UserId: {UserId}. Error: {Error}",
+                userId, deleteResult.Error);
+            return Result.Failure(deleteResult.Error, deleteResult.ErrorType);
+        }
+    
+        // ====== Oppdater database ======
+        user.ProfileImageUrl = null;
+    
+        var updateResult = await userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+        {
+            var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
+            logger.LogError("Failed to remove profileImage for UserId: {UserId}. Errors: {Errors}", userId, errors);
+            return Result.Failure("Failed to remove profile image");
+        }
+
+        // ====== Broadcaster til alle venner/samtalepartnere + egne enheter ======
+        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl);
+
+        logger.LogInformation("ProfileImage removed for UserId: {UserId}", userId);
         return Result.Success();
     }
     

@@ -1,4 +1,6 @@
-﻿namespace AFBack.DTOs;
+﻿using AFBack.Common.DTOs;
+
+namespace AFBack.DTOs;
 // Brukes til å hente om en bruker er venn eller ikke, samt ved sletting og oppretting
 public class FriendDTO
 {

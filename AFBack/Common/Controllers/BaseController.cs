@@ -73,5 +73,15 @@ namespace AFBack.Common.Controllers
                 Status = statusCode,
             });
         }
+        
+        /// <summary>
+        /// Henter ut IP-addresse fra HttpContexten
+        /// </summary>
+        /// <returns>IP-adressen</returns>
+        /// <exception cref="InvalidOperationException">Serverfeil hvis ikke konfigurert riktig</exception>
+        protected string GetIpAddress() =>
+            HttpContext.Connection.RemoteIpAddress?.ToString()
+            ?? throw new InvalidOperationException(
+                "RemoteIpAddress is null. Check ForwardedHeaders configuration.");
     }
 }

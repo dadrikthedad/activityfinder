@@ -1,4 +1,5 @@
 using AFBack.Features.MessageNotification.Models.Enum;
+using AFBack.Features.MessageNotifications.Models.Enum;
 
 namespace AFBack.Features.MessageNotifications.DTOs;
 

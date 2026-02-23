@@ -1,5 +1,7 @@
 
 
+using AFBack.Common.DTOs;
+
 namespace AFBack.DTOs.BoostrapDTO;
 
 public class CriticalBootstrapResponseDTO

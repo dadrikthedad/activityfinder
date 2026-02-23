@@ -16,6 +16,10 @@ public static class HubConstants
         public const string UserLoggedInElsewhere = "UserLoggedInElsewhere";
         public const string ConnectionError = "ConnectionError";
         
+        // Profile Events
+        // User profile events
+        public const string UserProfileUpdated = "UserProfileUpdated";
+        
         // Messaging events
         public const string ReceiveMessage = "ReceiveMessage";
         public const string MessageDeleted = "MessageDeleted";

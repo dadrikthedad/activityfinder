@@ -1,4 +1,6 @@
-﻿namespace AFBack.DTOs;
+﻿using AFBack.Common.DTOs;
+
+namespace AFBack.DTOs;
 // For meldinger mellom brukere eller grupper
 public class MessageRequestDTO
 {

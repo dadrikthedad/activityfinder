@@ -65,8 +65,18 @@ public interface IMessageRepository
     /// <param name="page">Sidenummer (1-indeksert)</param>
     /// <param name="pageSize">Antall meldinger per side</param>
     /// <returns>Kombinert resultat med validering og meldinger</returns>
-    Task<ConversationMessagesDto> GetMessagesWithValidationAsync(
-        string userId, int conversationId, int page, int pageSize);
+    Task<ConversationMessagesDto> GetMessagesWithValidationAsync(string userId, int conversationId, 
+        int page, int pageSize);
+    
+    
+    /// <summary>
+    /// Henter et attachment sin storage key med validering av at brukeren er deltaker i samtalen.
+    /// Optimalisert for å generere fersk SAS URL.
+    /// </summary>
+    /// <param name="userId">Brukeren som ber om tilgang</param>
+    /// <param name="attachmentId">Attachmentet som skal hentes</param>
+    /// <returns>AttachmentDownloadResponse med storage keys, eller null hvis ikke funnet/ingen tilgang</returns>
+    Task<AttachmentDownloadDto?> GetAttachmentKeysForDownloadAsync(string userId, int attachmentId);
     
     /// <summary>
     /// Legger til en melding og lagrer i databasen

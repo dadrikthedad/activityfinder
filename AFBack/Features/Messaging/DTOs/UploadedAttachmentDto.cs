@@ -7,7 +7,7 @@ namespace AFBack.Features.Messaging.DTOs;
 /// </summary>
 public class UploadedAttachmentDto
 {
-    public string EncryptedFileUrl { get; set; } = string.Empty;
-    public string EncryptedThumbnailUrl { get; set; } = string.Empty;
+    public string EncryptedFileStorageKey { get; set; } = string.Empty;
+    public string EncryptedThumbnailStorageKey { get; set; } = string.Empty;
     public AttachmentRequest AttachmentRequest { get; set; } = null!;
 }

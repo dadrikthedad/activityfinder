@@ -1,7 +1,6 @@
 using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using AFBack.DTOs;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Broadcast.Services;
@@ -12,6 +11,7 @@ using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
+using AFBack.Features.FileHandling.Services;
 using AFBack.Features.Friendship.Repository;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.Extensions;
@@ -34,7 +34,8 @@ public class DirectConversationService(
     IConversationBroadcastService broadcastService,
     ISendMessageCache sendMessageCache,
     IUserSummaryCacheService userSummariesCache,
-    IFriendshipRepository friendshipRepository) : IDirectConversationService
+    IFriendshipRepository friendshipRepository,
+    IBlobUrlBuilder blobUrlBuilder) : IDirectConversationService
 {
      /// <inheritdoc />
      public async Task<Result<SendMessageToUserResponse>> SendMessageToUserAsync(string userId, 
@@ -148,7 +149,7 @@ public class DirectConversationService(
             ConversationId = createdConversation.Id,
             IsNewConversation = true,
             Conversation = conversationDto.ToResponse(conversationUsers),
-            Message = messageDto.ToResponse(conversationUsers[userId])
+            Message = messageDto.ToResponse(conversationUsers, blobUrlBuilder)
         };
         
         logger.LogInformation(
@@ -251,7 +252,7 @@ public class DirectConversationService(
             WasAccepted = wasAccepted,
             IsNewConversation = false,
             Conversation = conversation.ToResponse(users),
-            Message = messageDto.ToResponse(users[userId])
+            Message = messageDto.ToResponse(users, blobUrlBuilder)
         });
     }
     
@@ -330,10 +331,12 @@ public class DirectConversationService(
         // ============ POST-COMMIT: Broadcast ============
         
         // Hent UserSummaryDto for brukeren som aksepterte (for notification)
-        var acceptingUserSummary = conversationUsers.GetValueOrDefault(userId) ?? new UserSummaryDto();
+        var acceptingUserSummary = conversationUsers.GetValueOrDefault(userId);
+        if (acceptingUserSummary == null)
+            logger.LogWarning("User {UserId} not found in cache for group {ConversationId}", userId, conversationId);
         
         // Systemmelding - nøytral
-        var systemMessage = $"{acceptingUserSummary.FullName} has accepted the conversation request";
+        var systemMessage = $"{acceptingUserSummary!.FullName} has accepted the conversation request";
 
         // Notification summary - personlig til mottaker
         var notificationSummary = $"{acceptingUserSummary.FullName} has accepted your conversation request";

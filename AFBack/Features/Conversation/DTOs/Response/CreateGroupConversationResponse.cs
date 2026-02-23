@@ -13,8 +13,7 @@ public class CreateGroupConversationResponse
     public ConversationResponse Conversation { get; set; } = null!;
     
     /// <summary>
-    /// Liste over bruker-IDer som ikke kunne inviteres pga blokkeringer.
-    /// Frontend bruker dette til å vise røde ringer rundt disse brukerne.
+    /// Feilmelding hvis gruppebilde-opplasting feilet. Null hvis bildet ble lastet opp OK eller ikke ble sendt med.
     /// </summary>
-    public List<string> BlockedUserIds { get; set; } = new();
+    public string? GroupImageUploadError { get; set; }
 }

@@ -1,8 +1,6 @@
 using AFBack.Cache;
-using AFBack.Common;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using AFBack.Features.Blocking;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Conversation.Repository;
 
@@ -15,11 +13,8 @@ public class GroupInviteValidator(
     IConversationLeftRecordRepository conversationLeftRecordRepository) : IGroupInviteValidator
 {
     // Sjekk interface for summary
-    public async Task<Result> ValidateInviteAsync(
-        string inviterId,
-        List<string> receiverIds,
-        int? conversationId = null,
-        HashSet<string>? existingParticipantIds = null)
+    public async Task<Result> ValidateInviteAsync(string inviterId, List<string> receiverIds,
+        int? conversationId = null, HashSet<string>? existingParticipantIds = null)
     {
         // ============ VALIDERING: Duplikater ============
         
@@ -93,8 +88,7 @@ public class GroupInviteValidator(
             
             if (usersWhoLeft.Any())
             {
-                logger.LogWarning(
-                    "User {UserId} tried to invite users who left group {ConversationId}: {UserIds}",
+                logger.LogWarning("User {UserId} tried to invite users who left group {ConversationId}: {UserIds}",
                     inviterId, conversationId, string.Join(", ", usersWhoLeft));
                 return Result.Failure(
                     $"Cannot invite users who have left the group. Users: {string.Join(", ", usersWhoLeft)}",
@@ -110,16 +104,12 @@ public class GroupInviteValidator(
         {
             var blockResult = await blockingService.ValidateNoBlockingsAsync(inviterId, receiverId);
             if (blockResult.IsFailure)
-            {
                 blockedUsers.Add(receiverId);
-            }
         }
         
         if (blockedUsers.Any())
         {
-            logger.LogWarning(
-                "User {UserId} cannot invite: {Count} blocked users",
-                inviterId, blockedUsers.Count);
+            logger.LogWarning("User {UserId} cannot invite: {Count} blocked users", inviterId, blockedUsers.Count);
             return Result.Failure(
                 $"Cannot invite blocked users. Users: {string.Join(", ", blockedUsers)}",
                 ErrorTypeEnum.Forbidden);

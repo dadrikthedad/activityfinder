@@ -15,8 +15,7 @@ public class CreateGroupConversationRequest
     [StringLength(100, MinimumLength = 1, ErrorMessage = "Group name cannot be between 1-100 characters")]
     public string GroupName { get; init => field = value.Trim(); } = null!;
     
-    [MaxLength(512)]
-    public string? GroupImageUrl { get; set; }
+    public IFormFile? GroupImage { get; set; }
     
     [MaxLength(1000)]
     public string? GroupDescription { get; set; }

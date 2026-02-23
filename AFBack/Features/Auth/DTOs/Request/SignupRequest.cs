@@ -49,6 +49,9 @@ public class SignupRequest
     [Required(ErrorMessage = "Region is required")]
     [MaxLength(100, ErrorMessage = "Region cannot exceed 100 characters")]
     public string Region { get; init; } = null!;
+    
+    [MaxLength(100, ErrorMessage = "City name can't be more than 100 characters.")]
+    public string? City { get; init => field = value?.Trim(); }
 
     [MaxLength(25, ErrorMessage = "Postal code cannot exceed 25 characters")]
     public string? PostalCode { get; init => field = value?.Trim(); }

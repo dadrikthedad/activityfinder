@@ -12,7 +12,7 @@ public class MessageAttachment
     // ======================== EncryptionData ========================
     [Required]
     [MaxLength(500)]
-    public string EncryptedFileUrl { get; set; } = string.Empty;
+    public string EncryptedFileStorageKey { get; set; } = string.Empty;
         
     [Required]
     [MaxLength(100)]
@@ -34,7 +34,8 @@ public class MessageAttachment
     
     // ======================== Thumbnail ========================
     [MaxLength(500)]
-    public string? EncryptedThumbnailUrl  { get; set; }
+    public string? EncryptedThumbnailStorageKey { get; set; }
+    
     [MaxLength(2000)]
     public string? ThumbnailKeyInfo { get; set; }
     [MaxLength(100)]

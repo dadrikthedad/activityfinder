@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Common.Controllers;
 using AFBack.Common.DTOs;
-using AFBack.Controllers;
+using AFBack.Configurations.Options;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Services;
+using AFBack.Features.FileHandling.DTOs.Requests;
 using AFBack.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,7 +29,7 @@ public class GroupConversationController(IGroupConversationService groupConversa
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<CreateGroupConversationResponse>> CreateGroupConversation(
-        [FromBody] CreateGroupConversationRequest request)
+        [FromForm] CreateGroupConversationRequest request)
     {
         var userId = User.GetUserId();
 
@@ -194,5 +195,125 @@ public class GroupConversationController(IGroupConversationService groupConversa
             return HandleFailure(result);
 
         return NoContent();
+    }
+    
+    // ======================== Bytte gruppenavn ======================== 
+    
+    /// <summary>
+    /// Oppdaterer et gruppenavn for en samtale. Kun Creator har tilatelse
+    /// </summary>
+    /// <param name="conversationId">ID-en til samtalen</param>
+    /// <param name="request">UpdateGroupNameRequest med gruppenavn</param>
+    /// <returns></returns>
+    [HttpPut("{conversationId:int}/groupname")]
+    [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationResponse>> UpdateGroupName(
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId, 
+        [FromBody] UpdateGroupNameRequest request)
+    {
+        var userId = User.GetUserId();
+        var result = await groupConversationService.UpdateGroupNameAsync(userId, conversationId, request.GroupName);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
+
+    // ======================== Bytte gruppebilde ========================
+    
+    /// <summary>
+    /// Bytter et gruppebilde for en samtale. Kun Creator som har tilattelse til det
+    /// </summary>
+    /// <param name="conversationId">ID-en til samtalen</param>
+    /// <param name="request">ImageRequest - IFormFile bilde</param>
+    /// <returns>200 Ok med oppdatert ConversationResponse</returns>
+    [HttpPut("{conversationId:int}/groupimage")]
+    [RequestSizeLimit(ImageFileConfig.MaxSizeInBytes)] 
+    [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationResponse>> ChangeGroupImage(
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId, 
+        [FromForm] ImageRequest request)
+    {
+        var userId = User.GetUserId();
+        var result = await groupConversationService.UpdateGroupImageAsync(userId, conversationId, request.File);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
+    
+    /// <summary>
+    /// Fjerner gruppebildet. Kun Creator har tilgang til dette.
+    /// </summary>
+    /// <returns>200 Ok</returns>
+    [HttpDelete("{conversationId:int}/groupimage")]
+    [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationResponse>> RemoveGroupImage(
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId)
+    {
+        var userId = User.GetUserId();
+        var result = await groupConversationService.RemoveGroupImageAsync(userId, conversationId);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
+    
+    // ======================== Bytte groupdescription ========================
+    
+    /// <summary>
+    /// Oppdaterer gruppebeskrivelsen. Kun Creator har tilattelse.
+    /// Send null for å fjerne beskrivelsen.
+    /// </summary>
+    /// <returns>200 Ok med oppdatert ConversationResponse</returns>
+    [HttpPut("{conversationId:int}/groupdescription")]
+    [ProducesResponseType(typeof(ConversationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationResponse>> UpdateGroupDescription(
+        [FromRoute]
+        [Required(ErrorMessage = "ConversationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "ConversationId must be greater than 0")]
+        int conversationId,
+        [FromBody] UpdateGroupDescriptionRequest request)
+    {
+        var userId = User.GetUserId();
+        var result = await groupConversationService.UpdateGroupDescriptionAsync(userId, 
+            conversationId, request.GroupDescription);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
     }
 }
