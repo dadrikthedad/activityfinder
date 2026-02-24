@@ -13,5 +13,5 @@ public class ChangePhoneRequest
     [Required(ErrorMessage = "New phone number is required")]
     [Phone(ErrorMessage = "Phone number must be a valid format")]
     [MaxLength(20, ErrorMessage = "Phone number cannot exceed 20 characters")]
-    public required string NewPhoneNumber { get; init; }
+    public required string NewPhoneNumber { get; init => field = value.Trim(); }
 }

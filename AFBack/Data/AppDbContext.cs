@@ -6,6 +6,7 @@ using AFBack.Features.Friendship.Models;
 using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotifications.Models;
 using AFBack.Features.Messaging.Models;
+using AFBack.Features.Notifications.Models;
 using AFBack.Features.Profile.Models;
 using AFBack.Features.Settings.Models;
 using AFBack.Features.SignalR.Models;
@@ -31,8 +32,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<UserProfile> Profiles { get; set; } // profilen til bruker
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
-    public DbSet<Friendship> Friends { get; set; } // Venner til bruker
-    public DbSet<FriendInvitation> FriendInvitations { get; set; } // Venne invitasjoner til bruker
+    public DbSet<Friendship> Friendships { get; set; } // Venner til bruker
+    public DbSet<FriendshipRequest> FriendshipRequests { get; set; } // Venne invitasjoner til bruker
     public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
     
     public DbSet<ConversationParticipant> ConversationParticipants { get; set; } 
@@ -468,13 +469,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             .HasForeignKey("FriendId")
             .OnDelete(DeleteBehavior.Restrict);
         // Her håndterer vi venneforespørsler
-        modelBuilder.Entity<FriendInvitation>()
+        modelBuilder.Entity<FriendshipRequest>()
             .HasOne(i => i.Sender)
             .WithMany()
             .HasForeignKey(i => i.SenderId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        modelBuilder.Entity<FriendInvitation>()
+        modelBuilder.Entity<FriendshipRequest>()
             .HasOne(i => i.Receiver)
             .WithMany()
             .HasForeignKey(i => i.ReceiverId)

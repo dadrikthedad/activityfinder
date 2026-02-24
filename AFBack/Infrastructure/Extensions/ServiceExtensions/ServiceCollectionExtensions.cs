@@ -21,6 +21,7 @@ using AFBack.Features.Exceptions;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Features.FileHandling.Validators;
 using AFBack.Features.Friendship.Repository;
+using AFBack.Features.Friendship.Services;
 using AFBack.Features.Geography.Services;
 using AFBack.Features.MessageNotifications.Repository;
 using AFBack.Features.MessageNotifications.Service;
@@ -28,6 +29,8 @@ using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Repository;
 using AFBack.Features.Messaging.Services;
 using AFBack.Features.Messaging.Validators;
+using AFBack.Features.Notifications.Repositories;
+using AFBack.Features.Notifications.Services;
 using AFBack.Features.Profile.Repository;
 using AFBack.Features.Profile.Services;
 using AFBack.Features.Settings.Repositories;
@@ -58,6 +61,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using EmailService = AFBack.Infrastructure.Email.EmailService;
 using IHubConnectionService = AFBack.Features.SignalR.Services.IHubConnectionService;
+using NotificationService = AFBack.Services.NotificationService;
 
 namespace AFBack.Infrastructure.Extensions.ServiceExtensions;
 
@@ -293,6 +297,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVerificationInfoRepository, VerificationInfoRepository>();
         services.AddScoped<IProfileRepository, ProfileRepository>();
         services.AddScoped<ISettingsRepository, SettingsRepository>();
+        services.AddScoped<IFriendshipRequestRepository, FriendshipRequestRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        
         
         
         services.AddScoped<IConversationRepository, ConversationRepository>();
@@ -328,10 +335,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<ISettingsService, SettingsService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        
+        
         
         
         // ===== RELATIONSHIPSERVICES =====
-        
+        services.AddScoped<IFriendshipService, FriendshipService>();
+        services.AddScoped<IFriendshipRequestService, FriendshipRequestService>();
         
         // ===== MESSAGE SERVICES =====
         services.AddScoped<ISendMessageService, SendMessageService>();
@@ -370,12 +381,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMessageBroadcastService, MessageBroadcastService>(); 
         services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>();
         services.AddScoped<IProfileBroadcastService, ProfileBroadcastService>();
+        services.AddScoped<IFriendshipBroadcastService, FriendshipBroadcastService>();
         
-        
-        
-        
-        // ===== FILES =====
-        services.AddScoped<IFileService, FileService>();
         
         
         // ===== VALIDATORS =====

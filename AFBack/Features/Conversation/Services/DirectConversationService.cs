@@ -1,7 +1,7 @@
 using AFBack.Cache;
+using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Conversation.DTOs;
@@ -27,7 +27,6 @@ public class DirectConversationService(
     ILogger<DirectConversationService> logger,
     IConversationRepository conversationRepository,
     IMessageRepository messageRepository,
-    IUserRepository userRepository,
     IConversationValidator conversationValidator,
     IBlockingService blockingService,
     ISendMessageService sendMessageService,
@@ -47,12 +46,11 @@ public class DirectConversationService(
         // ============ VALIDERING ============
         
         // Sjekk om mottaker eksisterer
-        var receiverExists = await userRepository.UserExistsAsync(request.ReceiverId);
-        if (!receiverExists)
+        var receiverSummary = await userSummariesCache.GetUserSummaryAsync(request.ReceiverId);
+        if (receiverSummary == null)
         {
             logger.LogWarning("User {ReceiverId} does not exist", request.ReceiverId);
-            return Result<SendMessageToUserResponse>.Failure(
-                "User not found", ErrorTypeEnum.NotFound);
+            return Result<SendMessageToUserResponse>.Failure("User not found", ErrorTypeEnum.NotFound);
         }
         
         // Sjekk om det allerede finnes en samtale
@@ -140,9 +138,12 @@ public class DirectConversationService(
         }
         
         // Hent users for cache
-        var conversationUserIds = new List<string> { userId, request.ReceiverId };
-        var conversationUsers = 
-            await userSummariesCache.GetUserSummariesAsync(conversationUserIds);
+        var senderSummary = await userSummariesCache.GetUserSummaryAsync(userId);
+        var conversationUsers = new Dictionary<string, UserSummaryDto>
+        {
+            [userId] = senderSummary!,
+            [request.ReceiverId] = receiverSummary
+        };
 
         var sendMessageToUserResponse = new SendMessageToUserResponse
         {

@@ -44,6 +44,11 @@ public static class HubConstants
         public const string ParticipantAdded = "ParticipantAdded";
         public const string ParticipantRemoved = "ParticipantRemoved";
         
+        // Friendship events
+        public const string FriendshipRequestReceived = "FriendshipRequestReceived";
+        public const string FriendshipRequestAccepted = "FriendshipRequestAccepted";
+        
+        
         // Typing indicators
         public const string UserTyping = "UserTyping";
         public const string UserStoppedTyping = "UserStoppedTyping";

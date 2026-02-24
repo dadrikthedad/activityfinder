@@ -56,7 +56,11 @@
      <Folder Include="Features\Account\DTOs\Responses\" />
      <Folder Include="Features\Account\Repositories\" />
      <Folder Include="Features\Blocking\DTOs\" />
+     <Folder Include="Features\Friendship\DTOs\Requests\" />
+     <Folder Include="Features\Notifications\Controllers\" />
+     <Folder Include="Features\Notifications\DTOs\Requests\" />
      <Folder Include="Features\Reactions\" />
+     <Folder Include="Filters\" />
      <Folder Include="Infrastructure\Security\DTOs\" />
      <Folder Include="Models\User\" />
    </ItemGroup>

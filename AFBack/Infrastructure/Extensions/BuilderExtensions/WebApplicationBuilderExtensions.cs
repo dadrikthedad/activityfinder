@@ -2,7 +2,6 @@ using System.Net;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AFBack.Infrastructure.Filters;
 using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -138,12 +137,9 @@ public static class WebApplicationBuilderExtensions
             options.SuppressModelStateInvalidFilter = true;
         });
         
-        // Denne koden gjør at API-et kan håndtere HTTP-forespørsler som GET, POST, PUT og DELETE. Nødvendig for at ASP.NET CORE skal håndtere API.
-        builder.Services.AddControllers(options =>
-            {
-                // Global validering med custom filter
-                options.Filters.Add<ValidateModelStateAttribute>(); 
-            })
+        // Denne koden gjør at API-et kan håndtere HTTP-forespørsler som GET, POST, PUT og DELETE.
+        // Nødvendig for at ASP.NET CORE skal håndtere API.
+        builder.Services.AddControllers()
             .AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;

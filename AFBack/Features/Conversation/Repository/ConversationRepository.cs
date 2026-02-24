@@ -45,6 +45,15 @@ public class ConversationRepository(
             .ToConversationDtoQuery()
             .FirstOrDefaultAsync();
     
+    /// <inheritdoc />
+    public async Task<int?> GetPendingConversationIdBetweenUsersAsync(string userId, string otherUserId) =>
+        await context.Conversations
+            .Where(c => c.Type == ConversationType.PendingRequest
+                        && c.Participants.Any(p => p.UserId == userId)
+                        && c.Participants.Any(p => p.UserId == otherUserId))
+            .Select(c => (int?)c.Id)
+            .FirstOrDefaultAsync();
+    
     ////////////////////////////////////////////// GET MANY CONVERSATIONS /////////////////////////////////////////////
     
     /// <inheritdoc />

@@ -32,7 +32,7 @@ public static class UserSummaryExtensions
             return null; // Bruker finnes ikke
 
         // Sjekk friendship (bidirectional)
-        var isFriend = await context.Friends
+        var isFriend = await context.Friendships
             .AnyAsync(f => (f.UserId == currentUserId && f.FriendId == targetUserId) ||
                            (f.UserId == targetUserId && f.FriendId == currentUserId));
 
@@ -70,7 +70,7 @@ public static class UserSummaryExtensions
         var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         // Sjekk friendship (bidirectional)
-        var isFriend = await context.Friends
+        var isFriend = await context.Friendships
             .AnyAsync(f => (f.UserId == currentUserId && f.FriendId == targetUserId) ||
                            (f.UserId == targetUserId && f.FriendId == currentUserId));
 
@@ -115,7 +115,7 @@ public static class UserSummaryExtensions
             try 
             {
                 // Hent alle venner (begge retninger)
-                var friendIds = await context.Friends
+                var friendIds = await context.Friendships
                     .Where(f => f.UserId == userId || f.FriendId == userId)
                     .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
                     .ToListAsync();

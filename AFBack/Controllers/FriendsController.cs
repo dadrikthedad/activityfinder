@@ -36,7 +36,7 @@ public class FriendsController(
         if (pageNumber <= 0 || pageSize <= 0)
             return BadRequest(new { message = "Page number and size must be greater than zero." });
 
-        var query = context.Friends
+        var query = context.Friendships
             .Include(f => f.User).ThenInclude(u => u.UserProfile)
             .Include(f => f.FriendUser).ThenInclude(u => u.UserProfile)
             .AsNoTracking()
@@ -87,13 +87,13 @@ public class FriendsController(
             return Unauthorized(new { message = "Invalid appUser ID in token." });
 
         // Hent ID-er til den innloggede brukerens venner
-        var currentUserFriendIds = await context.Friends
+        var currentUserFriendIds = await context.Friendships
             .Where(f => f.UserId == currentUserId || f.FriendId == currentUserId)
             .Select(f => f.UserId == currentUserId ? f.FriendId : f.UserId)
             .ToListAsync();
 
         // Hent vennelisten til bruker med id `userId`
-        var friends = await context.Friends
+        var friends = await context.Friendships
             .Include(f => f.User).ThenInclude(u => u.UserProfile)
             .Include(f => f.FriendUser).ThenInclude(u => u.UserProfile)
             .AsNoTracking()
@@ -139,7 +139,7 @@ public class FriendsController(
             return Unauthorized(new { message = "Invalid appUser ID in token." });
         }
 
-        var isFriend = await context.Friends.AnyAsync(f =>
+        var isFriend = await context.Friendships.AnyAsync(f =>
             (f.UserId == userId && f.FriendId == otherUserId) ||
             (f.UserId == otherUserId && f.FriendId == userId));
 
@@ -156,7 +156,7 @@ public class FriendsController(
         }
 
         // Finn relasjonen i én retning
-        var friendship = await context.Friends
+        var friendship = await context.Friendships
             .FirstOrDefaultAsync(f =>
                 (f.UserId == userId && f.FriendId == friendId) ||
                 (f.UserId == friendId && f.FriendId == userId));
@@ -168,7 +168,7 @@ public class FriendsController(
         var removedFriendId = friendship.FriendId;
         
         // SLETT ALLE RELATERTE FRIEND INVITATIONS (begge retninger)
-        var existingInvitations = await context.FriendInvitations
+        var existingInvitations = await context.FriendshipRequests
             .Where(inv => 
                 (inv.SenderId == userId && inv.ReceiverId == friendId) ||
                 (inv.SenderId == friendId && inv.ReceiverId == userId))
@@ -178,11 +178,11 @@ public class FriendsController(
         {
             Log.Information("Removing {Count} friend invitations between users {UserId} and {FriendId}", 
                 existingInvitations.Count, userId, friendId);
-            context.FriendInvitations.RemoveRange(existingInvitations);
+            context.FriendshipRequests.RemoveRange(existingInvitations);
         }
 
 
-        context.Friends.Remove(friendship);
+        context.Friendships.Remove(friendship);
         await context.SaveChangesAsync();
         
         // SYNC EVENT - etter SaveChanges

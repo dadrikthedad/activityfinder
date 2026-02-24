@@ -14,8 +14,10 @@ namespace AFBack.Features.Searching.Controllers;
 public class SearchController(ISearchService searchService) : BaseController
 {
     /// <summary>
-    /// Søker etter brukere basert på navn, sortert etter nærhet
+    /// Søker etter brukere basert på navn, sortert etter nærhet. Bruker Cursor-paginering
     /// </summary>
+    /// <param name="request">SearchUsersRequest</param>
+    /// <returns>Liste med UserSummaryDtos</returns>
     [HttpGet("users")]
     [ProducesResponseType(typeof(SearchUsersResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -42,6 +44,25 @@ public class SearchController(ISearchService searchService) : BaseController
     {
         var userId = User.GetUserId();
         var result = await searchService.QuickSearchUsersAsync(userId, request);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
+    
+    /// <summary>
+    /// Søker etter brukere for gruppeinvitasjon. Filtrerer bort eksisterende medlemmer,
+    /// brukere som har blokkert deg, og brukere du har blokkert.
+    /// </summary>
+    [HttpGet("users/invite")]
+    [ProducesResponseType(typeof(SearchUsersResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> SearchUsersForInvite([FromQuery] SearchUsersForInviteRequest request)
+    {
+        var userId = User.GetUserId();
+        var result = await searchService.SearchUsersForInviteAsync(userId, request);
 
         if (result.IsFailure)
             return HandleFailure(result);

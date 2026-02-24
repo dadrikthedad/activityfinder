@@ -153,17 +153,19 @@ public enum SyncEventType
     
     /// <summary>
     /// Mottatt ny venneforespørsel
-    /// EventData: { FriendRequest }
-    /// Hvorfor: Må fylles ut
+    /// EventData: { FriendshipRequestResponse }
+    /// Hvorfor: Inneholder ID, DTo til avsender og tidspunkt. For å vise venneforespørselen med bilde og navn.
+    /// Og for å kalle endepunkter med riktig ID
     /// </summary>
-    FriendRequestReceived,
+    FriendshipRequestReceived,
     
     /// <summary>
-    /// Venneforespørsel godkjent
-    /// EventData: { UserSummary }
-    /// Hvorfor: Må fylles ut
+    /// Venneforespørsel godkjent 
+    /// EventData: { FriendshipAcceptedResponse }
+    /// Hvorfor: Inneholder UserSummatyDto til godkjenner/sender for å legge til i vennelisten, og
+    /// NotificationResponse hvis det er avsender av forespørselen som mottar den
     /// </summary>
-    FriendAdded,
+    FriendshipRequestAccepted,
     
     /// <summary>
     /// Venneforespørsel avslått

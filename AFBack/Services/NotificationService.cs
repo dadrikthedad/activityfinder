@@ -1,6 +1,7 @@
 ﻿using AFBack.Common.DTOs;
 using AFBack.Constants;
 using AFBack.DTOs;
+using AFBack.Features.Notifications.Models;
 using AFBack.Features.SyncEvents.Services;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
@@ -36,7 +37,7 @@ public class NotificationService(
             Type = type,
             RecipientUserId = recipientUserId,
             RelatedUserId = relatedUserId,
-            Message = message,
+            Summary = message,
             CreatedAt = DateTime.UtcNow,
             IsRead = false,
             PostId = postId,
@@ -79,7 +80,7 @@ public class NotificationService(
                 {
                     Id = notification.Id,
                     Type = notification.Type,
-                    Message = notification.Message,
+                    Message = notification.Summary,
                     IsRead = notification.IsRead,
                     CreatedAt = notification.CreatedAt,
                     PostId = notification.PostId,
@@ -111,7 +112,7 @@ public class NotificationService(
             {
                 notification.Id,
                 notification.Type,
-                notification.Message,
+                Message = notification.Summary,
                 notification.CreatedAt,
                 notification.PostId,
                 notification.CommentId,
@@ -179,7 +180,7 @@ public class NotificationService(
         {
             Id = n.Id,
             Type = n.Type,
-            Message = n.Message,
+            Message = n.Summary,
             IsRead = n.IsRead,
             CreatedAt = n.CreatedAt,
             PostId = n.PostId,

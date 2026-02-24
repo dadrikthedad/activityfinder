@@ -1,6 +1,7 @@
 ﻿using AFBack.Common.DTOs;
 using AFBack.Features.Cache;
 using AFBack.Features.Cache.Interface;
+using AFBack.Features.Notifications.Models;
 using AFBack.Infrastructure.Services;
 using AFBack.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -122,7 +123,7 @@ public class NotificationController(
         {
             Id = n.Id,
             Type = n.Type,
-            Message = n.Message,
+            Message = n.Summary,
             IsRead = n.IsRead,
             CreatedAt = n.CreatedAt,
             PostId = n.PostId,

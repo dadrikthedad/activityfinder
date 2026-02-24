@@ -16,4 +16,11 @@ public interface IFriendshipRepository
     /// <param name="userId">Brukeren vi henter vennene til</param>
     /// <returns>Liste med UserIds</returns>
     Task<List<string>> GetAllFriendIdsAsync(string userId);
+    
+    /// <summary>
+    /// Oppretter et Friendship-objekt, lagrer ikke
+    /// </summary>
+    Task AddFriendshipAsync(Models.Friendship friendship);
+    
+    Task SaveChangesAsync();
 }

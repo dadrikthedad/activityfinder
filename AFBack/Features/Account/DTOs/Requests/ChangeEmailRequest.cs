@@ -13,5 +13,5 @@ public class ChangeEmailRequest
     [Required(ErrorMessage = "New email is required")]
     [EmailAddress(ErrorMessage = "Email must be a valid format")]
     [MaxLength(256, ErrorMessage = "Email cannot exceed 256 characters")]
-    public required string NewEmail { get; init; }
+    public required string NewEmail { get; init => field = value.Trim(); }
 }

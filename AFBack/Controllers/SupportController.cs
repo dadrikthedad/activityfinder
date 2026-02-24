@@ -51,6 +51,82 @@ public class SupportController(
             return StatusCode(500, new { Message = "An error occurred while processing your report" });
         }
     }
+    
+    [ApiExplorerSettings(IgnoreApi = true)]
+    [HttpPost("{reportId}/attachments")]
+    public async Task<IActionResult> UploadReportAttachment(
+        Guid reportId, 
+        [FromForm] IFormFile file)
+    {
+        if (file == null)
+            return BadRequest(new { message = "No file provided" });
+
+        try
+        {
+            var userId = GetUserId();
+            
+            // Hent rapporten med eksisterende attachments
+            var report = await Context.Reports
+                .Include(r => r.Attachments)
+                .FirstOrDefaultAsync(r => r.Id == reportId);
+            
+            if (report == null)
+                return NotFound("Report not found");
+
+            // OPPDATERT: Tilgangskontroll som håndterer anonymous rapporter
+            if (report.SubmittedByUserId.HasValue)
+            {
+                // Rapport har en eier - kun eieren kan legge til attachments
+                if (report.SubmittedByUserId != userId)
+                    return StatusCode(403, new { message = "Access denied - you can only upload to your own reports" });
+            }
+            else
+            {
+                // Anonymous rapport - du kan ikke legge til attachments til anonymous rapporter
+                return StatusCode(403, new { message = "Cannot add attachments to anonymous reports" });
+            }
+
+            // Sjekk maksimalt antall attachments per rapport (f.eks. 5)
+            if (report.Attachments.Count >= 5)
+                return BadRequest(new { message = "Maximum number of attachments (5) reached" });
+
+            // Valider fil
+            var (isValid, errorMessage) = fileService.ValidateFile(file);
+            if (!isValid)
+                return BadRequest(new { message = errorMessage });
+
+            // Last opp fil
+            var fileUrl = await fileService.UploadFileAsync(file, "report-attachments");
+            
+            // Opprett attachment record
+            var attachment = new ReportAttachment
+            {
+                ReportId = reportId,
+                FileUrl = fileUrl,
+                FileType = file.ContentType,
+                FileSize = file.Length,
+                FileName = file.FileName,
+                UploadedAt = DateTime.UtcNow
+            };
+
+            Context.ReportAttachments.Add(attachment);
+            await Context.SaveChangesAsync();
+
+            return Ok(new { 
+                AttachmentId = attachment.Id,
+                FileUrl = fileUrl,
+                FileName = file.FileName,
+                FileSize = file.Length,
+                FileType = file.ContentType,
+                UploadedAt = attachment.UploadedAt
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to upload attachment for report {ReportId}", reportId);
+            return StatusCode(500, new { message = "Failed to upload attachment" });
+        }
+    }
 
     // [HttpGet("report/{id}")]
     // public async Task<IActionResult> GetReport(Guid id)

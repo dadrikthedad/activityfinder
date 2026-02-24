@@ -40,6 +40,14 @@ public interface IConversationRepository
     /// <returns>Samtalen som en Conversation-entitet med Participants eller null</returns>
     Task<ConversationDto?> GetConversationBetweenUsersAsync(string userId, string receiverId);
     
+    /// <summary>
+    /// Henter ID til en pending samtale mellom to brukere, hvis den finnes. Brukes ved godkjennelse av vennskap
+    /// </summary>
+    /// <param name="userId">Bruker A</param>
+    /// <param name="otherUserId">Bruker B</param>
+    /// <returns>ID-en til samtalen eller null</returns>
+    Task<int?> GetPendingConversationIdBetweenUsersAsync(string userId, string otherUserId);
+    
     ////////////////////////////////////////////// GET MANY CONVERSATIONS /////////////////////////////////////////////
     
     /// <summary>

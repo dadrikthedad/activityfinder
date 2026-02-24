@@ -3,6 +3,7 @@ using AFBack.DTOs;
 using AFBack.Models;
 using AFBack.Data;
 using AFBack.Extensions;
+using AFBack.Features.Friendship.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Services
@@ -28,8 +29,8 @@ namespace AFBack.Services
                     throw new ArgumentException("Page number and size must be greater than zero.");
                 }
 
-                var query = context.FriendInvitations
-                    .Where(i => i.ReceiverId == userId && i.Status == InvitationStatus.Pending)
+                var query = context.FriendshipRequests
+                    .Where(i => i.ReceiverId == userId && i.Status == FriendshipRequestStatus.Pending)
                     .OrderByDescending(i => i.SentAt)
                     .AsNoTracking();
 

@@ -337,7 +337,7 @@ namespace AFBack.Services
             var currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             // Get all friend relationships for the appUser (bidirectional)
-            var friendIds = await context.Friends
+            var friendIds = await context.Friendships
                 .Where(f => f.UserId == userId || f.FriendId == userId)
                 .Select(f => f.UserId == userId ? f.FriendId : f.UserId)
                 .Distinct()
