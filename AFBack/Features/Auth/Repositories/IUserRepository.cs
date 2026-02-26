@@ -13,6 +13,12 @@ public interface IUserRepository
     /// <returns>True hvis bruker eksisterer, false hvis ingen bruker</returns>
     Task<bool> UserExistsAsync(string userId);
     
+    /// <summary>
+    /// Henter en User med Profile og Settings
+    /// </summary>
+    /// <param name="userId">Brukeren vi henter</param>
+    /// <returns>AppUser eller null</returns>
+    Task<AppUser?> GetUserWithProfileAndSettingsAsync(string userId);
     
     /// <summary>
     /// Finner en bruker utifra telefonnr

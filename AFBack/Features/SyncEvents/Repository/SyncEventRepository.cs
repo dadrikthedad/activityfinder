@@ -33,4 +33,10 @@ public class SyncEventRepository(AppDbContext context) : ISyncEventRepository
                 CreatedAt = e.CreatedAt
             })
             .ToListAsync();
+
+    /// <inheritdoc />
+    public async Task<int> DeleteEventsOlderThanAsync(DateTime cutoff, CancellationToken ct = default) =>
+        await context.SyncEvents
+            .Where(e => e.CreatedAt < cutoff)
+            .ExecuteDeleteAsync(ct);
 }

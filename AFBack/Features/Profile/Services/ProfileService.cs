@@ -1,4 +1,3 @@
-using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Friendship.Repository;
@@ -8,6 +7,7 @@ using AFBack.Features.Profile.Extensions;
 using AFBack.Features.Profile.Repository;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
+using AFBack.Infrastructure.Cache;
 
 
 namespace AFBack.Features.Profile.Services;

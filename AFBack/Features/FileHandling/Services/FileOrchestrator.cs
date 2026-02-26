@@ -3,6 +3,7 @@ using AFBack.Features.FileHandling.Enums;
 using AFBack.Features.FileHandling.Helpers;
 using AFBack.Features.FileHandling.Validators;
 using AFBack.Features.Messaging.DTOs;
+using AFBack.Features.Support.Models;
 
 namespace AFBack.Features.FileHandling.Services;
 
@@ -23,14 +24,11 @@ public class FileOrchestrator(
         if (validateImageResult.IsFailure)
             return Result<string>.Failure(validateImageResult.Error);
         
-        // Henter contentType
-        var contentType = image.ContentType;
-        
         // Åpner streamen
         await using var stream = image.OpenReadStream();
         
         // Laster opp bilde
-        var uploadImageResult = await storageService.UploadAsync(stream, storageKey, contentType,
+        var uploadImageResult = await storageService.UploadAsync(stream, storageKey, image.ContentType,
             BlobContainer.PublicImages, null, ct);
         if (uploadImageResult.IsFailure)
             return Result<string>.Failure(uploadImageResult.Error);
@@ -55,13 +53,47 @@ public class FileOrchestrator(
         using var stream = new MemoryStream(encryptedData);
     
         var uploadResult = await storageService.UploadAsync(stream, storageKey, 
-            "application/octet-stream", BlobContainer.EncryptedFiles, 
-            null, ct);
+            "application/octet-stream", BlobContainer.EncryptedFiles, null, ct);
         if (uploadResult.IsFailure)
             return Result.Failure(uploadResult.Error, uploadResult.ErrorType);
 
         return Result.Success();
     }
+    
+    /// <inheritdoc/>
+    public async Task<Result<SupportAttachment>> UploadSupportAttachmentAsync(IFormFile file, 
+        CancellationToken ct = default)
+    {
+        // Validerer filen
+        var validationResult = fileValidator.ValidateSupportAttachment(file);
+        if (validationResult.IsFailure)
+            return Result<SupportAttachment>.Failure(validationResult.Error);
+
+        // Oppretter storageKey
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var storageKey = $"support-attachments/{Guid.NewGuid()}{extension}";
+
+        // Åpner stream og laster opp
+        await using var stream = file.OpenReadStream();
+        var uploadResult = await storageService.UploadAsync(stream, storageKey, file.ContentType, 
+            BlobContainer.PrivateFiles, null, ct);
+
+        if (uploadResult.IsFailure)
+        {
+            logger.LogError("Failed to upload support attachment: {FileName}", file.FileName);
+            return Result<SupportAttachment>.Failure("Failed to upload attachment");
+        }
+
+        return Result<SupportAttachment>.Success(new SupportAttachment
+        {
+            OriginalFileName = file.FileName,
+            ContentType = file.ContentType,
+            FileExtension = extension,
+            FileSize = file.Length,
+            StorageKey = storageKey
+        });
+    }
+
     
     // ======================== Hent URL ======================== 
     
@@ -103,12 +135,17 @@ public class FileOrchestrator(
     await storageService.DeleteAsync(storageKey, BlobContainer.PublicImages, ct);
     
     // ======================== CleanUp ======================== 
+    
     /// <inheritdoc/>
-    public async Task TryCleanupEncryptedFilesAsync(List<string> storageKeys, CancellationToken ct = default)
+    public async Task TryCleanupFilesAsync(List<string> storageKeys, BlobContainer container, 
+        CancellationToken ct = default)
     {
+        if (storageKeys.Count == 0)
+            return; 
+        
         foreach (var key in storageKeys)
         {
-            await storageService.DeleteAsync(key, BlobContainer.EncryptedFiles, ct);
+            await storageService.DeleteAsync(key, container, ct);
         }
     }
     

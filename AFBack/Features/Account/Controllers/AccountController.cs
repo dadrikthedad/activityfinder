@@ -3,9 +3,11 @@ using AFBack.Configurations.Options;
 using AFBack.Features.Account.DTOs.Requests;
 using AFBack.Features.Account.Services;
 using AFBack.Features.FileHandling.DTOs.Requests;
+using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace AFBack.Features.Account.Controllers;
 
@@ -14,6 +16,7 @@ namespace AFBack.Features.Account.Controllers;
 /// samt "This wasn't me"-rapportering.
 /// </summary>
 [ApiController]
+[EnableRateLimiting(RateLimitPolicies.Auth)]
 [Route("api/[controller]")]
 [Authorize]
 public class AccountController(IAccountChangeService accountChangeService) : BaseController

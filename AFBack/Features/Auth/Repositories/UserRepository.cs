@@ -59,5 +59,13 @@ public class UserRepository(AppDbContext context) : IUserRepository
                 || (u.EmailConfirmed && !u.PhoneNumberConfirmed && u.CreatedAt < partiallyVerifiedCutoff))
             .ToListAsync(cancellationToken);
     
-    
+    /// <inheritdoc />
+    public async Task<AppUser?> GetUserWithProfileAndSettingsAsync(string userId) =>
+        await context.Users
+            .AsNoTracking()
+            .Include(u => u.UserProfile)
+            .Include(u => u.UserSettings)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+
 }

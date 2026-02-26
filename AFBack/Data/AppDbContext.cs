@@ -8,15 +8,14 @@ using AFBack.Features.MessageNotifications.Models;
 using AFBack.Features.Messaging.Models;
 using AFBack.Features.Notifications.Models;
 using AFBack.Features.Profile.Models;
+using AFBack.Features.Reactions.Models;
 using AFBack.Features.Settings.Models;
 using AFBack.Features.SignalR.Models;
+using AFBack.Features.Support.Models;
 using AFBack.Features.SyncEvents.Models;
 using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Security.Models;
 using Microsoft.EntityFrameworkCore;
-using AFBack.Models;
-using AFBack.Models.Crypto;
-using AFBack.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
@@ -39,11 +38,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<ConversationParticipant> ConversationParticipants { get; set; } 
     // Her her vi samtaler som kobler meldinger mot brukere/grupper
     public DbSet<Conversation> Conversations { get; set; } // Samtaler mellom brukere
-    public DbSet<ConversationReadState> ConversationReadStates { get; set; } // Leste samtaler
     
-    public DbSet<MessageRequest> MessageRequests { get; set; } // Lagre meldings requester
-    
-    public DbSet<GroupRequest> GroupRequests { get; set; }
     public DbSet<Reaction> Reactions { get; set; } // Reaksjoner
     public DbSet<MessageNotification> MessageNotifications { get; set; } // MessageNotifications
     public DbSet<GroupEvent> GroupEvents { get; set; }
@@ -58,9 +53,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     
     public DbSet<SyncEvent> SyncEvents { get; set; }
     
-    public DbSet<Report> Reports { get; set; }
-    
-    public DbSet<ReportAttachment> ReportAttachments { get; set; }
     
     public DbSet<IpBan> IpBans { get; set; }
     
@@ -81,6 +73,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<VerificationInfo> VerificationInfos { get; set; }
     
     public DbSet<LoginHistory> LoginHistories { get; set; }
+    
+    public DbSet<SupportTicket> SupportTickets { get; set; }
+    
+    public DbSet<UserReport> UserReports { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -435,6 +431,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
+        // ==================== SupportTicket ====================
+        modelBuilder.Entity<SupportTicket>()
+            .HasMany(e => e.Attachments)
+            .WithOne(e => e.SupportTicket)
+            .HasForeignKey(e => e.SupportTicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // ==================== UserReport ====================
+        modelBuilder.Entity<UserReport>()
+            .HasMany(e => e.Attachments)
+            .WithOne(e => e.UserReport)
+            .HasForeignKey(e => e.UserReportId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
         // ==================== SyncEvent TODO: Denne må fikses ====================
         
         
@@ -533,53 +543,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             .HasForeignKey(r => r.MessageId)
             .OnDelete(DeleteBehavior.Cascade);
         
-        // For å sjekke om en bruker har lest samtalene sine
-        modelBuilder.Entity<ConversationReadState>()
-            .HasKey(crs => crs.Id);
-
-        modelBuilder.Entity<ConversationReadState>()
-            .HasOne(crs => crs.User)
-            .WithMany()
-            .HasForeignKey(crs => crs.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<ConversationReadState>()
-            .HasOne(crs => crs.Conversation)
-            .WithMany()
-            .HasForeignKey(crs => crs.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
-        modelBuilder.Entity<ConversationReadState>()
-            .HasIndex(crs => new { crs.UserId, crs.ConversationId })
-            .IsUnique();
-        
-        
-        // Meldingsforespørsler (MessageRequest)
-        modelBuilder.Entity<MessageRequest>()
-            .HasKey(mr => mr.Id);
-
-        modelBuilder.Entity<MessageRequest>()
-            .HasOne(mr => mr.Sender)
-            .WithMany()
-            .HasForeignKey(mr => mr.SenderId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        // Valgfritt: legg til en unik indeks for å unngå duplikate forespørsler mellom samme brukere
-        modelBuilder.Entity<MessageRequest>()
-            .HasIndex(mr => new { mr.SenderId, mr.ReceiverId })
-            .IsUnique();
-        
-        // Koble MessageRequesten med en sepsifikk samtale
-        modelBuilder.Entity<MessageRequest>()
-            .Property(mr => mr.ConversationId)
-            .IsRequired(); // 👈 Gjør feltet NOT NULL
-
-        modelBuilder.Entity<MessageRequest>()
-            .HasOne(mr => mr.Conversation)
-            .WithMany()
-            .HasForeignKey(mr => mr.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
         // MessageNotificaitons
         
         modelBuilder.Entity<MessageNotification>(entity =>
@@ -627,29 +590,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .HasDatabaseName("IX_MessageNotification_UniqueGroupEvent");
         });
         
-
-
-        modelBuilder.Entity<GroupRequest>()
-            .HasOne(gr => gr.Sender)
-            .WithMany()
-            .HasForeignKey(gr => gr.SenderId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<GroupRequest>()
-            .HasOne(gr => gr.Receiver)
-            .WithMany()
-            .HasForeignKey(gr => gr.ReceiverId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<GroupRequest>()
-            .HasOne(gr => gr.Conversation)
-            .WithMany()
-            .HasForeignKey(gr => gr.ConversationId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
-        modelBuilder.Entity<GroupRequest>()
-            .HasIndex(gr => new { gr.ReceiverId, gr.ConversationId })
-            .IsUnique(true); // Sett til true hvis du vil nekte duplikater
         
         modelBuilder.Entity<SyncEvent>(entity =>
         {
@@ -675,131 +615,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             
         });
         
-        modelBuilder.Entity<Report>(entity =>
-        {
-            // Primary key
-            entity.HasKey(r => r.Id);
-            
-            // Required fields
-            entity.Property(r => r.Type)
-                .IsRequired()
-                .HasConversion<int>(); // Lagrer enum som int
-                
-            entity.Property(r => r.Title)
-                .IsRequired()
-                .HasMaxLength(200);
-                
-            entity.Property(r => r.Description)
-                .IsRequired()
-                .HasMaxLength(5000);
-                
-            entity.Property(r => r.SubmittedAt)
-                .IsRequired()
-                .HasDefaultValueSql("NOW()"); // PostgreSQL
-                
-            entity.Property(r => r.Priority)
-                .IsRequired()
-                .HasConversion<int>()
-                .HasDefaultValue(PriorityEnum.Medium);
-                
-            entity.Property(r => r.Status)
-                .IsRequired()
-                .HasConversion<int>()
-                .HasDefaultValue(ReportStatusEnum.Open);
-                
-            // Optional fields with max lengths
-            entity.Property(r => r.ReportedUserId)
-                .HasMaxLength(50);
-                
-            entity.Property(r => r.StepsToReproduce)
-                .HasMaxLength(2000);
-                
-            entity.Property(r => r.ExpectedBehavior)
-                .HasMaxLength(1000);
-                
-            entity.Property(r => r.ActualBehavior)
-                .HasMaxLength(1000);
-                
-            entity.Property(r => r.UserAgent)
-                .HasMaxLength(500);
-                
-            entity.Property(r => r.BrowserVersion)
-                .HasMaxLength(100);
-                
-            entity.Property(r => r.DeviceInfo)
-                .HasMaxLength(200);
-                
-            entity.Property(r => r.AssignedTo)
-                .HasMaxLength(100);
-                
-            entity.Property(r => r.Resolution)
-                .HasMaxLength(2000);
-                
-            // FJERNET: AttachmentsJson konfigurasjonen
-            // entity.Property(r => r.AttachmentsJson)
-            //     .HasColumnType("text"); 
-            
-            // Navigation property til ReportAttachments
-            entity.HasMany(r => r.Attachments)
-                .WithOne(a => a.Report)
-                .HasForeignKey(a => a.ReportId)
-                .OnDelete(DeleteBehavior.Cascade); // Når rapport slettes, slettes også alle attachments
-                
-            // Indexes for performance
-            entity.HasIndex(r => r.Type)
-                .HasDatabaseName("IX_Report_Type");
-                
-            entity.HasIndex(r => r.Status)
-                .HasDatabaseName("IX_Report_Status");
-                
-            entity.HasIndex(r => r.SubmittedByUserId)
-                .HasDatabaseName("IX_Report_SubmittedByUserId");
-                
-            entity.HasIndex(r => r.SubmittedAt)
-                .HasDatabaseName("IX_Report_SubmittedAt");
-                
-            entity.HasIndex(r => new { r.Type, r.Status })
-                .HasDatabaseName("IX_Report_Type_Status");
-                
-            // Table name
-            entity.ToTable("Reports");
-        });
-        
-        modelBuilder.Entity<ReportAttachment>(entity =>
-        {
-            // Primary key
-            entity.HasKey(a => a.Id);
-    
-            // Required fields
-            entity.Property(a => a.FileUrl)
-                .IsRequired()
-                .HasMaxLength(500);
-        
-            entity.Property(a => a.FileType)
-                .IsRequired()
-                .HasMaxLength(100);
-        
-            entity.Property(a => a.UploadedAt)
-                .IsRequired()
-                .HasDefaultValueSql("NOW()");
-        
-            // Optional fields
-            entity.Property(a => a.FileName)
-                .HasMaxLength(255);
-        
-            // Foreign key relationship (allerede definert i Report konfigurasjonen, men kan være eksplisitt)
-            entity.HasOne(a => a.Report)
-                .WithMany(r => r.Attachments)
-                .HasForeignKey(a => a.ReportId)
-                .OnDelete(DeleteBehavior.Cascade);
-        
-            // Index for performance på foreign key
-            entity.HasIndex(a => a.ReportId)
-                .HasDatabaseName("IX_ReportAttachment_ReportId");
-        
-            // Table name
-            entity.ToTable("ReportAttachments");
-        });
+     
         
         // Seeder roller
         modelBuilder.Entity<IdentityRole>().HasData(

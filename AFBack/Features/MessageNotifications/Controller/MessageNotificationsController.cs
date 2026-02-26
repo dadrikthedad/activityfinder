@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Common.Controllers;
 using AFBack.Common.DTOs;
-using AFBack.Controllers;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.MessageNotifications.Service;
 using AFBack.Infrastructure.Extensions;
@@ -182,6 +181,50 @@ public class MessageNotificationsController(
         return NoContent();
     }
     
-  
+    
+    
+    /// <summary>
+    /// Sletter en meldingsnotifikasjon
+    /// </summary>
+    [HttpDelete("{messageNotificationId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteMessageNotification(
+        [FromRoute]
+        [Required(ErrorMessage = "MessageNotificationId is required")]
+        [Range(1, int.MaxValue, ErrorMessage = "MessageNotificationId must be greater than 0")]
+        int messageNotificationId)
+    {
+        var userId = User.GetUserId();
+    
+        var result = await messageNotificationStateService.DeleteAsync(userId, messageNotificationId);
+    
+        if (result.IsFailure)
+            return HandleFailure(result);
+    
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Sletter alle meldingsnotifikasjoner for innlogget bruker
+    /// </summary>
+    [HttpDelete]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> DeleteAllMessageNotifications()
+    {
+        var userId = User.GetUserId();
+    
+        var result = await messageNotificationStateService.DeleteAllAsync(userId);
+    
+        if (result.IsFailure)
+            return HandleFailure(result);
+    
+        return NoContent();
+    }
     
 }

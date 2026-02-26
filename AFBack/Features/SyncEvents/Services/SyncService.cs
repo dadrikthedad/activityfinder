@@ -1,8 +1,8 @@
 using System.Text.Json;
-using AFBack.Common;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.SyncEvents.DTOs;
+using AFBack.Configurations.Options;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Models;
 using AFBack.Features.SyncEvents.Repository;
@@ -15,8 +15,8 @@ public class SyncService(
         ILogger<SyncService> logger) : ISyncService
 {
     
-    private readonly TimeSpan _inactivityThreshold = TimeSpan.FromDays(7);
-    private readonly int _maxEventTreshold = 30;
+    private readonly TimeSpan _inactivityThreshold = SyncEventConfig.InactivityThreshold;
+    private readonly int _maxEventTreshold = SyncEventConfig.MaxEventThreshold;
     
     
     /// <inheritdoc />
@@ -51,12 +51,7 @@ public class SyncService(
         }
     }
     
-    /// <summary>
-    /// Sjekker og henter om det er nødvendig med full bootstrap eller henting av synceventer
-    /// </summary>
-    /// <param name="userId">Brukeren vi skal hente sync events for</param>
-    /// <param name="userDeviceId">Brukerens enhet</param>
-    /// <returns>SyncResponse</returns>
+    /// <inheritdoc />
     public async Task<Result<SyncResponse>> ValidateSyncForDeviceAsync(string userId, int userDeviceId)
     {
         // ======================== STEG 1: Hent/opprett device sync state ========================
@@ -171,7 +166,7 @@ public class SyncService(
         await deviceSyncStateRepository.SaveChangesAsync();
     }
     
-    public string ReserializeEventData(string eventData)
+    private string ReserializeEventData(string eventData)
     {
         if (string.IsNullOrEmpty(eventData))
             return eventData;
@@ -190,23 +185,14 @@ public class SyncService(
         }
     }
     
-    // TODO: Fikse denne når vi håndterer cleanup?
-    public async Task CleanupOldEventsAsync()
+    /// <inheritdoc />
+    public async Task CleanupOldEventsAsync(CancellationToken ct = default)
     {
-        try
-        {
-            var cutoffDate = DateTime.UtcNow.AddDays(-30);
-        
-            var oldEventsCount = await context.SyncEvents
-                .Where(e => e.CreatedAt < cutoffDate)
-                .ExecuteDeleteAsync();
+        var cutoffDate = DateTime.UtcNow.Subtract(SyncEventConfig.InactivityThreshold);
 
-            logger.LogInformation("Cleaned up {Count} old sync events", oldEventsCount);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to cleanup old sync events");
-            throw; // Re-throw så MaintenanceCleanupService kan håndtere retry
-        }
+        var deletedCount = await syncEventRepository.DeleteEventsOlderThanAsync(cutoffDate, ct);
+
+        if (deletedCount > 0)
+            logger.LogInformation("Cleaned up {Count} old sync events", deletedCount);
     }
 }

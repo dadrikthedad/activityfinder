@@ -1,4 +1,4 @@
-using AFBack.Models.Enums;
+using AFBack.Features.Profile.Enums;
 
 namespace AFBack.Features.Profile.DTOs.Responses;
 

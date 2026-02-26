@@ -1,14 +1,16 @@
-using AFBack.Cache;
+using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Services;
 using AFBack.Features.Friendship.DTOs.Responses;
 using AFBack.Features.Friendship.Enums;
 using AFBack.Features.Friendship.Repository;
-using AFBack.Models.Enums;
+using AFBack.Infrastructure.Cache;
 
 
 namespace AFBack.Features.Friendship.Services;
@@ -23,6 +25,96 @@ public class FriendshipRequestService(
     IConversationRepository conversationRepository,
     IDirectConversationService directConversationService) : IFriendshipRequestService
 {
+    
+    // ======================= GET ======================= 
+    /// <inheritdoc/>
+    public async Task<Result<PaginatedResponse<PendingFriendshipRequestResponse>>> 
+        GetReceivedPendingFriendshipRequestsAsync(string userId, int page, int pageSize)
+    {
+        logger.LogInformation("UserId: {UserId} fetching received friendship requests (Page: {Page}, PageSize: {PageSize})",
+            userId, page, pageSize);
+    
+        var pendingRequests = await 
+            friendshipRequestRepository.GetPendingReceivedRequestsAsync(userId, page, pageSize);
+        var totalCount = await friendshipRequestRepository.GetPendingReceivedRequestsCountAsync(userId);
+    
+        if (pendingRequests.Count == 0)
+            return Result<PaginatedResponse<PendingFriendshipRequestResponse>>.Success(
+                new PaginatedResponse<PendingFriendshipRequestResponse>
+                {
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize
+                });
+    
+        var senderIds = pendingRequests.Select(r => r.SenderId).ToList();
+        var senderSummaries = await userSummaryCacheService.GetUserSummariesAsync(senderIds);
+    
+        var items = pendingRequests
+            .Where(r => senderSummaries.ContainsKey(r.SenderId))
+            .Select(r => new PendingFriendshipRequestResponse
+            {
+                RequestId = r.Id,
+                Sender = senderSummaries[r.SenderId],
+                SentAt = r.SentAt
+            })
+            .ToList();
+    
+        return Result<PaginatedResponse<PendingFriendshipRequestResponse>>.Success(
+            new PaginatedResponse<PendingFriendshipRequestResponse>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            });
+    }
+    
+    /// <inheritdoc/>
+    public async Task<Result<PaginatedResponse<PendingFriendshipRequestResponse>>> GetDeclinedFriendshipRequestsAsync(
+        string userId, int page, int pageSize)
+    {
+        logger.LogInformation("UserId: {UserId} fetching declined friendship requests (Page: {Page}, PageSize: {PageSize})",
+            userId, page, pageSize);
+    
+        var declinedRequests = await friendshipRequestRepository.GetDeclinedReceivedRequestsAsync(userId, page, pageSize);
+        var totalCount = await friendshipRequestRepository.GetDeclinedReceivedRequestsCountAsync(userId);
+    
+        if (declinedRequests.Count == 0)
+            return Result<PaginatedResponse<PendingFriendshipRequestResponse>>.Success(
+                new PaginatedResponse<PendingFriendshipRequestResponse>
+                {
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize
+                });
+    
+        var senderIds = declinedRequests.Select(r => r.SenderId).ToList();
+        var senderSummaries = 
+            await userSummaryCacheService.GetUserSummariesAsync(senderIds);
+    
+        var items = declinedRequests
+            .Where(r => senderSummaries.ContainsKey(r.SenderId))
+            .Select(r => new PendingFriendshipRequestResponse
+            {
+                RequestId = r.Id,
+                Sender = senderSummaries[r.SenderId],
+                SentAt = r.SentAt
+            })
+            .ToList();
+    
+        return Result<PaginatedResponse<PendingFriendshipRequestResponse>>.Success(
+            new PaginatedResponse<PendingFriendshipRequestResponse>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
+            });
+    }
+    
+    // ======================= SEND FRIENDSHIP REQUEST ======================= 
+    
     /// <inheritdoc/>
     public async Task<Result<SendFriendshipRequestResponse>> SendFriendshipRequestAsync(string senderId,
         string receiverId)
@@ -77,6 +169,8 @@ public class FriendshipRequestService(
 
         return Result<SendFriendshipRequestResponse>.Success(new SendFriendshipRequestResponse());
     }
+    
+    // ======================= ACCEPT FRIENDSHIP ======================= 
     
     /// <inheritdoc/>
     public async Task<Result<FriendshipAcceptedResponse>> AcceptFriendshipRequestAsync(string accepterId, int requestId)
@@ -203,6 +297,8 @@ public class FriendshipRequestService(
         });
     }
     
+    // ======================= DECLINE FRIENDSHIP ======================= 
+    
     /// <inheritdoc/>
     public async Task<Result> DeclineFriendshipRequestAsync(string userId, int requestId)
     {
@@ -244,4 +340,6 @@ public class FriendshipRequestService(
     
         return Result.Success();
     }
+    
+    
 }

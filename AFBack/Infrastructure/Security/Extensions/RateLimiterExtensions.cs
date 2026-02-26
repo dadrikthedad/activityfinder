@@ -2,10 +2,10 @@ using System.Threading.RateLimiting;
 using AFBack.Configurations.Options;
 using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Extensions;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.RateLimiting;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Security.Utils;
-using AFBack.Models.Enums;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Caching.Memory;
 

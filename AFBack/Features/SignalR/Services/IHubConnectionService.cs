@@ -12,11 +12,9 @@ public interface IHubConnectionService
     /// Registrerer en ny WebSocket-tilkobling.
     /// </summary>
     /// <param name="metadata">Connection metadata fra klienten</param>
-    /// <param name="cancellationToken">Cancellation token</param>
+    /// <param name="ct">Cancellation token</param>
     /// <returns>ConnectionResult med collision info og andre aktive enheter</returns>
-    Task<ConnectionResult> RegisterConnectionAsync(
-        ConnectionMetadata metadata, 
-        CancellationToken cancellationToken = default);
+    Task<ConnectionResult> RegisterConnectionAsync(ConnectionMetadata metadata, CancellationToken ct = default);
 
     /// <summary>
     /// Fjerner en WebSocket-tilkobling.
@@ -25,31 +23,18 @@ public interface IHubConnectionService
     /// <param name="deviceId">Device identifier</param>
     /// <param name="connectionId">SignalR connection ID</param>
     /// <param name="disconnectionReason">Årsak til disconnect</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task UnregisterConnectionAsync(
-        string userId, 
-        string deviceId, 
-        string connectionId, 
-        string? disconnectionReason = null,
-        CancellationToken cancellationToken = default);
+    /// <param name="ct">Cancellation token</param>
+    Task UnregisterConnectionAsync(string userId, string deviceId, string connectionId, 
+        string? disconnectionReason = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Henter aktive connection IDs for en bruker (alle enheter).
+    /// Oppdaterer heartbeat-timestamp for en aktiv connection.
+    /// Brukes av klienten for å signalisere at connectionen fortsatt er aktiv.
+    /// StaleConnectionCleanupTask bruker dette for å rydde "stuck" connections.
     /// </summary>
-    /// <param name="userId">Bruker-ID (string GUID)</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Liste med aktive connection IDs</returns>
-    Task<IReadOnlyList<string>> GetActiveConnectionsForUserAsync(
-        string userId, 
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Henter aktive connection IDs for flere brukere.
-    /// </summary>
-    /// <param name="userIds">Liste med bruker-IDer</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Dictionary med userId -> liste av connection IDs</returns>
-    Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetActiveConnectionsForUsersAsync(
-        IEnumerable<string> userIds, 
-        CancellationToken cancellationToken = default);
+    /// <param name="userId">Bruker-ID</param>
+    /// <param name="connectionId">SignalR connection ID</param>
+    /// <param name="ct">Cancellation token</param>
+    Task UpdateHeartbeatAsync(string userId, string connectionId, CancellationToken ct = default);
+    
 }

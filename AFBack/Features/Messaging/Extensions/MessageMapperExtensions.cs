@@ -1,5 +1,4 @@
 using AFBack.Common.DTOs;
-using AFBack.DTOs;
 using AFBack.Features.FileHandling.Enums;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Features.Messaging.DTOs;
@@ -105,6 +104,7 @@ public static class MessageMapperExtensions
         List<UploadedAttachmentDto>? attachments = null) => new()
     {
             SenderId = userId,
+            OptimisticId = request.OptimisticId,
             EncryptedText = request.EncryptedText,
             KeyInfo = JsonConvert.SerializeObject(request.KeyInfo),
             IV = request.IV,

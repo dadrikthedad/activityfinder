@@ -1,12 +1,13 @@
-using AFBack.Cache;
 using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
@@ -15,10 +16,10 @@ using AFBack.Features.FileHandling.Services;
 using AFBack.Features.Friendship.Repository;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.Extensions;
-using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Models;
 using AFBack.Features.Messaging.Repository;
-using AFBack.Models.Enums;
+using AFBack.Features.Messaging.Services;
+using AFBack.Infrastructure.Cache;
 using Newtonsoft.Json;
 
 namespace AFBack.Features.Conversation.Services;
@@ -31,7 +32,7 @@ public class DirectConversationService(
     IBlockingService blockingService,
     ISendMessageService sendMessageService,
     IConversationBroadcastService broadcastService,
-    ISendMessageCache sendMessageCache,
+    ICanSendCache canSendCache,
     IUserSummaryCacheService userSummariesCache,
     IFriendshipRepository friendshipRepository,
     IBlobUrlBuilder blobUrlBuilder) : IDirectConversationService
@@ -114,8 +115,8 @@ public class DirectConversationService(
         // Legger til CanSend igjen hvis begge brukerne var venner
         if (createdConversation.Type == ConversationType.DirectChat)
         {
-            await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
-            await sendMessageCache.OnCanSendAddedAsync(request.ReceiverId, createdConversation.Id);
+            await canSendCache.OnCanSendAddedAsync(userId, createdConversation.Id);
+            await canSendCache.OnCanSendAddedAsync(request.ReceiverId, createdConversation.Id);
         }
         
         // Hent den opprettede samtalen som ConversationDto, deretter valider at samtalen eksisterer
@@ -306,8 +307,8 @@ public class DirectConversationService(
         
         // Legg begge brukere inn i CanSend cache
        
-        await sendMessageCache.OnCanSendAddedAsync(userId, conversationId);
-        await sendMessageCache.OnCanSendAddedAsync(senderParticipant.UserId, conversationId);
+        await canSendCache.OnCanSendAddedAsync(userId, conversationId);
+        await canSendCache.OnCanSendAddedAsync(senderParticipant.UserId, conversationId);
         
         
         // ============ HENT DATA FOR RESPONSE ============

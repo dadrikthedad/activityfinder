@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Auth.Models;
-using AFBack.Models;
+using AFBack.Features.Reactions.Models;
 
 namespace AFBack.Features.Messaging.Models;
 
@@ -15,6 +15,9 @@ public class Message
     public string? SenderId { get; set; }
     
     // ======================== EncryptionData ========================
+
+    [MaxLength(200)] 
+    public string? OptimisticId { get; set; } = string.Empty;
         
     // Encrypted content - can be null for attachment-only messages
     [MaxLength(100000)]

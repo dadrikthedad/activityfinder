@@ -1,6 +1,5 @@
 using AFBack.Configurations.Options;
 using AFBack.Infrastructure.Security.Services;
-using AFBack.Services;
 
 namespace AFBack.Infrastructure.Cleanup.Tasks;
 
@@ -9,10 +8,12 @@ namespace AFBack.Infrastructure.Cleanup.Tasks;
 /// Rydder utløpte cooldowns, daglige tellere og IP-tellere.
 /// Kjøres av MaintenanceCleanupService via ICleanupTask.
 /// </summary>
-public class EmailRateLimitCleanUpTask(EmailRateLimitService emailRateLimitService)
+public class EmailRateLimitCleanUpTask(EmailRateLimitService emailRateLimitService) : ICleanupTask
 {
     public string TaskName => "EmailRateLimit";
     public TimeSpan Interval => TimeSpan.FromMinutes(EmailRateConfig.EmailCleanupIntervalMinutes);
+    
+    public TimeSpan InitialDelay { get; } = TimeSpan.FromMinutes(5);
 
     public Task ExecuteAsync(CancellationToken cancellationToken)
     {

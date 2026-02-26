@@ -1,10 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Conversation.Models;
+using AFBack.Features.Messaging.Models;
 using AFBack.Features.Profile.Models;
 using AFBack.Features.Settings.Models;
 using AFBack.Features.SignalR.Models;
 using AFBack.Infrastructure.Security.Models;
-using AFBack.Models.Crypto;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Models;
@@ -51,12 +51,6 @@ public class AppUser : IdentityUser
     public DateTime? OnBoardingCompletedAt { get; set; }
     
     // ======================== Metoder ========================
-    
-    public void UpdateFullName()
-    {
-        FullName = $"{FirstName} {LastName}".Trim();
-    }
-    
     public bool IsVerified => EmailConfirmed && PhoneNumberConfirmed;
     
     // ======================== Navigasjonsegenskaper ========================

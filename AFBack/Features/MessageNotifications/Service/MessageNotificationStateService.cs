@@ -117,4 +117,49 @@ public class MessageNotificationStateService(
 
         return Result.Success();
     }
+    
+    /// <inheritdoc />
+    public async Task<Result> DeleteAsync(string userId, int messageNotificationId)
+    {
+        logger.LogInformation("User {UserId} is deleting MessageNotification {MessageNotificationId}",
+            userId, messageNotificationId);
+    
+        // Hent notification med tracking
+        var notification = await messageNotificationRepository
+            .GetMessageNotificationAsync(messageNotificationId);
+    
+        if (notification == null)
+        {
+            logger.LogWarning("User {UserId} tried to delete MessageNotification {MessageNotificationId} " +
+                              "that does not exist", userId, messageNotificationId);
+            return Result.Failure("Message Notification not found", ErrorTypeEnum.NotFound);
+        }
+    
+        // Verifiser at brukeren er mottaker
+        if (notification.RecipientId != userId)
+        {
+            logger.LogWarning("User {UserId} tried to delete MessageNotification {MessageNotificationId} " +
+                              "that belongs to another user", userId, messageNotificationId);
+            return Result.Failure("Message Notification not found", ErrorTypeEnum.NotFound);
+        }
+    
+        await messageNotificationRepository.DeleteMessageNotificationAsync(notification);
+    
+        logger.LogInformation("MessageNotification {MessageNotificationId} deleted by user {UserId}",
+            messageNotificationId, userId);
+    
+        return Result.Success();
+    }
+
+    /// <inheritdoc />
+    public async Task<Result> DeleteAllAsync(string userId)
+    {
+        logger.LogInformation("User {UserId} is deleting all MessageNotifications", userId);
+    
+        await messageNotificationRepository.DeleteAllMessageNotificationsAsync(userId);
+    
+        logger.LogInformation("All MessageNotifications deleted for user {UserId}", userId);
+    
+        return Result.Success();
+    }
 }

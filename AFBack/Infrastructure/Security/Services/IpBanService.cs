@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
 using AFBack.Configurations.Options;
-using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Features.Auth.Models;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Models;
 using AFBack.Infrastructure.Security.Repositories;
 using AFBack.Infrastructure.Security.Utils;
@@ -346,12 +346,12 @@ public class IpBanService : IIpBanService
         return false;
     }
     
-    // ============================== TODO Maintence ==============================
+    // ============================== Maintence ==============================
     
     /// <summary>
-    /// Rydder utløpte bans fra cache og database. TODO: legges i en maintance service
+    /// Rydder utløpte bans fra cache og database
     /// </summary>
-    public async Task ClearExpiredFromCacheAsync()
+    public async Task ClearExpiredFromCacheAsync(CancellationToken ct = default)
     {
         // Rydd utløpte IP-bans fra cache
         var expiredKeys = _bannedIpsCache

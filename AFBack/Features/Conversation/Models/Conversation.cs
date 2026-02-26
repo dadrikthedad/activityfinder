@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using AFBack.Models.Enums;
+using AFBack.Features.Conversation.Enums;
 
 namespace AFBack.Features.Conversation.Models;
 

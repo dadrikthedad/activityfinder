@@ -3,7 +3,6 @@ using AFBack.Features.Auth.Models;
 
 namespace AFBack.Features.SignalR.Models;
 
-// TODO: Må vi opprette en database etnitet når denne blir koblet på?
 public class UserConnection
 {
     // ======================== Primærnøkkel ========================
@@ -22,15 +21,6 @@ public class UserConnection
     
     public DateTime ConnectedAt { get; set; } = DateTime.UtcNow;
     
-    public DateTime? DisconnectedAt { get; set; }
-    
-    [MaxLength(500)]
-    public string? DisconnectionReason { get; set; }
-    
-    // Reconnection tracking
-    public int ReconnectionAttempts { get; set; } = 0;
-    
-    public DateTime? LastReconnectionAt { get; set; }
     
     // ======================== SignalR/WebSocket ========================
     

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using AFBack.Cache;
 using AFBack.Configurations.Options;
 using AFBack.Data;
 using AFBack.Features.Account.Services;
@@ -10,9 +9,9 @@ using AFBack.Features.Auth.Services;
 using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Features.Blocking.Repository;
 using AFBack.Features.Blocking.Services;
+using AFBack.Features.Bootstrap.Services;
 using AFBack.Features.Broadcast.Services;
-using AFBack.Features.Cache;
-using AFBack.Features.Cache.Interface;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.CanSend.Repository;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Services;
@@ -25,7 +24,6 @@ using AFBack.Features.Friendship.Services;
 using AFBack.Features.Geography.Services;
 using AFBack.Features.MessageNotifications.Repository;
 using AFBack.Features.MessageNotifications.Service;
-using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Repository;
 using AFBack.Features.Messaging.Services;
 using AFBack.Features.Messaging.Validators;
@@ -33,21 +31,27 @@ using AFBack.Features.Notifications.Repositories;
 using AFBack.Features.Notifications.Services;
 using AFBack.Features.Profile.Repository;
 using AFBack.Features.Profile.Services;
+using AFBack.Features.Reactions.Repositories;
+using AFBack.Features.Reactions.Services;
 using AFBack.Features.Settings.Repositories;
 using AFBack.Features.Settings.Services;
 using AFBack.Features.SignalR.Providers;
 using AFBack.Features.SignalR.Services;
+using AFBack.Features.Support.Repositories;
+using AFBack.Features.Support.Services;
 using AFBack.Features.SyncEvents.Repository;
 using AFBack.Features.SyncEvents.Services;
+using AFBack.Infrastructure.BackgroundJobs;
+using AFBack.Infrastructure.Cache;
 using AFBack.Infrastructure.Cleanup;
+using AFBack.Infrastructure.Cleanup.Tasks;
 using AFBack.Infrastructure.Email;
+using AFBack.Infrastructure.KeyVault.Services;
 using AFBack.Infrastructure.Security.Extensions;
 using AFBack.Infrastructure.Security.Repositories;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Services;
 using AFBack.Services;
-using AFBack.Services.Crypto;
-using AFBack.Services.Maintenance.Tasks;
 using AFBack.Services.User;
 using Azure.Communication.Email;
 using Azure.Communication.Sms;
@@ -61,7 +65,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using EmailService = AFBack.Infrastructure.Email.EmailService;
 using IHubConnectionService = AFBack.Features.SignalR.Services.IHubConnectionService;
-using NotificationService = AFBack.Services.NotificationService;
 
 namespace AFBack.Infrastructure.Extensions.ServiceExtensions;
 
@@ -92,6 +95,8 @@ public static class ServiceCollectionExtensions
         {
             services.AddSingleton(new SecretClient(new Uri(keyVaultUrl), new DefaultAzureCredential()));
         }
+
+        services.AddScoped<IKeyVaultService, KeyVaultService>();
         
         // Kobler oss til Azure Blob Storage via Managed Identity
         var blobAccountUrl = configuration["Azure:BlobAccountUrl"]
@@ -130,9 +135,8 @@ public static class ServiceCollectionExtensions
         
         // ===== CACHING =====
         services.AddMemoryCache();
-        services.AddSingleton<ISendMessageCache, SendMessageCache>();
+        services.AddSingleton<ICanSendCache, CanSendCache>();
         services.AddSingleton<IUserSummaryCacheService, UserSummaryCacheService>();
-        services.AddSingleton<IUserCache, UserCache>();
         
         // ===== HTTP CLIENT =====
         // Brukes til flere tjenester
@@ -269,13 +273,15 @@ public static class ServiceCollectionExtensions
         
         // ===== MAINTENANCE =====
         services.AddHostedService<MaintenanceCleanupService>();
-     
         
         // ===== CLEANUP TASKS =====
-        services.AddScoped<ICleanupTask, OnlineStatusCleanupTask>();
+        services.AddScoped<ICleanupTask, ExpiredTokenCleanupTask>();
+        services.AddScoped<ICleanupTask, UnverifiedUserCleanupTask>();
+        services.AddScoped<ICleanupTask, EmailRateLimitCleanUpTask>();
+        services.AddScoped<ICleanupTask, SmsRateLimitCleanupTask>();
         services.AddScoped<ICleanupTask, SyncEventsCleanupTask>();
         services.AddScoped<ICleanupTask, IpBanCleanupTask>();
-        services.AddScoped<ICleanupTask, RefreshTokenCleanupTask>();
+        services.AddScoped<ICleanupTask, StaleConnectionCleanupTask>();
         
         return services;
     }
@@ -299,9 +305,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISettingsRepository, SettingsRepository>();
         services.AddScoped<IFriendshipRequestRepository, FriendshipRequestRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
-        
-        
-        
+        services.AddScoped<IReactionRepository, ReactionRepository>();
+        services.AddScoped<ISupportRepository, SupportRepository>();
+        services.AddScoped<IUserPublicKeyRepository, UserPublicKeyRepository>();
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<IUserBlockRepository, UserBlockRepository>();
@@ -335,19 +341,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<ISettingsService, SettingsService>();
-        services.AddScoped<INotificationService, NotificationService>();
-        
-        
+        services.AddScoped<IRateLimitGuardService, RateLimitGuardService>();
         
         
         // ===== RELATIONSHIPSERVICES =====
         services.AddScoped<IFriendshipService, FriendshipService>();
         services.AddScoped<IFriendshipRequestService, FriendshipRequestService>();
+        services.AddScoped<IBlockingService, BlockingService>();
         
         // ===== MESSAGE SERVICES =====
         services.AddScoped<ISendMessageService, SendMessageService>();
         services.AddScoped<IMessageQueryService, MessageQueryService>();
         services.AddScoped<IReactionService, ReactionService>();
+        services.AddScoped<IEncryptionService, EncryptionService>();
+        
         
         // ===== CONVERSATION SERVICES =====
         services.AddScoped<IGetConversationsService, GetConversationsService>(); // ✅
@@ -364,11 +371,12 @@ public static class ServiceCollectionExtensions
         // ===== NOTIFICATION SERVICES =====
         services.AddScoped<INotificationService, NotificationService>();
         
-        
+        // ===== SUPPORT SERVICES =====
+        services.AddScoped<ISupportTicketService, SupportTicketService>();
+        services.AddScoped<IUserReportService, UserReportService>();
          
         
         // ===== MESSAGE NOTIFICATION SERVICES =====
-        services.AddScoped<IGroupNotificationService, GroupNotificationService>();
         services.AddScoped<IGroupNotificationService, GroupNotificationService>();
         services.AddScoped<IMessageNotificationQueryService, MessageNotificationQueryService>();
         services.AddScoped<IMessageNotificationStateService, MessageNotificationStateService>();
@@ -398,13 +406,8 @@ public static class ServiceCollectionExtensions
 
         
         // Til refaktorering
-        services.AddScoped<GroupNotificationService>();
-        services.AddScoped<BootstrapService>();
-        services.AddScoped<FriendService>();
-        services.AddScoped<UserOnlineService>();
-        services.AddScoped<SupportService>();
-        services.AddScoped<E2EEService>();
-        services.AddScoped<IBlockingService, BlockingService>();
+        services.AddScoped<OldBootstrapService>();
+        
         
 
         return services;

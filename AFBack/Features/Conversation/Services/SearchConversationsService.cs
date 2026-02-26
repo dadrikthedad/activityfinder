@@ -1,9 +1,9 @@
-using AFBack.Cache;
 using AFBack.Common.Results;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Repository;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Conversation.Services;
 

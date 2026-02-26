@@ -1,11 +1,12 @@
-using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Conversation.DTOs.Response;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
-using AFBack.Models.Enums;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Conversation.Services;
 
@@ -14,7 +15,7 @@ public class ArchiveConversationService(
     IConversationRepository conversationRepository,
     IConversationValidator conversationValidator,
     IConversationBroadcastService broadcastService,
-    ISendMessageCache sendMessageCache,
+    ICanSendCache canSendCache,
     IGetConversationsService getConversationService) : IArchiveConversationService
 {
     /// <inheritdoc />
@@ -40,7 +41,7 @@ public class ArchiveConversationService(
         var allParticipantsIds = conversation!.Participants.Select(cp => cp.UserId);
         foreach (var participantId in allParticipantsIds)
         {
-            await sendMessageCache.OnCanSendRemovedAsync(participantId, conversationId);
+            await canSendCache.OnCanSendRemovedAsync(participantId, conversationId);
         }
         
         // Lagrer samtalen
@@ -90,8 +91,8 @@ public class ArchiveConversationService(
         // Legger til CanSend igjen hvis begge brukerne har akseptert samtalen
         if (otherParticipant.Status == ConversationStatus.Accepted)
         {  
-            await sendMessageCache.OnCanSendAddedAsync(otherParticipant.UserId, conversationId);
-            await sendMessageCache.OnCanSendAddedAsync(participant.UserId, conversationId);
+            await canSendCache.OnCanSendAddedAsync(otherParticipant.UserId, conversationId);
+            await canSendCache.OnCanSendAddedAsync(participant.UserId, conversationId);
         }
         
         

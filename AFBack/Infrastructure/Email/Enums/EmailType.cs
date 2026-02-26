@@ -9,5 +9,7 @@ public enum EmailType
     Verification,
     PasswordReset,
     EmailChange,
-    PhoneChange
+    PhoneChange,
+    SupportTicket,
+    UserReport
 }

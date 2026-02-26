@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Auth.Models;
-using AFBack.Models.Enums;
 
 namespace AFBack.Features.CanSend.Models;
 
@@ -13,8 +12,6 @@ public class CanSend
     
     // ======================== CanSend data ========================
     public DateTime ApprovedAt { get; set; } = DateTime.UtcNow;
-    
-    public CanSendReason Reason { get; set; } = CanSendReason.MessageRequest;
     
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
     

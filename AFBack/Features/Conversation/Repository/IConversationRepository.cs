@@ -130,6 +130,13 @@ public interface IConversationRepository
     /// <param name="userId">Brukeren vi skal hente samtalepartnere for</param>
     /// <returns>En liste med ID-er</returns>
     Task<List<string>> GetAllConversationPartnerIdsAsync(string userId);
+
+    /// <summary>
+    /// Henter alle aksepterte participants sine ID-er til en samtale
+    /// </summary>
+    /// <param name="conversationId">Samtalen vi henter ifra</param>
+    /// <returns>En liste med UserIDs</returns>
+    Task<List<string>> GetAcceptedParticipantIdsAsync(int conversationId);
     
     ////////////////////////////////////////////// SEARCH CONVERSATIONS /////////////////////////////////////////////
     

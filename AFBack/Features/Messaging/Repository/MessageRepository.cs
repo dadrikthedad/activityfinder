@@ -1,8 +1,9 @@
 using AFBack.Data;
-using AFBack.DTOs;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Messaging.DTOs;
 using AFBack.Features.Messaging.Models;
-using AFBack.Models.Enums;
+using AFBack.Features.Reactions.DTOs;
+using AFBack.Features.Reactions.DTOs.Responses;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 
@@ -14,6 +15,13 @@ public class MessageRepository(
     /// <inheritdoc/>
     public Task<bool> MessageExistsAsync(int messageId) =>
         context.Messages.AsNoTracking().AnyAsync(message => messageId == message.Id);
+    
+    /// <inheritdoc/>
+    public Task<bool> MessageExistsInConversationAsync(int messageId, int conversationId) =>
+        context.Messages.AsNoTracking().AnyAsync(m => 
+            m.Id == messageId && 
+            m.ConversationId == conversationId && 
+            !m.IsDeleted);
     
     /// <inheritdoc/>
     public async Task<MessageDto?> GetMessageDtoAsync(int messageId) =>
@@ -60,8 +68,8 @@ public class MessageRepository(
                         .ToList(),
 
                 Reactions = m.IsDeleted
-                    ? new List<ReactionDto>()
-                    : m.Reactions.Select(r => new ReactionDto
+                    ? new List<ReactionResponse>()
+                    : m.Reactions.Select(r => new ReactionResponse
                         {
                             MessageId = r.MessageId,
                             Emoji = r.Emoji,
@@ -128,8 +136,8 @@ public class MessageRepository(
                         .ToList(),
 
                 Reactions = m.IsDeleted
-                    ? new List<ReactionDto>()
-                    : m.Reactions.Select(r => new ReactionDto
+                    ? new List<ReactionResponse>()
+                    : m.Reactions.Select(r => new ReactionResponse
                         {
                             MessageId = r.MessageId,
                             Emoji = r.Emoji,
@@ -220,7 +228,7 @@ public class MessageRepository(
                     ThumbnailHeight = att.ThumbnailHeight
                 }).ToList(),
 
-                Reactions = m.Reactions.Select(r => new ReactionDto
+                Reactions = m.Reactions.Select(r => new ReactionResponse
                 {
                     MessageId = r.MessageId,
                     Emoji = r.Emoji,
@@ -289,7 +297,7 @@ public class MessageRepository(
                         ThumbnailHeight = att.ThumbnailHeight
                     }).ToList(),
 
-                    Reactions = m.Reactions.Select(r => new ReactionDto
+                    Reactions = m.Reactions.Select(r => new ReactionResponse
                     {
                         MessageId = r.MessageId,
                         Emoji = r.Emoji,
@@ -363,7 +371,7 @@ public class MessageRepository(
                         ThumbnailHeight = att.ThumbnailHeight
                     }).ToList(),
 
-                    Reactions = m.Reactions.Select(r => new ReactionDto
+                    Reactions = m.Reactions.Select(r => new ReactionResponse
                     {
                         MessageId = r.MessageId,
                         Emoji = r.Emoji,

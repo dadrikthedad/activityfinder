@@ -1,8 +1,8 @@
 using AFBack.Data;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Messaging.Models;
-using AFBack.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using ConversationDto = AFBack.Features.Conversation.DTOs.ConversationDto;
 
@@ -146,6 +146,15 @@ public class ConversationRepository(
                          || cp.Status == ConversationStatus.Pending) // Ingen rejected
             .Select(cp => cp.UserId)
             .Distinct()
+            .ToListAsync();
+    
+    /// <inheritdoc />
+    public async Task<List<string>> GetAcceptedParticipantIdsAsync(int conversationId) =>
+        await context.ConversationParticipants
+            .AsNoTracking()
+            .Where(cp => cp.ConversationId == conversationId &&
+                         cp.Status == ConversationStatus.Accepted)
+            .Select(cp => cp.UserId)
             .ToListAsync();
     
     ////////////////////////////////////////////// SEARCH CONVERSATIONS /////////////////////////////////////////////

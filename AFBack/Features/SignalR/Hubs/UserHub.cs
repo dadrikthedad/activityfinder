@@ -124,10 +124,20 @@ public class UserHub(
     }
 
     /// <summary>
-    /// Health check for klient-side connection monitoring.
+    /// Klienten kaller denne periodisk (f.eks. hvert 60. sekund) for å oppdatere
+    /// LastHeartbeat i databasen. StaleConnectionCleanupTask bruker dette for å
+    /// rydde connections som har mistet kontakt uten clean disconnect.
     /// </summary>
-    /// <returns>"pong"</returns>
-    public string Ping() => "pong";
+    public async Task Heartbeat()
+    {
+        if (!ConnectionMetadataExtractor.TryGetUserId(Context, out var userId) || userId == null)
+            return;
+
+        await connectionService.UpdateHeartbeatAsync(
+            userId, 
+            Context.ConnectionId, 
+            Context.ConnectionAborted);
+    }
 
     /// <summary>
     /// Klienten kaller denne når bruker åpner/går inn i en samtale.

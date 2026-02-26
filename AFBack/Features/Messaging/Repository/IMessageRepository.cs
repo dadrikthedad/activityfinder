@@ -11,6 +11,14 @@ public interface IMessageRepository
     /// <param name="messageId"></param>
     /// <returns>True hvis den eksistere, false hvis ikke</returns>
     Task<bool> MessageExistsAsync(int messageId);
+    
+    /// <summary>
+    /// Sjekker at en melding eksisterer i en samtale
+    /// </summary>
+    /// <param name="messageId">ID-en til meldingen</param>
+    /// <param name="conversationId">Samtalen</param>
+    /// <returns>True hvis den eksisterer, false hvis ikke</returns>
+    Task<bool> MessageExistsInConversationAsync(int messageId, int conversationId);
 
     /// <summary>
     /// Henter et MessageDto for å kun hente nødvendig egenskaper for å returnere et rask Response

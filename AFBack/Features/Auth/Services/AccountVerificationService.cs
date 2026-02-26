@@ -6,10 +6,11 @@ using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Models;
+using AFBack.Infrastructure.Email.Templates;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
-using AFBack.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Services;
@@ -24,7 +25,8 @@ public class AccountVerificationService(
     ISmsService smsService,
     IEmailRateLimitService emailRateLimitService,
     ISmsRateLimitService smsRateLimitService,
-    ISuspiciousActivityService suspiciousActivityService) : IAccountVerificationService
+    ISuspiciousActivityService suspiciousActivityService,
+    IRateLimitGuardService rateLimitGuardService) : IAccountVerificationService
 {
     // ======================== Email verifisiering ======================== 
     
@@ -34,15 +36,10 @@ public class AccountVerificationService(
        logger.LogInformation("ResendVerificationEmailAsync. Payload: {@Payload}", new { email });
        
        // ====== Rate limit — stopp spam av verifiseringseposter ======
-       var rateLimitResult = emailRateLimitService.CanSendEmail(EmailType.Verification, email, ipAddress);
+       var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.Verification, 
+           email, ipAddress);
        if (rateLimitResult.IsFailure)
-       {
-           await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-               SuspiciousActivityType.EmailRateLimitExceeded,
-               $"Resend verification rate limit exceeded for {email}");
-           
-           return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-       }
+           return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
        
        // ====== Finn bruker ======
        var user = await userManager.FindByEmailAsync(email);
@@ -129,15 +126,10 @@ public class AccountVerificationService(
         logger.LogInformation("ResendPhoneVerificationAsync. Payload: {@Payload}", new { phoneNumber });
 
         // ====== Rate limit ======
-        var rateLimitResult = smsRateLimitService.CanSendSms(SmsType.Verification, phoneNumber, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(SmsType.Verification, 
+            phoneNumber, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.SmsRateLimitExceeded, 
-                $"Resend phone verification rate limit exceeded for {phoneNumber}");
-
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
 
         // ====== Finn bruker ======
         var user = await userRepository.FindByPhoneAsync(phoneNumber);

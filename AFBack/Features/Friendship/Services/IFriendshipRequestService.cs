@@ -1,3 +1,4 @@
+using AFBack.Common.DTOs;
 using AFBack.Common.Results;
 using AFBack.Features.Friendship.DTOs.Responses;
 
@@ -5,6 +6,29 @@ namespace AFBack.Features.Friendship.Services;
 
 public interface IFriendshipRequestService
 {
+    // ======================= GET ======================= 
+    /// <summary>
+    /// Henter alle mottatte venneforespørsler med Pending status, med paginering
+    /// </summary>
+    /// <param name="userId">Brukeren som henter sine forespørsler</param>
+    /// <param name="page">Side for paginering</param>
+    /// <param name="pageSize">Side for antall sider</param>
+    /// <returns>Result med liste av PendingFriendshipRequestResponse</returns>
+    Task<Result<PaginatedResponse<PendingFriendshipRequestResponse>>>
+        GetReceivedPendingFriendshipRequestsAsync(string userId, int page, int pageSize);
+    
+    /// <summary>
+    /// Henter alle mottatte, men avslåtte venneforespørsler med Rejected status, med paginering
+    /// </summary>
+    /// <param name="userId">Brukeren som henter sine forespørsler</param>
+    /// <param name="page">Side for paginering</param>
+    /// <param name="pageSize">Side for antall sider</param>
+    /// <returns>Result med liste av PendingFriendshipRequestResponse</returns>
+    Task<Result<PaginatedResponse<PendingFriendshipRequestResponse>>> GetDeclinedFriendshipRequestsAsync(
+        string userId, int page, int pageSize);
+    
+    // ======================= SEND FRIENDSHIP REQUEST ======================= 
+    
     /// <summary>
     /// Sender en venneforespørsel til en annen bruker. Validerer, oppretter og sender SignalR/SyncEvent til mottaker
     /// </summary>
@@ -12,6 +36,8 @@ public interface IFriendshipRequestService
     /// <param name="receiverId">Mottaker av forespørselen</param>
     /// <returns>Result med Success eller Failure</returns>
     Task<Result<SendFriendshipRequestResponse>> SendFriendshipRequestAsync(string senderId, string receiverId);
+    
+    // ======================= ACCEPT FRIENDSHIP ======================= 
     
     /// <summary>
     /// Aksepterer en venneforespørsel. Oppretter Friendship, sender SignalR/SyncEvent til begge parter
@@ -21,6 +47,8 @@ public interface IFriendshipRequestService
     /// <returns>Result med FriendshipAcceptedResponse eller Failure</returns>
     Task<Result<FriendshipAcceptedResponse>> AcceptFriendshipRequestAsync(string accepterId, int requestId);
     
+    // ======================= DECLINE FRIENDSHIP ======================= 
+    
     /// <summary>
     /// Avslår en venneforespørsel. Kun mottaker kan avslå.
     /// Avsender får ikke beskjed om avslaget (privacy).
@@ -29,4 +57,6 @@ public interface IFriendshipRequestService
     /// <param name="requestId">ID-en til forespørselen</param>
     /// <returns>Result med Success eller Failure</returns>
     Task<Result> DeclineFriendshipRequestAsync(string userId, int requestId);
+
+    
 }

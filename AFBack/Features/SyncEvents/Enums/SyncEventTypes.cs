@@ -126,11 +126,18 @@ public enum SyncEventType
     // ==================== Reactions ====================
     
     /// <summary>
-    /// Reaksjon lagt til/fjernet på melding
+    /// Reaksjon fjernet på melding
+    /// EventData: { ConversationId, MessageId, Emoji, UserId }
+    /// Hvorfor: Trenger kun å fjerne stille fra meldingen hvis den er i meldingslisten
+    /// </summary>
+    ReactionRemoved,
+    
+    /// <summary>
+    /// Reaksjon lagt til/oppdatert
     /// EventData: { MessageId, Emoji, UserId }
     /// Hvorfor: Må fylles ut
     /// </summary>
-    Reaction,
+    ReactionUpdated,
     
     
     

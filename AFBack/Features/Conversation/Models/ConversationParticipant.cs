@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Auth.Models;
-using AFBack.Models.Enums;
+using AFBack.Features.Conversation.Enums;
 
 namespace AFBack.Features.Conversation.Models;
 

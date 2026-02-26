@@ -1,4 +1,5 @@
-using AFBack.DTOs;
+using AFBack.Features.Reactions.DTOs;
+using AFBack.Features.Reactions.DTOs.Responses;
 
 namespace AFBack.Features.Messaging.DTOs;
 
@@ -23,5 +24,5 @@ public class MessageDto
     public string? ParentSenderId { get; set; }
     
     public List<AttachmentDto> Attachments { get; set; } = new();
-    public List<ReactionDto> Reactions { get; set; } = new();
+    public List<ReactionResponse> Reactions { get; set; } = new();
 }

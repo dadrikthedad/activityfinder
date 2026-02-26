@@ -1,5 +1,7 @@
 using AFBack.Common.Results;
+using AFBack.Features.FileHandling.Enums;
 using AFBack.Features.Messaging.DTOs;
+using AFBack.Features.Support.Models;
 
 namespace AFBack.Features.FileHandling.Services;
 
@@ -24,6 +26,16 @@ public interface IFileOrchestrator
     /// <param name="ct">CT</param>
     Task<Result> UploadEncryptedFileAsync(byte[] encryptedData, string storageKey, long maxSizeInBytes, 
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Validerer og laster opp et SupportAttachment til en private container.
+    /// Brukes av SupportTicketService
+    /// </summary>
+    /// <param name="file">Filen som en file</param>
+    /// <param name="ct"></param>
+    /// <returns>Result med SupportAttachment</returns>
+    Task<Result<SupportAttachment>> UploadSupportAttachmentAsync(IFormFile file,
+        CancellationToken ct = default);
     
     /// <summary>
     /// Genererer tidsbegrensede SAS URLs for alle attachments i en liste.
@@ -45,13 +57,13 @@ public interface IFileOrchestrator
     /// <returns>Result med Success eller Failure</returns>
     Task<Result> DeletePublicImageAsync(string storageKey, CancellationToken ct = default);
     
-    
+
     /// <summary>
-    /// Sletter en liste med krypterte filer fra storage. DeleteAsync logger feil.
+    /// Sletter en liste med filer fra storage. DeleteAsync logger feil.
     /// Brukes for rollback ved feil under attachment-opplasting.
     /// </summary>
     /// <param name="storageKeys">Filen som har blitt lastet opp, som må slettes</param>
+    /// <param name="container">BlobContainer enum med type container</param>
     /// <param name="ct"></param>
-    /// <returns></returns>
-    Task TryCleanupEncryptedFilesAsync(List<string> storageKeys, CancellationToken ct = default);
+    Task TryCleanupFilesAsync(List<string> storageKeys, BlobContainer container, CancellationToken ct = default);
 }

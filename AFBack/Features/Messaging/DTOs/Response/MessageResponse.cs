@@ -1,5 +1,7 @@
 using AFBack.Common.DTOs;
 using AFBack.DTOs;
+using AFBack.Features.Reactions.DTOs;
+using AFBack.Features.Reactions.DTOs.Responses;
 
 namespace AFBack.Features.Messaging.DTOs.Response;
 
@@ -35,6 +37,6 @@ public record MessageResponse
     
     // ==================== Vedlegg/reaksjoner ==================== 
     public List<AttachmentResponse> EncryptedAttachments { get; set; } = [];
-    public List<ReactionDto> Reactions { get; set; } = [];
+    public List<ReactionResponse> Reactions { get; set; } = [];
     
 }

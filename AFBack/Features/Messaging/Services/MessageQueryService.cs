@@ -1,13 +1,13 @@
-using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Extensions;
-using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Repository;
-using AFBack.Models.Enums;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Messaging.Services;
 
@@ -20,7 +20,7 @@ public class MessageQueryService(
 {
     // ======================================== GET MESSAGES ========================================
     
-    // Sjekk interface for summary
+    /// <inheritdoc/>
     public async Task<Result<MessagesResponse>> GetMessagesAsync(
         string userId, int conversationId, int page, int pageSize)
     {
@@ -99,7 +99,7 @@ public class MessageQueryService(
         return Result<MessagesResponse>.Success(response);
     }
     
-    // Sjekk interface for summary
+    /// <inheritdoc/>
     public async Task<Result<Dictionary<int, List<MessageResponse>>>> GetMessagesForConversationsAsync(
         string userId, List<int> conversationIds, int messagesPerConversation)
     {

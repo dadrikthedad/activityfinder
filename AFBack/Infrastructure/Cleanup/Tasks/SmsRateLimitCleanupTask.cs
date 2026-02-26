@@ -8,10 +8,12 @@ namespace AFBack.Infrastructure.Cleanup.Tasks;
 /// Rydder utløpte cooldowns, daglige tellere og IP-tellere.
 /// Kjøres av MaintenanceCleanupService via ICleanupTask.
 /// </summary>
-public class SmsRateLimitCleanupTask(SmsRateLimitService smsRateLimitService)
+public class SmsRateLimitCleanupTask(SmsRateLimitService smsRateLimitService) : ICleanupTask
 {
     public string TaskName => "SmsRateLimit";
     public TimeSpan Interval => TimeSpan.FromMinutes(SmsRateLimitConfig.SmsCleanupIntervalMinutes);
+
+    public TimeSpan InitialDelay { get; } = TimeSpan.FromMinutes(5);
 
     public Task ExecuteAsync(CancellationToken cancellationToken)
     {

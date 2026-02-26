@@ -1,4 +1,3 @@
-using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Infrastructure.Email.Enums;
 

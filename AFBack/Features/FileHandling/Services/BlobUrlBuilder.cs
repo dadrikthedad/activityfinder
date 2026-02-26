@@ -21,7 +21,10 @@ public class BlobUrlBuilder(
                                              "Azure:Containers:EncryptedFiles not configured"),
         [BlobContainer.PublicImages] = configuration["Azure:Containers:PublicImages"]
                                        ?? throw new InvalidOperationException(
-                                           "Azure:Containers:PublicImages not configured")
+                                           "Azure:Containers:PublicImages not configured"),
+        [BlobContainer.PrivateFiles] = configuration["Azure:Containers:PrivateFiles"]
+                                       ?? throw new InvalidOperationException(
+                                           "Azure:Containers:PrivateFiles not configured"),
     };
     
     /// <inheritdoc/>

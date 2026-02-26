@@ -1,8 +1,7 @@
-using AFBack.Common;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Models;
-using AFBack.Models.Enums;
 
 namespace AFBack.Features.Conversation.Validators;
 
@@ -86,8 +85,8 @@ public class ConversationValidator(
         if (conversation.Type != ConversationType.GroupChat)
         {
             logger.LogError(
-                "User {UserId} tried to perform group action on conversation {ConversationId} that is not a group (Type: {Type})",
-                userId, conversation.Id, conversation.Type);
+                "User {UserId} tried to perform group action on conversation {ConversationId} that is not a " +
+                "group (Type: {Type})", userId, conversation.Id, conversation.Type);
             return Result.Failure("This endpoint is only for group conversations", ErrorTypeEnum.BadRequest);
         }
         
@@ -113,8 +112,7 @@ public class ConversationValidator(
     {
         if (conversation.Type == ConversationType.GroupChat)
         {
-            logger.LogError(
-                "User {UserId} tried to perform 1-1 action on group conversation {ConversationId}",
+            logger.LogError("User {UserId} tried to perform 1-1 action on group conversation {ConversationId}",
                 userId, conversation.Id);
             return Result.Failure("Wrong endpoint for group conversations", ErrorTypeEnum.BadRequest);
         }
@@ -127,11 +125,9 @@ public class ConversationValidator(
     {
         if (participant.ConversationArchived)
         {
-            logger.LogWarning(
-                "User {UserId} tried to perform action on archived conversation {ConversationId}",
+            logger.LogWarning("User {UserId} tried to perform action on archived conversation {ConversationId}",
                 participant.UserId, participant.ConversationId);
-            return Result.Failure(
-                "You cannot perform this action on a conversation you have deleted", 
+            return Result.Failure("You cannot perform this action on a conversation you have deleted", 
                 ErrorTypeEnum.Gone);
         }
         
@@ -146,9 +142,7 @@ public class ConversationValidator(
             logger.LogWarning(
                 "User {UserId} tried to restore non-archived conversation {ConversationId}",
                 participant.UserId, participant.ConversationId);
-            return Result.Failure(
-                "You have not deleted this conversation", 
-                ErrorTypeEnum.BadRequest);
+            return Result.Failure("You have not deleted this conversation", ErrorTypeEnum.BadRequest);
         }
         
         return Result.Success();
@@ -160,11 +154,10 @@ public class ConversationValidator(
         if (participant.Role != ParticipantRole.PendingRecipient)
         {
             logger.LogWarning(
-                "User {UserId} tried to accept/reject conversation {ConversationId} but is not the recipient (Role: {Role})",
-                participant.UserId, participant.ConversationId, participant.Role);
+                "User {UserId} tried to accept/reject conversation {ConversationId} but is not the recipient " +
+                "(Role: {Role})", participant.UserId, participant.ConversationId, participant.Role);
             return Result.Failure(
-                "You cannot perform this action on a conversation you initiated", 
-                ErrorTypeEnum.Forbidden);
+                "You cannot perform this action on a conversation you initiated", ErrorTypeEnum.Forbidden);
         }
         
         return Result.Success();

@@ -29,4 +29,19 @@ public interface IMessageNotificationStateService
     /// <param name="userId">Brukerens ID</param>
     /// <returns>Result som indikerer suksess eller feil</returns>
     Task<Result> MarkAllAsReadAsync(string userId);
+    
+    /// <summary>
+    /// Sletter en MessageNotification. Validerer at brukeren eier notifikasjonen.
+    /// </summary>
+    /// <param name="userId">Brukeren som sletter notification</param>
+    /// <param name="messageNotificationId">MessageNotification som skal slettes</param>
+    /// <returns>Result som indikerer suksess eller feil</returns>
+    Task<Result> DeleteAsync(string userId, int messageNotificationId);
+
+    /// <summary>
+    /// Sletter alle MessageNotifications for en bruker
+    /// </summary>
+    /// <param name="userId">Brukeren som sletter alle notifications</param>
+    /// <returns>Result som indikerer suksess eller feil</returns>
+    Task<Result> DeleteAllAsync(string userId);
 }

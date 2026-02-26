@@ -1,9 +1,8 @@
 using AFBack.Configurations.Options;
-using AFBack.Constants;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Models;
 using AFBack.Infrastructure.Security.Repositories;
 using AFBack.Infrastructure.Security.Utils;
-using AFBack.Models.Enums;
 
 namespace AFBack.Infrastructure.Security.Services;
 

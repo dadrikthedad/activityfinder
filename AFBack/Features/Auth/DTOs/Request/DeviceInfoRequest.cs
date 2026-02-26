@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using AFBack.Models.Enums;
+using AFBack.Features.Auth.Enums;
 
 namespace AFBack.Features.Auth.DTOs.Request;
 

@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using AFBack.Constants;
 using AFBack.Features.Auth.Models;
+using AFBack.Infrastructure.Security.Enums;
 
 namespace AFBack.Infrastructure.Security.Models;
 // Nivå 1: Enkel sporing (alltid tilgjengelig)

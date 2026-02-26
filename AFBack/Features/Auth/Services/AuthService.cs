@@ -12,8 +12,9 @@ using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Models;
+using AFBack.Infrastructure.Email.Templates;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
-using AFBack.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Services;
@@ -31,7 +32,8 @@ public class AuthService(
    IAccountVerificationService accountVerificationService,
    ISuspiciousActivityService suspiciousActivityService,
    IVerificationInfoRepository verificationInfoRepository,
-   ITokenService tokenService) : IAuthService
+   ITokenService tokenService,
+   IRateLimitGuardService rateLimitGuardService) : IAuthService
 {
     // Hasher et passord ved oppstart så endringer som skjer i PasswordHashService gir alltid et korrekt
     // Dummy passord.
@@ -54,15 +56,10 @@ public class AuthService(
         // ====== IP-basert rate limit — stopp spam-registreringer tidlig ======
            
         // Sjekker om brukeren har spammet endepunktene våre tidligere
-        var rateLimitResult = emailRateLimitService.CanSendEmail(EmailType.Verification, request.Email, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.Verification, 
+            request.Email, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.EmailRateLimitExceeded,
-                $"Signup email rate limit exceeded for {request.Email}");
-               
-            return Result<SignupResponse>.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result<SignupResponse>.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
            
         // ====== Validering ======
         var existingUserWithThisEmail = await userManager.FindByEmailAsync(request.Email);

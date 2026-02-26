@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
+using AFBack.Features.Auth.Enums;
 using AFBack.Features.SignalR.Models;
 using AFBack.Features.SyncEvents.Models;
 using AFBack.Infrastructure.Security.Models;
-using AFBack.Models.Enums;
 
 namespace AFBack.Features.Auth.Models;
 

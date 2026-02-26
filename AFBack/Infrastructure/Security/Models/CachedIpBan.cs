@@ -1,5 +1,5 @@
 using AFBack.Configurations.Options;
-using AFBack.Constants;
+using AFBack.Infrastructure.Security.Enums;
 
 namespace AFBack.Infrastructure.Security.Models;
 

@@ -1,11 +1,11 @@
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Blocking.Services;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.Repository;
-using AFBack.Models.Enums;
 
 namespace AFBack.Features.Messaging.Validators;
 

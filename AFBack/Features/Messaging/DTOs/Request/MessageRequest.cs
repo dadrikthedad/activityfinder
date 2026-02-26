@@ -18,6 +18,9 @@ public class MessageRequest : IValidatableObject
     
     
     // ======================== KrypteringsInfo ========================
+
+    public string OptimisticId { get; set; } = string.Empty;
+    
     public string? EncryptedText { get; set; } // Nullable for attachment-only
     
     [Required(ErrorMessage = "KeyInfo is required.")]

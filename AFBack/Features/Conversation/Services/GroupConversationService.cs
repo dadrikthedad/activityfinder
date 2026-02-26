@@ -1,11 +1,12 @@
-using AFBack.Cache;
 using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.DTOs;
 using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Conversation.DTOs.Request;
 using AFBack.Features.Conversation.DTOs.Response;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
@@ -13,10 +14,10 @@ using AFBack.Features.Conversation.Validators;
 using AFBack.Features.FileHandling.Constants;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Features.MessageNotifications.Models.Enum;
-using AFBack.Features.Messaging.Interface;
+using AFBack.Features.Messaging.Services;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Models.Enums;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Conversation.Services;
 
@@ -30,7 +31,7 @@ public class GroupConversationService(
     IUserSummaryCacheService userSummariesCache,
     IGroupInviteValidator groupInviteValidator,
     IConversationValidator conversationValidator,
-    ISendMessageCache sendMessageCache,
+    ICanSendCache canSendCache,
     IFileOrchestrator fileOrchestrator) : IGroupConversationService
 {
     /// <inheritdoc />
@@ -101,7 +102,7 @@ public class GroupConversationService(
         }
         
         // ============ POST-COMMIT: Oppdater Cache ============
-        await sendMessageCache.OnCanSendAddedAsync(userId, createdConversation.Id);
+        await canSendCache.OnCanSendAddedAsync(userId, createdConversation.Id);
    
         
         // ============ POST-COMMIT: Systemmeldinger ============
@@ -208,7 +209,7 @@ public class GroupConversationService(
         
         // ============ POST-COMMIT: Cache ============
         
-        await sendMessageCache.OnCanSendAddedAsync(userId, conversationId);
+        await canSendCache.OnCanSendAddedAsync(userId, conversationId);
       
         
         // ============ HENT DATA FOR RESPONSE ============
@@ -531,7 +532,7 @@ public class GroupConversationService(
         
         // ============ POST-COMMIT: Cache ============
         
-        await sendMessageCache.OnCanSendRemovedAsync(userId, conversationId);
+        await canSendCache.OnCanSendRemovedAsync(userId, conversationId);
         
         // ============ HENT DATA FOR RESPONSE ============
         
@@ -633,7 +634,7 @@ public class GroupConversationService(
     private async Task DisbandGroupAsync(string userId, Models.Conversation conversation)
     {
         // Fjern alle brukerne fra sendMessageCache
-        await sendMessageCache.RemoveAllUsersFromConversationAsync(conversation.Id);
+        await canSendCache.RemoveAllUsersFromConversationAsync(conversation.Id);
         
         // Sett samtalen som disbanded
         conversation.IsDisbanded = true;

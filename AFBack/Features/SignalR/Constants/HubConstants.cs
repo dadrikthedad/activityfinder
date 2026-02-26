@@ -24,7 +24,8 @@ public static class HubConstants
         public const string ReceiveMessage = "ReceiveMessage";
         public const string MessageDeleted = "MessageDeleted";
         public const string MessageEdited = "MessageEdited";
-        public const string MessageReaction = "MessageReaction";
+        public const string ReactionUpdated = "ReactionUpdated";
+        public const string ReactionRemoved = "ReactionRemoved";
         
         // Direct conversation events
         public const string IncomingDirectConversation = "IncomingDirectConversation";
@@ -47,7 +48,7 @@ public static class HubConstants
         // Friendship events
         public const string FriendshipRequestReceived = "FriendshipRequestReceived";
         public const string FriendshipRequestAccepted = "FriendshipRequestAccepted";
-        
+        public const string FriendRemoved = "FriendRemoved";
         
         // Typing indicators
         public const string UserTyping = "UserTyping";

@@ -1,6 +1,6 @@
 using AFBack.Common.DTOs;
 using AFBack.DTOs;
-using AFBack.Models.Enums;
+using AFBack.Features.Conversation.Enums;
 
 namespace AFBack.Features.Conversation.DTOs.Response;
 

@@ -1,6 +1,6 @@
-using AFBack.Constants;
 using AFBack.Data;
 using AFBack.Features.Auth.Models;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Models;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,4 +1,4 @@
-using AFBack.Models.Enums;
+using AFBack.Infrastructure.Security.Enums;
 
 namespace AFBack.Infrastructure.Security.Services;
 

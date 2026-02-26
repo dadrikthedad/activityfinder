@@ -1,4 +1,3 @@
-using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
@@ -8,6 +7,7 @@ using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.MessageNotifications.Extensions;
 using AFBack.Features.MessageNotifications.Repository;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.MessageNotifications.Service;
 

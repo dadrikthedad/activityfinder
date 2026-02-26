@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using AFBack.Features.Auth.Models;
-using AFBack.Models.Enums;
+using AFBack.Features.Profile.Enums;
 
 namespace AFBack.Features.Profile.Models;
 

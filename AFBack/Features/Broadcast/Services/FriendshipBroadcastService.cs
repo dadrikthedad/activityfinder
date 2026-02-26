@@ -1,4 +1,5 @@
 using AFBack.Common.DTOs;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Friendship.DTOs.Responses;
 using AFBack.Features.Notifications.Enums;
 using AFBack.Features.Notifications.Services;
@@ -22,12 +23,15 @@ public class FriendshipBroadcastService(
         var summary = $"{senderSummary.FullName} wants to be your friend";
         var notificationResponse = await notificationService.CreateNotificationAsync(receiverId, senderId, 
             NotificationEventType.FriendshipRequestReceived, summary, senderSummary);
-
-        var response = new FriendshipRequestResponse
+        
+        var response = new ReceivedPendingFriendshipRequestPayload
         {
-            Id = friendshipRequestId,
-            Sender = senderSummary,
-            SentAt = sentAt,
+            PendingFriendshipRequestResponse = new()
+            {
+                RequestId = friendshipRequestId,
+                Sender = senderSummary,
+                SentAt = sentAt,
+            },
             NotificationResponse = notificationResponse
         };
 
@@ -83,9 +87,23 @@ public class FriendshipBroadcastService(
     
     /// <inheritdoc />
     public async Task BroadcastFriendshipRequestDeclinedAsync(string userId, int requestId) =>
-        await syncService.CreateSyncEventsAsync(
-            [userId],
-            SyncEventType.FriendRequestDeclined,
-            requestId);
+        await syncService.CreateSyncEventsAsync([userId], SyncEventType.FriendRequestDeclined, requestId);
     
+    /// <inheritdoc />
+    public async Task BroadcastFriendshipRemovedAsync(string userId, string friendId)
+    {
+        await Task.WhenAll(
+            // Stille SignalR til vennen
+            signalRNotificationService.SendToUsersAsync([friendId],
+                HubConstants.ClientEvents.FriendRemoved, userId,
+                $"Friendship removed between {userId} and {friendId}"),
+
+            // SyncEvent til begge parter (hver får den andres userId)
+            syncService.CreateSyncEventsAsync([userId],
+                SyncEventType.FriendRemoved, friendId),
+
+            syncService.CreateSyncEventsAsync([friendId],
+                SyncEventType.FriendRemoved, userId)
+        );
+    }
 }

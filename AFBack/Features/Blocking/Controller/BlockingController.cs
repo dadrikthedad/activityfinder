@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Common.Controllers;
-using AFBack.Controllers;
 using AFBack.Features.Blocking.DTOs;
 using AFBack.Features.Blocking.Services;
 using AFBack.Infrastructure.Extensions;

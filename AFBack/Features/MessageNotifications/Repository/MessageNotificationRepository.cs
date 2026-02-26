@@ -1,9 +1,9 @@
 using AFBack.Common;
 using AFBack.Data;
 using AFBack.Features.Conversation.DTOs.Response;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotification.Models.Enum;
-using AFBack.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.MessageNotifications.Repository;
@@ -43,6 +43,15 @@ public class MessageNotificationRepository(AppDbContext context) : IMessageNotif
                                        (conversationResponse.Type == ConversationType.GroupChat ||
                                             mn.SenderId == senderId));
     
+    /// <inheritdoc />
+    public async Task<Models.MessageNotification?> GetReactionNotificationAsync(
+        string recipientId, int messageId) =>
+        await context.MessageNotifications
+            .FirstOrDefaultAsync(mn =>
+                mn.RecipientId == recipientId &&
+                mn.MessageId == messageId &&
+                !mn.IsRead &&
+                mn.Type == MessageNotificationType.MessageReaction);
     
     /// <inheritdoc />
     public async Task<int> GetUnreadCountAsync(string userId) => await context.MessageNotifications
@@ -68,6 +77,20 @@ public class MessageNotificationRepository(AppDbContext context) : IMessageNotif
         await context.MessageNotifications.AddAsync(notification);
         await context.SaveChangesAsync();
     }
+    
+    /// <inheritdoc />
+    public async Task DeleteMessageNotificationAsync(Models.MessageNotification notification)
+    {
+        context.MessageNotifications.Remove(notification);
+        await context.SaveChangesAsync();
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAllMessageNotificationsAsync(string userId) =>
+        await context.MessageNotifications
+            .Where(mn => mn.RecipientId == userId)
+            .ExecuteDeleteAsync();
+    
     
     /// <inheritdoc />
     public async Task SaveMessageNotificationAsync() => await context.SaveChangesAsync();

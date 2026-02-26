@@ -3,6 +3,7 @@ using AFBack.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.Messaging.DTOs.Response;
+using AFBack.Features.Reactions.Enums;
 
 namespace AFBack.Features.MessageNotifications.Service;
 
@@ -24,6 +25,22 @@ public interface IMessageNotificationService
         ConversationResponse conversationResponse,
         MessageResponse messageResponse
     );
+    
+    /// <summary>
+    /// Lager eller oppdaterer en eksisterende MessageNotification for reaksjoner til både 1-1 og gruppesamtaler.
+    /// </summary>
+    /// <param name="recipientId">Mottakeren av reaksjonen, brukeren som har sendt meldingen</param>
+    /// <param name="reactingUserId">Brukeren som reagerer</param>
+    /// <param name="conversationResponse">Samtalen med participants</param>
+    /// <param name="messageResponse">Meldingen</param>
+    /// <param name="reactionAction">ReactionAction som forteller om det ble opprettet, slettet eller oppdatert</param>
+    /// <returns>MessageNotificationResponse for inkludering i SyncEvent, eller null hvis ikke opprettet</returns>
+    Task<MessageNotificationResponse?> CreateReactionNotificationAsync(
+        string recipientId,
+        string reactingUserId,
+        ConversationResponse conversationResponse,
+        MessageResponse messageResponse,
+        ReactionAction reactionAction);
 
     /// <summary>
     /// Oppretter en notification for en innkommende santaleforespørsel. Både vanlig samtaler og gruppesamtaler

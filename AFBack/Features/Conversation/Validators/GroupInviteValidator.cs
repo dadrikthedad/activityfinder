@@ -1,8 +1,8 @@
-using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Conversation.Repository;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Conversation.Validators;
 

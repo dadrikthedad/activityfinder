@@ -15,9 +15,20 @@ public interface ISyncService
     /// <param name="eventData">Dataen tilhørende eventet. Feks for ny melding: Samtalen og meldingen</param>
     /// <exception cref="ArgumentException">Hvis targetUserIds er tom</exception>
     Task CreateSyncEventsAsync(List<string> targetUserIds, SyncEventType eventType, object eventData);
-
+    
+    /// <summary>
+    /// Sjekker og henter om det er nødvendig med full bootstrap eller henting av synceventer
+    /// </summary>
+    /// <param name="userId">Brukeren vi skal hente sync events for</param>
+    /// <param name="userDeviceId">Brukerens enhet</param>
+    /// <returns>SyncResponse</returns>
     Task<Result<SyncResponse>> ValidateSyncForDeviceAsync(string userId, int userDeviceId);
     
-    Task CleanupOldEventsAsync();
+    /// <summary>
+    /// Sletter SyncEvents eldre enn InactivityThreshold.
+    /// Enheter som har vært inaktive lenger enn dette trigges til full bootstrap uansett,
+    /// så gamle events er ikke lenger nødvendige.
+    /// </summary>
+    Task CleanupOldEventsAsync(CancellationToken ct = default);
     
 }

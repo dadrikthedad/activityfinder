@@ -1,24 +1,24 @@
-using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Configurations.Options;
-using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.FileHandling.Constants;
+using AFBack.Features.FileHandling.Enums;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Features.Messaging.DTOs;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Extensions;
-using AFBack.Features.Messaging.Interface;
 using AFBack.Features.Messaging.Repository;
 using AFBack.Features.Messaging.Validators;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Messaging.Services;
 
 public class SendMessageService(
     IMessageRepository messageRepository,
     ILogger<SendMessageService> logger,
-    ISendMessageCache msgCache,
+    ICanSendCache msgCache,
     ISendMessageValidator sendMessageValidator,
     IBlobUrlBuilder blobUrlBuilder,
     IMessageBroadcastService messageBroadcastService,
@@ -32,7 +32,7 @@ public class SendMessageService(
     // Hvis nei, godkjenn tidligere avslått eller pending Samtale -> Kall SendMessageAsync
     
 
-
+    /// <inheritdoc/>
     public async Task<Result<SendMessageResponse>> SendMessageAsync(MessageRequest request, string userId)
     {
         logger.LogInformation("Sending message for user {UserId} to conversation {ConversationId}", userId,
@@ -105,7 +105,7 @@ public class SendMessageService(
                     .ToList();
                 
                 // Slettter filene
-                await fileOrchestrator.TryCleanupEncryptedFilesAsync(storageKeys);
+                await fileOrchestrator.TryCleanupFilesAsync(storageKeys, BlobContainer.EncryptedFiles);
 
             }
 
@@ -202,13 +202,13 @@ public class SendMessageService(
         finally
         {
             if (!success && uploadedStorageKeys.Count > 0)
-                await fileOrchestrator.TryCleanupEncryptedFilesAsync(uploadedStorageKeys);
+                await fileOrchestrator.TryCleanupFilesAsync(uploadedStorageKeys, BlobContainer.EncryptedFiles);
         }
     }
     
     // ======================================== System melding ========================================
 
-
+    /// <inheritdoc/>
     public async Task SendSystemMessageAsync(int conversationId, string messageText)
     {
         logger.LogInformation("Creating system message for conversation {ConversationId}: {MessageText}", 

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Common.Validations;
-using AFBack.Models.Enums;
+using AFBack.Features.Profile.Enums;
 
 namespace AFBack.Features.Auth.DTOs.Request;
 

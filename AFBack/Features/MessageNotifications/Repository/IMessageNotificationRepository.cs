@@ -30,6 +30,15 @@ public interface IMessageNotificationRepository
     /// <returns>En MessageNotification-entitet eller null</returns>
     Task<Models.MessageNotification?> GetMessageNotificationWithSenderIdAsync(string recipientId, string senderId,
         ConversationResponse conversationResponse);
+
+
+    /// <summary>
+    /// Henter eksisterende ulest reaksjons-notifikasjon for en bruker i en samtale
+    /// </summary>
+    /// <param name="recipientId">Mottaker</param>
+    /// <param name="conversationId">Samtalen</param>
+    /// <returns>MessageNotification eller null</returns>
+    Task<Models.MessageNotification?> GetReactionNotificationAsync(string recipientId, int conversationId);
     
     /// <summary>
     /// Henter alle uleste MessageNotifications for en bruker i en spesifikk samtale.
@@ -63,6 +72,19 @@ public interface IMessageNotificationRepository
     /// <param name="conversationId">Samtalens ID</param>
     /// <returns>Liste med MessageNotifications</returns>
     Task<List<Models.MessageNotification>> GetMessageNotificationsForConversationAsync(string userId, int conversationId);
+    
+    /// <summary>
+    /// Sletter en MessageNotification fra databasen
+    /// </summary>
+    /// <param name="notification">MessageNotification som skal slettes</param>
+    Task DeleteMessageNotificationAsync(Models.MessageNotification notification);
+
+    /// <summary>
+    /// Sletter alle MessageNotifications for en bruker
+    /// </summary>
+    /// <param name="userId">Brukeren som skal ha alle notifications slettet</param>
+    /// <returns></returns>
+    Task DeleteAllMessageNotificationsAsync(string userId);
     
     /// <summary>
     /// Lagrer en MessageNotification i databasen

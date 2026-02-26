@@ -1,4 +1,4 @@
-using AFBack.Constants;
+using AFBack.Infrastructure.Security.Enums;
 
 namespace AFBack.Infrastructure.Security.Services;
 
@@ -35,4 +35,10 @@ public interface IIpBanService
     /// <param name="ipAddress">IP-addressen vi skal sjekke</param>
     /// <returns>True hvis den er banned, og false hvis ikke</returns>
     Task<bool> IsIpBannedAsync(string? ipAddress);
+
+    /// <summary>
+    /// Rydder utløpte bans fra cache og deaktiverer i database.
+    /// Kalles periodisk av IpBanCleanupTask.
+    /// </summary>
+    Task ClearExpiredFromCacheAsync(CancellationToken ct = default);
 }

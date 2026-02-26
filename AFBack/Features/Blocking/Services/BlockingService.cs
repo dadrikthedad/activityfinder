@@ -1,14 +1,14 @@
-using AFBack.Cache;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Blocking.DTOs;
 using AFBack.Features.Blocking.Models;
 using AFBack.Features.Blocking.Repository;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
-using AFBack.Models.Enums;
+using AFBack.Infrastructure.Cache;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Blocking.Services;
@@ -18,7 +18,7 @@ public class BlockingService(
     IUserBlockRepository userBlockRepository,
     UserManager<AppUser> userManager,
     IConversationRepository conversationRepository,
-    ISendMessageCache sendMessageCache,
+    ICanSendCache canSendCache,
     ISyncService syncService) : IBlockingService
 {
     /// <inheritdoc />
@@ -64,8 +64,8 @@ public class BlockingService(
         {
             if (conversation.Type == ConversationType.DirectChat)
             {
-                await sendMessageCache.OnCanSendRemovedAsync(userId, conversation.Id);
-                await sendMessageCache.OnCanSendRemovedAsync(targetUserId, conversation.Id);
+                await canSendCache.OnCanSendRemovedAsync(userId, conversation.Id);
+                await canSendCache.OnCanSendRemovedAsync(targetUserId, conversation.Id);
             }
         }
         
@@ -137,8 +137,8 @@ public class BlockingService(
                 var reverseBlock = await userBlockRepository.GetAsync(targetUserId, userId);
                 if (reverseBlock == null)
                 {
-                    await sendMessageCache.OnCanSendAddedAsync(userId, conversation.Id);
-                    await sendMessageCache.OnCanSendAddedAsync(targetUserId, conversation.Id);
+                    await canSendCache.OnCanSendAddedAsync(userId, conversation.Id);
+                    await canSendCache.OnCanSendAddedAsync(targetUserId, conversation.Id);
                 }
             }
         }

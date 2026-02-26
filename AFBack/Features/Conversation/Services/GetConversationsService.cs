@@ -1,4 +1,3 @@
-using AFBack.Cache;
 using AFBack.Common;
 using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
@@ -7,6 +6,7 @@ using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Extensions;
 using AFBack.Features.Conversation.Repository;
+using AFBack.Infrastructure.Cache;
 
 namespace AFBack.Features.Conversation.Services;
 

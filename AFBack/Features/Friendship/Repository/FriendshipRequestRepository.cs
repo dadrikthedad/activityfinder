@@ -1,4 +1,5 @@
 using AFBack.Data;
+using AFBack.Features.Friendship.Enums;
 using AFBack.Features.Friendship.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,44 @@ public class FriendshipRequestRepository(AppDbContext context) : IFriendshipRequ
         await context.FriendshipRequests
             .FirstOrDefaultAsync(f => f.Id == requestId);
     
+    /// <inheritdoc />
+    public async Task<int> GetPendingReceivedRequestsCountAsync(string userId)
+        => await context.FriendshipRequests
+            .CountAsync(f => f.ReceiverId == userId 
+                             && f.Status == FriendshipRequestStatus.Pending);
+    
+    /// <inheritdoc />
+    public async Task<List<FriendshipRequest>> GetPendingReceivedRequestsAsync(
+        string userId, int page, int pageSize)
+        => await context.FriendshipRequests
+            .AsNoTracking()
+            .Where(f => f.ReceiverId == userId 
+                        && f.Status == FriendshipRequestStatus.Pending)
+            .OrderByDescending(f => f.SentAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+    
+    /// <inheritdoc />
+    public async Task<int> GetDeclinedReceivedRequestsCountAsync(string userId)
+        => await context.FriendshipRequests
+            .CountAsync(f => f.ReceiverId == userId 
+                             && f.Status == FriendshipRequestStatus.Declined);
+    
+    /// <inheritdoc />
+    public async Task<List<FriendshipRequest>> GetDeclinedReceivedRequestsAsync(
+        string userId, int page, int pageSize)
+        => await context.FriendshipRequests
+            .AsNoTracking()
+            .Where(f => f.ReceiverId == userId 
+                        && f.Status == FriendshipRequestStatus.Declined)
+            .OrderByDescending(f => f.SentAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+   
+    
     // ======================== Create ========================
     
     /// <inheritdoc />
@@ -26,6 +65,10 @@ public class FriendshipRequestRepository(AppDbContext context) : IFriendshipRequ
         await context.FriendshipRequests.AddAsync(friendshipRequest);
         await context.SaveChangesAsync();
     }
+    
+    // ======================== DELETE ========================
+    /// <inheritdoc />
+    public void Remove(FriendshipRequest friendshipRequest) => context.FriendshipRequests.Remove(friendshipRequest);
     
     // ======================== SAVE ========================
     

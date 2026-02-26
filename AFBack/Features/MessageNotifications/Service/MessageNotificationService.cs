@@ -1,13 +1,12 @@
 using AFBack.Common.DTOs;
-using AFBack.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.MessageNotifications.Extensions;
 using AFBack.Features.MessageNotifications.Repository;
 using AFBack.Features.Messaging.DTOs.Response;
-using AFBack.Models;
-using AFBack.Models.Enums;
+using AFBack.Features.Reactions.Enums;
 
 namespace AFBack.Features.MessageNotifications.Service;
 
@@ -130,6 +129,72 @@ public class MessageNotificationService(
             ? $"has sent you {messageCount} messages"
             : $"There are {messageCount} new messages in {groupName}";
     
+    // ======================== Reaction Notification ========================
+    
+    /// <summary>
+    /// Oppretter eller oppdaterer (stacker) en reaksjons-notifikasjon for mottakeren.
+    /// Stacker per samtale — alle uleste reaksjoner i samme samtale samles i én notifikasjon.
+    /// </summary>
+    public async Task<MessageNotificationResponse?> CreateReactionNotificationAsync(
+        string recipientId,
+        string reactingUserId,
+        ConversationResponse conversationResponse,
+        MessageResponse messageResponse,
+        ReactionAction reactionAction)
+    {
+        // Ikke opprett notifikasjon for fjerning av reaksjon, eller ikke til brukeren som har reagert
+        if (reactionAction == ReactionAction.Removed || recipientId == reactingUserId)
+            return null;
+        
+        // Hent eksisterende ulest reaksjons-notifikasjon for denne samtalen
+        var existingNotification = await messageNotificationRepository.GetReactionNotificationAsync(
+            recipientId, messageResponse.Id);
+
+        Models.MessageNotification messageNotification;
+
+        if (existingNotification != null)
+        {
+            // Stack — oppdater eksisterende
+            existingNotification.MessageCount++;
+            existingNotification.LastUpdatedAt = DateTime.UtcNow;
+            existingNotification.SenderId = reactingUserId;
+            existingNotification.Summary = $"You have {existingNotification.MessageCount} new " +
+                                           $"reactions on your message";
+
+            await messageNotificationRepository.SaveMessageNotificationAsync();
+            messageNotification = existingNotification;
+        }
+        else
+        {
+            // Hent reaktørens navn for summary
+            var reactingParticipant = conversationResponse.Participants
+                                          .FirstOrDefault(p => p.User.Id == reactingUserId) 
+                                      ?? throw new InvalidOperationException(
+                                          $"Reacting user {reactingUserId} not found " +
+                                          $"in conversation {conversationResponse.Id}");
+
+            var notification = new Models.MessageNotification
+            {
+                RecipientId = recipientId,
+                SenderId = reactingUserId,
+                MessageId = messageResponse.Id,
+                ConversationId = conversationResponse.Id,
+                Type = MessageNotificationType.MessageReaction,
+                Summary = $"{reactingParticipant.User.FullName} reacted to your message",
+                CreatedAt = DateTime.UtcNow,
+                LastUpdatedAt = DateTime.UtcNow
+            };
+
+            await messageNotificationRepository.CreateMessageNotificationAsync(notification);
+            messageNotification = notification;
+        }
+
+        var sender = conversationResponse.Participants
+            .FirstOrDefault(p => p.User.Id == reactingUserId)!.User;
+
+        return messageNotification.ToResponse(sender, conversationResponse.GroupName,
+            conversationResponse.GroupImageUrl);
+    }
     
     // ======================== Direct Chat Notifikasjoner ========================
     
@@ -199,69 +264,5 @@ public class MessageNotificationService(
         
         return notification.ToResponse(
             senderUserSummary);
-    }
-    
-    
-    // ======================== Direct Chat Notifikasjoner ========================
-    
-    
-    public async Task<MessageNotificationDTO> CreateMessageReactionNotificationAsync(
-        int reactingUserId,
-        int receiverUserId,
-        int messageId,
-        int conversationId,
-        string emoji)
-    {
-        // 🔍 Sjekk om det finnes en eksisterende notifikasjon
-        var existing = await context.MessageNotifications
-            .Include(n => n.Message)
-            .Include(n => n.FromUser)
-                .ThenInclude(u => u.UserProfile)
-            .Include(n => n.Conversation)
-            .Where(n =>
-                n.UserId == receiverUserId &&
-                n.Type == NotificationType.MessageReaction &&
-                n.MessageId == messageId &&
-                n.FromUserId == reactingUserId)
-            .FirstOrDefaultAsync();
-
-        if (existing != null)
-        {
-            // 🔁 Oppdater timestamp og mark as unread
-            existing.CreatedAt = DateTime.UtcNow;
-
-            await context.SaveChangesAsync();
-            return MapToDto(existing, isUpdate: true);
-        }
-
-        // ✨ Ny notifikasjon hvis ingen finnes
-        var notification = new MessageNotifications.Models.MessageNotification
-        {
-            RecipientId = receiverUserId,
-            SenderId = reactingUserId,
-            Type = NotificationType.MessageReaction,
-            MessageId = messageId,
-            ConversationId = conversationId,
-            CreatedAt = DateTime.UtcNow,
-            IsRead = false
-        };
-
-        context.MessageNotifications.Add(notification);
-        await context.SaveChangesAsync();
-
-        var created = await context.MessageNotifications
-            .Include(n => n.FromUser)
-            .ThenInclude(u => u.UserProfile) 
-            .Include(n => n.Conversation)
-            .Include(n => n.Message!)
-            .ThenInclude(m => m.Reactions)
-            .FirstOrDefaultAsync(n => n.Id == notification.Id);
-
-        var dto = MapToDto(created!);
-    
-        // Automatically queue sync event
-        notificationSyncService.QueueNotificationSyncEvent(dto, receiverUserId);
-    
-        return dto;
     }
 }

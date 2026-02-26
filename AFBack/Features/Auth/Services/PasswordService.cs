@@ -5,10 +5,11 @@ using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Models;
+using AFBack.Infrastructure.Email.Templates;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
-using AFBack.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Services;
@@ -23,7 +24,8 @@ public class PasswordService(
     ISmsService smsService,
     IEmailRateLimitService emailRateLimitService,
     ISmsRateLimitService smsRateLimitService,
-    ISuspiciousActivityService suspiciousActivityService) : IPasswordService
+    ISuspiciousActivityService suspiciousActivityService,
+    IRateLimitGuardService rateLimitGuardService) : IPasswordService
 {
     
     // ======================== Bytt passord (innlogget) ======================== 
@@ -71,16 +73,10 @@ public class PasswordService(
         logger.LogInformation("ForgotPasswordAsync. Payload: {@Payload}", new { email });
     
         // ====== Rate limit — stopp spam av reset-eposter ======
-        var rateLimitResult = emailRateLimitService.CanSendEmail(EmailType.PasswordReset, email, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.PasswordReset, 
+            email, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(
-                ipAddress,
-                SuspiciousActivityType.EmailRateLimitExceeded,
-                $"Password reset rate limit exceeded for {email}");
-        
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
     
         // ====== Finn bruker ======
         var user = await userManager.FindByEmailAsync(email);
@@ -181,15 +177,10 @@ public class PasswordService(
         }
         
         // Rate limit SMS
-        var rateLimitResult = smsRateLimitService.CanSendSms(SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
+            SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.SmsRateLimitExceeded,
-                $"Password reset SMS rate limit exceeded for {user.PhoneNumber!}");
-            
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
         
         // Generer SMS-kode (guard i VerificationService sjekker PasswordResetEmailVerified)
         var smsCode = await verificationInfoService.GenerateSmsPasswordResetCodeAsync(user.Id);
@@ -230,6 +221,11 @@ public class PasswordService(
 
             return validateResult;
         }
+        
+        var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
+            SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
+        if (rateLimitResult.IsFailure)
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
         
         // ====== Reset passord via Identity ======
         // Fjern først

@@ -2,8 +2,8 @@ using AFBack.Common.DTOs;
 using AFBack.DTOs;
 using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Response;
+using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Models;
-using AFBack.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using ConversationDto = AFBack.Features.Conversation.DTOs.ConversationDto;
 

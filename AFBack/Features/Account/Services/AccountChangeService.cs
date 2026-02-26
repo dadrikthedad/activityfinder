@@ -3,17 +3,18 @@ using AFBack.Common.Results;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services.Interfaces;
-using AFBack.Features.Broadcast.Services;
+using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.FileHandling.Constants;
 using AFBack.Features.FileHandling.DTOs.Responses;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Models;
+using AFBack.Infrastructure.Email.Templates;
+using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
-using AFBack.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Account.Services;
@@ -31,7 +32,8 @@ public class AccountChangeService(
     ISmsRateLimitService smsRateLimitService,
     ISuspiciousActivityService suspiciousActivityService,
     IProfileBroadcastService profileBroadcastService,
-    IFileOrchestrator fileOrchestrator) : IAccountChangeService
+    IFileOrchestrator fileOrchestrator,
+    IRateLimitGuardService rateLimitGuardService) : IAccountChangeService
 {
     // ======================== Bytte e-post — Steg 1 ======================== 
 
@@ -42,15 +44,10 @@ public class AccountChangeService(
         logger.LogInformation("RequestEmailChangeAsync. UserId: {UserId}", userId);
         
         // ====== Rate limit ======
-        var rateLimitResult = emailRateLimitService.CanSendEmail(EmailType.EmailChange, newEmail, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.EmailChange, 
+            newEmail, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.EmailRateLimitExceeded,
-                $"Email change rate limit exceeded for UserId: {userId}");
-            
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
         
         // ====== Finn bruker ======
         var user = await userManager.FindByIdAsync(userId);
@@ -136,15 +133,10 @@ public class AccountChangeService(
         var newEmail = validateResult.Value!;
         
         // ====== Rate limit for ny epost ======
-        var rateLimitResult = emailRateLimitService.CanSendEmail(EmailType.EmailChange, newEmail, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.EmailChange, 
+            newEmail, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.EmailRateLimitExceeded,
-                $"Email change rate limit exceeded for new email: {newEmail}");
-            
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
         
         // ====== Send verifiseringskode til NY epost ======
         var newCode = await verificationInfoService.GenerateNewEmailChangeCodeAsync(user.Id, newEmail);
@@ -241,18 +233,6 @@ public class AccountChangeService(
     {
         logger.LogInformation("RequestPhoneChangeAsync. UserId: {UserId}", userId);
         
-        // ====== Rate limit (epost, ikke SMS — steg 1 sendes via epost) ======
-        var rateLimitResult = emailRateLimitService.CanSendEmail(EmailType.PhoneChange, 
-            newPhoneNumber, ipAddress);
-        if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.EmailRateLimitExceeded,
-                $"Phone change rate limit exceeded for UserId: {userId}");
-            
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
-        
         // ====== Finn bruker ======
         var user = await userManager.FindByIdAsync(userId);
         if (user == null)
@@ -260,6 +240,14 @@ public class AccountChangeService(
             logger.LogWarning("Change phone requested for non-existent UserId: {UserId}", userId);
             return Result.Failure("User not found", ErrorTypeEnum.NotFound);
         }
+        
+        // ====== Rate limit (epost, ikke SMS — steg 1 sendes via epost) ======
+        var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.PhoneChange, 
+            user.Email!, ipAddress);
+        if (rateLimitResult.IsFailure)
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+        
+        
         
         // ====== Valider passord ======
         var isPasswordValid = await userManager.CheckPasswordAsync(user, currentPassword);
@@ -338,15 +326,10 @@ public class AccountChangeService(
         var newPhoneNumber = validateResult.Value!;
         
         // ====== Rate limit for SMS ======
-        var rateLimitResult = smsRateLimitService.CanSendSms(SmsType.PhoneChange, newPhoneNumber, ipAddress);
+        var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(SmsType.PhoneChange, 
+            newPhoneNumber, ipAddress);
         if (rateLimitResult.IsFailure)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.SmsRateLimitExceeded,
-                $"Phone change SMS rate limit exceeded for: {newPhoneNumber}");
-            
-            return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
-        }
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
         
         // ====== Send SMS-kode til NYTT nummer ======
         var smsCode = await verificationInfoService.GenerateNewPhoneChangeCodeAsync(user.Id, newPhoneNumber);

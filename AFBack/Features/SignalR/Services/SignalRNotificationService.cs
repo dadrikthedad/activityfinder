@@ -9,8 +9,7 @@ namespace AFBack.Features.SignalR.Services;
 /// </summary>
 public class SignalRNotificationService(
     IHubContext<UserHub> hubContext,
-    ILogger<SignalRNotificationService> logger)
-    : ISignalRNotificationService
+    ILogger<SignalRNotificationService> logger) : ISignalRNotificationService
 {
     /// <inheritdoc />
     public async Task SendToUserAsync(string userId, string eventName, object payload, string context)
