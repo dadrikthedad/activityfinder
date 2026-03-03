@@ -46,7 +46,7 @@ public class BootstrapController(IBootstrapService bootstrapService) : BaseContr
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<CriticalBootstrapResponse>> GetSecondaryBootstrap()
+    public async Task<ActionResult<SecondaryBootstrapResponse>> GetSecondaryBootstrap()
     {
         var userId = User.GetUserId();
         var result = await bootstrapService.GetSecondaryBootstrapAsync(userId);

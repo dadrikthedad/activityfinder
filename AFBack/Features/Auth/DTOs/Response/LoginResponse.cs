@@ -1,5 +1,4 @@
 using AFBack.Common.DTOs;
-using AFBack.DTOs;
 
 namespace AFBack.Features.Auth.DTOs.Response;
 

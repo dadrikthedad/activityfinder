@@ -47,7 +47,7 @@ public class SupportTicketService(
             ExpectedBehavior = ticketRequest.ExpectedBehavior,
             ActualBehavior = ticketRequest.ActualBehavior,
             IpAddress = ipAddress,
-            UserAgent = userAgent
+            UserAgent = userAgent // dsad
         };
 
         // Validerer og laster opp filer til S3

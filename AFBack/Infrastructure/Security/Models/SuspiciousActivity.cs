@@ -37,6 +37,16 @@ public class SuspiciousActivity
     [MaxLength(200)]
     public string? Endpoint { get; set; }
     
+    // ======================== Location ========================
+    [MaxLength(100)]
+    public string? City { get; set; }
+
+    [MaxLength(100)]
+    public string? Region { get; set; }
+
+    [MaxLength(100)]
+    public string? Country { get; set; }
+    
     // ======================== Navigasjonsegenskaper ========================
     public AppUser? User { get; set; }
     public UserDevice? UserDevice { get; set; }

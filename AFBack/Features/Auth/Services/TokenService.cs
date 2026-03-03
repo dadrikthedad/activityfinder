@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using AFBack.Common.DTOs;
 using AFBack.Common.Results;
 using AFBack.Configurations.Options;
-using AFBack.DTOs;
 using AFBack.Features.Auth.DTOs.Response;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;

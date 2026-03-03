@@ -18,8 +18,6 @@ using AFBack.Infrastructure.Security.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-
-
 namespace AFBack.Data;
 
 
@@ -219,7 +217,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             
             // --- Indexes --- //
             entity.HasIndex(e => e.Token)
-                .IsUnique(); // TODO: Legge til retry hvis vi genrer en lik token som før
+                .IsUnique(); 
             
             // --- Relationships --- //
             entity.HasOne(r => r.AppUser)
@@ -431,25 +429,137 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
+        // ==================== Notificaiton ====================
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(n => n.RecipientUserId);
+            entity.HasIndex(n => n.RelatedUserId);
+
+            // --- Relationships --- //
+            entity.HasOne(n => n.RecipientUser)
+                .WithMany()
+                .HasForeignKey(n => n.RecipientUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.RelatedUser)
+                .WithMany()
+                .HasForeignKey(n => n.RelatedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // ==================== FriendshipRequests ====================
+        modelBuilder.Entity<FriendshipRequest>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(i => i.SenderId);
+            entity.HasIndex(i => i.ReceiverId);
+
+            // --- Useful composite index (hent pending requests for en bruker) --- //
+            entity.HasIndex(i => new { i.ReceiverId, i.Status });
+
+            // --- Relationships --- //
+            entity.HasOne(i => i.Sender)
+                .WithMany()
+                .HasForeignKey(i => i.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(i => i.Receiver)
+                .WithMany()
+                .HasForeignKey(i => i.ReceiverId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // ==================== FriendshipRequests ====================
+        modelBuilder.Entity<Friendship>(entity =>
+        {
+            // --- Compound Primary Key --- //
+            entity.HasKey(f => new { f.UserId, f.FriendId });
+
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(f => f.FriendId); // UserId dekkes av compound PK
+
+            // --- Relationships --- //
+            entity.HasOne(f => f.User)
+                .WithMany()
+                .HasForeignKey(f => f.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(f => f.Friend)
+                .WithMany()
+                .HasForeignKey(f => f.FriendId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // ==================== Reaction ====================
+        modelBuilder.Entity<Reaction>(entity =>
+        {
+            // --- Compound Primary Key --- //
+            entity.HasKey(r => new { r.MessageId, r.UserId });
+
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(r => r.UserId); 
+
+            // --- Relationships --- //
+            entity.HasOne(r => r.User)
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.Message)
+                .WithMany(m => m.Reactions)
+                .HasForeignKey(r => r.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
         // ==================== SupportTicket ====================
-        modelBuilder.Entity<SupportTicket>()
-            .HasMany(e => e.Attachments)
-            .WithOne(e => e.SupportTicket)
-            .HasForeignKey(e => e.SupportTicketId)
-            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<SupportTicket>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(st => st.SubmittedByUserId);
+
+            // --- Relationships --- //
+            entity.HasOne(st => st.SubmittedByUser)
+                .WithMany()
+                .HasForeignKey(st => st.SubmittedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasMany(st => st.Attachments)
+                .WithOne(a => a.SupportTicket)
+                .HasForeignKey(a => a.SupportTicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        
+       
+        
+        
         
         // ==================== UserReport ====================
-        modelBuilder.Entity<UserReport>()
-            .HasMany(e => e.Attachments)
-            .WithOne(e => e.UserReport)
-            .HasForeignKey(e => e.UserReportId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
-        // ==================== SyncEvent TODO: Denne må fikses ====================
+        modelBuilder.Entity<UserReport>(entity =>
+        {
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(ur => ur.SubmittedByUserId);
+            entity.HasIndex(ur => ur.ReportedUserId);
+            
+            // --- Relationships --- //
+            entity.HasOne(ur => ur.SubmittedByUser)
+                .WithMany()
+                .HasForeignKey(ur => ur.SubmittedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(ur => ur.ReportedUser)
+                .WithMany()
+                .HasForeignKey(ur => ur.ReportedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(ur => ur.Attachments)
+                .WithOne(a => a.UserReport)
+                .HasForeignKey(a => a.UserReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         
         
         // ==================== VerificationInfo ====================
-        
         modelBuilder.Entity<VerificationInfo>(entity =>
         {
             // --- Primary Key (satt til hver device) --- //
@@ -462,102 +572,33 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
-        // venneliste med composite key. .HasKey definerer en primarykey basert på UserId og FriendId
-        modelBuilder.Entity<Friendship>()
-            .HasKey(f => new { f.UserId, f.FriendId });
         
-        // Knytter AppUser og FriendUser som foreign key, sjekker begge veier fra UserId til FriendId og motsatt
-        modelBuilder.Entity<Friendship>()
-            .HasOne(f => f.User)
-            .WithMany()
-            .HasForeignKey("UserId")
-            .OnDelete(DeleteBehavior.Restrict); // onDelete sikrer at vi ikke får slettet en bruker som har venner
-        
-        modelBuilder.Entity<Friendship>()
-            .HasOne(f => f.FriendUser)
-            .WithMany()
-            .HasForeignKey("FriendId")
-            .OnDelete(DeleteBehavior.Restrict);
-        // Her håndterer vi venneforespørsler
-        modelBuilder.Entity<FriendshipRequest>()
-            .HasOne(i => i.Sender)
-            .WithMany()
-            .HasForeignKey(i => i.SenderId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<FriendshipRequest>()
-            .HasOne(i => i.Receiver)
-            .WithMany()
-            .HasForeignKey(i => i.ReceiverId)
-            .OnDelete(DeleteBehavior.Restrict);
-        
-        // Til notifikasjoner: Hvis en bruker slettes så slettes også notifkasjonene
-        modelBuilder.Entity<Notification>()
-            .HasOne(n => n.RecipientUser)
-            .WithMany()
-            .HasForeignKey(n => n.RecipientUserId)
-            .OnDelete(DeleteBehavior.Cascade); 
-        
-        // Til notifikasjoner: Hvis en bruker eksistere så slettes de ikke
-        modelBuilder.Entity<Notification>()
-            .HasOne(n => n.RelatedUser)
-            .WithMany()
-            .HasForeignKey(n => n.RelatedUserId)
-            .OnDelete(DeleteBehavior.Restrict); 
-        
-        modelBuilder.Entity<Notification>()
-            .Property(n => n.Type)
-            .HasConversion<string>(); // 🔹 konverter enum til string
-        
-        // MessageAttachment entity configuration
-        modelBuilder.Entity<MessageAttachment>(entity =>
-        {
-            entity.HasKey(a => a.Id);
-            entity.Property(a => a.EncryptedFileUrl).IsRequired();
-            entity.Property(a => a.FileType).IsRequired();
-            entity.Property(a => a.OriginalFileName).HasMaxLength(255);
-            entity.Property(a => a.KeyInfo).IsRequired();
-            entity.Property(a => a.IV).IsRequired();
-    
-            // Relationship til Message (allerede definert i Message entity, men kan være eksplisitt)
-            entity.HasOne(a => a.Message)
-                .WithMany(m => m.Attachments)
-                .HasForeignKey(a => a.MessageId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-        
-        
-        // Reaksjoner
-        modelBuilder.Entity<Reaction>()
-            .HasKey(r => new { r.MessageId, r.UserId }); // Kombinasjon kan være naturlig PK
-
-        modelBuilder.Entity<Reaction>()
-            .HasOne(r => r.User)
-            .WithMany()
-            .HasForeignKey(r => r.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<Reaction>()
-            .HasOne(r => r.Message)
-            .WithMany(m => m.Reactions)
-            .HasForeignKey(r => r.MessageId)
-            .OnDelete(DeleteBehavior.Cascade);
-        
-        // MessageNotificaitons
-        
+        // ==================== MESSAGE NOTIFICATION ====================
         modelBuilder.Entity<MessageNotification>(entity =>
         {
             entity.HasKey(e => e.Id);
 
-            // Type konvertering
+            // --- Type Conversion --- //
             entity.Property(e => e.Type)
                 .IsRequired()
                 .HasConversion<int>();
 
-            // FJERNET: GroupEventIdsJson og EventCount (erstattes med relasjonstabell)
-            // FJERNET: LastUpdatedAt (kan beholdes hvis du trenger den til andre formål)
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.RecipientId);
+            entity.HasIndex(e => e.SenderId);
+            entity.HasIndex(e => e.MessageId);
+            entity.HasIndex(e => e.ConversationId);
 
-            // Relasjoner (samme som før)
+            // --- Composite Indexes --- //
+            entity.HasIndex(e => new { e.RecipientId, e.Type, e.IsRead });
+            entity.HasIndex(e => new { e.ConversationId, e.Type, e.IsRead });
+
+            // Unique constraint for GroupEvent notifikasjoner
+            entity.HasIndex(e => new { e.RecipientId, e.ConversationId, e.Type, e.IsRead })
+                .HasFilter("\"Type\" = 8 AND \"IsRead\" = false")
+                .HasDatabaseName("IX_MessageNotification_UniqueGroupEvent");
+
+            // --- Relationships --- //
             entity.HasOne(n => n.RecipientUser)
                 .WithMany()
                 .HasForeignKey(n => n.RecipientId)
@@ -577,42 +618,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .WithMany()
                 .HasForeignKey(n => n.ConversationId)
                 .OnDelete(DeleteBehavior.SetNull);
-
-            // FJERNET: Ignore GroupEventIds (ikke lenger nødvendig)
-
-            // Oppdaterte indekser
-            entity.HasIndex(e => new { UserId = e.RecipientId, e.Type, e.IsRead });
-            entity.HasIndex(e => new { e.ConversationId, e.Type, e.IsRead });
-            
-            // ENDRET: Unique constraint for GroupEvent notifikasjoner (forenklet)
-            entity.HasIndex(e => new { UserId = e.RecipientId, e.ConversationId, e.Type, e.IsRead })
-                .HasFilter("\"Type\" = 8 AND \"IsRead\" = false")
-                .HasDatabaseName("IX_MessageNotification_UniqueGroupEvent");
         });
         
-        
+        // ==================== Sync Event====================
         modelBuilder.Entity<SyncEvent>(entity =>
         {
             entity.HasKey(e => e.Id);
     
+            // --- Foreign Key Indexes --- //
+            entity.HasIndex(e => e.UserId);
+            
+            // --- Indexes --- //
+            // Composite index for sync queries (hent events for bruker etter tid)
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt })
+                .HasDatabaseName("IX_SyncEvent_UserId_CreatedAt");
+    
+            // --- Relationships --- //
             entity.HasOne(e => e.User)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
-    
-            // Primary index for sync queries (mest brukte)
-            entity.HasIndex(e => new { e.UserId, e.CreatedAt })
-                .HasDatabaseName("IX_SyncEvent_UserId_CreatedAt");
-    
-            // Index for cleanup operations
-            entity.HasIndex(e => e.CreatedAt)
-                .HasDatabaseName("IX_SyncEvent_CreatedAt");
-    
-            // Index for debugging og søk basert på relaterte entiteter
-            entity.HasIndex(e => new { e.RelatedEntityType, e.RelatedEntityId })
-                .HasDatabaseName("IX_SyncEvent_RelatedEntity")
-                .HasFilter("\"RelatedEntityId\" IS NOT NULL"); // Conditional index
-            
         });
         
      

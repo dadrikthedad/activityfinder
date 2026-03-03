@@ -56,6 +56,13 @@ public interface IMessageNotificationRepository
     /// <param name="userId">Brukerens ID</param>
     /// <returns>Antall uleste notifikasjoner</returns>
     Task<int> GetUnreadCountAsync(string userId);
+    
+    /// <summary>
+    /// Henter unike conversation-IDer som har uleste MessageNotifications for en bruker
+    /// </summary>
+    /// <param name="userId">Brukerens ID</param>
+    /// <returns>Liste med unike conversation-IDer</returns>
+    Task<List<int>> GetUnreadConversationIdsAsync(string userId);
 
     /// <summary>
     /// Henter alle uleste notifikasjoner for en bruker

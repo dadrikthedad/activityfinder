@@ -58,7 +58,16 @@ public class MessageNotificationRepository(AppDbContext context) : IMessageNotif
             .CountAsync(mn => mn.RecipientId == userId && !mn.IsRead);
     
     /// <inheritdoc />
-    public async Task<List<MessageNotifications.Models.MessageNotification>> GetUnreadMessageNotificationsForConversationAsync(string userId, int conversationId) 
+    public async Task<List<int>> GetUnreadConversationIdsAsync(string userId) => 
+        await context.MessageNotifications
+            .Where(n => n.RecipientId == userId && !n.IsRead)
+            .Select(n => n.ConversationId)
+            .Distinct()
+            .ToListAsync();
+    
+    /// <inheritdoc />
+    public async Task<List<MessageNotifications.Models.MessageNotification>> 
+        GetUnreadMessageNotificationsForConversationAsync(string userId, int conversationId) 
         => await context.MessageNotifications
             .Where(mn => mn.RecipientId == userId 
                          && mn.ConversationId == conversationId 

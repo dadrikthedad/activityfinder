@@ -38,4 +38,12 @@ public interface IMessageNotificationQueryService
     /// <param name="userId">Brukerens ID</param>
     /// <returns>Antall uleste notifikasjoner</returns>
     Task<int> GetUnreadCountAsync(string userId);
+    
+    /// <summary>
+    /// Henter IDer for samtaler med uleste MessageNotifications for en bruker.
+    /// Brukes i bootstrap for å markere uleste samtaler i UI.
+    /// </summary>
+    /// <param name="userId">Brukerens ID</param>
+    /// <returns>Liste med unike conversation-IDer som har uleste notifikasjoner</returns>
+    Task<List<int>> GetUnreadConversationIdsAsync(string userId);
 }

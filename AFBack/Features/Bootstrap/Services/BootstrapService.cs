@@ -1,10 +1,15 @@
+using AFBack.Common.DTOs;
 using AFBack.Common.Results;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Blocking.Services;
 using AFBack.Features.Bootstrap.DTOs.Responses;
 using AFBack.Features.Bootstrap.Extensions;
+using AFBack.Features.Conversation.Enums;
+using AFBack.Features.Conversation.Services;
 using AFBack.Features.Friendship.Services;
 using AFBack.Features.MessageNotifications.Service;
+using AFBack.Features.Messaging.DTOs.Response;
+using AFBack.Features.Messaging.Services;
 using AFBack.Features.Notifications.Services;
 
 namespace AFBack.Features.Bootstrap.Services;
@@ -12,10 +17,13 @@ namespace AFBack.Features.Bootstrap.Services;
 public class BootstrapService(
     IUserRepository userRepository,
     INotificationService notificationService,
-    IMessageNotificationService messageNotificationService,
+    IMessageNotificationQueryService messageNotificationQueryService,
     ILogger<BootstrapService> logger,
     IFriendshipService friendshipService,
-    IBlockingService blockingService) : IBootstrapService
+    IBlockingService blockingService,
+    IFriendshipRequestService friendshipRequestService,
+    GetConversationsService getConversationsService,
+    MessageQueryService messageQueryService) : IBootstrapService
 {
     
     /// <inheritdoc/>
@@ -60,52 +68,105 @@ public class BootstrapService(
     /// Sekundær bootstrap — hentes etter kritisk data er lastet.
     /// Inneholder samtaler, meldinger, relasjoner, varsler, etc.
     /// </summary>
-    public async Task<SecondaryBootstrapResponse> GetSecondaryBootstrapAsync(string userId)
+    public async Task<Result<SecondaryBootstrapResponse>> GetSecondaryBootstrapAsync(string userId)
     {
         logger.LogInformation("Starting secondary bootstrap for user {UserId}", userId);
 
-        // Fase 1: Hent alt som kan kjøre parallelt
-        var conversationsTask = conversationService.GetRecentAsync(userId, limit: 10);
-        var unreadTask = messageNotificationService.GetUnreadConversationIdsAsync(userId);
-        var pendingRequestsTask = messageService.GetPendingRequestsAsync(userId);
-        var messageNotificationsTask = messageNotificationService.GetRecentAsync(userId, limit: 20);
-        var friendInvitationsTask = friendService.GetPendingInvitationsAsync(userId, limit: 10);
-        var appNotificationsTask = notificationService.GetRecentAsync(userId, limit: 20);
+        var paginationRequest = new PaginationRequest { Page = 1, PageSize = 10 };
+        var notificationPagination = new PaginationRequest { Page = 1, PageSize = 20 };
+
+        // Fase 1: Alt som kan kjøre parallelt
+        var activeConversationsTask = getConversationsService.GetActiveConversationsAsync(userId, paginationRequest);
+        var pendingConversationsTask = getConversationsService.GetPendingConversationsAsync(userId, paginationRequest);
+        var messageNotificationsTask = messageNotificationQueryService.GetNotificationsAsync(userId, 
+            notificationPagination);
+        var notificationsTask = notificationService.GetNotificationsAsync(userId, notificationPagination);
+        var friendRequestsTask = friendshipRequestService.GetReceivedPendingFriendshipRequestsAsync(userId,
+            1, 10);
+        var unreadMessageCountTask = messageNotificationQueryService.GetUnreadCountAsync(userId);
+        var unreadNotificationCountTask = notificationService.GetUnreadCountAsync(userId);
+        var unreadConversationIdsTask = messageNotificationQueryService.GetUnreadConversationIdsAsync(
+            userId);
 
         await Task.WhenAll(
-            conversationsTask,
-            relationshipsTask,
-            unreadTask,
-            pendingRequestsTask,
+            activeConversationsTask,
+            pendingConversationsTask,
             messageNotificationsTask,
-            friendInvitationsTask,
-            appNotificationsTask);
+            notificationsTask,
+            friendRequestsTask,
+            unreadMessageCountTask,
+            unreadNotificationCountTask,
+            unreadConversationIdsTask);
 
-        var conversations = await conversationsTask;
+        var activeResult = await activeConversationsTask;
+        if (activeResult.IsFailure)
+            return Result<SecondaryBootstrapResponse>.Failure(activeResult.Error, activeResult.ErrorType);
 
-        // Fase 2: Hent meldinger for samtalene vi fikk tilbake
-        var conversationIds = conversations.Select(c => c.Id).ToList();
-        var conversationMessages = await messageService
-            .GetMessagesForConversationsAsync(userId, conversationIds, take: 20);
+        var pendingResult = await pendingConversationsTask;
+        if (pendingResult.IsFailure)
+            return Result<SecondaryBootstrapResponse>.Failure(pendingResult.Error, pendingResult.ErrorType);
 
-        var response = new SecondaryBootstrapResponseDTO
+        var messageNotificationsResult = await messageNotificationsTask;
+        if (messageNotificationsResult.IsFailure)
+            return Result<SecondaryBootstrapResponse>.Failure(messageNotificationsResult.Error,
+                messageNotificationsResult.ErrorType);
+
+        var notificationsResult = await notificationsTask;
+        if (notificationsResult.IsFailure)
+            return Result<SecondaryBootstrapResponse>.Failure(notificationsResult.Error, notificationsResult.ErrorType);
+
+        var friendRequestsResult = await friendRequestsTask;
+        if (friendRequestsResult.IsFailure)
+            return Result<SecondaryBootstrapResponse>.Failure(friendRequestsResult.Error, 
+                friendRequestsResult.ErrorType);
+
+        var unreadConversationIds = await unreadConversationIdsTask;
+        
+        // Fase 2: Hent meldinger for aktive samtaler + pending 1v1-samtaler
+        var conversationIds = activeResult.Value!.Conversations
+            .Select(c => c.Id)
+            .ToList();
+
+        var pendingDirectIds = pendingResult.Value!.Conversations
+            .Where(c => c.Type != ConversationType.GroupChat)
+            .Select(c => c.Id)
+            .ToList();
+
+        var allMessageConversationIds = conversationIds
+            .Concat(pendingDirectIds)
+            .ToList();
+
+        Dictionary<int, List<MessageResponse>> conversationMessages = [];
+        if (allMessageConversationIds.Count > 0)
         {
-            RecentConversations = conversations,
+            var messagesResult = await messageQueryService.GetMessagesForConversationsAsync(
+                userId, allMessageConversationIds, messagesPerConversation: 10);
+
+            if (messagesResult.IsFailure)
+                return Result<SecondaryBootstrapResponse>.Failure(messagesResult.Error, messagesResult.ErrorType);
+
+            conversationMessages = messagesResult.Value!;
+        }
+
+        var response = new SecondaryBootstrapResponse
+        {
+            ActiveConversations = activeResult.Value!.Conversations,
+            PendingConversations = pendingResult.Value!.Conversations,
             ConversationMessages = conversationMessages,
-            AllUserSummaries = await relationshipsTask,
-            UnreadConversationIds = await unreadTask,
-            PendingMessageRequests = await pendingRequestsTask,
-            RecentMessageNotifications = await messageNotificationsTask,
-            PendingFriendInvitations = await friendInvitationsTask,
-            RecentNotifications = await appNotificationsTask
+            MessageNotifications = messageNotificationsResult.Value!.Items,
+            Notifications = notificationsResult.Value!.Items,
+            PendingFriendshipRequests = friendRequestsResult.Value!.Items,
+            UnreadMessageNotificationCount = await unreadMessageCountTask,
+            UnreadNotificationCount = await unreadNotificationCountTask,
+            UnreadConversationIds = unreadConversationIds
         };
 
         logger.LogInformation(
-            "Secondary bootstrap completed — Conversations: {Convos}, Relationships: {Rels}, Unread: {Unread}",
-            conversations.Count,
-            (await relationshipsTask).Count,
-            (await unreadTask).Count);
+            "Secondary bootstrap completed — Active: {Active}, Pending: {Pending}, Messages: {Msgs}, " +
+            "FriendRequests: {FR}", response.ActiveConversations.Count, response.PendingConversations.Count,
+            conversationMessages.Values.Sum(m => m.Count),
+            response.PendingFriendshipRequests.Count);
 
-        return response;
+        return Result<SecondaryBootstrapResponse>.Success(response);
     }
 }

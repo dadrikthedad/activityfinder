@@ -1,5 +1,4 @@
 using AFBack.Features.Reactions.Models;
-using AFBack.Models;
 
 namespace AFBack.Features.Reactions.Repositories;
 

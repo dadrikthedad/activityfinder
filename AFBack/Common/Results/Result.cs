@@ -13,7 +13,7 @@ public class Result
     public ErrorTypeEnum ErrorType { get; }
     public bool IsFailure => !IsSuccess;
 
-    private Result(bool isSuccess, string error, ErrorTypeEnum errorType)
+    private Result(bool isSuccess, string? error, ErrorTypeEnum errorType)
     {
         if (isSuccess && error != null)
             throw new InvalidOperationException("A successful result cannot have an error");

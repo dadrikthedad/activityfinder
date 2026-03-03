@@ -1,15 +1,17 @@
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services.Interfaces;
+using AFBack.Features.Geography.Services;
 
 namespace AFBack.Features.Auth.Services;
 
 public class LoginHistoryService(
     ILogger<LoginHistoryService> logger,
-    ILoginHistoryRepository loginHistoryRepository) : ILoginHistoryService
+    ILoginHistoryRepository loginHistoryRepository, IGeoLocationService geoLocationService) : ILoginHistoryService
 {
     /// <inheritdoc/>
-    public async Task RecordLoginAsync(string userId, int deviceId, string ipAddress, string? userAgent)
+    public async Task RecordLoginAsync(string userId, int deviceId, string ipAddress, string? userAgent,
+        CancellationToken ct = default)
     {
         var entry = new LoginHistory
         {
@@ -18,6 +20,14 @@ public class LoginHistoryService(
             IpAddress = ipAddress,
             UserAgent = userAgent
         };
+        
+        var geoResult = await geoLocationService.GetLocationAsync(ipAddress, ct);
+        if (geoResult.IsSuccess)
+        {
+            entry.City = geoResult.Value?.City; 
+            entry.Region = geoResult.Value?.Region;
+            entry.Country = geoResult.Value?.Country;
+        }
         
         await loginHistoryRepository.AddAsync(entry);
         logger.LogInformation("LoginHistory created for user {UserId}", userId);

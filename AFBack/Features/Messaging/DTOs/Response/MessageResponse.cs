@@ -1,6 +1,4 @@
 using AFBack.Common.DTOs;
-using AFBack.DTOs;
-using AFBack.Features.Reactions.DTOs;
 using AFBack.Features.Reactions.DTOs.Responses;
 
 namespace AFBack.Features.Messaging.DTOs.Response;

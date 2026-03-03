@@ -12,4 +12,15 @@ public interface IBootstrapService
     /// <param name="userId">BrukerId</param>
     /// <returns>CriticalBootstrapResponse ned data fra User, Profile og Settings</returns>
     Task<Result<CriticalBootstrapResponse>> GetCriticalBootstrapAsync(string userId);
+
+    
+    /// <summary>
+    /// Sekundær bootstrap — hentes etter kritisk data er lastet.
+    /// Inneholder aktive og ventende samtaler med meldinger (meldinger hentes for alle aktive
+    /// og pending 1v1-samtaler), meldingsvarsler, appvarsler med ulest-tellere,
+    /// og mottatte venneforespørsler.
+    /// </summary>
+    /// <param name="userId"></param>
+    /// <returns>SecondaryBootstrapResponse med tilhørende egenskaper</returns>
+    Task<Result<SecondaryBootstrapResponse>> GetSecondaryBootstrapAsync(string userId);
 }

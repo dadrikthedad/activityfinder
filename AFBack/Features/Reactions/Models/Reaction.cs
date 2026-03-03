@@ -11,15 +11,7 @@ namespace AFBack.Features.Reactions.Models;
 /// </summary>
 public class Reaction
 {
-    // ======================== PRIMÆRNØKKEL ========================
-    
-    /// <summary>
-    /// Unik identifikator for reaksjonen
-    /// </summary>
-    [Key]
-    public int Id { get; set; }
-
-    // ======================== FREMMEDNØKLER ========================
+    // ======================== FREMMEDNØKLER (Compound PK) ========================
     
     /// <summary>
     /// ID til meldingen denne reaksjonen tilhører

@@ -1,8 +1,6 @@
 using System.Net;
 using System.Reflection;
-using System.Text.Json;
 using System.Text.Json.Serialization;
-using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -13,40 +11,22 @@ namespace AFBack.Infrastructure.Extensions.BuilderExtensions;
 
 public static class WebApplicationBuilderExtensions
 {
+   
+    
     /// <summary>
-    /// Setter opp Serilog og relaterte innstillinger
+    /// Setter opp Serilog
     /// </summary>
-    /// <param name="builder"></param>
     public static void ConfigureLogging(this WebApplicationBuilder builder)
     {
-        var appInsightsConnectionString = Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING");
-        
-        // Et serilog objekt som logger og skriver til konsollen og en fil på PCen. Kan logges til JSON og diverse, berdre ytelse osv.
-        builder.Host.UseSerilog((context, configuration) =>
-        {
-            configuration.ReadFrom.Configuration(context.Configuration);
-    
-            // Kun legg til Application Insights hvis tilgjengelig
-            if (!string.IsNullOrEmpty(appInsightsConnectionString))
-            {
-                configuration.WriteTo.ApplicationInsights(appInsightsConnectionString, TelemetryConverter.Traces);
-            }
-        });
-        
         // Fjerner Microsoft standard logging.
         builder.Logging.ClearProviders();
-    }
-    
-    public static void ConfigureSettings(this WebApplicationBuilder builder)
-    {
-        // Henter miljøvariabler fra PC hvis vi kjører derifra
-        Env.Load();
         
-        // Henter miljøvariabler fra Azure
-        builder.Configuration.SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true).AddEnvironmentVariables();
-
+        // Setter opp Serilog med kun Console-logging
+        builder.Host.UseSerilog((context, config) =>
+        {
+            config.ReadFrom.Configuration(context.Configuration);
+            config.WriteTo.Console();
+        });
     }
     
     
@@ -55,23 +35,27 @@ public static class WebApplicationBuilderExtensions
     /// </summary>
     public static void ConfigureForwardHeaders(this WebApplicationBuilder builder)
     {
+        var logger = builder.Services.BuildServiceProvider().GetRequiredService<ILogger<Program>>();
+    
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
+            // Godta X-Forwarded-For (klientens IP) og X-Forwarded-Proto (HTTPS-deteksjon) Headers
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | 
-                                       ForwardedHeaders.XForwardedProto | 
-                                       ForwardedHeaders.XForwardedHost;
-    
+                                       ForwardedHeaders.XForwardedProto;
+            
+            // Maks 2 proxy-hopp — hindrer at angripere injiserer falske IP-er i headeren
             options.ForwardLimit = 2;
-    
+
             if (builder.Environment.IsDevelopment())
             {
-                // Kun localhost for utvikling
+                // Lokalt er localhost den eneste "proxyen"
                 options.KnownProxies.Add(IPAddress.IPv6Loopback);
                 options.KnownProxies.Add(IPAddress.Loopback);
             }
             else
             {
-                // Last faktiske proxy ranges fra konfigurasjon
+                // I produksjon godtar vi kun forwarded headers fra Azures IP-ranges
+                // Uten dette kan hvem som helst spoofe X-Forwarded-For og omgå IP-banning
                 var proxyRanges = builder.Configuration.GetSection("ProxyRanges").Get<string[]>();
                 if (proxyRanges != null)
                 {
@@ -83,32 +67,32 @@ public static class WebApplicationBuilderExtensions
                         }
                         else
                         {
-                            // Log feil i konfigurasjon
-                            Console.WriteLine($"Invalid proxy range in configuration: {range}");
+                            logger.LogError("Invalid proxy range in configuration: {Range}", range);
                         }
                     }
                 }
                 else if (builder.Environment.IsProduction())
                 {
-                    // Advarsel hvis ingen proxy ranges er konfigurert i prod
-                    Console.WriteLine("WARNING: No proxy ranges configured for production!");
+                    logger.LogCritical("No proxy ranges configured for production!");
                 }
             }
-    
+            
+            // Azure setter ikke alltid like mange verdier i For/Proto-headerne
+            // Uten dette avvises legitime requests fra Azure infrastruktur
             options.RequireHeaderSymmetry = false;
         });
     }
     
     
     /// <summary>
-    /// Legger opp Cors slik at vi kan prate med frontendene
+    /// Legger opp Cors slik at vi kan prate med frontend
     /// </summary>
-    /// <param name="builder"></param>
     public static void ConfigureCors(this WebApplicationBuilder builder)
     {
         //Her lagrer vi alle domenene som kan kobles på
-        var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',', StringSplitOptions.TrimEntries) ?? new[] { "http://localhost:3000", "https://ambitious-ground-08ddbb803.6.azurestaticapps.net", "https://magee.no", "https://www.magee.no" };
-
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+                             ?? throw new InvalidOperationException("Cors:AllowedOrigins is not configured");
+        
         // Gjør at alle domene kan koble seg på frontend. Måtte legge til AllowCredentials og
         // SetIsOriginAllowedToAllowWildcardSubdomains som da tillater underdomener til nettsiden.
         // With Origins sikrer at kun de domene vi spesifiserer med variabelen allowedOrigins får tilgang.
@@ -128,7 +112,6 @@ public static class WebApplicationBuilderExtensions
     /// <summary>
     ///  Setter opp kontrollerne med Json Options og validering
     /// </summary>
-    /// <param name="builder"></param>
     public static void ConfigureControllers(this WebApplicationBuilder builder)
     {
         // Supresser ASP.NET Core sin vanlige validering slik at vi kan bruke vårt eget filter
@@ -141,9 +124,8 @@ public static class WebApplicationBuilderExtensions
         // Nødvendig for at ASP.NET CORE skal håndtere API.
         builder.Services.AddControllers()
             .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
-                options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            {   
+                // Gjør at vi kan ha Enums som både int og string
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
     }
@@ -152,7 +134,6 @@ public static class WebApplicationBuilderExtensions
     /// <summary>
     /// Setter opp Swagger
     /// </summary>
-    /// <param name="builder"></param>
     public static void ConfigureSwagger(this WebApplicationBuilder builder)
     {
         // Add services to the container.

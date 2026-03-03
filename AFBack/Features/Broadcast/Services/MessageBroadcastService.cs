@@ -15,9 +15,6 @@ using AFBack.Features.SyncEvents.Enums;
 using AFBack.Features.SyncEvents.Services;
 using AFBack.Infrastructure.BackgroundJobs;
 using AFBack.Infrastructure.Cache;
-using AFBack.Services;
-
-
 namespace AFBack.Features.Broadcast.Services;
 
 public class MessageBroadcastService(

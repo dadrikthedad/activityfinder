@@ -8,7 +8,6 @@ using AFBack.Infrastructure.Cache;
 namespace AFBack.Features.Conversation.Services;
 
 public class SearchConversationsService(
-    ILogger<SearchConversationsService> logger,
     IConversationRepository conversationRepository,
     IUserSummaryCacheService userSummariesCache) : ISearchConversationsService
 {

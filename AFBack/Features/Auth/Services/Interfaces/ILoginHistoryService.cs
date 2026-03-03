@@ -10,7 +10,9 @@ public interface ILoginHistoryService
     /// <param name="deviceId">Enhetens ID</param>
     /// <param name="ipAddress">Brukerens IP-addresse</param>
     /// <param name="userAgent">USerAgent til nettleseren hvis den er med</param>
-    Task RecordLoginAsync(string userId, int deviceId, string ipAddress, string? userAgent);
+    /// <param name="ct"></param>
+    Task RecordLoginAsync(string userId, int deviceId, string ipAddress, string? userAgent,
+        CancellationToken ct = default);
     
     /// <summary>
     /// Oppdaterer en LoginHistory med øyeblikket brukeren logget ut

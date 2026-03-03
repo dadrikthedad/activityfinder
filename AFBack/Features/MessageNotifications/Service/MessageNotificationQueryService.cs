@@ -2,7 +2,6 @@ using AFBack.Common;
 using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using AFBack.DTOs;
 using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.MessageNotifications.Extensions;
@@ -183,6 +182,14 @@ public class MessageNotificationQueryService(
         logger.LogDebug("User {UserId} is retrieving unread notification count", userId);
     
         return await messageNotificationRepository.GetUnreadCountAsync(userId);
+    }
+    
+    /// <inheritdoc />
+    public async Task<List<int>> GetUnreadConversationIdsAsync(string userId)
+    {
+        logger.LogDebug("Retrieving unread conversation IDs for user {UserId}", userId);
+
+        return await messageNotificationRepository.GetUnreadConversationIdsAsync(userId);
     }
 
     /// <summary>

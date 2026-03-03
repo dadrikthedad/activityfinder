@@ -1,6 +1,5 @@
 using System.Threading.Channels;
 using AFBack.Configurations.Options;
-using AFBack.Services;
 
 namespace AFBack.Infrastructure.BackgroundJobs;
 

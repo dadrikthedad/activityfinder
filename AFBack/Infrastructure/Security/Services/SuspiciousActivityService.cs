@@ -1,4 +1,5 @@
 using AFBack.Configurations.Options;
+using AFBack.Features.Geography.Services;
 using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Models;
 using AFBack.Infrastructure.Security.Repositories;
@@ -9,7 +10,7 @@ namespace AFBack.Infrastructure.Security.Services;
 public class SuspiciousActivityService(
     IIpBanService ipBanService,
     IServiceScopeFactory scopeFactory,
-    ILogger<SuspiciousActivityService> logger)
+    ILogger<SuspiciousActivityService> logger, IGeoLocationService geoLocationService)
     : ISuspiciousActivityService
 {
     /// <inheritdoc />
@@ -74,6 +75,14 @@ public class SuspiciousActivityService(
             UserAgent = userAgent,
             Endpoint = endpoint
         };
+        
+        var geoResult = await geoLocationService.GetLocationAsync(normalizedIp);
+        if (geoResult.IsSuccess)
+        {
+            activity.City = geoResult.Value?.City;
+            activity.Region = geoResult.Value?.Region;
+            activity.Country = geoResult.Value?.Country;
+        }
         
         // lagerer i databasen
         await suspiciousActivityRepository.AddSuspiciousActivity(activity);

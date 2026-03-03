@@ -1,6 +1,5 @@
 using AFBack.Common.DTOs;
 using AFBack.Data;
-using AFBack.DTOs;
 using AFBack.Features.Auth.Models;
 using Microsoft.EntityFrameworkCore;
 

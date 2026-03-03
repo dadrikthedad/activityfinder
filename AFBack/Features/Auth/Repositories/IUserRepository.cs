@@ -1,5 +1,4 @@
 using AFBack.Common.DTOs;
-using AFBack.DTOs;
 using AFBack.Features.Auth.Models;
 
 namespace AFBack.Features.Auth.Repositories;

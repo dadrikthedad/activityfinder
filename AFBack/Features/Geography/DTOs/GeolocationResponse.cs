@@ -1,9 +1,8 @@
-namespace AFBack.DTOs.Security;
+namespace AFBack.Features.Geography.DTOs;
 
-public class GeolocationResultDTO
+public class GeolocationResponse
 {
     public string? City { get; set; }
     public string? Region { get; set; }
     public string? Country { get; set; }
-    public bool Success { get; set; } = false;
 }

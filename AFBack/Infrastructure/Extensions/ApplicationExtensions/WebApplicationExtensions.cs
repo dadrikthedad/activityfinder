@@ -1,10 +1,6 @@
-using AFBack.Features.Auth.Models;
-using AFBack.Features.Profile.Models;
-using AFBack.Features.Settings.Models;
 using AFBack.Features.SignalR.Hubs;
-using AFBack.Infrastructure.Constants;
 using AFBack.Infrastructure.Middleware;
-using Microsoft.AspNetCore.Identity;
+
 
 namespace AFBack.Infrastructure.Extensions.ApplicationExtensions;
 
@@ -20,9 +16,12 @@ public static class WebApplicationExtensions
         // Må være først for å fange opp feil på Middlewaren og andre exceptions
         app.UseExceptionHandler();
         
-        // Tidlig for å teste APIer
-        app.UseSwagger();
-        app.UseSwaggerUI();
+        // Swagger kun i Development
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI();
+        }
         
         // Sikrer at vi ikke blir spoofet og at proxiene vi tillater blir sluppet igjennom
         app.UseForwardedHeaders();

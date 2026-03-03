@@ -1,4 +1,3 @@
-using AFBack.Common;
 using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
@@ -74,9 +73,7 @@ public class GetConversationsService(
     {
         logger.LogInformation("Getting pending conversations for User {UserId}", userId);
         
-        return await GetConversationsInternalAsync(
-            userId,
-            request,
+        return await GetConversationsInternalAsync(userId, request,
             conversationRepository.GetPendingConversationsCountAsync,
             conversationRepository.GetPendingConversationsAsync);
     }
@@ -100,9 +97,7 @@ public class GetConversationsService(
     {
         logger.LogInformation("Getting rejected conversations for User {UserId}", userId);
         
-        return await GetConversationsInternalAsync(
-            userId,
-            request,
+        return await GetConversationsInternalAsync(userId, request,
             conversationRepository.GetRejectedConversationsCountAsync,
             conversationRepository.GetRejectedConversationsAsync);
     }

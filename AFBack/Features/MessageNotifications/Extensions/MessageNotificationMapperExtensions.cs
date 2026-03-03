@@ -1,5 +1,4 @@
 using AFBack.Common.DTOs;
-using AFBack.DTOs;
 using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotifications.DTOs;
 

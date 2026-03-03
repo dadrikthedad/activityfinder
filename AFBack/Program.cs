@@ -1,28 +1,48 @@
+using AFBack.Features.Exceptions;
 using Serilog;
 using AFBack.Infrastructure.Extensions.ApplicationExtensions;
 using AFBack.Infrastructure.Extensions.BuilderExtensions;
-using AFBack.Infrastructure.Extensions.ServiceExtensions;
 
 // Oppretter et webapplikasjon-objekt, denne variabelen igjen kan man bruke funksjoner på.
 var builder = WebApplication.CreateBuilder(args);
 
 Console.WriteLine($"ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
-// 1. Logging først for å logge feil
+// ======= Secrets først =======
+builder.ConfigureSecrets(); 
+
+// ======= Konfigurerer logging =======
 builder.ConfigureLogging();
-// 2. UserSettings siden det brukes av alt
-builder.ConfigureSettings();
-// 3. Web konfigurasjon
+
+// ======= Setter opp App Insight med Serilog =======
+builder.ConfigureAzureMonitoring();
+
+// ======= Web konfigurering =======
 builder.ConfigureForwardHeaders();
 builder.ConfigureCors();
 builder.ConfigureControllers();
 builder.ConfigureSwagger();
 
-// 4. Services i riktig rekkefølge
-builder.Services.AddCoreInfrastructure(builder.Configuration);
+// ======= Azure services =======
+builder.Services
+    .AddAzureKeyVault(builder.Configuration)
+    .AddAzureBlobStorage(builder.Configuration)
+    .AddAzureEmail(builder.Configuration)
+    .AddAzureSms(builder.Configuration);
+
+// ======= Exception håndtering og setter opp ProblemDetails =======
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
+
+// ======= Infrastruktur =======
+builder.Services.AddDatabase(builder.Configuration);
+builder.Services.AddCaching(builder.Configuration);
 builder.Services.AddIdentityAndAuthentication();
+builder.Services.AddSecurityServices(builder.Configuration);
 builder.Services.AddSignalRServices();
 builder.Services.AddSecurityServices(builder.Configuration);
 builder.Services.AddBackgroundServices();
+
+// ======= Service registrations =======
 builder.Services.AddRepositories();
 builder.Services.AddBusinessServices();
 
