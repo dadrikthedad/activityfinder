@@ -28,6 +28,7 @@ using AFBack.Features.Reactions.Repositories;
 using AFBack.Features.Reactions.Services;
 using AFBack.Features.Settings.Repositories;
 using AFBack.Features.Settings.Services;
+using AFBack.Features.SignalR.Repository;
 using AFBack.Features.Support.Repositories;
 using AFBack.Features.Support.Services;
 using AFBack.Features.SyncEvents.Repository;
@@ -88,6 +89,9 @@ public static class ServiceRegistrationExtensions
         // ===== SUPPORT =====
         services.AddScoped<ISupportRepository, SupportRepository>();
         
+        // ===== SIGNALR =====
+        services.AddScoped<IUserConnectionRepository, UserConnectionRepository>();
+        
         return services;
     }
     
@@ -137,6 +141,7 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<IProfileBroadcastService, ProfileBroadcastService>();
         services.AddScoped<IFriendshipBroadcastService, FriendshipBroadcastService>();
         services.AddScoped<IGroupConversationBroadcastService, GroupConversationBroadcastService>(); 
+        services.AddScoped<IReactionBroadcastService, ReactionBroadcastService>();
         
         // ===== LOCALICATION AND GEOGRAPHY SERVICES =====
         services.AddHttpClient<IGeoLocationService>(client =>

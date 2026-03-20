@@ -1,5 +1,6 @@
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.MessageNotification.Models;
+using AFBack.Features.MessageNotifications.Models;
 
 namespace AFBack.Features.MessageNotifications.Repository;
 

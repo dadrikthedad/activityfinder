@@ -13,11 +13,8 @@ import { useNavigation } from "@react-navigation/native";
 
 // Components
 import ButtonNative from "@/components/common/buttons/ButtonNative";
-
-// Native field components
 import SignUpNameFieldsNative from "@/components/signup/SignUpNameFieldsNative";
 import SignUpContactFieldsNative from "@/components/signup/SignUpContactFieldsNative";
-import SignUpPasswordFieldsNative from "@/components/signup/SignUpPasswordFieldsNative";
 import SignUpLocationFieldsNative from "@/components/signup/SignUpLocationFieldsNative";
 import SignUpDemoFieldsNative from "@/components/signup/SignUpDemoFieldsNative";
 import SignUpPasswordSimpleFieldNative from "@/components/signup/SignUpPasswordSimpleFieldNative";
@@ -26,12 +23,12 @@ import SignUpPasswordSimpleFieldNative from "@/components/signup/SignUpPasswordS
 import { useFormHandlers } from "@/hooks/useFormHandlers";
 import { useCountryAndRegion } from "@/hooks/useCountryAndRegion";
 import { useRegisterUser } from "@/hooks/useRegisterUser";
-import { checkEmailAvailability } from "@/services/user/signUpService";
 import { handleSubmitNative } from "@/utils/form/handleSubmitNative";
 import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
 
 // Types
 import { SignupScreenNavigationProp } from "@/types/navigation";
+import { RegisterResponseDTO } from "@shared/types/auth/RegisterResponseDTO";
 
 export default function SignupScreen() {
   const navigation = useNavigation<SignupScreenNavigationProp>();
@@ -76,54 +73,49 @@ export default function SignupScreen() {
     editing: true,
   });
 
-  // Hook for å registrere bruker
   const { registerUser, isSubmitting } = useRegisterUser({
     formData,
     countryCodes,
     setFormData,
     setErrors,
     setMessage,
-    onSuccess: () => {
-      // Show success toast
+    onSuccess: (_response: RegisterResponseDTO) => {
       showNotificationToastNative({
         type: LocalToastType.CustomSystemNotice,
         customTitle: "Registration Successful!",
-        customBody: "Your account has been created successfully. Redirecting to login...",
-        position: 'top'
+        customBody: "Your account has been created. Check your email to verify your account.",
+        position: 'top',
       });
-      
-      // Set registered state after a short delay
+
       setTimeout(() => {
         setIsRegistered(true);
       }, 1500);
     },
   });
 
-  // Show error as toast if there's an error message
+  // Vis feilmelding som toast
   useEffect(() => {
     if (message) {
       showNotificationToastNative({
-        type: LocalToastType.CustomSystemNotice,
+        type: LocalToastType.CustomSystemError,
         customTitle: "Registration Error",
         customBody: message,
-        position: 'top'
+        position: 'top',
       });
     }
   }, [message]);
 
-  // Show general errors as toast
   useEffect(() => {
     if (errors["general"]) {
       showNotificationToastNative({
-        type: LocalToastType.CustomSystemNotice,
+        type: LocalToastType.CustomSystemError,
         customTitle: "Error",
         customBody: errors["general"],
-        position: 'top'
+        position: 'top',
       });
     }
   }, [errors]);
 
-  // Håndterer og gir en error hvis ikke alt er fylt og vi klikker på submit
   const handleAttemptSubmit = () => {
     handleSubmitNative({
       formData,
@@ -132,103 +124,34 @@ export default function SignupScreen() {
       setErrors,
       setMessage,
       onSubmit: registerUser,
-      extraValidation: async () => {
-        const errors: Record<string, string> = {};
-        if (!formData.email) return errors; // skip API call
-
-        const normalizedEmail = formData.email.trim().toLowerCase();
-        
-        // Grunnleggende email format validering før API kall
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(normalizedEmail)) {
-          errors.email = "Please enter a valid email address.";
-          return errors;
-        }
-
-        // Sjekk for mistenkelige mønstre som backend ikke liker
-        const suspiciousPatterns = [
-          "test@", "admin@", "root@", "postmaster@",
-          "noreply@", "no-reply@", "@test", "@example"
-        ];
-        
-        const hasSuspiciousPattern = suspiciousPatterns.some(pattern => 
-          normalizedEmail.includes(pattern.toLowerCase())
-        );
-        
-        if (hasSuspiciousPattern) {
-          errors.email = "Invalid email.";
-          return errors;
-        }
-
-        try {
-          const emailAvailable = await checkEmailAvailability(normalizedEmail);
-          if (!emailAvailable) {
-            errors.email = "An account with this email already exists.";
-          }
-        } catch (error) {
-          console.error('Email availability check failed:', error);
-          
-          // Prøv å parse backend error message
-          let errorMessage = "Could not verify email availability. Please try again.";
-          
-          if (error && typeof error === 'object' && 'message' in error) {
-            const backendMessage = (error as any).message;
-            if (typeof backendMessage === 'string') {
-              if (backendMessage.includes('Invalid email format')) {
-                errorMessage = "Please enter a valid email address.";
-              } else if (backendMessage.includes('empty')) {
-                errorMessage = "Email address is required.";
-              } else if (backendMessage.includes('Database error')) {
-                errorMessage = "Server error. Please try again later.";
-              } else {
-                // Vis backend error message direkte hvis den er forståelig
-                errorMessage = backendMessage;
-              }
-            }
-          }
-          
-          errors.email = errorMessage;
-        }
-        
-        return errors;
-      },
     });
   };
 
-  // Debug errors
-  useEffect(() => {
-    console.log("Akkurat nå, errors:", errors);
-  }, [errors]);
-
   // Redirect til login etter registrering
   useEffect(() => {
-  if (isRegistered) {
-    setTimeout(() => {
-      navigation.reset({
-        index: 0,
-        routes: [{ 
-          name: 'Login', 
-          params: { fromSignup: true } // 👈 Send parameteret
-        }],
-      });
-    }, 500);
-  }
-}, [isRegistered, navigation]);
+    if (isRegistered) {
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login', params: { fromSignup: true } }],
+        });
+      }, 500);
+    }
+  }, [isRegistered, navigation]);
 
   const navigateToLogin = () => {
-  navigation.reset({
-    index: 0,
-    routes: [{ name: 'Login' }],
-  });
-};
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Login' }],
+    });
+  };
 
   const handleCountryChange = async (selectedCountry: string) => {
     setFormData((prev) => ({
       ...prev,
       country: selectedCountry,
-      region: "", // Reset region when country changes
+      region: "",
     }));
-
     await fetchRegionsForCountry(selectedCountry);
   };
 
@@ -243,16 +166,12 @@ export default function SignupScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Register</Text>
-            <Text style={styles.subtitle}>Create a new user.</Text>
+            <Text style={styles.subtitle}>Create a new account.</Text>
           </View>
 
-          {/* Form Grid Container */}
           <View style={styles.formContainer}>
-            
-            {/* Name Fields */}
             <SignUpNameFieldsNative
               formData={formData}
               handleChange={handleChange}
@@ -260,8 +179,6 @@ export default function SignupScreen() {
               errors={errors}
               touchedFields={touchedFields}
             />
-
-            {/* Contact Fields */}
             <SignUpContactFieldsNative
               formData={formData}
               handleChange={handleChange}
@@ -269,8 +186,6 @@ export default function SignupScreen() {
               errors={errors}
               touchedFields={touchedFields}
             />
-
-            {/* Password Fields */}
             <SignUpPasswordSimpleFieldNative
               formData={formData}
               handleChange={handleChange}
@@ -278,8 +193,6 @@ export default function SignupScreen() {
               errors={errors}
               touchedFields={touchedFields}
             />
-
-            {/* Location Fields */}
             <SignUpLocationFieldsNative
               formData={formData}
               handleChange={handleChange}
@@ -290,8 +203,6 @@ export default function SignupScreen() {
               regions={regions}
               handleCountryChange={handleCountryChange}
             />
-
-            {/* Demo Fields (Birthday & Postal) */}
             <SignUpDemoFieldsNative
               formData={formData}
               handleChange={handleChange}
@@ -300,7 +211,6 @@ export default function SignupScreen() {
               touchedFields={touchedFields}
             />
 
-            {/* Sign Up Button */}
             <View style={styles.buttonContainer}>
               <ButtonNative
                 text="Sign up"
@@ -313,8 +223,6 @@ export default function SignupScreen() {
                 fullWidth
                 style={styles.signupButton}
               />
-
-              {/* Login Navigation Button */}
               <View style={styles.loginContainer}>
                 <Text style={styles.footerText}>Already have an account? </Text>
                 <ButtonNative

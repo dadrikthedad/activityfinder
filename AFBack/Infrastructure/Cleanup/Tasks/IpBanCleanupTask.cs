@@ -8,11 +8,7 @@ namespace AFBack.Infrastructure.Cleanup.Tasks;
 /// Rydder utløpte bans fra cache og database via IpBanService,
 /// og sletter gamle SuspiciousActivity-rader som ikke lenger er relevante.
 /// </summary>
-public class IpBanCleanupTask(
-    // IServiceScopeFactory scopeFactory,
-    IpBanService ipBanService
-    // ILogger<IpBanCleanupTask> logger
-    ) : ICleanupTask
+public class IpBanCleanupTask(IIpBanService ipBanService) : ICleanupTask
 {
     public string TaskName => "IpBanCleanup";
     public TimeSpan Interval => TimeSpan.FromHours(1);

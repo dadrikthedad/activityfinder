@@ -7,14 +7,10 @@ using AFBack.Infrastructure.Extensions.BuilderExtensions;
 var builder = WebApplication.CreateBuilder(args);
 
 Console.WriteLine($"ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
-// ======= Secrets først =======
-builder.ConfigureSecrets(); 
 
 // ======= Konfigurerer logging =======
 builder.ConfigureLogging();
 
-// ======= Setter opp App Insight med Serilog =======
-builder.ConfigureAzureMonitoring();
 
 // ======= Web konfigurering =======
 builder.ConfigureForwardHeaders();
@@ -23,11 +19,18 @@ builder.ConfigureControllers();
 builder.ConfigureSwagger();
 
 // ======= Azure services =======
+// builder.Services
+//     .AddAzureKeyVault(builder.Configuration)
+//     .AddAzureBlobStorage(builder.Configuration)
+//     .AddAzureEmail(builder.Configuration)
+//     .AddAzureSms(builder.Configuration);
+
+// ======= UpCloud Services =======
 builder.Services
-    .AddAzureKeyVault(builder.Configuration)
-    .AddAzureBlobStorage(builder.Configuration)
-    .AddAzureEmail(builder.Configuration)
-    .AddAzureSms(builder.Configuration);
+    .AddS3Storage(builder.Configuration)
+    .AddBrevoEmail(builder.Configuration)
+    .Add46ElksSms(builder.Configuration)
+    .AddHashiCorpVault(builder.Configuration);
 
 // ======= Exception håndtering og setter opp ProblemDetails =======
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
@@ -39,7 +42,6 @@ builder.Services.AddCaching(builder.Configuration);
 builder.Services.AddIdentityAndAuthentication();
 builder.Services.AddSecurityServices(builder.Configuration);
 builder.Services.AddSignalRServices();
-builder.Services.AddSecurityServices(builder.Configuration);
 builder.Services.AddBackgroundServices();
 
 // ======= Service registrations =======
@@ -56,4 +58,5 @@ var app = builder.Build();
 app.UseAppPipeline();
 
 Log.Information("Application started successfully!");
+Log.Information("Swagger: {Url}", "http://localhost:5058/swagger");
 app.Run();

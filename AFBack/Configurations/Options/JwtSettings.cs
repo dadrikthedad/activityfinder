@@ -8,7 +8,7 @@ namespace AFBack.Configurations.Options;
 /// </summary>
 public class JwtSettings
 {
-    public const string SectionName = "JwtSettings";
+    public const string SectionName = "Jwt";
   
     [Required(ErrorMessage = "Secret Key is required")]
     [MinLength(32, ErrorMessage = "Secret Key must be more than 32 characters")]

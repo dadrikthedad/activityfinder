@@ -4,9 +4,6 @@ namespace AFBack.Features.Reactions.Repositories;
 
 public interface IReactionRepository
 {
-
-    
-    
     /// <summary>
     /// Henter en eksistrende reaksjon på en melding som tilhører en samtale
     /// </summary>

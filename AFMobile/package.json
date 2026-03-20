@@ -36,6 +36,7 @@
     "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
     "expo-video": "~2.2.2",
+    "expo-video-decryption": "file:./modules/expo-video-decryption",
     "expo-video-thumbnails": "~9.1.3",
     "jwt-decode": "^4.0.0",
     "lucide-react-native": "^0.536.0",
@@ -58,8 +59,7 @@
     "react-native-toast-message": "^2.3.3",
     "rn-emoji-keyboard": "^1.7.0",
     "stream-browserify": "^3.0.0",
-    "zustand": "^5.0.7",
-    "expo-video-decryption": "file:./modules/expo-video-decryption"
+    "zustand": "^5.0.7"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

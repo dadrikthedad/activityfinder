@@ -424,7 +424,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
 
             // Relasjon til MessageNotificaiton
             entity.HasOne(mge => mge.MessageNotification)
-                .WithMany()
+                .WithMany(mn => mn.GroupEvents) 
                 .HasForeignKey(mge => mge.MessageNotificationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
@@ -648,13 +648,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             {
                 Id = "1",
                 Name = AppRoles.Admin,
-                NormalizedName = AppRoles.Admin.ToUpperInvariant()
+                NormalizedName = AppRoles.Admin.ToUpperInvariant(),
+                ConcurrencyStamp = "00000000-0000-0000-0000-000000000001"
             },
             new IdentityRole
             {
                 Id = "2",
                 Name = AppRoles.User,
-                NormalizedName = AppRoles.User.ToUpperInvariant()
+                NormalizedName = AppRoles.User.ToUpperInvariant(),
+                ConcurrencyStamp = "00000000-0000-0000-0000-000000000002"
             });
 
     }

@@ -7,8 +7,8 @@ using AFBack.Infrastructure.Sms.Enums;
 namespace AFBack.Infrastructure.Security.Services;
 
 public class RateLimitGuardService(
-    EmailRateLimitService emailRateLimitService,
-    SmsRateLimitService smsRateLimitService, 
+    IEmailRateLimitService emailRateLimitService,
+    ISmsRateLimitService smsRateLimitService, 
     ISuspiciousActivityService suspiciousActivityService) : IRateLimitGuardService
 {
     /// <inheritdoc/>

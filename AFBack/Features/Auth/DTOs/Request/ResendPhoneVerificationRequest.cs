@@ -9,3 +9,4 @@ public class ResendPhoneVerificationRequest
     [MaxLength(20, ErrorMessage = "Phone number cannot exceed 20 characters")]
     public required string PhoneNumber { get; init; }
 }
+ 

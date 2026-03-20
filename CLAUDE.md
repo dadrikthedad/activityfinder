@@ -1,30 +1,37 @@
 # ActivityFinder
 
-Ende-til-ende kryptert meldingsapp. React Native + .NET 10 + PostgreSQL + Redis.
+Ende-til-ende kryptert meldingsapp. React Native (Expo) + .NET 10 + PostgreSQL + Redis.
 
-## Pågående arbeid
+## Prosjektstruktur
 
-**Refaktorering backend:** By-Layer → Vertical Slice Architecture (By-Feature)
-
-Gjøremål: Opprette endepunkt for å akseptere og avslå en Pending Conversation Request
+```
+ActivityFinder/
+├── AFBack/         # .NET 10 backend API
+├── AFMobile/       # React Native / Expo mobilapp
+├── shared/         # Delte TypeScript-typer (frontend/mobile)
+└── activitynext/   # Next.js webfront (ikke aktiv)
+```
 
 ## Kommandoer
 
 ```bash
-# Backend (AFBack)
+# Backend
 cd AFBack
-dotnet run                              # Dev server
-dotnet ef migrations add MigrationName  # Ny migration
-dotnet ef database update               # Kjør migrations
-dotnet test                             # Kjør tester
+dotnet run
+dotnet watch run
+dotnet ef migrations add MigrationName
+dotnet ef database update
+dotnet test
 
-# Frontend (AFMobile)
+# Mobilapp
 cd AFMobile
-npm start                               # Dev server
-npx expo start                          # Expo dev
+npx expo run:android           # Bygg og kjør på fysisk Android-enhet
+npx expo start                 # Start Metro bundler (hot reload)
+adb devices                    # Sjekk tilkoblet enhet
+adb reverse tcp:8081 tcp:8081  # Tunneling hvis Metro ikke kobler
 ```
 
-## Kritiske regler
+## Kritiske regler (gjelder hele prosjektet)
 
 **Krypteringsgrense:** Backend lagrer KUN kryptert data. Dekrypter ALDRI i backend.
 
@@ -32,13 +39,17 @@ npx expo start                          # Expo dev
 
 **Cache-invalidering:** Invalider `CanSend` cache ved accept/block/archive/leave.
 
+**Modeller:** ALDRI opprett nye modeller eller legg til egenskaper uten eksplisitt bekreftelse fra Magee.
+
+**Kommentarer:** Norske kommentarer i kode, engelske identifikatorer og API-navn.
+
 ## Dokumentasjon
 
-Se @AFBack/CLAUDE.md for backend-arkitektur og patterns  
-Se @AFBack/.claude/rules/ for domenespesifikke regler (når opprettet)
+Se @AFBack/CLAUDE.md for backend-arkitektur og patterns
+Se @AFMobile/CLAUDE.md for mobilapp-arkitektur og patterns
 
-## Notater
+## Pågående arbeid
 
-- Norske kommentarer i kode, engelske API-navn
-- Tester må oppdateres etter refactoring
-- CI/CD: GitHub Actions (workflows i .github/workflows/)
+- AFBack: Refaktorering til Vertical Slice Architecture (By-Feature)
+- AFMobile: Refaktorering til Feature Slice-struktur + kobling mot ny lokal backend
+- CI/CD: GitHub Actions planlagt (workflows i .github/workflows/)

@@ -1,9 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Auth.Models;
-using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.Models.Enum;
 
-namespace AFBack.Features.MessageNotification.Models;
+namespace AFBack.Features.MessageNotifications.Models;
 
 public class GroupEvent
 {

@@ -8,7 +8,7 @@ namespace AFBack.Infrastructure.Cleanup.Tasks;
 /// Rydder utløpte cooldowns, daglige tellere og IP-tellere.
 /// Kjøres av MaintenanceCleanupService via ICleanupTask.
 /// </summary>
-public class EmailRateLimitCleanUpTask(EmailRateLimitService emailRateLimitService) : ICleanupTask
+public class EmailRateLimitCleanUpTask(IEmailRateLimitService emailRateLimitService) : ICleanupTask
 {
     public string TaskName => "EmailRateLimit";
     public TimeSpan Interval => TimeSpan.FromMinutes(EmailRateConfig.EmailCleanupIntervalMinutes);

@@ -5,6 +5,7 @@ using AFBack.Common.Results;
 using AFBack.Features.MessageNotification.Models.Enum;
 using AFBack.Features.MessageNotifications.DTOs;
 using AFBack.Features.MessageNotifications.Extensions;
+using AFBack.Features.MessageNotifications.Models;
 using AFBack.Features.MessageNotifications.Repository;
 using AFBack.Infrastructure.Cache;
 
@@ -197,11 +198,11 @@ public class MessageNotificationQueryService(
     /// </summary>
     /// <param name="notificationIds"></param>
     /// <returns>Dictionary med Key = messageNotificaitonId og Value = Liste med GroupEvents</returns>
-    private async Task<Dictionary<int, List<MessageNotification.Models.GroupEvent>>> GetGroupEventsDictionaryAsync(
+    private async Task<Dictionary<int, List<GroupEvent>>> GetGroupEventsDictionaryAsync(
         List<int> notificationIds)
     {
         if (notificationIds.Count == 0)
-            return new Dictionary<int, List<MessageNotification.Models.GroupEvent>>();
+            return new Dictionary<int, List<GroupEvent>>();
         
         // Henter mange tuple med MessageNotfiicationId og GroupEvent, Eks: MessageNotificationId: 5, GroupEvent: "...."
         var allGroupEvents = await messageNotificationRepository
@@ -230,7 +231,7 @@ public class MessageNotificationQueryService(
     private MessageNotificationResponse MapToResponse(
         MessageNotifications.Models.MessageNotification notification,
         Dictionary<string, UserSummaryDto> userSummaries,
-        Dictionary<int, List<MessageNotification.Models.GroupEvent>> groupEventsDict)
+        Dictionary<int, List<GroupEvent>> groupEventsDict)
     {
         // Henter ut senderen til denne spesifikke notifikasjonen
         var senderDto = userSummaries.GetValueOrDefault(notification.SenderId) 

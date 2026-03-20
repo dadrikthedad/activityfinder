@@ -1,9 +1,12 @@
-export interface LoginResponseDTO {
+import { UserSummaryDTO } from "../UserSummaryDTO";
+
+export interface TokenResponse {
   accessToken: string;
   refreshToken: string;
   accessTokenExpires: string;
   refreshTokenExpires: string;
-  message?: string;
-  emailVerificationRequired?: boolean;
-  email?: string;
+}
+
+export interface LoginResponseDTO extends TokenResponse {
+  user: UserSummaryDTO;
 }

@@ -1,46 +1,59 @@
+using System.Text;
+using System.Text.Json;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using Azure.Security.KeyVault.Secrets;
 
 namespace AFBack.Infrastructure.KeyVault.Services;
 
 public class KeyVaultService(
-    SecretClient secretClient,
+    HttpClient httpClient,
     ILogger<KeyVaultService> logger) : IKeyVaultService
 {
+
+    private const string MountPath = "af"; // KV-stien til Vault
+
     /// <inheritdoc/>
     public async Task<Result> StoreRecoverySeedAsync(string userId, int deviceId, string key)
     {
         try
         {
-            var timestamp = DateTime.UtcNow;
-            var secretName = $"user-{userId}-{timestamp:yyyyMMddHHmmss}";
+            // Fast path per bruker/device — Vault KV v2 versjonerer automatisk
+            // Hver gang brukeren bytter nøkkel får vi en ny versjon, historikken beholdes alltid
+            var secretPath = $"v1/{MountPath}/data/users/{userId}/device-{deviceId}";
 
-            var secret = new KeyVaultSecret(secretName, key)
+            var payload = new
             {
-                Properties =
+                data = new
                 {
-                    Tags =
-                    {
-                        ["userId"] = userId,
-                        ["device"] = deviceId.ToString(),
-                        ["createdAt"] = timestamp.ToString("O"),
-                        ["version"] = timestamp.Ticks.ToString()
-                    },
-                    ContentType = "recovery-seed"
+                    key,
+                    contentType = "recovery-seed"
                 }
             };
 
-            await secretClient.SetSecretAsync(secret);
-            logger.LogInformation("Recovery seed stored for User {UserId} with device {DeviceId}", userId, deviceId);
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await httpClient.PostAsync(secretPath, content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                logger.LogError(
+                    "Failed to store recovery seed in Vault for User {UserId} Device {DeviceId}. " +
+                    "Status: {Status}. Error: {Error}", userId, deviceId, response.StatusCode, error);
+                return Result.Failure("Failed to store recovery seed", ErrorTypeEnum.InternalServerError);
+            }
+
+            logger.LogInformation(
+                "Recovery seed stored in Vault for User {UserId} Device {DeviceId}",
+                userId, deviceId);
 
             return Result.Success();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to store recovery seed for User {UserId}", userId);
+            logger.LogError(ex, "Failed to store recovery seed in Vault for User {UserId}", userId);
             return Result.Failure("Failed to store recovery seed", ErrorTypeEnum.InternalServerError);
         }
-        
     }
 }

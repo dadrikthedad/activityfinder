@@ -1,17 +1,14 @@
 using System.ComponentModel.DataAnnotations;
 
-
-namespace AFBack.Features.MessageNotification.Models;
+namespace AFBack.Features.MessageNotifications.Models;
 
 public class MessageNotificationGroupEvent
 {
-    [Required]
+    // ======================== Compound Primary Key ========================
     public int MessageNotificationId { get; set; }
-    
-    [Required]
     public int GroupEventId { get; set; }
     
-    
-    public MessageNotifications.Models.MessageNotification MessageNotification { get; set; } = null!;
+    // ======================== Navigasjonsegenskaper ========================
+    public MessageNotification MessageNotification { get; set; } = null!;
     public GroupEvent GroupEvent { get; set; } = null!;
 }

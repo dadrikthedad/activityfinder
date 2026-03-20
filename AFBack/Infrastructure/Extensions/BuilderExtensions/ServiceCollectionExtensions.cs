@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
+using StackExchange.Redis;
 using IHubConnectionService = AFBack.Features.SignalR.Services.IHubConnectionService;
 
 namespace AFBack.Infrastructure.Extensions.BuilderExtensions;
@@ -33,6 +34,7 @@ public static class ServiceCollectionExtensions
         var connectionString = configuration.GetConnectionString("DatabaseConnection")
                                ?? throw new InvalidOperationException("ConnectionStrings:DatabaseConnection " +
                                                                       "is not configured");
+        Console.WriteLine($"DB Connection: {connectionString}");
 
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
@@ -48,7 +50,12 @@ public static class ServiceCollectionExtensions
         // Redis distributed cache
         var redisConnectionString = configuration.GetConnectionString("Redis")
                                     ?? throw new InvalidOperationException("ConnectionStrings:Redis is not configured");
-
+        
+        // En tilkobling til Redis som kan brukes av flere servicer med full tilgang til alt av Redis-funksjonaltiet
+        var multiplexer = ConnectionMultiplexer.Connect(redisConnectionString);
+        services.AddSingleton<IConnectionMultiplexer>(multiplexer);
+        
+        // Enkelt cache mot Redis - Gir oss mulighet til å hente ut data fra Redis med get/set
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = redisConnectionString;

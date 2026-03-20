@@ -1,0 +1,12 @@
+# Terraform state — inneholder sensitiv info om infrastrukturen
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+
+# Secrets — skal aldri committes
+secrets.tfvars
+*.auto.tfvars
+
+# OS
+.DS_Store
+Thumbs.db

@@ -4,6 +4,7 @@ using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Enums;
 using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotification.Models.Enum;
+using AFBack.Features.MessageNotifications.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Features.MessageNotifications.Repository;

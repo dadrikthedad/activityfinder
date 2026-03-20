@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using AFBack.Features.Auth.Models;
-using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotification.Models.Enum;
 
 namespace AFBack.Features.MessageNotifications.Models;
