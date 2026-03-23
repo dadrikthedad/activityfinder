@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using AFBack.Common.DTOs;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Configurations.Options;
 using AFBack.Features.Auth.DTOs.Response;
@@ -33,7 +34,7 @@ public class TokenService(
         var refreshTokenExpires = DateTime.UtcNow.AddDays(TokenConfig.RefreshTokenDays);
         
         // Henter aktive Tokens på denne devicen for å nullstille de (pga krasj, avinstallasjon etc)
-        var activeTokens = await refreshTokenRepository.GetActiveTokensByDeviceIdAsync(device.Id);
+        var activeTokens = await refreshTokenRepository.GetActiveTokensByDeviceIdAsync(device.Id, ct);
         
         // Revoker token
         foreach (var token in activeTokens)
@@ -54,8 +55,8 @@ public class TokenService(
             UserAgent = userAgent
         };
         
-        await refreshTokenRepository.AddAsync(refreshToken);
-        await refreshTokenRepository.SaveChangesAsync();
+        await refreshTokenRepository.AddAsync(refreshToken, ct);
+        await refreshTokenRepository.SaveChangesAsync(ct);
         
         logger.LogInformation(
             "Token pair generated for UserId: {UserId}, DeviceId: {DeviceId}", 
@@ -82,11 +83,11 @@ public class TokenService(
         string ipAddress, string? userAgent, CancellationToken ct = default)
     {
         // Finn refresh token i databasen (inkluderer UserDevice og AppUser)
-        var storedToken = await refreshTokenRepository.GetByTokenWithDeviceAsync(refreshToken);
+        var storedToken = await refreshTokenRepository.GetByTokenWithDeviceAsync(refreshToken, ct);
         if (storedToken == null)
         {
             logger.LogWarning("Refresh attempted with unknown token");
-            return Result<LoginResponse>.Failure("Invalid refresh token");
+            return Result<LoginResponse>.Failure("Invalid refresh token", AppErrorCode.InvalidToken);
         }
         
         // Sjekk om revokert
@@ -101,14 +102,16 @@ public class TokenService(
                 "Revoked token reuse detected — possible token theft");
             
             return Result<LoginResponse>.Failure(
-                "Session has been invalidated for security reasons. Please log in again.");
+                "Session has been invalidated for security reasons. Please log in again.",
+                AppErrorCode.InvalidToken);
         }
         
         // Sjekk utløp
         if (storedToken.ExpiresAt < DateTime.UtcNow)
         {
             logger.LogInformation("Expired refresh token used for UserId: {UserId}", storedToken.UserId);
-            return Result<LoginResponse>.Failure("Refresh token has expired. Please log in again.");
+            return Result<LoginResponse>.Failure("Refresh token has expired. Please log in again.",
+                AppErrorCode.TokenExpired);
         }
         
         // Sjekk at device fingerprint matcher - matcher ikke hvis den er stjelt og brukes på en annen enhet
@@ -119,7 +122,8 @@ public class TokenService(
                 "Expected device {ExpectedDevice}, got different fingerprint.",
                 storedToken.UserId, storedToken.UserDeviceId);
             
-            return Result<LoginResponse>.Failure("Device mismatch. Please log in again.");
+            return Result<LoginResponse>.Failure("Device mismatch. Please log in again.", 
+                AppErrorCode.InvalidToken);
         }
         
         // ====== Token rotation: Revoker gammelt, generer nytt ======
@@ -135,7 +139,7 @@ public class TokenService(
         var roles = await userManager.GetRolesAsync(user);
         
         // Generer nytt token-par for å rotere tokens
-        var response = await GenerateTokenPairAsync(user, device, roles, ipAddress, userAgent);
+        var response = await GenerateTokenPairAsync(user, device, roles, ipAddress, userAgent, ct);
         
         // Oppdater device metadata
         device.LastUsedAt = DateTime.UtcNow;

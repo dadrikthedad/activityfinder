@@ -49,7 +49,7 @@ public class PasswordService(
         if (!isCurrentPasswordValid)
         {
             logger.LogWarning("Change password failed — wrong current password for UserId: {UserId}", userId);
-            return Result.Failure("Current password is incorrect");
+            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidCredentials);
         }
     
         // Bytt passord via Identity
@@ -59,7 +59,7 @@ public class PasswordService(
             var errors = string.Join(" ", changeResult.Errors.Select(e => e.Description));
             logger.LogWarning("Failed to change password for UserId: {UserId}. Errors: {Errors}", 
                 userId, errors);
-            return Result.Failure(errors);
+            return Result.Failure(errors, AppErrorCode.InternalError);
         }
     
         logger.LogInformation("Password changed successfully for UserId: {UserId}", userId);
@@ -77,7 +77,7 @@ public class PasswordService(
         var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.PasswordReset, 
             email, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
     
         // ====== Finn bruker ======
         var user = await userManager.FindByEmailAsync(email);
@@ -98,7 +98,8 @@ public class PasswordService(
     
             return Result.Failure(
                 "Your email is not yet verified. " +
-                "We've sent a verification email — please verify before resetting your password.");
+                "We've sent a verification email — please verify before resetting your password.", 
+                AppErrorCode.InvalidCredentials);
         }
         
         // Brukeren har ikke bekrefet eposten sin
@@ -110,7 +111,8 @@ public class PasswordService(
     
             return Result.Failure(
                 "Your phonenumber is not yet verified. " +
-                "We've sent a verification sms — please verify before resetting your password.");
+                "We've sent a verification sms — please verify before resetting your password.", 
+                AppErrorCode.PhoneNotConfirmed);
         }
         
         // ====== Generer kode og send epost ======
@@ -143,13 +145,13 @@ public class PasswordService(
         {
             logger.LogWarning("IpAddress: {IpAddress} is trying to verify password reset code for " +
                               "non-existent user. Email: {Email}", ipAddress, email);
-            return Result.Failure("Invalid reset attempt");
+            return Result.Failure("Invalid reset attempt", AppErrorCode.Unauthorized);
         }
         
         var validateResult = await verificationInfoService.ValidateEmailPasswordResetCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.AppErrorType == AppErrorCode.TooManyRequests)
+            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt,
                     $"Password reset email code locked out for {email}");
@@ -175,14 +177,14 @@ public class PasswordService(
         {
             logger.LogWarning("IpAddress: {IpAddress} is trying to send password reset code for " +
                               "non-existent user. Email: {Email}", ipAddress, email);
-            return Result.Failure("Invalid reset attempt");
+            return Result.Failure("Invalid reset attempt", AppErrorCode.Unauthorized);
         }
         
         // Rate limit SMS
         var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
             SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         // Generer SMS-kode (guard i VerificationService sjekker PasswordResetEmailVerified)
         var smsCode = await verificationInfoService.GenerateSmsPasswordResetCodeAsync(user.Id, ct);
@@ -210,14 +212,14 @@ public class PasswordService(
         {
             logger.LogWarning("IpAddress: {IpAddress} is trying to verify sms password reset code for " +
                               "non-existent user. Email: {Email}", ipAddress, email);
-            return Result.Failure("Invalid reset attempt");
+            return Result.Failure("Invalid reset attempt", AppErrorCode.Unauthorized);
         }
     
         // ====== Valider koden ======
         var validateResult = await verificationInfoService.ValidateSmsPasswordResetCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.AppErrorType == AppErrorCode.TooManyRequests)
+            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt, 
                     $"Password reset SMS code locked out for {email}");
@@ -228,7 +230,7 @@ public class PasswordService(
         var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
             SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         // ====== Reset passord via Identity ======
         // Fjern først
@@ -236,7 +238,7 @@ public class PasswordService(
         if (!removeResult.Succeeded)
         {
             logger.LogError("Failed to remove password for {Email}", email);
-            return Result.Failure("Failed to reset password");
+            return Result.Failure("Failed to reset password", AppErrorCode.InternalError);
         }
         
         // Så legg til nytt Passord
@@ -245,7 +247,7 @@ public class PasswordService(
         {
             var errors = string.Join(" ", addResult.Errors.Select(e => e.Description));
             logger.LogWarning("Failed to set new password for {Email}: {Errors}", email, errors);
-            return Result.Failure(errors);
+            return Result.Failure(errors, AppErrorCode.InvalidRegistrationData);
         }
     
         // Nullstill rate limit cooldown for password reset

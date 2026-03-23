@@ -297,7 +297,7 @@ public class VerificationInfoService(
         
         // Ingen pending epost
         if (string.IsNullOrEmpty(verificationInfo.PendingEmail))
-            return Result<string>.Failure("No pending email change found");
+            return Result<string>.Failure("No pending email change found", AppErrorCode.NotFound);
         
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
         var result = await ValidateCodeAsync(userId,
@@ -307,7 +307,7 @@ public class VerificationInfoService(
             "OldEmailChange", ct);
         
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.AppErrorType);
+            return Result<string>.Failure(result.Error, result.ErrorCode);
         
         // Riktig kode — marker steg 1 som fullført, nullstill steg 1-koden
         verificationInfo.OldEmailChangeCode = null;
@@ -366,7 +366,7 @@ public class VerificationInfoService(
         
         // Ingen pending epost
         if (string.IsNullOrEmpty(verificationInfo.PendingEmail))
-            return Result<string>.Failure("No pending email change found");
+            return Result<string>.Failure("No pending email change found", AppErrorCode.NotFound);
         
         // Guard: Steg 1 må være fullført
         if (!verificationInfo.CurrentEmailChangeVerified)
