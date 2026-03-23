@@ -52,7 +52,7 @@ public class GroupInviteValidator(
                 inviterId, string.Join(", ", nonExistentReceivers));
             return Result.Failure(
                 $"One or more users do not exist. Users: {string.Join(", ", nonExistentReceivers)}",
-                ErrorTypeEnum.NotFound);
+                AppErrorCode.NotFound);
         }
         
         // ============ VALIDERING: Allerede participant (kun ved eksisterende gruppe) ============
@@ -92,7 +92,7 @@ public class GroupInviteValidator(
                     inviterId, conversationId, string.Join(", ", usersWhoLeft));
                 return Result.Failure(
                     $"Cannot invite users who have left the group. Users: {string.Join(", ", usersWhoLeft)}",
-                    ErrorTypeEnum.Forbidden);
+                    AppErrorCode.Forbidden);
             }
         }
         
@@ -112,7 +112,7 @@ public class GroupInviteValidator(
             logger.LogWarning("User {UserId} cannot invite: {Count} blocked users", inviterId, blockedUsers.Count);
             return Result.Failure(
                 $"Cannot invite blocked users. Users: {string.Join(", ", blockedUsers)}",
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
         
         return Result.Success();

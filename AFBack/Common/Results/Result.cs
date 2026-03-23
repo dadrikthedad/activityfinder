@@ -10,10 +10,10 @@ public class Result
 {
     public bool IsSuccess { get; }
     public string Error { get; }
-    public ErrorTypeEnum ErrorType { get; }
+    public AppErrorCode ErrorCode { get; }
     public bool IsFailure => !IsSuccess;
 
-    private Result(bool isSuccess, string? error, ErrorTypeEnum errorType)
+    private Result(bool isSuccess, string? error, AppErrorCode errorCode)
     {
         if (isSuccess && error != null)
             throw new InvalidOperationException("A successful result cannot have an error");
@@ -23,7 +23,7 @@ public class Result
 
         IsSuccess = isSuccess;
         Error = error ?? string.Empty;
-        ErrorType = errorType;
+        ErrorCode = errorCode;
     }
    
     /// <summary>
@@ -34,10 +34,8 @@ public class Result
     /// <summary>
     /// Creates a failed result with an error message
     /// </summary>
-    /// <param name="error">The error message</param>
-    /// <param name="errorType">The type of error (defaults to Validation)</param>
-    public static Result Failure(string error, ErrorTypeEnum errorType = ErrorTypeEnum.Validation)
-        => new(false, error, errorType);
+    public static Result Failure(string error, AppErrorCode code)
+        => new(false, error, code);
 }
 
 /// <summary>
@@ -50,11 +48,11 @@ public class Result<T>
     public bool IsSuccess { get; }
     public T? Value { get;  }
     public string Error { get; }
-    public ErrorTypeEnum ErrorType { get; }
+    public AppErrorCode ErrorCode { get; }
     public bool IsFailure => !IsSuccess;
 
 
-    private Result(bool isSuccess, T? value, string? error, ErrorTypeEnum errorType)
+    private Result(bool isSuccess, T? value, string? error, AppErrorCode errorCode)
     {
         if (isSuccess && error != null)
             throw new InvalidOperationException("A successful result cannot have an error");
@@ -66,7 +64,7 @@ public class Result<T>
         IsSuccess = isSuccess;
         Value = value;
         Error = error ?? string.Empty;
-        ErrorType = errorType;
+        ErrorCode = errorCode;
     }
   
     /// <summary>
@@ -79,7 +77,7 @@ public class Result<T>
     /// Sets isSuccess = false, data = default, errors as required parameter and errorType to
     /// BadRequest if not specified
     /// </summary>
-    public static Result<T> Failure(string error, ErrorTypeEnum errorType = ErrorTypeEnum.BadRequest)
-        => new(false, default, error, errorType);
+    public static Result<T> Failure(string error, AppErrorCode code)
+        => new(false, default, error, code);
 }
 

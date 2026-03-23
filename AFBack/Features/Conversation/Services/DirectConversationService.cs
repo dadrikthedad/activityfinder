@@ -2,7 +2,6 @@ using AFBack.Common.DTOs;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Blocking.Services;
-using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Conversation.DTOs;
 using AFBack.Features.Conversation.DTOs.Request;
@@ -13,7 +12,6 @@ using AFBack.Features.Conversation.Models;
 using AFBack.Features.Conversation.Repository;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.FileHandling.Services;
-using AFBack.Features.Friendship.Repository;
 using AFBack.Features.Messaging.DTOs.Request;
 using AFBack.Features.Messaging.Extensions;
 using AFBack.Features.Messaging.Models;
@@ -34,7 +32,6 @@ public class DirectConversationService(
     IConversationBroadcastService broadcastService,
     ICanSendCache canSendCache,
     IUserSummaryCacheService userSummariesCache,
-    IFriendshipRepository friendshipRepository,
     IBlobUrlBuilder blobUrlBuilder) : IDirectConversationService
 {
      /// <inheritdoc />
@@ -51,7 +48,7 @@ public class DirectConversationService(
         if (receiverSummary == null)
         {
             logger.LogWarning("User {ReceiverId} does not exist", request.ReceiverId);
-            return Result<SendMessageToUserResponse>.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result<SendMessageToUserResponse>.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // Sjekk om det allerede finnes en samtale
@@ -66,18 +63,14 @@ public class DirectConversationService(
         // Sjekk blokkeringer begge veier
         var blockResult = await blockingService.ValidateNoBlockingsAsync(userId, request.ReceiverId);
         if (blockResult.IsFailure)
-            return Result<SendMessageToUserResponse>.Failure(blockResult.Error, blockResult.ErrorType);
-        
-        // Sjekk om de er venner for å bestemme samtale-type
-        var areFriends = await friendshipRepository.FriendshipExistsAsync(userId, request.ReceiverId);
+            return Result<SendMessageToUserResponse>.Failure(blockResult.Error, blockResult.AppErrorType);
         
         // ============ DATABASE: Opprett samtalen med nye entiteter ============
         
-        //  Opprett ny samtale-entitet
+        //  Opprett ny samtale-entitet som er pending
         var newConversation = new Models.Conversation
         {
-            // Askeptert hvis brukerne er venner, pending hvis ikke
-            Type = areFriends ? ConversationType.DirectChat : ConversationType.PendingRequest
+            Type = ConversationType.PendingRequest
         };
         
         // Oppretter participants for avsender og mottaker
@@ -92,7 +85,7 @@ public class DirectConversationService(
         var receiverParticipant = new ConversationParticipant
         {
             UserId = request.ReceiverId,
-            Status = areFriends ? ConversationStatus.Accepted : ConversationStatus.Pending, // Venner = accepted
+            Status = ConversationStatus.Pending,
             Role = ParticipantRole.PendingRecipient,
             InvitedAt = DateTime.UtcNow,
         };
@@ -112,13 +105,6 @@ public class DirectConversationService(
             await conversationRepository.CreateConversationWithParticipantsAsync(newConversation, 
                 [userParticipant, receiverParticipant], message);
         
-        // Legger til CanSend igjen hvis begge brukerne var venner
-        if (createdConversation.Type == ConversationType.DirectChat)
-        {
-            await canSendCache.OnCanSendAddedAsync(userId, createdConversation.Id);
-            await canSendCache.OnCanSendAddedAsync(request.ReceiverId, createdConversation.Id);
-        }
-        
         // Hent den opprettede samtalen som ConversationDto, deretter valider at samtalen eksisterer
         var conversationDto = await conversationRepository.GetConversationDtoAsync(createdConversation.Id);
         if (conversationDto == null)
@@ -126,7 +112,7 @@ public class DirectConversationService(
             logger.LogCritical("Created conversation {ConversationId} not found after creation",
                 createdConversation.Id);
             return Result<SendMessageToUserResponse>.Failure(
-                "Failed to retrieve created conversation", ErrorTypeEnum.InternalServerError);
+                "Failed to retrieve created conversation", AppErrorCode.InternalServerError);
         }
 
         var messageDto = await messageRepository.GetMessageDtoAsync(message.Id);
@@ -135,7 +121,7 @@ public class DirectConversationService(
             logger.LogCritical("Created message {MessageId} not found after creation",
                 message.Id);
             return Result<SendMessageToUserResponse>.Failure(
-                "Failed to retrieve created message", ErrorTypeEnum.InternalServerError);
+                "Failed to retrieve created message", AppErrorCode.InternalServerError);
         }
         
         // Hent users for cache
@@ -160,16 +146,7 @@ public class DirectConversationService(
         
         // ============ POST-COMMIT: Broadcast ============
         
-        if (createdConversation.Type == ConversationType.PendingRequest)
-        {
-            await broadcastService.BroadcastNewPendingRequestAsync(
-                userId, request.ReceiverId, sendMessageToUserResponse);
-        }
-        else
-        {
-            await broadcastService.BroadcastNewDirectConversationAsync(
-                userId, request.ReceiverId, sendMessageToUserResponse);
-        }
+        await broadcastService.BroadcastNewPendingRequestAsync(userId, request.ReceiverId, sendMessageToUserResponse);
         
         return Result<SendMessageToUserResponse>.Success(sendMessageToUserResponse);
     }
@@ -207,7 +184,7 @@ public class DirectConversationService(
             var acceptResult = await AcceptPendingConversationRequestAsync(userId, conversation.Id);
             
             if (acceptResult.IsFailure)
-                return Result<SendMessageToUserResponse>.Failure(acceptResult.Error, acceptResult.ErrorType);
+                return Result<SendMessageToUserResponse>.Failure(acceptResult.Error, acceptResult.ErrorCode);
             
             wasAccepted = true;
             
@@ -232,7 +209,7 @@ public class DirectConversationService(
             logger.LogCritical(
                 "Message by User {SenderId} failed to send to User {ReceiverId} in conversation {ConversationId}",
                 userId, receiverId, conversation.Id);
-            return Result<SendMessageToUserResponse>.Failure(messageResult.Error, messageResult.ErrorType);
+            return Result<SendMessageToUserResponse>.Failure(messageResult.Error, messageResult.ErrorCode);
         }
         
         // Hent full messageDTO for response
@@ -241,7 +218,7 @@ public class DirectConversationService(
         {
             logger.LogCritical("Sent message {MessageId} not found after sending", messageResult.Value.MessageId);
             return Result<SendMessageToUserResponse>.Failure(
-                "Failed to retrieve sent message", ErrorTypeEnum.InternalServerError);
+                "Failed to retrieve sent message", AppErrorCode.InternalServerError);
         }
         
         // Hent brukere fra cache
@@ -272,7 +249,7 @@ public class DirectConversationService(
         
         var validationResult = conversationValidator.ValidatePendingRequestAction(userId, conversationId, conversation);
         if (validationResult.IsFailure)
-            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorCode);
         
         var userParticipant = validationResult.Value!;
         
@@ -283,7 +260,7 @@ public class DirectConversationService(
         {
             logger.LogCritical("Conversation {ConversationId} has no sender participant", conversationId);
             return Result<ConversationResponse>.Failure("Server error. Try again later or contact support", 
-                ErrorTypeEnum.InternalServerError);
+                AppErrorCode.InternalServerError);
         }
         
         // ============ DATABASE: Oppdater database ============
@@ -319,7 +296,7 @@ public class DirectConversationService(
             logger.LogCritical("Created conversation {ConversationId} not found after creation",
                 conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", ErrorTypeEnum.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
         }
         
         // Hent users for cache
@@ -373,7 +350,7 @@ public class DirectConversationService(
         
         var validationResult = conversationValidator.ValidatePendingRequestAction(userId, conversationId, conversation);
         if (validationResult.IsFailure)
-            return Result.Failure(validationResult.Error, validationResult.ErrorType);
+            return Result.Failure(validationResult.Error, validationResult.ErrorCode);
         
         var userParticipant = validationResult.Value!;
         

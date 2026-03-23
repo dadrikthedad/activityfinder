@@ -155,39 +155,6 @@ public enum SyncEventType
     /// </summary>
     GroupInfoUpdated,
     
-    
-    // ==================== Friends ====================
-    
-    /// <summary>
-    /// Mottatt ny venneforespørsel
-    /// EventData: { FriendshipRequestResponse }
-    /// Hvorfor: Inneholder ID, DTo til avsender og tidspunkt. For å vise venneforespørselen med bilde og navn.
-    /// Og for å kalle endepunkter med riktig ID
-    /// </summary>
-    FriendshipRequestReceived,
-    
-    /// <summary>
-    /// Venneforespørsel godkjent 
-    /// EventData: { FriendshipAcceptedResponse }
-    /// Hvorfor: Inneholder UserSummatyDto til godkjenner/sender for å legge til i vennelisten, og
-    /// NotificationResponse hvis det er avsender av forespørselen som mottar den
-    /// </summary>
-    FriendshipRequestAccepted,
-    
-    /// <summary>
-    /// Venneforespørsel avslått
-    /// EventData: { FriendRequestId }
-    /// Hvorfor: Må fylles ut
-    /// </summary>
-    FriendRequestDeclined,
-    
-    /// <summary>
-    /// Venn fjernet
-    /// EventData: { UserId }
-    /// Hvorfor: Må fylles ut
-    /// </summary>
-    FriendRemoved,
-    
     // ==================== User Profile ====================
     /// <summary>
     /// Brukerens eget profilnavn/bilde ble oppdatert — synkroniseres til egne andre enheter
@@ -231,34 +198,4 @@ public enum SyncEventType
     /// </summary>
     UserUnblocked,
     
-    // ==================== Notifications ====================
-    
-    /// <summary>
-    /// Ny meldings-notifikasjon opprettet
-    /// EventData: { MessageNotificationResponse }
-    /// Hvorfor: MessageNotificationResponse for å legge notifikasjonen direkte inn i notification-feeden.
-    /// Inneholder all nødvendig info (avsender, preview, count, etc.).
-    /// </summary>
-    MessageNotificationCreated,
-    
-    /// <summary>
-    /// Notifikasjon(er) markert som lest
-    /// EventData: { NotificationIds }
-    /// Hvorfor: Må fylles ut
-    /// </summary>
-    MarkAsRead,
-    
-    /// <summary>
-    /// Alle notifikasjoner markert som lest
-    /// EventData: { } (tom)
-    /// Hvorfor: Må fylles ut
-    /// </summary>
-    MarkAllAsRead,
-    
-    /// <summary>
-    /// Ny app-notifikasjon opprettet
-    /// EventData: { NotificationResponse }
-    /// Hvorfor: Må fylles ut
-    /// </summary>
-    NotificationCreated
 }

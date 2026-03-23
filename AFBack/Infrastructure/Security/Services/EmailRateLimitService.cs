@@ -72,7 +72,7 @@ public class EmailRateLimitService(ILogger<EmailRateLimitService> logger) : IEma
                         ipAddress, ipAttempts.Count);
                     return Result.Failure(
                         $"Too many attempts. " +
-                        $"Try again in {retryAfter.TotalSeconds:F0} seconds.", ErrorTypeEnum.TooManyRequests);
+                        $"Try again in {retryAfter.TotalSeconds:F0} seconds.", AppErrorCode.TooManyRequests);
                 }
             }
         }
@@ -97,7 +97,7 @@ public class EmailRateLimitService(ILogger<EmailRateLimitService> logger) : IEma
                     emailType, emailAddress, retryAfter.TotalSeconds);
                 return Result.Failure(
                     $"Too many attempts. Try again in {retryAfter.TotalSeconds:F0} seconds.",
-                    ErrorTypeEnum.TooManyRequests);
+                    AppErrorCode.TooManyRequests);
             }
         }
         
@@ -117,7 +117,7 @@ public class EmailRateLimitService(ILogger<EmailRateLimitService> logger) : IEma
                     emailType, emailAddress, maxPerDay);
                 return Result.Failure(
                     $"Daily limit reached. Try again in {retryAfter.TotalHours:F1} hours.",
-                    ErrorTypeEnum.TooManyRequests);
+                    AppErrorCode.TooManyRequests);
             }
         }
 

@@ -14,7 +14,6 @@ public class SettingsResponse
     public bool ShowPhone { get; set; }
     public bool ShowRegion { get; set; }
     public bool ShowBio { get; set; }
-    public bool ShowFriendsList { get; set; }
     public bool ShowStats { get; set; }
     public bool ShowWebsites { get; set; }
     public bool ShowPostalCode { get; set; }

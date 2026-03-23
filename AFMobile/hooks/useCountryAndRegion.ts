@@ -1,42 +1,44 @@
-// Her håndterer vi land og regionvalg til signup og editprofile, setter land ut ifra IP
+// hooks/useCountryAndRegion.ts
+// Håndterer land og regionvalg til signup og editprofile, setter land ut ifra IP
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SelectOption } from "@shared/types/select";
-import { fetchCountries, fetchRegions } from "@/services/user/signUpService";
+import { fetchCountries, fetchRegions } from "@/features/auth/services/signUpService";
 import { FormDataType } from "@shared/types/form";
+import { getDialCode, DialCodeEntry } from "@/core/data/phoneDialCodes";
 
 interface UseCountryAndRegionProps {
-  country: string; // Her lagere vi landet
+  country: string;
   setFormData: React.Dispatch<React.SetStateAction<FormDataType>>;
-  editing?: boolean; // Brukes for å hente regioner automatisk
+  editing?: boolean;
 }
 
 export function useCountryAndRegion({
+  country,
   setFormData,
   editing = false,
 }: UseCountryAndRegionProps) {
-  const [countries, setCountries] = useState<SelectOption[]>([]); // Liste med land til dropdownbosen
-  const [regions, setRegions] = useState<SelectOption[]>([]);// Regioner for valgt land
-  const [countryCodes, setCountryCodes] = useState<Record<string, string>>({}); // Vi må sende countrycode til API
-  const [codesReady, setCodesReady] = useState(false); // Når vi er ferdig lastet
-  const hasSetCountry = useRef(false); // Sjekk for å forhindre flere IP-hentinger
+  const [countries, setCountries] = useState<SelectOption[]>([]);
+  const [regions, setRegions] = useState<SelectOption[]>([]);
+  const [countryCodes, setCountryCodes] = useState<Record<string, string>>({});
+  const [codesReady, setCodesReady] = useState(false);
+  const [dialCode, setDialCode] = useState<DialCodeEntry>({ dialCode: "+47", flag: "🇳🇴" });
+  const hasSetCountry = useRef(false);
 
-  const fetchCountriesFromAPI = async () => { // Henter land fra API
+  const fetchCountriesFromAPI = async () => {
     const data = await fetchCountries();
-    const countryOptions: SelectOption[] = data // Bygger dropdown og gjør om countryname til codes
-      .map((country) => ({ label: country.name, value: country.name }))
+    const countryOptions: SelectOption[] = data
+      .map((c) => ({ label: c.name, value: c.name }))
       .sort((a, b) => a.label.localeCompare(b.label));
-    
+
     setCountries(countryOptions);
-    
+
     const codeMap: Record<string, string> = {};
-    data.forEach((country) => {
-      codeMap[country.name] = country.code;
-    });
+    data.forEach((c) => { codeMap[c.name] = c.code; });
     setCountryCodes(codeMap);
-    setCodesReady(true); // Markér at koder er klare
+    setCodesReady(true);
   };
 
-  const fetchRegionsForCountry = useCallback( // Henter regioner fra backend med countrycode
+  const fetchRegionsForCountry = useCallback(
     async (countryName: string) => {
       const code = countryCodes[countryName];
       if (!code) {
@@ -60,71 +62,60 @@ export function useCountryAndRegion({
     [countryCodes]
   );
 
-  const fetchInitialLocation = async () => { // Oppdatert geolocation med fallback
+  const fetchInitialLocation = async () => {
     try {
-      // Prøv ipwhois.io først (10k/måned gratis)
       const ipRes = await fetch("https://ipwho.is/", {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
+        headers: { 'Accept': 'application/json' },
       });
 
-      if (!ipRes.ok) {
-        throw new Error(`HTTP error! status: ${ipRes.status}`);
-      }
+      if (!ipRes.ok) throw new Error(`HTTP error! status: ${ipRes.status}`);
 
       const ipData = await ipRes.json();
-
-      if (!ipData.success) {
-        throw new Error('Location API returned unsuccessful response');
-      }
+      if (!ipData.success) throw new Error('Location API returned unsuccessful response');
 
       if (ipData?.country && !hasSetCountry.current) {
         hasSetCountry.current = true;
-        setFormData((prev) => ({ ...prev, country: ipData.country })); // Bruker full country name
-        
-        if (editing) {
-          await fetchRegionsForCountry(ipData.country);
-        }
+        setFormData((prev) => ({ ...prev, country: ipData.country }));
+        if (editing) await fetchRegionsForCountry(ipData.country);
       }
     } catch (err) {
       console.warn("ipwhois.io failed, trying fallback:", err);
-      
-      // Fallback til FreeIPAPI.com
+
       try {
         const fallbackRes = await fetch("https://freeipapi.com/api/json/");
         const fallbackData = await fallbackRes.json();
-        
+
         if (fallbackData?.countryName && !hasSetCountry.current) {
           hasSetCountry.current = true;
           setFormData((prev) => ({ ...prev, country: fallbackData.countryName }));
-          
-          if (editing) {
-            await fetchRegionsForCountry(fallbackData.countryName);
-          }
+          if (editing) await fetchRegionsForCountry(fallbackData.countryName);
         }
       } catch (fallbackError) {
         console.error("All geolocation services failed:", fallbackError);
-        
-        // Siste fallback - sett til Norge som default (siden du er norsk app?)
         if (!hasSetCountry.current) {
           hasSetCountry.current = true;
           setFormData((prev) => ({ ...prev, country: "Norway" }));
-          
-          if (editing) {
-            await fetchRegionsForCountry("Norway");
-          }
+          if (editing) await fetchRegionsForCountry("Norway");
         }
       }
     }
   };
 
-  useEffect(() => { // Henter countries fra IP kun engang
+  // Oppdater dialCode automatisk når valgt land endres
+  useEffect(() => {
+    if (!country || Object.keys(countryCodes).length === 0) return;
+    const isoCode = countryCodes[country];
+    if (isoCode) {
+      setDialCode(getDialCode(isoCode));
+    }
+  }, [country, countryCodes]);
+
+  useEffect(() => {
     fetchCountriesFromAPI();
   }, []);
 
-  useEffect(() => { // Bruker denne når countryCodes er klar
+  useEffect(() => {
     if (Object.keys(countryCodes).length > 0) {
       fetchInitialLocation();
     }
@@ -134,11 +125,8 @@ export function useCountryAndRegion({
     countries,
     regions,
     countryCodes,
-    codesReady, // ✅ eksponert
+    codesReady,
+    dialCode,
     fetchRegionsForCountry,
-    handleCountryChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      const selected = e.target.value;
-      setFormData((prev) => ({ ...prev, country: selected, region: "" }));
-    },
   };
 }

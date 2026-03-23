@@ -13,6 +13,7 @@ public interface IEmailService
     /// </summary>
     /// <param name="toEmail">Eposten som skal få meldingen</param>
     /// <param name="body">Ferdig template</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success hvis mail send eller Failure hvis noe gikk galt</returns>
-    Task<Result> SendAsync(string toEmail, EmailBody body);
+    Task<Result> SendAsync(string toEmail, EmailBody body, CancellationToken ct = default);
 }

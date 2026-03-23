@@ -1,7 +1,6 @@
 using AFBack.Common.DTOs;
 using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Conversation.Repository;
-using AFBack.Features.Friendship.Repository;
 using AFBack.Features.SignalR.Constants;
 using AFBack.Features.SignalR.Services;
 using AFBack.Features.SyncEvents.Enums;
@@ -13,23 +12,22 @@ namespace AFBack.Features.Broadcast.Services;
 public class ProfileBroadcastService(
     ILogger<ProfileBroadcastService> logger,
     IUserSummaryCacheService userSummaryCacheService,
-    IFriendshipRepository friendshipRepository,
     IConversationRepository conversationRepository,
     ISignalRNotificationService signalRNotificationService,
     ISyncService syncService) : IProfileBroadcastService
 {
     /// <inheritdoc />
-    public async Task BroadcastProfileUpdatedAsync(string userId, string fullName, string? profileImageUrl)
+    public async Task BroadcastProfileUpdatedAsync(string userId, string fullName, string? profileImageUrl,
+        CancellationToken ct = default)
     {
         // ====== Refresh UserSummaryCache ======
         await userSummaryCacheService.RefreshUserSummaryAsync(userId);
 
         // ====== Finn alle berørte brukere ======
-        var friendIds = await friendshipRepository.GetAllFriendIdsAsync(userId);
-        var conversationPartnerIds = await conversationRepository.GetAllConversationPartnerIdsAsync(userId);
+        var conversationPartnerIds = await conversationRepository.GetAllConversationPartnerIdsAsync(userId,
+            ct);
 
-        var affectedUserIds = friendIds
-            .Union(conversationPartnerIds)
+        var affectedUserIds = conversationPartnerIds
             .Where(id => id != userId)
             .Distinct()
             .ToList();
@@ -45,9 +43,9 @@ public class ProfileBroadcastService(
         // ====== Broadcaster parallelt (best-effort etter DB commit) ======
         // SyncEvent til brukerens egne andre enheter (alltid)
         await syncService.CreateSyncEventsAsync([userId],
-            SyncEventType.MyProfileUpdated, userSummaryDto);
+            SyncEventType.MyProfileUpdated, userSummaryDto, ct);
 
-        // Broadcaster til berørte brukere (venner + samtalepartnere)
+        // Broadcaster til berørte brukere (samtalepartnere)
         if (affectedUserIds.Count == 0)
             return;
 
@@ -55,10 +53,10 @@ public class ProfileBroadcastService(
             // SignalR og SyncEvent
             signalRNotificationService.SendToUsersAsync(affectedUserIds,
                 HubConstants.ClientEvents.UserProfileUpdated, userSummaryDto,
-                $"profile update for user {userId}"),
+                $"profile update for user {userId}", ct),
 
             syncService.CreateSyncEventsAsync(affectedUserIds, SyncEventType.UserProfileUpdated,
-                userSummaryDto)
+                userSummaryDto, ct)
         );
 
         logger.LogInformation("Profile update broadcasted for UserId: {UserId}. Notified {Count} users",

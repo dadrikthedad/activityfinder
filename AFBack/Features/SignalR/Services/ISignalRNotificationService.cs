@@ -12,7 +12,9 @@ public interface ISignalRNotificationService
     /// <param name="eventName">Event-navn (bruk HubConstants.ClientEvents)</param>
     /// <param name="payload">Data som sendes til klienten</param>
     /// <param name="context">Kontekst for logging ved feil</param>
-    Task SendToUserAsync(string userId, string eventName, object payload, string context);
+    /// <param name="ct"></param>
+    Task SendToUserAsync(string userId, string eventName, object payload, string context,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Sender SignalR-melding til flere brukere.
@@ -21,5 +23,7 @@ public interface ISignalRNotificationService
     /// <param name="eventName">Event-navn (bruk HubConstants.ClientEvents)</param>
     /// <param name="payload">Data som sendes til klientene</param>
     /// <param name="context">Kontekst for logging ved feil</param>
-    Task SendToUsersAsync(IEnumerable<string> userIds, string eventName, object payload, string context);
+    /// <param name="ct"></param>
+    Task SendToUsersAsync(IEnumerable<string> userIds, string eventName, object payload, string context,
+        CancellationToken ct = default);
 }

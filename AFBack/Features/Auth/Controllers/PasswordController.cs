@@ -29,12 +29,13 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request,
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
     
         var result = await passwordService.ChangePasswordAsync(
-            userId, request.CurrentPassword, request.NewPassword);
+            userId, request.CurrentPassword, request.NewPassword, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);
@@ -51,14 +52,14 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> ForgotPassword([FromBody] EmailRequest request)
+    public async Task<IActionResult> ForgotPassword([FromBody] EmailRequest request, CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
             return Problem(detail: "Unable to determine client IP address", 
                 statusCode: StatusCodes.Status400BadRequest);
     
-        var result = await passwordService.ForgotPasswordAsync(request.Email, ipAddress);
+        var result = await passwordService.ForgotPasswordAsync(request.Email, ipAddress, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);
@@ -76,7 +77,7 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> VerifyPasswordResetEmailCode(
-        [FromBody] VerifyEmailRequest request)
+        [FromBody] VerifyEmailRequest request, CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
@@ -84,7 +85,7 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
                 statusCode: StatusCodes.Status400BadRequest);
         
         var result = await passwordService.VerifyPasswordResetEmailCodeAsync(
-            request.Email, request.Code, ipAddress);
+            request.Email, request.Code, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -103,7 +104,7 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> SendPasswordResetSms(
-        [FromBody] EmailRequest request)
+        [FromBody] EmailRequest request, CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
@@ -111,7 +112,7 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
                 statusCode: StatusCodes.Status400BadRequest);
         
         var result = await passwordService.SendPasswordResetSmsAsync(
-            request.Email, ipAddress);
+            request.Email, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -127,7 +128,8 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, 
+        CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
@@ -135,7 +137,7 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
                 statusCode: StatusCodes.Status400BadRequest);
         
         var result = await passwordService.ResetPasswordAsync(
-            request.Email, request.Code, request.NewPassword, ipAddress);
+            request.Email, request.Code, request.NewPassword, ipAddress, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);

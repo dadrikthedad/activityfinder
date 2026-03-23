@@ -19,10 +19,11 @@ public interface ITokenService
     /// <param name="roles">Brukerens roller for JWT-claims</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
     /// <param name="userAgent">User-Agent header</param>
+    /// <param name="ct"></param>
     /// <returns>LoginResponse med begge tokens og utløpstider</returns>
     Task<LoginResponse> GenerateTokenPairAsync(AppUser user, UserDevice device,
-        IList<string> roles, string ipAddress, string? userAgent);
-    
+        IList<string> roles, string ipAddress, string? userAgent, CancellationToken ct = default);
+
     /// <summary>
     /// Fornyer access token ved å validere refresh token.
     /// Roterer refresh token (gammel revokeres, ny opprettes).
@@ -32,9 +33,10 @@ public interface ITokenService
     /// <param name="deviceFingerprint">Device fingerprint for verifisering</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
     /// <param name="userAgent">User-Agent header</param>
+    /// <param name="ct"></param>
     /// <returns>Nytt LoginResponse eller Failure</returns>
     Task<Result<LoginResponse>> RefreshAsync(string refreshToken, string deviceFingerprint,
-        string ipAddress, string? userAgent);
+        string ipAddress, string? userAgent, CancellationToken ct = default);
 
     /// <summary>
     /// Revokerer et spesifikt refresh token og blacklister tilhørende access token i Redis.

@@ -28,7 +28,7 @@ public class ArchiveConversationService(
         
         var validationResult = conversationValidator.ValidateArchiveAction(userId, conversationId, conversation);
         if (validationResult.IsFailure)
-            return Result.Failure(validationResult.Error, validationResult.ErrorType);
+            return Result.Failure(validationResult.Error, validationResult.ErrorCode);
         
         var participant = validationResult.Value!;
         
@@ -67,7 +67,7 @@ public class ArchiveConversationService(
         
         var validationResult = conversationValidator.ValidateRestoreArchiveAction(userId, conversationId, conversation);
         if (validationResult.IsFailure)
-            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+            return Result<ConversationResponse>.Failure(validationResult.Error, validationResult.ErrorCode);
         
         var participant = validationResult.Value!;
         
@@ -80,7 +80,7 @@ public class ArchiveConversationService(
                                " other participants in the conversation" ,
                 userId, conversationId);
             return Result<ConversationResponse>.Failure("Server error. Try again later or contact support",
-                ErrorTypeEnum.InternalServerError); 
+                AppErrorCode.InternalServerError); 
         }
         
         // ============ DATABASE: Oppdater ============
@@ -114,7 +114,7 @@ public class ArchiveConversationService(
                 userId, conversationId, result.Error);
             return Result<ConversationResponse>.Failure(
                 "Server error. Try again later or contact support", 
-                ErrorTypeEnum.InternalServerError);
+                AppErrorCode.InternalServerError);
         }
         
         var response = result.Value!;

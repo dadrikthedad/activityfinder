@@ -63,15 +63,15 @@ public class EncryptionService(
     
         var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationKeysResponse>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationKeysResponse>.Failure(conversationResult.Error, conversationResult.ErrorCode);
 
         var participantResult = conversationValidator.ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationKeysResponse>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationKeysResponse>.Failure(participantResult.Error, participantResult.ErrorCode);
 
         var notArchivedResult = conversationValidator.ValidateNotArchived(participantResult.Value!);
         if (notArchivedResult.IsFailure)
-            return Result<ConversationKeysResponse>.Failure(notArchivedResult.Error, notArchivedResult.ErrorType);
+            return Result<ConversationKeysResponse>.Failure(notArchivedResult.Error, notArchivedResult.AppErrorType);
 
         var participantIds = conversation!.Participants
             .Where(p => !p.ConversationArchived)
@@ -114,7 +114,7 @@ public class EncryptionService(
         if (key == null)
         {
             logger.LogInformation("No public key for User {UserId} found", userId);
-            return Result<UserPublicKeyResponse>.Failure("No public key found", ErrorTypeEnum.NotFound);
+            return Result<UserPublicKeyResponse>.Failure("No public key found", AppErrorCode.NotFound);
         }
         
         return Result<UserPublicKeyResponse>.Success(new UserPublicKeyResponse
@@ -130,7 +130,7 @@ public class EncryptionService(
     {
         var storeRecoveryResult = await keyVaultService.StoreRecoverySeedAsync(userId, deviceId, key);
         if (storeRecoveryResult.IsFailure)
-            return Result.Failure(storeRecoveryResult.Error, storeRecoveryResult.ErrorType);
+            return Result.Failure(storeRecoveryResult.Error, storeRecoveryResult.AppErrorType);
 
         return Result.Success();
     }

@@ -20,9 +20,11 @@ public interface IAccountChangeService
     /// <param name="currentPassword">Nåværende passord for å bekrefte identitet</param>
     /// <param name="newEmail">Den nye epostadressen brukeren ønsker</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> RequestEmailChangeAsync(string userId, string currentPassword, string newEmail, string ipAddress);
-    
+    Task<Result> RequestEmailChangeAsync(string userId, string currentPassword, string newEmail, string ipAddress,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Steg 2: Verifiserer koden sendt til nåværende epost.
     /// Ved suksess sendes verifiseringskode til den NYE epostadressen.
@@ -30,9 +32,11 @@ public interface IAccountChangeService
     /// <param name="userId">Brukerens ID fra JWT-token</param>
     /// <param name="code">6-sifret kode fra nåværende epost</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> VerifyCurrentEmailForChangeAsync(string userId, string code, string ipAddress);
-    
+    Task<Result> VerifyCurrentEmailForChangeAsync(string userId, string code, string ipAddress,
+        CancellationToken ct = default);
+
     /// <summary>
     /// Steg 3: Verifiserer koden sendt til ny epost.
     /// Ved suksess oppdateres AppUser.Email og gammel epost lagres i PreviousEmail.
@@ -40,8 +44,9 @@ public interface IAccountChangeService
     /// <param name="userId">Brukerens ID fra JWT-token</param>
     /// <param name="code">6-sifret kode fra den nye epostadressen</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> VerifyEmailChangeAsync(string userId, string code, string ipAddress);
+    Task<Result> VerifyEmailChangeAsync(string userId, string code, string ipAddress, CancellationToken ct = default);
 
     // ======================== Bytte telefonnummer (3 steg) ======================== 
 
@@ -54,10 +59,11 @@ public interface IAccountChangeService
     /// <param name="currentPassword">Nåværende passord for å bekrefte identitet</param>
     /// <param name="newPhoneNumber">Det nye telefonnummeret brukeren ønsker</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
     Task<Result> RequestPhoneChangeAsync(string userId, string currentPassword, 
-        string newPhoneNumber, string ipAddress);
-    
+        string newPhoneNumber, string ipAddress, CancellationToken ct = default);
+
     /// <summary>
     /// Steg 2: Verifiserer epost-koden for telefon-bytte.
     /// Ved suksess sendes SMS-kode til det NYE telefonnummeret.
@@ -65,8 +71,10 @@ public interface IAccountChangeService
     /// <param name="userId">Brukerens ID fra JWT-token</param>
     /// <param name="code">6-sifret kode fra epost</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> VerifyCurrentEmailForPhoneChangeAsync(string userId, string code, string ipAddress);
+    Task<Result> VerifyCurrentEmailForPhoneChangeAsync(string userId, string code, string ipAddress,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Steg 3: Verifiserer SMS-koden sendt til nytt telefonnummer.
@@ -75,32 +83,36 @@ public interface IAccountChangeService
     /// <param name="userId">Brukerens ID fra JWT-token</param>
     /// <param name="code">6-sifret kode fra det nye telefonnummeret</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> VerifyPhoneChangeAsync(string userId, string code, string ipAddress);
+    Task<Result> VerifyPhoneChangeAsync(string userId, string code, string ipAddress, CancellationToken ct = default);
     
     // ======================== Bytte navn ======================== 
     
     /// <summary>
-    /// Bytter navn på en bruker (både fornavn og etternavn).Broadcaster det til venner/samtalepartnere
+    /// Bytter navn på en bruker (både fornavn og etternavn).Broadcaster det til samtalepartnere
     /// </summary>
-    Task<Result> UpdateNameAsync(string userId, string firstName, string lastName);
+    Task<Result> UpdateNameAsync(string userId, string firstName, string lastName, CancellationToken ct = default);
     
     // ======================== Bytte Profile Image ======================== 
     /// <summary>
     /// Bytter profileimage for en bruker. Validerer, laster opp til Blob, oppdaterer databasen og
-    /// broadcaster det til venner/samtalepartnere
+    /// broadcaster det til samtalepartnere
     /// </summary>
     /// <param name="userId">Brukerens ID fra JWT-token</param>
     /// <param name="image">Image som en IFormFile</param>
+    /// <param name="ct"></param>
     /// <returns>FileUrlResponse med URL</returns>
-    Task<Result<FileUrlResponse>> UpdateProfileImageAsync(string userId, IFormFile image);
+    Task<Result<FileUrlResponse>> UpdateProfileImageAsync(string userId, IFormFile image, 
+        CancellationToken ct = default);
     
     // ======================== Fjerne Profile Image ======================== 
     /// <summary>
     /// Fjerner profilbilde for en bruker. Sletter fra Blob Storage, nullstiller URL i databasen
-    /// og broadcaster endringen til venner/samtalepartnere.
+    /// og broadcaster endringen til samtalepartnere.
     /// </summary>
     /// <param name="userId">Brukerens ID fra JWT-token</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> RemoveProfileImageAsync(string userId);
+    Task<Result> RemoveProfileImageAsync(string userId, CancellationToken ct = default);
 }

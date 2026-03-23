@@ -10,7 +10,6 @@ import { useMessageNotificationStore } from "@/store/useMessageNotificationStore
 import { GroupRequestCreatedDto } from "@shared/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO } from "@shared/types/GroupNotificationUpdateDTO";
 import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
-import { NotificationDTO } from "@shared/types/NotificationEventDTO";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import authServiceNative from "@/services/user/authServiceNative";
 
@@ -24,7 +23,6 @@ export function useChatHub(
   onGroupDisbanded?: (data: GroupDisbandedDto) => void,
   onGroupParticipantsUpdated?: (conversationId: number) => void,
   onMessageDeleted?: (data: { conversationId: number; message: MessageDTO }) => void,
-  onReceiveNotification?: (notification: NotificationDTO) => void,
   onUserProfileUpdated?: (data: { 
     userId: number; 
     updatedFields: string[]; 
@@ -44,33 +42,26 @@ export function useChatHub(
   const groupDisbandedRef = useRef(onGroupDisbanded);
   const groupParticipantsUpdatedRef = useRef(onGroupParticipantsUpdated);
   const messageDeletedRef = useRef(onMessageDeleted);
-  const notificationRef = useRef(onReceiveNotification); 
   const userProfileUpdatedRef = useRef(onUserProfileUpdated);
   const userBlockedUpdatedRef = useRef(onUserBlockedUpdated);
 
-  // Ref til connection som kan oppdateres
   const connectionRef = useRef<signalR.HubConnection | null>(null);
 
-  // Oppdater refs hvis funksjonene endres
   useEffect(() => { messageRef.current = onReceiveMessage }, [onReceiveMessage]);
   useEffect(() => { reactionRef.current = onReceiveReaction }, [onReceiveReaction]);
-  useEffect(() => {
-    approvedRef.current = onRequestApproved ?? null;
-  }, [onRequestApproved]);
+  useEffect(() => { approvedRef.current = onRequestApproved ?? null }, [onRequestApproved]);
   useEffect(() => { createdRef.current = onRequestCreated }, [onRequestCreated]);
   useEffect(() => { groupRequestCreatedRef.current = onGroupRequestCreated }, [onGroupRequestCreated]);
   useEffect(() => { groupNotificationUpdatedRef.current = onGroupNotificationUpdated }, [onGroupNotificationUpdated]);
   useEffect(() => { groupDisbandedRef.current = onGroupDisbanded }, [onGroupDisbanded]);
   useEffect(() => { groupParticipantsUpdatedRef.current = onGroupParticipantsUpdated }, [onGroupParticipantsUpdated]);
   useEffect(() => { messageDeletedRef.current = onMessageDeleted }, [onMessageDeleted]);
-  useEffect(() => { notificationRef.current = onReceiveNotification }, [onReceiveNotification]);
   useEffect(() => { userProfileUpdatedRef.current = onUserProfileUpdated }, [onUserProfileUpdated]);
   useEffect(() => { userBlockedUpdatedRef.current = onUserBlockedUpdated }, [onUserBlockedUpdated]);
 
   const setupEventListeners = (connection: signalR.HubConnection) => {
     console.log("🔧 Setting up SignalR event listeners...");
 
-    // Fjern alle tidligere event listeners først
     connection.off("receivemessage");
     connection.off("receivereaction");
     connection.off("messagerequestapproved");
@@ -80,11 +71,9 @@ export function useChatHub(
     connection.off("groupdisbanded");
     connection.off("groupparticipantsupdated");
     connection.off("messagedeleted");
-    connection.off("receivenotification");
     connection.off("userprofileupdated");
     connection.off("userblockedupdated");
 
-    // Sett opp alle event listeners
     connection.on("receivemessage", (message: MessageDTO) => {
       console.log("📨 receivemessage event triggered:", message.id);
       messageRef.current?.(message);
@@ -93,7 +82,6 @@ export function useChatHub(
     connection.on("receivereaction", (data) => {
       console.log("🎭 receivereaction event triggered:", data);
       const { reaction, notification } = data;
-
       if (reaction && 'messageId' in reaction && 'emoji' in reaction) {
         reactionRef.current?.(reaction, notification);
       } else {
@@ -110,22 +98,18 @@ export function useChatHub(
     connection.on("messagerequestcreated", (data: MessageRequestCreatedDto) => {
       console.log("📨 messagerequestcreated event triggered:", data);
       const { notification } = data;
-
       if (notification && notification.type !== "MessageRequestApproved") {
         useMessageNotificationStore.getState().upsertNotification(notification);
       }
-
       createdRef.current?.(data);
     });
 
     connection.on("grouprequestcreated", (data: GroupRequestCreatedDto) => {
       console.log("👥 grouprequestcreated event triggered:", data);
       const { notification } = data;
-
       if (notification && notification.type !== "MessageRequestApproved") {
         useMessageNotificationStore.getState().upsertNotification(notification);
       }
-
       groupRequestCreatedRef.current?.(data);
     });
 
@@ -149,11 +133,6 @@ export function useChatHub(
       messageDeletedRef.current?.(data);
     });
 
-    connection.on("receivenotification", (notification: NotificationDTO) => {
-      console.log("📥 receivenotification event triggered:", notification);
-      notificationRef.current?.(notification);
-    });
-
     connection.on("userprofileupdated", (data: { 
       userId: number; 
       updatedFields: string[]; 
@@ -174,31 +153,23 @@ export function useChatHub(
 
   const startConnection = async () => {
     try {
-      // Sjekk token fra AsyncStorage
-       const token = await authServiceNative.getAccessToken();
+      const token = await authServiceNative.getAccessToken();
       if (!token) {
         console.warn("⏳ Token not available yet, retrying in 1s...");
         setTimeout(startConnection, 1000);
         return;
       }
 
-      // Opprett tilkobling hvis den ikke eksisterer
       if (!connectionRef.current) {
         console.log("🔧 Signal-R Creating new SignalR connection...");
         connectionRef.current = await createChatConnection();
-        
-        // Sett opp event listeners FØR vi starter tilkoblingen
         setupEventListeners(connectionRef.current);
-        
         console.log("🔧 Signal-R Event listeners set up, attempting to start connection...");
       }
 
-      // Start tilkobling hvis den er disconnected
       if (connectionRef.current.state === signalR.HubConnectionState.Disconnected) {
         await connectionRef.current.start();
         console.log("✅ SignalR connected successfully");
-        
-        // Dobbeltsjekk at event listeners er registrert etter tilkobling
         console.log("🔧 Verifying event listeners after connection...");
         setupEventListeners(connectionRef.current);
       } else {
@@ -210,30 +181,21 @@ export function useChatHub(
     }
   };
 
-  // App state listener for SignalR restart
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       console.log("📱 useChatHub - App state changed to:", nextAppState);
-      
       if (nextAppState === 'active') {
-        // Når appen blir aktiv igjen, start SignalR på nytt
         console.log("🔄 App became active, attempting to restart SignalR...");
         startConnection();
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
-    
-    return () => {
-      subscription?.remove();
-    };
+    return () => { subscription?.remove(); };
   }, []);
 
-  // Initial connection setup
   useEffect(() => {
     startConnection();
-
-    // Cleanup function
     return () => {
       if (connectionRef.current) {
         console.log("🛑 Cleaning up SignalR connection...");
@@ -241,5 +203,5 @@ export function useChatHub(
         connectionRef.current = null;
       }
     };
-  }, []); // Kjør bare én gang
+  }, []);
 }

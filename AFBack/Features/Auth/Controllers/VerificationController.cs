@@ -1,6 +1,5 @@
 using AFBack.Common.Controllers;
 using AFBack.Features.Auth.DTOs.Request;
-using AFBack.Features.Auth.Services;
 using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Constants;
 using Microsoft.AspNetCore.Authorization;
@@ -25,20 +24,21 @@ public class VerificationController(IAccountVerificationService accountVerificat
     /// Returnerer alltid 200 OK for å forhindre email enumeration.
     /// </summary>
     /// <param name="request"></param>
+    /// <param name="ct"></param>
     /// <returns>200 Ok</returns>
     [HttpPost("resend-verification")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> ResendVerification([FromBody] EmailRequest request)
+    public async Task<IActionResult> ResendVerification([FromBody] EmailRequest request, CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
             return Problem(detail: "Unable to determine client IP address", 
                 statusCode: StatusCodes.Status400BadRequest);
         
-        var result = await accountVerificationService.ResendVerificationEmailAsync(request.Email, ipAddress);
+        var result = await accountVerificationService.ResendVerificationEmailAsync(request.Email, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -54,14 +54,14 @@ public class VerificationController(IAccountVerificationService accountVerificat
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request, CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
             return Problem(detail: "Unable to determine client IP address", 
                 statusCode: StatusCodes.Status400BadRequest);
         
-        var result = await accountVerificationService.VerifyEmailAsync(request.Email, request.Code, ipAddress);
+        var result = await accountVerificationService.VerifyEmailAsync(request.Email, request.Code, ipAddress, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);
@@ -80,14 +80,15 @@ public class VerificationController(IAccountVerificationService accountVerificat
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> ResendPhoneVerification([FromBody] ResendPhoneVerificationRequest request)
+    public async Task<IActionResult> ResendPhoneVerification([FromBody] EmailRequest request,
+        CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
             return Problem(detail: "Unable to determine client IP address",
                 statusCode: StatusCodes.Status400BadRequest);
 
-        var result = await accountVerificationService.ResendPhoneVerificationAsync(request.PhoneNumber, ipAddress);
+        var result = await accountVerificationService.ResendPhoneVerificationAsync(request.Email, ipAddress, ct);
 
         if (result.IsFailure)
             return HandleFailure(result);
@@ -103,14 +104,14 @@ public class VerificationController(IAccountVerificationService accountVerificat
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneRequest request)
+    public async Task<IActionResult> VerifyPhone([FromBody] VerifyEmailRequest request, CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
             return Problem(detail: "Unable to determine client IP address",
                 statusCode: StatusCodes.Status400BadRequest);
 
-        var result = await accountVerificationService.VerifyPhoneAsync(request.PhoneNumber, request.Code, ipAddress);
+        var result = await accountVerificationService.VerifyPhoneAsync(request.Email, request.Code, ipAddress, ct);
 
         if (result.IsFailure)
             return HandleFailure(result);

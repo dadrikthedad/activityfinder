@@ -33,7 +33,7 @@ public class SupportTicketService(
         var rateLimitResult = await limitGuardService.CheckEmailRateLimitAsync(EmailType.SupportTicket,
             ticketRequest.Email, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result<SupportTicketResponse>.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result<SupportTicketResponse>.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
 
         // Oppretter en SupportTicket
         var ticket = new SupportTicket

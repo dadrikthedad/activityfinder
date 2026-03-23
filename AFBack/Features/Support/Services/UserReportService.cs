@@ -32,7 +32,7 @@ public class UserReportService(
         var dailyCount = await supportRepository.GetDailyReportCountAsync(submittedByUserId, ct);
         if (dailyCount >= SupportTicketFileConfig.MaxUserReportsPerDay)
             return Result<UserReportResponse>.Failure("Daily report limit reached. Please try again tomorrow.",
-                ErrorTypeEnum.TooManyRequests);
+                AppErrorCode.TooManyRequests);
 
         // ====== Sjekk duplikat — allerede rapportert samme bruker med pending ======
         var existingReport = await supportRepository.HasPendingReportAsync(submittedByUserId, 

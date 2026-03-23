@@ -1,4 +1,4 @@
-// Oppdatert useSendEncryptedMessage.ts med korrekt videokomprimering
+// hooks/messages/useSendEncryptedMessage.ts
 import { useState, useCallback } from 'react';
 import { useE2EE } from '@/components/ende-til-ende/useE2EE';
 import { useCurrentUser } from '../../store/useUserCacheStore';
@@ -14,6 +14,7 @@ import { useThumbnailGenerator, ThumbnailData } from '@/features/cryptoAttachmen
 import { SendEncryptedMessageResponseDTO } from '@/features/OptimsticMessage/types/MessagesToBackendTypes';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 import { useVideoCompression } from '@/features/cryptoAttachments/hooks/useVideoCompression';
+import { extractErrorMessage } from '@/utils/messages/extractErrorMessage';
 
 // Interface for sending encrypted messages with files
 interface SendEncryptedMessagePayload {
@@ -45,21 +46,20 @@ const ERROR_MESSAGES = {
   NO_E2EE: "Ende-til-ende kryptering ikke tilgjengelig",
   VALIDATION_FAILED: "Ugyldig fil",
   COMPRESSION_FAILED: "Videokomprimering feilet",
-  UNKNOWN_ERROR: "Noe gikk galt"
 } as const;
 
 export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDTO) => void) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentStage, setCurrentStage] = useState<string | null>(null);
-  
+
   const { isInitialized } = useE2EE();
   const { encryptMessage } = useEncryptMessage();
   const { uploadEncryptedAttachments, isEncrypting, isUploading, encryptionProgress, currentOperation } = useEncryptedAttachments();
   const { createOptimisticMessage } = useOptimisticMessage();
   const { generateThumbnails, isGenerating: isGeneratingThumbnails } = useThumbnailGenerator();
   const { compressFiles, isCompressing, compressionProgress } = useVideoCompression();
-  
+
   const user = useCurrentUser();
   const conversationId = useChatStore((state) => state.currentConversationId);
 
@@ -73,7 +73,7 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
 
     const hasText = payload.text && payload.text.trim().length > 0;
     const hasFiles = payload.files && payload.files.length > 0;
-    
+
     if (!hasText && !hasFiles) {
       setError(ERROR_MESSAGES.NO_CONTENT);
       return null;
@@ -91,51 +91,48 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
     setError(null);
 
     try {
-      // 1. COMPRESS VIDEOS FIRST
+      // 1. Komprimer videoer først
       let processedFiles = payload.files;
       if (hasFiles && payload.files) {
         setCurrentStage("Compressing videos...");
         console.log(`🗜️ Starting compression for ${payload.files.length} files...`);
         processedFiles = await compressFiles(payload.files, {
           quality: 'medium',
-          minimumFileSizeForCompression: 3 * 1024 * 1024 // 3MB threshold
+          minimumFileSizeForCompression: 3 * 1024 * 1024 // 3MB terskel
         });
         console.log(`🗜️ Compression complete, using ${processedFiles.length} processed files`);
       }
 
-      // 2. Generate thumbnails from COMPRESSED files
+      // 2. Generer miniatyrbilder fra komprimerte filer
       let thumbnailResult;
       if (hasFiles && processedFiles) {
         setCurrentStage("Generating thumbnails...");
         console.log(`🖼️ Generating thumbnails for ${processedFiles.length} files...`);
-        thumbnailResult = await generateThumbnails(processedFiles); // <- Use compressed files
+        thumbnailResult = await generateThumbnails(processedFiles);
         console.log(`🖼️ Generated ${thumbnailResult.thumbnails.size} thumbnails`);
       }
 
-      // 3. Create optimistic message with COMPRESSED files
+      // 3. Opprett optimistisk melding med komprimerte filer
       setCurrentStage("Creating message...");
       const optimisticMessage = createOptimisticMessage({
         text: payload.text,
-        files: processedFiles, // <- Use compressed files
+        files: processedFiles,
         conversationId: payload.conversationId,
         user,
         parentMessageId: payload.parentMessageId,
         thumbnails: thumbnailResult?.thumbnails
       });
 
-      // Add directly to store
+      // Legg til direkte i store
       const store = useChatStore.getState();
       store.addMessageOptimistic(optimisticMessage);
 
-      // 4. Send to server with COMPRESSED files
+      // 4. Send til server med komprimerte filer
       setCurrentStage(hasFiles ? "Encrypting and uploading files..." : "Sending message...");
       let serverResponse: SendEncryptedMessageResponseWithMetadata;
       if (hasFiles && processedFiles) {
         serverResponse = await sendWithEncryptedFiles(
-          {
-            ...payload,
-            files: processedFiles // <- Use compressed files
-          }, 
+          { ...payload, files: processedFiles },
           thumbnailResult?.thumbnailData,
           optimisticMessage.attachments
         );
@@ -147,9 +144,9 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
         throw new Error(ERROR_MESSAGES.SEND_FAILED);
       }
 
-      // 5. Update optimistic message with server data AND encryption metadata
+      // 5. Oppdater optimistisk melding med serverdata og krypteringsmetadata
       setCurrentStage("Finalizing...");
-      
+
       store.updateMessageOptimistic(
         payload.conversationId,
         optimisticMessage.optimisticId!,
@@ -164,7 +161,7 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
             const serverAttachment = serverResponse.attachments?.find(
               sa => sa.optimisticId === optimisticAttachment.optimisticId
             );
-            
+
             if (serverAttachment && optimisticAttachment.optimisticId) {
               const encryptionData = serverResponse.encryptionMetadata?.get(
                 optimisticAttachment.optimisticId
@@ -185,19 +182,19 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
                 isUploading: false,
                 optimisticId: undefined,
                 uploadError: null,
-                
-                // Main file encryption data
+
+                // Krypteringsdata for hovefil
                 needsDecryption: !!encryptionData?.fileKeyInfo,
                 isEncrypted: !!encryptionData?.fileKeyInfo,
                 keyInfo: encryptionData?.fileKeyInfo,
                 iv: encryptionData?.fileIV,
                 version: encryptionData?.version || 1,
-                
-                // Thumbnail encryption data
+
+                // Krypteringsdata for miniatyrbilder
                 thumbnailKeyInfo: encryptionData?.thumbnailKeyInfo,
                 thumbnailIV: encryptionData?.thumbnailIV,
-                
-                // Preserve display properties
+
+                // Bevar visningsegenskaper
                 thumbnailWidth: optimisticAttachment.thumbnailWidth,
                 thumbnailHeight: optimisticAttachment.thumbnailHeight,
                 localThumbnailUri: optimisticAttachment.localThumbnailUri,
@@ -209,11 +206,9 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
       );
 
       console.log(`✅ Updated optimistic message to server message: ${serverResponse.messageId}`);
-
-      // Clear stage on success
       setCurrentStage(null);
 
-      // 6. Return success data for callback
+      // 6. Returner suksessdata for callback
       const resultMessage: DecryptedMessageDTO = {
         id: serverResponse.messageId,
         senderId: user.id,
@@ -221,11 +216,10 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
         sentAt: serverResponse.sentAt,
         conversationId: payload.conversationId,
         attachments: serverResponse.attachments?.map(serverAttachment => {
-          // Find the original file info from PROCESSED files
-          const originalFile = processedFiles?.find((file, index) => 
+          const originalFile = processedFiles?.find((file, index) =>
             `attachment_${Date.now()}_${index}`.includes(serverAttachment.optimisticId.split('_').pop() || '')
           );
-          
+
           return {
             id: serverAttachment.id,
             fileUrl: serverAttachment.fileUrl,
@@ -240,8 +234,9 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
         }) || [],
         reactions: [],
         parentMessageId: payload.parentMessageId,
-        parentMessageText: payload.text && payload.parentMessageId ? 
-          (payload.text.length > 100 ? payload.text.substring(0, 100) + '...' : payload.text) : null,
+        parentMessageText: payload.text && payload.parentMessageId
+          ? (payload.text.length > 100 ? payload.text.substring(0, 100) + '...' : payload.text)
+          : null,
         parentSender: null,
         sender: user,
         isSystemMessage: false,
@@ -258,24 +253,23 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
       console.error("❌ Failed to send encrypted message:", errorMessage);
       setError(errorMessage);
       setCurrentStage(null);
-      
       return null;
     } finally {
       setLoading(false);
       setCurrentStage(null);
     }
   }, [
-    encryptMessage, 
-    isInitialized, 
-    user, 
-    conversationId, 
-    onSuccess, 
-    uploadEncryptedAttachments, 
+    encryptMessage,
+    isInitialized,
+    user,
+    conversationId,
+    onSuccess,
+    uploadEncryptedAttachments,
     generateThumbnails,
-    compressFiles // Add compressFiles to dependencies
+    compressFiles
   ]);
 
-  // Send text-only encrypted message
+  // Send kun tekst (kryptert)
   const sendEncryptedTextOnly = async (payload: SendEncryptedMessagePayload): Promise<SendEncryptedMessageResponseWithMetadata> => {
     const textToEncrypt = payload.text?.trim() || null;
     const encrypted = await encryptMessage(textToEncrypt, payload.conversationId);
@@ -291,8 +285,9 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
       conversationId: payload.conversationId,
       receiverId: payload.receiverId,
       parentMessageId: payload.parentMessageId,
-      parentMessagePreview: payload.text && payload.parentMessageId ? 
-        (payload.text.length > 100 ? payload.text.substring(0, 100) + '...' : payload.text) : null
+      parentMessagePreview: payload.text && payload.parentMessageId
+        ? (payload.text.length > 100 ? payload.text.substring(0, 100) + '...' : payload.text)
+        : null
     };
 
     const response = await sendMessage(request);
@@ -309,9 +304,9 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
     };
   };
 
-  // Send message with encrypted files
+  // Send melding med krypterte filer
   const sendWithEncryptedFiles = async (
-    payload: SendEncryptedMessagePayload, 
+    payload: SendEncryptedMessagePayload,
     thumbnailData?: Map<string, ThumbnailData>,
     optimisticAttachments?: AttachmentDto[]
   ): Promise<SendEncryptedMessageResponseWithMetadata> => {
@@ -324,27 +319,25 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
       const thumbnailCount = thumbnailData?.size || 0;
       console.log(`🔐 Encrypting ${fileStats.fileCount} files with ${thumbnailCount} pre-generated thumbnails`);
 
-      // Process files for encryption WITH optimistic IDs
+      // Prosesser filer for kryptering med optimistiske IDer
       const processedFiles = await Promise.all(
-        payload.files.map(async (rnFile, index) => {
+        payload.files.map(async (rnFile) => {
           const response = await fetch(rnFile.uri);
           if (!response.ok) {
             throw new Error(`Failed to fetch file: ${response.statusText}`);
           }
-        
+
           const arrayBuffer = await response.arrayBuffer();
-        
-          // Include pre-generated thumbnail data
+
           const thumbnail = thumbnailData?.get(rnFile.uri);
           if (thumbnail) {
             console.log(`🖼️ Including pre-generated thumbnail for ${rnFile.name}`);
           }
 
-          // Find matching optimistic attachment by localUri
-          const optimisticAttachment = optimisticAttachments?.find(att => 
+          const optimisticAttachment = optimisticAttachments?.find(att =>
             att.localUri === rnFile.uri
           );
-        
+
           return {
             buffer: arrayBuffer,
             metadata: {
@@ -370,7 +363,7 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
           preGeneratedThumbnails: thumbnailData
         }
       );
-      
+
       console.log('🔐 Received upload result with encryption metadata:', {
         hasMetadata: !!result.encryptionMetadata,
         metadataSize: result.encryptionMetadata?.size || 0,
@@ -384,7 +377,6 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
     }
   };
 
-  // Combine progress information including compression
   const combinedProgress = {
     stage: currentStage,
     isCompressing,
@@ -395,24 +387,12 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
     encryptionProgress,
     currentOperation
   };
-  
-  return { 
-    send, 
+
+  return {
+    send,
     loading: loading || isCompressing || isEncrypting || isUploading || isGeneratingThumbnails,
     error,
     isE2EEReady: isInitialized,
     encryptionProgress: combinedProgress
   };
-}
-
-export function extractErrorMessage(err: unknown): string {
-  if (err instanceof Error) {
-    try {
-      const parsed = JSON.parse(err.message);
-      return parsed.details || parsed.message || err.message;
-    } catch {
-      return err.message;
-    }
-  }
-  return ERROR_MESSAGES.UNKNOWN_ERROR;
 }

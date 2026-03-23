@@ -4,10 +4,9 @@ import {
   View,
   Text,
   TextInput,
-  StyleSheet,
-  TextInputProps,
   KeyboardTypeOptions,
 } from "react-native";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
 interface FormFieldNativeProps {
   id: string;
@@ -48,39 +47,27 @@ export default function FormFieldNative({
   maxLength,
   style,
 }: FormFieldNativeProps) {
+  // useUnistyles gir tilgang til aktivt tema og runtime
+  const { theme } = useUnistyles();
+
   const showError = touched && !!error;
 
-  // Determine keyboard type based on type prop if not explicitly provided
   const getKeyboardType = (): KeyboardTypeOptions => {
     if (keyboardType) return keyboardType;
-    
     switch (type) {
-      case "email":
-        return "email-address";
-      case "phone":
-        return "phone-pad";
-      case "number":
-        return "numeric";
-      default:
-        return "default";
+      case "email":  return "email-address";
+      case "phone":  return "phone-pad";
+      case "number": return "numeric";
+      default:       return "default";
     }
   };
 
-  // Determine auto-capitalize based on type
-  const getAutoCapitalize = () => {
-    if (type === "email") return "none";
-    return autoCapitalize;
-  };
-
-  // Determine auto-correct based on type
-  const getAutoCorrect = () => {
-    if (type === "email") return false;
-    return autoCorrect;
-  };
+  const getAutoCapitalize = () => (type === "email" ? "none" : autoCapitalize);
+  const getAutoCorrect    = () => (type === "email" ? false  : autoCorrect);
 
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -89,9 +76,17 @@ export default function FormFieldNative({
         editable={!disabled}
         style={[
           styles.input,
-          multiline && styles.multilineInput,
-          showError && styles.inputError,
-          disabled && styles.inputDisabled,
+          {
+            borderColor: theme.colors.border,
+            backgroundColor: theme.colors.backgroundInput,
+            color: theme.colors.textPrimary,
+          },
+          multiline  && styles.multilineInput,
+          showError  && { borderColor: theme.colors.borderError, borderWidth: 2 },
+          disabled   && {
+            backgroundColor: theme.colors.disabled,
+            color: theme.colors.disabledText,
+          },
         ]}
         keyboardType={getKeyboardType()}
         autoCapitalize={getAutoCapitalize()}
@@ -99,15 +94,17 @@ export default function FormFieldNative({
         multiline={multiline}
         numberOfLines={multiline ? numberOfLines : 1}
         maxLength={maxLength}
-        placeholderTextColor="#9ca3af"
-        selectionColor="#1C6B1C"
-        
+        placeholderTextColor={theme.colors.textPlaceholder}
+        selectionColor={theme.colors.primary}
       />
-      {showError && <Text style={styles.errorText}>{error}</Text>}
+      {showError && (
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+      )}
     </View>
   );
 }
 
+// Statiske styles — tema-farger settes inline via useUnistyles()
 const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
@@ -115,36 +112,22 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#374151",
     marginBottom: 6,
-    textAlign: "center"
+    textAlign: "center",
   },
   input: {
     height: 48,
     borderWidth: 1,
-    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: "#ffffff",
-    color: "#111827",
   },
   multilineInput: {
     height: 96,
     paddingVertical: 12,
     textAlignVertical: "top",
   },
-  inputError: {
-    borderColor: "#dc2626",
-    borderWidth: 2,
-  },
-  inputDisabled: {
-    backgroundColor: "#f9fafb",
-    color: "#9ca3af",
-    borderColor: "#e5e7eb",
-  },
   errorText: {
-    color: "#dc2626",
     fontSize: 14,
     marginTop: 4,
     marginLeft: 4,

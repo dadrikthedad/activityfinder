@@ -20,7 +20,7 @@ public class SettingsService(
     {
         var settings = await settingsRepository.GetByUserIdAsync(userId);
         if (settings == null)
-            return Result<SettingsResponse>.Failure("Settings not found", ErrorTypeEnum.NotFound);
+            return Result<SettingsResponse>.Failure("Settings not found", AppErrorCode.NotFound);
 
         return Result<SettingsResponse>.Success(settings.ToResponse());
     }
@@ -36,7 +36,7 @@ public class SettingsService(
         if (settings == null)
         {
             logger.LogWarning("UserSettings for {UserId} does not exist", userId);
-            return Result.Failure("Settings not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("Settings not found", AppErrorCode.NotFound);
         }
 
         settings.Language = request.Language;
@@ -48,7 +48,6 @@ public class SettingsService(
         settings.ShowPhone = request.ShowPhone;
         settings.ShowRegion = request.ShowRegion;
         settings.ShowBio = request.ShowBio;
-        settings.ShowFriendsList = request.ShowFriendsList;
         settings.ShowStats = request.ShowStats;
         settings.ShowWebsites = request.ShowWebsites;
         settings.ShowPostalCode = request.ShowPostalCode;

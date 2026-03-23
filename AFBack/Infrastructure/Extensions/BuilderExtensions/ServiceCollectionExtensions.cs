@@ -13,6 +13,7 @@ using AFBack.Infrastructure.Cleanup;
 using AFBack.Infrastructure.Cleanup.Tasks;
 using AFBack.Infrastructure.Security.Extensions;
 using AFBack.Infrastructure.Security.Services;
+using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
@@ -37,6 +38,9 @@ public static class ServiceCollectionExtensions
         Console.WriteLine($"DB Connection: {connectionString}");
 
         services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+        
+        // Transaksjonsservice — håndterer atomiske operasjoner på tvers av services
+        services.AddScoped<ITransactionService, TransactionService>();
 
         return services;
     }

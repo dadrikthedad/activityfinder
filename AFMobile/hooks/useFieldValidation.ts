@@ -1,19 +1,22 @@
-// Her sjekker vi enkle felt og alle felt for errors. Vi bruker validatorene fra utils/validators. Sjekker om et felt har vært rørt med handleBlur
-
+// hooks/useFieldValidation.ts
 import { useState } from "react";
 import { FieldName, validateSingleField } from "@shared/utils/validators";
 import { FormDataType } from "@shared/types/form";
 
+// Felt som ikke skal valideres ved submit — ikke i UI eller skjulte
+const SKIP_VALIDATION = ["middleName", "postalCode", "region", "gender", "city"];
+
 export function useFieldValidation(formData: FormDataType) {
-  const [errors, setErrors] = useState<Record<string, string>>({}); // Her holder vi styr på hvem felt som har validerings feil
-  const [touchedFields, setTouchedFields] = useState<Partial<Record<FieldName, boolean>>>({}); // Her holder vi styr på om vi har rørt et felt
-  const [message, setMessage] = useState(""); // her viser vi error-messagen
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<FieldName, boolean>>>({});
+  const [message, setMessage] = useState("");
 
-  const handleBlur = (name: FieldName) => { // Brukes når vi går ut ifra et felt og validerer da feltet
-    setTouchedFields((prev) => ({ ...prev, [name]: true })); // Her setter vi om feltet er røt eller ikke
+  // Brukes når vi går ut ifra et felt og validerer da feltet
+  const handleBlur = (name: FieldName) => {
+    setTouchedFields((prev) => ({ ...prev, [name]: true }));
 
-    const value = formData[name] ?? ""; // Her iterer vi igjennom hver felt i formdata
-    const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined); // Deretter valdirer vi hvert enkelt felt
+    const value = formData[name] ?? "";
+    const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
 
     setErrors((prev) => {
       const updated = { ...prev };
@@ -30,20 +33,21 @@ export function useFieldValidation(formData: FormDataType) {
     });
   };
 
-  const validateAllFields = () => { // Ved å trykke på submit så kjører vi validateAllFields som iterer igjennom hvert objekt og valdierer dem.
+  // Ved submit — itererer alle felt og validerer, hopper over skjulte felt
+  const validateAllFields = () => {
     const newErrors: Partial<FormDataType> = {};
 
-    for (const key in formData) { // Løkken for å iterere
+    for (const key in formData) {
       const name = key as FieldName;
       const value = formData[name] ?? "";
 
-      if (!["middleName", "phone", "postalCode"].includes(name)) { // Hopper over valgrfri felt
+      if (!SKIP_VALIDATION.includes(name)) {
         const error = validateSingleField(name, value, name === "confirmPassword" ? formData.password : undefined);
         if (error) newErrors[name] = error;
       }
     }
 
-    const isValid = Object.keys(newErrors).length === 0; // Hvis alle felt er ugyldig så fjerner vi alle feilene
+    const isValid = Object.keys(newErrors).length === 0;
     return { isValid, errors: newErrors };
   };
 

@@ -12,7 +12,8 @@ public interface IUserDeviceService
     /// <param name="userId">BrukerId</param>
     /// <param name="deviceInfoRequest"></param>
     /// <param name="ipAddress">IP-addressen til brukeren</param>
+    /// <param name="ct"></param>
     /// <returns></returns>
     Task<UserDevice> ResolveOrCreateDeviceAsync(string userId, DeviceInfoRequest deviceInfoRequest,
-        string ipAddress);
+        string ipAddress, CancellationToken ct = default);
 }

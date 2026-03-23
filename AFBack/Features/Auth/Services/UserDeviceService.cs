@@ -11,10 +11,10 @@ public class UserDeviceService(
 {
     
     public async Task<UserDevice> ResolveOrCreateDeviceAsync(string userId, DeviceInfoRequest deviceInfoRequest, 
-        string ipAddress)
+        string ipAddress, CancellationToken ct = default)
     {
         // Henter UserDevice med brukerId og fingerprint
-        var device = await userDeviceRepository.GetByFingerprintAsync(userId, deviceInfoRequest.DeviceFingerprint);
+        var device = await userDeviceRepository.GetByFingerprintAsync(userId, deviceInfoRequest.DeviceFingerprint, ct);
         
         // Device allerede eksisterer - vi oppdaterer eksisterende
         if (device != null)
@@ -24,7 +24,7 @@ public class UserDeviceService(
             device.LastIpAddress = ipAddress;
             device.DeviceName = deviceInfoRequest.DeviceName; // Kan ha endret seg
         
-            await userDeviceRepository.SaveChangesAsync();
+            await userDeviceRepository.SaveChangesAsync(ct);
         
             logger.LogInformation("Existing device resolved. DeviceId: {DeviceId}", device.Id);
             return device;
@@ -45,7 +45,7 @@ public class UserDeviceService(
             IsTrusted = false
         };
     
-        await userDeviceRepository.AddAsync(device);
+        await userDeviceRepository.AddAsync(device, ct);
     
         logger.LogInformation("New device registered. DeviceId: {DeviceId}, Name: {DeviceName}",
             device.Id, device.DeviceName);

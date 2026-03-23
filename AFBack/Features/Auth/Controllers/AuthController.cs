@@ -21,6 +21,7 @@ public class AuthController(IAuthService authService) : BaseController
     /// Signup endepunktet - Registrerer en ny bruker med epost som username og passord
     /// </summary>
     /// <param name="request">Email, Password and Confirm Password</param>
+    /// <param name="ct"></param>
     /// <returns>201 CreatedAt eller BadRequest</returns>
     [HttpPost("signup")]
     [AllowAnonymous]
@@ -29,11 +30,12 @@ public class AuthController(IAuthService authService) : BaseController
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<SignupResponse>> SignUp([FromBody] SignupRequest request)
+    public async Task<ActionResult<SignupResponse>> SignUp([FromBody] SignupRequest request, 
+        CancellationToken ct = default)
     {
         var ipAddress = GetIpAddress();
         
-        var result = await authService.SignupAsync(request, ipAddress);
+        var result = await authService.SignupAsync(request, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -48,13 +50,13 @@ public class AuthController(IAuthService authService) : BaseController
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct = default)
     {
         var ipAddress = GetIpAddress();
     
         var userAgent = Request.Headers.UserAgent.ToString();
     
-        var result = await authService.LoginAsync(request, ipAddress, userAgent);
+        var result = await authService.LoginAsync(request, ipAddress, userAgent, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);

@@ -10,9 +10,10 @@ public interface IUserDeviceRepository
     /// </summary>
     /// <param name="userId">Brukerens ID</param>
     /// <param name="deviceFingerprint"> Devicefingerprint fra frontend</param>
+    /// <param name="ct"></param>
     /// <returns></returns>
-    Task<UserDevice?> GetByFingerprintAsync(string userId, string deviceFingerprint);
+    Task<UserDevice?> GetByFingerprintAsync(string userId, string deviceFingerprint, CancellationToken ct = default);
     
-    Task AddAsync(UserDevice device);
-    Task SaveChangesAsync();
+    Task AddAsync(UserDevice device, CancellationToken ct = default);
+    Task SaveChangesAsync(CancellationToken ct = default);
 }

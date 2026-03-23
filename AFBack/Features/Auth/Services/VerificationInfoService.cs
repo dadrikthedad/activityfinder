@@ -23,12 +23,12 @@ public class VerificationInfoService(
     // ======================== Epost verifisiering ========================
     
     /// <inheritdoc />
-    public async Task<string> GenerateEmailVerificationAsync(string userId)
+    public async Task<string> GenerateEmailVerificationAsync(string userId, CancellationToken ct = default)
     {
         // Vi genererer 6-sifret kode for app og epost
         var code = GenerateSecureCode();
         // Hent eller opprett VerificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         
         // Oppdaterer VerificationInfo og nullstiller forsøksteller
@@ -38,17 +38,17 @@ public class VerificationInfoService(
         verificationInfo.LastVerificationEmailSentAt = DateTime.UtcNow;
         
         // Lagerer i databasen
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
 
         logger.LogInformation("Email verification generated for UserId: {UserId}", userId);
         return code;
     }
     
     /// <inheritdoc />
-    public async Task<Result> ValidateEmailCodeAsync(string userId, string code)
+    public async Task<Result> ValidateEmailCodeAsync(string userId, string code, CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Validerer antall brukte forsøk og øker antall forsøk hvis feil. Sjekker også om kode er korrekt eller 
         // om koden er utgått
@@ -56,7 +56,8 @@ public class VerificationInfoService(
             verificationInfo.EmailConfirmationCode, verificationInfo.EmailCodeExpiresAt,
             verificationInfo.EmailCodeFailedAttempts, code,
             () => verificationInfo.EmailCodeFailedAttempts++,
-            "EmailVerification");
+            "EmailVerification",
+            ct);
     
         if (result.IsFailure)
             return result;
@@ -67,7 +68,7 @@ public class VerificationInfoService(
         verificationInfo.EmailCodeFailedAttempts = 0;
         
         // Lagrer i databasen
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
 
         return Result.Success();
     }
@@ -75,28 +76,28 @@ public class VerificationInfoService(
     
     // ======================== Telefon verifisiering ========================
 
-    public async Task<string> GeneratePhoneVerificationAsync(string userId)
+    public async Task<string> GeneratePhoneVerificationAsync(string userId, CancellationToken ct = default)
     {
         var code = GenerateSecureCode();
 
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
 
         verificationInfo.PhoneVerificationCode = code;
         verificationInfo.PhoneCodeExpiresAt = DateTime.UtcNow.Add(PhoneCodeExpiry);
         verificationInfo.PhoneCodeFailedAttempts = 0;
         verificationInfo.LastVerificationSmsSentAt = DateTime.UtcNow;
 
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
 
         logger.LogInformation("Phone verification generated for UserId: {UserId}", userId);
         return code;
     }
 
-    public async Task<Result> ValidatePhoneCodeAsync(string userId, string code)
+    public async Task<Result> ValidatePhoneCodeAsync(string userId, string code, CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
@@ -104,7 +105,7 @@ public class VerificationInfoService(
             verificationInfo.PhoneVerificationCode, verificationInfo.PhoneCodeExpiresAt,
             verificationInfo.PhoneCodeFailedAttempts, code,
             () => verificationInfo.PhoneCodeFailedAttempts++,
-            "PhoneVerification");
+            "PhoneVerification", ct);
         
         if (result.IsFailure)
             return result;
@@ -113,7 +114,7 @@ public class VerificationInfoService(
         verificationInfo.PhoneCodeExpiresAt = null;
         verificationInfo.PhoneCodeFailedAttempts = 0;
 
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
 
         return Result.Success();
     }
@@ -121,13 +122,13 @@ public class VerificationInfoService(
     // ======================== Passord reset — Epost (steg 1) ========================
     
     /// <inheritdoc />
-    public async Task<string> GenerateEmailPasswordResetAsync(string userId)
+    public async Task<string> GenerateEmailPasswordResetAsync(string userId, CancellationToken ct = default)
     {
         // Generer 6-sifret kode for app og epost
         var code = GenerateSecureCode();
 
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Oppdaterer VerificationInfo
         verificationInfo.EmailPasswordResetCode = code;
@@ -143,24 +144,25 @@ public class VerificationInfoService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         
         // Lagerer i databasen
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
 
         logger.LogInformation("Password reset generated for UserId: {UserId}", userId);
         return code;
     }
     
      /// <inheritdoc />
-     public async Task<Result> ValidateEmailPasswordResetCodeAsync(string userId, string code)
+     public async Task<Result> ValidateEmailPasswordResetCodeAsync(string userId, string code,
+         CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
     
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
         var result = await ValidateCodeAsync(userId,
             verificationInfo.EmailPasswordResetCode, verificationInfo.EmailPasswordResetCodeExpiresAt,
             verificationInfo.EmailPasswordResetCodeFailedAttempts, code,
             () => verificationInfo.EmailPasswordResetCodeFailedAttempts++,
-            "EmailPasswordReset");
+            "EmailPasswordReset", ct);
         
         if (result.IsFailure)
             return result;
@@ -171,7 +173,7 @@ public class VerificationInfoService(
         verificationInfo.EmailPasswordResetCodeFailedAttempts = 0;
         verificationInfo.EmailPasswordResetVerified = true;
     
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogInformation("Password reset email code verified for UserId: {UserId}. SMS step unlocked.",
             userId);
@@ -181,10 +183,10 @@ public class VerificationInfoService(
     
     // ======================== Passord reset — SMS (steg 2) ========================
 
-    public async Task<string> GenerateSmsPasswordResetCodeAsync(string userId)
+    public async Task<string> GenerateSmsPasswordResetCodeAsync(string userId, CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
     
         // Guard: Email MÅ være verifisert først
         if (!verificationInfo.EmailPasswordResetVerified)
@@ -202,7 +204,7 @@ public class VerificationInfoService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.LastSmsPasswordResetSentAt = DateTime.UtcNow;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
     
         logger.LogInformation(
             "SMS password reset code generated for UserId: {UserId}", userId);
@@ -212,10 +214,11 @@ public class VerificationInfoService(
     
 
    /// <inheritdoc />
-   public async Task<Result> ValidateSmsPasswordResetCodeAsync(string userId, string code)
+   public async Task<Result> ValidateSmsPasswordResetCodeAsync(string userId, string code, 
+       CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Guard: Epost MÅ være verifisert først
         if (!verificationInfo.EmailPasswordResetVerified)
@@ -224,7 +227,7 @@ public class VerificationInfoService(
                 "Attempted to validate SMS password reset code without email verification for UserId: {UserId}", 
                 userId);
             return Result.Failure(
-                "Email verification must be completed first", ErrorTypeEnum.Unauthorized);
+                "Email verification must be completed first", AppErrorCode.Unauthorized);
         }
         
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
@@ -232,7 +235,7 @@ public class VerificationInfoService(
             verificationInfo.SmsPasswordResetCode, verificationInfo.SmsPasswordResetCodeExpiresAt,
             verificationInfo.SmsPasswordResetCodeFailedAttempts, code,
             () => verificationInfo.SmsPasswordResetCodeFailedAttempts++,
-            "SmsPasswordReset");
+            "SmsPasswordReset", ct);
         
         if (result.IsFailure)
             return result;
@@ -243,7 +246,7 @@ public class VerificationInfoService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.SmsPasswordResetVerified = true;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogInformation(
             "SMS password reset code verified for UserId: {UserId}. Password reset unlocked.", userId);
@@ -254,12 +257,13 @@ public class VerificationInfoService(
     // ======================== Bytte e-post — Steg 1: Verifisering av nåværende epost ========================
 
     /// <inheritdoc />
-    public async Task<string> GenerateOldEmailChangeCodeAsync(string userId, string newEmail)
+    public async Task<string> GenerateOldEmailChangeCodeAsync(string userId, string newEmail,
+        CancellationToken ct = default)
     {
         var code = GenerateSecureCode();
     
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
     
         // Lagre ny epost som pending
         verificationInfo.PendingEmail = newEmail;
@@ -276,7 +280,7 @@ public class VerificationInfoService(
         verificationInfo.NewEmailChangeCodeExpiresAt = null;
         verificationInfo.NewEmailChangeCodeFailedAttempts = 0;
     
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
     
         logger.LogInformation("Old email change verification code generated for UserId: {UserId}", userId);
         return code;
@@ -285,10 +289,11 @@ public class VerificationInfoService(
     
 
     /// <inheritdoc />
-    public async Task<Result<string>> ValidateOldEmailChangeCodeAsync(string userId, string code)
+    public async Task<Result<string>> ValidateOldEmailChangeCodeAsync(string userId, string code,
+        CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Ingen pending epost
         if (string.IsNullOrEmpty(verificationInfo.PendingEmail))
@@ -299,10 +304,10 @@ public class VerificationInfoService(
             verificationInfo.OldEmailChangeCode, verificationInfo.OldEmailChangeCodeExpiresAt,
             verificationInfo.OldEmailChangeCodeFailedAttempts, code,
             () => verificationInfo.OldEmailChangeCodeFailedAttempts++,
-            "OldEmailChange");
+            "OldEmailChange", ct);
         
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.ErrorType);
+            return Result<string>.Failure(result.Error, result.AppErrorType);
         
         // Riktig kode — marker steg 1 som fullført, nullstill steg 1-koden
         verificationInfo.OldEmailChangeCode = null;
@@ -310,7 +315,7 @@ public class VerificationInfoService(
         verificationInfo.OldEmailChangeCodeFailedAttempts = 0;
         verificationInfo.CurrentEmailChangeVerified = true;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         var newEmail = verificationInfo.PendingEmail;
         
@@ -322,12 +327,13 @@ public class VerificationInfoService(
     // ======================== Bytte e-post — Steg 2: Verifisering av ny epost ========================
 
     /// <inheritdoc />
-    public async Task<string> GenerateNewEmailChangeCodeAsync(string userId, string newEmail)
+    public async Task<string> GenerateNewEmailChangeCodeAsync(string userId, string newEmail, 
+        CancellationToken ct = default)
     {
         var code = GenerateSecureCode();
     
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
     
         // Guard: Nåværende epost MÅ være verifisert først (steg 1)
         if (!verificationInfo.CurrentEmailChangeVerified)
@@ -345,17 +351,18 @@ public class VerificationInfoService(
         verificationInfo.NewEmailChangeCodeFailedAttempts = 0;
         verificationInfo.LastNewEmailChangeSentAt = DateTime.UtcNow;
     
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
     
         logger.LogInformation("New email change code generated for UserId: {UserId}", userId);
         return code;
     }
     
     /// <inheritdoc />
-    public async Task<Result<string>> ValidateNewEmailChangeCodeAsync(string userId, string code)
+    public async Task<Result<string>> ValidateNewEmailChangeCodeAsync(string userId, string code, 
+        CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Ingen pending epost
         if (string.IsNullOrEmpty(verificationInfo.PendingEmail))
@@ -368,7 +375,7 @@ public class VerificationInfoService(
                 "Attempted to validate new email code without current email verification for UserId: {UserId}", 
                 userId);
             return Result<string>.Failure(
-                "Current email verification must be completed first", ErrorTypeEnum.Unauthorized);
+                "Current email verification must be completed first", AppErrorCode.Unauthorized);
         }
         
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
@@ -376,10 +383,10 @@ public class VerificationInfoService(
             verificationInfo.NewEmailChangeCode, verificationInfo.NewEmailChangeCodeExpiresAt,
             verificationInfo.NewEmailChangeCodeFailedAttempts, code,
             () => verificationInfo.NewEmailChangeCodeFailedAttempts++,
-            "NewEmailChange");
+            "NewEmailChange", ct);
         
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.ErrorType);
+            return Result<string>.Failure(result.Error, result.AppErrorType);
         
         // Riktig kode — hent ny epost og nullstill alle epost-bytte-felter
         var newEmail = verificationInfo.PendingEmail;
@@ -393,7 +400,7 @@ public class VerificationInfoService(
         verificationInfo.NewEmailChangeCodeExpiresAt = null;
         verificationInfo.NewEmailChangeCodeFailedAttempts = 0;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogInformation("New email code verified for UserId: {UserId}", userId);
         return Result<string>.Success(newEmail);
@@ -404,12 +411,13 @@ public class VerificationInfoService(
     // ======================== Bytte telefonnummer — Steg 1: Verifisering via epost ========================
 
     /// <inheritdoc />
-    public async Task<string> GeneratePhoneChangeEmailCodeAsync(string userId, string newPhoneNumber)
+    public async Task<string> GeneratePhoneChangeEmailCodeAsync(string userId, string newPhoneNumber,
+        CancellationToken ct = default)
     {
         var code = GenerateSecureCode();
     
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
     
         // Lagre nytt nummer som pending
         verificationInfo.PendingPhoneNumber = newPhoneNumber;
@@ -426,7 +434,7 @@ public class VerificationInfoService(
         verificationInfo.NewPhoneChangeCodeExpiresAt = null;
         verificationInfo.NewPhoneChangeCodeFailedAttempts = 0;
     
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
     
         logger.LogInformation(
             "Phone change email verification code generated for UserId: {UserId}", userId);
@@ -434,10 +442,11 @@ public class VerificationInfoService(
     }
 
     /// <inheritdoc />
-    public async Task<Result<string>> ValidatePhoneChangeEmailCodeAsync(string userId, string code)
+    public async Task<Result<string>> ValidatePhoneChangeEmailCodeAsync(string userId, string code,
+        CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Ingen pending telefonnummer
         if (string.IsNullOrEmpty(verificationInfo.PendingPhoneNumber))
@@ -448,10 +457,10 @@ public class VerificationInfoService(
             verificationInfo.PhoneChangeEmailCode, verificationInfo.PhoneChangeEmailCodeExpiresAt,
             verificationInfo.PhoneChangeEmailCodeFailedAttempts, code,
             () => verificationInfo.PhoneChangeEmailCodeFailedAttempts++,
-            "PhoneChangeEmail");
+            "PhoneChangeEmail", ct);
         
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.ErrorType);
+            return Result<string>.Failure(result.Error, result.AppErrorType);
         
         // Riktig kode — marker steg 1 som fullført, nullstill steg 1-koden
         verificationInfo.PhoneChangeEmailCode = null;
@@ -459,7 +468,7 @@ public class VerificationInfoService(
         verificationInfo.PhoneChangeEmailCodeFailedAttempts = 0;
         verificationInfo.CurrentPhoneChangeVerified = true;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         var newPhone = verificationInfo.PendingPhoneNumber;
         
@@ -472,12 +481,13 @@ public class VerificationInfoService(
     // ======================== Bytte telefonnummer — Steg 2: Verifisering av nytt nummer ========================
 
     /// <inheritdoc />
-    public async Task<string> GenerateNewPhoneChangeCodeAsync(string userId, string newPhoneNumber)
+    public async Task<string> GenerateNewPhoneChangeCodeAsync(string userId, string newPhoneNumber,
+        CancellationToken ct = default)
     {
         var code = GenerateSecureCode();
     
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
     
         // Guard: Epost MÅ være verifisert først (steg 1)
         if (!verificationInfo.CurrentPhoneChangeVerified)
@@ -494,17 +504,18 @@ public class VerificationInfoService(
         verificationInfo.NewPhoneChangeCodeFailedAttempts = 0;
         verificationInfo.LastNewPhoneChangeSentAt = DateTime.UtcNow;
     
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
     
         logger.LogInformation("New phone change SMS code generated for UserId: {UserId}", userId);
         return code;
     }
     
     /// <inheritdoc />
-    public async Task<Result<string>> ValidateNewPhoneChangeCodeAsync(string userId, string code)
+    public async Task<Result<string>> ValidateNewPhoneChangeCodeAsync(string userId, string code,
+        CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         // Ingen pending telefonnummer
         if (string.IsNullOrEmpty(verificationInfo.PendingPhoneNumber))
@@ -517,7 +528,7 @@ public class VerificationInfoService(
                 "Attempted to validate new phone code without email verification for UserId: {UserId}", 
                 userId);
             return Result<string>.Failure(
-                "Email verification must be completed first", ErrorTypeEnum.Unauthorized);
+                "Email verification must be completed first", AppErrorCode.Unauthorized);
         }
         
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
@@ -525,9 +536,9 @@ public class VerificationInfoService(
             verificationInfo.NewPhoneChangeCode, verificationInfo.NewPhoneChangeCodeExpiresAt,
             verificationInfo.NewPhoneChangeCodeFailedAttempts, code,
             () => verificationInfo.NewPhoneChangeCodeFailedAttempts++,
-            "NewPhoneChange");
+            "NewPhoneChange", ct);
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.ErrorType);
+            return Result<string>.Failure(result.Error, result.AppErrorType);
         
         // Riktig kode — hent nytt nummer og nullstill alle telefon-bytte-felter
         var newPhone = verificationInfo.PendingPhoneNumber;
@@ -541,7 +552,7 @@ public class VerificationInfoService(
         verificationInfo.NewPhoneChangeCodeExpiresAt = null;
         verificationInfo.NewPhoneChangeCodeFailedAttempts = 0;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogInformation("New phone code verified for UserId: {UserId}", userId);
         return Result<string>.Success(newPhone);
@@ -550,26 +561,26 @@ public class VerificationInfoService(
     // ======================== Sikkerhetsvarsling ========================
 
     /// <inheritdoc />
-    public async Task<string> GenerateSecurityAlertTokenAsync(string userId)
+    public async Task<string> GenerateSecurityAlertTokenAsync(string userId, CancellationToken ct = default)
     {
         // Henter verificationInfo
-        var verificationInfo = await GetVerificationInfoOrThrow(userId);
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
         var token = Guid.NewGuid().ToString("N"); // 32 tegn, ingen bindestreker
         
         verificationInfo.SecurityAlertToken = token;
         verificationInfo.SecurityAlertTokenExpiresAt = DateTime.UtcNow.Add(SecurityAlertTokenExpiry);
         
-        await verificationInfoRepository.SaveChangesAsync();
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogInformation("Security alert token generated for UserId: {UserId}", userId);
         return token;
     }
 
     /// <inheritdoc />
-    public async Task<Result<string>> ValidateSecurityAlertTokenAsync(string token)
+    public async Task<Result<string>> ValidateSecurityAlertTokenAsync(string token, CancellationToken ct = default)
     {
-        var verificationInfo = await verificationInfoRepository.GetBySecurityAlertTokenAsync(token);
+        var verificationInfo = await verificationInfoRepository.GetBySecurityAlertTokenAsync(token, ct);
         
         if (verificationInfo == null)
         {
@@ -583,7 +594,7 @@ public class VerificationInfoService(
             // Nullstill utgått token
             verificationInfo.SecurityAlertToken = null;
             verificationInfo.SecurityAlertTokenExpiresAt = null;
-            await verificationInfoRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync(ct);
             
             logger.LogWarning("Expired security alert token used for UserId: {UserId}", verificationInfo.UserId);
             return Result<string>.Failure("Security token has expired");
@@ -652,9 +663,9 @@ public class VerificationInfoService(
     /// <summary>
     /// Henter VerificationInfo for en bruker, eller kaster exception hvis den mangler.
     /// </summary>
-    private async Task<VerificationInfo> GetVerificationInfoOrThrow(string userId)
+    private async Task<VerificationInfo> GetVerificationInfoOrThrow(string userId, CancellationToken ct = default)
     {
-        return await verificationInfoRepository.GetByUserIdAsync(userId)
+        return await verificationInfoRepository.GetByUserIdAsync(userId, ct)
                ?? throw new InvalidOperationException(
                    $"VerificationInfo missing for UserId: {userId}. Was it created during signup?");
     }
@@ -669,6 +680,7 @@ public class VerificationInfoService(
     /// <param name="userInputCode">Brukerens kode</param>
     /// <param name="incrementAttempts">Incremental metode for å øke den relevante telleren</param>
     /// <param name="verificationMethodCallerName">Metoden som kaller valideringsmetoden</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
     private async Task<Result> ValidateCodeAsync(
         string userId,
@@ -677,7 +689,8 @@ public class VerificationInfoService(
         int failedAttempts,
         string userInputCode,
         Action incrementAttempts,
-        string verificationMethodCallerName
+        string verificationMethodCallerName,
+        CancellationToken ct = default
        )
     {
         if (failedAttempts >= VerificationConfig.MaxFailedAttempts)
@@ -686,7 +699,7 @@ public class VerificationInfoService(
                 verificationMethodCallerName, userId, failedAttempts);
             return Result.Failure(
                 "Too many failed attempts. Please request a new verification code.",
-                ErrorTypeEnum.TooManyRequests);
+                AppErrorCode.TooManyRequests);
         }
     
         if (!expiresAt.HasValue || expiresAt.Value < DateTime.UtcNow || string.IsNullOrEmpty(correctCode))
@@ -695,7 +708,7 @@ public class VerificationInfoService(
         if (correctCode != userInputCode)
         {
             incrementAttempts();
-            await verificationInfoRepository.SaveChangesAsync();
+            await verificationInfoRepository.SaveChangesAsync(ct);
         
             var remaining = VerificationConfig.MaxFailedAttempts - (failedAttempts + 1);
             logger.LogWarning("Invalid {SlotName} code for UserId: {UserId}. {Remaining} attempts remaining",

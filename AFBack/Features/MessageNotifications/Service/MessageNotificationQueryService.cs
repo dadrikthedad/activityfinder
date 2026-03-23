@@ -32,7 +32,7 @@ public class MessageNotificationQueryService(
             logger.LogWarning("User {UserId} tried to get MessageNotification {MessageNotificationId} " +
                               "that does not exists", userId, messageNotificationId);
             return Result<MessageNotificationResponse>.Failure("Message Notification not found",
-                ErrorTypeEnum.NotFound);
+                AppErrorCode.NotFound);
         }
         
         // Sjekk om mottaker er brukeren som prøver å hente den
@@ -41,7 +41,7 @@ public class MessageNotificationQueryService(
             logger.LogWarning("User {UserId} tried to get MessageNotification with {MessageNotificationId} " +
                               "ment for another user", userId, messageNotificationId);
             return Result<MessageNotificationResponse>.Failure("Message Notification not found",
-                ErrorTypeEnum.NotFound);
+                AppErrorCode.NotFound);
         }
         
         // Hent sender fra cache
@@ -54,7 +54,7 @@ public class MessageNotificationQueryService(
                 "Could not retrieve sender {SenderId} for MessageNotification {MessageNotificationId}",
                 messageNotification.SenderId, messageNotificationId);
             return Result<MessageNotificationResponse>.Failure(
-                "Could not retrieve sender information", ErrorTypeEnum.NotFound);
+                "Could not retrieve sender information", AppErrorCode.NotFound);
         }
         
         // Bygg response basert på type

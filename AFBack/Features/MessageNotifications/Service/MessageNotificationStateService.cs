@@ -21,7 +21,7 @@ public class MessageNotificationStateService(
         {
             logger.LogWarning("User {UserId} tried to mark MessageNotification {MessageNotificationId} " +
                               "as read, but it does not exist", userId, messageNotificationId);
-            return Result.Failure("Message Notification not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("Message Notification not found", AppErrorCode.NotFound);
         }
     
         // Verifiser at brukeren er mottaker
@@ -29,7 +29,7 @@ public class MessageNotificationStateService(
         {
             logger.LogWarning("User {UserId} tried to mark MessageNotification {MessageNotificationId} " +
                               "as read, but it belongs to another user", userId, messageNotificationId);
-            return Result.Failure("Message Notification not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("Message Notification not found", AppErrorCode.NotFound);
         }
     
         // Allerede lest - idempotent, returner suksess
@@ -132,7 +132,7 @@ public class MessageNotificationStateService(
         {
             logger.LogWarning("User {UserId} tried to delete MessageNotification {MessageNotificationId} " +
                               "that does not exist", userId, messageNotificationId);
-            return Result.Failure("Message Notification not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("Message Notification not found", AppErrorCode.NotFound);
         }
     
         // Verifiser at brukeren er mottaker
@@ -140,7 +140,7 @@ public class MessageNotificationStateService(
         {
             logger.LogWarning("User {UserId} tried to delete MessageNotification {MessageNotificationId} " +
                               "that belongs to another user", userId, messageNotificationId);
-            return Result.Failure("Message Notification not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("Message Notification not found", AppErrorCode.NotFound);
         }
     
         await messageNotificationRepository.DeleteMessageNotificationAsync(notification);

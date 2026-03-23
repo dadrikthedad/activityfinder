@@ -20,7 +20,7 @@ public class ConversationValidator(
         {
             logger.LogError("User {UserId} tried to access non-existent conversation {ConversationId}",
                 userId, conversationId);
-            return Result<Models.Conversation>.Failure("Conversation not found", ErrorTypeEnum.NotFound);
+            return Result<Models.Conversation>.Failure("Conversation not found", AppErrorCode.NotFound);
         }
         
         return Result<Models.Conversation>.Success(conversation);
@@ -37,7 +37,7 @@ public class ConversationValidator(
         {
             logger.LogError("User {UserId} tried to access conversation {ConversationId} without being a participant",
                 userId, conversation.Id);
-            return Result<ConversationParticipant>.Failure("Conversation not found", ErrorTypeEnum.Forbidden);
+            return Result<ConversationParticipant>.Failure("Conversation not found", AppErrorCode.Forbidden);
         }
         
         return Result<ConversationParticipant>.Success(participant);
@@ -51,7 +51,7 @@ public class ConversationValidator(
             logger.LogWarning(
                 "User {UserId} tried to perform action on conversation {ConversationId} but has status {Status}",
                 participant.UserId, participant.ConversationId, participant.Status);
-            return Result.Failure("You must accept the conversation first", ErrorTypeEnum.Forbidden);
+            return Result.Failure("You must accept the conversation first", AppErrorCode.Forbidden);
         }
         
         return Result.Success();
@@ -65,7 +65,7 @@ public class ConversationValidator(
             logger.LogWarning(
                 "User {UserId} tried to accept/reject conversation {ConversationId} but has already accepted",
                 participant.UserId, participant.ConversationId);
-            return Result.Failure("You have already accepted this conversation", ErrorTypeEnum.BadRequest);
+            return Result.Failure("You have already accepted this conversation", AppErrorCode.BadRequest);
         }
         
         if (participant.Status == ConversationStatus.Rejected)
@@ -73,7 +73,7 @@ public class ConversationValidator(
             logger.LogWarning(
                 "User {UserId} tried to accept/reject conversation {ConversationId} but has already rejected",
                 participant.UserId, participant.ConversationId);
-            return Result.Failure("You have already rejected this conversation", ErrorTypeEnum.BadRequest);
+            return Result.Failure("You have already rejected this conversation", AppErrorCode.BadRequest);
         }
         
         return Result.Success();
@@ -87,7 +87,7 @@ public class ConversationValidator(
             logger.LogError(
                 "User {UserId} tried to perform group action on conversation {ConversationId} that is not a " +
                 "group (Type: {Type})", userId, conversation.Id, conversation.Type);
-            return Result.Failure("This endpoint is only for group conversations", ErrorTypeEnum.BadRequest);
+            return Result.Failure("This endpoint is only for group conversations", AppErrorCode.BadRequest);
         }
         
         return Result.Success();
@@ -101,7 +101,7 @@ public class ConversationValidator(
             logger.LogError(
                 "User {UserId} tried to accept/reject conversation {ConversationId} that is not pending (Type: {Type})",
                 userId, conversation.Id, conversation.Type);
-            return Result.Failure("Conversation is not a pending request", ErrorTypeEnum.BadRequest);
+            return Result.Failure("Conversation is not a pending request", AppErrorCode.BadRequest);
         }
         
         return Result.Success();
@@ -114,7 +114,7 @@ public class ConversationValidator(
         {
             logger.LogError("User {UserId} tried to perform 1-1 action on group conversation {ConversationId}",
                 userId, conversation.Id);
-            return Result.Failure("Wrong endpoint for group conversations", ErrorTypeEnum.BadRequest);
+            return Result.Failure("Wrong endpoint for group conversations", AppErrorCode.BadRequest);
         }
         
         return Result.Success();
@@ -128,7 +128,7 @@ public class ConversationValidator(
             logger.LogWarning("User {UserId} tried to perform action on archived conversation {ConversationId}",
                 participant.UserId, participant.ConversationId);
             return Result.Failure("You cannot perform this action on a conversation you have deleted", 
-                ErrorTypeEnum.Gone);
+                AppErrorCode.Gone);
         }
         
         return Result.Success();
@@ -142,7 +142,7 @@ public class ConversationValidator(
             logger.LogWarning(
                 "User {UserId} tried to restore non-archived conversation {ConversationId}",
                 participant.UserId, participant.ConversationId);
-            return Result.Failure("You have not deleted this conversation", ErrorTypeEnum.BadRequest);
+            return Result.Failure("You have not deleted this conversation", AppErrorCode.BadRequest);
         }
         
         return Result.Success();
@@ -157,7 +157,7 @@ public class ConversationValidator(
                 "User {UserId} tried to accept/reject conversation {ConversationId} but is not the recipient " +
                 "(Role: {Role})", participant.UserId, participant.ConversationId, participant.Role);
             return Result.Failure(
-                "You cannot perform this action on a conversation you initiated", ErrorTypeEnum.Forbidden);
+                "You cannot perform this action on a conversation you initiated", AppErrorCode.Forbidden);
         }
         
         return Result.Success();
@@ -169,7 +169,7 @@ public class ConversationValidator(
         if (!exists)
         {
             logger.LogWarning("Attempted action with non-existent user {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         return Result.Success();
@@ -185,7 +185,7 @@ public class ConversationValidator(
                 participant.UserId, participant.ConversationId, participant.Role);
             return Result.Failure(
                 "Only the group creator can perform this action", 
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
         
         return Result.Success();
@@ -202,17 +202,17 @@ public class ConversationValidator(
         // Sjekker at samtalen eksisterer
         var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Validerer at det er en pending request
         var pendingRequestResult = ValidateIsPendingRequest(userId, conversation!);
         if (pendingRequestResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(pendingRequestResult.Error, pendingRequestResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(pendingRequestResult.Error, pendingRequestResult.AppErrorType);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var userParticipant = participantResult.Value!;
         
@@ -220,12 +220,12 @@ public class ConversationValidator(
         var recipientResult = ValidateIsPendingRecipient(userParticipant);
         if (recipientResult.IsFailure)
             return Result<ConversationParticipant>.Failure(
-                "You cannot perform this action on a conversation you initiated", recipientResult.ErrorType);
+                "You cannot perform this action on a conversation you initiated", recipientResult.AppErrorType);
         
         // Sjekker at brukeren har pending status (ikke allerede akseptert)
         var pendingResult = ValidateParticipantPending(userParticipant);
         if (pendingResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.AppErrorType);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -239,24 +239,24 @@ public class ConversationValidator(
         // Sjekker at samtalen eksisterer
         var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Validerer at det er en gruppesamtale
         var groupChatResult = ValidateIsGroupChat(userId, conversation!);
         if (groupChatResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.AppErrorType);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var userParticipant = participantResult.Value!;
         
         // Sjekker at brukeren har pending status (ikke allerede akseptert)
         var pendingResult = ValidateParticipantPending(userParticipant);
         if (pendingResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.AppErrorType);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -270,24 +270,24 @@ public class ConversationValidator(
         // Sjekker at samtalen eksisterer
         var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Validerer at det er en gruppesamtale
         var groupChatResult = ValidateIsGroupChat(userId, conversation!);
         if (groupChatResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.AppErrorType);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var userParticipant = participantResult.Value!;
         
         // Sjekker at brukeren har Accepted status
         var acceptedResult = ValidateParticipantAccepted(userParticipant);
         if (acceptedResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.AppErrorType);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -301,29 +301,29 @@ public class ConversationValidator(
         // Sjekker at samtalen eksisterer
         var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Validerer at det er en gruppesamtale
         var groupChatResult = ValidateIsGroupChat(userId, conversation!);
         if (groupChatResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.AppErrorType);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var userParticipant = participantResult.Value!;
         
         // Sjekker at brukeren har Accepted status
         var acceptedResult = ValidateParticipantAccepted(userParticipant);
         if (acceptedResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.AppErrorType);
         
         // Sjekker at brukeren er Creator
         var creatorResult = ValidateIsCreator(userParticipant);
         if (creatorResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(creatorResult.Error, creatorResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(creatorResult.Error, creatorResult.AppErrorType);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -337,12 +337,12 @@ public class ConversationValidator(
         // Sjekker at samtalen eksisterer
         var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var userParticipant = participantResult.Value!;
         
@@ -350,12 +350,12 @@ public class ConversationValidator(
         var notArchivedResult = ValidateNotArchived(userParticipant);
         if (notArchivedResult.IsFailure)
             return Result<ConversationParticipant>.Failure(
-                "You have already deleted this conversation", notArchivedResult.ErrorType);
+                "You have already deleted this conversation", notArchivedResult.AppErrorType);
         
         // Validerer at det IKKE er en gruppesamtale
         var notGroupResult = ValidateIsNotGroupChat(userId, conversation!);
         if (notGroupResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.AppErrorType);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -369,24 +369,24 @@ public class ConversationValidator(
         // Sjekker at samtalen eksisterer
         var conversationResult = ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
         if (participantResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var userParticipant = participantResult.Value!;
         
         // Sjekker at brukeren har arkivert samtalen
         var archivedResult = ValidateIsArchived(userParticipant);
         if (archivedResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(archivedResult.Error, archivedResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(archivedResult.Error, archivedResult.AppErrorType);
         
         // Validerer at det IKKE er en gruppesamtale
         var notGroupResult = ValidateIsNotGroupChat(userId, conversation!);
         if (notGroupResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.ErrorType);
+            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.AppErrorType);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }

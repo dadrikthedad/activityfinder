@@ -22,7 +22,7 @@ public class TokenService(
     
     /// <inheritdoc />
     public async Task<LoginResponse> GenerateTokenPairAsync(AppUser user, UserDevice device, 
-        IList<string> roles, string ipAddress, string? userAgent)
+        IList<string> roles, string ipAddress, string? userAgent, CancellationToken ct = default)
     {
         // Generer access token (JWT)
         var accessToken = jwtService.GenerateJwtToken(user.Id, user.Email!, roles, device.Id);
@@ -79,7 +79,7 @@ public class TokenService(
     
     /// <inheritdoc />
     public async Task<Result<LoginResponse>> RefreshAsync(string refreshToken, string deviceFingerprint,
-        string ipAddress, string? userAgent)
+        string ipAddress, string? userAgent, CancellationToken ct = default)
     {
         // Finn refresh token i databasen (inkluderer UserDevice og AppUser)
         var storedToken = await refreshTokenRepository.GetByTokenWithDeviceAsync(refreshToken);

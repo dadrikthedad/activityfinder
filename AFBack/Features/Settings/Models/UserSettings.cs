@@ -26,7 +26,6 @@ public class UserSettings
     
     public bool ShowBio { get; set; } = true;
     
-    public bool ShowFriendsList { get; set; } = true;
     public bool ShowStats { get; set; } = true;
     public bool ShowWebsites { get; set; } = true;
     public bool ShowPostalCode { get; set; }

@@ -1,5 +1,4 @@
-// hooks/useUpdateGroupName.ts
-"use client";
+// hooks/messages/useUpdateGroupName.ts
 import { useState } from "react";
 import { updateGroupName } from "@/services/messages/groupService";
 

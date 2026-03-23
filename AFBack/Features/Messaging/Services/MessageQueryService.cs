@@ -42,7 +42,7 @@ public class MessageQueryService(
                 "User {UserId} tried to fetch messages for non-existent conversation {ConversationId}",
                 userId, conversationId);
             return Result<MessagesResponse>.Failure(
-                "Conversation not found", ErrorTypeEnum.NotFound);
+                "Conversation not found", AppErrorCode.NotFound);
         }
         
         // Validerer at brukeren er medlem av samtalen
@@ -52,7 +52,7 @@ public class MessageQueryService(
                 "User {UserId} tried to fetch messages for conversation {ConversationId} without being a participant",
                 userId, conversationId);
             return Result<MessagesResponse>.Failure(
-                "Conversation not found", ErrorTypeEnum.Forbidden);
+                "Conversation not found", AppErrorCode.Forbidden);
         }
         
         // Sjekker at brukeren har Accepted status
@@ -62,7 +62,7 @@ public class MessageQueryService(
                 "User {UserId} tried to fetch messages for conversation {ConversationId} with status {Status}",
                 userId, conversationId, queryResult.ParticipantStatus);
             return Result<MessagesResponse>.Failure(
-                "You must accept the conversation before viewing messages", ErrorTypeEnum.Forbidden);
+                "You must accept the conversation before viewing messages", AppErrorCode.Forbidden);
         }
         
         // ============ HENT BRUKERINFO FRA CACHE ============
@@ -165,7 +165,7 @@ public class MessageQueryService(
             logger.LogWarning("User {UserId} tried to delete non-existent message {MessageId}", 
                 userId, messageId);
             return Result.Failure(
-                "Message not found", ErrorTypeEnum.NotFound);
+                "Message not found", AppErrorCode.NotFound);
         }
         
         // Sjekk at meldingen ikke allerede er slettet
@@ -174,7 +174,7 @@ public class MessageQueryService(
             logger.LogWarning("User {UserId} tried to delete already deleted message {MessageId}", 
                 userId, messageId);
             return Result.Failure(
-                "Message is already deleted", ErrorTypeEnum.BadRequest);
+                "Message is already deleted", AppErrorCode.BadRequest);
         }
         
         // Sjekk at brukeren er avsender av meldingen
@@ -184,7 +184,7 @@ public class MessageQueryService(
                 "User {UserId} tried to delete message {MessageId} sent by {SenderId}",
                 userId, messageId, message.SenderId);
             return Result.Failure(
-                "You can only delete your own messages", ErrorTypeEnum.Forbidden);
+                "You can only delete your own messages", AppErrorCode.Forbidden);
         }
         
         // ============ SOFT DELETE ============

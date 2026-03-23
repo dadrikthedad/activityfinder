@@ -1,7 +1,7 @@
-// components/common/LabelWithTooltipNative.tsx
-// Reusable label with optional tooltip component
+// components/common/buttons/LabelWithTooltipNative.tsx
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text } from "react-native";
+import { useUnistyles } from "react-native-unistyles";
 import TooltipButtonNative from "./TooltipButtonNative";
 
 interface LabelWithTooltipNativeProps {
@@ -17,24 +17,19 @@ export default function LabelWithTooltipNative({
   labelStyle,
   containerStyle,
 }: LabelWithTooltipNativeProps) {
+  const { theme } = useUnistyles();
+
   return (
-    <View style={[styles.labelContainer, containerStyle]}>
-      <Text style={[styles.label, labelStyle]}>{label}</Text>
+    <View style={[{ flexDirection: "row", alignItems: "center", marginBottom: theme.spacing.sm }, containerStyle]}>
+      <Text style={[{
+        fontSize: theme.typography.md,
+        fontWeight: theme.typography.medium,
+        color: theme.colors.textSecondary,
+        flex: 1,
+      }, labelStyle]}>
+        {label}
+      </Text>
       {tooltip && <TooltipButtonNative tooltip={tooltip} />}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  labelContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "500",
-    color: "#374151",
-    flex: 1,
-  },
-});

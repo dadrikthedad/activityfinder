@@ -41,7 +41,7 @@ public class KeyVaultService(
                 logger.LogError(
                     "Failed to store recovery seed in Vault for User {UserId} Device {DeviceId}. " +
                     "Status: {Status}. Error: {Error}", userId, deviceId, response.StatusCode, error);
-                return Result.Failure("Failed to store recovery seed", ErrorTypeEnum.InternalServerError);
+                return Result.Failure("Failed to store recovery seed", AppErrorCode.InternalServerError);
             }
 
             logger.LogInformation(
@@ -53,7 +53,7 @@ public class KeyVaultService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to store recovery seed in Vault for User {UserId}", userId);
-            return Result.Failure("Failed to store recovery seed", ErrorTypeEnum.InternalServerError);
+            return Result.Failure("Failed to store recovery seed", AppErrorCode.InternalServerError);
         }
     }
 }

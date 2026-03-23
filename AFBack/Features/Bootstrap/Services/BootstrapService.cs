@@ -6,22 +6,17 @@ using AFBack.Features.Bootstrap.DTOs.Responses;
 using AFBack.Features.Bootstrap.Extensions;
 using AFBack.Features.Conversation.Enums;
 using AFBack.Features.Conversation.Services;
-using AFBack.Features.Friendship.Services;
 using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Services;
-using AFBack.Features.Notifications.Services;
 
 namespace AFBack.Features.Bootstrap.Services;
 
 public class BootstrapService(
     IUserRepository userRepository,
-    INotificationService notificationService,
     IMessageNotificationQueryService messageNotificationQueryService,
     ILogger<BootstrapService> logger,
-    IFriendshipService friendshipService,
     IBlockingService blockingService,
-    IFriendshipRequestService friendshipRequestService,
     GetConversationsService getConversationsService,
     MessageQueryService messageQueryService) : IBootstrapService
 {
@@ -38,25 +33,16 @@ public class BootstrapService(
             return Result<CriticalBootstrapResponse>.Failure("User does not exist");
         }
         
-        // Kjører henting av venner og blokkerte bruker parallelt
-        var friendsTask = friendshipService.GetMyFriendsAsync(userId);
-        var blockedTask = blockingService.GetBlockedUsersAsync(userId);
-        await Task.WhenAll(friendsTask, blockedTask);
-
-        var getFriendsResult = await friendsTask;
-        if (getFriendsResult.IsFailure)
-            return Result<CriticalBootstrapResponse>.Failure(getFriendsResult.Error, getFriendsResult.ErrorType);
-
-        var blockedUsersResult = await blockedTask;
+        // Henter blokkerte brukere
+        var blockedUsersResult = await blockingService.GetBlockedUsersAsync(userId);
         if (blockedUsersResult.IsFailure)
-            return Result<CriticalBootstrapResponse>.Failure(blockedUsersResult.Error, blockedUsersResult.ErrorType);
+            return Result<CriticalBootstrapResponse>.Failure(blockedUsersResult.Error, blockedUsersResult.ErrorCode);
         
         var response = new CriticalBootstrapResponse
         {
             User = user.ToUserResponse(),
             Profile = user.UserProfile?.ToProfileResponse()!,
             Settings = user.UserSettings?.ToSettingsResponse()!,
-            Friends = getFriendsResult.Value!,
             BlockedUsers = blockedUsersResult.Value!
         };
 
@@ -80,11 +66,7 @@ public class BootstrapService(
         var pendingConversationsTask = getConversationsService.GetPendingConversationsAsync(userId, paginationRequest);
         var messageNotificationsTask = messageNotificationQueryService.GetNotificationsAsync(userId, 
             notificationPagination);
-        var notificationsTask = notificationService.GetNotificationsAsync(userId, notificationPagination);
-        var friendRequestsTask = friendshipRequestService.GetReceivedPendingFriendshipRequestsAsync(userId,
-            1, 10);
         var unreadMessageCountTask = messageNotificationQueryService.GetUnreadCountAsync(userId);
-        var unreadNotificationCountTask = notificationService.GetUnreadCountAsync(userId);
         var unreadConversationIdsTask = messageNotificationQueryService.GetUnreadConversationIdsAsync(
             userId);
 
@@ -92,34 +74,22 @@ public class BootstrapService(
             activeConversationsTask,
             pendingConversationsTask,
             messageNotificationsTask,
-            notificationsTask,
-            friendRequestsTask,
             unreadMessageCountTask,
-            unreadNotificationCountTask,
             unreadConversationIdsTask);
 
         var activeResult = await activeConversationsTask;
         if (activeResult.IsFailure)
-            return Result<SecondaryBootstrapResponse>.Failure(activeResult.Error, activeResult.ErrorType);
+            return Result<SecondaryBootstrapResponse>.Failure(activeResult.Error, activeResult.ErrorCode);
 
         var pendingResult = await pendingConversationsTask;
         if (pendingResult.IsFailure)
-            return Result<SecondaryBootstrapResponse>.Failure(pendingResult.Error, pendingResult.ErrorType);
+            return Result<SecondaryBootstrapResponse>.Failure(pendingResult.Error, pendingResult.ErrorCode);
 
         var messageNotificationsResult = await messageNotificationsTask;
         if (messageNotificationsResult.IsFailure)
             return Result<SecondaryBootstrapResponse>.Failure(messageNotificationsResult.Error,
-                messageNotificationsResult.ErrorType);
-
-        var notificationsResult = await notificationsTask;
-        if (notificationsResult.IsFailure)
-            return Result<SecondaryBootstrapResponse>.Failure(notificationsResult.Error, notificationsResult.ErrorType);
-
-        var friendRequestsResult = await friendRequestsTask;
-        if (friendRequestsResult.IsFailure)
-            return Result<SecondaryBootstrapResponse>.Failure(friendRequestsResult.Error, 
-                friendRequestsResult.ErrorType);
-
+                messageNotificationsResult.ErrorCode);
+        
         var unreadConversationIds = await unreadConversationIdsTask;
         
         // Fase 2: Hent meldinger for aktive samtaler + pending 1v1-samtaler
@@ -143,7 +113,7 @@ public class BootstrapService(
                 userId, allMessageConversationIds, messagesPerConversation: 10);
 
             if (messagesResult.IsFailure)
-                return Result<SecondaryBootstrapResponse>.Failure(messagesResult.Error, messagesResult.ErrorType);
+                return Result<SecondaryBootstrapResponse>.Failure(messagesResult.Error, messagesResult.ErrorCode);
 
             conversationMessages = messagesResult.Value!;
         }
@@ -154,18 +124,13 @@ public class BootstrapService(
             PendingConversations = pendingResult.Value!.Conversations,
             ConversationMessages = conversationMessages,
             MessageNotifications = messageNotificationsResult.Value!.Items,
-            Notifications = notificationsResult.Value!.Items,
-            PendingFriendshipRequests = friendRequestsResult.Value!.Items,
             UnreadMessageNotificationCount = await unreadMessageCountTask,
-            UnreadNotificationCount = await unreadNotificationCountTask,
             UnreadConversationIds = unreadConversationIds
         };
 
         logger.LogInformation(
-            "Secondary bootstrap completed — Active: {Active}, Pending: {Pending}, Messages: {Msgs}, " +
-            "FriendRequests: {FR}", response.ActiveConversations.Count, response.PendingConversations.Count,
-            conversationMessages.Values.Sum(m => m.Count),
-            response.PendingFriendshipRequests.Count);
+            "Secondary bootstrap completed — Active: {Active}, Pending: {Pending}, Messages: {Msgs}", response.ActiveConversations.Count, response.PendingConversations.Count,
+            conversationMessages.Values.Sum(m => m.Count));
 
         return Result<SecondaryBootstrapResponse>.Success(response);
     }

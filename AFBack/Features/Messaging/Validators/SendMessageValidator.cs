@@ -27,7 +27,7 @@ public class SendMessageValidator(
         var conversationResult = conversationValidator.ValidateConversationExists(
             senderId, request.ConversationId, conversation);
         if (conversationResult.IsFailure)
-            return Result.Failure(conversationResult.Error, conversationResult.ErrorType);
+            return Result.Failure(conversationResult.Error, conversationResult.ErrorCode);
         
         // Sjekker at vi er participant, har godkjent samtalen og ikke har slettet samtalen
         var userParticipantsResult = ValidateUserParticipant(senderId, conversation!);
@@ -61,7 +61,7 @@ public class SendMessageValidator(
         // Sjekker at vi er en participant i samtalen
         var participantResult = conversationValidator.ValidateParticipant(senderId, conversation);
         if (participantResult.IsFailure)
-            return Result.Failure(participantResult.Error, participantResult.ErrorType);
+            return Result.Failure(participantResult.Error, participantResult.ErrorCode);
         
         var participant = participantResult.Value!;
         
@@ -90,7 +90,7 @@ public class SendMessageValidator(
         {
             logger.LogWarning("User {UserId} attempted to reply to non-existing parent message {ParentMessageId}", 
                 userId, parentMessageId);
-            return Result.Failure("Parent Message not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("Parent Message not found", AppErrorCode.NotFound);
         }
 
         return Result.Success();
@@ -127,7 +127,7 @@ public class SendMessageValidator(
                 "ReceiverArchived: true", userId, messageReceiver.UserId, conversation.Id);
             return Result.Failure(
                 "This user has been deleted, is no longer visible, " +
-                "or you lack the required permission to send messages.", ErrorTypeEnum.Forbidden);
+                "or you lack the required permission to send messages.", AppErrorCode.Forbidden);
         }
         
         // Sjekker pending message limit (maks 5 meldinger før mottaker aksepterer)
@@ -138,7 +138,7 @@ public class SendMessageValidator(
                 "limit ({Count}/5)", userId, messageReceiver.UserId, messageReceiver.PendingMessagesReceived);
             return Result.Failure(
                 "Cannot send more messages until the recipient accepts your request",
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
 
         return Result.Success();

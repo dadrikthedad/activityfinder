@@ -1,10 +1,10 @@
-// hooks/useCompleteReport.ts
+// hooks/support/useCompleteReport.ts
+// Orkestrerer innsending av rapport + opplasting av vedlegg i to steg.
 import { useState, useCallback } from 'react';
-import { useSubmitReport } from './useSubmitReport';
+import { submitReport } from '@/services/support/supportService';
 import { useReportAttachments } from './useReportAttachments';
 import { ReportRequestDTO } from '@shared/types/report/reportDTOs';
 
-// React Native file type
 interface RNFile {
   uri: string;
   type: string;
@@ -26,16 +26,13 @@ interface CompleteReportResult {
 }
 
 interface UseCompleteReportReturn {
-  // State
   isProcessing: boolean;
   currentStep: 'idle' | 'submitting' | 'uploading' | 'completed' | 'error';
   uploadProgress: number;
   error: string | null;
   result: CompleteReportResult | null;
-  
-  // Actions
   submitReportWithAttachments: (
-    reportData: ReportRequestDTO, 
+    reportData: ReportRequestDTO,
     attachments?: RNFile[]
   ) => Promise<CompleteReportResult | null>;
   reset: () => void;
@@ -43,88 +40,91 @@ interface UseCompleteReportReturn {
 
 export function useCompleteReport(): UseCompleteReportReturn {
   const [currentStep, setCurrentStep] = useState<'idle' | 'submitting' | 'uploading' | 'completed' | 'error'>('idle');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<CompleteReportResult | null>(null);
-  
-  // Use existing hooks
-  const reportSubmission = useSubmitReport();
+
   const attachmentUpload = useReportAttachments();
 
-  const isProcessing = reportSubmission.isPending || attachmentUpload.isUploading;
-  
-  // Combined error from both operations
-  const error = reportSubmission.error?.message || attachmentUpload.error;
+  const isProcessing = isSubmitting || attachmentUpload.isUploading;
+  const error = submitError || attachmentUpload.error;
 
   const reset = useCallback(() => {
     setCurrentStep('idle');
+    setIsSubmitting(false);
+    setSubmitError(null);
     setResult(null);
-    reportSubmission.reset();
     attachmentUpload.clearError();
     attachmentUpload.clearAttachments();
-  }, [reportSubmission, attachmentUpload]);
+  }, [attachmentUpload]);
 
   const submitReportWithAttachments = useCallback(async (
     reportData: ReportRequestDTO,
     attachments: RNFile[] = []
   ): Promise<CompleteReportResult | null> => {
     try {
-      // Step 1: Submit report
+      // Steg 1: Send rapport
       setCurrentStep('submitting');
+      setIsSubmitting(true);
+      setSubmitError(null);
       console.log('🔍 Starting report submission...');
-      
-      const reportResult = await reportSubmission.mutateAsync(reportData);
+
+      const reportResult = await submitReport(reportData);
+      setIsSubmitting(false);
+
       if (!reportResult) {
         setCurrentStep('error');
+        setSubmitError('Ingen respons fra server');
         return null;
       }
 
       console.log(`✅ Report submitted with ID: ${reportResult.reportId}`);
 
-      // Step 2: Upload attachments (if any)
+      // Steg 2: Last opp vedlegg (hvis noen)
       let uploadedAttachments = undefined;
       if (attachments.length > 0) {
         setCurrentStep('uploading');
         console.log(`🔍 Uploading ${attachments.length} attachments...`);
-        
+
         uploadedAttachments = await attachmentUpload.uploadMultipleAttachments(
           reportResult.reportId,
           attachments
         );
-        
+
         if (!uploadedAttachments) {
           setCurrentStep('error');
           return null;
         }
-        
+
         console.log(`✅ All ${attachments.length} attachments uploaded successfully`);
       }
 
-      // Step 3: Complete
+      // Steg 3: Ferdig
       setCurrentStep('completed');
       const completeResult: CompleteReportResult = {
         ...reportResult,
         attachments: uploadedAttachments,
       };
-      
+
       setResult(completeResult);
       console.log('✅ Report with attachments completed successfully');
-      
       return completeResult;
+
     } catch (err) {
       console.error('❌ Error in complete report process:', err);
       setCurrentStep('error');
+      setIsSubmitting(false);
+      setSubmitError(err instanceof Error ? err.message : 'Ukjent feil');
       return null;
     }
-  }, [reportSubmission, attachmentUpload]);
+  }, [attachmentUpload]);
 
   return {
-    // State
     isProcessing,
     currentStep,
     uploadProgress: attachmentUpload.uploadProgress,
     error,
     result,
-    
-    // Actions
     submitReportWithAttachments,
     reset,
   };

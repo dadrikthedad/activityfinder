@@ -53,6 +53,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             "AFMobile wants to save downloaded files to your photo library",
         },
       ],
+      // Tvinger androidx.core til 1.15.0 — overlever prebuild --clean
+      "./plugins/withAndroidxCoreResolution",
     ],
     extra: {
       eas: {

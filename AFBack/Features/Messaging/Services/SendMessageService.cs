@@ -51,7 +51,7 @@ public class SendMessageService(
             var validationResult = await sendMessageValidator.ValidateSendMessageAsync(userId, request);
             
             if(validationResult.IsFailure)
-                return Result<SendMessageResponse>.Failure(validationResult.Error, validationResult.ErrorType);
+                return Result<SendMessageResponse>.Failure(validationResult.Error, validationResult.AppErrorType);
         }
         
         // Her lagrer vi dataen vi trenger fra UploadAttachmentsAsync hvis det er noen attachments
@@ -65,7 +65,7 @@ public class SendMessageService(
                 var uploadAttachmentsResult = await UploadAttachmentsAsync(request, userId, request.ConversationId);
                 if (uploadAttachmentsResult.IsFailure)
                     return Result<SendMessageResponse>.Failure(uploadAttachmentsResult.Error, 
-                        uploadAttachmentsResult.ErrorType);
+                        uploadAttachmentsResult.ErrorCode);
                 
                 attachments = uploadAttachmentsResult.Value;
             }
@@ -110,7 +110,7 @@ public class SendMessageService(
             }
 
             return Result<SendMessageResponse>.Failure("An unexpected error occurred",
-                ErrorTypeEnum.InternalServerError);
+                AppErrorCode.InternalServerError);
         }
     }
 
@@ -147,7 +147,7 @@ public class SendMessageService(
                     logger.LogWarning("User {UserId} sent invalid Base64 data for file: {Filename}",
                         userId, attachment.FileName);
                     return Result<List<UploadedAttachmentDto>>.Failure(
-                        $"Invalid file data for: {attachment.FileName}", ErrorTypeEnum.Validation);
+                        $"Invalid file data for: {attachment.FileName}", AppErrorCode.Validation);
                 }
 
                 // Generer storage keys
@@ -167,7 +167,7 @@ public class SendMessageService(
                 if (fileResult.IsFailure)
                 {
                     // Filopplastning feilet - rydd opp
-                    return Result<List<UploadedAttachmentDto>>.Failure(fileResult.Error, fileResult.ErrorType);
+                    return Result<List<UploadedAttachmentDto>>.Failure(fileResult.Error, fileResult.AppErrorType);
                 }
                 uploadedStorageKeys.Add(fileKey);
                 
@@ -175,7 +175,7 @@ public class SendMessageService(
                 var thumbResult = await fileOrchestrator.UploadEncryptedFileAsync(
                     encryptedThumbnailBytes, thumbKey, EncryptedFileConfig.MaxThumbnailSizeBytes);
                 if (thumbResult.IsFailure)
-                    return Result<List<UploadedAttachmentDto>>.Failure(thumbResult.Error, thumbResult.ErrorType);
+                    return Result<List<UploadedAttachmentDto>>.Failure(thumbResult.Error, thumbResult.AppErrorType);
                 
                 uploadedStorageKeys.Add(thumbKey);
                 
@@ -197,7 +197,7 @@ public class SendMessageService(
                 "Unexpected error uploading attachments for user {UserId}. Cleaning up {Count} files",
                 userId, uploadedStorageKeys.Count);
             return Result<List<UploadedAttachmentDto>>.Failure(
-                "Failed to upload attachments. Please try again.", ErrorTypeEnum.InternalServerError);
+                "Failed to upload attachments. Please try again.", AppErrorCode.InternalServerError);
         }
         finally
         {

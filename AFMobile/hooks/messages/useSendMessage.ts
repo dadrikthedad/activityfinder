@@ -1,5 +1,5 @@
-"use client";
-import { useState, useEffect} from "react";
+// hooks/messages/useSendMessage.ts
+import { useState } from "react";
 import { sendTextMessage } from "@/services/messages/messageService";
 import { uploadMessageAttachments } from "@/services/files/fileService";
 import { validateFiles } from "@/utils/files/FileFunctions";
@@ -10,7 +10,7 @@ import {
 import { useCurrentUser } from "@/store/useUserCacheStore";
 import { useChatStore } from "@/store/useChatStore";
 import { RNFile } from "@/utils/files/FileFunctions";
-
+import { extractErrorMessage } from "@/utils/messages/extractErrorMessage";
 
 // Native-specific DTO for React Native file messages
 interface MessageWithFilesNative {
@@ -25,10 +25,9 @@ type SendMessagePayload = SendMessageRequestDTO | MessageWithFilesNative;
 
 const ERROR_MESSAGES = {
   NO_TEXT: "Meldingen må inneholde tekst",
-  NO_CONTENT: "Meldingen må inneholde tekst eller minst ett vedlegg", 
+  NO_CONTENT: "Meldingen må inneholde tekst eller minst ett vedlegg",
   SEND_FAILED: "Kunne ikke sende melding",
   SEND_FILES_FAILED: "Kunne ikke sende melding med vedlegg",
-  UNKNOWN_ERROR: "Noe gikk galt"
 } as const;
 
 function isFilePayload(payload: SendMessagePayload): payload is MessageWithFilesNative {
@@ -57,42 +56,42 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
           ...result,
           sender: user,
         };
-        
+
         // Hvis det er en melding med filer, registrer mapping for vedlegg
         if (isFilePayload(payload) && result.attachments && result.attachments.length > 0 && conversationId !== null) {
-            const store = useChatStore.getState();
-            const allMessages = [
-              ...(store.cachedMessages[conversationId] || []),
-              ...(store.liveMessages[conversationId] || [])
-            ];
-            
-            // Først finn optimistisk melding basert på matching (tekst, sender, tid)
-            const optimisticMessage = allMessages.find(msg => 
-              msg.isOptimistic && 
-              msg.text === result.text &&
-              msg.senderId === result.senderId &&
-              Math.abs(new Date(msg.sentAt).getTime() - new Date(result.sentAt).getTime()) < 10000
-            );
+          const store = useChatStore.getState();
+          const allMessages = [
+            ...(store.cachedMessages[conversationId] || []),
+            ...(store.liveMessages[conversationId] || [])
+          ];
 
-            if (optimisticMessage?.optimisticId) {
-              // Registrer message mapping først
-              store.registerOptimisticMapping(optimisticMessage.optimisticId, result.id);
-              
-              // Så registrer attachment mappings
-              if (optimisticMessage.attachments && result.attachments.length > 0) {
-                result.attachments.forEach((serverAttachment, index) => {
-                  const optimisticAttachment = optimisticMessage.attachments[index];
-                  if (optimisticAttachment?.isOptimistic && optimisticAttachment.optimisticId) {
-                    store.registerOptimisticAttachmentMapping(
-                      optimisticAttachment.optimisticId,
-                      serverAttachment.fileUrl
-                    );
-                  }
-                });
-              }
+          // Finn optimistisk melding basert på matching (tekst, sender, tid)
+          const optimisticMessage = allMessages.find(msg =>
+            msg.isOptimistic &&
+            msg.text === result.text &&
+            msg.senderId === result.senderId &&
+            Math.abs(new Date(msg.sentAt).getTime() - new Date(result.sentAt).getTime()) < 10000
+          );
+
+          if (optimisticMessage?.optimisticId) {
+            // Registrer message mapping først
+            store.registerOptimisticMapping(optimisticMessage.optimisticId, result.id);
+
+            // Registrer attachment mappings
+            if (optimisticMessage.attachments && result.attachments.length > 0) {
+              result.attachments.forEach((serverAttachment, index) => {
+                const optimisticAttachment = optimisticMessage.attachments[index];
+                if (optimisticAttachment?.isOptimistic && optimisticAttachment.optimisticId) {
+                  store.registerOptimisticAttachmentMapping(
+                    optimisticAttachment.optimisticId,
+                    serverAttachment.fileUrl
+                  );
+                }
+              });
             }
           }
-        
+        }
+
         onSuccess?.(enriched);
         return enriched;
       }
@@ -110,15 +109,14 @@ export function useSendMessage(onSuccess?: (message: MessageDTO) => void) {
 
   return { send, loading, error };
 }
+
 async function sendText(payload: SendMessageRequestDTO): Promise<MessageDTO> {
-  const hasText = payload.text && payload.text.trim().length > 0;
-  
-  if (!hasText) {
+  if (!payload.text || payload.text.trim().length === 0) {
     throw new Error(ERROR_MESSAGES.NO_TEXT);
   }
 
   const result = await sendTextMessage(payload);
-  
+
   if (!result) {
     throw new Error(ERROR_MESSAGES.SEND_FAILED);
   }
@@ -160,16 +158,4 @@ async function sendWithFiles(payload: MessageWithFilesNative): Promise<MessageDT
   }
 
   return result;
-}
-
-export function extractErrorMessage(err: unknown): string {
-  if (err instanceof Error) {
-    try {
-      const parsed = JSON.parse(err.message);
-      return parsed.details || parsed.message || err.message;
-    } catch {
-      return err.message;
-    }
-  }
-  return ERROR_MESSAGES.UNKNOWN_ERROR;
 }

@@ -17,8 +17,7 @@ public interface IBootstrapService
     /// <summary>
     /// Sekundær bootstrap — hentes etter kritisk data er lastet.
     /// Inneholder aktive og ventende samtaler med meldinger (meldinger hentes for alle aktive
-    /// og pending 1v1-samtaler), meldingsvarsler, appvarsler med ulest-tellere,
-    /// og mottatte venneforespørsler.
+    /// og pending 1v1-samtaler) og meldingsvarsler 
     /// </summary>
     /// <param name="userId"></param>
     /// <returns>SecondaryBootstrapResponse med tilhørende egenskaper</returns>

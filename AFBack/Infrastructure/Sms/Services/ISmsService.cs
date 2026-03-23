@@ -10,6 +10,7 @@ public interface ISmsService
     /// </summary>
     /// <param name="phoneNumber">Telefonnummeret som skal motta SMS (med landskode)</param>
     /// <param name="message">Meldingsinnholdet</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success hvis SMS ble sendt, eller Failure hvis noe gikk galt</returns>
-    Task<Result> SendAsync(string phoneNumber, string message);
+    Task<Result> SendAsync(string phoneNumber, string message, CancellationToken ct = default);
 }

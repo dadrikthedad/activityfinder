@@ -5,23 +5,25 @@ namespace AFBack.Features.Auth.Services.Interfaces;
 public interface IVerificationInfoService
 {
     // ======================== Epost verifisiering ======================== 
-    
+
     /// <summary>
     /// Genererer e-post verifiseringskode (6-sifret) for app og weblenke.
     /// Lagrer koden i VerificationInfo og returnerer.
     /// </summary>
     /// <param name="userId">Brukeren som får email med VerificationInfo</param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GenerateEmailVerificationAsync(string userId);
-    
+    Task<string> GenerateEmailVerificationAsync(string userId, CancellationToken ct = default);
+
     /// <summary>
     /// Validerer en 6-sifret e-post verifiseringskode.
     /// Sjekker at koden stemmer og ikke er utløpt.
     /// </summary>
     /// <param name="userId"></param>
     /// <param name="code">6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success hvis vellyket validering, eller Failure hvis feil kode eller utløpt</returns>
-    Task<Result> ValidateEmailCodeAsync(string userId, string code);
+    Task<Result> ValidateEmailCodeAsync(string userId, string code, CancellationToken ct = default);
     
     // ======================== Sms verifisiering ======================== 
     
@@ -29,24 +31,25 @@ public interface IVerificationInfoService
     /// Genererer telefon-verifiseringskode (6-sifret).
     /// Lagrer koden i VerificationInfo og returnerer.
     /// </summary>
-    Task<string> GeneratePhoneVerificationAsync(string userId);
+    Task<string> GeneratePhoneVerificationAsync(string userId, CancellationToken ct = default);
 
     /// <summary>
     /// Validerer en 6-sifret telefon-verifiseringskode.
     /// Sjekker forsøksbegrensning, utløp og at koden stemmer.
     /// </summary>
-    Task<Result> ValidatePhoneCodeAsync(string userId, string code);
+    Task<Result> ValidatePhoneCodeAsync(string userId, string code, CancellationToken ct = default);
     
     // ======================== Passord reset — Epost (steg 1) ======================== 
-    
+
     /// <summary>
     /// Genererer passord verifiseringskode (6-sifret) for app og weblenke for epost.
     /// Lagrer koden i VerificationInfo e.
     /// </summary>
     /// <param name="userId"></param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GenerateEmailPasswordResetAsync(string userId);
-   
+    Task<string> GenerateEmailPasswordResetAsync(string userId,  CancellationToken ct = default);
+
 
     /// <summary>
     /// Validerer en 6-sifret passord-reset kode. Sjekker at koden stemmer og ikke er utløpt.
@@ -54,26 +57,29 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som prøver å validere koden</param>
     /// <param name="code">En 6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success hvis koden er korrekt eller så Failure</returns>
-    Task<Result> ValidateEmailPasswordResetCodeAsync(string userId, string code);
+    Task<Result> ValidateEmailPasswordResetCodeAsync(string userId, string code,  CancellationToken ct = default);
     
     // ======================== Passord reset — SMS (steg 2) ======================== 
-    
+
     /// <summary>
     /// Genererer 6-sifret SMS-kode for passord-reset (steg 2). Krever at PasswordResetEmailVerified == true.
     /// </summary>
     /// <param name="userId"></param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GenerateSmsPasswordResetCodeAsync(string userId);
-    
+    Task<string> GenerateSmsPasswordResetCodeAsync(string userId, CancellationToken ct = default);
+
     /// <summary>
     /// Validerer SMS password-reset koden (steg 2). Ved suksess settes PasswordResetSmsVerified = true,
     /// som tillater selve passordbytte i steg 3.
     /// </summary>
     /// <param name="userId"></param>
     /// <param name="code">En 6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success hvis koden er korrekt eller så Failure</returns>
-    Task<Result> ValidateSmsPasswordResetCodeAsync(string userId, string code);
+    Task<Result> ValidateSmsPasswordResetCodeAsync(string userId, string code, CancellationToken ct = default);
     
     // ======================== Bytte e-post — Steg 1: Verifisering av nåværende epost ========================
 
@@ -83,8 +89,9 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som bytter epost</param>
     /// <param name="newEmail">Ny epost som lagres som pending</param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GenerateOldEmailChangeCodeAsync(string userId, string newEmail);
+    Task<string> GenerateOldEmailChangeCodeAsync(string userId, string newEmail, CancellationToken ct = default);
 
     /// <summary>
     /// Validerer koden sendt til nåværende epost (steg 1 av epost-bytte).
@@ -92,8 +99,9 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som prøver å verifisere</param>
     /// <param name="code">6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success med ny epostadresse hvis koden er korrekt, ellers Failure</returns>
-    Task<Result<string>> ValidateOldEmailChangeCodeAsync(string userId, string code);
+    Task<Result<string>> ValidateOldEmailChangeCodeAsync(string userId, string code, CancellationToken ct = default);
 
     // ======================== Bytte e-post — Steg 2: Verifisering av ny epost ========================
 
@@ -104,8 +112,9 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som bytter epost</param>
     /// <param name="newEmail">Ny epost</param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GenerateNewEmailChangeCodeAsync(string userId, string newEmail);
+    Task<string> GenerateNewEmailChangeCodeAsync(string userId, string newEmail, CancellationToken ct = default);
 
     /// <summary>
     /// Validerer koden for ny epost-verifisering (steg 2 av epost-bytte).
@@ -113,8 +122,9 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som prøver å verifisere</param>
     /// <param name="code">6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success med ny epostadresse hvis koden er korrekt, ellers Failure</returns>
-    Task<Result<string>> ValidateNewEmailChangeCodeAsync(string userId, string code);
+    Task<Result<string>> ValidateNewEmailChangeCodeAsync(string userId, string code, CancellationToken ct = default);
 
     // ======================== Bytte telefonnummer — Steg 1: Verifisering via epost ========================
 
@@ -124,8 +134,10 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som bytter telefon</param>
     /// <param name="newPhoneNumber">Nytt telefonnummer som lagres som pending</param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GeneratePhoneChangeEmailCodeAsync(string userId, string newPhoneNumber);
+    Task<string> GeneratePhoneChangeEmailCodeAsync(string userId, string newPhoneNumber, 
+        CancellationToken ct = default);
 
     /// <summary>
     /// Validerer epost-koden sendt for telefon-bytte (steg 1).
@@ -133,8 +145,10 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som prøver å verifisere</param>
     /// <param name="code">6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success med nytt telefonnummer hvis koden er korrekt, ellers Failure</returns>
-    Task<Result<string>> ValidatePhoneChangeEmailCodeAsync(string userId, string code);
+    Task<Result<string>> ValidatePhoneChangeEmailCodeAsync(string userId, string code, 
+        CancellationToken ct = default);
 
     // ======================== Bytte telefonnummer — Steg 2: Verifisering av nytt nummer ========================
 
@@ -145,8 +159,10 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som bytter telefon</param>
     /// <param name="newPhoneNumber">Nytt telefonnummer</param>
+    /// <param name="ct"></param>
     /// <returns>6-sifret kode</returns>
-    Task<string> GenerateNewPhoneChangeCodeAsync(string userId, string newPhoneNumber);
+    Task<string> GenerateNewPhoneChangeCodeAsync(string userId, string newPhoneNumber,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Validerer SMS-koden for nytt telefonnummer (steg 2 av telefon-bytte).
@@ -154,8 +170,10 @@ public interface IVerificationInfoService
     /// </summary>
     /// <param name="userId">Brukeren som prøver å verifisere</param>
     /// <param name="code">6-sifret kode</param>
+    /// <param name="ct"></param>
     /// <returns>Success med nytt telefonnummer hvis koden er korrekt, ellers Failure</returns>
-    Task<Result<string>> ValidateNewPhoneChangeCodeAsync(string userId, string code);
+    Task<Result<string>> ValidateNewPhoneChangeCodeAsync(string userId, string code, 
+        CancellationToken ct = default);
     
     // ======================== Sikkerhetsvarsling ========================
 
@@ -164,14 +182,16 @@ public interface IVerificationInfoService
     /// Returnerer tokenet for bruk i "This wasn't me"-lenke.
     /// </summary>
     /// <param name="userId">Brukeren som tokenet tilhører</param>
+    /// <param name="ct"></param>
     /// <returns>Security alert token (GUID-streng)</returns>
-    Task<string> GenerateSecurityAlertTokenAsync(string userId);
+    Task<string> GenerateSecurityAlertTokenAsync(string userId, CancellationToken ct = default);
 
     /// <summary>
     /// Validerer et security alert token. Ved suksess nullstilles tokenet (engangsbruk)
     /// og alle pending-endringer (epost, telefon, passord-reset) slettes.
     /// </summary>
     /// <param name="token">Security alert token fra URL</param>
+    /// <param name="ct"></param>
     /// <returns>UserId hvis tokenet er gyldig, ellers Failure</returns>
-    Task<Result<string>> ValidateSecurityAlertTokenAsync(string token);
+    Task<Result<string>> ValidateSecurityAlertTokenAsync(string token, CancellationToken ct = default);
 }

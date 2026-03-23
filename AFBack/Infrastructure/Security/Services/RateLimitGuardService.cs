@@ -21,7 +21,7 @@ public class RateLimitGuardService(
         await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress, 
             SuspiciousActivityType.EmailRateLimitExceeded, $"{emailType} rate limit exceeded for {email}");
 
-        return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
+        return Result.Failure(rateLimitResult.Error, AppErrorCode.TooManyRequests);
     }
     
     /// <inheritdoc/>
@@ -34,6 +34,6 @@ public class RateLimitGuardService(
         await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
             SuspiciousActivityType.SmsRateLimitExceeded, $"{smsType} SMS rate limit exceeded for {phoneNumber}");
 
-        return Result.Failure(rateLimitResult.Error, ErrorTypeEnum.TooManyRequests);
+        return Result.Failure(rateLimitResult.Error, AppErrorCode.TooManyRequests);
     }
 }

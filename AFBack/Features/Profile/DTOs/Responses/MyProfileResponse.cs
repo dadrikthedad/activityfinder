@@ -1,5 +1,3 @@
-using AFBack.Features.Profile.Enums;
-
 namespace AFBack.Features.Profile.DTOs.Responses;
 
 public class MyProfileResponse
@@ -11,13 +9,9 @@ public class MyProfileResponse
 
     // Lokasjon
     public string CountryCode { get; set; } = null!;
-    public string Region { get; set; } = null!;
-    public string? City { get; set; }
-    public string? PostalCode { get; set; }
-
+    
     // Demografi
-    public DateTime DateOfBirth { get; set; }
-    public Gender Gender { get; set; }
+    public DateOnly DateOfBirth { get; set; }
     public int? Age { get; set; }
 
     // Profilinnhold

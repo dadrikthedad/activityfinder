@@ -15,9 +15,10 @@ public interface IAccountVerificationService
     /// </summary>
     /// <param name="email">E-post til brukeren</param>
     /// <param name="ipAddress">IP-adressen fra forespørselen</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> ResendVerificationEmailAsync(string email, string ipAddress);
-    
+    Task<Result> ResendVerificationEmailAsync(string email, string ipAddress, CancellationToken ct = default);
+
     /// <summary>
     /// Verifiserer brukerens epost med 6-sifret kode.
     /// Setter EmailConfirmed = true ved suksess.
@@ -25,27 +26,30 @@ public interface IAccountVerificationService
     /// <param name="email">Eposten til brukeren</param>
     /// <param name="code">6-sifret kode</param>
     /// <param name="ipAddress">IP-adressen fra forespørselen</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> VerifyEmailAsync(string email, string code, string ipAddress);
+    Task<Result> VerifyEmailAsync(string email, string code, string ipAddress, CancellationToken ct = default);
     
     // ======================== Sms verifisiering ======================== 
-    
+
     /// <summary>
     /// Sender ny verifiserings-SMS til brukeren.
     /// Returnerer alltid success for å forhindre phone enumeration.
     /// </summary>
-    /// <param name="phoneNumber">Tlf til brukeren</param>
+    /// <param name="email">Epost til brukeren</param>
     /// <param name="ipAddress">IP-adressen fra forespørselen</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> ResendPhoneVerificationAsync(string phoneNumber, string ipAddress);
+    Task<Result> ResendPhoneVerificationAsync(string email, string ipAddress, CancellationToken ct = default);
 
     /// <summary>
     /// Verifiserer brukerens telefonnummer med 6-sifret kode.
     /// Setter PhoneNumberConfirmed = true ved suksess.
     /// </summary>
-    /// <param name="phoneNumber">Tlf til brukeren</param>
+    /// <param name="email">Epost til brukeren</param>
     /// <param name="code">6-sifret kode</param>
     /// <param name="ipAddress">IP-adressen fra forespørselen</param>
+    /// <param name="ct"></param>
     /// <returns>Result med Success eller Failure</returns>
-    Task<Result> VerifyPhoneAsync(string phoneNumber, string code, string ipAddress);
+    Task<Result> VerifyPhoneAsync(string email, string code, string ipAddress, CancellationToken ct = default);
 }

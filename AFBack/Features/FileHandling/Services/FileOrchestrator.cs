@@ -55,7 +55,7 @@ public class FileOrchestrator(
         var uploadResult = await storageService.UploadAsync(stream, storageKey, 
             "application/octet-stream", BlobContainer.EncryptedFiles, null, ct);
         if (uploadResult.IsFailure)
-            return Result.Failure(uploadResult.Error, uploadResult.ErrorType);
+            return Result.Failure(uploadResult.Error, uploadResult.ErrorCode);
 
         return Result.Success();
     }

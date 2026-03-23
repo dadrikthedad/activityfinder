@@ -31,7 +31,6 @@ public static class BootstrapMappingExtensions
         ShowPhone = settings.ShowPhone,
         ShowRegion = settings.ShowRegion,
         ShowBio = settings.ShowBio,
-        ShowFriendsList = settings.ShowFriendsList,
         ShowStats = settings.ShowStats,
         ShowWebsites = settings.ShowWebsites,
         ShowPostalCode = settings.ShowPostalCode,
@@ -42,11 +41,7 @@ public static class BootstrapMappingExtensions
     public static UserProfileResponse ToProfileResponse(this UserProfile profile) => new()
     {
         CountryCode = profile.CountryCode,
-        Region = profile.Region,
-        City = profile.City,
-        PostalCode = profile.PostalCode,
         DateOfBirth = profile.DateOfBirth,
-        Gender = profile.Gender,
         Age = profile.Age,
         Bio = profile.Bio,
         Websites = profile.Websites,

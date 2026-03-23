@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using AFBack.Common.Enum;
 using AFBack.Common.Localization;
 using AFBack.Common.Results;
+using AFBack.Common.Security;
 using AFBack.Features.Auth.DTOs.Request;
 using AFBack.Features.Auth.DTOs.Response;
 using AFBack.Features.Auth.Models;
@@ -15,6 +17,7 @@ using AFBack.Infrastructure.Email.Models;
 using AFBack.Infrastructure.Email.Templates;
 using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
+using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Services;
@@ -33,7 +36,8 @@ public class AuthService(
    ISuspiciousActivityService suspiciousActivityService,
    IVerificationInfoRepository verificationInfoRepository,
    ITokenService tokenService,
-   IRateLimitGuardService rateLimitGuardService) : IAuthService
+   IRateLimitGuardService rateLimitGuardService,
+   ITransactionService transactionService) : IAuthService
 {
     // Hasher et passord ved oppstart så endringer som skjer i PasswordHashService gir alltid et korrekt
     // Dummy passord.
@@ -49,217 +53,248 @@ public class AuthService(
     // ======================== SignUp ======================== 
     
     /// <inheritdoc/>
-    public async Task<Result<SignupResponse>> SignupAsync(SignupRequest request, string ipAddress)
+    public async Task<Result<SignupResponse>> SignupAsync(SignupRequest request, string ipAddress, 
+        CancellationToken ct = default)
     {
-        logger.LogInformation("SignupAsync. Payload: {@Payload}", new {request.Email});
-           
-        // ====== IP-basert rate limit — stopp spam-registreringer tidlig ======
-           
-        // Sjekker om brukeren har spammet endepunktene våre tidligere
-        var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.Verification, 
-            request.Email, ipAddress);
-        if (rateLimitResult.IsFailure)
-            return Result<SignupResponse>.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
-           
-        // ====== Validering ======
-        var existingUserWithThisEmail = await userManager.FindByEmailAsync(request.Email);
-        if (existingUserWithThisEmail != null)
-        {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                SuspiciousActivityType.EmailEnumeration, 
-                $"Attempted registration with existing email: {request.Email}");
-        
-            return Result<SignupResponse>.Failure(
-                "A user with this email already exists", ErrorTypeEnum.Conflict);
-        }
+        var sw = Stopwatch.StartNew();
 
-        var existingUserWithThisPhonenumber = await userRepository.FindByPhoneAsync(request.PhoneNumber);
-        if (existingUserWithThisPhonenumber != null)
+        try
         {
-            await suspiciousActivityService.ReportSuspiciousActivityAsync(
-                ipAddress,
-                SuspiciousActivityType.PhoneEnumeration,
-                $"Attempted registration with existing phone: {request.PhoneNumber}");
+            logger.LogInformation("SignupAsync. Payload: {@Payload}", new { request.Email });
 
-            return Result<SignupResponse>.Failure(
-                "A user with this phonenumber already exists", ErrorTypeEnum.Conflict);
-        }
-           
-        // ====== Opprettelse ======
-           
-        // Oppretter User med UserProfile og UserSettings
-        var user = new AppUser
-        {
-            UserName = request.Email,
-            Email = request.Email,
-            PhoneNumber = request.PhoneNumber,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            FullName = $"{request.FirstName} {request.LastName}",
-            UserProfile = new UserProfile
+            // ====== IP-basert rate limit — stopp spam-registreringer tidlig ======
+
+            // Sjekker om brukeren har spammet endepunktene våre tidligere
+            var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.Verification,
+                request.Email, ipAddress);
+            if (rateLimitResult.IsFailure)
+                return Result<SignupResponse>.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
+
+            // ====== Validering ======
+            var existingUserWithThisEmail = await userManager.FindByEmailAsync(request.Email);
+            if (existingUserWithThisEmail != null)
             {
-                DateOfBirth = request.DateOfBirth,
-                Gender = request.Gender,
-                CountryCode = request.CountryCode,
-                Region = request.Region,
-                PostalCode = request.PostalCode
-            },
-            UserSettings = new UserSettings
+                await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
+                    SuspiciousActivityType.EmailEnumeration,
+                    $"Attempted registration with existing email: {request.Email}");
+
+                return Result<SignupResponse>.Failure(
+                    "A user with this email already exists", AppErrorCode.Conflict);
+            }
+
+            var existingUserWithThisPhonenumber = await userRepository.FindByPhoneAsync(request.PhoneNumber, ct);
+            if (existingUserWithThisPhonenumber != null)
             {
-                Language = LanguageMapper.FromCountry(request.CountryCode)
-            },
-            VerificationInfo = new VerificationInfo()
-        };
-           
-        // Legger til brukerne
-        var createUserResult = await userManager.CreateAsync(user, request.Password);
-        if (!createUserResult.Succeeded)
-        {
-            var errors = string.Join(" ", createUserResult.Errors.Select(e => e.Description));
-            logger.LogWarning("Failed to create user {Email}: {Errors}", request.Email, errors);
-            return Result<SignupResponse>.Failure(errors);
+                await suspiciousActivityService.ReportSuspiciousActivityAsync(
+                    ipAddress,
+                    SuspiciousActivityType.PhoneEnumeration,
+                    $"Attempted registration with existing phone: {request.PhoneNumber}");
+
+                return Result<SignupResponse>.Failure(
+                    "A user with this phonenumber already exists", AppErrorCode.Conflict);
+            }
+
+            // ====== Opprettelse ======
+
+            return await transactionService.ExecuteAsync(async (innerCt) =>
+            {
+                // Oppretter User med UserProfile og UserSettings
+                var user = new AppUser
+                {
+                    UserName = request.Email,
+                    Email = request.Email,
+                    PhoneNumber = request.PhoneNumber,
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
+                    FullName = $"{request.FirstName} {request.LastName}",
+                    UserProfile = new UserProfile
+                    {
+                        DateOfBirth = request.DateOfBirth,
+                        CountryCode = request.CountryCode,
+                    },
+                    UserSettings = new UserSettings
+                    {
+                        Language = LanguageMapper.FromCountry(request.CountryCode)
+                    },
+                    VerificationInfo = new VerificationInfo()
+                };
+
+                // Legger til brukerne
+                var createUserResult = await userManager.CreateAsync(user, request.Password);
+                if (!createUserResult.Succeeded)
+                {
+                    var errors = string.Join(" ", createUserResult.Errors.Select(e => e.Description));
+                    logger.LogWarning("Failed to create user {Email}: {Errors}", request.Email, errors);
+                    return Result<SignupResponse>.Failure(errors, AppErrorCode.InvalidRegistrationData);
+                }
+
+                // legger til roller
+                var addRoleResult = await userManager.AddToRoleAsync(user, AppRoles.User);
+                if (!addRoleResult.Succeeded)
+                {
+                    var errors = string.Join(" ", addRoleResult.Errors.Select(e => e.Description));
+                    logger.LogError("Failed to assign role {Role} to UserId: {UserId}. Errors: {Errors}",
+                        AppRoles.User, user.Id, errors);
+                    return Result<SignupResponse>.Failure("An unexpected error occurred during signup", 
+                        AppErrorCode.InternalError);
+                }
+
+                // ====== Post-commit: Broadcast ======
+
+                // Oppretter 6-sifret kode
+                var code = await verificationInfoService.GenerateEmailVerificationAsync(user.Id, innerCt);
+
+                // Kaller på Email service for å sende verifikasjons epost
+                var emailDto = new EmailCodeDto(
+                    Email: request.Email,
+                    Code: code,
+                    BaseUrl: configuration["App:BaseUrl"]!);
+
+                // Bygger template
+                var body = EmailTemplates.Verification(emailDto);
+
+                // Sender epost - EmailService håndterer logging hvis noe går galt. Bekrefter epost sendt til RateLimit
+                var emailResult = await emailService.SendAsync(request.Email, body, innerCt);
+                if (emailResult.IsFailure)
+                    return Result<SignupResponse>.Failure("Could not send verification email. Please try again.",
+                        AppErrorCode.InternalError);
+
+
+                emailRateLimitService.RegisterEmailSent(EmailType.Verification, request.Email, ipAddress);
+
+                // ====== Response ======
+                var response = new SignupResponse
+                {
+                    UserId = user.Id,
+                    EmailSent = emailResult.IsSuccess
+                };
+
+                // returner UserId til frontend
+                return Result<SignupResponse>.Success(response);
+            }, ct);
         }
-           
-        // legger til roller
-        var addRoleResult = await userManager.AddToRoleAsync(user, AppRoles.User);
-        if (!addRoleResult.Succeeded)
+        finally
         {
-            await userManager.DeleteAsync(user);
-            var errors = string.Join(" ", addRoleResult.Errors.Select(e => e.Description));
-            logger.LogError("Failed to assign role {Role} to UserId: {UserId}. Errors: {Errors}", 
-                AppRoles.User, user.Id, errors);
-            return Result<SignupResponse>.Failure("An unexpected error occurred during signup");
+            await TimingGuard.EnforceMinimumTimeAsync(sw, 500);
         }
-           
-        // ====== Post-commit: Broadcast ======
-           
-        // Oppretter 6-sifret kode
-        var code = await verificationInfoService.GenerateEmailVerificationAsync(user.Id);
-           
-        // Kaller på Email service for å sende verifikasjons epost
-        var emailDto = new EmailCodeDto(
-            Email: request.Email,
-            Code: code,
-            BaseUrl: configuration["App:BaseUrl"]!);
         
-        // Bygger template
-        var body = EmailTemplates.Verification(emailDto);
-           
-        // Sender epost - EmailService håndterer logging hvis noe går galt. Bekrefter epost sendt til RateLimit
-        var result = await emailService.SendAsync(request.Email, body);
-        if (result.IsSuccess)
-            emailRateLimitService.RegisterEmailSent(EmailType.Verification, request.Email, ipAddress);
-           
-        // ====== Response ======
-        var response = new SignupResponse
-        {
-            UserId = user.Id,
-            EmailSent = result.IsSuccess
-        };
-           
-        // returner UserId til frontend
-        return Result<SignupResponse>.Success(response);
     }
   
     // ======================== Login ======================== 
    
    /// <inheritdoc/>
-   public async Task<Result<LoginResponse>> LoginAsync(LoginRequest request, string ipAddress, string? userAgent)
+   public async Task<Result<LoginResponse>> LoginAsync(LoginRequest request, string ipAddress, string? userAgent,
+       CancellationToken ct = default)
    {
-       logger.LogInformation("LoginAsync. Payload: {@Payload}", new { request.Email });
+       var sw = Stopwatch.StartNew();
 
-       // ====== Finn bruker (eller bruk DummyUser for timing-beskyttelse) ======
-       var user = await userManager.FindByEmailAsync(request.Email);
-        
-       // Returner ikke med engang for å simulere en ekte bruker
-       if (user == null)
-           logger.LogWarning("Login failed. User not found for {Email}", request.Email);
-
-       // ====== Lockout-sjekk med Identity ======
-       if (user != null && await userManager.IsLockedOutAsync(user))
+       try
        {
-           var lockoutEnd = await userManager.GetLockoutEndDateAsync(user);
-           logger.LogWarning("Login failed. Account locked for {Email} until {LockoutEnd}",
-               request.Email, lockoutEnd);
-           return Result<LoginResponse>.Failure(
-               "Your account has been locked due to security reasons. " +
-               "Please try again later or reset your password.");
-       }
+           logger.LogInformation("LoginAsync. Payload: {@Payload}", new { request.Email });
 
-       // ====== Passord-validering ======
-       // Bruker enten user eller dummy user for å simulere en passord-sjekk
-       var targetUser = user ?? DummyUser;
-       var isPasswordValid = await userManager.CheckPasswordAsync(targetUser, request.Password);
-        
-       // Bruker er null eller passord er feil, returner samme feilmelding
-       if (user == null || !isPasswordValid)
-       {   
-           // Registerer at brukeren har tatt feil passord
-           if (user != null)
+           // ====== Finn bruker (eller bruk DummyUser for timing-beskyttelse) ======
+           var user = await userManager.FindByEmailAsync(request.Email);
+
+           // Returner ikke med engang for å simulere en ekte bruker
+           if (user == null)
+               logger.LogWarning("Login failed. User not found for {Email}", request.Email);
+
+           // ====== Lockout-sjekk med Identity ======
+           if (user != null && await userManager.IsLockedOutAsync(user))
            {
-               await userManager.AccessFailedAsync(user);
-                
-               // Sjekk om brukeren nettopp ble låst ute
-               if (await userManager.IsLockedOutAsync(user))
-               {
-                   await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                       SuspiciousActivityType.BruteForceAttempt,
-                       $"Account locked after max failed login attempts for {request.Email}",
-                       userId: user.Id);
-               }
+               var lockoutEnd = await userManager.GetLockoutEndDateAsync(user);
+               logger.LogWarning("Login failed. Account locked for {Email} until {LockoutEnd}",
+                   request.Email, lockoutEnd);
+               return Result<LoginResponse>.Failure(
+                   "Your account has been locked due to security reasons. " +
+                   "Please try again later or reset your password.", AppErrorCode.AccountLocked);
            }
 
-           logger.LogWarning("Login failed. Invalid credentials for {Email}", request.Email);
-           return Result<LoginResponse>.Failure("Wrong email or password");
+           // ====== Passord-validering ======
+           // Bruker enten user eller dummy user for å simulere en passord-sjekk
+           var targetUser = user ?? DummyUser;
+           var isPasswordValid = await userManager.CheckPasswordAsync(targetUser, request.Password);
+
+           // Bruker er null eller passord er feil, returner samme feilmelding
+           if (user == null || !isPasswordValid)
+           {
+               // Registerer at brukeren har tatt feil passord
+               if (user != null)
+               {
+                   await userManager.AccessFailedAsync(user);
+
+                   // Sjekk om brukeren nettopp ble låst ute
+                   if (await userManager.IsLockedOutAsync(user))
+                   {
+                       await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
+                           SuspiciousActivityType.BruteForceAttempt,
+                           $"Account locked after max failed login attempts for {request.Email}",
+                           userId: user.Id);
+                   }
+               }
+
+               logger.LogWarning("Login failed. Invalid credentials for {Email}", request.Email);
+               return Result<LoginResponse>.Failure("Wrong email or password", AppErrorCode.InvalidCredentials);
+           }
+
+           // ====== Epost-verifisering ======
+           if (!user.EmailConfirmed)
+           {
+               logger.LogWarning("Login failed. Email not confirmed for {Email}", request.Email);
+               var resendResult = await accountVerificationService.ResendVerificationEmailAsync(request.Email,
+                   ipAddress, ct);
+
+               // Forskjellige melding utifra om brukeren har fått en feil (nådd ratelimit, eller noe annet feielt)
+               var message = resendResult.IsSuccess
+                   ? "Your email is not yet verified. We've sent a new verification email."
+                   : "Your email is not yet verified. Please try again later.";
+
+               return Result<LoginResponse>.Failure(message, AppErrorCode.Unauthorized);
+           }
+
+           // ====== Telefon-verifisering ======
+           if (!user.PhoneNumberConfirmed)
+           {
+               logger.LogWarning("Login failed. Phone not confirmed for {Email}", request.Email);
+               var resendResult = await accountVerificationService.ResendPhoneVerificationAsync(user.Email!,
+                   ipAddress, ct);
+
+               // Forskjellige melding utifra om brukeren har fått en feil (nådd ratelimit, eller noe annet feielt)
+               var message = resendResult.IsSuccess
+                   ? "Your phone number is not yet verified. We've sent a new verification SMS."
+                   : "Your phone number is not yet verified. Please try again later.";
+
+               return Result<LoginResponse>.Failure(message, AppErrorCode.Unauthorized);
+           }
+
+           // ====== Nullstill failed attempts med Identity ======
+           await userManager.ResetAccessFailedCountAsync(user);
+
+           // ====== Device tracking ======
+           return await transactionService.ExecuteAsync(async (innerCt) =>
+           {
+               // Oppretter eller oppdaterer UserDevice for brukeren
+               var device =
+                   await userDeviceService.ResolveOrCreateDeviceAsync(user.Id, request.Device, ipAddress, innerCt);
+
+               // ====== Generer tokens ======
+               var roles = await userManager.GetRolesAsync(user);
+               var loginResponse = await tokenService.GenerateTokenPairAsync(
+                   user, device, roles, ipAddress, userAgent, innerCt);
+
+               // Oppretter innloggingshistorikk
+               await loginHistoryService.RecordLoginAsync(user.Id, device.Id, ipAddress, userAgent, innerCt);
+
+               logger.LogInformation("Login successful for {Email} on device {DeviceName}",
+                   request.Email, device.DeviceName);
+
+               return Result<LoginResponse>.Success(loginResponse);
+           }, ct);
        }
-       
-       // ====== Epost-verifisering ======
-       if (!user.EmailConfirmed)
+       finally
        {
-           logger.LogWarning("Login failed. Email not confirmed for {Email}", request.Email);
-           var resendResult = await accountVerificationService.ResendVerificationEmailAsync(request.Email, ipAddress);
-            
-           // Forskjellige melding utifra om brukeren har fått en feil (nådd ratelimit, eller noe annet feielt)
-           var message = resendResult.IsSuccess
-               ? "Your email is not yet verified. We've sent a new verification email."
-               : "Your email is not yet verified. Please try again later.";
-    
-           return Result<LoginResponse>.Failure(message, ErrorTypeEnum.Unauthorized);
+           await TimingGuard.EnforceMinimumTimeAsync(sw, 300);
        }
-
-       // ====== Telefon-verifisering ======
-       if (!user.PhoneNumberConfirmed)
-       {
-           logger.LogWarning("Login failed. Phone not confirmed for {Email}", request.Email);
-           var resendResult = await accountVerificationService.ResendPhoneVerificationAsync(user.PhoneNumber!, ipAddress);
-            
-           // Forskjellige melding utifra om brukeren har fått en feil (nådd ratelimit, eller noe annet feielt)
-           var message = resendResult.IsSuccess
-               ? "Your phone number is not yet verified. We've sent a new verification SMS."
-               : "Your phone number is not yet verified. Please try again later.";
-    
-           return Result<LoginResponse>.Failure(message, ErrorTypeEnum.Unauthorized);
-       }
-
-       // ====== Nullstill failed attempts med Identity ======
-       await userManager.ResetAccessFailedCountAsync(user);
-        
-       // ====== Device tracking ======
-       // Oppretter eller oppdaterer UserDevice for brukeren
-       var device = await userDeviceService.ResolveOrCreateDeviceAsync(user.Id, request.Device, ipAddress);
-
-       // ====== Generer tokens ======
-       var roles = await userManager.GetRolesAsync(user);
-       var loginResponse = await tokenService.GenerateTokenPairAsync(
-           user, device, roles, ipAddress, userAgent);
-        
-       // Oppretter innloggingshistorikk
-       await loginHistoryService.RecordLoginAsync(user.Id, device.Id, ipAddress, userAgent);
-
-       logger.LogInformation("Login successful for {Email} on device {DeviceName}",
-           request.Email, device.DeviceName);
-
-       return Result<LoginResponse>.Success(loginResponse);
    }
     
    /// <summary>
@@ -325,7 +360,7 @@ public class AuthService(
         // ====== Valider token og nullstill alle pending-endringer ======
         var validateResult = await verificationInfoService.ValidateSecurityAlertTokenAsync(token);
         if (validateResult.IsFailure)
-            return Result.Failure(validateResult.Error);
+            return Result.Failure(validateResult.Error, validateResult.ErrorCode);
         
         var userId = validateResult.Value!;
         
@@ -334,7 +369,7 @@ public class AuthService(
         if (user == null)
         {
             logger.LogError("Security alert: User not found after token validation. UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Revoker alle tokens — tving utlogging fra alle enheter. Og logger utlogging ======

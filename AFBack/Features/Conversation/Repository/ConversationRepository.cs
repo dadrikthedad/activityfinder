@@ -15,49 +15,44 @@ public class ConversationRepository(
     ////////////////////////////////////////////// GET SINGLE CONVERSATION ////////////////////////////////////////////
     
     /// <inheritdoc />
-    public async Task<Models.Conversation?> GetConversationAsync(int conversationId) => await context.Conversations
+    public async Task<Models.Conversation?> GetConversationAsync(int conversationId, CancellationToken ct = default)
+        => await context.Conversations
         .Include(conversation => conversation.Participants)
         .AsNoTracking()
-        .FirstOrDefaultAsync(conversation => conversation.Id == conversationId);
+        .FirstOrDefaultAsync(conversation => conversation.Id == conversationId, ct);
     
     /// <inheritdoc />
-    public async Task<Models.Conversation?> GetConversationWithTrackingAsync(int conversationId) => await 
+    public async Task<Models.Conversation?> GetConversationWithTrackingAsync(int conversationId,
+        CancellationToken ct = default) => await 
         context.Conversations
         .Include(conversation => conversation.Participants)
-        .FirstOrDefaultAsync(conversation => conversation.Id == conversationId);
+        .FirstOrDefaultAsync(conversation => conversation.Id == conversationId, ct);
     
    
     /// <inheritdoc />
-    public async Task<ConversationDto?> GetConversationDtoAsync(int conversationId) => 
+    public async Task<ConversationDto?> GetConversationDtoAsync(int conversationId, CancellationToken ct = default) => 
          await context.Conversations
         .AsNoTracking()
         .Where(c => c.Id == conversationId)
         .ToConversationDtoQuery()
-        .FirstOrDefaultAsync();
+        .FirstOrDefaultAsync(ct);
     
     /// <inheritdoc />
-    public async Task<ConversationDto?> GetConversationBetweenUsersAsync(string userId, string receiverId) =>
+    public async Task<ConversationDto?> GetConversationBetweenUsersAsync(string userId, string receiverId,
+        CancellationToken ct = default) =>
         await context.Conversations
             .Where(c => c.Type != ConversationType.GroupChat
                         && c.Participants.Any(cp => cp.UserId == userId)
                         && c.Participants.Any(cp => cp.UserId == receiverId))
             .Include(c => c.Participants)
             .ToConversationDtoQuery()
-            .FirstOrDefaultAsync();
-    
-    /// <inheritdoc />
-    public async Task<int?> GetPendingConversationIdBetweenUsersAsync(string userId, string otherUserId) =>
-        await context.Conversations
-            .Where(c => c.Type == ConversationType.PendingRequest
-                        && c.Participants.Any(p => p.UserId == userId)
-                        && c.Participants.Any(p => p.UserId == otherUserId))
-            .Select(c => (int?)c.Id)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
     
     ////////////////////////////////////////////// GET MANY CONVERSATIONS /////////////////////////////////////////////
     
     /// <inheritdoc />
-    public async Task<List<ConversationDto>> GetActiveConversationsAsync(string userId, int page, int pageSize) =>
+    public async Task<List<ConversationDto>> GetActiveConversationsAsync(string userId, int page, int pageSize, 
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.UserId == userId
@@ -68,18 +63,19 @@ public class ConversationRepository(
             .Take(pageSize)
             // Mapper til ConversationDto som er felles med de andre metodene
             .ToConversationDtoQuery() // Mapper til extensions-metode
-            .ToListAsync();
+            .ToListAsync(ct);
     
     /// <inheritdoc />
-    public async Task<int> GetActiveConversationsCountAsync(string userId) =>
+    public async Task<int> GetActiveConversationsCountAsync(string userId, CancellationToken ct = default) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
                               && !cp.ConversationArchived
-                              && cp.Status == ConversationStatus.Accepted);
+                              && cp.Status == ConversationStatus.Accepted, ct);
     
     
     /// <inheritdoc />
-    public async Task<List<ConversationDto>> GetPendingConversationsAsync(string userId, int page, int pageSize) =>
+    public async Task<List<ConversationDto>> GetPendingConversationsAsync(string userId, int page, int pageSize,
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.UserId == userId
@@ -89,17 +85,18 @@ public class ConversationRepository(
             .Take(pageSize)
             // Mapper til ConversationDto som er felles med de andre metodene
             .ToConversationDtoQuery() // Mapper til extensions-metode
-            .ToListAsync();
+            .ToListAsync(ct);
     
     /// <inheritdoc />
-    public async Task<int> GetPendingConversationsCountAsync(string userId) =>
+    public async Task<int> GetPendingConversationsCountAsync(string userId, CancellationToken ct = default) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
-                              && cp.Status == ConversationStatus.Pending);
+                              && cp.Status == ConversationStatus.Pending, ct);
     
     
     /// <inheritdoc />
-    public async Task<List<ConversationDto>> GetArchivedConversationsAsync(string userId, int page, int pageSize) =>
+    public async Task<List<ConversationDto>> GetArchivedConversationsAsync(string userId, int page, int pageSize, 
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.UserId == userId
@@ -109,16 +106,17 @@ public class ConversationRepository(
             .Take(pageSize)
             // Mapper til ConversationDto som er felles med de andre metodene
             .ToConversationDtoQuery() // Mapper til extensions-metode
-            .ToListAsync();
+            .ToListAsync(ct);
     
     /// <inheritdoc />
-    public async Task<int> GetArchivedConversationsCountAsync(string userId) =>
+    public async Task<int> GetArchivedConversationsCountAsync(string userId, CancellationToken ct = default) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
-                              && cp.ConversationArchived == true);
+                              && cp.ConversationArchived == true, ct);
     
     /// <inheritdoc />
-    public async Task<List<ConversationDto>> GetRejectedConversationsAsync(string userId, int page, int pageSize) =>
+    public async Task<List<ConversationDto>> GetRejectedConversationsAsync(string userId, int page, int pageSize,
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.UserId == userId
@@ -128,16 +126,17 @@ public class ConversationRepository(
             .Take(pageSize)
             // Mapper til ConversationDto som er felles med de andre metodene
             .ToConversationDtoQuery() // Mapper til extensions-metode
-            .ToListAsync();
+            .ToListAsync(ct);
     
     /// <inheritdoc />
-    public async Task<int> GetRejectedConversationsCountAsync(string userId) =>
+    public async Task<int> GetRejectedConversationsCountAsync(string userId, CancellationToken ct = default) =>
         await context.ConversationParticipants
             .CountAsync(cp => cp.UserId == userId
-                              && cp.Status == ConversationStatus.Rejected);
+                              && cp.Status == ConversationStatus.Rejected, ct);
     
     /// <inheritdoc />
-    public async Task<List<string>> GetAllConversationPartnerIdsAsync(string userId) =>
+    public async Task<List<string>> GetAllConversationPartnerIdsAsync(string userId, CancellationToken ct = default)
+        =>
         await context.ConversationParticipants
             .Where(cp => cp.Conversation.Participants 
                 .Any(p => p.UserId == userId)) // Alle samtaler brukeren er participant
@@ -146,30 +145,32 @@ public class ConversationRepository(
                          || cp.Status == ConversationStatus.Pending) // Ingen rejected
             .Select(cp => cp.UserId)
             .Distinct()
-            .ToListAsync();
+            .ToListAsync(ct);
     
     /// <inheritdoc />
-    public async Task<List<string>> GetAcceptedParticipantIdsAsync(int conversationId) =>
+    public async Task<List<string>> GetAcceptedParticipantIdsAsync(int conversationId, 
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
             .AsNoTracking()
             .Where(cp => cp.ConversationId == conversationId &&
                          cp.Status == ConversationStatus.Accepted)
             .Select(cp => cp.UserId)
-            .ToListAsync();
+            .ToListAsync(ct);
     
     ////////////////////////////////////////////// SEARCH CONVERSATIONS /////////////////////////////////////////////
     
     /// <inheritdoc />
-    public async Task<int> GetTotalConversationsBySearch(string userId, string searchQuery) => 
+    public async Task<int> GetTotalConversationsBySearch(string userId, string searchQuery, 
+        CancellationToken ct = default) => 
         await context.ConversationParticipants
             .FilterBySearchQuery(userId, searchQuery)
-            .CountAsync();
+            .CountAsync(ct);
     
     
     
     /// <inheritdoc />
     public async Task<List<ConversationDto>> GetConversationDtosBySearch(string userId, string searchQuery, 
-        int page, int pageSize) 
+        int page, int pageSize, CancellationToken ct = default) 
         => await context
         .ConversationParticipants
         .AsNoTracking()
@@ -178,7 +179,7 @@ public class ConversationRepository(
         .Skip((page - 1) * pageSize)
         .Take(pageSize)
         .ToConversationDtoQuery()
-        .ToListAsync();
+        .ToListAsync(ct);
     
     
     ////////////////////////////////////////////// CREATE CONVERSATIONS /////////////////////////////////////////////
@@ -187,40 +188,40 @@ public class ConversationRepository(
     public async Task<Models.Conversation> CreateConversationWithParticipantsAsync(
         Models.Conversation conversation, 
         List<ConversationParticipant> participants,
-        Message? message = null)
+        Message? message = null, CancellationToken ct = default)
     {
         // Kjør transaksjon
-        await using var transaction = await context.Database.BeginTransactionAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync(ct);
     
         try
         {
             // Opprett Conversation og lagrer for å få id
-            await context.Conversations.AddAsync(conversation);
-            await context.SaveChangesAsync();
+            await context.Conversations.AddAsync(conversation, ct);
+            await context.SaveChangesAsync(ct);
         
             // Oppdater participants med conversationId
             participants.ForEach(p => p.ConversationId = conversation.Id);
             
             // Legg til Participants i databasen
-            await context.ConversationParticipants.AddRangeAsync(participants);
+            await context.ConversationParticipants.AddRangeAsync(participants, ct);
             
             // Legg til melding hvis den finnes (1-1 samtaler har første melding, gruppesamtaler har ikke)
             if (message != null)
             {
                 message.ConversationId = conversation.Id;
-                await context.Messages.AddAsync(message);
+                await context.Messages.AddAsync(message, ct);
                 conversation.LastMessageSentAt = message.SentAt;
             }
             
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(ct);
             
             // Bekrefter databaselagringen
-            await transaction.CommitAsync();
+            await transaction.CommitAsync(ct);
             return conversation;
         }
         catch
         {
-            await transaction.RollbackAsync();
+            await transaction.RollbackAsync(ct);
             throw;
         }
     }
@@ -229,39 +230,42 @@ public class ConversationRepository(
     ////////////////////////////////////////////// UPDATE CONVERSATIONS /////////////////////////////////////////////
     
     /// <inheritdoc />
-    public async Task SaveChangesAsync() => await context.SaveChangesAsync();
+    public async Task SaveChangesAsync(CancellationToken ct = default) => await context.SaveChangesAsync(ct);
     
     /// <inheritdoc />
-    public async Task UpdateLastMessageSentAt(int conversationId, DateTime sentAt) => await context.Conversations
+    public async Task UpdateLastMessageSentAt(int conversationId, DateTime sentAt, CancellationToken ct = default) 
+        => await context.Conversations
         .Where(c => c.Id == conversationId)
         .ExecuteUpdateAsync(s => 
-            s.SetProperty(c => c.LastMessageSentAt, sentAt));
+            s.SetProperty(c => c.LastMessageSentAt, sentAt), ct);
 
     ////////////////////////////////////////////// DELETE CONVERSATIONS /////////////////////////////////////////////
     
     /// <inheritdoc />
-    public async Task DeleteConversationAsync(Models.Conversation conversation)
+    public async Task DeleteConversationAsync(Models.Conversation conversation, CancellationToken ct = default)
     {
         context.Conversations.Remove(conversation);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(ct);
     }
     
     ////////////////////////////////////////////// PARTICIPANT OPERATIONS /////////////////////////////////////////////
     
     /// <inheritdoc />
-    public async Task<ConversationParticipant?> GetParticipantAsync(string userId, int conversationId) =>
+    public async Task<ConversationParticipant?> GetParticipantAsync(string userId, int conversationId, 
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
-            .FirstOrDefaultAsync(cp => cp.UserId == userId && cp.ConversationId == conversationId);
+            .FirstOrDefaultAsync(cp => cp.UserId == userId && cp.ConversationId == conversationId, ct);
     
     /// <inheritdoc />
-    public async Task RemoveParticipantAsync(ConversationParticipant participant)
+    public async Task RemoveParticipantAsync(ConversationParticipant participant, CancellationToken ct = default)
     {
         context.ConversationParticipants.Remove(participant);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(ct);
     }
     
     /// <inheritdoc />
-    public async Task<HashSet<int>> GetUserAcceptedConversationIdsAsync(string userId, List<int> conversationIds)
+    public async Task<HashSet<int>> GetUserAcceptedConversationIdsAsync(string userId, List<int> conversationIds,
+        CancellationToken ct = default)
     {
         if (conversationIds.Count == 0)
             return [];
@@ -272,18 +276,19 @@ public class ConversationRepository(
                          && conversationIds.Contains(cp.ConversationId)
                          && cp.Status == ConversationStatus.Accepted)
             .Select(cp => cp.ConversationId)
-            .ToListAsync();
+            .ToListAsync(ct);
         
         return ids.ToHashSet();
     }
     
     
     /// <inheritdoc />
-    public async Task<ConversationParticipant?> GetNextCreatorCandidateAsync(int conversationId, string excludeUserId) =>
+    public async Task<ConversationParticipant?> GetNextCreatorCandidateAsync(int conversationId, string excludeUserId,
+        CancellationToken ct = default) =>
         await context.ConversationParticipants
             .Where(cp => cp.ConversationId == conversationId
                          && cp.UserId != excludeUserId
                          && cp.Status == ConversationStatus.Accepted)
             .OrderBy(cp => cp.InvitedAt)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(ct);
 }

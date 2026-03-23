@@ -12,16 +12,12 @@ using AFBack.Features.Conversation.Services;
 using AFBack.Features.Conversation.Validators;
 using AFBack.Features.FileHandling.Services;
 using AFBack.Features.FileHandling.Validators;
-using AFBack.Features.Friendship.Repository;
-using AFBack.Features.Friendship.Services;
 using AFBack.Features.Geography.Services;
 using AFBack.Features.MessageNotifications.Repository;
 using AFBack.Features.MessageNotifications.Service;
 using AFBack.Features.Messaging.Repository;
 using AFBack.Features.Messaging.Services;
 using AFBack.Features.Messaging.Validators;
-using AFBack.Features.Notifications.Repositories;
-using AFBack.Features.Notifications.Services;
 using AFBack.Features.Profile.Repository;
 using AFBack.Features.Profile.Services;
 using AFBack.Features.Reactions.Repositories;
@@ -63,8 +59,6 @@ public static class ServiceRegistrationExtensions
         
         // ===== RELATIONSHIPSERVICES =====
         services.AddScoped<IUserBlockRepository, UserBlockRepository>();
-        services.AddScoped<IFriendshipRepository, FriendshipRepository>();
-        services.AddScoped<IFriendshipRequestRepository, FriendshipRequestRepository>();
         
         // ===== MESSAGE =====
         services.AddScoped<ICanSendRepository, CanSendRepository>();
@@ -79,9 +73,6 @@ public static class ServiceRegistrationExtensions
         // ===== BROADCAST =====
         services.AddScoped<ISyncEventRepository, SyncEventRepository>();
         services.AddScoped<IDeviceSyncStateRepository, DeviceSyncStateRepository>();
-        
-        // ===== NOTIFICATION =====
-        services.AddScoped<INotificationRepository, NotificationRepository>();
         
         // ===== MESSAGE NOTIFICATION =====
         services.AddScoped<IMessageNotificationRepository, MessageNotificationRepository>();
@@ -117,8 +108,6 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<ITokenService, TokenService>();
         
         // ===== RELATIONSHIPSERVICES =====
-        services.AddScoped<IFriendshipService, FriendshipService>();
-        services.AddScoped<IFriendshipRequestService, FriendshipRequestService>();
         services.AddScoped<IBlockingService, BlockingService>();
         
         // ===== MESSAGE SERVICES =====
@@ -139,7 +128,6 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<IMessageBroadcastService, MessageBroadcastService>(); 
         services.AddScoped<IConversationBroadcastService, ConversationBroadcastService>();
         services.AddScoped<IProfileBroadcastService, ProfileBroadcastService>();
-        services.AddScoped<IFriendshipBroadcastService, FriendshipBroadcastService>();
         services.AddScoped<IGroupConversationBroadcastService, GroupConversationBroadcastService>(); 
         services.AddScoped<IReactionBroadcastService, ReactionBroadcastService>();
         
@@ -151,9 +139,6 @@ public static class ServiceRegistrationExtensions
         });
         services.AddSingleton<ICountryService, CountryService>();
         services.AddSingleton<IGeoLocationService, GeolocationService>();
-        
-        // ===== NOTIFICATION SERVICES =====
-        services.AddScoped<INotificationService, NotificationService>();
         
         // ===== MESSAGE NOTIFICATION SERVICES =====
         services.AddScoped<IMessageNotificationService, MessageNotificationService>();

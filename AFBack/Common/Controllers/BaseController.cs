@@ -19,25 +19,7 @@ namespace AFBack.Common.Controllers
             if (result.IsSuccess)
                 throw new InvalidOperationException("Cannot handle failure for a successful result");
 
-
-            var (statusCode, title) = result.ErrorType switch
-            {
-                ErrorTypeEnum.NotFound => (StatusCodes.Status404NotFound, "Resource Not Found"),
-                ErrorTypeEnum.Conflict => (StatusCodes.Status409Conflict, "Conflict"),
-                ErrorTypeEnum.Unauthorized => (StatusCodes.Status401Unauthorized, "Unauthorized"),
-                ErrorTypeEnum.Forbidden => (StatusCodes.Status403Forbidden, "Forbidden"),
-                ErrorTypeEnum.Gone => (StatusCodes.Status410Gone, "Resource Gone"),
-                ErrorTypeEnum.TooManyRequests => (StatusCodes.Status429TooManyRequests, "Too Many Requests"),
-                ErrorTypeEnum.Validation => (StatusCodes.Status422UnprocessableEntity, "Validation Error"),
-                _ => (StatusCodes.Status400BadRequest, "Bad Request")
-            };
-            
-            return StatusCode(statusCode, new ProblemDetails
-            {
-                Detail = result.Error,
-                Title = title,
-                Status = statusCode,
-            });
+            return BuildProblemResult(result.ErrorCode, result.Error);
         }
         
         /// <summary>
@@ -52,25 +34,40 @@ namespace AFBack.Common.Controllers
             if (result.IsSuccess)
                 throw new InvalidOperationException("Cannot handle failure for a successful result");
 
-
-            var (statusCode, title) = result.ErrorType switch
+            return BuildProblemResult(result.ErrorCode, result.Error);
+        }
+        
+        /// <summary>
+        /// Bygger et ProblemDetails-svar fra en AppErrorCode og feilmelding.
+        /// Utleder HTTP-statuskode og tittel fra koden.
+        /// </summary>
+        private ActionResult BuildProblemResult(AppErrorCode code, string detail)
+        {
+            var (statusCode, title) = code switch
             {
-                ErrorTypeEnum.NotFound => (StatusCodes.Status404NotFound, "Resource Not Found"),
-                ErrorTypeEnum.Conflict => (StatusCodes.Status409Conflict, "Conflict"),
-                ErrorTypeEnum.Unauthorized => (StatusCodes.Status401Unauthorized, "Unauthorized"),
-                ErrorTypeEnum.Forbidden => (StatusCodes.Status403Forbidden, "Forbidden"),
-                ErrorTypeEnum.Gone => (StatusCodes.Status410Gone, "Resource Gone"),
-                ErrorTypeEnum.TooManyRequests => (StatusCodes.Status429TooManyRequests, "Too Many Requests"),
-                ErrorTypeEnum.Validation => (StatusCodes.Status422UnprocessableEntity, "Validation Error"),
-                _ => (StatusCodes.Status400BadRequest, "Bad Request")
+                AppErrorCode.NotFound => (StatusCodes.Status404NotFound, "Not Found"),
+                AppErrorCode.Conflict or AppErrorCode.EmailAlreadyExists => (StatusCodes.Status409Conflict, "Conflict"),
+                AppErrorCode.Unauthorized
+                    or AppErrorCode.InvalidCredentials
+                    or AppErrorCode.EmailNotConfirmed
+                    or AppErrorCode.PhoneNotConfirmed
+                    or AppErrorCode.TokenExpired
+                    or AppErrorCode.InvalidToken => (StatusCodes.Status401Unauthorized, "Unauthorized"),
+                AppErrorCode.Forbidden or AppErrorCode.AccountLocked  => (StatusCodes.Status403Forbidden, "Forbidden"),
+                AppErrorCode.Gone => (StatusCodes.Status410Gone, "Gone"),
+                AppErrorCode.TooManyRequests => (StatusCodes.Status429TooManyRequests, "Too Many Requests"),
+                AppErrorCode.Validation or AppErrorCode.InvalidRegistrationData
+                    or AppErrorCode.InvalidCode => (StatusCodes.Status422UnprocessableEntity, "Unprocessable Entity"),
+                AppErrorCode.InternalError => (StatusCodes.Status500InternalServerError, "Internal Server Error"),
+                _  => (StatusCodes.Status400BadRequest,                "Bad Request"),
             };
 
-
-            return StatusCode(statusCode, new ProblemDetails
+            return StatusCode(statusCode, new AppProblemDetails
             {
-                Detail = result.Error,
-                Title = title,
                 Status = statusCode,
+                Title  = title,
+                Detail = detail,
+                Code   = (int)code
             });
         }
         

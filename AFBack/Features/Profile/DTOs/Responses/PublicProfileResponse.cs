@@ -1,6 +1,3 @@
-using AFBack.Common.DTOs;
-using AFBack.Features.Profile.Enums;
-
 namespace AFBack.Features.Profile.DTOs.Responses;
 
 public class PublicProfileResponse
@@ -12,25 +9,16 @@ public class PublicProfileResponse
 
     public bool IsPrivate;
 
-    // Lokasjon (Region vises alltid, PostalCode styres av settings)
+    // Lokasjon
     public string? CountryCode { get; set; }
-    public string? Region { get; set; }
-    public string? City { get; set; }
-    public string? PostalCode { get; set; }
 
-    // Demografi (styrt av ShowAge/ShowGender/ShowBirthday)
+    // Demografi (styrt av ShowAge/ShowBirthday)
     public int? Age { get; set; }
-    public DateTime? DateOfBirth { get; set; }
-    public Gender? Gender { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
 
     // Profilinnhold (styrt av settings)
     public string? Bio { get; set; }
     public List<string>? Websites { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
-    
-    // Venner
-    public List<UserSummaryDto>? Friends { get; set; }
-    public int? FriendCount { get; set; }
-    
 }

@@ -1,20 +1,18 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
- View,
- Text,
- StyleSheet,
- ScrollView,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
 } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { useGetDeletedConversations } from '@/hooks/messages/useGetDeletedConversations';
 import { useGetRejectedConversations } from '@/hooks/messages/useGetRejectedConversations';
-import { useGetRejectedFriendInvitations } from '@/hooks/friends/useGetRejectedFriendInvitations';
 import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useAuth } from '@/context/AuthContext';
 import BlockedUsersSection from '@/components/trashcan/BlockedUsersSection';
 import DeletedConversationsSection from '@/components/trashcan/DeletedConversationsSection';
 import RejectedConversationsSection from '@/components/trashcan/RejectedConversationsSection';
-import RejectedFriendInvitationsSection from '@/components/trashcan/RejectedFriendInvitationsSection';
 import { showNotificationToastNative, LocalToastType } from '@/components/toast/NotificationToastNative';
 
 interface TrashcanScreenProps {
@@ -38,14 +36,6 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
     refetch: refetchRejected 
   } = useGetRejectedConversations();
 
-  const {
-    rejectedInvitations,
-    isLoading: rejectedInvitationsLoading,
-    error: rejectedInvitationsError,
-    refetch: refetchRejectedInvitations
-  } = useGetRejectedFriendInvitations();
-  
-  // ✅ FIX: Use useMemo to cache the filtered array and prevent infinite re-renders
   const allUsers = useUserCacheStore(state => state.users);
   const blockedUsers = useMemo(() => {
     return Object.values(allUsers).filter(user => user.isBlocked === true);
@@ -67,36 +57,27 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
     setTimeout(() => setDeletedGroupRequestMessage(null), 5000);
   }, []);
 
-  // ✅ Check if completely empty (for main empty state)
   const isCompletelyEmpty = useMemo(() => {
-    return !deletedLoading && 
-           !rejectedLoading && 
-           !rejectedInvitationsLoading &&
-           deletedConversations.length === 0 && 
-           rejectedConversations.length === 0 && 
-           rejectedInvitations.length === 0 &&
-           blockedUsers.length === 0 && 
-           !deletedError && 
-           !rejectedError &&
-           !rejectedInvitationsError;
+    return !deletedLoading &&
+           !rejectedLoading &&
+           deletedConversations.length === 0 &&
+           rejectedConversations.length === 0 &&
+           blockedUsers.length === 0 &&
+           !deletedError &&
+           !rejectedError;
   }, [
-    deletedLoading, 
-    rejectedLoading, 
-    rejectedInvitationsLoading,
-    deletedConversations.length, 
-    rejectedConversations.length, 
-    rejectedInvitations.length,
-    blockedUsers.length, 
-    deletedError, 
+    deletedLoading,
+    rejectedLoading,
+    deletedConversations.length,
+    rejectedConversations.length,
+    blockedUsers.length,
+    deletedError,
     rejectedError,
-    rejectedInvitationsError
   ]);
 
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-
-        {/* Show empty state if all sections are empty */}
         {isCompletelyEmpty ? (
           <View style={styles.emptyTrashcanContainer}>
             <View style={styles.emptyTrashcanIcon}>
@@ -109,24 +90,12 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
           </View>
         ) : (
           <>
-            {/* ✅ Blocked Users Section */}
             <BlockedUsersSection
               blockedUsers={blockedUsers}
               navigation={navigation}
               onError={showErrorToast}
             />
 
-            {/* ✅ Rejected Friend Invitations Section */}
-            <RejectedFriendInvitationsSection
-              rejectedInvitations={rejectedInvitations}
-              isLoading={rejectedInvitationsLoading}
-              error={rejectedInvitationsError}
-              navigation={navigation}
-              onError={showErrorToast}
-              onRefetch={refetchRejectedInvitations}
-            />
-
-            {/* ✅ Deleted Conversations Section */}
             <DeletedConversationsSection
               deletedConversations={deletedConversations}
               isLoading={deletedLoading}
@@ -137,12 +106,11 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
               onRefetch={refetchDeleted}
             />
             
-            {/* ✅ Rejected Conversations Section */}
             <RejectedConversationsSection
               rejectedConversations={rejectedConversations}
               isLoading={rejectedLoading}
               error={rejectedError}
-              deleteError={null} // You might need to get this from useDeleteGroupRequest
+              deleteError={null}
               currentUserId={currentUserId ?? undefined}
               navigation={navigation}
               onError={showErrorToast}

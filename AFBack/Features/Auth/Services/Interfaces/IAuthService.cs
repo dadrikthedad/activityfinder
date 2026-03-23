@@ -13,8 +13,9 @@ public interface IAuthService
     /// </summary>
     /// <param name="request">SignupRequest</param>
     /// <param name="ipAddress">IP-adressen hentet fra forespørsel</param>
+    /// <param name="ct"></param>
     /// <returns>SignupResponse</returns>
-    Task<Result<SignupResponse>> SignupAsync(SignupRequest request, string ipAddress);
+    Task<Result<SignupResponse>> SignupAsync(SignupRequest request, string ipAddress, CancellationToken ct = default);
     
     
     // ======================== Login ======================== 
@@ -26,8 +27,10 @@ public interface IAuthService
     /// <param name="request">LoginRequest</param>
     /// <param name="ipAddress">IP-addressen til brukeren</param>
     /// <param name="userAgent">UserAgent hvis det er en browser</param>
+    /// <param name="ct"></param>
     /// <returns>Returnerer AccessToken og RefreshToken ved suksess.</returns>
-    Task<Result<LoginResponse>> LoginAsync(LoginRequest request, string ipAddress, string? userAgent);
+    Task<Result<LoginResponse>> LoginAsync(LoginRequest request, string ipAddress, string? userAgent, 
+        CancellationToken ct = default);
     
     
     // ======================== Logout ======================== 

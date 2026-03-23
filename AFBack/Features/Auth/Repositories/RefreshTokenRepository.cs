@@ -8,52 +8,54 @@ public class RefreshTokenRepository(AppDbContext context) : IRefreshTokenReposit
 {
     // ======================== GET  ======================== 
     /// <inheritdoc/>
-    public async Task<RefreshToken?> GetByTokenAsync(string token) =>
-        await context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == token);
+    public async Task<RefreshToken?> GetByTokenAsync(string token,  CancellationToken ct = default) =>
+        await context.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == token, ct);
     
     /// <inheritdoc/>
-    public async Task<RefreshToken?> GetByTokenWithDeviceAsync(string token) =>
+    public async Task<RefreshToken?> GetByTokenWithDeviceAsync(string token,  CancellationToken ct = default) =>
         await context.RefreshTokens
             .Include(rt => rt.AppUser)
             .Include(rt => rt.UserDevice)
-            .FirstOrDefaultAsync(rt => rt.Token == token);
+            .FirstOrDefaultAsync(rt => rt.Token == token, ct);
 
     
     /// <inheritdoc/>
-    public async Task<List<RefreshToken>> GetActiveTokensByUserIdAsync(string userId) =>
+    public async Task<List<RefreshToken>> GetActiveTokensByUserIdAsync(string userId,
+        CancellationToken ct = default) =>
         await context.RefreshTokens
             .Where(rt => rt.UserId == userId)
             .Where(rt => !rt.IsRevoked) // Filrterer bort revoked
             .Where(rt => rt.ExpiresAt > DateTime.UtcNow) // Filtrerer bort de utgåtte
-            .ToListAsync();
+            .ToListAsync(ct);
     
     
     /// <inheritdoc/>
-    public async Task<List<RefreshToken>> GetActiveTokensByDeviceIdAsync(int deviceId) =>
+    public async Task<List<RefreshToken>> GetActiveTokensByDeviceIdAsync(int deviceId,  
+        CancellationToken ct = default) =>
         await context.RefreshTokens
             .Where(rt => rt.UserDeviceId == deviceId)
             .Where(rt => !rt.IsRevoked) // Filrterer bort revoked
             .Where(rt => rt.ExpiresAt > DateTime.UtcNow) // Filtrerer bort de utgåtte
-            .ToListAsync();
+            .ToListAsync(ct);
     
     // ======================== CREATE ======================== 
     
     /// <inheritdoc/>
-    public async Task AddAsync(RefreshToken refreshToken) =>
-        await context.RefreshTokens.AddAsync(refreshToken);
+    public async Task AddAsync(RefreshToken refreshToken,  CancellationToken ct = default) =>
+        await context.RefreshTokens.AddAsync(refreshToken, ct);
     
     // ======================== DELETE ======================== 
     
     public async Task<int> DeleteExpiredAndOldRevokedAsync(
-        DateTime expiredBefore, DateTime revokedBefore, CancellationToken cancellationToken) => 
+        DateTime expiredBefore, DateTime revokedBefore, CancellationToken ct) => 
         await context.RefreshTokens
             .Where(t =>
                 t.ExpiresAt < expiredBefore ||
                 (t.IsRevoked && t.RevokedAt < revokedBefore))
-            .ExecuteDeleteAsync(cancellationToken);
+            .ExecuteDeleteAsync(ct);
     
     
     // ======================== SAVE ======================== 
 
-    public async Task SaveChangesAsync() => await context.SaveChangesAsync();
+    public async Task SaveChangesAsync( CancellationToken ct = default) => await context.SaveChangesAsync(ct);
 }

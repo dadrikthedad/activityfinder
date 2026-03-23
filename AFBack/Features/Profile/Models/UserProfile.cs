@@ -1,7 +1,6 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using AFBack.Features.Auth.Models;
-using AFBack.Features.Profile.Enums;
 
 namespace AFBack.Features.Profile.Models;
 
@@ -12,45 +11,26 @@ public class UserProfile
     [MaxLength(100)]
     public string UserId { get; set; } = null!;
     
-    
     // ======================== Lokasjon ========================
-    
     [Required]
     [MaxLength(2)]
     public string CountryCode { get; set; } = null!;
     
-    [Required]
-    [MaxLength(100)]
-    public string Region { get; set; } = string.Empty;
-    
-    [MaxLength(100)]
-    public string? City { get; set; }
-    
-    [MaxLength(25)]
-    public string? PostalCode { get; set; }
-    
-    // ======================== Demografi ========================
-    
-    public DateTime DateOfBirth { get; set; }
-    
-    [EnumDataType(typeof(Gender))]
-    public Gender Gender { get; set; }
+    public DateOnly DateOfBirth { get; set; }
     
     [NotMapped]
     public int? Age
     {
         get
         {
-            var today = DateTime.Today;
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var age = today.Year - DateOfBirth.Year;
             // Justerer ned om brukeren ikke har hatt bursdag enda i år
-            if (DateOfBirth.Date > today.AddYears(-age))
+            if (DateOfBirth > today.AddYears(-age))
                 age--;
-
             return age;
         }
     }
-    
     
     // ======================== Innhold til profil ========================
     
@@ -78,9 +58,7 @@ public class UserProfile
     
     public DateTime? UpdatedAt { get; set; }
     
-    
     // ======================== Navigasjonsegenskaper ========================
     
-    public AppUser? AppUser { get; set; } = null!;
-    
+    public AppUser? AppUser { get; set; }
 }

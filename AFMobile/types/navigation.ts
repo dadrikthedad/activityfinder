@@ -5,24 +5,24 @@ import { RNFile } from '@/utils/files/FileFunctions';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 
-// Define all your app screens and their parameters here
 export type RootStackParamList = {
-  Login: { fromSignup?: boolean } | undefined;
+  Login: { fromVerification?: boolean } | undefined;
   Signup: undefined;
-  VerificationScreen: { email: string, fromRegistration?: boolean;  };
+  VerificationScreen: { email: string; fromRegistration?: boolean };
+  PhoneSmsVerificationScreen: { email: string };
   ResetPasswordScreen: undefined;
   Home: undefined;
   Profile: { id: string };
   EditProfile: undefined;
   Settings: undefined;
   MessagesScreen: undefined;
-  ConversationScreen: { 
+  ConversationScreen: {
     conversationId: number;
-    fromNewMessage?: boolean; // 👈 LEGG TIL DENNE
-  };// Added with optional conversationId param
+    fromNewMessage?: boolean;
+  };
   MediaViewer: {
     files: RNFile[];
-    attachments?: AttachmentDto[]; 
+    attachments?: AttachmentDto[];
     initialIndex: number;
     viewerOptions?: {
       showDownload?: boolean;
@@ -32,7 +32,6 @@ export type RootStackParamList = {
       decryptingFileName?: string;
     };
   };
-  Notifications: undefined;
   GroupSettingsScreen: {
     user: UserSummaryDTO;
     conversationId: number;
@@ -45,139 +44,50 @@ export type RootStackParamList = {
   EditProfileScreen: undefined;
   ProfileSettingsScreen: undefined;
   PendingConversationsScreen: undefined;
-  FriendScreen: undefined;
-  NotificationScreen: undefined;
-  ReportScreen: { 
-    type?: 'bug' | 'user'; 
-    userId?: string; 
-    userName?: string; 
+  ReportScreen: {
+    type?: 'bug' | 'user';
+    userId?: string;
+    userName?: string;
   } | undefined;
   SecurityCredsScreen: undefined;
-  TestNavigator: undefined; 
+  TestNavigator: undefined;
   CryptationScreen: undefined;
 };
 
+//////////////////////////// AUTH ////////////////////////////
 
-//////////////////////////// -        AUTH          -////////////////////////////////////
-export type LoginScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'Login'
->;
+export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
+export type SignupScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Signup'>;
+export type VerificationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VerificationScreen'>;
+export type PhoneSmsVerificationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PhoneSmsVerificationScreen'>;
+export type ResetPasswordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ResetPasswordScreen'>;
 
-export type SignupScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'Signup'
->;
+//////////////////////////// APP ////////////////////////////
 
-export type VerificationScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'VerificationScreen'
->;
+export type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
+export type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Profile'>;
+export type EditProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'EditProfileScreen'>;
+export type ProfileSettingsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ProfileSettingsScreen'>;
+export type SecurityCredsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SecurityCredsScreen'>;
+export type MessageScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MessagesScreen'>;
+export type ConversationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ConversationScreen'>;
+export type PendingConversationsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PendingConversationsScreen'>;
+export type MediaViewerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaViewer'>;
+export type GroupSettingsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'GroupSettingsScreen'>;
+export type NewConversationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'NewConversationScreen'>;
+export type MessageNotificationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MessageNotificationScreen'>;
+export type TrashcanScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TrashcanScreen'>;
+export type ReportScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ReportScreen'>;
+export type TestNavigatorNavigationProp = StackNavigationProp<RootStackParamList, 'TestNavigator'>;
+export type CryptationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CryptationScreen'>;
 
-export type ResetPasswordScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'ResetPasswordScreen'
->;
+//////////////////////////// ROUTE PROPS ////////////////////////////
 
-/////////////////////////////////////////////////////////////////////
-
-export type HomeScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'Home'
->;
-
-export type ProfileScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'Profile'
->;
-
-export type EditProfileScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'EditProfileScreen'
->;
-
-export type ProfileSettingsScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'ProfileSettingsScreen'
->;
-
-export type SecurityCredsScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'SecurityCredsScreen'
->;
-
-export type NotificationScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'NotificationScreen'
->;
-
-export type MessageScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'MessagesScreen'
->;
-
-export type ConversationScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'ConversationScreen'
->;
-
-export type PendingConversationsScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'PendingConversationsScreen'
->;
-
-export type MediaViewerScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'MediaViewer'
->;
-
-export type GroupSettingsScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'GroupSettingsScreen'
->;
-
-export type NewConversationScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'NewConversationScreen'
->;
-
-export type MessageNotificationScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'MessageNotificationScreen'
->;
-
-export type TrashcanScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'TrashcanScreen'
->;
-
-export type FriendScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'FriendScreen'
->;
-
-export type ReportScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'ReportScreen'
->;
-
-export type TestNavigatorNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'TestNavigator'
->;
-
-export type CryptationScreenNavigationProp = StackNavigationProp<
-  RootStackParamList,
-  'CryptationScreen'
->;
-
-
-// Route prop types for each screen (if you need route params)
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
 export type VerificationScreenRouteProp = RouteProp<RootStackParamList, 'VerificationScreen'>;
+export type PhoneSmsVerificationScreenRouteProp = RouteProp<RootStackParamList, 'PhoneSmsVerificationScreen'>;
 export type ResetPasswordScreenRouteProp = RouteProp<RootStackParamList, 'ResetPasswordScreen'>;
-
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;
@@ -191,11 +101,8 @@ export type GroupSettingsScreenRouteProp = RouteProp<RootStackParamList, 'GroupS
 export type NewConversationScreenRouteProp = RouteProp<RootStackParamList, 'NewConversationScreen'>;
 export type MessageNotificationScreenRouteProp = RouteProp<RootStackParamList, 'MessageNotificationScreen'>;
 export type TrashcanScreenRouteProp = RouteProp<RootStackParamList, 'TrashcanScreen'>;
-export type FriendScreenRouteProp = RouteProp<RootStackParamList, 'FriendScreen'>;
-export type NotificationScreenRouteProp = RouteProp<RootStackParamList, 'NotificationScreen'>;
 export type ReportScreenRouteProp = RouteProp<RootStackParamList, 'ReportScreen'>;
 export type TestNavigatorRouteProp = RouteProp<RootStackParamList, 'TestNavigator'>;
-export type CryptationScreen = RouteProp<RootStackParamList, 'CryptationScreen'>;
+export type CryptationScreenRouteProp = RouteProp<RootStackParamList, 'CryptationScreen'>;
 
-// Generic navigation prop (useful for components that can navigate to multiple screens)
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

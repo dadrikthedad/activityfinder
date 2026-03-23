@@ -9,6 +9,8 @@ dotnet run                              # Dev
 dotnet watch run                        # Hot reload
 dotnet ef migrations add Name           # Migration
 dotnet ef database update               # Kjør migration
+dotnet test                             # Alle tester
+dotnet test --filter "FullyQualifiedName~Auth"  # Auth-tester
 ```
 
 ## Arkitektur: Vertical Slice
@@ -16,13 +18,69 @@ dotnet ef database update               # Kjør migration
 ```
 Features/[Feature]/
   ├── [Feature]Controller.cs   # API endpoints
-  ├── [Feature]Service.cs      # Forretningslogikk  
+  ├── [Feature]Service.cs      # Forretningslogikk
   ├── [Feature]Repository.cs   # Datahåndtering
   └── DTOs/                    # Request/Response
 ```
 
-**Status:** Oppretter alle endepunktene nødvendig til Conversations og deretter lage en GroupConversation-controller og 
-service
+## Auth-system
+
+### Token-modell
+
+| Token | Levetid | Lagring | Formål |
+|-------|---------|---------|--------|
+| Access Token (JWT HS256) | 15 min | Kun klient | Autentisering av API-kall |
+| Refresh Token (opak, 64 bytes) | 365 dager | PostgreSQL + klient | Fornye access token |
+
+### Login-flyt
+
+```
+POST /api/auth/login
+1. Rate limit-sjekk
+2. Finn bruker (DummyUser for timing-beskyttelse)
+3. Lockout-sjekk (5 feil → 5 min lockout)
+4. Argon2id passord-validering
+5. Epost/telefon-verifisering-sjekk
+6. Resolve/opprett UserDevice
+7. Generer AccessToken + RefreshToken
+8. Logg LoginHistory
+```
+
+### Token Refresh (rotation)
+
+```
+POST /api/token/refresh
+1. Finn refresh token i DB
+2. Revokert? → Revoker ALLE tokens (token-tyveri), returner feil
+3. Utløpt? → Returner feil
+4. DeviceFingerprint mismatch? → Returner feil
+5. Revoker gammelt token, generer nytt par
+```
+
+### Sikkerhetsmekanismer
+
+- **Argon2id** (128 MB, 4 iterasjoner, 4 parallelle) med `FixedTimeEquals`
+- **Redis blacklisting** av access token JTI ved logout (TTL = gjenværende levetid + 30 sek)
+- **Token reuse detection** — revokert refresh token trigger full session-invalidering
+- **Device binding** — refresh token er bundet til DeviceFingerprint
+- **DummyUser** ved ukjent epost for lik responstid (timing-beskyttelse)
+- **Lockout** — 5 feil → 5 min lockout → SuspiciousActivity-rapportering
+
+### JWT Claims
+
+`sub` (UserId), `email`, `jti` (for blacklisting), `device_id`, `role`, `exp`
+
+Claim-mapping er slått av (`DefaultInboundClaimTypeMap.Clear()`).
+`ConfigureJwtBearerOptions` setter `RoleClaimType = "role"` og `NameClaimType = Sub`.
+
+### Endepunkter
+
+| Metode | Rute | Auth |
+|--------|------|------|
+| POST | `/api/auth/login` | Anonym |
+| POST | `/api/token/refresh` | Anonym |
+| POST | `/api/auth/logout` | Autentisert |
+| POST | `/api/auth/logout-all` | Autentisert |
 
 ## Forretningslogikk
 
@@ -35,79 +93,73 @@ service
 
 **Cold path (ny samtale):**
 1. Sjekk blokkering
-2. Sjekk vennskap → DirectChat (venner) eller PendingRequest (ikke venner)
+2. Opprett alltid som PendingRequest — mottaker velger om de vil svare
 3. Transaksjon: Opprett conversation + participants + message
-4. Etter tx: SignalR + SyncEvents + Notifications
+4. Etter tx: SignalR + SyncEvents + MessageNotification
 
 ### Samtale-regler
 
-- **DirectChat:** Krever vennskap, begge Accepted, ubegrensede meldinger
-- **PendingRequest:** Maks 5 meldinger før accept kreves
-- **Auto-accept:** Hvis pending mottaker sender → aksepterer automatisk
-
-### Hvorfor auto-accept?
-
-Hvis du svarer på en request signaliserer det implisitt aksept. Bedre UX enn eksplisitt accept først.
-
-**Edge case:** Begge sender samtidig mens pending → begge auto-accepts (harmløs)
+- **PendingRequest:** Alle nye direktesamtaler starter her. Maks 5 meldinger før accept.
+- **DirectChat:** Etter at mottaker aksepterer. Ubegrensede meldinger.
+- **Auto-accept:** Hvis pending mottaker sender tilbake → aksepterer automatisk.
 
 ## Kritiske patterns
 
 ### Result Pattern
 
 ```csharp
-// Service
 if (conversation == null)
     return Result.Failure("Not found", ErrorTypeEnum.NotFound); // → 404
 
-// Controller
 if (result.IsFailure)
     return HandleFailure(result); // Mapper ErrorType → HTTP status
 ```
 
-Bruk Result/Result<T> for forretningsfeil, exceptions for tekniske feil. Result/Result<T> er definert i Common/Results.
+Bruk `Result/Result<T>` for forretningsfeil, exceptions for tekniske feil.
 
 ### Transaksjonsmønster
 
 ```csharp
-await tx.CommitAsync();              // 1. Lagre
-await hub.SendAsync(...);            // 2. Best-effort
-await sync.CreateEvent(...);         // 3. Pålitelig
+await tx.CommitAsync();    // 1. Lagre
+await hub.SendAsync(...);  // 2. Best-effort
+await sync.CreateEvent();  // 3. Pålitelig
 ```
 
-**Hvorfor:** SignalR-feil skal ikke rulle tilbake database. Data-konsistens > sanntid.
+SignalR-feil skal ikke rulle tilbake database.
 
 ### Cache-strategi
 
-#### CanSend Cache
-`user:{userId}:cansend` → Redis Set med conversationIds
+**CanSend Cache** — `user:{userId}:cansend` → Redis Set med conversationIds
+- Invalider ved: Accept, Block, Archive, Leave
+- Mønster: Cache → DB fallback → populer cache
 
-**Invalider ved:** Accept, Block, Archive, Leave
+**UserSummary Cache** — `user:summary:{userId}` → UserSummaryDto
+- Permanent TTL (`DateTimeOffset.MaxValue`)
+- Invalider ved: profilbilde/navneendring, brukersletting
 
-**Mønster:** Sjekk cache → fallback DB → populer cache
-
-#### UserSummary Cache
-`user:summary:{userId}` → UserSummaryDto (userId, profileImageUrl, fullName)
-
-**Livstid:** Permanent (`AbsoluteExpiration = DateTimeOffset.MaxValue`)
-
-**Invalider ved:** Profilbildeendring, navneendring, brukersletting
-
-**Refresh:** Ved profiloppdateringer for å sikre konsistens
-
-**Bulk-henting:**
-- Parallell cache-lookup for alle userIds
-- Hent kun manglende fra DB
-- Populer cache for nye entries
-
-**Mønster:**
 ```csharp
-// Single user
-var summary = await GetUserSummaryAsync(userId);
-
-// Bulk (unngår N+1)
-var summaries = await GetUserSummariesAsync(listOfUserIds);
+var summary = await GetUserSummaryAsync(userId);           // Single
+var summaries = await GetUserSummariesAsync(listOfIds);    // Bulk (unngår N+1)
 ```
+
+## Testing
+
+**Framework:** xUnit + Moq + FluentAssertions
+
+```csharp
+// Arrange
+var mockService = new Mock<IService>();
+mockService.Setup(s => s.MethodAsync(...)).ReturnsAsync(result);
+
+// Act + Assert
+var result = await sut.MethodAsync();
+result.Should().Be(expected);
+mockService.Verify(s => s.MethodAsync(...), Times.Once);
+```
+
+**In-memory DB:** `UseInMemoryDatabase(Guid.NewGuid().ToString())` for isolasjon.
+
+Se @.claude/rules/testing.md for detaljerte test-scenarios.
 
 ## Krypteringsregler
 
@@ -117,77 +169,31 @@ Backend dekrypterer aldri
 Frontend håndterer all kryptering
 ```
 
-**KeyInfo:** JSON med encrypted symmetric keys per bruker.
-
-## Testing
-
-**Framework:** xUnit + Moq + FluentAssertions
-
-**Mønster:**
-```csharp
-// Arrange
-var mockService = new Mock<IService>();
-mockService.Setup(s => s.MethodAsync(...)).ReturnsAsync(result);
-
-// Act
-var result = await sut.MethodAsync();
-
-// Assert
-result.Should().Be(expected);
-mockService.Verify(s => s.MethodAsync(...), Times.Once);
-```
-
-**In-memory DB:** Bruk `UseInMemoryDatabase(Guid.NewGuid().ToString())` for isolasjon
-
-Se @.claude/rules/testing.md for detaljerte test-scenarios (når opprettet)
-
 ## Gotchas
 
 - **N+1 queries:** Bruk UserSummaries cache når du mapper meldinger
 - **Pending-grense:** 5 meldinger maks før accept kreves
 - **GroupConversationLeftRecord:** Må slettes for å bli med i gruppe igjen
 - **SignalR i tx:** Aldri. Commit først, deretter SignalR.
+- **Auth DummyUser:** Initialiseres ved oppstart — alltid med gjeldende Argon2id-parametere
 
 ## Refaktoreringskonvensjon
 
-**Ferdig refaktorerte metoder** markeres med:
 ```csharp
 // Sjekk interface for summary
 public async Task<Result<ConversationResponse>> GetConversationAsync(...)
 ```
 
-- Kommentaren `// Sjekk interface for summary` over metoden i servicen indikerer at metoden er ferdig refaktorert
+- `// Sjekk interface for summary` = metoden er ferdig refaktorert
 - XML summary kun i interface, ikke i implementasjonen
-- Metoder er "så og si ferdige" - mindre justeringer kan skje, men arkitektur og logikk er komplett
 
 ## DTO Navnekonvensjon
 
-**DTOer har suffixes som indikerer deres bruk:**
-
-- **`Request`** - Data fra frontend til backend (f.eks. `SendMessageToUserRequest`, `ConversationSearchRequest`)
-- **`Response`** - Data fra backend til frontend (f.eks. `ConversationResponse`, `MessageResponse`)
-- **`Dto`** - Intern bruk i backend, mapping mellom lag (f.eks. `ConversationDto`, `UserSummaryDto`)
-
-**Eksempel:**
-```csharp
-// Frontend sender:
-public class SendMessageToUserRequest { ... }
-
-// Backend bruker internt:
-public class ConversationDto { ... }
-
-// Backend returnerer:
-public class SendMessageToUserResponse { ... }
-```
+- **`Request`** — Data fra frontend til backend
+- **`Response`** — Data fra backend til frontend
+- **`Dto`** — Intern bruk i backend, mapping mellom lag
 
 ## Regler for Claude
 
-- **ALDRI opprett nye modeller eller legg til egenskaper på eksisterende modeller uten eksplisitt bekreftelse fra Magee**
-- Hvis du ser behov for modellendringer, spør først og beskriv hvorfor
+- **ALDRI opprett nye modeller eller legg til egenskaper uten eksplisitt bekreftelse fra Magee**
 - Foreslå alltid løsninger med eksisterende modeller først
-
-## Neste
-
-- Refaktorer User + Friendship til Vertical Slice
-- Oppdater tester
-- Legg til .claude/rules/testing.md med test-scenarios

@@ -31,7 +31,8 @@ public class PasswordService(
     // ======================== Bytt passord (innlogget) ======================== 
 
     /// <inheritdoc/>
-    public async Task<Result> ChangePasswordAsync(string userId, string currentPassword, string newPassword)
+    public async Task<Result> ChangePasswordAsync(string userId, string currentPassword, string newPassword,
+        CancellationToken ct = default)
     {
         logger.LogInformation("ChangePasswordAsync. UserId: {UserId}", userId);
     
@@ -40,7 +41,7 @@ public class PasswordService(
         if (user == null)
         {
             logger.LogWarning("Change password requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
     
         // Valider gammelt passord
@@ -68,7 +69,7 @@ public class PasswordService(
     // ======================== Steg 1: Forgot Password ======================== 
     
     /// <inheritdoc/>
-    public async Task<Result> ForgotPasswordAsync(string email, string ipAddress)
+    public async Task<Result> ForgotPasswordAsync(string email, string ipAddress, CancellationToken ct = default)
     {
         logger.LogInformation("ForgotPasswordAsync. Payload: {@Payload}", new { email });
     
@@ -76,7 +77,7 @@ public class PasswordService(
         var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.PasswordReset, 
             email, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
     
         // ====== Finn bruker ======
         var user = await userManager.FindByEmailAsync(email);
@@ -93,7 +94,7 @@ public class PasswordService(
         {
             logger.LogInformation("Password reset redirected to verification for unverified email: {Email}", 
                 email);
-            await accountVerificationService.ResendVerificationEmailAsync(email, ipAddress);
+            await accountVerificationService.ResendVerificationEmailAsync(email, ipAddress, ct);
     
             return Result.Failure(
                 "Your email is not yet verified. " +
@@ -105,7 +106,7 @@ public class PasswordService(
         {
             logger.LogInformation("Password reset redirected to verification for unverified phonenumber: {Email}", 
                 email);
-            await accountVerificationService.ResendPhoneVerificationAsync(user.PhoneNumber!, ipAddress);
+            await accountVerificationService.ResendPhoneVerificationAsync(email, ipAddress, ct);
     
             return Result.Failure(
                 "Your phonenumber is not yet verified. " +
@@ -113,7 +114,7 @@ public class PasswordService(
         }
         
         // ====== Generer kode og send epost ======
-        var emailCode = await verificationInfoService.GenerateEmailPasswordResetAsync(user.Id);
+        var emailCode = await verificationInfoService.GenerateEmailPasswordResetAsync(user.Id, ct);
     
         var emailData = new EmailCodeDto(
             Email: email,
@@ -122,7 +123,7 @@ public class PasswordService(
     
         var body = EmailTemplates.PasswordReset(emailData);
     
-        var result = await emailService.SendAsync(email, body);
+        var result = await emailService.SendAsync(email, body, ct);
         if (result.IsSuccess)
             emailRateLimitService.RegisterEmailSent(EmailType.PasswordReset, email, ipAddress);
     
@@ -132,7 +133,8 @@ public class PasswordService(
     // ======================== Steg 2: Verifiser epost-kode ========================
     
     /// <inheritdoc/>
-    public async Task<Result> VerifyPasswordResetEmailCodeAsync(string email, string code, string ipAddress)
+    public async Task<Result> VerifyPasswordResetEmailCodeAsync(string email, string code, string ipAddress,
+        CancellationToken ct = default)
     {
         logger.LogInformation("VerifyPasswordResetEmailCodeAsync. Payload: {@Payload}", new { email });
         
@@ -144,10 +146,10 @@ public class PasswordService(
             return Result.Failure("Invalid reset attempt");
         }
         
-        var validateResult = await verificationInfoService.ValidateEmailPasswordResetCodeAsync(user.Id, code);
+        var validateResult = await verificationInfoService.ValidateEmailPasswordResetCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.ErrorType == ErrorTypeEnum.TooManyRequests)
+            if (validateResult.AppErrorType == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt,
                     $"Password reset email code locked out for {email}");
@@ -163,7 +165,7 @@ public class PasswordService(
     // ======================== Steg 3: Send SMS ========================
     
     /// <inheritdoc/>
-    public async Task<Result> SendPasswordResetSmsAsync(string email, string ipAddress)
+    public async Task<Result> SendPasswordResetSmsAsync(string email, string ipAddress, CancellationToken ct = default)
     {
         logger.LogInformation("SendPasswordResetSmsAsync. Payload: {@Payload}", new { email });
         
@@ -180,13 +182,13 @@ public class PasswordService(
         var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
             SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
         
         // Generer SMS-kode (guard i VerificationService sjekker PasswordResetEmailVerified)
-        var smsCode = await verificationInfoService.GenerateSmsPasswordResetCodeAsync(user.Id);
+        var smsCode = await verificationInfoService.GenerateSmsPasswordResetCodeAsync(user.Id, ct);
         
         var message = $"Your Koptr password reset code is: {smsCode}";
-        var result = await smsService.SendAsync(user.PhoneNumber!, message);
+        var result = await smsService.SendAsync(user.PhoneNumber!, message, ct);
         
         if (result.IsSuccess)
             smsRateLimitService.RegisterSmsSent(SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
@@ -197,7 +199,8 @@ public class PasswordService(
     // ======================== Steg 4: Reset passord ========================
     
     /// <inheritdoc/>
-    public async Task<Result> ResetPasswordAsync(string email, string code, string newPassword, string ipAddress)
+    public async Task<Result> ResetPasswordAsync(string email, string code, string newPassword, string ipAddress,
+        CancellationToken ct = default)
     {
         logger.LogInformation("ResetPasswordAsync. Payload: {@Payload}", new { email });
     
@@ -211,10 +214,10 @@ public class PasswordService(
         }
     
         // ====== Valider koden ======
-        var validateResult = await verificationInfoService.ValidateSmsPasswordResetCodeAsync(user.Id, code);
+        var validateResult = await verificationInfoService.ValidateSmsPasswordResetCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.ErrorType == ErrorTypeEnum.TooManyRequests)
+            if (validateResult.AppErrorType == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt, 
                     $"Password reset SMS code locked out for {email}");
@@ -225,7 +228,7 @@ public class PasswordService(
         var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
             SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
         
         // ====== Reset passord via Identity ======
         // Fjern først

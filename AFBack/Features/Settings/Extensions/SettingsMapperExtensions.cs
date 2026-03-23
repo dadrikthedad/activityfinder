@@ -16,7 +16,6 @@ public static class SettingsMapperExtension
         ShowPhone = settings.ShowPhone,
         ShowRegion = settings.ShowRegion,
         ShowBio = settings.ShowBio,
-        ShowFriendsList = settings.ShowFriendsList,
         ShowStats = settings.ShowStats,
         ShowWebsites = settings.ShowWebsites,
         ShowPostalCode = settings.ShowPostalCode,

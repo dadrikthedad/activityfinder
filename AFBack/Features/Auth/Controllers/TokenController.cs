@@ -1,7 +1,6 @@
 using AFBack.Common.Controllers;
 using AFBack.Features.Auth.DTOs.Request;
 using AFBack.Features.Auth.DTOs.Response;
-using AFBack.Features.Auth.Services;
 using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Constants;
 using Microsoft.AspNetCore.Authorization;
@@ -15,16 +14,17 @@ namespace AFBack.Features.Auth.Controllers;
 [EnableRateLimiting(RateLimitPolicies.Auth)]
 [Authorize]
 public class TokenController(ITokenService tokenService) : BaseController
-{   
-    
+{
     /// <summary>
     /// Roterer begge tokens for en bruker
     /// </summary>
     /// <param name="request">RefreshTokenRequest med token og devicefingerprint</param>
+    /// <param name="ct"></param>
     /// <returns>TokenResponse</returns>
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<ActionResult<TokenResponse>> RefreshTokens([FromBody] RefreshTokenRequest request)
+    public async Task<ActionResult<TokenResponse>> RefreshTokens([FromBody] RefreshTokenRequest request,
+        CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
@@ -34,7 +34,7 @@ public class TokenController(ITokenService tokenService) : BaseController
         var userAgent = Request.Headers.UserAgent.ToString();
         
         var result = await tokenService.RefreshAsync(request.RefreshToken, request.DeviceFingerprint,
-            ipAddress, userAgent);
+            ipAddress, userAgent, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);

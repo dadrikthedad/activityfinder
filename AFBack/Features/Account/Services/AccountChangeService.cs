@@ -39,7 +39,7 @@ public class AccountChangeService(
 
     /// <inheritdoc/>
     public async Task<Result> RequestEmailChangeAsync(string userId, string currentPassword, 
-        string newEmail, string ipAddress)
+        string newEmail, string ipAddress, CancellationToken ct = default)
     {
         logger.LogInformation("RequestEmailChangeAsync. UserId: {UserId}", userId);
         
@@ -47,14 +47,14 @@ public class AccountChangeService(
         var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.EmailChange, 
             newEmail, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         // ====== Finn bruker ======
         var user = await userManager.FindByIdAsync(userId);
         if (user == null)
         {
             logger.LogWarning("Change email requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Valider passord ======
@@ -62,7 +62,7 @@ public class AccountChangeService(
         if (!isPasswordValid)
         {
             logger.LogWarning("Email change failed — wrong password for UserId: {UserId}", userId);
-            return Result.Failure("Current password is incorrect");
+            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidCredentials);
         }
         
         // ====== Sjekk at ny epost ikke er i bruk ======
@@ -70,18 +70,18 @@ public class AccountChangeService(
         if (existingUser != null)
         {
             logger.LogWarning("Email change failed — email already in use: {NewEmail}", newEmail);
-            return Result.Failure("This email is already in use", ErrorTypeEnum.Conflict);
+            return Result.Failure("This email is already in use", AppErrorCode.Conflict);
         }
         
         // ====== Sjekk at ny epost ikke er lik nåværende ======
         if (string.Equals(user.Email, newEmail, StringComparison.OrdinalIgnoreCase))
-            return Result.Failure("New email must be different from current email");
+            return Result.Failure("New email must be different from current email", AppErrorCode.Conflict);
         
         // ====== Generer kode og send til NÅVÆRENDE epost ======
-        var code = await verificationInfoService.GenerateOldEmailChangeCodeAsync(user.Id, newEmail);
+        var code = await verificationInfoService.GenerateOldEmailChangeCodeAsync(user.Id, newEmail, ct);
         
         // Generer security alert token for "This wasn't me"-knappen
-        var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id);
+        var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id, ct);
         var alertUrl = $"{configuration["App:BaseUrl"]}/security-alert?token={alertToken}";
         
         var emailDto = new EmailChangeVerificationDto(
@@ -93,7 +93,7 @@ public class AccountChangeService(
         
         var body = EmailTemplates.EmailChangeVerification(emailDto);
         
-        var result = await emailService.SendAsync(user.Email!, body);
+        var result = await emailService.SendAsync(user.Email!, body, ct);
         if (result.IsSuccess)
             emailRateLimitService.RegisterEmailSent(EmailType.EmailChange, user.Email!, ipAddress);
         
@@ -106,7 +106,8 @@ public class AccountChangeService(
     // ======================== Bytte e-post — Steg 2 ======================== 
     
     /// <inheritdoc/>
-    public async Task<Result> VerifyCurrentEmailForChangeAsync(string userId, string code, string ipAddress)
+    public async Task<Result> VerifyCurrentEmailForChangeAsync(string userId, string code, string ipAddress,
+        CancellationToken ct = default)
     {
         logger.LogInformation("VerifyCurrentEmailForChangeAsync. UserId: {UserId}", userId);
         
@@ -115,19 +116,19 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("Verify current email for change requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Valider kode — returnerer ny epost ved suksess ======
-        var validateResult = await verificationInfoService.ValidateOldEmailChangeCodeAsync(user.Id, code);
+        var validateResult = await verificationInfoService.ValidateOldEmailChangeCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.ErrorType == ErrorTypeEnum.TooManyRequests)
+            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt,
                     $"Old email change code locked out for UserId: {userId}");
             
-            return Result.Failure(validateResult.Error, validateResult.ErrorType);
+            return Result.Failure(validateResult.Error, validateResult.ErrorCode);
         }
         
         var newEmail = validateResult.Value!;
@@ -136,10 +137,10 @@ public class AccountChangeService(
         var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.EmailChange, 
             newEmail, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         // ====== Send verifiseringskode til NY epost ======
-        var newCode = await verificationInfoService.GenerateNewEmailChangeCodeAsync(user.Id, newEmail);
+        var newCode = await verificationInfoService.GenerateNewEmailChangeCodeAsync(user.Id, newEmail, ct);
         
         var emailDto = new EmailCodeDto(
             Email: newEmail,
@@ -148,7 +149,7 @@ public class AccountChangeService(
         
         var body = EmailTemplates.EmailChange(emailDto);
         
-        var result = await emailService.SendAsync(newEmail, body);
+        var result = await emailService.SendAsync(newEmail, body, ct);
         if (result.IsSuccess)
             emailRateLimitService.RegisterEmailSent(EmailType.EmailChange, newEmail, ipAddress);
         
@@ -160,7 +161,8 @@ public class AccountChangeService(
     // ======================== Bytte e-post — Steg 3 ======================== 
 
     /// <inheritdoc/>
-    public async Task<Result> VerifyEmailChangeAsync(string userId, string code, string ipAddress)
+    public async Task<Result> VerifyEmailChangeAsync(string userId, string code, string ipAddress,
+        CancellationToken ct = default)
     {
         logger.LogInformation("VerifyEmailChangeAsync. UserId: {UserId}", userId);
         
@@ -169,19 +171,19 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("Verify change email requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Valider kode — returnerer den nye eposten ved suksess ======
-        var validateResult = await verificationInfoService.ValidateNewEmailChangeCodeAsync(user.Id, code);
+        var validateResult = await verificationInfoService.ValidateNewEmailChangeCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.ErrorType == ErrorTypeEnum.TooManyRequests)
+            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt,
                     $"New email change code locked out for UserId: {userId}");
             
-            return Result.Failure(validateResult.Error, validateResult.ErrorType);
+            return Result.Failure(validateResult.Error, validateResult.ErrorCode);
         }
         
         var newEmail = validateResult.Value!;
@@ -193,12 +195,12 @@ public class AccountChangeService(
             logger.LogWarning(
                 "Email change verification succeeded but email was taken in the meantime: {NewEmail}",
                 newEmail);
-            return Result.Failure("This email is no longer available", ErrorTypeEnum.Conflict);
+            return Result.Failure("This email is no longer available", AppErrorCode.Conflict);
         }
         
         // ====== Lagre gammel epost for evt. recovery ======
         var oldEmail = user.Email;
-        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(user.Id);
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(user.Id, ct);
         if (verificationInfo != null)
             verificationInfo.PreviousEmail = oldEmail;
         
@@ -213,7 +215,7 @@ public class AccountChangeService(
         {
             var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
             logger.LogError("Failed to update email for UserId: {UserId}. Errors: {Errors}", userId, errors);
-            return Result.Failure("Failed to update email");
+            return Result.Failure("Failed to update email", AppErrorCode.InternalError);
         }
         
         // Nullstill rate limit
@@ -228,7 +230,7 @@ public class AccountChangeService(
 
    /// <inheritdoc/>
     public async Task<Result> RequestPhoneChangeAsync(string userId, string currentPassword, 
-        string newPhoneNumber, string ipAddress)
+        string newPhoneNumber, string ipAddress, CancellationToken ct = default)
     {
         logger.LogInformation("RequestPhoneChangeAsync. UserId: {UserId}", userId);
         
@@ -237,15 +239,14 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("Change phone requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Rate limit (epost, ikke SMS — steg 1 sendes via epost) ======
         var rateLimitResult = await rateLimitGuardService.CheckEmailRateLimitAsync(EmailType.PhoneChange, 
             user.Email!, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
-        
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         
         // ====== Valider passord ======
@@ -253,26 +254,27 @@ public class AccountChangeService(
         if (!isPasswordValid)
         {
             logger.LogWarning("Phone change failed — wrong password for UserId: {UserId}", userId);
-            return Result.Failure("Current password is incorrect");
+            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidCredentials);
         }
         
         // ====== Sjekk at nytt nummer ikke er i bruk ======
-        var existingUser = await userRepository.FindByPhoneAsync(newPhoneNumber);
+        var existingUser = await userRepository.FindByPhoneAsync(newPhoneNumber, ct);
         if (existingUser != null)
         {
             logger.LogWarning("Phone change failed — phone already in use: {NewPhone}", newPhoneNumber);
-            return Result.Failure("This phone number is already in use", ErrorTypeEnum.Conflict);
+            return Result.Failure("This phone number is already in use", AppErrorCode.Conflict);
         }
         
         // ====== Sjekk at nytt nummer ikke er lik nåværende ======
         if (string.Equals(user.PhoneNumber, newPhoneNumber, StringComparison.OrdinalIgnoreCase))
-            return Result.Failure("New phone number must be different from current phone number");
+            return Result.Failure("New phone number must be different from current phone number", 
+                AppErrorCode.Conflict);
         
         // ====== Generer kode og send til NÅVÆRENDE epost ======
-        var code = await verificationInfoService.GeneratePhoneChangeEmailCodeAsync(user.Id, newPhoneNumber);
+        var code = await verificationInfoService.GeneratePhoneChangeEmailCodeAsync(user.Id, newPhoneNumber, ct);
         
         // Generer security alert token for "This wasn't me"-knappen
-        var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id);
+        var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id, ct);
         var alertUrl = $"{configuration["App:BaseUrl"]}/security-alert?token={alertToken}";
         
         var emailDto = new PhoneChangeVerificationDto(
@@ -284,7 +286,7 @@ public class AccountChangeService(
         
         var body = EmailTemplates.PhoneChangeVerification(emailDto);
         
-        var result = await emailService.SendAsync(user.Email!, body);
+        var result = await emailService.SendAsync(user.Email!, body, ct);
         if (result.IsSuccess)
             emailRateLimitService.RegisterEmailSent(EmailType.PhoneChange, user.Email!, ipAddress);
         
@@ -297,7 +299,8 @@ public class AccountChangeService(
     // ======================== Bytte telefonnummer — Steg 2 ======================== 
     
     /// <inheritdoc/>
-    public async Task<Result> VerifyCurrentEmailForPhoneChangeAsync(string userId, string code, string ipAddress)
+    public async Task<Result> VerifyCurrentEmailForPhoneChangeAsync(string userId, string code, string ipAddress,
+        CancellationToken ct = default)
     {
         logger.LogInformation("VerifyCurrentEmailForPhoneChangeAsync. UserId: {UserId}", userId);
         
@@ -307,19 +310,19 @@ public class AccountChangeService(
         {
             logger.LogWarning(
                 "Verify email for phone change requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Valider kode — returnerer nytt telefonnummer ved suksess ======
-        var validateResult = await verificationInfoService.ValidatePhoneChangeEmailCodeAsync(user.Id, code);
+        var validateResult = await verificationInfoService.ValidatePhoneChangeEmailCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.ErrorType == ErrorTypeEnum.TooManyRequests)
+            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt,
                     $"Phone change email code locked out for UserId: {userId}");
             
-            return Result.Failure(validateResult.Error, validateResult.ErrorType);
+            return Result.Failure(validateResult.Error, validateResult.ErrorCode);
         }
         
         var newPhoneNumber = validateResult.Value!;
@@ -328,13 +331,13 @@ public class AccountChangeService(
         var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(SmsType.PhoneChange, 
             newPhoneNumber, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorType);
+            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         // ====== Send SMS-kode til NYTT nummer ======
-        var smsCode = await verificationInfoService.GenerateNewPhoneChangeCodeAsync(user.Id, newPhoneNumber);
+        var smsCode = await verificationInfoService.GenerateNewPhoneChangeCodeAsync(user.Id, newPhoneNumber, ct);
         
         var message = $"Your Koptr verification code is: {smsCode}";
-        var result = await smsService.SendAsync(newPhoneNumber, message);
+        var result = await smsService.SendAsync(newPhoneNumber, message, ct);
         
         if (result.IsSuccess)
             smsRateLimitService.RegisterSmsSent(SmsType.PhoneChange, newPhoneNumber, ipAddress);
@@ -347,7 +350,8 @@ public class AccountChangeService(
     // ======================== Bytte telefonnummer — Steg 3 ======================== 
 
     /// <inheritdoc/>
-    public async Task<Result> VerifyPhoneChangeAsync(string userId, string code, string ipAddress)
+    public async Task<Result> VerifyPhoneChangeAsync(string userId, string code, string ipAddress,
+        CancellationToken ct = default)
     {
         logger.LogInformation("VerifyPhoneChangeAsync. UserId: {UserId}", userId);
         
@@ -356,36 +360,36 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("Verify change phone requested for non-existent UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // ====== Valider kode — returnerer det nye nummeret ved suksess ======
-        var validateResult = await verificationInfoService.ValidateNewPhoneChangeCodeAsync(user.Id, code);
+        var validateResult = await verificationInfoService.ValidateNewPhoneChangeCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
-            if (validateResult.ErrorType == ErrorTypeEnum.TooManyRequests)
+            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
                     SuspiciousActivityType.BruteForceAttempt,
                     $"New phone change code locked out for UserId: {userId}");
             
-            return Result.Failure(validateResult.Error, validateResult.ErrorType);
+            return Result.Failure(validateResult.Error, validateResult.ErrorCode);
         }
         
         var newPhone = validateResult.Value!;
         
         // ====== Dobbeltsjekk at nummeret fortsatt er ledig ======
-        var existingUser = await userRepository.FindByPhoneAsync(newPhone);
+        var existingUser = await userRepository.FindByPhoneAsync(newPhone, ct);
         if (existingUser != null)
         {
             logger.LogWarning(
                 "Phone change verification succeeded but phone was taken in the meantime: {NewPhone}",
                 newPhone);
-            return Result.Failure("This phone number is no longer available", ErrorTypeEnum.Conflict);
+            return Result.Failure("This phone number is no longer available", AppErrorCode.Conflict);
         }
         
         // ====== Lagre gammelt nummer for evt. recovery ======
         var oldPhone = user.PhoneNumber;
-        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(user.Id);
+        var verificationInfo = await verificationInfoRepository.GetByUserIdAsync(user.Id, ct);
         if (verificationInfo != null)
             verificationInfo.PreviousPhoneNumber = oldPhone;
         
@@ -398,7 +402,7 @@ public class AccountChangeService(
         {
             var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
             logger.LogError("Failed to update phone for UserId: {UserId}. Errors: {Errors}", userId, errors);
-            return Result.Failure("Failed to update phone number");
+            return Result.Failure("Failed to update phone number", AppErrorCode.InternalError);
         }
         
         // Nullstill rate limit
@@ -411,7 +415,8 @@ public class AccountChangeService(
     
     // ======================== Bytte navn ======================== 
     /// <inheritdoc/>
-    public async Task<Result> UpdateNameAsync(string userId, string firstName, string lastName)
+    public async Task<Result> UpdateNameAsync(string userId, string firstName, string lastName, 
+        CancellationToken ct = default)
     {
         logger.LogInformation("ChangeNameAsync. UserId: {UserId}", userId);
 
@@ -420,7 +425,7 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("User not found. UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
 
         // ====== Oppdater navn ======
@@ -433,11 +438,11 @@ public class AccountChangeService(
         {
             var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
             logger.LogError("Failed to update name for UserId: {UserId}. Errors: {Errors}", userId, errors);
-            return Result.Failure("Failed to update name");
+            return Result.Failure("Failed to update name", AppErrorCode.InternalError);
         }
 
-        // ====== Broadcaster til alle venner/samtalepartnere + egne enheter ======
-        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl);
+        // ====== Broadcaster til alle samtalepartnere + egne enheter ======
+        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl, ct);
 
         logger.LogInformation("Name changed to {FullName} for UserId: {UserId}", user.FullName, userId);
         return Result.Success();
@@ -445,7 +450,8 @@ public class AccountChangeService(
     
     // ======================== Bytte Profile Image ======================== 
     /// <inheritdoc/>
-    public async Task<Result<FileUrlResponse>> UpdateProfileImageAsync(string userId, IFormFile image)
+    public async Task<Result<FileUrlResponse>> UpdateProfileImageAsync(string userId, IFormFile image,
+        CancellationToken ct = default)
     {
         logger.LogInformation("UpdateProfileImage. UserId: {UserId}", userId);
 
@@ -454,15 +460,15 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("User not found. UserId: {UserId}", userId);
-            return Result<FileUrlResponse>.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result<FileUrlResponse>.Failure("User not found", AppErrorCode.NotFound);
         }
         
         var storageKey = StorageKeys.ProfileImage(userId);
         
         // Valider og last opp filen som en stream
-        var uploadImageResult = await fileOrchestrator.UploadPublicImageAsync(image, storageKey);
+        var uploadImageResult = await fileOrchestrator.UploadPublicImageAsync(image, storageKey, ct);
         if (uploadImageResult.IsFailure)
-            return Result<FileUrlResponse>.Failure(uploadImageResult.Error);
+            return Result<FileUrlResponse>.Failure(uploadImageResult.Error, uploadImageResult.ErrorCode);
         var imageUrl = uploadImageResult.Value;
         
         // ====== Oppdater profileimage ======
@@ -474,11 +480,11 @@ public class AccountChangeService(
         {
             var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
             logger.LogError("Failed to update profileImage for UserId: {UserId}. Errors: {Errors}", userId, errors);
-            return Result<FileUrlResponse>.Failure("Failed to update profile image");
+            return Result<FileUrlResponse>.Failure("Failed to update profile image", AppErrorCode.InternalError);
         }
 
-        // ====== Broadcaster til alle venner/samtalepartnere + egne enheter ======
-        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl);
+        // ====== Broadcaster til alle samtalepartnere + egne enheter ======
+        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl, ct);
 
         logger.LogInformation("ProfileImage changed for UserId: {UserId}", userId);
         return Result<FileUrlResponse>.Success(new FileUrlResponse { FileUrl = imageUrl!});
@@ -486,7 +492,7 @@ public class AccountChangeService(
     
     // ======================== Fjerne Profile Image ======================== 
     /// <inheritdoc/>
-    public async Task<Result> RemoveProfileImageAsync(string userId)
+    public async Task<Result> RemoveProfileImageAsync(string userId, CancellationToken ct = default)
     {
         logger.LogInformation("RemoveProfileImage. UserId: {UserId}", userId);
 
@@ -495,23 +501,23 @@ public class AccountChangeService(
         if (user == null)
         {
             logger.LogWarning("User not found. UserId: {UserId}", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
     
         if (string.IsNullOrWhiteSpace(user.ProfileImageUrl))
         {
             logger.LogWarning("User {UserId} tried to remove profile image but none exists", userId);
-            return Result.Failure("No profile image to remove", ErrorTypeEnum.BadRequest);
+            return Result.Failure("No profile image to remove", AppErrorCode.NotFound);
         }
     
         // ====== Storage: Slett bildet ======
         var storageKey = StorageKeys.ProfileImage(userId);
-        var deleteResult = await fileOrchestrator.DeletePublicImageAsync(storageKey);
+        var deleteResult = await fileOrchestrator.DeletePublicImageAsync(storageKey, ct);
         if (deleteResult.IsFailure)
         {
             logger.LogError("Failed to delete profile image from storage for UserId: {UserId}. Error: {Error}",
                 userId, deleteResult.Error);
-            return Result.Failure(deleteResult.Error, deleteResult.ErrorType);
+            return Result.Failure(deleteResult.Error, deleteResult.ErrorCode);
         }
     
         // ====== Oppdater database ======
@@ -522,11 +528,11 @@ public class AccountChangeService(
         {
             var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
             logger.LogError("Failed to remove profileImage for UserId: {UserId}. Errors: {Errors}", userId, errors);
-            return Result.Failure("Failed to remove profile image");
+            return Result.Failure("Failed to remove profile image", AppErrorCode.InternalError);
         }
 
-        // ====== Broadcaster til alle venner/samtalepartnere + egne enheter ======
-        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl);
+        // ====== Broadcaster til alle amtalepartnere + egne enheter ======
+        await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl, ct);
 
         logger.LogInformation("ProfileImage removed for UserId: {UserId}", userId);
         return Result.Success();

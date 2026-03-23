@@ -32,11 +32,10 @@ public interface ISearchRepository
 
     
     /// <summary>
-    /// Søker igjennom brukere for invitasjon til opprettelse av gruppesatmale eller eksisterende gruppe.
+    /// Søker igjennom brukere for invitasjon til opprettelse av gruppesamtale eller eksisterende gruppe.
     /// Vi filtrerer bort blokkerte brukere, og brukere som har blokkert brukeren som søker.
-    /// Vi filtrert bort allerede inviterte medlemmer, og brukere som har forlatt samtalen.
-    /// Vi gir venner poengsum for å dukke opp før ikke-venner ved opprettelse.
-    /// Bruker Cursor for å huske hvor vi var i søket. Cursor: "isFriend|fullName|userId"
+    /// Vi filtrerer bort allerede inviterte medlemmer, og brukere som har forlatt samtalen.
+    /// Bruker cursor for å huske hvor vi var i søket. Cursor: "fullName|userId"
     /// </summary>
     /// <param name="searchQuery">Søkestrengen</param>
     /// <param name="requestingUserId">Brukeren som søker</param>

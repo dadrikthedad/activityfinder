@@ -12,11 +12,12 @@ public class SignalRNotificationService(
     ILogger<SignalRNotificationService> logger) : ISignalRNotificationService
 {
     /// <inheritdoc />
-    public async Task SendToUserAsync(string userId, string eventName, object payload, string context)
+    public async Task SendToUserAsync(string userId, string eventName, object payload, string context,
+        CancellationToken ct = default)
     {
         try
         {
-            await hubContext.Clients.User(userId).SendAsync(eventName, payload);
+            await hubContext.Clients.User(userId).SendAsync(eventName, payload, ct);
         }
         catch (Exception ex)
         {
@@ -26,11 +27,12 @@ public class SignalRNotificationService(
     }
 
     /// <inheritdoc />
-    public async Task SendToUsersAsync(IEnumerable<string> userIds, string eventName, object payload, string context)
+    public async Task SendToUsersAsync(IEnumerable<string> userIds, string eventName, object payload, string context,
+        CancellationToken ct = default)
     {
         try
         {
-            await hubContext.Clients.Users(userIds).SendAsync(eventName, payload);
+            await hubContext.Clients.Users(userIds).SendAsync(eventName, payload, ct);
         }
         catch (Exception ex)
         {

@@ -5,9 +5,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
 } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 
 interface PasswordFieldNativeProps {
   id: string;
@@ -35,16 +35,13 @@ export default function PasswordFieldNative({
   style,
 }: PasswordFieldNativeProps) {
   const [showPassword, setShowPassword] = useState(false);
+  const { theme } = useUnistyles();
 
   const showError = touched && !!error;
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{label}</Text>
       <View style={styles.inputContainer}>
         <TextInput
           value={value}
@@ -55,28 +52,38 @@ export default function PasswordFieldNative({
           secureTextEntry={!showPassword}
           style={[
             styles.input,
-            showError && styles.inputError,
-            disabled && styles.inputDisabled,
+            {
+              borderColor: theme.colors.border,
+              backgroundColor: theme.colors.backgroundInput,
+              color: theme.colors.textPrimary,
+            },
+            showError && { borderColor: theme.colors.borderError, borderWidth: 2 },
+            disabled  && {
+              backgroundColor: theme.colors.disabled,
+              color: theme.colors.disabledText,
+            },
           ]}
           autoCapitalize="none"
           autoCorrect={false}
-          placeholderTextColor="#9ca3af"
-          selectionColor="#1C6B1C"
+          placeholderTextColor={theme.colors.textPlaceholder}
+          selectionColor={theme.colors.primary}
         />
         <TouchableOpacity
           style={styles.eyeButton}
-          onPress={togglePasswordVisibility}
+          onPress={() => setShowPassword(p => !p)}
           disabled={disabled}
           activeOpacity={0.7}
         >
           {showPassword ? (
-            <EyeOff size={20} color={disabled ? "#d1d5db" : "#6b7280"} />
+            <EyeOff size={20} color={disabled ? theme.colors.disabledText : theme.colors.textMuted} />
           ) : (
-            <Eye size={20} color={disabled ? "#d1d5db" : "#6b7280"} />
+            <Eye size={20} color={disabled ? theme.colors.disabledText : theme.colors.textMuted} />
           )}
         </TouchableOpacity>
       </View>
-      {showError && <Text style={styles.errorText}>{error}</Text>}
+      {showError && (
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>{error}</Text>
+      )}
     </View>
   );
 }
@@ -88,7 +95,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: "500",
-    color: "#374151",
     marginBottom: 6,
     textAlign: "center",
   },
@@ -101,22 +107,10 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderWidth: 1,
-    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingHorizontal: 16,
-    paddingRight: 48, // Make room for eye icon
+    paddingRight: 48,
     fontSize: 16,
-    backgroundColor: "#ffffff",
-    color: "#111827",
-  },
-  inputError: {
-    borderColor: "#dc2626",
-    borderWidth: 2,
-  },
-  inputDisabled: {
-    backgroundColor: "#f9fafb",
-    color: "#9ca3af",
-    borderColor: "#e5e7eb",
   },
   eyeButton: {
     position: "absolute",
@@ -127,7 +121,6 @@ const styles = StyleSheet.create({
     width: 24,
   },
   errorText: {
-    color: "#dc2626",
     fontSize: 14,
     marginTop: 4,
     marginLeft: 4,

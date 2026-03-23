@@ -20,7 +20,8 @@ public class SyncService(
     
     
     /// <inheritdoc />
-    public async Task CreateSyncEventsAsync(List<string> targetUserIds, SyncEventType eventType, object eventData)
+    public async Task CreateSyncEventsAsync(List<string> targetUserIds, SyncEventType eventType, object eventData,
+        CancellationToken ct = default)
     {
         if (targetUserIds.Count == 0)
         {
@@ -39,7 +40,7 @@ public class SyncService(
                 EventData = eventDataJson
             }).ToList();
 
-            await syncEventRepository.SaveSyncEventsAsync(syncEvents);
+            await syncEventRepository.SaveSyncEventsAsync(syncEvents, ct);
     
             logger.LogDebug("Created {Count} sync events of type {EventType}", 
                 syncEvents.Count, eventType);
@@ -52,11 +53,12 @@ public class SyncService(
     }
     
     /// <inheritdoc />
-    public async Task<Result<SyncResponse>> ValidateSyncForDeviceAsync(string userId, int userDeviceId)
+    public async Task<Result<SyncResponse>> ValidateSyncForDeviceAsync(string userId, int userDeviceId,
+        CancellationToken ct = default)
     {
         // ======================== STEG 1: Hent/opprett device sync state ========================
         // Sjekker om det er et eksisterende på denne enheten
-        var syncState = await deviceSyncStateRepository.GetDeviceSyncStateAsync(userDeviceId);
+        var syncState = await deviceSyncStateRepository.GetDeviceSyncStateAsync(userDeviceId, ct);
         
         // Ny enhet - vi oppretter ny syncstate
         if (syncState == null)
@@ -67,7 +69,7 @@ public class SyncService(
                 LastSyncAt = DateTime.UtcNow,
             };
             
-            await deviceSyncStateRepository.CreateSyncStateAsync(newSyncState);
+            await deviceSyncStateRepository.CreateSyncStateAsync(newSyncState, ct);
             syncState = newSyncState;
         }
         
@@ -83,7 +85,7 @@ public class SyncService(
                 "Device {DeviceId} inactive for {Days:F1} days - requiring full refresh",
                 userDeviceId, syncState.TimeSinceLastSync.TotalDays);
             
-            await UpdateAndSaveDeviceState(syncState, null);
+            await UpdateAndSaveDeviceState(syncState, null, ct);
             return Result<SyncResponse>.Success(new SyncResponse { RequiresFullRefresh = true });
         }
 
@@ -92,14 +94,15 @@ public class SyncService(
         // Henter ut antall eventer siden sist
         var lastSyncedEventTimestamp = syncState.LastSyncedEventTime ?? DateTime.MinValue;
         
-        var numberOfEvents = await syncEventRepository.CountEventsSinceTimestamp(userId, lastSyncedEventTimestamp);
+        var numberOfEvents = await syncEventRepository.CountEventsSinceTimestamp(userId, lastSyncedEventTimestamp, 
+            ct);
         
         // ================= STEG 4: Ingen events å hente. Endrer ikke på LastSyncedEventTime =================
         if (numberOfEvents == 0)
         {
             logger.LogDebug("No new events for device {DeviceId}", userDeviceId);
             
-            await UpdateAndSaveDeviceState(syncState, syncState.LastSyncedEventTime);
+            await UpdateAndSaveDeviceState(syncState, syncState.LastSyncedEventTime, ct);
             return Result<SyncResponse>.Success(new SyncResponse { RequiresFullRefresh = false });
         }
         
@@ -110,36 +113,37 @@ public class SyncService(
                 "Too many events, {NumberOfEvents}, for device {DeviceId} - requiring full refresh",
                 numberOfEvents, userDeviceId);
             
-            await UpdateAndSaveDeviceState(syncState, null);
+            await UpdateAndSaveDeviceState(syncState, null, ct);
             return Result<SyncResponse>.Success(new SyncResponse { RequiresFullRefresh = true });
         }
         
         // ================= STEG 6: Hent events =================
         var syncEventResponses = await GetSyncEventResponses(userId, syncState, 
-            lastSyncedEventTimestamp);
+            lastSyncedEventTimestamp, ct);
         
         if (syncEventResponses.Count == 0)
         {
             logger.LogCritical("GetSyncEventsAsync fetches 0 events even tho CountEventsSinceTimestamp counted " +
                                "{NumberOfEvents} events", numberOfEvents);
-            return Result<SyncResponse>.Failure("Unable to fetch sync events", ErrorTypeEnum.InternalServerError);
+            return Result<SyncResponse>.Failure("Unable to fetch sync events", AppErrorCode.InternalServerError);
         }
         
         return Result<SyncResponse>.Success(new SyncResponse { Events = syncEventResponses });
     }
-    
+
     /// <summary>
     /// Henter SyncEventResponses deretter reserialiserer og oppdaterer en SyncState
     /// </summary>
     /// <param name="userId">Brukeren vi skal hente SyncEvents for</param>
     /// <param name="syncState">DeviceSyncState som skal bli oppdatert</param>
     /// <param name="lastSyncedEventTimestamp">DateTime med siste SyncEvent</param>
+    /// <param name="ct"></param>
     /// <returns></returns>
     private async Task<List<SyncEventResponse>> GetSyncEventResponses(string userId, DeviceSyncState syncState,
-        DateTime lastSyncedEventTimestamp)
+        DateTime lastSyncedEventTimestamp, CancellationToken ct = default)
     {   
         var syncEventDtos = await syncEventRepository.GetSyncEventsAsync(userId, 
-            lastSyncedEventTimestamp);
+            lastSyncedEventTimestamp, ct);
         
         // Deserialiserer fra JSON til objekter igjen
         foreach (var syncEventDto in syncEventDtos)
@@ -148,22 +152,24 @@ public class SyncService(
         }
         
         // Oppdaterer DeviceSyncState
-        await UpdateAndSaveDeviceState(syncState, syncEventDtos.Max(e => e.CreatedAt));
+        await UpdateAndSaveDeviceState(syncState, syncEventDtos.Max(e => e.CreatedAt), ct);
 
         return syncEventDtos;
     }
-    
+
     /// <summary>
     /// Oppdaterer og lagrer et DeviceSyncState
     /// </summary>
     /// <param name="syncState">DeviceSyncState</param>
     /// <param name="lastSyncedEventTime">Hvis suksessful SyncEvent så oppdateres LastSyncedEventTime</param>
-    private async Task UpdateAndSaveDeviceState(DeviceSyncState syncState, DateTime? lastSyncedEventTime)
+    /// <param name="ct"></param>
+    private async Task UpdateAndSaveDeviceState(DeviceSyncState syncState, DateTime? lastSyncedEventTime,
+        CancellationToken ct = default)
     {
         syncState.LastSyncAt = DateTime.UtcNow;
         syncState.LastSyncedEventTime = lastSyncedEventTime;
         
-        await deviceSyncStateRepository.SaveChangesAsync();
+        await deviceSyncStateRepository.SaveChangesAsync(ct);
     }
     
     private string ReserializeEventData(string eventData)

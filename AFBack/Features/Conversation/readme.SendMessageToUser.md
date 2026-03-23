@@ -2,7 +2,7 @@
 
 ## Oversikt
 
-`SendMessageToUserAsync` er et cold-path endepunkt som håndterer meldingssending til en bruker. Endepunktet håndterer både eksisterende samtaler og opprettelse av nye samtaler basert på vennskap-status.
+`SendMessageToUserAsync` er et cold-path endepunkt som håndterer meldingssending til en bruker. Endepunktet håndterer både eksisterende samtaler og opprettelse av nye samtaler hvis pending
 
 ---
 
@@ -40,11 +40,8 @@ Brukes når ingen samtale finnes mellom brukerne.
    ↓
 2. Sjekk blokkeringer
    ↓
-3. Sjekk om brukerne er venner
-   ↓
 4. Opprett samtale med type:
-   - DirectChat (hvis venner)
-   - PendingRequest (hvis ikke venner)
+   - PendingRequest
    ↓
 5. Opprett participants med riktig status
    ↓
@@ -61,26 +58,7 @@ Brukes når ingen samtale finnes mellom brukerne.
 
 ## Samtale-typer
 
-### DirectChat (Venner)
-
-**Når:** Brukerne er venner
-
-**Participants:**
-- Sender: `Status = Accepted`, `Role = Member`, `JoinedAt = now`
-- Mottaker: `Status = Accepted`, `Role = Member`, `JoinedAt = now`
-
-**Events:**
-- SignalR: `IncomingDirectConversation` → Mottaker
-- MessageNotification: Opprettes for mottaker
-- SyncEvent: `ConversationCreated` → Både sender og mottaker
-
-**CanSend:** ✅ Oppdateres for begge brukere
-
----
-
-### PendingRequest (Ikke venner)
-
-**Når:** Brukerne er ikke venner
+### PendingRequest
 
 **Participants:**
 - Sender: `Status = Accepted`, `Role = PendingSender`, `JoinedAt = now`
@@ -251,8 +229,6 @@ if (response.IsNewConversation) {
 User A                  Backend                 User B
   |                        |                       |
   |--SendMessageToUser---->|                       |
-  |                        |---Check friendship--->|
-  |                        |<--Not friends---------|
   |                        |                       |
   |                        |---Create Conversation-|
   |                        |   (A: Accepted)       |
@@ -322,8 +298,6 @@ User B                  Backend                 User A
 3. ✅ Send melding som pending mottaker (auto-accept)
 
 **Cold Path:**
-4. ✅ Opprett DirectChat mellom venner
-5. ✅ Opprett PendingRequest mellom ikke-venner
 6. ✅ Blokkering forhindrer opprettelse
 7. ✅ Mottaker eksisterer ikke
 

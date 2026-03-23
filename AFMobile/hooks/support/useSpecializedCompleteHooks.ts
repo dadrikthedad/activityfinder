@@ -1,9 +1,9 @@
-// hooks/useCompleteBugReport.ts
+// hooks/support/useSpecializedCompleteHooks.ts
+// Spesialiserte wrappers rundt useCompleteReport for bug-rapporter og bruker-rapporter.
 import { useCallback } from 'react';
 import { useCompleteReport } from './useCompleteReport';
-import { createBugReportPayload } from '@/services/support/supportService';
+import { createBugReportPayload, createUserReportPayload } from '@/services/support/supportService';
 import { PriorityEnum } from '@shared/types/report/reportEnums';
-import { createUserReportPayload } from '@/services/support/supportService';
 import { ReportRequestDTO } from '@shared/types/report/reportDTOs';
 
 interface RNFile {
@@ -24,7 +24,6 @@ export function useCompleteBugReport() {
     actualBehavior?: string,
     priority: PriorityEnum = PriorityEnum.Medium
   ) => {
-    // Create payload with browser info
     const payload = await createBugReportPayload(
       title,
       description,
@@ -33,9 +32,7 @@ export function useCompleteBugReport() {
       actualBehavior,
       priority
     );
-
-    // Submit report with attachments
-    return await completeReport.submitReportWithAttachments(payload, attachments);
+    return completeReport.submitReportWithAttachments(payload, attachments);
   }, [completeReport]);
 
   return {
@@ -49,7 +46,6 @@ export function useCompleteBugReport() {
   };
 }
 
-
 export function useCompleteUserReport() {
   const completeReport = useCompleteReport();
 
@@ -60,11 +56,8 @@ export function useCompleteUserReport() {
     attachments: RNFile[] = [],
     priority: PriorityEnum = PriorityEnum.Medium
   ) => {
-    // Create payload
     const payload = createUserReportPayload(title, description, reportedUserId, priority);
-
-    // Submit report with attachments
-    return await completeReport.submitReportWithAttachments(payload, attachments);
+    return completeReport.submitReportWithAttachments(payload, attachments);
   }, [completeReport]);
 
   return {
@@ -78,7 +71,6 @@ export function useCompleteUserReport() {
   };
 }
 
-
 export function useCompleteCustomReport() {
   const completeReport = useCompleteReport();
 
@@ -86,7 +78,7 @@ export function useCompleteCustomReport() {
     reportData: ReportRequestDTO,
     attachments: RNFile[] = []
   ) => {
-    return await completeReport.submitReportWithAttachments(reportData, attachments);
+    return completeReport.submitReportWithAttachments(reportData, attachments);
   }, [completeReport]);
 
   return {

@@ -8,10 +8,11 @@
 ```
 AFBack.Tests/
 ├── Features/
+│   ├── Auth/
 │   ├── Conversation/
 │   ├── Messaging/
 │   └── [Feature]/
-└── Middleware/
+└── Infrastructure/
 ```
 
 ## Test-mønster
@@ -20,22 +21,22 @@ AFBack.Tests/
 public class ServiceTests
 {
     private readonly Mock<IDependency> _mockDep;
-    
+
     public ServiceTests()
     {
         _mockDep = new Mock<IDependency>();
     }
-    
+
     [Fact]
     public async Task Method_WhenCondition_ShouldExpectedBehavior()
     {
         // Arrange
         _mockDep.Setup(d => d.MethodAsync(It.IsAny<T>())).ReturnsAsync(result);
         var sut = new Service(_mockDep.Object);
-        
+
         // Act
         var result = await sut.MethodAsync(input);
-        
+
         // Assert
         result.Should().Be(expected);
         _mockDep.Verify(d => d.MethodAsync(It.IsAny<T>()), Times.Once);
@@ -51,32 +52,59 @@ private ApplicationDbContext CreateInMemoryContext()
     var options = new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString()) // Unik per test
         .Options;
-    
+
     return new ApplicationDbContext(options);
 }
 ```
 
-**Kritisk:** Bruk `Guid.NewGuid().ToString()` for isolasjon mellom tester
+**Kritisk:** Bruk `Guid.NewGuid().ToString()` for isolasjon mellom tester.
 
 ## Test-prioriteringer
 
-### Kritiske scenarios (må testes)
+### Auth (pågående)
 
-**SendMessageToUser:**
-- [ ] DirectChat mellom venner
-- [ ] PendingRequest mellom ikke-venner
-- [ ] Auto-accept når pending mottaker sender
+**Login:**
+- [ ] Riktig epost + passord → returnerer AccessToken + RefreshToken
+- [ ] Feil passord → 401, teller opp AccessFailedCount
+- [ ] 5 feilede forsøk → konto låst i 5 min (lockout)
+- [ ] Ukjent epost → 401, lik responstid som kjent epost (DummyUser)
+- [ ] Uverifisert epost → sender verifiseringsepost, returnerer feil
+- [ ] Uverifisert telefon → sender verifiserings-SMS, returnerer feil
+- [ ] Ny enhet → oppretter UserDevice
+- [ ] Kjent enhet → gjenbruker eksisterende UserDevice
+
+**Token Refresh:**
+- [ ] Gyldig refresh token → nytt token-par (rotation)
+- [ ] Allerede revokert token → revoker ALLE tokens for brukeren (reuse detection)
+- [ ] Utløpt refresh token → 401
+- [ ] Feil DeviceFingerprint → 401 (device binding)
+
+**Logout:**
+- [ ] Logout → refresh token revokert i DB, access token blacklistet i Redis
+- [ ] Logout-all → alle refresh tokens revokert, nåværende access token blacklistet
+
+**Sikkerhet:**
+- [ ] Blacklistet access token → 401 på påfølgende requests
+- [ ] DummyUser-timing: login med ukjent epost tar tilnærmet samme tid som kjent epost
+
+### SendMessageToUser
+
+- [ ] PendingRequest opprettes for ny samtale
+- [ ] Auto-accept når pending mottaker sender tilbake
 - [ ] Blokkering forhindrer sending
 - [ ] Meldingsgrense (5) for pending
 
-**Samtale-håndtering:**
+### Samtale-håndtering
+
 - [ ] Accept pending request
+- [ ] Reject pending request
 - [ ] Archive samtale
 - [ ] Block bruker
 - [ ] Leave gruppe
 - [ ] Cache-invalidering triggers
 
-**Edge cases:**
+### Edge cases
+
 - [ ] Samtidig pending accept (race condition)
 - [ ] GroupConversationLeftRecord håndtering
 - [ ] N+1 query-forebygging (mock UserSummaries cache)
@@ -112,6 +140,23 @@ mockCache.Setup(c => c.GetSetAsync(key))
     .ReturnsAsync((HashSet<Guid>?)null);
 ```
 
+### Auth-spesifikt
+
+```csharp
+// DummyUser-mocking — må returnere en bruker med gyldig Argon2id-hash
+mockUserRepo.Setup(r => r.GetDummyUserAsync())
+    .ReturnsAsync(dummyUser);
+
+// Redis blacklist-mocking
+mockRedis.Setup(r => r.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(),
+    It.IsAny<TimeSpan?>(), It.IsAny<When>(), It.IsAny<CommandFlags>()))
+    .ReturnsAsync(true);
+
+// Token reuse detection — revokert token trigger full invalidering
+mockRefreshTokenRepo.Setup(r => r.GetByTokenAsync(revokedToken))
+    .ReturnsAsync(new RefreshToken { IsRevoked = true });
+```
+
 ## Kommandoer
 
 ```bash
@@ -119,9 +164,10 @@ mockCache.Setup(c => c.GetSetAsync(key))
 dotnet test
 
 # Spesifikk feature
+dotnet test --filter "FullyQualifiedName~Auth"
 dotnet test --filter "FullyQualifiedName~Conversation"
 
-# Spesifikk kategori (hvis du bruker [Trait])
+# Spesifikk kategori
 dotnet test --filter "Category=Integration"
 
 # Watch mode
@@ -143,12 +189,16 @@ conversations.Should().Contain(c => c.Id == expectedId);
 result.IsSuccess.Should().BeTrue();
 result.IsFailure.Should().BeFalse();
 result.ErrorType.Should().Be(ErrorTypeEnum.NotFound);
+
+// Auth-spesifikt
+response.AccessToken.Should().NotBeNullOrEmpty();
+refreshToken.IsRevoked.Should().BeTrue();
+refreshToken.RevokedReason.Should().Be("Rotated during refresh");
 ```
 
 ## TODO
 
-- [ ] Oppdater eksisterende tester etter Vertical Slice-refactoring
-- [ ] Legg til tester for User feature (når refaktorert)
-- [ ] Legg til tester for Friendship feature (når refaktorert)
+- [ ] Integrasjonstester for full Login-flyt
+- [ ] Integrasjonstester for Token Refresh + reuse detection
 - [ ] Integrasjonstester for full SendMessageToUser-flyt
 - [ ] Cache-invalidering integrasjonstester

@@ -2,11 +2,8 @@
 using AFBack.Features.Blocking.Models;
 using AFBack.Features.CanSend.Models;
 using AFBack.Features.Conversation.Models;
-using AFBack.Features.Friendship.Models;
-using AFBack.Features.MessageNotification.Models;
 using AFBack.Features.MessageNotifications.Models;
 using AFBack.Features.Messaging.Models;
-using AFBack.Features.Notifications.Models;
 using AFBack.Features.Profile.Models;
 using AFBack.Features.Reactions.Models;
 using AFBack.Features.Settings.Models;
@@ -29,9 +26,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<UserProfile> Profiles { get; set; } // profilen til bruker
     public DbSet<UserSettings> UserSettings { get; set; } // Innstillinger til bruker
-    public DbSet<Friendship> Friendships { get; set; } // Venner til bruker
-    public DbSet<FriendshipRequest> FriendshipRequests { get; set; } // Venne invitasjoner til bruker
-    public DbSet<Notification> Notifications { get; set; } = null!; // Notifications!
     
     public DbSet<ConversationParticipant> ConversationParticipants { get; set; } 
     // Her her vi samtaler som kobler meldinger mot brukere/grupper
@@ -429,67 +423,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
-        // ==================== Notificaiton ====================
-        modelBuilder.Entity<Notification>(entity =>
-        {
-            // --- Foreign Key Indexes --- //
-            entity.HasIndex(n => n.RecipientUserId);
-            entity.HasIndex(n => n.RelatedUserId);
-
-            // --- Relationships --- //
-            entity.HasOne(n => n.RecipientUser)
-                .WithMany()
-                .HasForeignKey(n => n.RecipientUserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(n => n.RelatedUser)
-                .WithMany()
-                .HasForeignKey(n => n.RelatedUserId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-        
-        // ==================== FriendshipRequests ====================
-        modelBuilder.Entity<FriendshipRequest>(entity =>
-        {
-            // --- Foreign Key Indexes --- //
-            entity.HasIndex(i => i.SenderId);
-            entity.HasIndex(i => i.ReceiverId);
-
-            // --- Useful composite index (hent pending requests for en bruker) --- //
-            entity.HasIndex(i => new { i.ReceiverId, i.Status });
-
-            // --- Relationships --- //
-            entity.HasOne(i => i.Sender)
-                .WithMany()
-                .HasForeignKey(i => i.SenderId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(i => i.Receiver)
-                .WithMany()
-                .HasForeignKey(i => i.ReceiverId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-        
-        // ==================== FriendshipRequests ====================
-        modelBuilder.Entity<Friendship>(entity =>
-        {
-            // --- Compound Primary Key --- //
-            entity.HasKey(f => new { f.UserId, f.FriendId });
-
-            // --- Foreign Key Indexes --- //
-            entity.HasIndex(f => f.FriendId); // UserId dekkes av compound PK
-
-            // --- Relationships --- //
-            entity.HasOne(f => f.User)
-                .WithMany()
-                .HasForeignKey(f => f.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(f => f.Friend)
-                .WithMany()
-                .HasForeignKey(f => f.FriendId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
         
         // ==================== Reaction ====================
         modelBuilder.Entity<Reaction>(entity =>

@@ -9,8 +9,6 @@ public interface IDirectConversationService
     /// <summary>
     /// Sender en melding til en bruker for 1-1 samtaler, og håndterer både eksisterende samtaler og opprettelse
     /// av nye samtaler. Auto-aksepterer samtalen hvis avsender av melding er pending i samtalen.
-    /// Er brukerne venner så opprettes en samtale, men en melding vises som vanlig for brukeren. Metoden putter
-    /// brukerne i CanSend hvis begge er venner.
     /// Sender SignalR, lager MessageNotification og SyncEvent hvis samtalen blir opprettet
     /// </summary>
     /// <param name="userId">Avsender</param>

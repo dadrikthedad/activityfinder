@@ -16,7 +16,7 @@ public class SmsService(
                                           ?? throw new InvalidOperationException("Sms:FromNumber is not configured");
 
     /// <inheritdoc />
-    public async Task<Result> SendAsync(string phoneNumber, string message)
+    public async Task<Result> SendAsync(string phoneNumber, string message, CancellationToken ct = default)
     {
         try
         {
@@ -28,14 +28,14 @@ public class SmsService(
             };
 
             using var content = new FormUrlEncodedContent(data);
-            var response = await httpClient.PostAsync("https://api.46elks.com/a1/sms", content);
+            var response = await httpClient.PostAsync("https://api.46elks.com/a1/sms", content, ct);
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(ct);
                 logger.LogError("SMS sending failed to {Phone}. Status: {Status}. Error: {Error}",
                     phoneNumber, response.StatusCode, error);
-                return Result.Failure("SMS sending failed", ErrorTypeEnum.InternalServerError);
+                return Result.Failure("SMS sending failed", AppErrorCode.InternalServerError);
             }
 
             logger.LogInformation("SMS sent successfully to {Phone}", phoneNumber);
@@ -44,7 +44,7 @@ public class SmsService(
         catch (Exception ex)
         {
             logger.LogError("SMS sending failed to {Phone}: {Error}", phoneNumber, ex.Message);
-            return Result.Failure("Failed to send SMS", ErrorTypeEnum.InternalServerError);
+            return Result.Failure("Failed to send SMS", AppErrorCode.InternalServerError);
         }
     }
 }

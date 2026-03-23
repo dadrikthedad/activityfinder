@@ -142,57 +142,6 @@ public class ConversationBroadcastService(
             });
     }
     
-    /// <inheritdoc />
-    public async Task BroadcastNewDirectConversationAsync(
-        string senderUserId,
-        string receiverUserId,
-        SendMessageToUserResponse response)
-    {
-        // Opprett notification til mottaker
-        MessageNotificationResponse? notification = null;
-        try
-        {
-            notification = await messageNotificationService.CreateNewMessageNotificationAsync(
-                receiverUserId, senderUserId, response.Conversation, response.Message);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to create new message notification for user {UserId}", 
-                receiverUserId);
-        }
-    
-        // SignalR til mottaker (med notification)
-        await signalRNotificationService.SendToUserAsync(
-            receiverUserId,
-            HubConstants.ClientEvents.IncomingDirectConversation,
-            new
-            {
-                Response = response,
-                Notification = notification
-            },
-            $"direct conversation to user {receiverUserId}");
-    
-        // SyncEvent for avsender (ingen notification)
-        await syncService.CreateSyncEventsAsync(
-            [senderUserId],
-            SyncEventType.ConversationCreated,
-            new
-            {
-                Response = response,
-                Notification = (MessageNotificationResponse?)null
-            });
-    
-        // SyncEvent for mottaker (med notification)
-        await syncService.CreateSyncEventsAsync(
-            [receiverUserId],
-            SyncEventType.ConversationCreated,
-            new
-            {
-                Response = response,
-                Notification = notification
-            });
-    }
-    
     // ============ ARKIVERING ============
     
     /// <inheritdoc />

@@ -14,7 +14,6 @@ public class UserSettingsResponse
     public bool ShowPhone { get; init; }
     public bool ShowRegion { get; init; }
     public bool ShowBio { get; init; }
-    public bool ShowFriendsList { get; init; }
     public bool ShowStats { get; init; }
     public bool ShowWebsites { get; init; }
     public bool ShowPostalCode { get; init; }

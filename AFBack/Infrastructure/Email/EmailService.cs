@@ -20,7 +20,7 @@ public class EmailService(
                                          ?? throw new InvalidOperationException("Email:FromAddress is not configured");
     
     /// <inheritdoc />
-    public async Task<Result> SendAsync(string toEmail, EmailBody body)
+    public async Task<Result> SendAsync(string toEmail, EmailBody body, CancellationToken ct = default)
     {
         try
         {
@@ -37,15 +37,15 @@ public class EmailService(
             var json = JsonSerializer.Serialize(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await httpClient.PostAsync("https://api.brevo.com/v3/smtp/email", content);
+            var response = await httpClient.PostAsync("https://api.brevo.com/v3/smtp/email", content, ct);
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(ct);
                 logger.LogError("Brevo email sending failed to {Email}. Status: {Status}. Error: {Error}",
                     toEmail, response.StatusCode, error);
                 return Result.Failure($"Email sending failed with status: {response.StatusCode}",
-                    ErrorTypeEnum.InternalServerError);
+                    AppErrorCode.InternalServerError);
             }
 
             logger.LogInformation("Successfully sent email to {Email}", toEmail);
@@ -54,7 +54,7 @@ public class EmailService(
         catch (Exception ex)
         {
             logger.LogError("Email sending failed to {Email}: {Error}", toEmail, ex.Message);
-            return Result.Failure("Failed to send email", ErrorTypeEnum.InternalServerError);
+            return Result.Failure("Failed to send email", AppErrorCode.InternalServerError);
         }
     }
 }

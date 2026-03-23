@@ -30,13 +30,13 @@ public class BlockingService(
         if (user == null)
         {
             logger.LogWarning("Block failed: requesting user {UserId} not found", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         if (userId == targetUserId)
         {
             logger.LogWarning("Block failed: User {UserId} cant block itself", userId);
-            return Result.Failure("You cannot block yourself", ErrorTypeEnum.BadRequest);
+            return Result.Failure("You cannot block yourself", AppErrorCode.BadRequest);
         }
         
         // Sjekker at brukeren som blir blokkert eksisterer
@@ -45,7 +45,7 @@ public class BlockingService(
         {
             logger.LogWarning("Block failed: target user {TargetUserId} not found, requested by {UserId}", 
                 targetUserId, userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // Har vi allerede blokkert brukeren
@@ -53,7 +53,7 @@ public class BlockingService(
         {
             logger.LogWarning("User {UserId} tried to block already blocked user {TargetUserId}", 
                 userId, targetUserId);
-            return Result.Failure("You have already blocked this user", ErrorTypeEnum.Conflict);
+            return Result.Failure("You have already blocked this user", AppErrorCode.Conflict);
         }
         
         // ============ Fjern fra CanSend ============
@@ -96,14 +96,14 @@ public class BlockingService(
         if (user == null)
         {
             logger.LogWarning("Unblock failed: requesting user {UserId} not found", userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
         
         // Sjekker at brukeren og targetUserId ikke er like
         if (userId == targetUserId)
         {
             logger.LogWarning("Unblock failed: User {UserId} cant unblock itself", userId);
-            return Result.Failure("You cannot unblock yourself", ErrorTypeEnum.BadRequest);
+            return Result.Failure("You cannot unblock yourself", AppErrorCode.BadRequest);
         }
         
         // Sjekker at brukeren vi skal fjerne blokkering av eksisterer
@@ -112,7 +112,7 @@ public class BlockingService(
         {
             logger.LogWarning("Unblock failed: target user {TargetUserId} not found, requested by {UserId}", 
                 targetUserId, userId);
-            return Result.Failure("User not found", ErrorTypeEnum.NotFound);
+            return Result.Failure("User not found", AppErrorCode.NotFound);
         }
 
         var userBlock = await userBlockRepository.GetAsync(userId, targetUserId);
@@ -121,7 +121,7 @@ public class BlockingService(
         {
             logger.LogWarning("User {UserId} tried to unblock user {TargetUserId} that is not previously blocked", 
                 userId, targetUserId);
-            return Result.Failure("You have not blocked this user", ErrorTypeEnum.Conflict);
+            return Result.Failure("You have not blocked this user", AppErrorCode.Conflict);
         }
         
         // ============ Fjern fra CanSend ============
@@ -166,7 +166,7 @@ public class BlockingService(
                 userId1, userId2);
             return Result.Failure(
                 "You cannot perform this action with a user you have blocked", 
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
         
         // Sjekk om userId2 har blokkert userId1
@@ -176,7 +176,7 @@ public class BlockingService(
                 userId1, userId2);
             return Result.Failure(
                 "This user has been deleted, is no longer visible, or you lack the required permission",
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
         
         return Result.Success();
@@ -191,7 +191,7 @@ public class BlockingService(
                 blockerId, blockedId);
             return Result.Failure(
                 "You cannot perform this action with a user you have blocked",
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
         
         return Result.Success();

@@ -63,13 +63,13 @@ public class S3StorageService(
         {
             logger.LogError(ex, "S3 error uploading file: {Key}. Status: {Status}", storageKey, ex.StatusCode);
             return Result<string>.Failure($"Failed to upload file: {ex.Message}",
-                ErrorTypeEnum.InternalServerError);
+                AppErrorCode.InternalServerError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error uploading file to S3: {Key}", storageKey);
             return Result<string>.Failure("An unexpected error occurred while uploading the file", 
-                ErrorTypeEnum.InternalServerError);
+                AppErrorCode.InternalServerError);
         }
     }
 
@@ -98,7 +98,7 @@ public class S3StorageService(
         catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             logger.LogWarning("File not found in S3: {Key}", storageKey);
-            return Result<Stream>.Failure("File not found", ErrorTypeEnum.NotFound);
+            return Result<Stream>.Failure("File not found", AppErrorCode.NotFound);
         }
         catch (AmazonS3Exception  ex)
         {

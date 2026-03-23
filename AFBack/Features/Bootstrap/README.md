@@ -10,11 +10,11 @@ Bootstrap gir frontend all nødvendig data ved app-oppstart, delt i to faser for
 App starter
   │
   ├─ 1. GET /api/bootstrap/critical
-  │     → Brukerdata, profil, innstillinger, venner, blokkerte
+  │     → Brukerdata, profil, innstillinger, blokkerte
   │     → Frontend rendrer UI med én gang dette er mottatt
   │
   └─ 2. GET /api/bootstrap/secondary
-        → Samtaler, meldinger, varsler, venneforespørsler
+        → Samtaler, meldinger, varsler
         → Frontend fyller inn resten av UI-et
         
 Etter bootstrap:
@@ -35,10 +35,9 @@ Hentes først — inneholder det som trengs for å rendre grunnleggende UI.
 | User | `IUserRepository` | Navn, profilbilde, e-post, verifiseringsstatus |
 | Profile | `IUserRepository` | Lokasjon, demografi, bio, kontaktinfo (nullable) |
 | Settings | `IUserRepository` | Språk, synlighetsinnstillinger, notifikasjoner |
-| Friends | `IFriendshipService` | Liste med venner (UserSummaryDto) |
 | BlockedUsers | `IBlockingService` | Brukere vi har blokkert |
 
-User, Profile og Settings hentes i én query med Include. Friends og BlockedUsers kjøres parallelt.
+User, Profile og Settings hentes i én query med Include. BlockedUsers kjøres alene.
 
 ## Secondary Bootstrap
 
@@ -50,16 +49,13 @@ Hentes etter critical — fyller inn samtaler, meldinger og varsler.
 | PendingConversations | `IGetConversationsService` | Mottatte samtaleforespørsler (maks 10) |
 | ConversationMessages | `IMessageQueryService` | Meldinger for aktive + pending 1v1-samtaler (10 per samtale) |
 | MessageNotifications | `IMessageNotificationQueryService` | Meldingsvarsler (maks 20) |
-| Notifications | `INotificationService` | Appvarsler (maks 20) |
-| PendingFriendshipRequests | `IFriendshipRequestService` | Mottatte venneforespørsler (maks 10) |
 | UnreadMessageNotificationCount | `IMessageNotificationQueryService` | Antall uleste meldingsvarsler |
-| UnreadNotificationCount | `INotificationService` | Antall uleste appvarsler |
 | UnreadConversationIds | `IMessageNotificationQueryService` | Samtale-IDer med uleste meldinger |
 
 ### Parallellisering
 
 **Fase 1** — Kjøres parallelt med `Task.WhenAll`:
-- Aktive samtaler, pending samtaler, meldingsvarsler, appvarsler, venneforespørsler, ulest-tellere, uleste samtale-IDer
+- Aktive samtaler, pending samtaler, meldingsvarsler, appvarsler, ulest-teller, uleste samtale-IDer
 
 **Fase 2** — Kjøres sekvensielt etter fase 1:
 - Meldinger hentes for aktive samtaler + pending 1v1-samtaler (ikke pending gruppesamtaler)

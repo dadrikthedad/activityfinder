@@ -29,7 +29,7 @@ public class ReactionService(
             logger.LogWarning("UserId {UserId} can not react on messageId {MessageId} in " +
                               "Conversation {ConversationId}", userId, messageId, conversationId);
             return Result<ReactionAddedResponse>.Failure("You do not have permission to react to this message", 
-                ErrorTypeEnum.Forbidden);
+                AppErrorCode.Forbidden);
         }
         
         // Enum-variabelen for å fortelle Response/BroadcastService hvilken handling ble utført
@@ -82,7 +82,7 @@ public class ReactionService(
             {
                 logger.LogWarning("UserId {UserId} reacted on message {MessageId} that does not exist in " +
                                   "conversation {ConversationId}", userId, messageId, conversationId);
-                return Result<ReactionAddedResponse>.Failure("Message not found", ErrorTypeEnum.NotFound);
+                return Result<ReactionAddedResponse>.Failure("Message not found", AppErrorCode.NotFound);
             }
 
             throw;

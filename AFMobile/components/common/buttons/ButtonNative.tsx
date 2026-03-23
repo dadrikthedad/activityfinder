@@ -1,42 +1,30 @@
-// components/common/ButtonNative.tsx - Oppdatert med icon support
+// components/common/buttons/ButtonNative.tsx
 import React from "react";
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, View } from "react-native";
+import { TouchableOpacity, Text, ViewStyle, TextStyle, View } from "react-native";
+import { useUnistyles } from "react-native-unistyles";
 
 export interface ButtonNativeProps {
-  /** Button text */
   text?: string;
-  /** Press handler */
   onPress: () => void;
-  /** Button variant */
-  variant?: 
-    | "primary"     // Green primary button
-    | "secondary"   // Gray secondary button  
-    | "danger"      // Red danger button
-    | "outline"     // Outline button
-    | "ghost"       // Text-only button
-    | "dots";       // Three dots in rounded square
-  /** Button size */
-  size?: 
-    | "small"       // 28px height
-    | "medium"      // 44px height (default)
-    | "large";      // 56px height
-  /** Full width button */
+  variant?:
+    | "primary"     // Primærfarge (gull i begge temaer)
+    | "secondary"   // Grå sekundærknapp
+    | "danger"      // Rød fareknapp
+    | "outline"     // Konturknapp
+    | "ghost"       // Kun tekst
+    | "dots";       // Tre prikker i avrundet firkant
+  size?:
+    | "small"       // 32px høyde
+    | "medium"      // 44px høyde (standard)
+    | "large";      // 56px høyde
   fullWidth?: boolean;
-  /** Disabled state */
   disabled?: boolean;
-  /** Loading state */
   loading?: boolean;
-  /** Loading text */
   loadingText?: string;
-  /** Custom style override */
   style?: ViewStyle;
-  /** Custom text style override */
   textStyle?: TextStyle;
-  /** Icon component (Lucide icon) */
   icon?: React.ComponentType<{ size?: number; color?: string }>;
-  /** Icon position */
-  iconPosition?: 'left' | 'right';
-  /** Icon size */
+  iconPosition?: "left" | "right";
   iconSize?: number;
 }
 
@@ -44,7 +32,7 @@ export default function ButtonNative({
   text,
   onPress,
   variant = "primary",
-  size = "medium", 
+  size = "medium",
   fullWidth = false,
   disabled = false,
   loading = false,
@@ -52,104 +40,99 @@ export default function ButtonNative({
   style,
   textStyle,
   icon: Icon,
-  iconPosition = 'left',
+  iconPosition = "left",
   iconSize = 16,
 }: ButtonNativeProps) {
-  
+  const { theme } = useUnistyles();
   const isDisabled = disabled || loading;
   const displayText = loading ? loadingText : text;
 
-  // Get variant styles
-  const getVariantStyles = () => {
+  // --- Farger per variant ---
+
+  const getColors = (): { bg: string; textColor: string; border?: string } => {
     switch (variant) {
       case "primary":
         return {
-          container: isDisabled ? styles.primaryDisabled : styles.primary,
-          text: styles.primaryText,
+          bg:        isDisabled ? theme.colors.disabled     : theme.colors.primary,
+          textColor: isDisabled ? theme.colors.disabledText : theme.colors.onPrimary,
         };
       case "secondary":
         return {
-          container: isDisabled ? styles.secondaryDisabled : styles.secondary,
-          text: styles.secondaryText,
+          bg:        isDisabled ? theme.colors.disabled     : theme.colors.surfaceAlt,
+          textColor: isDisabled ? theme.colors.disabledText : theme.colors.textSecondary,
         };
       case "danger":
         return {
-          container: isDisabled ? styles.dangerDisabled : styles.danger,
-          text: styles.dangerText,
+          bg:        isDisabled ? theme.colors.disabled     : theme.colors.error,
+          textColor: isDisabled ? theme.colors.disabledText : "#ffffff",
         };
       case "outline":
         return {
-          container: isDisabled ? styles.outlineDisabled : styles.outline,
-          text: isDisabled ? styles.outlineTextDisabled : styles.outlineText,
+          bg:        "transparent",
+          textColor: isDisabled ? theme.colors.disabledText : theme.colors.primary,
+          border:    isDisabled ? theme.colors.disabled     : theme.colors.primary,
         };
       case "ghost":
         return {
-          container: styles.ghost,
-          text: isDisabled ? styles.ghostTextDisabled : styles.ghostText,
+          bg:        "transparent",
+          textColor: isDisabled ? theme.colors.disabledText : theme.colors.primary,
         };
       case "dots":
         return {
-          container: isDisabled ? styles.dotsDisabled : styles.dots,
-          text: styles.dotsText,
-        };
-      default:
-        return {
-          container: styles.primary,
-          text: styles.primaryText,
+          bg:        isDisabled ? theme.colors.disabled     : theme.colors.surfaceAlt,
+          textColor: isDisabled ? theme.colors.disabledText : theme.colors.textPrimary,
         };
     }
   };
 
-  // Get size styles
+  // --- Størrelser ---
+
   const getSizeStyles = () => {
     if (variant === "dots") {
-      // Dots variant is always square and small
       switch (size) {
-        case "small":
-          return { width: 28, height: 28, paddingHorizontal: 0, fontSize: 14 };
-        case "large":
-          return { width: 40, height: 40, paddingHorizontal: 0, fontSize: 18 };
-        case "medium":
-        default:
-          return { width: 32, height: 32, paddingHorizontal: 0, fontSize: 16 };
+        case "small":  return { width: 28, height: 28, paddingHorizontal: 0, fontSize: theme.typography.sm };
+        case "large":  return { width: 40, height: 40, paddingHorizontal: 0, fontSize: theme.typography.lg };
+        default:       return { width: 32, height: 32, paddingHorizontal: 0, fontSize: theme.typography.md };
       }
     }
-    
     switch (size) {
-      case "small":
-        return { height: 32, paddingHorizontal: 16, fontSize: 14 };
-      case "large":
-        return { height: 56, paddingHorizontal: 24, fontSize: 18 };
-      case "medium":
-      default:
-        return { height: 44, paddingHorizontal: 20, fontSize: 16 };
+      case "small":  return { height: 32, paddingHorizontal: 16, fontSize: theme.typography.sm };
+      case "large":  return { height: 56, paddingHorizontal: 24, fontSize: theme.typography.lg };
+      default:       return { height: 44, paddingHorizontal: 20, fontSize: theme.typography.md };
     }
   };
 
-  const variantStyles = getVariantStyles();
+  const colors = getColors();
   const sizeStyles = getSizeStyles();
 
-  const containerStyle = StyleSheet.flatten([
-    styles.base,
-    variantStyles.container,
-    {
-      height: sizeStyles.height,
-      ...(variant === "dots" ? { width: sizeStyles.width } : { paddingHorizontal: sizeStyles.paddingHorizontal }),
-      ...(fullWidth && variant !== "dots" ? { width: '100%' as const } : { alignSelf: 'flex-start' as const }),
-    },
-    style,
-  ]);
+  const containerStyle: ViewStyle = {
+    borderRadius: theme.radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: variant === "dots" ? 0 : 80,
+    height: sizeStyles.height,
+    backgroundColor: colors.bg,
+    // Border — kun outline-varianten har kant
+    ...(variant === "outline" ? { borderWidth: 1, borderColor: colors.border } : {}),
+    // Bredde — dots er fast, fullWidth strekker seg, resten tilpasser innhold
+    ...(variant === "dots"
+      ? { width: sizeStyles.width }
+      : fullWidth
+      ? { width: "100%" as const }
+      : { paddingHorizontal: sizeStyles.paddingHorizontal, alignSelf: "flex-start" as const }),
+    ...style,
+  };
 
-  const textStyles = StyleSheet.flatten([
-    variantStyles.text,
-    { fontSize: sizeStyles.fontSize },
-    textStyle,
-  ]);
+  const resolvedTextStyle: TextStyle = {
+    fontSize: sizeStyles.fontSize,
+    fontWeight: theme.typography.semibold,
+    color: colors.textColor,
+    ...textStyle,
+  };
 
-  const iconColor = variantStyles.text.color;
-
-  // Render dots for dots variant
+  // Dots-variant
   if (variant === "dots") {
+    const dotColor = isDisabled ? theme.colors.disabledText : theme.colors.textMuted;
     return (
       <TouchableOpacity
         style={containerStyle}
@@ -157,16 +140,15 @@ export default function ButtonNative({
         disabled={isDisabled}
         activeOpacity={isDisabled ? 1 : 0.7}
       >
-        <View style={styles.dotsContainer}>
-          <View style={[styles.dot, isDisabled && styles.dotDisabled]} />
-          <View style={[styles.dot, isDisabled && styles.dotDisabled]} />
-          <View style={[styles.dot, isDisabled && styles.dotDisabled]} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: dotColor }} />
+          ))}
         </View>
       </TouchableOpacity>
     );
   }
 
-  // OPPDATERT: Ny return med icon support
   return (
     <TouchableOpacity
       style={containerStyle}
@@ -174,141 +156,17 @@ export default function ButtonNative({
       disabled={isDisabled}
       activeOpacity={isDisabled ? 1 : 0.7}
     >
-      {/* Wrapper for content with icon */}
-      <View style={styles.contentContainer}>
-        {/* Left icon */}
-        {Icon && iconPosition === 'left' && (
-          <Icon size={iconSize} color={iconColor} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.sm }}>
+        {Icon && iconPosition === "left" && (
+          <Icon size={iconSize} color={colors.textColor} />
         )}
-        
-        {/* Text */}
         {displayText && (
-          <Text style={textStyles}>{displayText}</Text>
+          <Text style={resolvedTextStyle}>{displayText}</Text>
         )}
-        
-        {/* Right icon */}
-        {Icon && iconPosition === 'right' && (
-          <Icon size={iconSize} color={iconColor} />
+        {Icon && iconPosition === "right" && (
+          <Icon size={iconSize} color={colors.textColor} />
         )}
       </View>
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 80,
-  },
-  
-  // NYTT: Content container for icon + text layout
-  contentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  
-  // Primary variant (Green)
-  primary: {
-    backgroundColor: '#1C6B1C',
-  },
-  primaryDisabled: {
-    backgroundColor: '#144B14',
-  },
-  primaryText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-
-  // Secondary variant (Gray)
-  secondary: {
-    backgroundColor: '#6b7280',
-  },
-  secondaryDisabled: {
-    backgroundColor: '#d1d5db',
-  },
-  secondaryText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-
-  // Danger variant (Red)
-  danger: {
-    backgroundColor: '#9CA3AF',
-  },
-  dangerDisabled: {
-    backgroundColor: '#2E2E2E',
-  },
-  dangerText: {
-    color: 'white',
-    fontWeight: '600',
-  },
-
-  // Outline variant
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#1C6B1C',
-  },
-  outlineDisabled: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  outlineText: {
-    color: '#1C6B1C',
-    fontWeight: '600',
-  },
-  outlineTextDisabled: {
-    color: '#9ca3af',
-    fontWeight: '600',
-  },
-
-  // Ghost variant (text only)
-  ghost: {
-    backgroundColor: 'transparent',
-  },
-  ghostText: {
-    color: '#1C6B1C',
-    fontWeight: '600',
-  },
-  ghostTextDisabled: {
-    color: '#9ca3af',
-    fontWeight: '600',
-  },
-
-  // Dots variant
-  dots: {
-    backgroundColor: '#1C6B1C',
-    borderRadius: 6,
-    minWidth: 0, // Override base minWidth
-  },
-  dotsDisabled: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 6,
-    minWidth: 0,
-  },
-  dotsText: {
-    color: 'white',
-  },
-  
-  // Dots styling
-  dotsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '60%', // Takes up 60% of button width
-    backgroundColor: '#1C6B1C',
-  },
-  dot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#ffffffff',
-  },
-  dotDisabled: {
-    backgroundColor: '#d1d5db',
-  },
-});

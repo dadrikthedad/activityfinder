@@ -29,42 +29,46 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     /// Sender verifiseringskode til den NYE epostadressen.
     /// </summary>
     /// <param name="request">ChangeEmailRequest med passord og ny email</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPost("request-email-change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> RequestEmailChange([FromBody] ChangeEmailRequest request)
+    public async Task<IActionResult> RequestEmailChange([FromBody] ChangeEmailRequest request, 
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
         var ipAddress = GetIpAddress();
         
         var result = await accountChangeService.RequestEmailChangeAsync(
-            userId, request.CurrentPassword, request.NewEmail, ipAddress);
+            userId, request.CurrentPassword, request.NewEmail, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
         
         return Ok();
     }
-    
+
     /// <summary>
     /// Steg 2: Verifiserer koden sendt til nåværende epost.
     /// Ved suksess sendes verifiseringskode til den NYE epostadressen.
     /// </summary>
     /// <param name="request">VerifyCodeRequest med kode 6-sifret</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPost("verify-current-email-change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> VerifyCurrentEmailForChange([FromBody] VerifyCodeRequest request)
+    public async Task<IActionResult> VerifyCurrentEmailForChange([FromBody] VerifyCodeRequest request,
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
         var ipAddress = GetIpAddress();
     
-        var result = await accountChangeService.VerifyCurrentEmailForChangeAsync(userId, request.Code, ipAddress);
+        var result = await accountChangeService.VerifyCurrentEmailForChangeAsync(userId, request.Code, ipAddress, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);
@@ -76,18 +80,20 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     /// Steg 3: Verifiserer koden sendt til ny epost og oppdaterer epostadressen.
     /// </summary>
     /// <param name="request">VerifyCodeRequest med kode 6-sifret</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPost("verify-email-change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> VerifyEmailChange([FromBody] VerifyCodeRequest request)
+    public async Task<IActionResult> VerifyEmailChange([FromBody] VerifyCodeRequest request,
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
         var ipAddress = GetIpAddress();
         
-        var result = await accountChangeService.VerifyEmailChangeAsync(userId, request.Code, ipAddress);
+        var result = await accountChangeService.VerifyEmailChangeAsync(userId, request.Code, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -103,13 +109,15 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     /// Sender verifiseringskode + alert til brukerens NÅVÆRENDE epost.
     /// </summary>
     /// <param name="request">ChangePhoneRequest med passord og nytt nummer</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPost("request-phone-change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> RequestPhoneChange([FromBody] ChangePhoneRequest request)
+    public async Task<IActionResult> RequestPhoneChange([FromBody] ChangePhoneRequest request, 
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
         
@@ -119,31 +127,33 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
                 statusCode: StatusCodes.Status400BadRequest);
         
         var result = await accountChangeService.RequestPhoneChangeAsync(
-            userId, request.CurrentPassword, request.NewPhoneNumber, ipAddress);
+            userId, request.CurrentPassword, request.NewPhoneNumber, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
         
         return Ok();
     }
-    
+
     /// <summary>
     /// Steg 2: Verifiserer epost-koden for telefon-bytte.
     /// Ved suksess sendes SMS-kode til det NYE telefonnummeret.
     /// </summary>
     /// <param name="request">VerifyCodeRequest med kode 6-sifret</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPost("verify-current-email-phone-change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> VerifyCurrentEmailForPhoneChange([FromBody] VerifyCodeRequest request)
+    public async Task<IActionResult> VerifyCurrentEmailForPhoneChange([FromBody] VerifyCodeRequest request,
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
         var ipAddress = GetIpAddress();
     
         var result = await accountChangeService.VerifyCurrentEmailForPhoneChangeAsync(userId, request.Code, 
-            ipAddress);
+            ipAddress, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);
@@ -155,18 +165,20 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     /// Steg 3: Verifiserer SMS-koden sendt til nytt telefonnummer og oppdaterer nummeret.
     /// </summary>
     /// <param name="request">VerifyCodeRequest med kode 6-sifret</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPost("verify-phone-change")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-    public async Task<IActionResult> VerifyPhoneChange([FromBody] VerifyCodeRequest request)
+    public async Task<IActionResult> VerifyPhoneChange([FromBody] VerifyCodeRequest request, 
+        CancellationToken ct = default)
     {
         var userId = User.GetUserId(); 
         var ipAddress = GetIpAddress();
         
-        var result = await accountChangeService.VerifyPhoneChangeAsync(userId, request.Code, ipAddress);
+        var result = await accountChangeService.VerifyPhoneChangeAsync(userId, request.Code, ipAddress, ct);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -175,19 +187,20 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     }
     
     // ======================== Bytte navn ======================== 
-    
+
     /// <summary>
     /// Bytter FirstName og LastName til innlogget bruker
     /// </summary>
     /// <param name="request">ChangeNameRequest med navnene</param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPut("name")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateName([FromBody] ChangeNameRequest request)
+    public async Task<IActionResult> UpdateName([FromBody] ChangeNameRequest request, CancellationToken ct = default)
     {
         var userId = User.GetUserId();
-        var result = await accountChangeService.UpdateNameAsync(userId, request.FirstName, request.LastName);
+        var result = await accountChangeService.UpdateNameAsync(userId, request.FirstName, request.LastName, ct);
 
         if (result.IsFailure)
             return HandleFailure(result);
@@ -200,15 +213,16 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     /// Bytter profilebilde for innlogget bruker
     /// </summary>
     /// <param name="request">ImageRequest med IFormFile </param>
+    /// <param name="ct"></param>
     /// <returns>Ok 200</returns>
     [HttpPut("profileimage")]
     [RequestSizeLimit(ImageFileConfig.MaxSizeInBytes)] 
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateProfileImage([FromForm] ImageRequest request)
+    public async Task<IActionResult> UpdateProfileImage([FromForm] ImageRequest request, CancellationToken ct = default)
     {
         var userId = User.GetUserId();
-        var result = await accountChangeService.UpdateProfileImageAsync(userId, request.File);
+        var result = await accountChangeService.UpdateProfileImageAsync(userId, request.File, ct);
 
         if (result.IsFailure)
             return HandleFailure(result);
@@ -225,10 +239,10 @@ public class AccountController(IAccountChangeService accountChangeService) : Bas
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> RemoveProfileImage()
+    public async Task<IActionResult> RemoveProfileImage(CancellationToken ct = default)
     {
         var userId = User.GetUserId();
-        var result = await accountChangeService.RemoveProfileImageAsync(userId);
+        var result = await accountChangeService.RemoveProfileImageAsync(userId, ct);
 
         if (result.IsFailure)
             return HandleFailure(result);

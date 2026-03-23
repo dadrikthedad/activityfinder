@@ -48,8 +48,7 @@
      <Folder Include="Features\Account\Repositories\" />
      <Folder Include="Features\Blocking\DTOs\" />
      <Folder Include="Features\Bootstrap\DTOs\Requests\" />
-     <Folder Include="Features\Notifications\Controllers\" />
-     <Folder Include="Features\Notifications\DTOs\Requests\" />
+     <Folder Include="Features\Searching\Enum\" />
      <Folder Include="Infrastructure\Security\DTOs\" />
      <Folder Include="Migrations\" />
    </ItemGroup>

@@ -31,16 +31,6 @@ public interface IConversationBroadcastService
     Task BroadcastNewPendingRequestAsync(string senderUserId, string receiverUserId, 
         SendMessageToUserResponse response);
     
-    /// <summary>
-    /// Broadcaster at en ny 1-1 samtale (DirectChat - venner) ble opprettet.
-    /// Oppretter notification, deretter sender SignalR og SyncEvent med notification inkludert.
-    /// Sender til: avsender (sync uten notification), mottaker (SignalR + sync med notification)
-    /// </summary>
-    Task BroadcastNewDirectConversationAsync(
-        string senderUserId,
-        string receiverUserId,
-        SendMessageToUserResponse response);
-    
     // ============ ARKIVERING ============
     
     /// <summary>

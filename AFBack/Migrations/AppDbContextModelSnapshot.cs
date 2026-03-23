@@ -595,67 +595,6 @@ namespace AFBack.Migrations
                     b.ToTable("ConversationParticipants");
                 });
 
-            modelBuilder.Entity("AFBack.Features.Friendship.Models.Friendship", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("FriendId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("FriendToUserScore")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserToFriendScore")
-                        .HasColumnType("integer");
-
-                    b.HasKey("UserId", "FriendId");
-
-                    b.HasIndex("FriendId");
-
-                    b.ToTable("Friendships");
-                });
-
-            modelBuilder.Entity("AFBack.Features.Friendship.Models.FriendshipRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ReceiverId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SenderId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReceiverId");
-
-                    b.HasIndex("SenderId");
-
-                    b.HasIndex("ReceiverId", "Status");
-
-                    b.ToTable("FriendshipRequests");
-                });
-
             modelBuilder.Entity("AFBack.Features.MessageNotifications.Models.GroupEvent", b =>
                 {
                     b.Property<int>("Id")
@@ -946,46 +885,6 @@ namespace AFBack.Migrations
                     b.ToTable("UserPublicKeys");
                 });
 
-            modelBuilder.Entity("AFBack.Features.Notifications.Models.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("RecipientUserId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("RelatedUserId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Summary")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RecipientUserId");
-
-                    b.HasIndex("RelatedUserId");
-
-                    b.ToTable("Notifications");
-                });
-
             modelBuilder.Entity("AFBack.Features.Profile.Models.UserProfile", b =>
                 {
                     b.Property<string>("UserId")
@@ -995,10 +894,6 @@ namespace AFBack.Migrations
                     b.Property<string>("Bio")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("City")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("ContactEmail")
                         .HasMaxLength(100)
@@ -1013,20 +908,8 @@ namespace AFBack.Migrations
                         .HasMaxLength(2)
                         .HasColumnType("character varying(2)");
 
-                    b.Property<DateTime>("DateOfBirth")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Gender")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PostalCode")
-                        .HasMaxLength(25)
-                        .HasColumnType("character varying(25)");
-
-                    b.Property<string>("Region")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                    b.Property<DateOnly>("DateOfBirth")
+                        .HasColumnType("date");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1094,9 +977,6 @@ namespace AFBack.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("ShowEmail")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("ShowFriendsList")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("ShowGender")
@@ -1857,44 +1737,6 @@ namespace AFBack.Migrations
                     b.Navigation("Conversation");
                 });
 
-            modelBuilder.Entity("AFBack.Features.Friendship.Models.Friendship", b =>
-                {
-                    b.HasOne("AFBack.Features.Auth.Models.AppUser", "Friend")
-                        .WithMany()
-                        .HasForeignKey("FriendId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Features.Auth.Models.AppUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Friend");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AFBack.Features.Friendship.Models.FriendshipRequest", b =>
-                {
-                    b.HasOne("AFBack.Features.Auth.Models.AppUser", "Receiver")
-                        .WithMany()
-                        .HasForeignKey("ReceiverId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Features.Auth.Models.AppUser", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Receiver");
-
-                    b.Navigation("Sender");
-                });
-
             modelBuilder.Entity("AFBack.Features.MessageNotifications.Models.GroupEvent", b =>
                 {
                     b.HasOne("AFBack.Features.Conversation.Models.Conversation", "Conversation")
@@ -2012,24 +1854,6 @@ namespace AFBack.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AFBack.Features.Notifications.Models.Notification", b =>
-                {
-                    b.HasOne("AFBack.Features.Auth.Models.AppUser", "RecipientUser")
-                        .WithMany()
-                        .HasForeignKey("RecipientUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("AFBack.Features.Auth.Models.AppUser", "RelatedUser")
-                        .WithMany()
-                        .HasForeignKey("RelatedUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("RecipientUser");
-
-                    b.Navigation("RelatedUser");
                 });
 
             modelBuilder.Entity("AFBack.Features.Profile.Models.UserProfile", b =>
