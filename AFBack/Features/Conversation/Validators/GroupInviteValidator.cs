@@ -30,7 +30,8 @@ public class GroupInviteValidator(
             logger.LogWarning("User {UserId} provided duplicate receiver IDs: {DuplicateIds}",
                 inviterId, string.Join(", ", duplicateIds));
             return Result.Failure(
-                $"Duplicate user IDs in receiver list. Users: {string.Join(", ", duplicateIds)}");
+                $"Duplicate user IDs in receiver list. Users: {string.Join(", ", duplicateIds)}", 
+                AppErrorCode.Validation);
         }
         
         // ============ VALIDERING: Inviterer seg selv ============
@@ -38,7 +39,7 @@ public class GroupInviteValidator(
         if (uniqueReceiverIds.Contains(inviterId))
         {
             logger.LogWarning("User {UserId} tried to include themselves in invite list", inviterId);
-            return Result.Failure("You cannot invite yourself");
+            return Result.Failure("You cannot invite yourself", AppErrorCode.Validation);
         }
         
         // ============ VALIDERING: Brukere eksisterer ============
@@ -60,7 +61,7 @@ public class GroupInviteValidator(
         if (existingParticipantIds != null)
         {
             var alreadyParticipants = uniqueReceiverIds
-                .Where(id => existingParticipantIds.Contains(id))
+                .Where(existingParticipantIds.Contains)
                 .ToList();
             
             if (alreadyParticipants.Any())
@@ -69,7 +70,8 @@ public class GroupInviteValidator(
                     "User {UserId} tried to invite users already in group {ConversationId}: {UserIds}",
                     inviterId, conversationId, string.Join(", ", alreadyParticipants));
                 return Result.Failure(
-                    $"Users already in group. Users: {string.Join(", ", alreadyParticipants)}");
+                    $"Users already in group. Users: {string.Join(", ", alreadyParticipants)}", 
+                    AppErrorCode.Validation);
             }
         }
         
@@ -92,7 +94,7 @@ public class GroupInviteValidator(
                     inviterId, conversationId, string.Join(", ", usersWhoLeft));
                 return Result.Failure(
                     $"Cannot invite users who have left the group. Users: {string.Join(", ", usersWhoLeft)}",
-                    AppErrorCode.Forbidden);
+                    AppErrorCode.Validation);
             }
         }
         
@@ -112,7 +114,7 @@ public class GroupInviteValidator(
             logger.LogWarning("User {UserId} cannot invite: {Count} blocked users", inviterId, blockedUsers.Count);
             return Result.Failure(
                 $"Cannot invite blocked users. Users: {string.Join(", ", blockedUsers)}",
-                AppErrorCode.Forbidden);
+                AppErrorCode.Validation);
         }
         
         return Result.Success();

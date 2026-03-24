@@ -1,4 +1,5 @@
 using AFBack.Common.DTOs;
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Blocking.Services;
@@ -30,7 +31,7 @@ public class BootstrapService(
         if (user == null)
         {
             logger.LogError("User {UserId} retrieving bootstrap does not exist", userId);
-            return Result<CriticalBootstrapResponse>.Failure("User does not exist");
+            return Result<CriticalBootstrapResponse>.Failure("User does not exist", AppErrorCode.NotFound);
         }
         
         // Henter blokkerte brukere

@@ -1,7 +1,9 @@
 // features/auth/screens/SignupScreen.tsx
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { ArrowLeft } from "lucide-react-native";
+import AppHeader from "@/components/common/AppHeader";
 import { useTranslation } from "react-i18next";
 import { useUnistyles } from "react-native-unistyles";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
@@ -99,32 +101,25 @@ export default function SignupScreen() {
     handleSubmitNative({ formData, setTouchedFields, validateAllFields, setErrors, setMessage, onSubmit: registerUser });
   };
 
+  const handleBackToLogin = () => {
+    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader
+        title={t("auth.register")}
+        subtitle={t("auth.registerSubtitle")}
+        onBackPress={handleBackToLogin}
+        backIcon={ArrowLeft}
+        showBorder={true}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.xl }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <View style={{ alignItems: "center", marginTop: theme.spacing.xl, marginBottom: theme.spacing.xl }}>
-            <Text style={{
-              fontSize: theme.typography.xxl,
-              fontWeight: theme.typography.bold,
-              color: theme.colors.primary,
-              marginBottom: theme.spacing.sm,
-            }}>
-              {t("auth.register")}
-            </Text>
-            <Text style={{
-              fontSize: theme.typography.md,
-              color: theme.colors.textMuted,
-              textAlign: "center",
-            }}>
-              {t("auth.registerSubtitle")}
-            </Text>
-          </View>
 
           {/* Skjema */}
           <View style={{ flex: 1, maxWidth: 400, alignSelf: "center", width: "100%" }}>
@@ -181,21 +176,7 @@ export default function SignupScreen() {
                 variant="primary"
                 size="large"
                 fullWidth
-                style={{ marginBottom: theme.spacing.md }}
               />
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: theme.typography.sm, color: theme.colors.textSecondary }}>
-                  {t("auth.alreadyHaveAccount")}
-                </Text>
-                <ButtonNative
-                  text={t("auth.loginHere")}
-                  onPress={() => navigation.reset({ index: 0, routes: [{ name: "Login" }] })}
-                  variant="ghost"
-                  size="medium"
-                  disabled={isSubmitting}
-                  textStyle={{ fontSize: theme.typography.sm, fontWeight: theme.typography.semibold }}
-                />
-              </View>
             </View>
           </View>
         </ScrollView>

@@ -125,7 +125,7 @@ public class SyncService(
         {
             logger.LogCritical("GetSyncEventsAsync fetches 0 events even tho CountEventsSinceTimestamp counted " +
                                "{NumberOfEvents} events", numberOfEvents);
-            return Result<SyncResponse>.Failure("Unable to fetch sync events", AppErrorCode.InternalServerError);
+            return Result<SyncResponse>.Failure("Unable to fetch sync events", AppErrorCode.InternalError);
         }
         
         return Result<SyncResponse>.Success(new SyncResponse { Events = syncEventResponses });

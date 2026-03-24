@@ -5,7 +5,8 @@ import { RegisterUserPayloadDTO } from "@/features/auth/models/RegisterUserPaylo
 import { getRequestPublic, postRequestPublic } from "@/core/api/baseService";
 import { Result } from "@/core/errors/Result";
 import { RegistrationErrorCode } from "@/core/errors/ErrorCode";
-import { RateLimitError } from "@shared/types/security/RateLimitError";
+import { ApiError } from "@/core/errors/ProblemDetails";
+import { AppErrorCode } from "@shared/types/error/AppErrorCode";
 
 /**
  * DTO for et land returnert fra geography-endepunktet.
@@ -19,7 +20,6 @@ export interface Country {
 /**
  * Henter alle tilgjengelige land fra geography-endepunktet.
  * Returnerer tom liste ved feil (ikke-kritisk — UI viser tom dropdown).
- * @returns Liste med land med code og name
  */
 export async function fetchCountries(): Promise<Country[]> {
   try {
@@ -34,8 +34,6 @@ export async function fetchCountries(): Promise<Country[]> {
 /**
  * Henter tilgjengelige regioner for et gitt land.
  * Returnerer tom liste ved feil (ikke-kritisk — UI viser ingen region-dropdown).
- * @param countryCode - ISO 3166-1 alpha-2 landkode (f.eks. "NO", "US")
- * @returns Liste med regionnavn
  */
 export async function fetchRegions(countryCode: string): Promise<string[]> {
   try {
@@ -70,32 +68,38 @@ export async function registerUserAPI(
 }
 
 /**
- * Mapper en kastet exception til typed RegistrationErrorCode.
- * Skiller mellom RateLimitError, nettverksfeil og generiske serverfeil.
+ * Mapper ApiError til typed RegistrationErrorCode.
+ * Bruker appCode (domenespesifikk kode fra AppProblemDetails) fremfor string-matching.
  */
 function mapRegistrationError(error: unknown): Result<RegisterResponseDTO, RegistrationErrorCode> {
-  if (!(error instanceof Error)) {
-    return Result.fail("Unknown error", RegistrationErrorCode.Unknown);
+  if (error instanceof ApiError) {
+    switch (error.appCode) {
+      case AppErrorCode.Conflict:
+      case AppErrorCode.EmailAlreadyExists:
+        return Result.fail(error.message, RegistrationErrorCode.EmailTaken);
+      case AppErrorCode.InvalidRegistrationData:
+      case AppErrorCode.Validation:
+        return Result.fail(error.message, RegistrationErrorCode.InvalidData);
+      case AppErrorCode.TooManyRequests:
+        return Result.fail(error.message, RegistrationErrorCode.RateLimited);
+      case AppErrorCode.InternalError:
+      case AppErrorCode.EmailSendFailed:
+        return Result.fail("Server error. Please try again later.", RegistrationErrorCode.ServerError);
+      default:
+        if (error.status >= 500) {
+          return Result.fail("Server error. Please try again later.", RegistrationErrorCode.ServerError);
+        }
+        return Result.fail(error.message, RegistrationErrorCode.Unknown);
+    }
   }
 
-  if (error instanceof RateLimitError) {
-    return Result.fail(error.message, RegistrationErrorCode.RateLimited);
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch")) {
+      return Result.fail("Network error. Check your connection.", RegistrationErrorCode.NetworkError);
+    }
+    return Result.fail(error.message || "Registration failed.", RegistrationErrorCode.Unknown);
   }
 
-  const msg = error.message.toLowerCase();
-
-  if (msg.includes("email") && (msg.includes("exists") || msg.includes("taken") || msg.includes("already"))) {
-    return Result.fail(error.message, RegistrationErrorCode.EmailTaken);
-  }
-  if (msg.includes("429") || msg.includes("too many") || msg.includes("rate limit")) {
-    return Result.fail(error.message, RegistrationErrorCode.RateLimited);
-  }
-  if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch")) {
-    return Result.fail("Network error. Check your connection.", RegistrationErrorCode.NetworkError);
-  }
-  if (msg.includes("500") || msg.includes("502") || msg.includes("503") || msg.includes("server")) {
-    return Result.fail("Server error. Please try again later.", RegistrationErrorCode.ServerError);
-  }
-
-  return Result.fail(error.message || "Registration failed.", RegistrationErrorCode.Unknown);
+  return Result.fail("Unknown error", RegistrationErrorCode.Unknown);
 }

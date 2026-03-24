@@ -10,6 +10,7 @@ using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
+using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Services;
@@ -25,7 +26,8 @@ public class PasswordService(
     IEmailRateLimitService emailRateLimitService,
     ISmsRateLimitService smsRateLimitService,
     ISuspiciousActivityService suspiciousActivityService,
-    IRateLimitGuardService rateLimitGuardService) : IPasswordService
+    IRateLimitGuardService rateLimitGuardService,
+    ITransactionService transactionService) : IPasswordService
 {
     
     // ======================== Bytt passord (innlogget) ======================== 
@@ -99,7 +101,7 @@ public class PasswordService(
             return Result.Failure(
                 "Your email is not yet verified. " +
                 "We've sent a verification email — please verify before resetting your password.", 
-                AppErrorCode.InvalidCredentials);
+                AppErrorCode.EmailNotConfirmed);
         }
         
         // Brukeren har ikke bekrefet eposten sin
@@ -116,20 +118,26 @@ public class PasswordService(
         }
         
         // ====== Generer kode og send epost ======
-        var emailCode = await verificationInfoService.GenerateEmailPasswordResetAsync(user.Id, ct);
-    
-        var emailData = new EmailCodeDto(
-            Email: email,
-            Code: emailCode,
-            BaseUrl: configuration["App:BaseUrl"]!);
-    
-        var body = EmailTemplates.PasswordReset(emailData);
-    
-        var result = await emailService.SendAsync(email, body, ct);
-        if (result.IsSuccess)
+        return await transactionService.ExecuteAsync(async (innerCt) =>
+        {
+            var emailCode = await verificationInfoService.GenerateEmailPasswordResetAsync(user.Id, innerCt);
+        
+            var emailData = new EmailCodeDto(
+                Email: email,
+                Code: emailCode,
+                BaseUrl: configuration["App:BaseUrl"]!);
+        
+            var body = EmailTemplates.PasswordReset(emailData);
+        
+            var result = await emailService.SendAsync(email, body, innerCt);
+            if (result.IsFailure)
+                return Result.Failure("Failed to send reset email. Please try again.", 
+                    AppErrorCode.InternalError);
+
             emailRateLimitService.RegisterEmailSent(EmailType.PasswordReset, email, ipAddress);
-    
-        return Result.Success();
+        
+            return Result.Success();
+        }, ct);
     }
     
     // ======================== Steg 2: Verifiser epost-kode ========================
@@ -186,83 +194,114 @@ public class PasswordService(
         if (rateLimitResult.IsFailure)
             return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
-        // Generer SMS-kode (guard i VerificationService sjekker PasswordResetEmailVerified)
-        var smsCode = await verificationInfoService.GenerateSmsPasswordResetCodeAsync(user.Id, ct);
-        
-        var message = $"Your Koptr password reset code is: {smsCode}";
-        var result = await smsService.SendAsync(user.PhoneNumber!, message, ct);
-        
-        if (result.IsSuccess)
+        return await transactionService.ExecuteAsync(async (innerCt) =>
+        {
+            // Generer SMS-kode (guard i VerificationService sjekker PasswordResetEmailVerified)
+            var smsCode = await verificationInfoService.GenerateSmsPasswordResetCodeAsync(user.Id, innerCt);
+            
+            var message = $"Your Lyn Software password reset code is: {smsCode}";
+            var result = await smsService.SendAsync(user.PhoneNumber!, message, innerCt);
+            if (result.IsFailure)
+            {
+                logger.LogError("Failed to send password reset SMS to {Phone} for {Email}",
+                    user.PhoneNumber, email);
+                return Result.Failure("Failed to send SMS. Please try again.", AppErrorCode.InternalError);
+            }
+            
             smsRateLimitService.RegisterSmsSent(SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
-        
-        return Result.Success();
+            return Result.Success();
+        }, ct);
     }
     
-    // ======================== Steg 4: Reset passord ========================
-    
+    // ======================== Steg 3b: Verifiser SMS-kode ========================
+
     /// <inheritdoc/>
-    public async Task<Result> ResetPasswordAsync(string email, string code, string newPassword, string ipAddress,
+    public async Task<Result> VerifyPasswordResetSmsAsync(string email, string code, string ipAddress,
         CancellationToken ct = default)
     {
-        logger.LogInformation("ResetPasswordAsync. Payload: {@Payload}", new { email });
-    
-        // ====== Finn bruker ======
+        logger.LogInformation("VerifyPasswordResetSmsAsync. Payload: {@Payload}", new { email });
+
         var user = await userManager.FindByEmailAsync(email);
         if (user == null)
         {
-            logger.LogWarning("IpAddress: {IpAddress} is trying to verify sms password reset code for " +
+            logger.LogWarning("IpAddress: {IpAddress} is trying to verify SMS password reset code for " +
                               "non-existent user. Email: {Email}", ipAddress, email);
             return Result.Failure("Invalid reset attempt", AppErrorCode.Unauthorized);
         }
-    
-        // ====== Valider koden ======
+
         var validateResult = await verificationInfoService.ValidateSmsPasswordResetCodeAsync(user.Id, code, ct);
         if (validateResult.IsFailure)
         {
             if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
                 await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                    SuspiciousActivityType.BruteForceAttempt, 
+                    SuspiciousActivityType.BruteForceAttempt,
                     $"Password reset SMS code locked out for {email}");
 
             return validateResult;
         }
-        
-        var rateLimitResult = await rateLimitGuardService.CheckSmsRateLimitAsync(
-            SmsType.PasswordReset, user.PhoneNumber!, ipAddress);
-        if (rateLimitResult.IsFailure)
-            return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
-        
-        // ====== Reset passord via Identity ======
-        // Fjern først
-        var removeResult = await userManager.RemovePasswordAsync(user);
-        if (!removeResult.Succeeded)
-        {
-            logger.LogError("Failed to remove password for {Email}", email);
-            return Result.Failure("Failed to reset password", AppErrorCode.InternalError);
-        }
-        
-        // Så legg til nytt Passord
-        var addResult = await userManager.AddPasswordAsync(user, newPassword);
-        if (!addResult.Succeeded)
-        {
-            var errors = string.Join(" ", addResult.Errors.Select(e => e.Description));
-            logger.LogWarning("Failed to set new password for {Email}: {Errors}", email, errors);
-            return Result.Failure(errors, AppErrorCode.InvalidRegistrationData);
-        }
-    
-        // Nullstill rate limit cooldown for password reset
-        emailRateLimitService.ClearEmailAttempts(EmailType.PasswordReset, email);
-        smsRateLimitService.ClearSmsAttempts(SmsType.PasswordReset, user.PhoneNumber!);
-        
-        // ====== Opphev evt. lockout (f.eks. etter "This wasn't me"-rapportering) ======
-        if (await userManager.IsLockedOutAsync(user))
-        {
-            await userManager.SetLockoutEndDateAsync(user, null);
-            await userManager.ResetAccessFailedCountAsync(user);
-            logger.LogInformation("Lockout cleared after successful password reset for {Email}", email);
-        }
-    
-        logger.LogInformation("Password reset successful for {Email}", email);
+
+        logger.LogInformation(
+            "SMS password reset code verified for {Email}. Password reset unlocked.", email);
         return Result.Success();
+    }
+
+    // ======================== Steg 4: Reset passord ========================
+
+    /// <inheritdoc/>
+    public async Task<Result> ResetPasswordAsync(string email, string newPassword, string ipAddress,
+        CancellationToken ct = default)
+    {
+        logger.LogInformation("ResetPasswordAsync. Payload: {@Payload}", new { email });
+
+        // ====== Finn bruker ======
+        var user = await userManager.FindByEmailAsync(email);
+        if (user == null)
+        {
+            logger.LogWarning("IpAddress: {IpAddress} is trying to reset password for " +
+                              "non-existent user. Email: {Email}", ipAddress, email);
+            return Result.Failure("Invalid reset attempt", AppErrorCode.Unauthorized);
+        }
+
+        // Guard: SmsPasswordResetVerified må være true — satt av VerifyPasswordResetSmsAsync (steg 3b)
+        // Forhindrer at noen hopper direkte til steg 4 uten å ha verifisert SMS-koden
+        return await transactionService.ExecuteAsync(async (innerCt) =>
+        {
+            var sessionResult = await verificationInfoService.IsSmsPasswordResetVerifiedAsync(user.Id, innerCt);
+            if (sessionResult.IsFailure)
+                return sessionResult;
+
+            // ====== Reset passord via Identity ======
+            // Fjern først
+            var removeResult = await userManager.RemovePasswordAsync(user);
+            if (!removeResult.Succeeded)
+            {
+                logger.LogError("Failed to remove password for {Email}", email);
+                return Result.Failure("Failed to reset password", AppErrorCode.InternalError);
+            }
+
+            // Så legg til nytt passord
+            var addResult = await userManager.AddPasswordAsync(user, newPassword);
+            if (!addResult.Succeeded)
+            {
+                var errors = string.Join(" ", addResult.Errors.Select(e => e.Description));
+                logger.LogWarning("Failed to set new password for {Email}: {Errors}", email, errors);
+                return Result.Failure(errors, AppErrorCode.InvalidRegistrationData);
+            }
+
+            // Nullstill rate limit cooldown for password reset
+            emailRateLimitService.ClearEmailAttempts(EmailType.PasswordReset, email);
+            smsRateLimitService.ClearSmsAttempts(SmsType.PasswordReset, user.PhoneNumber!);
+
+            // ====== Opphev evt. lockout (f.eks. etter "This wasn't me"-rapportering) ======
+            if (await userManager.IsLockedOutAsync(user))
+            {
+                await userManager.SetLockoutEndDateAsync(user, null);
+                await userManager.ResetAccessFailedCountAsync(user);
+                logger.LogInformation("Lockout cleared after successful password reset for {Email}", email);
+            }
+
+            logger.LogInformation("Password reset successful for {Email}", email);
+            return Result.Success();
+        }, ct);
     }
 }

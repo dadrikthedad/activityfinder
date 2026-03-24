@@ -51,7 +51,7 @@ public class GroupConversationService(
         var validationResult = await groupInviteValidator.ValidateInviteAsync(userId, request.ReceiverIds);
         if (validationResult.IsFailure)
             return Result<CreateGroupConversationResponse>.Failure(validationResult.Error, 
-                validationResult.AppErrorType);
+                validationResult.ErrorCode);
         
         
         // ============ DATABASE: Opprett gruppe med kun creator ============
@@ -222,7 +222,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after accepting", conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
 
         var conversationResponse = conversationDto.ToResponse(users);
@@ -318,7 +318,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after rejecting", conversationId);
             return Result.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
     
         // Ekskluder brukeren som avviste fra response
@@ -385,7 +385,7 @@ public class GroupConversationService(
         
         if (inviteValidationResult.IsFailure)
             return Result<ConversationResponse>.Failure(
-                inviteValidationResult.Error, inviteValidationResult.AppErrorType);
+                inviteValidationResult.Error, inviteValidationResult.ErrorCode);
         
         // ============ DATABASE: Opprett participants ============
         
@@ -426,7 +426,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after inviting", conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
     
         var conversationResponse = conversationDto.ToResponse(users);
@@ -553,7 +553,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after leaving", conversationId);
             return Result.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
         
         // Ekskluder brukeren som forlot fra response
@@ -766,7 +766,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after updating name", conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
 
         var conversationResponse = conversationDto.ToResponse(users);
@@ -825,7 +825,7 @@ public class GroupConversationService(
         // Valider og last opp filen som en stream
         var uploadImageResult = await fileOrchestrator.UploadPublicImageAsync(image, storageKey);
         if (uploadImageResult.IsFailure)
-            return Result<ConversationResponse>.Failure(uploadImageResult.Error);
+            return Result<ConversationResponse>.Failure(uploadImageResult.Error, uploadImageResult.ErrorCode);
         var imageUrl = uploadImageResult.Value;
         
         // ============ DATABASE: Oppdater gruppenavn ============
@@ -852,7 +852,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after updating name", conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
 
         var conversationResponse = conversationDto.ToResponse(users);
@@ -906,7 +906,7 @@ public class GroupConversationService(
         {
             logger.LogWarning("User {UserId} tried to remove group image for group {ConversationId} but none exists",
                 userId, conversationId);
-            return Result<ConversationResponse>.Failure("Group has no image to remove");
+            return Result<ConversationResponse>.Failure("Group has no image to remove", AppErrorCode.NotFound);
         }
         
         // ============ STORAGE: Slett bildet ============
@@ -918,7 +918,7 @@ public class GroupConversationService(
             logger.LogError("Failed to delete group image from storage for group {ConversationId}: {Error}",
                 conversationId, deleteResult.Error);
             return Result<ConversationResponse>.Failure(
-                "Failed to delete group image", AppErrorCode.InternalServerError);
+                "Failed to delete group image", AppErrorCode.InternalError);
         }
         
         // ============ DATABASE: Nullstill GroupImageUrl ============
@@ -946,7 +946,7 @@ public class GroupConversationService(
         {
             logger.LogCritical("Group conversation {ConversationId} not found after removing image", conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
 
         var conversationResponse = conversationDto.ToResponse(users);
@@ -1022,7 +1022,7 @@ public class GroupConversationService(
             logger.LogCritical("Group conversation {ConversationId} not found after updating description", 
                 conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
 
         var conversationResponse = conversationDto.ToResponse(users);

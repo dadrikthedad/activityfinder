@@ -105,17 +105,47 @@ Claim-mapping er slått av (`DefaultInboundClaimTypeMap.Clear()`).
 
 ## Kritiske patterns
 
-### Result Pattern
+### Result Pattern + AppErrorCode
 
 ```csharp
-if (conversation == null)
-    return Result.Failure("Not found", ErrorTypeEnum.NotFound); // → 404
+// Service returnerer alltid Result med AppErrorCode:
+if (user == null)
+    return Result.Failure("User not found", AppErrorCode.NotFound);
 
+if (!isPasswordValid)
+    return Result.Failure("Wrong email or password", AppErrorCode.InvalidCredentials);
+
+// Controller kaller HandleFailure — mapper AppErrorCode → HTTP-statuskode + AppProblemDetails:
 if (result.IsFailure)
-    return HandleFailure(result); // Mapper ErrorType → HTTP status
+    return HandleFailure(result);
 ```
 
-Bruk `Result/Result<T>` for forretningsfeil, exceptions for tekniske feil.
+### AppErrorCode — domenespesifikke feilkoder
+
+Alle feil bruker `AppErrorCode` (i `Common/Enum/AppErrorCode.cs`).
+`HandleFailure` i `BaseController` mapper koden til HTTP-statuskode og returnerer `AppProblemDetails`.
+Frontend speilet disse i `shared/types/error/AppErrorCode.ts`.
+
+```
+AppProblemDetails JSON:
+{ "status": 401, "title": "Authentication Error", "detail": "...", "code": 2002 }
+```
+
+Koderanges:
+- `0` — Unknown
+- `1xxx` — Generelle (Validation, NotFound, Conflict, Unauthorized, Forbidden, InternalError, TooManyRequests, Gone, BadRequest, EmailSendFailed)
+- `2xxx` — Autentisering (InvalidCredentials, AccountLocked, EmailNotConfirmed, PhoneNotConfirmed, TokenExpired, InvalidToken)
+- `3xxx` — Registrering (EmailAlreadyExists, InvalidRegistrationData)
+- `4xxx` — Verifisering (InvalidCode, ExpiredCode, AlreadyVerified)
+- `5xxx` — Passord-reset (EmailNotFound)
+- `6xxx` — Invitasjoner (InviteUserNotFound, InviteAlreadyInGroup, InviteUserLeft, InviteBlocked)
+- `7xxx` — Kryptografi (InvalidPublicKey)
+
+### AppProblemDetails
+
+`BaseController.HandleFailure` returnerer alltid `AppProblemDetails` (ikke standard `ProblemDetails`).
+`AppProblemDetails` arver `ProblemDetails` og legger til `Code`-feltet (int).
+`GlobalExceptionHandler` returnerer fortsatt standard `ProblemDetails` uten `code` — kun for uventede exceptions.
 
 ### Transaksjonsmønster
 
@@ -176,6 +206,7 @@ Frontend håndterer all kryptering
 - **GroupConversationLeftRecord:** Må slettes for å bli med i gruppe igjen
 - **SignalR i tx:** Aldri. Commit først, deretter SignalR.
 - **Auth DummyUser:** Initialiseres ved oppstart — alltid med gjeldende Argon2id-parametere
+- **AppErrorCode vs HTTP-statuskode:** AppErrorCode er domenekontrakten. HTTP-statuskoden utledes av `BuildProblemResult` i `BaseController` — aldri sett statuskode manuelt.
 
 ## Refaktoreringskonvensjon
 

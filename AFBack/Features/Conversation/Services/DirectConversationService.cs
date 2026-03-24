@@ -63,7 +63,7 @@ public class DirectConversationService(
         // Sjekk blokkeringer begge veier
         var blockResult = await blockingService.ValidateNoBlockingsAsync(userId, request.ReceiverId);
         if (blockResult.IsFailure)
-            return Result<SendMessageToUserResponse>.Failure(blockResult.Error, blockResult.AppErrorType);
+            return Result<SendMessageToUserResponse>.Failure(blockResult.Error, blockResult.ErrorCode);
         
         // ============ DATABASE: Opprett samtalen med nye entiteter ============
         
@@ -112,7 +112,7 @@ public class DirectConversationService(
             logger.LogCritical("Created conversation {ConversationId} not found after creation",
                 createdConversation.Id);
             return Result<SendMessageToUserResponse>.Failure(
-                "Failed to retrieve created conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve created conversation", AppErrorCode.InternalError);
         }
 
         var messageDto = await messageRepository.GetMessageDtoAsync(message.Id);
@@ -121,7 +121,7 @@ public class DirectConversationService(
             logger.LogCritical("Created message {MessageId} not found after creation",
                 message.Id);
             return Result<SendMessageToUserResponse>.Failure(
-                "Failed to retrieve created message", AppErrorCode.InternalServerError);
+                "Failed to retrieve created message", AppErrorCode.InternalError);
         }
         
         // Hent users for cache
@@ -218,7 +218,7 @@ public class DirectConversationService(
         {
             logger.LogCritical("Sent message {MessageId} not found after sending", messageResult.Value.MessageId);
             return Result<SendMessageToUserResponse>.Failure(
-                "Failed to retrieve sent message", AppErrorCode.InternalServerError);
+                "Failed to retrieve sent message", AppErrorCode.InternalError);
         }
         
         // Hent brukere fra cache
@@ -260,7 +260,7 @@ public class DirectConversationService(
         {
             logger.LogCritical("Conversation {ConversationId} has no sender participant", conversationId);
             return Result<ConversationResponse>.Failure("Server error. Try again later or contact support", 
-                AppErrorCode.InternalServerError);
+                AppErrorCode.InternalError);
         }
         
         // ============ DATABASE: Oppdater database ============
@@ -296,7 +296,7 @@ public class DirectConversationService(
             logger.LogCritical("Created conversation {ConversationId} not found after creation",
                 conversationId);
             return Result<ConversationResponse>.Failure(
-                "Failed to retrieve updated conversation", AppErrorCode.InternalServerError);
+                "Failed to retrieve updated conversation", AppErrorCode.InternalError);
         }
         
         // Hent users for cache

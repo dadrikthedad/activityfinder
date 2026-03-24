@@ -1,17 +1,15 @@
 // components/common/PasswordFieldNative.tsx
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { Eye, EyeOff } from "lucide-react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
+import LabelWithTooltipNative from "@/components/common/buttons/LabelWithTooltipNative";
 
 interface PasswordFieldNativeProps {
   id: string;
   label: string;
+  // Tooltip vises som spørsmålstegn ved siden av label — brukes i Signup-kontekst
+  tooltip?: string;
   value: string;
   onChangeText: (text: string) => void;
   onBlur?: () => void;
@@ -19,12 +17,16 @@ interface PasswordFieldNativeProps {
   touched?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  // "left" brukes i Signup-skjemaer, "center" brukes i Login/ResetPassword — default center
+  labelAlign?: "left" | "center";
+  maxLength?: number;
   style?: any;
 }
 
 export default function PasswordFieldNative({
   id,
   label,
+  tooltip,
   value,
   onChangeText,
   onBlur,
@@ -32,6 +34,8 @@ export default function PasswordFieldNative({
   touched,
   placeholder,
   disabled = false,
+  labelAlign = "center",
+  maxLength = 128,
   style,
 }: PasswordFieldNativeProps) {
   const [showPassword, setShowPassword] = useState(false);
@@ -41,7 +45,14 @@ export default function PasswordFieldNative({
 
   return (
     <View style={[styles.container, style]}>
-      <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{label}</Text>
+      {/* Tooltip-label brukes i Signup, enkel Text-label brukes i Login/ResetPassword */}
+      {tooltip ? (
+        <LabelWithTooltipNative label={label} tooltip={tooltip} />
+      ) : (
+        <Text style={[styles.label, { color: theme.colors.textSecondary, textAlign: labelAlign }]}>
+          {label}
+        </Text>
+      )}
       <View style={styles.inputContainer}>
         <TextInput
           value={value}
@@ -50,6 +61,7 @@ export default function PasswordFieldNative({
           placeholder={placeholder}
           editable={!disabled}
           secureTextEntry={!showPassword}
+          maxLength={maxLength}
           style={[
             styles.input,
             {
@@ -58,7 +70,7 @@ export default function PasswordFieldNative({
               color: theme.colors.textPrimary,
             },
             showError && { borderColor: theme.colors.borderError, borderWidth: 2 },
-            disabled  && {
+            disabled && {
               backgroundColor: theme.colors.disabled,
               color: theme.colors.disabledText,
             },
@@ -67,6 +79,8 @@ export default function PasswordFieldNative({
           autoCorrect={false}
           placeholderTextColor={theme.colors.textPlaceholder}
           selectionColor={theme.colors.primary}
+          textContentType="password"
+          autoComplete="password"
         />
         <TouchableOpacity
           style={styles.eyeButton}
@@ -96,7 +110,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     marginBottom: 6,
-    textAlign: "center",
   },
   inputContainer: {
     position: "relative",
@@ -124,6 +137,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
     marginLeft: 4,
-    textAlign: "center",
   },
 });

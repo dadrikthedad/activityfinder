@@ -18,6 +18,7 @@ public enum AppErrorCode
     InternalError   = 1005,
     TooManyRequests = 1006,
     Gone            = 1007,
+    BadRequest = 1008,
 
     // ── Autentisering (2xxx) ──────────────────────────
     InvalidCredentials  = 2000,
@@ -39,4 +40,9 @@ public enum AppErrorCode
 
     // ── Passord-reset (5xxx) ──────────────────────────
     EmailNotFound = 5000,
+    ResetSessionNotVerified    = 5001,  // SMS-koden er ikke verifisert (steg 3b ikke fullført)
+    ResetSessionExpired        = 5002,  // 10-minuttersvinduet etter SMS-verifisering er utløpt
+    
+    // ── Kryptografi (6xxx) ────────────────────────────
+    InvalidPublicKey = 6000,
 }

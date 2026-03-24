@@ -24,7 +24,7 @@ public class EncryptionService(
         if (keyBytes.Length != 32)
         {
             logger.LogWarning("Invalid key format. PublicKey is {KeyBytesLength} bytes", keyBytes.Length);
-            return Result<StoreUserPublicKeyResponse>.Failure("Invalid key format");
+            return Result<StoreUserPublicKeyResponse>.Failure("Invalid key format", AppErrorCode.InvalidPublicKey);
         }
         
         // Sjekker om brukeren har en eksisterende key, og deaktiverer den isåfall
@@ -71,7 +71,7 @@ public class EncryptionService(
 
         var notArchivedResult = conversationValidator.ValidateNotArchived(participantResult.Value!);
         if (notArchivedResult.IsFailure)
-            return Result<ConversationKeysResponse>.Failure(notArchivedResult.Error, notArchivedResult.AppErrorType);
+            return Result<ConversationKeysResponse>.Failure(notArchivedResult.Error, notArchivedResult.ErrorCode);
 
         var participantIds = conversation!.Participants
             .Where(p => !p.ConversationArchived)
@@ -130,7 +130,7 @@ public class EncryptionService(
     {
         var storeRecoveryResult = await keyVaultService.StoreRecoverySeedAsync(userId, deviceId, key);
         if (storeRecoveryResult.IsFailure)
-            return Result.Failure(storeRecoveryResult.Error, storeRecoveryResult.AppErrorType);
+            return Result.Failure(storeRecoveryResult.Error, storeRecoveryResult.ErrorCode);
 
         return Result.Success();
     }

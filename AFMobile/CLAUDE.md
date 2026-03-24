@@ -48,8 +48,8 @@ AFMobile/
 │   ├── errors/
 │   │   ├── ErrorCode.ts            # AuthErrorCode, RegistrationErrorCode, VerificationErrorCode, PasswordResetErrorCode
 │   │   ├── Result.ts               # Result<T, C> og VoidResult<C>
-│   │   ├── AppError.ts             # AppError-klasse for uventede feil
-│   │   └── ProblemDetails.ts       # ProblemDetails-interface, ApiError, throwProblemDetails(), getProblemDetail()
+│   │   ├── AppError.ts             # AppError-klasse for uventede tekniske feil
+│   │   └── ProblemDetails.ts       # ProblemDetails-interface, ApiError (med appCode), throwProblemDetails(), getProblemDetail()
 │   ├── models/                     # Delte DTOer som brukes på tvers av features
 │   │   ├── DeviceInfoRequest.ts    # Device-info DTO
 │   │   └── TokenResponse.ts        # Token-respons DTO
@@ -64,13 +64,18 @@ AFMobile/
 │       ├── index.ts                # i18next-konfigurasjon + Expo-språkdeteksjon
 │       └── i18next.d.ts            # TypeScript-typer for t()-kall
 │
+├── shared/
+│   └── types/
+│       └── error/
+│           └── AppErrorCode.ts     # Speil av AppErrorCode.cs i AFBack — delt kontrakt
+│
 ├── features/
 │   └── auth/                       # Feature Slice
 │       ├── screens/                # LoginScreen, SignupScreen, VerificationScreen,
 │       │                           #   PhoneSmsVerificationScreen, ResetPasswordScreen, CryptationScreen
-│       ├── hooks/                  # useLogin (rhf+zod), useRegisterUser
+│       ├── hooks/                  # useLogin (rhf+zod), useRegisterUser, useResetPassword (rhf+zod)
 │       ├── services/               # authService, signUpService, verificationService
-│       │                           #   — alle bruker Result-pattern
+│       │                           #   — alle bruker Result-pattern + AppErrorCode-matching
 │       ├── models/
 │       │   ├── LoginRequestDTO.ts
 │       │   ├── LoginResponseDTO.ts
@@ -89,7 +94,7 @@ AFMobile/
 ├── components/
 │   ├── common/
 │   │   ├── FormFieldNative.tsx     # useUnistyles()
-│   │   ├── PasswordFieldNative.tsx # useUnistyles()
+│   │   ├── PasswordFieldNative.tsx # useUnistyles() — støtter tooltip og labelAlign
 │   │   ├── DatePickerNative.tsx    # useUnistyles()
 │   │   └── buttons/
 │   │       ├── ButtonNative.tsx        # useUnistyles() — alle varianter
@@ -119,36 +124,59 @@ AFMobile/
 - Delte modeller som brukes av flere features → `core/models/`
 - Feature-spesifikke modeller → `features/{feature}/models/`
 
-### ProblemDetails — API-feilhåndtering
+### AppErrorCode — delt domenekode mellom backend og frontend
 
-Backend (AFBack) returnerer **alltid** `ProblemDetails` ved feil via `BaseController.HandleFailure`.
-DataAnnotations-valideringsfeil returneres som `ValidationProblemDetails` med et `errors`-felt.
+Backend sender alltid `AppProblemDetails` ved feil via `BaseController.HandleFailure`.
+`AppProblemDetails` er et utvidet `ProblemDetails`-objekt med et ekstra `code`-felt (int).
+
+```json
+{ "status": 401, "title": "Authentication Error", "detail": "Email address is not yet verified.", "code": 2002 }
+```
+
+Frontend leser `code`-feltet via `ApiError.appCode` og switcher på det i `mapXxxError`-funksjoner.
+`AppErrorCode`-enumen i `shared/types/error/AppErrorCode.ts` er et nøyaktig speil av `AppErrorCode.cs` i AFBack.
+
+```typescript
+import { AppErrorCode } from "@shared/types/error/AppErrorCode";
+
+// I mapXxxError — switch på appCode, IKKE error.status eller string-matching:
+if (error instanceof ApiError) {
+  switch (error.appCode) {
+    case AppErrorCode.EmailNotConfirmed:   // 2002
+      return Result.fail(error.message, AuthErrorCode.EmailNotVerified);
+    case AppErrorCode.PhoneNotConfirmed:   // 2003
+      return Result.fail(error.message, AuthErrorCode.PhoneNotVerified);
+    case AppErrorCode.InvalidCredentials:  // 2000
+      return Result.fail("Wrong email or password.", AuthErrorCode.InvalidCredentials);
+    case AppErrorCode.TooManyRequests:     // 1006
+      return Result.fail(error.message, AuthErrorCode.RateLimited);
+  }
+}
+```
+
+`GlobalExceptionHandler` returnerer standard `ProblemDetails` uten `code` for uventede exceptions.
+I slike tilfeller er `error.appCode === AppErrorCode.Unknown` (0).
+
+### ProblemDetails og ApiError
 
 ```typescript
 // core/errors/ProblemDetails.ts — bruk alltid disse:
-import { throwProblemDetails, getProblemDetail, ApiError } from "@/core/errors/ProblemDetails";
+import { throwProblemDetails, ApiError } from "@/core/errors/ProblemDetails";
+import { AppErrorCode } from "@shared/types/error/AppErrorCode";
 
-// I fetch-kall — kast ApiError med statuskode og detail:
+// I fetch-kall — kast ApiError med statuskode, melding og appCode:
 if (!response.ok) {
-  await throwProblemDetails(response);
+  await throwProblemDetails(response);  // leser problem.code → ApiError.appCode
 }
 
-// ApiError bærer HTTP-statuskoden — bruk den i mapXxxError, IKKE string-matching:
-if (error instanceof ApiError) {
-  switch (error.status) {
-    case 401: // Unauthorized — sjekk error.message for å skille tilfeller
-    case 403: // Forbidden / locked
-    case 422: // ValidationProblemDetails — DataAnnotations-feil
-    case 429: // Rate limit
-    // 5xx → ServerError
-  }
-}
-
-// getProblemDetail() leser: detail → errors[0] → title → fallback
-// throwProblemDetails() kaster: new ApiError(getProblemDetail(problem), response.status)
+// ApiError har tre felt:
+// error.message  — brukervendt melding fra detail-feltet
+// error.status   — HTTP-statuskode (401, 422, 429 osv.)
+// error.appCode  — domenespesifikk AppErrorCode (2002, 4000 osv.) — bruk DETTE i switch
 ```
 
 **Aldri** bruk `errorData.message` — backend bruker `detail`, ikke `message`.
+**Aldri** switch på `error.status` alene — bruk `error.appCode` for presise domenefeil.
 
 ### baseService — tom respons-håndtering
 
@@ -165,6 +193,7 @@ await postRequestPublic<void, { email: string }>(ApiRoutes.verification.resend, 
 ### Result-pattern
 
 Services returnerer `Result<T, ErrorCode>` i stedet for å kaste exceptions.
+`mapXxxError`-funksjoner oversetter `AppErrorCode` (backend-kontrakt) til feature-spesifikke koder (`AuthErrorCode` etc.).
 
 ```typescript
 // Service:
@@ -173,7 +202,7 @@ export async function loginUser(email, password): Promise<Result<LoginResponseDT
     const data = await authServiceNative.login(email, password);
     return Result.ok(data);
   } catch (error) {
-    return mapLoginError(error); // mapper ApiError → typed AuthErrorCode
+    return mapLoginError(error); // mapper AppErrorCode → AuthErrorCode
   }
 }
 
@@ -222,14 +251,15 @@ Signup
         → Home                  (etter vellykket innlogging)
 
 Login med uverifisert e-post:
-  → backend returnerer 401 "not yet verified" + sender ny e-post automatisk
+  → backend returnerer AppErrorCode.EmailNotConfirmed (2002)
   → VerificationScreen
 
 Login med uverifisert telefon:
-  → backend returnerer 401 "phone number is not yet verified" + sender ny SMS automatisk
+  → backend returnerer AppErrorCode.PhoneNotConfirmed (2003)
   → PhoneSmsVerificationScreen  (sender SMS én gang til ved mount — backend rate limit hindrer dobbelsending)
 
 Login med feil credentials:
+  → backend returnerer AppErrorCode.InvalidCredentials (2000)
   → feilmelding via toast
 ```
 
@@ -247,10 +277,24 @@ resendSmsVerification(email)        // POST /api/verification/resend-phone-verif
 ### ViewModel-mønster
 
 ```
-LoginScreen.tsx     →  View       (kun JSX, ingen logikk)
-useLogin.ts         →  ViewModel  (state, validering, actions)
-authService.ts      →  Model      (API-kall, returnerer Result<T>)
-LoginResponseDTO.ts →  DTO        (typedefinisjoner)
+LoginScreen.tsx        →  View       (kun JSX, ingen logikk)
+useLogin.ts            →  ViewModel  (state, rhf+zod, actions)
+useResetPassword.ts    →  ViewModel  (steg 1+2: lokal state, steg 3: rhf+zod)
+authService.ts         →  Model      (API-kall, returnerer Result<T>)
+LoginResponseDTO.ts    →  DTO        (typedefinisjoner)
+```
+
+### Passordfelt — PasswordFieldNative
+
+Én felles passordfelt-komponent for hele appen: `components/common/PasswordFieldNative.tsx`.
+Støtter `tooltip` (viser `LabelWithTooltipNative`) og `labelAlign` ("left" for signup, "center" for login/reset).
+
+```typescript
+// Login / ResetPassword — sentrert label, ingen tooltip:
+<PasswordFieldNative id="password" label={t("auth.password")} value={value} ... />
+
+// Signup — venstrejustert label med tooltip:
+<PasswordFieldNative id="password" label={t("auth.createPassword")} tooltip={t("auth.passwordTooltip")} labelAlign="left" value={value} ... />
 ```
 
 ### Signup — telefonnummer med landskode
@@ -272,6 +316,7 @@ Matcher Identity-konfigurasjon i AFBack (`RequireDigit/Lower/Upper = true`, `Req
 ```typescript
 // loginSchema: min 8 tegn (ingen regex — backend gir presis feilmelding ved feil credentials)
 // resetPasswordSchema: 8-128 tegn + regex for stor/liten bokstav + tall
+// Begge brukes med react-hook-form + zodResolver i useLogin og useResetPassword
 ```
 
 ### Tema — react-native-unistyles v3.1.1
@@ -351,7 +396,9 @@ import { FlashList } from "@shopify/flash-list";
 
 **Result-pattern:** Services returnerer `Result<T, ErrorCode>` — ikke kast exceptions for forretningsfeil.
 
-**ProblemDetails:** Backend returnerer alltid ProblemDetails. Bruk `throwProblemDetails()` i alle fetch-kall. Les aldri `errorData.message` — bruk `errorData.detail`. Bruk `ApiError.status` i mapXxxError, ikke string-matching.
+**AppErrorCode:** Backend sender alltid `AppProblemDetails` med `code`-felt. Bruk `error.appCode` i alle `mapXxxError`-funksjoner — ALDRI `error.status` alene eller string-matching på meldingstekst. `AppErrorCode`-enumen i `shared/types/error/AppErrorCode.ts` er kontrakten — hold den synkronisert med AFBack.
+
+**ProblemDetails:** Backend bruker `detail`-feltet, ikke `message`. Les aldri `errorData.message`.
 
 **Tema:** ALDRI hardkodede farger. Alltid `theme.colors.*` fra `useUnistyles()`.
 Unntak: absolutt svart/hvit i mediaviser, `rgba(0,0,0,x)` overlays, tredjeparts komponenter.
@@ -392,8 +439,9 @@ API_URL=http://192.168.1.191:5058   // lokal utvikling (fysisk enhet)
 - **expo-dev-client:** Kan ikke åpnes i Expo Go
 - **Unistyles API:** V3.1 bruker `StyleSheet.configure()` og `useUnistyles()` — ikke `UnistylesRegistry` eller `createStyleSheet`/`useStyles` (det var v2)
 - **FlashList v2:** Krever ikke `estimatedItemSize`
-- **ProblemDetails:** Backend bruker `detail`-feltet, ikke `message`. `ValidationProblemDetails` bruker `errors`-feltet
+- **AppProblemDetails:** Backend bruker `detail`-feltet og `code`-feltet. `code` er `AppErrorCode` som int. GlobalExceptionHandler sender standard ProblemDetails uten `code` — `error.appCode` er da `AppErrorCode.Unknown` (0).
 - **Keychain service:** `AFMobile.auth` — én entry med JSON-streng for alle token-felt
 - **userId er string (GUID):** `AuthContext.userId` er `string | null`, ikke `number | null`. `getUserIdFromToken` returnerer GUID-streng direkte — ikke kall `Number()` på den.
 - **Void-endepunkter returnerer tom body:** `postRequestPublic` kaller `parseJsonIfPresent` — returnerer `null` for `200 OK` uten body. Ikke forvent JSON fra verify/resend-endepunkter.
 - **SignupScreen email-snapshot:** `formData.email` er allerede nullstilt når `isRegistered`-effecten kjører. Bruk `registeredEmailRef.current` for å sende e-post til `VerificationScreen`.
+- **AppErrorCode sync:** Når nye koder legges til i AFBack `AppErrorCode.cs`, må `shared/types/error/AppErrorCode.ts` oppdateres tilsvarende.

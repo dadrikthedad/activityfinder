@@ -20,14 +20,14 @@ public class S3StorageService(
         if (stream is null || !stream.CanRead)
         {
             logger.LogError("Invalid stream provided for upload: {Key}", storageKey);
-            return Result<string>.Failure("Invalid file stream");
+            return Result<string>.Failure("Invalid file stream", AppErrorCode.InternalError);
         }
 
         // Network streams så fungerer ikke alltid Length, derfor sjekker vi med CanSeek også
         if (stream.CanSeek && stream.Length == 0)
         {
             logger.LogError("Empty stream provided for upload: {Key}", storageKey);
-            return Result<string>.Failure("File is empty");
+            return Result<string>.Failure("File is empty", AppErrorCode.InternalError);
         }
 
         try
@@ -63,13 +63,13 @@ public class S3StorageService(
         {
             logger.LogError(ex, "S3 error uploading file: {Key}. Status: {Status}", storageKey, ex.StatusCode);
             return Result<string>.Failure($"Failed to upload file: {ex.Message}",
-                AppErrorCode.InternalServerError);
+                AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error uploading file to S3: {Key}", storageKey);
             return Result<string>.Failure("An unexpected error occurred while uploading the file", 
-                AppErrorCode.InternalServerError);
+                AppErrorCode.InternalError);
         }
     }
 
@@ -88,7 +88,7 @@ public class S3StorageService(
             if (response.ContentLength == 0)
             {
                 logger.LogWarning("Empty file downloaded from S3: {Key}", storageKey);
-                return Result<Stream>.Failure("File is empty");
+                return Result<Stream>.Failure("File is empty", AppErrorCode.InternalError);
             }
 
             logger.LogInformation("Successfully downloaded file from S3: {Key}", storageKey);
@@ -104,12 +104,13 @@ public class S3StorageService(
         {
             logger.LogError(ex, "S3 error downloading file: {Key}. Status: {Status}", 
                 storageKey, ex.StatusCode);
-            return Result<Stream>.Failure($"Failed to download file: {ex.Message}");
+            return Result<Stream>.Failure($"Failed to download file: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error downloading file from S3: {Key}", storageKey);
-            return Result<Stream>.Failure("An unexpected error occurred while downloading the file");
+            return Result<Stream>.Failure("An unexpected error occurred while downloading the file", 
+                AppErrorCode.InternalError);
         }
     }
 
@@ -142,12 +143,14 @@ public class S3StorageService(
         {
             logger.LogError(ex, "S3 error generating presigned URL: {Key}. Status: {Status}",
                 storageKey, ex.StatusCode);
-            return Result<string>.Failure($"Failed to generate download URL: {ex.Message}");
+            return Result<string>.Failure($"Failed to generate download URL: {ex.Message}", 
+                AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error generating presigned URL: {Key}", storageKey);
-            return Result<string>.Failure("An unexpected error occurred while generating the download URL");
+            return Result<string>.Failure("An unexpected error occurred while generating the download URL", 
+                AppErrorCode.InternalError);
         }
     }
 
@@ -168,12 +171,13 @@ public class S3StorageService(
         catch (AmazonS3Exception ex)
         {
             logger.LogError(ex, "S3 error deleting file: {Key}. Status: {Status}", storageKey, ex.StatusCode);
-            return Result.Failure($"Failed to delete file: {ex.Message}");
+            return Result.Failure($"Failed to delete file: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error deleting file from S3: {Key}", storageKey);
-            return Result.Failure("An unexpected error occurred while deleting the file");
+            return Result.Failure("An unexpected error occurred while deleting the file", 
+                AppErrorCode.InternalError);
         }
     }
 
@@ -197,12 +201,14 @@ public class S3StorageService(
         {
             logger.LogError(ex, "S3 error checking file existence: {Key}. Status: {Status}",
                 storageKey, ex.StatusCode);
-            return Result<bool>.Failure($"Failed to check file existence: {ex.Message}");
+            return Result<bool>.Failure($"Failed to check file existence: {ex.Message}", 
+                AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error checking file existence in S3: {Key}", storageKey);
-            return Result<bool>.Failure("An unexpected error occurred while checking file existence");
+            return Result<bool>.Failure("An unexpected error occurred while checking file existence", 
+                AppErrorCode.InternalError);
         }
     }
     

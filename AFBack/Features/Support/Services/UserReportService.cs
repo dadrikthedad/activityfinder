@@ -26,7 +26,7 @@ public class UserReportService(
     {
         // ====== Kan ikke rapportere seg selv ======
         if (submittedByUserId == request.ReportedUserId)
-            return Result<UserReportResponse>.Failure("You cannot report yourself");
+            return Result<UserReportResponse>.Failure("You cannot report yourself", AppErrorCode.Validation);
 
         // ====== Rate limit — maks X rapporter per dag ======
         var dailyCount = await supportRepository.GetDailyReportCountAsync(submittedByUserId, ct);
@@ -38,7 +38,8 @@ public class UserReportService(
         var existingReport = await supportRepository.HasPendingReportAsync(submittedByUserId, 
             request.ReportedUserId, ct);
         if (existingReport)
-            return Result<UserReportResponse>.Failure("You already have a pending report for this user");
+            return Result<UserReportResponse>.Failure("You already have a pending report for this user", 
+                AppErrorCode.Conflict);
 
         // Opprett UserReport
         var report = new UserReport
@@ -54,11 +55,12 @@ public class UserReportService(
         {
             if (attachments.Count > SupportTicketFileConfig.TicketMaxFileCount)
                 return Result<UserReportResponse>.Failure(
-                    $"Maximum {SupportTicketFileConfig.TicketMaxFileCount} files allowed");
+                    $"Maximum {SupportTicketFileConfig.TicketMaxFileCount} files allowed", 
+                    AppErrorCode.Validation);
 
             var attachmentResult = await ValidateAndUploadAttachmentsAsync(attachments, ct);
             if (attachmentResult.IsFailure)
-                return Result<UserReportResponse>.Failure(attachmentResult.Error);
+                return Result<UserReportResponse>.Failure(attachmentResult.Error, attachmentResult.ErrorCode);
 
             report.Attachments = attachmentResult.Value!;
         }
@@ -78,7 +80,7 @@ public class UserReportService(
             var keys = report.Attachments.Select(a => a.StorageKey).ToList();
             await fileOrchestrator.TryCleanupFilesAsync(keys, BlobContainer.PrivateFiles, ct);
             return Result<UserReportResponse>.Failure(
-                "Failed to submit report. Please try again.");
+                "Failed to submit report. Please try again.", AppErrorCode.InternalError);
         }
 
         // Varsle moderator-team
@@ -105,7 +107,7 @@ public class UserReportService(
             {
                 var keys = uploaded.Select(a => a.StorageKey).ToList();
                 await fileOrchestrator.TryCleanupFilesAsync(keys, BlobContainer.PrivateFiles, ct);
-                return Result<List<UserReportAttachment>>.Failure(result.Error);
+                return Result<List<UserReportAttachment>>.Failure(result.Error, result.ErrorCode);
             }
 
             // Map fra SupportAttachment til UserReportAttachment

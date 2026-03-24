@@ -1,3 +1,4 @@
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.Geography.DTOs;
 
@@ -18,7 +19,8 @@ public class GeolocationService(
             {
                 logger.LogWarning("Geolocation lookup failed for IP {IP}: {Message}",
                     ipAddress, response?.Message ?? "Unknown error");
-                return Result<GeolocationResponse>.Failure("Error retrieving location from IpWhoIsResponse");
+                return Result<GeolocationResponse>.Failure("Error retrieving location from IpWhoIsResponse",
+                    AppErrorCode.InternalError);
             }
             
             return Result<GeolocationResponse>.Success(new GeolocationResponse
@@ -31,8 +33,9 @@ public class GeolocationService(
         }
         catch (Exception ex)
         {
-            logger.LogWarning("Geolocation request failed for IP {IP}: {Error}", ipAddress, ex.Message);
-            return Result<GeolocationResponse>.Failure("Geolocation service unavailable");
+            logger.LogError("Geolocation request failed for IP {IP}: {Error}", ipAddress, ex.Message);
+            return Result<GeolocationResponse>.Failure("Geolocation service unavailable",
+                AppErrorCode.InternalError);
         }
     }
 }

@@ -9,7 +9,6 @@
 - `useRegisterUser` → fjernet try/catch, typed RegistrationErrorCode
 - **Tema-system** — `react-native-unistyles` v3.1.1 (pinnet)
 - **Globalisering** — `i18next` + `react-i18next` + `expo-localization`
-- **ProblemDetails-håndtering** — `ApiError` med HTTP-statuskode, `throwProblemDetails()`
 - **Tokens lagres i Keychain** (ikke AsyncStorage), migrasjon fra AsyncStorage ved første oppstart
 - **Komplett auth-flyt testet og fungerende:**
   - Signup → e-postverifisering → SMS-verifisering → Login → Home
@@ -19,14 +18,27 @@
 - **PhoneSmsVerificationScreen** — ny skjerm, samme tema som VerificationScreen
 - **SMS-endepunkter bruker email** (ikke phoneNumber) — backend slår opp internt
 - **Signup telefonnummer** — landskode-picker (pill) med auto-forslag fra valgt land
-  - `core/data/phoneDialCodes.ts` — ~200 land, ISO → { dialCode, flag }
-  - `useCountryAndRegion` eksponerer `dialCode`, auto-oppdateres ved landvalg
 - **userId er string (GUID)** — `AuthContext`, `getUserIdFromToken` returnerer string, ikke number
 - **`baseService.parseJsonIfPresent`** — håndterer void-endepunkter med tom body
 - **Zod-schemas** matcher Identity-regler i AFBack (min 8 tegn)
+- **AppErrorCode-system** — delt domenekode mellom AFBack og AFMobile
+  - `AppErrorCode.cs` i AFBack — erstatter `ErrorTypeEnum` fullstendig
+  - `AppProblemDetails` — returnerer `code`-felt (int) i alle feilsvar fra `HandleFailure`
+  - `shared/types/error/AppErrorCode.ts` — speil av C#-enumen
+  - `ApiError.appCode` — frontend switcher på domenekode, ikke HTTP-statuskode eller string-matching
+  - Alle `mapXxxError`-funksjoner i auth-services oppdatert til `switch (error.appCode)`
+- **ResetPasswordScreen** migrert:
+  - Steg 3 bruker nå `useResetPassword`-hook med rhf+zod (`resetPasswordSchema`)
+  - `validateSingleField` fra shared er fjernet
+  - `useResetPassword.ts` — ViewModel-hook, konsistent med `useLogin`
+- **PasswordFieldNative** konsolidert:
+  - Én felles komponent for hele appen (`components/common/PasswordFieldNative.tsx`)
+  - Fikk `tooltip`- og `labelAlign`-props
+  - `SignUpPasswordFieldsNative` (features/auth/components/) — kan slettes (død kode)
+  - `components/signup/SignUpPasswordFieldsNative.tsx` — kan slettes (hardkodede farger, aldri migrert)
 
 ### Auth-flyt — teststatus
-- ✅ Signup — fungerer, e-post snapshotter riktig via `registeredEmailRef`
+- ✅ Signup — fungerer
 - ✅ E-post verifisering — navigerer til PhoneSmsVerificationScreen
 - ✅ SMS verifisering — navigerer til Login med `fromVerification: true`-banner
 - ✅ Login med verifisert konto — tokens i Keychain, navigerer til Home
@@ -34,20 +46,45 @@
 - ✅ Login med uverifisert telefon — navigerer til PhoneSmsVerificationScreen
 - ✅ Login med feil credentials — viser feilmelding via toast
 - ⏳ **Logout** — ikke testet ennå
-- ⏳ **Reset password** — ikke testet ennå
+- ⏳ **Reset password** — ikke testet ennå, men flyten er nå fullstendig omskrevet (se under)
 
 ---
 
 ## Gjøremål neste økt — i rekkefølge
 
-### Steg 3c — Gjenstående auth-tester
+### Steg 3c — Gjenstående backend-opprydding
+1. **CancellationToken + transaksjoner** — gå gjennom alle services i AFBack og legg på manglende `CancellationToken`-parametere og `transactionService.ExecuteAsync` på alle metoder som skriver til DB. Prioriter:
+   - `TokenService.RevokeTokenAsync` og `RevokeAllTokensForUserAsync` — mangler transaksjon
+   - `AuthService.ReportUnauthorizedChangeAsync` — flere `UpdateAsync`-kall uten transaksjon
+   - `LoginHistoryService`, `UserDeviceService` — sjekk om de mangler `ct`-parametere
+   - Gjennomgå alle øvrige services systematisk
+
+2. **Kjør EF-migrasjon** for `SmsPasswordResetVerifiedAt`-feltet som ble lagt til i `VerificationInfo`:
+   ```bash
+   dotnet ef migrations add AddSmsPasswordResetVerifiedAt
+   dotnet ef database update
+   ```
+
+### Steg 3d — Gjenstående auth-tester
 1. **Logout** — logg ut, sjekk at tokens slettes fra Keychain og at appen navigerer til Login
-2. **Reset password** — gå gjennom hele flyten (send e-post → kode → nytt passord)
+
+2. **Reset password** — test hele den nye 4-stegs flyten:
+   - Steg 1: Send tilbakestillings-e-post → toast + navigerer til steg 2
+   - Steg 2: Skriv inn 6-sifret e-postkode → navigerer til steg 3 (SMS sendes automatisk)
+   - Steg 2: Feil kode → feilmelding
+   - Steg 2: Send på nytt → cooldown-timer
+   - Steg 3: Skriv inn 6-sifret SMS-kode → navigerer til steg 4
+   - Steg 3: Feil kode → feilmelding
+   - Steg 3: Send SMS på nytt → cooldown-timer
+   - Steg 4: Nytt passord med zod-validering — feil vises inline under felt (ikke toast)
+   - Steg 4: Passord stemmer ikke overens → inline feil på confirmPassword
+   - Steg 4: Vellykket reset → toast + navigerer til Login
+   - Steg 4: Vent 10 min etter SMS-verifisering → `SessionExpired` → toast + tilbake til steg 1
 
 ### Steg 3b — Tema-gjennomgang av gjenværende skjermer
 Mange skjermer utenfor `features/auth/` har fortsatt hardkodede farger og mangler tema-støtte.
 Gå gjennom én etter én og migrer til `useUnistyles()`. Prioriter:
-- `ResetPasswordScreen` — sjekk at den følger nytt tema
+- `CryptationScreen` — massivt avvik: hardkodede farger, ingen useUnistyles, ingen i18n, deprecated Clipboard, ingen Result-pattern
 - Alle komponenter i `components/common/` som ikke er migrert ennå
 
 ### Steg 4 — Migrer features/messages/ til Feature Slice-arkitektur — VENT MED DENNE
@@ -93,21 +130,25 @@ backgroundColor: theme.colors.background
 // ALDRI: hardkodede farger
 ```
 
-### ProblemDetails / API-feil
+### AppErrorCode / API-feil
 ```typescript
 import { throwProblemDetails, ApiError } from "@/core/errors/ProblemDetails";
+import { AppErrorCode } from "@shared/types/error/AppErrorCode";
 
 // I fetch-kall:
 if (!response.ok) {
-  await throwProblemDetails(response); // kaster ApiError med status + detail
+  await throwProblemDetails(response); // kaster ApiError med status + detail + appCode
 }
 
-// I mapXxxError — bruk statuskode, IKKE string-matching:
+// I mapXxxError — switch på appCode, IKKE status eller string-matching:
 if (error instanceof ApiError) {
-  switch (error.status) {
-    case 401: ...
-    case 422: ... // DataAnnotations-valideringsfeil
-    case 429: ...
+  switch (error.appCode) {
+    case AppErrorCode.EmailNotConfirmed: ...  // 2002
+    case AppErrorCode.PhoneNotConfirmed: ...  // 2003
+    case AppErrorCode.InvalidCredentials: ... // 2000
+    case AppErrorCode.TooManyRequests: ...    // 1006
+    case AppErrorCode.InvalidCode: ...        // 4000
+    case AppErrorCode.ExpiredCode: ...        // 4001
   }
 }
 ```

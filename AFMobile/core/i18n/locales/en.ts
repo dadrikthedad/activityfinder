@@ -141,6 +141,9 @@ export default {
     passwordResetBody:    "Your password has been updated! ✅",
     resetFailed:          "Reset failed",
     resetError:           "Reset error",
+    smsSendFailed:        "Failed to send SMS",
+    resetSessionExpiredTitle: "Session expired",
+    resetSessionExpiredBody:  "Your password reset session has expired. Please start over.",
   },
 
   // ========== Common ==========

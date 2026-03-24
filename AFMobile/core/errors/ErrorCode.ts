@@ -33,13 +33,15 @@ export enum VerificationErrorCode {
 }
 
 export enum PasswordResetErrorCode {
-  InvalidCode       = "PWD_INVALID_CODE",
-  ExpiredCode       = "PWD_EXPIRED_CODE",
-  EmailNotFound     = "PWD_EMAIL_NOT_FOUND",
-  RateLimited       = "PWD_RATE_LIMITED",
-  NetworkError      = "PWD_NETWORK_ERROR",
-  ServerError       = "PWD_SERVER_ERROR",
-  Unknown           = "PWD_UNKNOWN",
+  InvalidCode            = "PWD_INVALID_CODE",
+  ExpiredCode            = "PWD_EXPIRED_CODE",
+  EmailNotFound          = "PWD_EMAIL_NOT_FOUND",
+  SessionNotVerified     = "PWD_SESSION_NOT_VERIFIED",
+  SessionExpired         = "PWD_SESSION_EXPIRED",
+  RateLimited            = "PWD_RATE_LIMITED",
+  NetworkError           = "PWD_NETWORK_ERROR",
+  ServerError            = "PWD_SERVER_ERROR",
+  Unknown                = "PWD_UNKNOWN",
 }
 
 // Fellestype for alle feilkoder — nyttig for generiske funksjoner

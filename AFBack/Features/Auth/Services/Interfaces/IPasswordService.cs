@@ -62,16 +62,29 @@ public interface IPasswordService
     Task<Result> SendPasswordResetSmsAsync(string email, string ipAddress, CancellationToken ct = default);
 
     /// <summary>
-    /// Steg 4: Validerer SMS-koden og bytter passord.
-    /// Krever at både PasswordResetEmailVerified og PasswordResetSmsVerified er true.
+    /// Steg 3b: Validerer SMS-koden for passord-reset.
+    /// Krever at PasswordResetEmailVerified == true (steg 2 er fullført).
+    /// Ved suksess settes SmsPasswordResetVerified = true, som låser opp steg 4.
+    /// </summary>
+    /// <param name="email">E-posten til brukeren</param>
+    /// <param name="code">6-sifret SMS-kode</param>
+    /// <param name="ipAddress">IP-adressen til brukeren</param>
+    /// <param name="ct"></param>
+    /// <returns>Result med Success hvis koden er korrekt, ellers Failure</returns>
+    Task<Result> VerifyPasswordResetSmsAsync(string email, string code, string ipAddress,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Steg 4: Bytter passord.
+    /// Krever at SmsPasswordResetVerified == true (steg 3b er fullført).
+    /// SMS-koden valideres ikke her — den ble allerede verifisert i steg 3b.
     /// Nullstiller alle password-reset felter etter fullført bytte.
     /// </summary>
     /// <param name="email">E-posten til brukeren</param>
-    /// <param name="code">Brukerens kode</param>
     /// <param name="newPassword">Det nye passordet</param>
     /// <param name="ipAddress">IP-adressen til brukeren</param>
     /// <param name="ct"></param>
     /// <returns>Result med Success for frontend til å sende til Login-skjerm/side</returns>
-    Task<Result> ResetPasswordAsync(string email, string code, string newPassword, string ipAddress, 
+    Task<Result> ResetPasswordAsync(string email, string newPassword, string ipAddress,
         CancellationToken ct = default);
 }

@@ -1,6 +1,5 @@
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
-using AFBack.Features.Broadcast.Services;
 using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.Conversation.DTOs.Response;
 using AFBack.Features.Conversation.Enums;
@@ -77,10 +76,9 @@ public class ArchiveConversationService(
         if (otherParticipant == null)
         {
             logger.LogCritical("User {UserId} is trying to restore conversation {ConversationId} and there is no" +
-                               " other participants in the conversation" ,
-                userId, conversationId);
+                               " other participants in the conversation" , userId, conversationId);
             return Result<ConversationResponse>.Failure("Server error. Try again later or contact support",
-                AppErrorCode.InternalServerError); 
+                AppErrorCode.InternalError); 
         }
         
         // ============ DATABASE: Oppdater ============
@@ -112,9 +110,8 @@ public class ArchiveConversationService(
                 "Failed to retrieve conversation after restoring. User {UserId}, Conversation {ConversationId}. " +
                 "Error: {Error}",
                 userId, conversationId, result.Error);
-            return Result<ConversationResponse>.Failure(
-                "Server error. Try again later or contact support", 
-                AppErrorCode.InternalServerError);
+            return Result<ConversationResponse>.Failure("Server error. Try again later or contact support", 
+                AppErrorCode.InternalError);
         }
         
         var response = result.Value!;

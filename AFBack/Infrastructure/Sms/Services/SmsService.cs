@@ -35,7 +35,7 @@ public class SmsService(
                 var error = await response.Content.ReadAsStringAsync(ct);
                 logger.LogError("SMS sending failed to {Phone}. Status: {Status}. Error: {Error}",
                     phoneNumber, response.StatusCode, error);
-                return Result.Failure("SMS sending failed", AppErrorCode.InternalServerError);
+                return Result.Failure("SMS sending failed", AppErrorCode.InternalError);
             }
 
             logger.LogInformation("SMS sent successfully to {Phone}", phoneNumber);
@@ -44,7 +44,7 @@ public class SmsService(
         catch (Exception ex)
         {
             logger.LogError("SMS sending failed to {Phone}: {Error}", phoneNumber, ex.Message);
-            return Result.Failure("Failed to send SMS", AppErrorCode.InternalServerError);
+            return Result.Failure("Failed to send SMS", AppErrorCode.InternalError);
         }
     }
 }

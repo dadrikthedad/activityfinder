@@ -7,6 +7,7 @@ using AFBack.Features.Auth.DTOs.Response;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services.Interfaces;
+using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
 using StackExchange.Redis;
 
@@ -17,7 +18,8 @@ public class TokenService(
     IRefreshTokenRepository refreshTokenRepository,
     UserManager<AppUser> userManager,
     IConnectionMultiplexer redis,
-    ILogger<TokenService> logger) : ITokenService
+    ILogger<TokenService> logger,
+    ITransactionService transactionService) : ITokenService
 {
     private const string BlacklistPrefix = "token:blacklist:";
     
@@ -131,27 +133,28 @@ public class TokenService(
         var device = storedToken.UserDevice;
         
         // Revoker gammelt refresh token
-        storedToken.IsRevoked = true;
-        storedToken.RevokedAt = DateTime.UtcNow;
-        storedToken.RevokedReason = "Rotated during refresh";
-        
-        // Hent roller
-        var roles = await userManager.GetRolesAsync(user);
-        
-        // Generer nytt token-par for å rotere tokens
-        var response = await GenerateTokenPairAsync(user, device, roles, ipAddress, userAgent, ct);
-        
-        // Oppdater device metadata
-        device.LastUsedAt = DateTime.UtcNow;
-        device.LastIpAddress = ipAddress;
-        
-        await refreshTokenRepository.SaveChangesAsync();
-        
-        logger.LogInformation(
-            "Token refreshed for UserId: {UserId}, DeviceId: {DeviceId}", 
-            user.Id, device.Id);
-        
-        return Result<LoginResponse>.Success(response);
+        return await transactionService.ExecuteAsync(async (innerCt) =>
+        {
+            storedToken.IsRevoked = true;
+            storedToken.RevokedAt = DateTime.UtcNow;
+            storedToken.RevokedReason = "Rotated during refresh";
+
+            // Oppdater device metadata før GenerateTokenPairAsync — lagres via SaveChangesAsync der
+            device.LastUsedAt = DateTime.UtcNow;
+            device.LastIpAddress = ipAddress;
+
+            // Hent roller
+            var roles = await userManager.GetRolesAsync(user);
+
+            // Generer nytt token-par — kaller SaveChangesAsync internt
+            var response = await GenerateTokenPairAsync(user, device, roles, ipAddress, userAgent, innerCt);
+
+            logger.LogInformation(
+                "Token refreshed for UserId: {UserId}, DeviceId: {DeviceId}",
+                user.Id, device.Id);
+
+            return Result<LoginResponse>.Success(response);
+        }, ct);
     }
     
     /// <inheritdoc />

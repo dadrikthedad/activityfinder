@@ -79,6 +79,25 @@ public class VerificationInfo
     /// </summary>
     public bool EmailPasswordResetVerified { get; set; }
     
+    // ======================== Login MFA (steg 2 etter passord) ========================
+
+    /// <summary>
+    /// 6-sifret kode sendt på epost etter vellykket passord-innlogging.
+    /// Kreves for å fullføre innloggingen (MFA-steg).
+    /// </summary>
+    [MaxLength(6)]
+    public string? LoginMfaCode { get; set; }
+
+    public DateTime? LoginMfaCodeExpiresAt { get; set; }
+
+    /// <summary>
+    /// Antall feilede forsøk på å taste inn MFA-kode.
+    /// Nullstilles ved ny kode eller vellykket innlogging.
+    /// </summary>
+    public int LoginMfaCodeFailedAttempts { get; set; }
+
+    public DateTime? LastLoginMfaCodeSentAt { get; set; }
+    
     // ======================== Passord reset — SMS (steg 2) ========================
 
     /// <summary>
@@ -98,13 +117,19 @@ public class VerificationInfo
 
     public DateTime? LastSmsPasswordResetSentAt { get; set; }
     
-    
     /// <summary>
     /// Settes til true når e-postkoden er verifisert i steg 2.
     /// Kreves for å tillate steg 3 (nytt passord).
     /// Nullstilles etter fullført reset.
     /// </summary>
     public bool SmsPasswordResetVerified { get; set; }
+    
+    /// <summary>
+    /// Tidspunkt da SMS-koden for passord-reset ble verifisert.
+    /// Brukes til å begrense tidsvinduet for å sette nytt passord.
+    /// Nullstilles etter fullført reset.
+    /// </summary>
+    public DateTime? SmsPasswordResetVerifiedAt { get; set; }
     
     // ======================== Bytte e-post — Steg 1: Verifisering av nåværende epost ========================
     

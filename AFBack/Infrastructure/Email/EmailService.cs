@@ -45,7 +45,7 @@ public class EmailService(
                 logger.LogError("Brevo email sending failed to {Email}. Status: {Status}. Error: {Error}",
                     toEmail, response.StatusCode, error);
                 return Result.Failure($"Email sending failed with status: {response.StatusCode}",
-                    AppErrorCode.InternalServerError);
+                    AppErrorCode.InternalError);
             }
 
             logger.LogInformation("Successfully sent email to {Email}", toEmail);
@@ -54,7 +54,7 @@ public class EmailService(
         catch (Exception ex)
         {
             logger.LogError("Email sending failed to {Email}: {Error}", toEmail, ex.Message);
-            return Result.Failure("Failed to send email", AppErrorCode.InternalServerError);
+            return Result.Failure("Failed to send email", AppErrorCode.InternalError);
         }
     }
 }

@@ -249,7 +249,7 @@ public class AuthService(
                    ? "Your email is not yet verified. We've sent a new verification email."
                    : "Your email is not yet verified. Please try again later.";
 
-               return Result<LoginResponse>.Failure(message, AppErrorCode.Unauthorized);
+               return Result<LoginResponse>.Failure(message, AppErrorCode.EmailNotConfirmed);
            }
 
            // ====== Telefon-verifisering ======
@@ -264,7 +264,7 @@ public class AuthService(
                    ? "Your phone number is not yet verified. We've sent a new verification SMS."
                    : "Your phone number is not yet verified. Please try again later.";
 
-               return Result<LoginResponse>.Failure(message, AppErrorCode.Unauthorized);
+               return Result<LoginResponse>.Failure(message, AppErrorCode.PhoneNotConfirmed);
            }
 
            // ====== Nullstill failed attempts med Identity ======

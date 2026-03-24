@@ -1,16 +1,24 @@
 // core/errors/ProblemDetails.ts
 //
-// Tilsvarer Microsoft.AspNetCore.Mvc.ProblemDetails fra AFBack.
+// Tilsvarer AppProblemDetails i AFBack (Common/Results/AppProblemDetails.cs).
 // Backend returnerer alltid dette formatet ved feil (via BaseController.HandleFailure).
 //
-// Standard ProblemDetails:
+// AppProblemDetails (domenefeil via HandleFailure):
 // {
-//   "title": "Unauthorized",
+//   "title": "Authentication Error",
 //   "status": 401,
-//   "detail": "Your email is not yet verified."
+//   "detail": "Email address is not yet verified.",
+//   "code": 2002
 // }
 //
-// ValidationProblemDetails (DataAnnotations):
+// Standard ProblemDetails (GlobalExceptionHandler — uventede feil):
+// {
+//   "title": "Server Error",
+//   "status": 500,
+//   "detail": "An unexpected error occurred."
+// }
+//
+// ValidationProblemDetails (DataAnnotations — automatisk fra ASP.NET Core):
 // {
 //   "title": "One or more validation errors occurred.",
 //   "status": 422,
@@ -20,11 +28,16 @@
 //   }
 // }
 
+import { AppErrorCode } from "@shared/types/error/AppErrorCode";
+
 export interface ProblemDetails {
   type?: string;
   title?: string;
   status?: number;
   detail?: string;
+  // Domenespesifikk feilkode fra AppProblemDetails — ikke alltid tilstede
+  // (GlobalExceptionHandler og DataAnnotations sender ikke denne)
+  code?: number;
   errors?: Record<string, string[]>;
 }
 
@@ -47,26 +60,31 @@ export function getProblemDetail(problem: ProblemDetails, fallback = "An unexpec
 }
 
 /**
- * Spesialfeil som bærer med seg HTTP-statuskoden fra ProblemDetails.
- * Gjør at mapLoginError og lignende kan skille på statuskode
- * i stedet for å string-matche feilmeldinger.
+ * Spesialfeil som bærer med seg HTTP-statuskoden og AppErrorCode fra backend.
+ * Gjør at mapXxxError kan switche på appCode i stedet for å string-matche feilmeldinger.
+ *
+ * appCode = AppErrorCode fra "code"-feltet i AppProblemDetails.
+ *   → Tilstede ved domenefeil via HandleFailure (f.eks. 2002 = EmailNotConfirmed)
+ *   → AppErrorCode.Unknown ved uventede feil (GlobalExceptionHandler) eller nettverksfeil
  */
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly appCode: AppErrorCode = AppErrorCode.Unknown,
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
 /**
- * Parser en Response til ProblemDetails og kaster en ApiError med riktig melding og statuskode.
- * Brukes der vi vet at backend alltid returnerer ProblemDetails ved feil.
+ * Parser en Response til ProblemDetails og kaster en ApiError med melding, statuskode og appCode.
+ * Brukes i baseService der backend alltid returnerer ProblemDetails ved feil.
  */
 export async function throwProblemDetails(response: Response, fallback?: string): Promise<never> {
   const problem: ProblemDetails = await response.json().catch(() => ({}));
   const message = getProblemDetail(problem, fallback ?? `HTTP ${response.status}`);
-  throw new ApiError(message, response.status);
+  const appCode: AppErrorCode = problem.code ?? AppErrorCode.Unknown;
+  throw new ApiError(message, response.status, appCode);
 }

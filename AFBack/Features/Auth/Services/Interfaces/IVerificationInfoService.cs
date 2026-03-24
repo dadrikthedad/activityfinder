@@ -39,6 +39,19 @@ public interface IVerificationInfoService
     /// </summary>
     Task<Result> ValidatePhoneCodeAsync(string userId, string code, CancellationToken ct = default);
     
+    // ======================== Login MFA ========================
+    /// <summary>
+    /// Genererer en Login-verifiserings kode (6-siffer)
+    /// Returnerer koden etter opprettelse
+    /// </summary>
+    Task<string> GenerateLoginMfaCodeAsync(string userId, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Validerer en 6-sifret LoginMfa-verifiseringskode.
+    /// Sjekker forsøksbegrensning, utløp og at koden stemmer.
+    /// /// </summary>
+    Task<Result> ValidateLoginMfaCodeAsync(string userId, string code, CancellationToken ct = default);
+    
     // ======================== Passord reset — Epost (steg 1) ======================== 
 
     /// <summary>
@@ -80,6 +93,14 @@ public interface IVerificationInfoService
     /// <param name="ct"></param>
     /// <returns>Success hvis koden er korrekt eller så Failure</returns>
     Task<Result> ValidateSmsPasswordResetCodeAsync(string userId, string code, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Sjekker om SMS-koden for passord-reset er verifisert (SmsPasswordResetVerified == true).
+    /// Brukes som guard i steg 4 for å forhindre hopping over steg 3b.
+    /// </summary>
+    Task<Result> IsSmsPasswordResetVerifiedAsync(string userId, CancellationToken ct = default);
+    
+    
     
     // ======================== Bytte e-post — Steg 1: Verifisering av nåværende epost ========================
 

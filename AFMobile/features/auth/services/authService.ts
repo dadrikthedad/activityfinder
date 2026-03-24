@@ -3,6 +3,7 @@ import { LoginResponseDTO } from "@/features/auth/models/LoginResponseDTO";
 import { Result } from "@/core/errors/Result";
 import { AuthErrorCode } from "@/core/errors/ErrorCode";
 import { ApiError } from "@/core/errors/ProblemDetails";
+import { AppErrorCode } from "@shared/types/error/AppErrorCode";
 import authServiceNative from "@/core/auth/authServiceNative";
 
 /**
@@ -22,38 +23,24 @@ export async function loginUser(
 }
 
 /**
- * Mapper ApiError (med HTTP-statuskode) til typed AuthErrorCode.
- * Bruker statuskode fremfor string-matching — mer robust mot endringer i backend-meldinger.
- * Unntak: 401 skiller e-post vs. telefon på meldingstekst siden begge returnerer samme statuskode.
+ * Mapper ApiError til typed AuthErrorCode.
+ * Bruker appCode (domenespesifikk kode fra AppProblemDetails) fremfor string-matching.
  */
 function mapLoginError(error: unknown): Result<LoginResponseDTO, AuthErrorCode> {
   if (error instanceof ApiError) {
-    switch (error.status) {
-      case 401: {
-        const msg = error.message.toLowerCase();
-        if (msg.includes("phone number is not yet verified")) {
-          return Result.fail(error.message, AuthErrorCode.PhoneNotVerified);
-        }
-        if (msg.includes("not yet verified")) {
-          return Result.fail(error.message, AuthErrorCode.EmailNotVerified);
-        }
-        return Result.fail(
-          "Wrong email or password. Please try again.",
-          AuthErrorCode.InvalidCredentials,
-        );
-      }
-      case 403:
-        return Result.fail(
-          "Your account has been locked. Please contact support.",
-          AuthErrorCode.AccountLocked,
-        );
-      case 429:
-        return Result.fail(
-          "Too many login attempts. Please wait a moment.",
-          AuthErrorCode.RateLimited,
-        );
-      case 422:
-        return Result.fail(error.message, AuthErrorCode.InvalidCredentials);
+    switch (error.appCode) {
+      case AppErrorCode.EmailNotConfirmed:
+        return Result.fail(error.message, AuthErrorCode.EmailNotVerified);
+      case AppErrorCode.PhoneNotConfirmed:
+        return Result.fail(error.message, AuthErrorCode.PhoneNotVerified);
+      case AppErrorCode.InvalidCredentials:
+        return Result.fail("Wrong email or password. Please try again.", AuthErrorCode.InvalidCredentials);
+      case AppErrorCode.AccountLocked:
+        return Result.fail(error.message, AuthErrorCode.AccountLocked);
+      case AppErrorCode.TooManyRequests:
+        return Result.fail("Too many login attempts. Please wait a moment.", AuthErrorCode.RateLimited);
+      case AppErrorCode.InternalError:
+        return Result.fail("Server error. Please try again later.", AuthErrorCode.ServerError);
       default:
         if (error.status >= 500) {
           return Result.fail("Server error. Please try again later.", AuthErrorCode.ServerError);

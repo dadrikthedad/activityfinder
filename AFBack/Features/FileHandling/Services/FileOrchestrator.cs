@@ -1,3 +1,4 @@
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Features.FileHandling.Enums;
 using AFBack.Features.FileHandling.Helpers;
@@ -22,7 +23,7 @@ public class FileOrchestrator(
         // Validerer filen
         var validateImageResult = fileValidator.ValidateImage(image);
         if (validateImageResult.IsFailure)
-            return Result<string>.Failure(validateImageResult.Error);
+            return Result<string>.Failure(validateImageResult.Error, validateImageResult.ErrorCode);
         
         // Åpner streamen
         await using var stream = image.OpenReadStream();
@@ -31,7 +32,7 @@ public class FileOrchestrator(
         var uploadImageResult = await storageService.UploadAsync(stream, storageKey, image.ContentType,
             BlobContainer.PublicImages, null, ct);
         if (uploadImageResult.IsFailure)
-            return Result<string>.Failure(uploadImageResult.Error);
+            return Result<string>.Failure(uploadImageResult.Error, uploadImageResult.ErrorCode);
 
         return Result<string>.Success(uploadImageResult.Value!);
     }
@@ -41,13 +42,13 @@ public class FileOrchestrator(
         long maxSizeInBytes, CancellationToken ct = default)
     {
         if (encryptedData.Length == 0)
-            return Result.Failure("File data is empty");
+            return Result.Failure("File data is empty", AppErrorCode.Validation);
     
         if (encryptedData.Length > maxSizeInBytes)
         {
             var maxFormatted = FileHelper.FormatFileSize(maxSizeInBytes);
-            return Result.Failure(
-                $"File size exceeds maximum allowed size ({maxFormatted})");
+            return Result.Failure($"File size exceeds maximum allowed size ({maxFormatted})", 
+                AppErrorCode.Validation);
         }
     
         using var stream = new MemoryStream(encryptedData);
@@ -67,7 +68,7 @@ public class FileOrchestrator(
         // Validerer filen
         var validationResult = fileValidator.ValidateSupportAttachment(file);
         if (validationResult.IsFailure)
-            return Result<SupportAttachment>.Failure(validationResult.Error);
+            return Result<SupportAttachment>.Failure(validationResult.Error, validationResult.ErrorCode);
 
         // Oppretter storageKey
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
@@ -81,7 +82,7 @@ public class FileOrchestrator(
         if (uploadResult.IsFailure)
         {
             logger.LogError("Failed to upload support attachment: {FileName}", file.FileName);
-            return Result<SupportAttachment>.Failure("Failed to upload attachment");
+            return Result<SupportAttachment>.Failure("Failed to upload attachment", AppErrorCode.InternalError);
         }
 
         return Result<SupportAttachment>.Success(new SupportAttachment

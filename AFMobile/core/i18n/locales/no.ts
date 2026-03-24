@@ -141,6 +141,9 @@ export default {
     passwordResetBody:    "Passordet ditt er oppdatert! ✅",
     resetFailed:          "Tilbakestilling mislyktes",
     resetError:           "Tilbakestillingsfeil",
+    smsSendFailed:        "Sending mislyktes",
+    resetSessionExpiredTitle: "Sesjonen er utløpt",
+    resetSessionExpiredBody:  "Tidsvinduet for tilbakestilling er utløpt. Vennligst start på nytt.",
   },
 
   // ========== Felles ==========

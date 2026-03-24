@@ -10,6 +10,7 @@ using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
+using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
 
 namespace AFBack.Features.Auth.Services;
@@ -24,7 +25,8 @@ public class AccountVerificationService(
     IEmailRateLimitService emailRateLimitService,
     ISmsRateLimitService smsRateLimitService,
     ISuspiciousActivityService suspiciousActivityService,
-    IRateLimitGuardService rateLimitGuardService) : IAccountVerificationService
+    IRateLimitGuardService rateLimitGuardService,
+    ITransactionService transactionService) : IAccountVerificationService
 {
     // ======================== Email verifisiering ======================== 
     
@@ -58,20 +60,24 @@ public class AccountVerificationService(
        }
        
        // ====== Generer ny kode og send epost ======
-       var code = await verificationInfoService.GenerateEmailVerificationAsync(user.Id, ct);
-       
-       var emailDto = new EmailCodeDto(
-           Email: email,
-           Code: code,
-           BaseUrl: configuration["App:BaseUrl"]!);
-       
-       var body = EmailTemplates.Verification(emailDto);
-       
-       var result = await emailService.SendAsync(email, body, ct);
-       if (result.IsSuccess)
-           emailRateLimitService.RegisterEmailSent(EmailType.Verification, email, ipAddress);
-       
-       return Result.Success();
+       return await transactionService.ExecuteAsync(async (innerCt) =>
+       {
+           var code = await verificationInfoService.GenerateEmailVerificationAsync(user.Id, innerCt);
+           
+           var emailDto = new EmailCodeDto(
+               Email: email,
+               Code: code,
+               BaseUrl: configuration["App:BaseUrl"]!);
+           
+           var body = EmailTemplates.Verification(emailDto);
+           
+           var result = await emailService.SendAsync(email, body, innerCt);
+           if (result.IsFailure)
+               return Result.Failure("Failed to send verification email. Please try again.",
+                   result.ErrorCode);
+           
+           return Result.Success();
+       }, ct);
    }
     
     /// <inheritdoc/>
@@ -89,33 +95,36 @@ public class AccountVerificationService(
             return Result.Failure("Email is already verified", AppErrorCode.Conflict);
     
         // ====== Valider kode ======
-        var validateResult = await verificationInfoService.ValidateEmailCodeAsync(user.Id, code, ct);
-        if (validateResult.IsFailure)
+        return await transactionService.ExecuteAsync(async (innerCt) =>
         {
-            // Rapporter mistenkelig aktivitet hvis brukeren er låst ute
-            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
-                await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                    SuspiciousActivityType.BruteForceAttempt,
-                    $"Email verification locked out for {email}");
+            var validateResult = await verificationInfoService.ValidateEmailCodeAsync(user.Id, code, innerCt);
+            if (validateResult.IsFailure)
+            {
+                // Rapporter mistenkelig aktivitet hvis brukeren er låst ute
+                if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
+                    await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
+                        SuspiciousActivityType.BruteForceAttempt,
+                        $"Email verification locked out for {email}");
 
-            return validateResult;
-        }
-    
-        // ====== Marker epost som bekreftet ======
-        user.EmailConfirmed = true;
-        var updateResult = await userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
-            logger.LogError("Failed to confirm email for {Email}: {Errors}", email, errors);
-            return Result.Failure("Failed to verify email", AppErrorCode.InternalError);
-        }
-    
-        // Nullstill rate limit cooldown for verification
-        emailRateLimitService.ClearEmailAttempts(EmailType.Verification, email);
-    
-        logger.LogInformation("Email verified for {Email}", email);
-        return Result.Success();
+                return validateResult;
+            }
+        
+            // ====== Marker epost som bekreftet ======
+            user.EmailConfirmed = true;
+            var updateResult = await userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
+                logger.LogError("Failed to confirm email for {Email}: {Errors}", email, errors);
+                return Result.Failure("Failed to verify email", AppErrorCode.InternalError);
+            }
+        
+            // Nullstill rate limit cooldown for verification
+            emailRateLimitService.ClearEmailAttempts(EmailType.Verification, email);
+        
+            logger.LogInformation("Email verified for {Email}", email);
+            return Result.Success();
+        }, ct);
     }
     
     // ======================== Sms verifisiering ======================== 
@@ -148,15 +157,23 @@ public class AccountVerificationService(
             return Result.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
         
         // ====== Generer kode og send SMS ======
-        var code = await verificationInfoService.GeneratePhoneVerificationAsync(user.Id, ct);
+        return await transactionService.ExecuteAsync(async (innerCt) =>
+        {
+            var code = await verificationInfoService.GeneratePhoneVerificationAsync(user.Id, innerCt);
 
-        var message = $"Your Lyn Software verification code is: {code}";
-        var result = await smsService.SendAsync(user.PhoneNumber!, message, ct);
+            var message = $"Your Lyn Software verification code is: {code}";
+            var result = await smsService.SendAsync(user.PhoneNumber!, message, innerCt);
 
-        if (result.IsSuccess)
+            if (result.IsFailure)
+            {
+                logger.LogError("Failed to send verification SMS to {Phone} for {Email}",
+                    user.PhoneNumber, email);
+                return Result.Failure("Failed to send SMS. Please try again.", AppErrorCode.InternalError);
+            }
+
             smsRateLimitService.RegisterSmsSent(SmsType.Verification, user.PhoneNumber!, ipAddress);
-
-        return Result.Success();
+            return Result.Success();
+        }, ct);
     }
     
     /// <inheritdoc />
@@ -173,31 +190,34 @@ public class AccountVerificationService(
         if (user.PhoneNumberConfirmed)
             return Result.Failure("Phone number is already verified", AppErrorCode.Conflict);
 
-        // ====== Valider kode ======
-        var validateResult = await verificationInfoService.ValidatePhoneCodeAsync(user.Id, code, ct);
-        if (validateResult.IsFailure)
+        // ====== Valider kode og marker telefon som bekreftet ======
+        return await transactionService.ExecuteAsync(async (innerCt) =>
         {
-            if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
-                await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
-                    SuspiciousActivityType.BruteForceAttempt,
-                    $"Phone verification locked out for {user.PhoneNumber}");
+            var validateResult = await verificationInfoService.ValidatePhoneCodeAsync(user.Id, code, innerCt);
+            if (validateResult.IsFailure)
+            {
+                if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
+                    await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
+                        SuspiciousActivityType.BruteForceAttempt,
+                        $"Phone verification locked out for {user.PhoneNumber}");
 
-            return validateResult;
-        }
+                return validateResult;
+            }
 
-        // ====== Marker telefon som bekreftet ======
-        user.PhoneNumberConfirmed = true;
-        var updateResult = await userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-        {
-            var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
-            logger.LogError("Failed to confirm phone for {Phone}: {Errors}", user.PhoneNumber, errors);
-            return Result.Failure("Failed to verify phone number", AppErrorCode.InternalError);
-        }
+            // ====== Marker telefon som bekreftet ======
+            user.PhoneNumberConfirmed = true;
+            var updateResult = await userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                var errors = string.Join(" ", updateResult.Errors.Select(e => e.Description));
+                logger.LogError("Failed to confirm phone for {Phone}: {Errors}", user.PhoneNumber, errors);
+                return Result.Failure("Failed to verify phone number", AppErrorCode.InternalError);
+            }
 
-        smsRateLimitService.ClearSmsAttempts(SmsType.Verification, user.PhoneNumber!);
+            smsRateLimitService.ClearSmsAttempts(SmsType.Verification, user.PhoneNumber!);
 
-        logger.LogInformation("Phone verified for {Phone}", user.PhoneNumber);
-        return Result.Success();
+            logger.LogInformation("Phone verified for {Phone}", user.PhoneNumber);
+            return Result.Success();
+        }, ct);
     }
 }

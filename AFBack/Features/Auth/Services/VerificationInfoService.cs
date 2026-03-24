@@ -75,7 +75,8 @@ public class VerificationInfoService(
     
     
     // ======================== Telefon verifisiering ========================
-
+    
+    /// <inheritdoc />
     public async Task<string> GeneratePhoneVerificationAsync(string userId, CancellationToken ct = default)
     {
         var code = GenerateSecureCode();
@@ -93,7 +94,8 @@ public class VerificationInfoService(
         logger.LogInformation("Phone verification generated for UserId: {UserId}", userId);
         return code;
     }
-
+    
+    /// <inheritdoc />
     public async Task<Result> ValidatePhoneCodeAsync(string userId, string code, CancellationToken ct = default)
     {
         // Henter verificationInfo
@@ -116,6 +118,52 @@ public class VerificationInfoService(
 
         await verificationInfoRepository.SaveChangesAsync(ct);
 
+        return Result.Success();
+    }
+    
+    // ======================== Login MFA ========================
+    
+    /// <inheritdoc />
+    public async Task<string> GenerateLoginMfaCodeAsync(string userId, CancellationToken ct = default)
+    {
+        var code = GenerateSecureCode();
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
+
+        verificationInfo.LoginMfaCode = code;
+        verificationInfo.LoginMfaCodeExpiresAt = DateTime.UtcNow.Add(EmailCodeExpiry);
+        verificationInfo.LoginMfaCodeFailedAttempts = 0;
+        verificationInfo.LastLoginMfaCodeSentAt = DateTime.UtcNow;
+
+        await verificationInfoRepository.SaveChangesAsync(ct);
+
+        logger.LogInformation("Login MFA code generated for UserId: {UserId}", userId);
+        return code;
+    }
+    
+    /// <inheritdoc />
+    public async Task<Result> ValidateLoginMfaCodeAsync(string userId, string code, CancellationToken ct = default)
+    {
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
+
+        var result = await ValidateCodeAsync(
+            userId,
+            verificationInfo.LoginMfaCode,
+            verificationInfo.LoginMfaCodeExpiresAt,
+            verificationInfo.LoginMfaCodeFailedAttempts,
+            code,
+            () => verificationInfo.LoginMfaCodeFailedAttempts++,
+            "LoginMfa",
+            ct);
+
+        if (result.IsFailure)
+            return result;
+
+        // Vellykket — nullstill koden
+        verificationInfo.LoginMfaCode = null;
+        verificationInfo.LoginMfaCodeExpiresAt = null;
+        verificationInfo.LoginMfaCodeFailedAttempts = 0;
+
+        await verificationInfoRepository.SaveChangesAsync(ct);
         return Result.Success();
     }
     
@@ -245,12 +293,31 @@ public class VerificationInfoService(
         verificationInfo.SmsPasswordResetCodeExpiresAt = null;
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.SmsPasswordResetVerified = true;
+        verificationInfo.SmsPasswordResetVerifiedAt = DateTime.UtcNow;
+        
         
         await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogInformation(
             "SMS password reset code verified for UserId: {UserId}. Password reset unlocked.", userId);
         
+        return Result.Success();
+    }
+   
+    /// <inheritdoc />
+    public async Task<Result> IsSmsPasswordResetVerifiedAsync(string userId, CancellationToken ct = default)
+    {
+        var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
+
+        if (!verificationInfo.SmsPasswordResetVerified || !verificationInfo.SmsPasswordResetVerifiedAt.HasValue)
+            return Result.Failure("SMS verification must be completed before resetting password.",
+                AppErrorCode.ResetSessionNotVerified);
+
+        var window = TimeSpan.FromMinutes(VerificationConfig.PasswordResetWindowMinutes);
+        if (verificationInfo.SmsPasswordResetVerifiedAt.Value.Add(window) <= DateTime.UtcNow)
+            return Result.Failure("Password reset session has expired. Please start over.",
+                AppErrorCode.ResetSessionExpired);
+
         return Result.Success();
     }
    
@@ -386,7 +453,7 @@ public class VerificationInfoService(
             "NewEmailChange", ct);
         
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.AppErrorType);
+            return Result<string>.Failure(result.Error, result.ErrorCode);
         
         // Riktig kode — hent ny epost og nullstill alle epost-bytte-felter
         var newEmail = verificationInfo.PendingEmail;
@@ -450,7 +517,7 @@ public class VerificationInfoService(
         
         // Ingen pending telefonnummer
         if (string.IsNullOrEmpty(verificationInfo.PendingPhoneNumber))
-            return Result<string>.Failure("No pending phone change found");
+            return Result<string>.Failure("No pending phone change found", AppErrorCode.NotFound);
         
         // Sjekk lockout, om koden er utløpt og om koden er korrekt
         var result = await ValidateCodeAsync(userId,
@@ -460,7 +527,7 @@ public class VerificationInfoService(
             "PhoneChangeEmail", ct);
         
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.AppErrorType);
+            return Result<string>.Failure(result.Error, result.ErrorCode);
         
         // Riktig kode — marker steg 1 som fullført, nullstill steg 1-koden
         verificationInfo.PhoneChangeEmailCode = null;
@@ -519,7 +586,7 @@ public class VerificationInfoService(
         
         // Ingen pending telefonnummer
         if (string.IsNullOrEmpty(verificationInfo.PendingPhoneNumber))
-            return Result<string>.Failure("No pending phone change found");
+            return Result<string>.Failure("No pending phone change found", AppErrorCode.NotFound);
         
         // Guard: Steg 1 må være fullført
         if (!verificationInfo.CurrentPhoneChangeVerified)
@@ -538,7 +605,7 @@ public class VerificationInfoService(
             () => verificationInfo.NewPhoneChangeCodeFailedAttempts++,
             "NewPhoneChange", ct);
         if (result.IsFailure)
-            return Result<string>.Failure(result.Error, result.AppErrorType);
+            return Result<string>.Failure(result.Error, result.ErrorCode);
         
         // Riktig kode — hent nytt nummer og nullstill alle telefon-bytte-felter
         var newPhone = verificationInfo.PendingPhoneNumber;
@@ -585,7 +652,7 @@ public class VerificationInfoService(
         if (verificationInfo == null)
         {
             logger.LogWarning("Security alert token not found: {Token}", token);
-            return Result<string>.Failure("Invalid or expired security token");
+            return Result<string>.Failure("Invalid or expired security token", AppErrorCode.InvalidToken);
         }
         
         // Sjekk utløp
@@ -597,7 +664,7 @@ public class VerificationInfoService(
             await verificationInfoRepository.SaveChangesAsync(ct);
             
             logger.LogWarning("Expired security alert token used for UserId: {UserId}", verificationInfo.UserId);
-            return Result<string>.Failure("Security token has expired");
+            return Result<string>.Failure("Security token has expired", AppErrorCode.TokenExpired);
         }
         
         var userId = verificationInfo.UserId;
@@ -644,7 +711,12 @@ public class VerificationInfoService(
         verificationInfo.SmsPasswordResetCodeFailedAttempts = 0;
         verificationInfo.SmsPasswordResetVerified = false;
         
-        await verificationInfoRepository.SaveChangesAsync();
+        // Login MFA
+        verificationInfo.LoginMfaCode = null;
+        verificationInfo.LoginMfaCodeExpiresAt = null;
+        verificationInfo.LoginMfaCodeFailedAttempts = 0;
+        
+        await verificationInfoRepository.SaveChangesAsync(ct);
         
         logger.LogWarning(
             "Security alert token consumed for UserId: {UserId}. All pending changes cleared.", userId);
@@ -695,15 +767,15 @@ public class VerificationInfoService(
     {
         if (failedAttempts >= VerificationConfig.MaxFailedAttempts)
         {
-            logger.LogWarning("{VerificationMethodCallerName} locked out for UserId: {UserId} after {Attempts} failed attempts",
-                verificationMethodCallerName, userId, failedAttempts);
+            logger.LogWarning("{VerificationMethodCallerName} locked out for UserId: {UserId} after " +
+                              "{Attempts} failed attempts", verificationMethodCallerName, userId, failedAttempts);
             return Result.Failure(
                 "Too many failed attempts. Please request a new verification code.",
                 AppErrorCode.TooManyRequests);
         }
     
         if (!expiresAt.HasValue || expiresAt.Value < DateTime.UtcNow || string.IsNullOrEmpty(correctCode))
-            return Result.Failure("Verification code has expired");
+            return Result.Failure("Verification code has expired", AppErrorCode.ExpiredCode);
     
         if (correctCode != userInputCode)
         {
@@ -713,7 +785,7 @@ public class VerificationInfoService(
             var remaining = VerificationConfig.MaxFailedAttempts - (failedAttempts + 1);
             logger.LogWarning("Invalid {SlotName} code for UserId: {UserId}. {Remaining} attempts remaining",
                 verificationMethodCallerName, userId, remaining);
-            return Result.Failure("Invalid verification code");
+            return Result.Failure("Invalid verification code", AppErrorCode.InvalidCode);
         }
     
         return Result.Success();

@@ -1,3 +1,4 @@
+using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Configurations.Options;
 using AFBack.Features.FileHandling.Enums;
@@ -8,7 +9,6 @@ using AFBack.Features.Support.Models;
 using AFBack.Features.Support.Repositories;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
-using AFBack.Infrastructure.Email.Models;
 using AFBack.Infrastructure.Email.Templates;
 using AFBack.Infrastructure.Security.Services;
 
@@ -33,7 +33,7 @@ public class SupportTicketService(
         var rateLimitResult = await limitGuardService.CheckEmailRateLimitAsync(EmailType.SupportTicket,
             ticketRequest.Email, ipAddress);
         if (rateLimitResult.IsFailure)
-            return Result<SupportTicketResponse>.Failure(rateLimitResult.Error, rateLimitResult.AppErrorType);
+            return Result<SupportTicketResponse>.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
 
         // Oppretter en SupportTicket
         var ticket = new SupportTicket
@@ -47,7 +47,7 @@ public class SupportTicketService(
             ExpectedBehavior = ticketRequest.ExpectedBehavior,
             ActualBehavior = ticketRequest.ActualBehavior,
             IpAddress = ipAddress,
-            UserAgent = userAgent // dsad
+            UserAgent = userAgent 
         };
 
         // Validerer og laster opp filer til S3
@@ -56,12 +56,13 @@ public class SupportTicketService(
             // Sjekk maks antall filer
             if (attachments.Count > SupportTicketFileConfig.TicketMaxFileCount)
                 return Result<SupportTicketResponse>.Failure(
-                    $"Maximum {SupportTicketFileConfig.TicketMaxFileCount} files allowed");
+                    $"Maximum {SupportTicketFileConfig.TicketMaxFileCount} files allowed",
+                    AppErrorCode.Validation);
 
             // Validerer og laster opp filer
             var attachmentResult = await ValidateAndUploadAttachmentsAsync(attachments, ct);
             if (attachmentResult.IsFailure)
-                return Result<SupportTicketResponse>.Failure(attachmentResult.Error);
+                return Result<SupportTicketResponse>.Failure(attachmentResult.Error, attachmentResult.ErrorCode);
 
             ticket.Attachments = attachmentResult.Value!;
         }
@@ -81,7 +82,8 @@ public class SupportTicketService(
             logger.LogError(ex, "Failed to save support ticket. Cleaning up uploaded files.");
             var keys = ticket.Attachments.Select(a => a.StorageKey).ToList();
             await fileOrchestrator.TryCleanupFilesAsync(keys, BlobContainer.PrivateFiles, ct);
-            return Result<SupportTicketResponse>.Failure("Failed to create support ticket. Please try again.");
+            return Result<SupportTicketResponse>.Failure("Failed to create support ticket. Please try again.",
+                AppErrorCode.InternalError);
         }
 
         // Send e-poster (ikke kritisk - feiler stille)
@@ -119,7 +121,7 @@ public class SupportTicketService(
                 // Rydd opp alle filer
                 var keys = uploadedAttachments.Select(a => a.StorageKey).ToList();
                 await fileOrchestrator.TryCleanupFilesAsync(keys, BlobContainer.PrivateFiles, ct);
-                return Result<List<SupportAttachment>>.Failure(result.Error);
+                return Result<List<SupportAttachment>>.Failure(result.Error, result.ErrorCode);
             }
 
             uploadedAttachments.Add(result.Value!);

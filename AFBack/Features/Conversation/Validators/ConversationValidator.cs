@@ -207,7 +207,7 @@ public class ConversationValidator(
         // Validerer at det er en pending request
         var pendingRequestResult = ValidateIsPendingRequest(userId, conversation!);
         if (pendingRequestResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(pendingRequestResult.Error, pendingRequestResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(pendingRequestResult.Error, pendingRequestResult.ErrorCode);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
@@ -220,12 +220,12 @@ public class ConversationValidator(
         var recipientResult = ValidateIsPendingRecipient(userParticipant);
         if (recipientResult.IsFailure)
             return Result<ConversationParticipant>.Failure(
-                "You cannot perform this action on a conversation you initiated", recipientResult.AppErrorType);
+                "You cannot perform this action on a conversation you initiated", recipientResult.ErrorCode);
         
         // Sjekker at brukeren har pending status (ikke allerede akseptert)
         var pendingResult = ValidateParticipantPending(userParticipant);
         if (pendingResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.ErrorCode);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -244,7 +244,7 @@ public class ConversationValidator(
         // Validerer at det er en gruppesamtale
         var groupChatResult = ValidateIsGroupChat(userId, conversation!);
         if (groupChatResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorCode);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
@@ -256,7 +256,7 @@ public class ConversationValidator(
         // Sjekker at brukeren har pending status (ikke allerede akseptert)
         var pendingResult = ValidateParticipantPending(userParticipant);
         if (pendingResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(pendingResult.Error, pendingResult.ErrorCode);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -275,7 +275,7 @@ public class ConversationValidator(
         // Validerer at det er en gruppesamtale
         var groupChatResult = ValidateIsGroupChat(userId, conversation!);
         if (groupChatResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorCode);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
@@ -287,7 +287,7 @@ public class ConversationValidator(
         // Sjekker at brukeren har Accepted status
         var acceptedResult = ValidateParticipantAccepted(userParticipant);
         if (acceptedResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.ErrorCode);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -306,7 +306,7 @@ public class ConversationValidator(
         // Validerer at det er en gruppesamtale
         var groupChatResult = ValidateIsGroupChat(userId, conversation!);
         if (groupChatResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(groupChatResult.Error, groupChatResult.ErrorCode);
         
         // Validerer at brukeren er medlem av samtalen
         var participantResult = ValidateParticipant(userId, conversation!);
@@ -318,12 +318,12 @@ public class ConversationValidator(
         // Sjekker at brukeren har Accepted status
         var acceptedResult = ValidateParticipantAccepted(userParticipant);
         if (acceptedResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(acceptedResult.Error, acceptedResult.ErrorCode);
         
         // Sjekker at brukeren er Creator
         var creatorResult = ValidateIsCreator(userParticipant);
         if (creatorResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(creatorResult.Error, creatorResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(creatorResult.Error, creatorResult.ErrorCode);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -350,12 +350,12 @@ public class ConversationValidator(
         var notArchivedResult = ValidateNotArchived(userParticipant);
         if (notArchivedResult.IsFailure)
             return Result<ConversationParticipant>.Failure(
-                "You have already deleted this conversation", notArchivedResult.AppErrorType);
+                "You have already deleted this conversation", notArchivedResult.ErrorCode);
         
         // Validerer at det IKKE er en gruppesamtale
         var notGroupResult = ValidateIsNotGroupChat(userId, conversation!);
         if (notGroupResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.ErrorCode);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }
@@ -381,12 +381,12 @@ public class ConversationValidator(
         // Sjekker at brukeren har arkivert samtalen
         var archivedResult = ValidateIsArchived(userParticipant);
         if (archivedResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(archivedResult.Error, archivedResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(archivedResult.Error, archivedResult.ErrorCode);
         
         // Validerer at det IKKE er en gruppesamtale
         var notGroupResult = ValidateIsNotGroupChat(userId, conversation!);
         if (notGroupResult.IsFailure)
-            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.AppErrorType);
+            return Result<ConversationParticipant>.Failure(notGroupResult.Error, notGroupResult.ErrorCode);
         
         return Result<ConversationParticipant>.Success(userParticipant);
     }

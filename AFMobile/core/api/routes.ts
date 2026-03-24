@@ -29,6 +29,7 @@ export const ApiRoutes = {
     forgot:         `${API_BASE_URL}/api/password-reset/forgot-password`,
     verifyEmail:    `${API_BASE_URL}/api/password-reset/verify-password-reset-email`,
     sendSms:        `${API_BASE_URL}/api/password-reset/send-password-reset-sms`,
+    verifySms:      `${API_BASE_URL}/api/password-reset/verify-password-reset-sms`,
     reset:          `${API_BASE_URL}/api/password-reset/reset-password`,
     changePassword: `${API_BASE_URL}/api/password-reset/change-password`,
   },

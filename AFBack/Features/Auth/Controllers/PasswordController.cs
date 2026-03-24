@@ -121,27 +121,51 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     }
     
     /// <summary>
-    /// Steg 4: Validerer SMS-kode og setter nytt passord.
+    /// Steg 3b: Validerer SMS-koden for passord-reset.
+    /// Ved suksess er brukeren klar til å sette nytt passord i steg 4.
+    /// </summary>
+    [HttpPost("verify-password-reset-sms")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> VerifyPasswordResetSms(
+        [FromBody] VerifyEmailRequest request, CancellationToken ct = default)
+    {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        if (string.IsNullOrEmpty(ipAddress))
+            return Problem(detail: "Unable to determine client IP address",
+                statusCode: StatusCodes.Status400BadRequest);
+
+        var result = await passwordService.VerifyPasswordResetSmsAsync(request.Email, request.Code, ipAddress, ct);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok();
+    }
+
+    /// <summary>
+    /// Steg 4: Setter nytt passord. Krever at SMS-koden er verifisert i steg 3b.
     /// </summary>
     [HttpPost("reset-password")]
     [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, 
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request,
         CancellationToken ct = default)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
         if (string.IsNullOrEmpty(ipAddress))
             return Problem(detail: "Unable to determine client IP address", 
                 statusCode: StatusCodes.Status400BadRequest);
-        
-        var result = await passwordService.ResetPasswordAsync(
-            request.Email, request.Code, request.NewPassword, ipAddress, ct);
-    
+
+        var result = await passwordService.ResetPasswordAsync(request.Email, request.NewPassword, ipAddress, ct);
+
         if (result.IsFailure)
             return HandleFailure(result);
-    
+
         return Ok();
     }
 }

@@ -51,7 +51,7 @@ public class SendMessageService(
             var validationResult = await sendMessageValidator.ValidateSendMessageAsync(userId, request);
             
             if(validationResult.IsFailure)
-                return Result<SendMessageResponse>.Failure(validationResult.Error, validationResult.AppErrorType);
+                return Result<SendMessageResponse>.Failure(validationResult.Error, validationResult.ErrorCode);
         }
         
         // Her lagrer vi dataen vi trenger fra UploadAttachmentsAsync hvis det er noen attachments
@@ -110,7 +110,7 @@ public class SendMessageService(
             }
 
             return Result<SendMessageResponse>.Failure("An unexpected error occurred",
-                AppErrorCode.InternalServerError);
+                AppErrorCode.InternalError);
         }
     }
 
@@ -167,7 +167,7 @@ public class SendMessageService(
                 if (fileResult.IsFailure)
                 {
                     // Filopplastning feilet - rydd opp
-                    return Result<List<UploadedAttachmentDto>>.Failure(fileResult.Error, fileResult.AppErrorType);
+                    return Result<List<UploadedAttachmentDto>>.Failure(fileResult.Error, fileResult.ErrorCode);
                 }
                 uploadedStorageKeys.Add(fileKey);
                 
@@ -175,7 +175,7 @@ public class SendMessageService(
                 var thumbResult = await fileOrchestrator.UploadEncryptedFileAsync(
                     encryptedThumbnailBytes, thumbKey, EncryptedFileConfig.MaxThumbnailSizeBytes);
                 if (thumbResult.IsFailure)
-                    return Result<List<UploadedAttachmentDto>>.Failure(thumbResult.Error, thumbResult.AppErrorType);
+                    return Result<List<UploadedAttachmentDto>>.Failure(thumbResult.Error, thumbResult.ErrorCode);
                 
                 uploadedStorageKeys.Add(thumbKey);
                 
@@ -197,7 +197,7 @@ public class SendMessageService(
                 "Unexpected error uploading attachments for user {UserId}. Cleaning up {Count} files",
                 userId, uploadedStorageKeys.Count);
             return Result<List<UploadedAttachmentDto>>.Failure(
-                "Failed to upload attachments. Please try again.", AppErrorCode.InternalServerError);
+                "Failed to upload attachments. Please try again.", AppErrorCode.InternalError);
         }
         finally
         {
