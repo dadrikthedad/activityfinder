@@ -73,38 +73,3 @@ ActivityFinder/
 **Transaksjonsmønster:** Commit database først — deretter SignalR og SyncEvents.
 
 **Cache-invalidering:** Invalider `CanSend`-cache ved accept, block, archive og leave.
-
-## Kom i gang
-
-### Backend
-```bash
-cd AFBack
-dotnet run
-dotnet watch run        # Hot reload
-dotnet test             # Kjør tester
-```
-
-### Mobilapp
-```bash
-cd AFMobile
-npx expo run:android    # Første bygg / ny native pakke (10-15 min)
-npx expo start --clear  # Vanlig utvikling (JS-endringer)
-adb reverse tcp:8081 tcp:8081  # Tunneling til fysisk enhet
-```
-
-### Webklient
-```bash
-cd activitynext
-npm install
-npm run dev
-```
-
-## Miljøvariabler
-
-```bash
-# AFMobile (.env.local)
-API_URL=http://192.168.1.191:5058   # Lokal utvikling (fysisk enhet)
-# API_URL=http://10.0.2.2:5058     # Android-emulator
-```
-
-Se `AFBack/CLAUDE.md` og `AFMobile/CLAUDE.md` for detaljert arkitekturdokumentasjon.
