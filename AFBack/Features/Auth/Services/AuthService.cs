@@ -3,6 +3,7 @@ using AFBack.Common.Enum;
 using AFBack.Common.Localization;
 using AFBack.Common.Results;
 using AFBack.Common.Security;
+using AFBack.Configurations.Options;
 using AFBack.Features.Auth.DTOs.Request;
 using AFBack.Features.Auth.DTOs.Response;
 using AFBack.Features.Auth.Models;
@@ -19,6 +20,7 @@ using AFBack.Infrastructure.Security.Enums;
 using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Features.Auth.Services;
 
@@ -26,8 +28,8 @@ public class AuthService(
    UserManager<AppUser> userManager,
    ILogger<AuthService> logger,
    IUserRepository userRepository,
-   IConfiguration configuration,
    IEmailService emailService,
+   IOptions<AppOptions> appOptions,
    IVerificationInfoService verificationInfoService,
    IEmailRateLimitService emailRateLimitService,
    IUserDeviceService userDeviceService,   
@@ -39,6 +41,9 @@ public class AuthService(
    IRateLimitGuardService rateLimitGuardService,
    ITransactionService transactionService) : IAuthService
 {
+    
+    private readonly string _baseUrl = appOptions.Value.BaseUrl;
+    
     // Hasher et passord ved oppstart så endringer som skjer i PasswordHashService gir alltid et korrekt
     // Dummy passord.
     private static readonly string DummyPasswordHash;
@@ -79,7 +84,7 @@ public class AuthService(
                     $"Attempted registration with existing email: {request.Email}");
 
                 return Result<SignupResponse>.Failure(
-                    "A user with this email already exists", AppErrorCode.Conflict);
+                    "A user with this email already exists", AppErrorCode.EmailAlreadyExists);
             }
 
             var existingUserWithThisPhonenumber = await userRepository.FindByPhoneAsync(request.PhoneNumber, ct);
@@ -91,7 +96,7 @@ public class AuthService(
                     $"Attempted registration with existing phone: {request.PhoneNumber}");
 
                 return Result<SignupResponse>.Failure(
-                    "A user with this phonenumber already exists", AppErrorCode.Conflict);
+                    "A user with this phone number already exists", AppErrorCode.PhoneNumberAlreadyExists);
             }
 
             // ====== Opprettelse ======
@@ -148,7 +153,7 @@ public class AuthService(
                 var emailDto = new EmailCodeDto(
                     Email: request.Email,
                     Code: code,
-                    BaseUrl: configuration["App:BaseUrl"]!);
+                    BaseUrl: _baseUrl);
 
                 // Bygger template
                 var body = EmailTemplates.Verification(emailDto);
@@ -181,23 +186,21 @@ public class AuthService(
     }
   
     // ======================== Login ======================== 
-   
-   /// <inheritdoc/>
-   public async Task<Result<LoginResponse>> LoginAsync(LoginRequest request, string ipAddress, string? userAgent,
-       CancellationToken ct = default)
+    /// <inheritdoc />
+   public async Task<Result> LoginAsync(LoginRequest request, string ipAddress, CancellationToken ct = default)
    {
        var sw = Stopwatch.StartNew();
 
        try
        {
-           logger.LogInformation("LoginAsync. Payload: {@Payload}", new { request.Email });
+           logger.LogInformation("LoginAsync");
 
            // ====== Finn bruker (eller bruk DummyUser for timing-beskyttelse) ======
            var user = await userManager.FindByEmailAsync(request.Email);
 
            // Returner ikke med engang for å simulere en ekte bruker
            if (user == null)
-               logger.LogWarning("Login failed. User not found for {Email}", request.Email);
+               logger.LogWarning("Login failed. User not found for IP {IpAddress}", ipAddress);
 
            // ====== Lockout-sjekk med Identity ======
            if (user != null && await userManager.IsLockedOutAsync(user))
@@ -205,7 +208,7 @@ public class AuthService(
                var lockoutEnd = await userManager.GetLockoutEndDateAsync(user);
                logger.LogWarning("Login failed. Account locked for {Email} until {LockoutEnd}",
                    request.Email, lockoutEnd);
-               return Result<LoginResponse>.Failure(
+               return Result.Failure(
                    "Your account has been locked due to security reasons. " +
                    "Please try again later or reset your password.", AppErrorCode.AccountLocked);
            }
@@ -234,7 +237,7 @@ public class AuthService(
                }
 
                logger.LogWarning("Login failed. Invalid credentials for {Email}", request.Email);
-               return Result<LoginResponse>.Failure("Wrong email or password", AppErrorCode.InvalidCredentials);
+               return Result.Failure("Wrong email or password", AppErrorCode.InvalidCredentials);
            }
 
            // ====== Epost-verifisering ======
@@ -249,7 +252,7 @@ public class AuthService(
                    ? "Your email is not yet verified. We've sent a new verification email."
                    : "Your email is not yet verified. Please try again later.";
 
-               return Result<LoginResponse>.Failure(message, AppErrorCode.EmailNotConfirmed);
+               return Result.Failure(message, AppErrorCode.EmailNotConfirmed);
            }
 
            // ====== Telefon-verifisering ======
@@ -264,7 +267,7 @@ public class AuthService(
                    ? "Your phone number is not yet verified. We've sent a new verification SMS."
                    : "Your phone number is not yet verified. Please try again later.";
 
-               return Result<LoginResponse>.Failure(message, AppErrorCode.PhoneNotConfirmed);
+               return Result.Failure(message, AppErrorCode.PhoneNotConfirmed);
            }
 
            // ====== Nullstill failed attempts med Identity ======
@@ -273,28 +276,82 @@ public class AuthService(
            // ====== Device tracking ======
            return await transactionService.ExecuteAsync(async (innerCt) =>
            {
-               // Oppretter eller oppdaterer UserDevice for brukeren
-               var device =
-                   await userDeviceService.ResolveOrCreateDeviceAsync(user.Id, request.Device, ipAddress, innerCt);
+               var mfaCode = await verificationInfoService.GenerateLoginMfaCodeAsync(user.Id, innerCt);
 
-               // ====== Generer tokens ======
-               var roles = await userManager.GetRolesAsync(user);
-               var loginResponse = await tokenService.GenerateTokenPairAsync(
-                   user, device, roles, ipAddress, userAgent, innerCt);
+               var emailData = new EmailCodeDto(
+                   Email: user.Email!,
+                   Code: mfaCode,
+                   BaseUrl: _baseUrl);
 
-               // Oppretter innloggingshistorikk
-               await loginHistoryService.RecordLoginAsync(user.Id, device.Id, ipAddress, userAgent, innerCt);
+               var body = AuthEmailTemplate.LoginMfa(emailData);
 
-               logger.LogInformation("Login successful for {Email} on device {DeviceName}",
-                   request.Email, device.DeviceName);
+               var emailResult = await emailService.SendAsync(user.Email!, body, innerCt);
+               if (emailResult.IsFailure)
+               {
+                   logger.LogError("Failed to send MFA email for {Email}", request.Email);
+                   return Result.Failure(
+                       "Failed to send verification email. Please try again.", AppErrorCode.InternalError);
+               }
 
-               return Result<LoginResponse>.Success(loginResponse);
+               logger.LogInformation("MFA code sent for {Email}", request.Email);
+
+               
+               return Result.Success();
            }, ct);
        }
        finally
        {
            await TimingGuard.EnforceMinimumTimeAsync(sw, 300);
        }
+   }
+   
+   public async Task<Result<LoginResponse>> VerifyMfaAsync(VerifyMfaRequest request, string ipAddress,
+       string? userAgent, CancellationToken ct = default)
+   {
+       logger.LogInformation("VerifyMfaAsync. Payload: {@Payload}", new { request.Email });
+
+       // ====== Finn bruker ======
+       var user = await userManager.FindByEmailAsync(request.Email);
+       if (user == null)
+       {
+           logger.LogWarning("MFA verify failed. User not found for {Email}", request.Email);
+           return Result<LoginResponse>.Failure("Invalid attempt", AppErrorCode.Unauthorized);
+       }
+       
+       // ====== Valider MFA-kode ======
+       var validateResult = await verificationInfoService.ValidateLoginMfaCodeAsync(user.Id, request.Code, ct);
+       if (validateResult.IsFailure)
+       {
+           // Rapporter brute force hvis de er låst ute
+           if (validateResult.ErrorCode == AppErrorCode.TooManyRequests)
+               await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
+                   SuspiciousActivityType.BruteForceAttempt,
+                   $"MFA code locked out for {request.Email}",
+                   userId: user.Id);
+
+           return Result<LoginResponse>.Failure(validateResult.Error, validateResult.ErrorCode);
+       }
+       
+       // ====== Utsted tokens + device tracking ======
+       return await transactionService.ExecuteAsync(async (innerCt) =>
+       {
+           // Oppretter eller oppdaterer UserDevice for brukeren
+           var device = await userDeviceService.ResolveOrCreateDeviceAsync(
+               user.Id, request.Device, ipAddress, innerCt);
+            
+           // ====== Hent roller og generer tokens ======
+           var roles = await userManager.GetRolesAsync(user);
+           var loginResponse = await tokenService.GenerateTokenPairAsync(
+               user, device, roles, ipAddress, userAgent, innerCt);
+            
+           // ====== Oppretter Login-history ======
+           await loginHistoryService.RecordLoginAsync(user.Id, device.Id, ipAddress, userAgent, innerCt);
+
+           logger.LogInformation("MFA verified and login successful for {Email} on device {DeviceName}",
+               request.Email, device.DeviceName);
+
+           return Result<LoginResponse>.Success(loginResponse);
+       }, ct);
    }
     
    /// <summary>
@@ -433,7 +490,7 @@ public class AuthService(
         var emailData = new EmailCodeDto(
             Email: user.Email!,
             Code: resetCode,
-            BaseUrl: configuration["App:BaseUrl"]!);
+            BaseUrl: _baseUrl);
         
         var body = EmailTemplates.AccountLocked(emailData);
         await emailService.SendAsync(targetEmail, body);
@@ -457,13 +514,13 @@ public class AuthService(
     {
         var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id);
         
-        var alertUrl = $"{configuration["App:BaseUrl"]}/security-alert?token={alertToken}";
+        var alertUrl = $"{_baseUrl}/security-alert?token={alertToken}";
         
         var alertDto = new SecurityAlertEmailDto(
             Email: user.Email!,
             ChangeType: changeType,
             SecurityAlertUrl: alertUrl,
-            BaseUrl: configuration["App:BaseUrl"]!);
+            BaseUrl: _baseUrl);
         
         var alertBody = EmailTemplates.SecurityAlert(alertDto);
         await emailService.SendAsync(user.Email!, alertBody);

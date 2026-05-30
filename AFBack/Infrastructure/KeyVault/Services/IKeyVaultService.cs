@@ -9,7 +9,6 @@ public interface IKeyVaultService
     /// og vi må finne ut av meldingene av rettslige grunner
     /// </summary>
     /// <param name="userId">BrukerId</param>
-    /// <param name="deviceId">DeviceID-en til brukerne</param>
-    /// <param name="key">Nøkkelen som blir lagret</param>
-    Task<Result> StoreRecoverySeedAsync(string userId, int deviceId, string key);
+    /// <param name="recoverySeed">Nøkkelen som blir lagret</param>
+    Task<Result> StoreRecoverySeedAsync(string userId, string recoverySeed);
 }

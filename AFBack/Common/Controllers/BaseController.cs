@@ -46,7 +46,9 @@ namespace AFBack.Common.Controllers
             var (statusCode, title) = code switch
             {
                 AppErrorCode.NotFound => (StatusCodes.Status404NotFound, "Not Found"),
-                AppErrorCode.Conflict or AppErrorCode.EmailAlreadyExists => (StatusCodes.Status409Conflict, "Conflict"),
+                AppErrorCode.Conflict
+                    or AppErrorCode.EmailAlreadyExists
+                    or AppErrorCode.PhoneNumberAlreadyExists => (StatusCodes.Status409Conflict, "Conflict"),
                 AppErrorCode.Unauthorized
                     or AppErrorCode.InvalidCredentials
                     or AppErrorCode.EmailNotConfirmed

@@ -74,9 +74,10 @@ export async function registerUserAPI(
 function mapRegistrationError(error: unknown): Result<RegisterResponseDTO, RegistrationErrorCode> {
   if (error instanceof ApiError) {
     switch (error.appCode) {
-      case AppErrorCode.Conflict:
       case AppErrorCode.EmailAlreadyExists:
         return Result.fail(error.message, RegistrationErrorCode.EmailTaken);
+      case AppErrorCode.PhoneNumberAlreadyExists:
+        return Result.fail(error.message, RegistrationErrorCode.PhoneTaken);
       case AppErrorCode.InvalidRegistrationData:
       case AppErrorCode.Validation:
         return Result.fail(error.message, RegistrationErrorCode.InvalidData);

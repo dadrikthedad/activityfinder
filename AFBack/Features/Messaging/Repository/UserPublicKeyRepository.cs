@@ -7,21 +7,22 @@ namespace AFBack.Features.Messaging.Repository;
 public class UserPublicKeyRepository(AppDbContext context) : IUserPublicKeyRepository
 {
     /// <inheritdoc/>
-    public async Task<UserPublicKey?> GetActiveUserPublicKeyAsync(string userId) =>
+    public async Task<UserPublicKey?> GetActiveUserPublicKeyAsync(string userId, CancellationToken ct = default) =>
         await context.UserPublicKeys
-            .FirstOrDefaultAsync(k => k.UserId == userId && k.IsActive);
+            .FirstOrDefaultAsync(k => k.UserId == userId && k.IsActive, ct);
     
-    public async Task<List<UserPublicKey>> GetActiveKeysForUsersAsync(List<string> userIds) => 
+    public async Task<List<UserPublicKey>> GetActiveKeysForUsersAsync(List<string> userIds, 
+        CancellationToken ct = default) => 
         await context.UserPublicKeys
         .Where(k => userIds.Contains(k.UserId) && k.IsActive)
         .Include(k => k.User)
-        .ToListAsync();
+        .ToListAsync(ct);
     
     /// <inheritdoc/>
-    public async Task AddAsync(UserPublicKey userPublicKey)
+    public async Task AddAsync(UserPublicKey userPublicKey, CancellationToken ct = default)
     {
-        await context.UserPublicKeys.AddAsync(userPublicKey);
-        await context.SaveChangesAsync();
+        await context.UserPublicKeys.AddAsync(userPublicKey, ct);
+        await context.SaveChangesAsync(ct);
     }
     
 }

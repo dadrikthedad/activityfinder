@@ -10,6 +10,7 @@ export const API_BASE_URL =
 export const ApiRoutes = {
   auth: {
     login:              `${API_BASE_URL}/api/auth/login`,
+    verifyMfa:          `${API_BASE_URL}/api/auth/login/verify-mfa`,
     signup:             `${API_BASE_URL}/api/auth/signup`,
     logout:             `${API_BASE_URL}/api/auth/logout`,
     logoutAll:          `${API_BASE_URL}/api/auth/logout-all`,
@@ -48,5 +49,9 @@ export const ApiRoutes = {
     updateName:              `${API_BASE_URL}/api/account/name`,
     updateProfileImage:      `${API_BASE_URL}/api/account/profileimage`,
     removeProfileImage:      `${API_BASE_URL}/api/account/profileimage`,
+  },
+  encryption: {
+    myPublicKey: `${API_BASE_URL}/api/encryption/public-key`,
+    keys:        `${API_BASE_URL}/api/encryption/keys`,
   },
 } as const;

@@ -1,8 +1,7 @@
-﻿using Microsoft.Extensions.Caching.Memory;
-using Xunit;
-using FluentAssertions;
+﻿using FluentAssertions;
+using Microsoft.Extensions.Caching.Memory;
 
-namespace AFBack.Tests.RateLimiter;
+namespace AFBack.Tests.Infrastructure.Extensions;
 
 public class StrikeSystemTests
 {

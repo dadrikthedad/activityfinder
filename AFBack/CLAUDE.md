@@ -2,26 +2,12 @@
 
 .NET 10 API for ende-til-ende kryptert meldingsapp. PostgreSQL + Redis + SignalR.
 
-## Hurtigstart
+## Regler for dette området
 
-```bash
-dotnet run                              # Dev
-dotnet watch run                        # Hot reload
-dotnet ef migrations add Name           # Migration
-dotnet ef database update               # Kjør migration
-dotnet test                             # Alle tester
-dotnet test --filter "FullyQualifiedName~Auth"  # Auth-tester
-```
+Ved arbeid i AFBack skal disse reglene alltid lastes:
 
-## Arkitektur: Vertical Slice
-
-```
-Features/[Feature]/
-  ├── [Feature]Controller.cs   # API endpoints
-  ├── [Feature]Service.cs      # Forretningslogikk
-  ├── [Feature]Repository.cs   # Datahåndtering
-  └── DTOs/                    # Request/Response
-```
+@.claude/rules/architecture.md
+@.claude/rules/testing.md
 
 ## Auth-system
 
@@ -103,75 +89,6 @@ Claim-mapping er slått av (`DefaultInboundClaimTypeMap.Clear()`).
 - **DirectChat:** Etter at mottaker aksepterer. Ubegrensede meldinger.
 - **Auto-accept:** Hvis pending mottaker sender tilbake → aksepterer automatisk.
 
-## Kritiske patterns
-
-### Result Pattern + AppErrorCode
-
-```csharp
-// Service returnerer alltid Result med AppErrorCode:
-if (user == null)
-    return Result.Failure("User not found", AppErrorCode.NotFound);
-
-if (!isPasswordValid)
-    return Result.Failure("Wrong email or password", AppErrorCode.InvalidCredentials);
-
-// Controller kaller HandleFailure — mapper AppErrorCode → HTTP-statuskode + AppProblemDetails:
-if (result.IsFailure)
-    return HandleFailure(result);
-```
-
-### AppErrorCode — domenespesifikke feilkoder
-
-Alle feil bruker `AppErrorCode` (i `Common/Enum/AppErrorCode.cs`).
-`HandleFailure` i `BaseController` mapper koden til HTTP-statuskode og returnerer `AppProblemDetails`.
-Frontend speilet disse i `shared/types/error/AppErrorCode.ts`.
-
-```
-AppProblemDetails JSON:
-{ "status": 401, "title": "Authentication Error", "detail": "...", "code": 2002 }
-```
-
-Koderanges:
-- `0` — Unknown
-- `1xxx` — Generelle (Validation, NotFound, Conflict, Unauthorized, Forbidden, InternalError, TooManyRequests, Gone, BadRequest, EmailSendFailed)
-- `2xxx` — Autentisering (InvalidCredentials, AccountLocked, EmailNotConfirmed, PhoneNotConfirmed, TokenExpired, InvalidToken)
-- `3xxx` — Registrering (EmailAlreadyExists, InvalidRegistrationData)
-- `4xxx` — Verifisering (InvalidCode, ExpiredCode, AlreadyVerified)
-- `5xxx` — Passord-reset (EmailNotFound)
-- `6xxx` — Invitasjoner (InviteUserNotFound, InviteAlreadyInGroup, InviteUserLeft, InviteBlocked)
-- `7xxx` — Kryptografi (InvalidPublicKey)
-
-### AppProblemDetails
-
-`BaseController.HandleFailure` returnerer alltid `AppProblemDetails` (ikke standard `ProblemDetails`).
-`AppProblemDetails` arver `ProblemDetails` og legger til `Code`-feltet (int).
-`GlobalExceptionHandler` returnerer fortsatt standard `ProblemDetails` uten `code` — kun for uventede exceptions.
-
-### Transaksjonsmønster
-
-```csharp
-await tx.CommitAsync();    // 1. Lagre
-await hub.SendAsync(...);  // 2. Best-effort
-await sync.CreateEvent();  // 3. Pålitelig
-```
-
-SignalR-feil skal ikke rulle tilbake database.
-
-### Cache-strategi
-
-**CanSend Cache** — `user:{userId}:cansend` → Redis Set med conversationIds
-- Invalider ved: Accept, Block, Archive, Leave
-- Mønster: Cache → DB fallback → populer cache
-
-**UserSummary Cache** — `user:summary:{userId}` → UserSummaryDto
-- Permanent TTL (`DateTimeOffset.MaxValue`)
-- Invalider ved: profilbilde/navneendring, brukersletting
-
-```csharp
-var summary = await GetUserSummaryAsync(userId);           // Single
-var summaries = await GetUserSummariesAsync(listOfIds);    // Bulk (unngår N+1)
-```
-
 ## Testing
 
 **Framework:** xUnit + Moq + FluentAssertions
@@ -190,14 +107,7 @@ mockService.Verify(s => s.MethodAsync(...), Times.Once);
 **In-memory DB:** `UseInMemoryDatabase(Guid.NewGuid().ToString())` for isolasjon.
 
 Se @.claude/rules/testing.md for detaljerte test-scenarios.
-
-## Krypteringsregler
-
-```
-Backend validerer kun struktur
-Backend dekrypterer aldri
-Frontend håndterer all kryptering
-```
+Se @.claude/rules/architecture.md for arkitektur, patterns og navnekonvensjoner.
 
 ## Gotchas
 
@@ -208,23 +118,4 @@ Frontend håndterer all kryptering
 - **Auth DummyUser:** Initialiseres ved oppstart — alltid med gjeldende Argon2id-parametere
 - **AppErrorCode vs HTTP-statuskode:** AppErrorCode er domenekontrakten. HTTP-statuskoden utledes av `BuildProblemResult` i `BaseController` — aldri sett statuskode manuelt.
 
-## Refaktoreringskonvensjon
 
-```csharp
-// Sjekk interface for summary
-public async Task<Result<ConversationResponse>> GetConversationAsync(...)
-```
-
-- `// Sjekk interface for summary` = metoden er ferdig refaktorert
-- XML summary kun i interface, ikke i implementasjonen
-
-## DTO Navnekonvensjon
-
-- **`Request`** — Data fra frontend til backend
-- **`Response`** — Data fra backend til frontend
-- **`Dto`** — Intern bruk i backend, mapping mellom lag
-
-## Regler for Claude
-
-- **ALDRI opprett nye modeller eller legg til egenskaper uten eksplisitt bekreftelse fra Magee**
-- Foreslå alltid løsninger med eksisterende modeller først

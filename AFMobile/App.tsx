@@ -31,8 +31,10 @@ import LoginScreen from './features/auth/screens/LoginScreen';
 import SignupScreen from './features/auth/screens/SignupScreen';
 import VerificationScreen from './features/auth/screens/VerificationScreen';
 import PhoneSmsVerificationScreen from './features/auth/screens/PhoneSmsVerificationScreen';
+import LoginMfaScreen from './features/auth/screens/LoginMfaScreen';
 import ResetPasswordScreen from './features/auth/screens/ResetPasswordScreen';
 import CryptationScreen from './features/auth/screens/CryptationScreen';
+import E2EESetupScreen from './features/auth/screens/E2EESetupScreen';
 
 // App screens
 import HomeScreen from './screens/HomeScreen';
@@ -194,7 +196,9 @@ function AuthenticatedApp() {
             <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="VerificationScreen" component={VerificationScreen} />
             <Stack.Screen name="PhoneSmsVerificationScreen" component={PhoneSmsVerificationScreen} />
+            <Stack.Screen name="LoginMfaScreen" component={LoginMfaScreen} />
             <Stack.Screen name="ResetPasswordScreen" component={ResetPasswordScreen} />
+            <Stack.Screen name="E2EESetupScreen" component={E2EESetupScreen} />
             <Stack.Screen name="ReportScreen" component={ReportScreen} />
           </>
         )}

@@ -1,5 +1,6 @@
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
+using AFBack.Configurations.Options;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Email;
@@ -12,13 +13,14 @@ using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
 using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Features.Auth.Services;
 
 public class PasswordService(
     UserManager<AppUser> userManager,
     ILogger<PasswordService> logger,
-    IConfiguration configuration,
+    IOptions<AppOptions> appOptions,
     IVerificationInfoService verificationInfoService,
     IAccountVerificationService accountVerificationService,
     IEmailService emailService,
@@ -29,6 +31,8 @@ public class PasswordService(
     IRateLimitGuardService rateLimitGuardService,
     ITransactionService transactionService) : IPasswordService
 {
+    
+    private readonly string _baseUrl = appOptions.Value.BaseUrl;
     
     // ======================== Bytt passord (innlogget) ======================== 
 
@@ -125,7 +129,7 @@ public class PasswordService(
             var emailData = new EmailCodeDto(
                 Email: email,
                 Code: emailCode,
-                BaseUrl: configuration["App:BaseUrl"]!);
+                BaseUrl: _baseUrl);
         
             var body = EmailTemplates.PasswordReset(emailData);
         

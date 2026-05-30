@@ -1,5 +1,6 @@
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
+using AFBack.Configurations.Options;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Repositories;
 using AFBack.Features.Auth.Services.Interfaces;
@@ -16,15 +17,16 @@ using AFBack.Infrastructure.Security.Services;
 using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Features.Account.Services;
 
 public class AccountChangeService(
     UserManager<AppUser> userManager,
     ILogger<AccountChangeService> logger,
-    IConfiguration configuration,
     IVerificationInfoService verificationInfoService,
     IVerificationInfoRepository verificationInfoRepository,
+    IOptions<AppOptions> appOptions,
     IUserRepository userRepository,
     IEmailService emailService,
     ISmsService smsService,
@@ -35,6 +37,8 @@ public class AccountChangeService(
     IFileOrchestrator fileOrchestrator,
     IRateLimitGuardService rateLimitGuardService) : IAccountChangeService
 {
+    private readonly string _baseUrl = appOptions.Value.BaseUrl;
+    
     // ======================== Bytte e-post — Steg 1 ======================== 
 
     /// <inheritdoc/>
@@ -82,13 +86,13 @@ public class AccountChangeService(
         
         // Generer security alert token for "This wasn't me"-knappen
         var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id, ct);
-        var alertUrl = $"{configuration["App:BaseUrl"]}/security-alert?token={alertToken}";
+        var alertUrl = $"{_baseUrl}/security-alert?token={alertToken}";
         
         var emailDto = new EmailChangeVerificationDto(
             Email: user.Email!,
             NewEmail: newEmail,
             VerificationCode: code,
-            BaseUrl: configuration["App:BaseUrl"]!,
+            BaseUrl: _baseUrl,
             AlertUrl: alertUrl);
         
         var body = EmailTemplates.EmailChangeVerification(emailDto);
@@ -145,7 +149,7 @@ public class AccountChangeService(
         var emailDto = new EmailCodeDto(
             Email: newEmail,
             Code: newCode,
-            BaseUrl: configuration["App:BaseUrl"]!);
+            BaseUrl: _baseUrl);
         
         var body = EmailTemplates.EmailChange(emailDto);
         
@@ -275,13 +279,13 @@ public class AccountChangeService(
         
         // Generer security alert token for "This wasn't me"-knappen
         var alertToken = await verificationInfoService.GenerateSecurityAlertTokenAsync(user.Id, ct);
-        var alertUrl = $"{configuration["App:BaseUrl"]}/security-alert?token={alertToken}";
+        var alertUrl = $"{_baseUrl}/security-alert?token={alertToken}";
         
         var emailDto = new PhoneChangeVerificationDto(
             Email: user.Email!,
             NewPhoneNumber: newPhoneNumber,
             VerificationCode: code,
-            BaseUrl: configuration["App:BaseUrl"]!,
+            BaseUrl: _baseUrl,
             AlertUrl: alertUrl);
         
         var body = EmailTemplates.PhoneChangeVerification(emailDto);

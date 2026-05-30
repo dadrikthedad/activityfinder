@@ -109,6 +109,13 @@ export default {
     smsSentBody:          "En ny bekreftelseskode er sendt via SMS. 📱",
     smsResendFailed:      "Sending mislyktes",
 
+    // Login MFA
+    mfaTitle:             "Bekreft innloggingen",
+    mfaSubtitle:          "Vi sendte en bekreftelseskode til:",
+    enterMfaCode:         "Skriv inn koden fra e-posten din:",
+    mfaNoEmail:           "Mottok du ikke e-posten?",
+    mfaResend:            "Prøv igjen (logg inn på nytt)",
+
     // Reset passord
     resetPassword:        "Tilbakestill passord",
     resetSubtitle:        "Gjenopprett tilgang til kontoen din",
@@ -144,6 +151,33 @@ export default {
     smsSendFailed:        "Sending mislyktes",
     resetSessionExpiredTitle: "Sesjonen er utløpt",
     resetSessionExpiredBody:  "Tidsvinduet for tilbakestilling er utløpt. Vennligst start på nytt.",
+  },
+
+  // ========== E2EE-oppsett ==========
+  e2ee: {
+    checkingKeys:          "Sjekker krypteringsnøkler...",
+    generatingKeys:        "Setter opp kryptering...",
+    setupFailed:           "Oppsett feilet",
+
+    restoreTitle:          "Ny enhet oppdaget",
+    restoreSubtitle:       "Denne enheten har ikke krypteringsnøkler. Gjenopprett med backup-frasen din, eller opprett nye nøkler.",
+
+    restoreFromPhrase:     "Gjenopprett med backup-frase",
+    restoreFromPhraseDesc: "Skriv inn de 24 ordene fra backup-frasen din for å gjenopprette tilgang til krypterte meldinger på denne enheten.",
+    backupPhraseLabel:     "Backup-frase (24 ord)",
+    backupPhrasePlaceholder: "ord1 ord2 ord3 ...",
+    restoreButton:         "Gjenopprett",
+    restoring:             "Gjenoppretter...",
+
+    createNewKeyTitle:     "Opprett ny nøkkel",
+    createNewKeyDesc:      "Mister du tilgang til alle krypterte meldinger. Bruk kun dette hvis du har mistet backup-frasen din permanent.",
+    createNewKey:          "Opprett ny nøkkel",
+    creatingKeys:          "Oppretter nøkler...",
+
+    newKeyWarningTitle:    "Er du sikker?",
+    newKeyWarningBody:     "Dette sletter alle eksisterende krypteringsnøkler. Du mister tilgang til alle krypterte meldinger. Handlingen kan ikke angres.",
+    createNewKeyConfirm:   "Ja, opprett ny nøkkel",
+    retryButton:           "Prøv igjen",
   },
 
   // ========== Felles ==========

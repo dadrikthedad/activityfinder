@@ -8,6 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 Console.WriteLine($"ASPNETCORE_ENVIRONMENT = {builder.Environment.EnvironmentName}");
 
+// ======= Options — valideres ved oppstart =======
+builder.Services.AddOptionExtensions(builder.Configuration, builder.Environment);
+
 // ======= Konfigurerer logging =======
 builder.ConfigureLogging();
 
@@ -27,20 +30,20 @@ builder.ConfigureSwagger();
 
 // ======= UpCloud Services =======
 builder.Services
-    .AddS3Storage(builder.Configuration)
-    .AddBrevoEmail(builder.Configuration)
-    .Add46ElksSms(builder.Configuration)
-    .AddHashiCorpVault(builder.Configuration);
+    .AddS3Storage()
+    .AddBrevoEmail()
+    .Add46ElksSms()
+    .AddHashiCorpVault();
 
 // ======= Exception håndtering og setter opp ProblemDetails =======
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 // ======= Infrastruktur =======
-builder.Services.AddDatabase(builder.Configuration);
-builder.Services.AddCaching(builder.Configuration);
+builder.Services.AddDatabase();
+builder.Services.AddCaching();
 builder.Services.AddIdentityAndAuthentication();
-builder.Services.AddSecurityServices(builder.Configuration);
+builder.Services.AddSecurityServices();
 builder.Services.AddSignalRServices();
 builder.Services.AddBackgroundServices();
 
@@ -60,3 +63,6 @@ app.UseAppPipeline();
 Log.Information("Application started successfully!");
 Log.Information("Swagger: {Url}", "http://localhost:5058/swagger");
 app.Run();
+
+// Gjor Program tilgjengelig for WebApplicationFactory i testprosjektet
+public partial class Program { }

@@ -1,5 +1,7 @@
+using AFBack.Configurations.Options;
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Infrastructure.Sms.Services;
 
@@ -9,11 +11,10 @@ namespace AFBack.Infrastructure.Sms.Services;
 /// </summary>
 public class SmsService(
     HttpClient httpClient,
-    IConfiguration configuration,
+    IOptions<SmsOptions> smsOptions,
     ILogger<SmsService> logger) : ISmsService
 {
-    private readonly string _fromNumber = configuration["Sms:FromNumber"]
-                                          ?? throw new InvalidOperationException("Sms:FromNumber is not configured");
+    private readonly string _fromNumber = smsOptions.Value.FromNumber;
 
     /// <inheritdoc />
     public async Task<Result> SendAsync(string phoneNumber, string message, CancellationToken ct = default)

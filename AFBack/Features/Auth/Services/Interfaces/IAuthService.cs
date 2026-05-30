@@ -22,16 +22,25 @@ public interface IAuthService
     /// <summary>
     /// Prøver å logge inn en bruker med epost og passord.
     /// Bruker Identity til å validere brukeren, lockout og passord.
-    /// Logger Historikk og UserDevice, og oppretter nye tokens
+    /// Korrekt brukernavn og passord sender en verifikasjons epost til brukeren
     /// </summary>
     /// <param name="request">LoginRequest</param>
     /// <param name="ipAddress">IP-addressen til brukeren</param>
+    /// <param name="ct"></param>
+    /// <returns>Result Success eller med Failure.</returns>
+    Task<Result> LoginAsync(LoginRequest request, string ipAddress, CancellationToken ct = default);
+    
+    /// <summary>
+    /// Steg 2 av innlogging. Verifiserer den 6-sifrede MFA-koden sendt til brukerens epost.
+    /// Ved suksess utstedes access token og refresh token, og innloggingshistorikk registreres.
+    /// </summary>
+    /// <param name="request">VerifyMfaRequest med email, kode og device-info</param>
+    /// <param name="ipAddress">IP-adressen til brukeren</param>
     /// <param name="userAgent">UserAgent hvis det er en browser</param>
     /// <param name="ct"></param>
-    /// <returns>Returnerer AccessToken og RefreshToken ved suksess.</returns>
-    Task<Result<LoginResponse>> LoginAsync(LoginRequest request, string ipAddress, string? userAgent, 
-        CancellationToken ct = default);
-    
+    /// <returns>LoginResponse med tokens og brukerinfo ved suksess</returns>
+    Task<Result<LoginResponse>> VerifyMfaAsync(VerifyMfaRequest request, string ipAddress,
+        string? userAgent, CancellationToken ct = default);
     
     // ======================== Logout ======================== 
 

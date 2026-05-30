@@ -11,6 +11,7 @@ using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Templates;
 using AFBack.Infrastructure.Security.Services;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Features.Support.Services;
 
@@ -21,8 +22,9 @@ public class SupportTicketService(
     IFileOrchestrator fileOrchestrator,
     IRateLimitGuardService limitGuardService,
     IEmailRateLimitService emailRateLimitService,
-    IConfiguration configuration) : ISupportTicketService
+    IOptions<EmailOptions> emailOptions) : ISupportTicketService
 {
+    private readonly string _supportAddress = emailOptions.Value.SupportAddress;
 
     /// <inheritdoc/>
     public async Task<Result<SupportTicketResponse>> CreateSupportTicketAsync(string? userId,
@@ -149,7 +151,7 @@ public class SupportTicketService(
 
             // Varselsmail til support-teamet
             var notificationBody = SupportTicketTemplates.SupportTicketNotification(ticket);
-            await emailService.SendAsync(configuration["Email:SupportAddress"]!, notificationBody);
+            await emailService.SendAsync(_supportAddress, notificationBody);
 
             logger.LogInformation("Confirmation email sent for ticket {TicketId}", ticket.Id);
         }

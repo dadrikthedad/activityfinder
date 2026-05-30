@@ -1,7 +1,9 @@
 using System.Text.Json;
 using AFBack.Common.DTOs;
+using AFBack.Configurations.Options;
 using AFBack.Features.Auth.Repositories;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Infrastructure.Cache;
 
@@ -9,10 +11,10 @@ public class UserSummaryCacheService(
     IDistributedCache cache,
     IServiceProvider serviceProvider,
     ILogger<UserSummaryCacheService> logger,
-    IConfiguration configuration) : IUserSummaryCacheService
+    IOptions<CacheOptions> cacheOptions) : IUserSummaryCacheService
 {
     private const string CACHE_KEY_PREFIX = "user:summary:";
-    private readonly bool _cachingEnabled = configuration.GetValue("CacheSettings:EnableCaching", true);
+    private readonly bool _cachingEnabled = cacheOptions.Value.EnableCaching;
     
     // Metrics for måling
     private long _cacheHits;

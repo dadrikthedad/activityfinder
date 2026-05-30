@@ -1,0 +1,283 @@
+{
+  "version": 4,
+  "terraform_version": "1.14.7",
+  "serial": 15,
+  "lineage": "a05fd35c-378f-774a-02cd-6a815fdfef12",
+  "outputs": {
+    "storage_access_key": {
+      "value": "AKIAC014993BA5394012",
+      "type": "string",
+      "sensitive": true
+    },
+    "storage_endpoint": {
+      "value": [
+        {
+          "domain_name": "aefcc.upcloudobjects.com",
+          "iam_url": "https://aefcc.upcloudobjects.com:4443/iam",
+          "sts_url": "https://aefcc.upcloudobjects.com:4443/sts",
+          "type": "public"
+        }
+      ],
+      "type": [
+        "set",
+        [
+          "object",
+          {
+            "domain_name": "string",
+            "iam_url": "string",
+            "sts_url": "string",
+            "type": "string"
+          }
+        ]
+      ]
+    },
+    "storage_secret_key": {
+      "value": "fWUtczHCXvrGpv4JIvpIw9xNTZhWyVzBvyVbsiPW",
+      "type": "string",
+      "sensitive": true
+    },
+    "vault_public_ip": {
+      "value": "94.237.118.232",
+      "type": "string"
+    }
+  },
+  "resources": [
+    {
+      "module": "module.object_storage",
+      "mode": "managed",
+      "type": "upcloud_managed_object_storage",
+      "name": "main",
+      "provider": "provider[\"registry.terraform.io/upcloudltd/upcloud\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "configured_status": "started",
+            "created_at": "2026-03-19 23:39:32.255548 +0000 UTC",
+            "endpoint": [
+              {
+                "domain_name": "aefcc.upcloudobjects.com",
+                "iam_url": "https://aefcc.upcloudobjects.com:4443/iam",
+                "sts_url": "https://aefcc.upcloudobjects.com:4443/sts",
+                "type": "public"
+              }
+            ],
+            "id": "12539ec6-d6ce-4dce-8941-bf54ad5c6353",
+            "labels": {
+              "environment": "dev",
+              "project": "af"
+            },
+            "name": "af-dev-storage",
+            "network": [
+              {
+                "family": "IPv4",
+                "name": "public",
+                "type": "public",
+                "uuid": null
+              }
+            ],
+            "operational_state": "running",
+            "region": "europe-1",
+            "updated_at": "2026-03-20 01:06:42.540243 +0000 UTC"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0
+        }
+      ]
+    },
+    {
+      "module": "module.object_storage",
+      "mode": "managed",
+      "type": "upcloud_managed_object_storage_bucket",
+      "name": "private_files",
+      "provider": "provider[\"registry.terraform.io/upcloudltd/upcloud\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "id": "12539ec6-d6ce-4dce-8941-bf54ad5c6353/private-files",
+            "name": "private-files",
+            "service_uuid": "12539ec6-d6ce-4dce-8941-bf54ad5c6353",
+            "total_objects": 0,
+            "total_size_bytes": 0
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "dependencies": [
+            "module.object_storage.upcloud_managed_object_storage.main"
+          ]
+        }
+      ]
+    },
+    {
+      "module": "module.object_storage",
+      "mode": "managed",
+      "type": "upcloud_managed_object_storage_user",
+      "name": "app",
+      "provider": "provider[\"registry.terraform.io/upcloudltd/upcloud\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "arn": "urn:ecs:iam::12539ec6d6ce4dce8941bf54ad5c6353:user/af-dev-app",
+            "created_at": "2026-03-20 01:08:21 +0000 UTC",
+            "id": "12539ec6-d6ce-4dce-8941-bf54ad5c6353/af-dev-app",
+            "service_uuid": "12539ec6-d6ce-4dce-8941-bf54ad5c6353",
+            "username": "af-dev-app"
+          },
+          "sensitive_attributes": [],
+          "identity_schema_version": 0,
+          "dependencies": [
+            "module.object_storage.upcloud_managed_object_storage.main"
+          ]
+        }
+      ]
+    },
+    {
+      "module": "module.object_storage",
+      "mode": "managed",
+      "type": "upcloud_managed_object_storage_user_access_key",
+      "name": "app",
+      "provider": "provider[\"registry.terraform.io/upcloudltd/upcloud\"]",
+      "instances": [
+        {
+          "schema_version": 0,
+          "attributes": {
+            "access_key_id": "AKIAC014993BA5394012",
+            "created_at": "2026-03-20 01:08:22 +0000 UTC",
+            "id": "12539ec6-d6ce-4dce-8941-bf54ad5c6353/af-dev-app/AKIAC014993BA5394012",
+            "last_used_at": "0001-01-01 00:00:00 +0000 UTC",
+            "secret_access_key": "fWUtczHCXvrGpv4JIvpIw9xNTZhWyVzBvyVbsiPW",
+            "service_uuid": "12539ec6-d6ce-4dce-8941-bf54ad5c6353",
+            "status": "Active",
+            "username": "af-dev-app"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "secret_access_key"
+              }
+            ]
+          ],
+          "identity_schema_version": 0,
+          "dependencies": [
+            "module.object_storage.upcloud_managed_object_storage.main",
+            "module.object_storage.upcloud_managed_object_storage_user.app"
+          ]
+        }
+      ]
+    },
+    {
+      "module": "module.vault",
+      "mode": "managed",
+      "type": "upcloud_server",
+      "name": "vault",
+      "provider": "provider[\"registry.terraform.io/upcloudltd/upcloud\"]",
+      "instances": [
+        {
+          "schema_version": 2,
+          "attributes": {
+            "boot_order": "disk",
+            "cpu": 1,
+            "firewall": true,
+            "host": 5434524291,
+            "hostname": "af-dev-vault",
+            "hot_resize": false,
+            "id": "00efcddf-ccd2-461c-b7ab-4c61da915526",
+            "labels": {
+              "environment": "dev",
+              "project": "af",
+              "role": "vault"
+            },
+            "login": [
+              {
+                "create_password": false,
+                "keys": [
+                  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEa0uFBcbWo8sdh7HpCNGmAykMPRt42kdejJS1Ko6u9m af-vault-dev"
+                ],
+                "password_delivery": "none",
+                "user": "terraform"
+              }
+            ],
+            "mem": 2048,
+            "metadata": true,
+            "network_interface": [
+              {
+                "additional_ip_address": [],
+                "bootable": false,
+                "index": 1,
+                "ip_address": "94.237.118.232",
+                "ip_address_family": "IPv4",
+                "ip_address_floating": false,
+                "mac_address": "02:b4:71:da:7c:46",
+                "network": "03081f13-73cd-4c11-9bb0-6ff4c73bea00",
+                "source_ip_filtering": true,
+                "type": "public"
+              }
+            ],
+            "nic_model": "virtio",
+            "plan": "1xCPU-2GB",
+            "server_group": null,
+            "simple_backup": [],
+            "storage_devices": [],
+            "tags": [],
+            "template": [
+              {
+                "address": "virtio",
+                "address_position": "0",
+                "backup_rule": [],
+                "delete_autoresize_backup": false,
+                "encrypt": false,
+                "filesystem_autoresize": false,
+                "id": "016719f6-611d-4563-bdb1-ab5be2e750a4",
+                "size": 25,
+                "storage": "Ubuntu Server 24.04 LTS (Noble Numbat)",
+                "tier": "maxiops",
+                "title": "terraform-af-dev-vault-disk"
+              }
+            ],
+            "timezone": "UTC",
+            "title": "af-dev-vault (managed by terraform)",
+            "user_data": null,
+            "video_model": "cirrus",
+            "zone": "fi-hel1"
+          },
+          "sensitive_attributes": [
+            [
+              {
+                "type": "get_attr",
+                "value": "login"
+              }
+            ]
+          ],
+          "identity_schema_version": 0
+        }
+      ]
+    }
+  ],
+  "check_results": [
+    {
+      "object_kind": "var",
+      "config_addr": "module.object_storage.var.environment",
+      "status": "pass",
+      "objects": [
+        {
+          "object_addr": "module.object_storage.var.environment",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "object_kind": "var",
+      "config_addr": "var.environment",
+      "status": "pass",
+      "objects": [
+        {
+          "object_addr": "var.environment",
+          "status": "pass"
+        }
+      ]
+    }
+  ]
+}

@@ -31,10 +31,12 @@ export enum AppErrorCode {
   PhoneNotConfirmed  = 2003,
   TokenExpired       = 2004,
   InvalidToken       = 2005,
+  MfaRequired        = 2006,
 
   // ── Registrering (3xxx) ───────────────────────────
-  EmailAlreadyExists      = 3000,
-  InvalidRegistrationData = 3001,
+  EmailAlreadyExists        = 3000,
+  InvalidRegistrationData   = 3001,
+  PhoneNumberAlreadyExists  = 3002,
 
   // ── Verifisering (4xxx) ───────────────────────────
   InvalidCode     = 4000,

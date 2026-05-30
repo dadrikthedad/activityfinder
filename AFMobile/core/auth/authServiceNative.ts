@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { RefreshTokenRequest } from "@/features/auth/models/RefreshTokenRequestDTO";
 import { LoginResponseDTO } from "@/features/auth/models/LoginResponseDTO";
-import { LoginRequest, DeviceInfoRequest } from "@/features/auth/models/LoginRequestDTO";
+import { LoginRequest } from "@/features/auth/models/LoginRequestDTO";
+import { DeviceInfoRequest } from "@/core/models/DeviceInfoRequest";
 import { ApiRoutes } from "@/core/api/routes";
 import { deviceInfoService } from "@/utils/api/deviceInfo";
 import { AuthError } from '@shared/types/error/AuthError';
@@ -167,7 +168,11 @@ class AuthService {
 
   // --- Offentlige metoder ---
 
-  async login(email: string, password: string): Promise<LoginResponseDTO> {
+  /**
+   * Steg 1 av innlogging — sender passord og får 200 OK hvis MFA-kode er sendt på epost.
+   * Backend returnerer ikke tokens her — kall verifyMfa() for å fullføre innloggingen.
+   */
+  async login(email: string, password: string): Promise<void> {
     const deviceHeaders = await deviceInfoService.getDeviceHeaders();
     const device = await this.buildDeviceInfo();
 
@@ -175,6 +180,26 @@ class AuthService {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...deviceHeaders },
       body: JSON.stringify({ email, password, device } as LoginRequest),
+    });
+
+    if (!response.ok) {
+      await throwProblemDetails(response);
+    }
+    // 200 OK — MFA-kode sendt, ingen body å parse
+  }
+
+  /**
+   * Steg 2 av innlogging — verifiserer MFA-koden og henter tokens.
+   * Lagrer tokens i Keychain ved suksess.
+   */
+  async verifyMfa(email: string, code: string): Promise<LoginResponseDTO> {
+    const deviceHeaders = await deviceInfoService.getDeviceHeaders();
+    const device = await this.buildDeviceInfo();
+
+    const response = await fetch(ApiRoutes.auth.verifyMfa, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...deviceHeaders },
+      body: JSON.stringify({ email, code, device }),
     });
 
     if (!response.ok) {

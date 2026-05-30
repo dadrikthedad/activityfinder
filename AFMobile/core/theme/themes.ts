@@ -103,7 +103,7 @@ export const darkTheme = {
 
     background:       Palette.gray[900],    // #141414
     backgroundAlt:    Palette.gray[850],    // #181818
-    backgroundInput:  Palette.gray[750],    // #2a2a2a
+    backgroundInput:  Palette.gray[850],    // #181818 — morkere enn surface, gir sunket feltutseende
 
     surface:          Palette.gray[750],    // #2a2a2a
     surfaceAlt:       Palette.gray[700],    // #404040

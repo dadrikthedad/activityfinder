@@ -4,7 +4,7 @@ export default {
   auth: {
     // Login
     signInOrSignUp:       "Sign in or sign up",
-    tagline:              "And then we take off!",
+    tagline:              "",
     email:                "Email",
     password:             "Password",
     emailPlaceholder:     "Your email",
@@ -16,7 +16,7 @@ export default {
     signUpHere:           "Sign up here!",
     accountCreated:       "Account created!",
     accountCreatedBody:   "Please log in to verify your email address and activate your account.",
-    accountReady:         "Your account is ready! 🎉",
+    accountReady:         "Your account is ready!",
     accountReadyBody:     "Email and phone number have been verified. Log in to get started.",
 
     // Validation — login
@@ -109,6 +109,13 @@ export default {
     smsSentBody:          "A new verification code has been sent by SMS. 📱",
     smsResendFailed:      "Resend failed",
 
+    // Login MFA
+    mfaTitle:             "Confirm your login",
+    mfaSubtitle:          "We sent a verification code to:",
+    enterMfaCode:         "Enter the code from your email:",
+    mfaNoEmail:           "Didn't receive the email?",
+    mfaResend:            "Try again (log in again)",
+
     // Reset password
     resetPassword:        "Reset password",
     resetSubtitle:        "Recover access to your account",
@@ -144,6 +151,33 @@ export default {
     smsSendFailed:        "Failed to send SMS",
     resetSessionExpiredTitle: "Session expired",
     resetSessionExpiredBody:  "Your password reset session has expired. Please start over.",
+  },
+
+  // ========== E2EE Setup ==========
+  e2ee: {
+    checkingKeys:          "Checking encryption keys...",
+    generatingKeys:        "Setting up encryption...",
+    setupFailed:           "Setup failed",
+
+    restoreTitle:          "New device detected",
+    restoreSubtitle:       "This device has no encryption keys. Restore using your backup phrase, or create new keys.",
+
+    restoreFromPhrase:     "Restore from backup phrase",
+    restoreFromPhraseDesc: "Enter your 24-word backup phrase to restore access to encrypted messages on this device.",
+    backupPhraseLabel:     "Backup phrase (24 words)",
+    backupPhrasePlaceholder: "word1 word2 word3 ...",
+    restoreButton:         "Restore",
+    restoring:             "Restoring...",
+
+    createNewKeyTitle:     "Create new key",
+    createNewKeyDesc:      "You will lose access to all encrypted messages. Only use this if you have permanently lost your backup phrase.",
+    createNewKey:          "Create new key",
+    creatingKeys:          "Creating keys...",
+
+    newKeyWarningTitle:    "Are you sure?",
+    newKeyWarningBody:     "This will delete all existing encryption keys. You will permanently lose access to all encrypted messages. This action cannot be undone.",
+    createNewKeyConfirm:   "Yes, create new key",
+    retryButton:           "Try again",
   },
 
   // ========== Common ==========

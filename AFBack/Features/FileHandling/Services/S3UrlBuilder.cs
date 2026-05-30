@@ -1,12 +1,14 @@
+using AFBack.Configurations.Options;
 using AFBack.Features.FileHandling.Enums;
+using Microsoft.Extensions.Options;
+
 namespace AFBack.Features.FileHandling.Services;
 
 public class BlobUrlBuilder(
-    IConfiguration configuration) : IBlobUrlBuilder
+    IOptions<StorageOptions> storageOptions) : IBlobUrlBuilder
 {
-    private readonly string _baseUrl = configuration["Storage:BlobAccountUrl"]
-                                       ?? throw new InvalidOperationException("Storage:BlobAccountUrl not configured");
-    
+    private readonly string _baseUrl = storageOptions.Value.BlobAccountUrl;
+
     /// <summary>
     /// Henter buckets vi har i S3 ved oppstart.
     /// EncryptedFiles = enkrypterte filer, public URL
@@ -15,27 +17,17 @@ public class BlobUrlBuilder(
     /// </summary>
     private readonly Dictionary<BlobContainer, string> _containers = new()
     {
-        [BlobContainer.EncryptedFiles] = configuration["Storage:Containers:EncryptedFiles"]
-                                         ?? throw new InvalidOperationException(
-                                             "Storage:Containers:EncryptedFiles not configured"),
-        [BlobContainer.PublicImages] = configuration["Storage:Containers:PublicImages"]
-                                       ?? throw new InvalidOperationException(
-                                           "Storage:Containers:PublicImages not configured"),
-        [BlobContainer.PrivateFiles] = configuration["Storage:Containers:PrivateFiles"]
-                                       ?? throw new InvalidOperationException(
-                                           "Storage:Containers:PrivateFiles not configured")
+        [BlobContainer.EncryptedFiles] = storageOptions.Value.Containers.EncryptedFiles,
+        [BlobContainer.PublicImages]   = storageOptions.Value.Containers.PublicImages,
+        [BlobContainer.PrivateFiles]   = storageOptions.Value.Containers.PrivateFiles
     };
-    
+
     /// <inheritdoc/>
     public string GetBlobUrl(string storageKey, BlobContainer container)
         => $"{_baseUrl.TrimEnd('/')}/{_containers[container]}/{storageKey}";
-    
-    
+
     /// <summary>
     /// Henter container navnet fra appSettings utifra ønsket container
     /// </summary>
-    /// <param name="container">Enum til type container</param>
-    /// <returns>Container navnet som string</returns>
     public string GetContainerName(BlobContainer container) => _containers[container];
-    
 }

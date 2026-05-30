@@ -13,19 +13,19 @@ public class KeyVaultService(
     private const string MountPath = "af"; // KV-stien til Vault
 
     /// <inheritdoc/>
-    public async Task<Result> StoreRecoverySeedAsync(string userId, int deviceId, string key)
+    public async Task<Result> StoreRecoverySeedAsync(string userId, string recoverySeed)
     {
         try
         {
             // Fast path per bruker/device — Vault KV v2 versjonerer automatisk
             // Hver gang brukeren bytter nøkkel får vi en ny versjon, historikken beholdes alltid
-            var secretPath = $"v1/{MountPath}/data/users/{userId}/device-{deviceId}";
+            var secretPath = $"v1/{MountPath}/data/users/{userId}";
 
             var payload = new
             {
                 data = new
                 {
-                    key,
+                    key = recoverySeed,
                     contentType = "recovery-seed"
                 }
             };
@@ -39,14 +39,14 @@ public class KeyVaultService(
             {
                 var error = await response.Content.ReadAsStringAsync();
                 logger.LogError(
-                    "Failed to store recovery seed in Vault for User {UserId} Device {DeviceId}. " +
-                    "Status: {Status}. Error: {Error}", userId, deviceId, response.StatusCode, error);
+                    "Failed to store recovery seed in Vault for User {UserId}" +
+                    "Status: {Status}. Error: {Error}", userId, response.StatusCode, error);
                 return Result.Failure("Failed to store recovery seed", AppErrorCode.InternalError);
             }
 
             logger.LogInformation(
-                "Recovery seed stored in Vault for User {UserId} Device {DeviceId}",
-                userId, deviceId);
+                "Recovery seed stored in Vault for User {UserId}",
+                userId);
 
             return Result.Success();
         }

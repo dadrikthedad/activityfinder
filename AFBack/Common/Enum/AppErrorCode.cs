@@ -31,6 +31,7 @@ public enum AppErrorCode
     // ── Registrering (3xxx) ───────────────────────────
     EmailAlreadyExists      = 3000,
     InvalidRegistrationData = 3001,
+    PhoneNumberAlreadyExists = 3002,
 
     // ── Verifisering (4xxx) ───────────────────────────
     InvalidCode    = 4000,

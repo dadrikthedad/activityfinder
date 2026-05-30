@@ -1,9 +1,11 @@
 using System.Net;
 using System.Reflection;
 using System.Text.Json.Serialization;
+using AFBack.Configurations.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 using Serilog;
 
@@ -54,24 +56,24 @@ public static class WebApplicationBuilderExtensions
             }
             else
             {
-                // I produksjon godtar vi kun forwarded headers fra Azures IP-ranges
+                // I produksjon godtar vi kun forwarded headers fra kjente proxy-ranges
                 // Uten dette kan hvem som helst spoofe X-Forwarded-For og omgå IP-banning
-                var proxyRanges = builder.Configuration.GetSection("ProxyRanges").Get<string[]>();
-                if (proxyRanges != null)
+                var proxyOptions = builder.Services.BuildServiceProvider()
+                    .GetRequiredService<IOptions<ProxyOptions>>().Value;
+
+                foreach (var range in proxyOptions.Ranges)
                 {
-                    foreach (var range in proxyRanges)
+                    if (System.Net.IPNetwork.TryParse(range, out var network))
                     {
-                        if (System.Net.IPNetwork.TryParse(range, out var network))
-                        {
-                            options.KnownIPNetworks.Add(network);
-                        }
-                        else
-                        {
-                            logger.LogError("Invalid proxy range in configuration: {Range}", range);
-                        }
+                        options.KnownIPNetworks.Add(network);
+                    }
+                    else
+                    {
+                        logger.LogError("Invalid proxy range in configuration: {Range}", range);
                     }
                 }
-                else if (builder.Environment.IsProduction())
+
+                if (!proxyOptions.Ranges.Any() && builder.Environment.IsProduction())
                 {
                     logger.LogCritical("No proxy ranges configured for production!");
                 }
@@ -89,24 +91,17 @@ public static class WebApplicationBuilderExtensions
     /// </summary>
     public static void ConfigureCors(this WebApplicationBuilder builder)
     {
-        //Her lagrer vi alle domenene som kan kobles på
-        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-                             ?? throw new InvalidOperationException("Cors:AllowedOrigins is not configured");
-        
-        // Gjør at alle domene kan koble seg på frontend. Måtte legge til AllowCredentials og
-        // SetIsOriginAllowedToAllowWildcardSubdomains som da tillater underdomener til nettsiden.
-        // With Origins sikrer at kun de domene vi spesifiserer med variabelen allowedOrigins får tilgang.
-        // AllowAnyMethod lar oss bruke Get, POST, PUT og DELETE.
-        // AllowAnyHeader gjør at vi kan autorisere med JWT-Tokens og sendte JSON-data. Tillater cookies og JWT-tokens.
-        builder.Services.AddCors(options => options.AddPolicy("AllowFrontend",
-            policy =>
-            {
-                policy.WithOrigins(allowedOrigins)
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials()
-                    .SetIsOriginAllowedToAllowWildcardSubdomains();
-            }));
+        var corsOptions = builder.Services.BuildServiceProvider()
+            .GetRequiredService<IOptions<CorsOptions>>().Value;
+
+        builder.Services.AddCors(options => options.AddPolicy("AllowFrontend", policy =>
+        {
+            policy.WithOrigins(corsOptions.AllowedOrigins.ToArray())
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials()
+                .SetIsOriginAllowedToAllowWildcardSubdomains();
+        }));
     }
     
     /// <summary>

@@ -8,6 +8,7 @@ export enum AuthErrorCode {
   PhoneNotVerified   = "AUTH_PHONE_NOT_VERIFIED",
   AccountLocked      = "AUTH_ACCOUNT_LOCKED",
   RateLimited        = "AUTH_RATE_LIMITED",
+  MfaRequired        = "AUTH_MFA_REQUIRED",
   NetworkError       = "AUTH_NETWORK_ERROR",
   ServerError        = "AUTH_SERVER_ERROR",
   Unknown            = "AUTH_UNKNOWN",
@@ -15,6 +16,7 @@ export enum AuthErrorCode {
 
 export enum RegistrationErrorCode {
   EmailTaken        = "REG_EMAIL_TAKEN",
+  PhoneTaken        = "REG_PHONE_TAKEN",
   InvalidData       = "REG_INVALID_DATA",
   RateLimited       = "REG_RATE_LIMITED",
   NetworkError      = "REG_NETWORK_ERROR",
@@ -44,9 +46,18 @@ export enum PasswordResetErrorCode {
   Unknown                = "PWD_UNKNOWN",
 }
 
+export enum E2EESetupErrorCode {
+  KeyGenerationFailed  = "E2EE_KEY_GENERATION_FAILED",
+  StorageFailed        = "E2EE_STORAGE_FAILED",
+  InvalidBackupPhrase  = "E2EE_INVALID_BACKUP_PHRASE",
+  NetworkError         = "E2EE_NETWORK_ERROR",
+  Unknown              = "E2EE_UNKNOWN",
+}
+
 // Fellestype for alle feilkoder — nyttig for generiske funksjoner
 export type AppErrorCode =
   | AuthErrorCode
   | RegistrationErrorCode
   | VerificationErrorCode
-  | PasswordResetErrorCode;
+  | PasswordResetErrorCode
+  | E2EESetupErrorCode;

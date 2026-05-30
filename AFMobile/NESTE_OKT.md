@@ -22,101 +22,126 @@
 - **`baseService.parseJsonIfPresent`** — håndterer void-endepunkter med tom body
 - **Zod-schemas** matcher Identity-regler i AFBack (min 8 tegn)
 - **AppErrorCode-system** — delt domenekode mellom AFBack og AFMobile
-  - `AppErrorCode.cs` i AFBack — erstatter `ErrorTypeEnum` fullstendig
-  - `AppProblemDetails` — returnerer `code`-felt (int) i alle feilsvar fra `HandleFailure`
-  - `shared/types/error/AppErrorCode.ts` — speil av C#-enumen
-  - `ApiError.appCode` — frontend switcher på domenekode, ikke HTTP-statuskode eller string-matching
-  - Alle `mapXxxError`-funksjoner i auth-services oppdatert til `switch (error.appCode)`
-- **ResetPasswordScreen** migrert:
-  - Steg 3 bruker nå `useResetPassword`-hook med rhf+zod (`resetPasswordSchema`)
-  - `validateSingleField` fra shared er fjernet
-  - `useResetPassword.ts` — ViewModel-hook, konsistent med `useLogin`
-- **PasswordFieldNative** konsolidert:
-  - Én felles komponent for hele appen (`components/common/PasswordFieldNative.tsx`)
-  - Fikk `tooltip`- og `labelAlign`-props
-  - `SignUpPasswordFieldsNative` (features/auth/components/) — kan slettes (død kode)
-  - `components/signup/SignUpPasswordFieldsNative.tsx` — kan slettes (hardkodede farger, aldri migrert)
+- **ResetPasswordScreen** migrert til rhf+zod
+- **PasswordFieldNative** konsolidert til én felles komponent
+- **Login MFA-flyt implementert (backend + frontend):**
+  - `LoginAsync` i `AuthService` splittet — steg 1 sender MFA-kode på e-post, returnerer `200 OK`
+  - `VerifyMfaAsync` — steg 2 verifiserer kode og utsteder tokens
+  - `VerificationInfo` utvidet med `LoginMfaCode`-slot
+  - `GenerateLoginMfaCodeAsync` + `ValidateLoginMfaCodeAsync` i `VerificationInfoService`
+  - `ValidateSecurityAlertTokenAsync` nullstiller også MFA-koden (nødbremsen)
+  - `POST /api/auth/login/verify-mfa` — nytt endepunkt i `AuthController`
+  - `AppErrorCode.MfaRequired = 2006` lagt til (backend + shared + frontend)
+  - `AuthErrorCode.MfaRequired` lagt til i frontend
+  - `authServiceNative.login` returnerer nå `void` (ingen tokens i steg 1)
+  - `authServiceNative.verifyMfa` — ny metode, lagrer tokens i Keychain
+  - `loginUser` og `verifyMfaCode` i `authService.ts` — to separate funksjoner
+  - `useLogin` navigerer til `LoginMfaScreen` ved `200 OK`
+  - `LoginMfaScreen` + `useLoginMfa` — ny skjerm og hook
+  - `ApiRoutes.auth.verifyMfa` lagt til
+  - `DeviceInfoRequest`-import i `authServiceNative` rettet til `@/core/models/DeviceInfoRequest`
+  - i18n-nøkler for MFA lagt til (no + en)
+  - `LoginMfaScreen` registrert i `App.tsx` og `navigation.ts`
+  - `docs/auth/login.md` og `docs/auth/login-mfa.md` oppdatert
+
+- **E2EE-nøkkeloppsett etter login — implementert og testet:**
+  - `POST /api/encryption/keys` — nytt kombinert endepunkt i `EncryptionController`
+  - `StoreEncryptionKeysAsync` — lagrer public key i DB + recovery seed i Key Vault atomisk
+  - `StoreEncryptionKeyRequest` — `PublicKey` + `RecoverySeed`, begge 44 tegn (32 bytes X25519)
+  - `UserKeyVersion`-entitet planlagt men ikke migrert ennå
+  - `E2EESetupScreen` + `useE2EESetup` — ny skjerm og hook
+  - `encryptionService.ts` — `getMyPublicKey` + `storeEncryptionKeys`
+  - `E2EESetupErrorCode` lagt til i `ErrorCode.ts`
+  - `ApiRoutes.encryption` lagt til
+  - `useLoginMfa` navigerer til `E2EESetupScreen` i stedet for direkte `login()`
+  - `E2EESetupScreen` registrert i uautentisert stack i `App.tsx`
+  - i18n-nøkler for E2EE lagt til (no + en)
+  - **Scenario A (ny bruker) testet og fungerer** — nøkkel genereres, lagres lokalt og på server
+  - **Scenario B (eksisterende enhet)** — ikke testet ennå
+  - **Scenario C (ny enhet, eksisterende nøkkel)** — ikke testet ennå
+  - Key Vault feiler (connection refused) — ikke satt opp ennå
 
 ### Auth-flyt — teststatus
 - ✅ Signup — fungerer
 - ✅ E-post verifisering — navigerer til PhoneSmsVerificationScreen
 - ✅ SMS verifisering — navigerer til Login med `fromVerification: true`-banner
-- ✅ Login med verifisert konto — tokens i Keychain, navigerer til Home
+- ✅ Login med verifisert konto — navigerer til LoginMfaScreen
 - ✅ Login med uverifisert e-post — navigerer til VerificationScreen
 - ✅ Login med uverifisert telefon — navigerer til PhoneSmsVerificationScreen
 - ✅ Login med feil credentials — viser feilmelding via toast
-- ⏳ **Logout** — ikke testet ennå
-- ⏳ **Reset password** — ikke testet ennå, men flyten er nå fullstendig omskrevet (se under)
+- ✅ Login MFA — fungerer
+- ✅ E2EE Scenario A (ny bruker, ingen nøkkel) — fungerer (Key Vault feiler, men flyt OK)
+- ⏳ E2EE Scenario B (eksisterende enhet med lokal nøkkel) — ikke testet
+- ⏳ E2EE Scenario C (ny enhet, server har nøkkel) — ikke testet
+- ⏳ Logout — ikke testet
+- ⏳ Reset password — ikke testet
 
 ---
 
 ## Gjøremål neste økt — i rekkefølge
 
-### Steg 3c — Gjenstående backend-opprydding
-1. **CancellationToken + transaksjoner** — gå gjennom alle services i AFBack og legg på manglende `CancellationToken`-parametere og `transactionService.ExecuteAsync` på alle metoder som skriver til DB. Prioriter:
+### ✅ Steg 1 — Sett opp UpCloud Key Vault
+- Terraform-infrastruktur deployet — Vault-server på `185.26.50.194`
+- HashiCorp Vault installert, initialisert og unsealet
+- KV v2 aktivert på path `af/`
+- Vault-token lagret i dotnet user-secrets (`KeyVault:Token`)
+- `POST /api/encryption/keys` testet — recovery seed lagres i Vault ✅
+- Scenario A end-to-end fungerer ✅
+- E2EESetupScreen retry-knapp lagt til for feil under Scenario A
+
+### ✅ Steg 0 (ekstra) — OptionExtensions-refaktorering i AFBack
+- Alle appsettings-seksjoner migrert til typesterke Options-klasser med `[Required]` og `ValidateOnStart`
+- `IConfiguration` fjernet fra alle services — erstattet med `IOptions<T>`
+- Berørte filer: `UpCloudBuilderExtensions`, `ServiceCollectionExtensions`, `WebApplicationBuilderExtensions`,
+  `SmsService`, `UserReportService`, `SupportTicketService`, `UserSummaryCacheService`, `CanSendCache`,
+  `S3UrlBuilder`, `AccountVerificationService`
+
+### Steg 2 — Oppdater CryptoService og CryptoServiceBackup
+Disse er legacy-kode som ikke er i sync med ny arkitektur:
+- `CryptoService.userId` er `number` overalt — skal være `string` (GUID)
+  - `storePrivateKey(seed, userId: number)` → `storePrivateKey(seed, userId: string)`
+  - `getPrivateKey(userId: number)` → `getPrivateKey(userId: string)`
+  - `getPrivateKeySafe(userId: number)` → `getPrivateKeySafe(userId: string)`
+  - `ensureKeysAreCached`, `clearPrivateKey`, `rotateKeys` — samme endring
+- `CryptoServiceBackup` importerer gammel `@/services/crypto/cryptoService` (storePublicKey, storeRecoverySeed separat)
+  - Oppdater til å bruke ny `encryptionService.ts` (`storeEncryptionKeys`)
+- Verifiser at `CryptationScreen` (innstillingssiden) fortsatt fungerer etter endringene
+
+### Steg 3 — Bootstrap-gjennomgang
+- `AppInitializer` / bootstrap-flyten kjøres etter `login()` — sjekk at E2EE-oppsett ikke kolliderer
+- Sekundær bootstrap henter samtaler med krypterte meldinger — verifiser at nøkkel er klar før bootstrap forsøker å dekryptere
+- Vurder om `CryptoService.initializeForUser` skal kalles i bootstrap eller i `useE2EESetup`
+
+### Steg 4 — Test gjenstående scenarioer
+- **Scenario B** — logg inn på samme enhet igjen, verifiser at E2EESetupScreen passerer gjennom uten UI
+- **Scenario C** — avinstaller app, logg inn på nytt, skriv inn backup-phrase
+- **Logout** — logg ut, sjekk at tokens slettes fra Keychain og at appen navigerer til Login
+- **Reset password** — test hele den nye 4-stegs flyten
+
+### Steg 5 — EmailTemplates.LoginMfa
+Opprett `EmailTemplates.LoginMfa(EmailCodeDto)` i AFBack — basert på `EmailTemplates.Verification`.
+Bruk samme layout, men med tekst som reflekterer at dette er en innloggingskode, ikke en kontobekreftelse.
+
+### Steg 6c — Gjenstående backend-opprydding
+1. **CancellationToken + transaksjoner** — gå gjennom alle services i AFBack:
    - `TokenService.RevokeTokenAsync` og `RevokeAllTokensForUserAsync` — mangler transaksjon
    - `AuthService.ReportUnauthorizedChangeAsync` — flere `UpdateAsync`-kall uten transaksjon
    - `LoginHistoryService`, `UserDeviceService` — sjekk om de mangler `ct`-parametere
-   - Gjennomgå alle øvrige services systematisk
 
-2. **Kjør EF-migrasjon** for `SmsPasswordResetVerifiedAt`-feltet som ble lagt til i `VerificationInfo`:
-   ```bash
-   dotnet ef migrations add AddSmsPasswordResetVerifiedAt
-   dotnet ef database update
-   ```
-
-### Steg 3d — Gjenstående auth-tester
-1. **Logout** — logg ut, sjekk at tokens slettes fra Keychain og at appen navigerer til Login
-
-2. **Reset password** — test hele den nye 4-stegs flyten:
-   - Steg 1: Send tilbakestillings-e-post → toast + navigerer til steg 2
-   - Steg 2: Skriv inn 6-sifret e-postkode → navigerer til steg 3 (SMS sendes automatisk)
-   - Steg 2: Feil kode → feilmelding
-   - Steg 2: Send på nytt → cooldown-timer
-   - Steg 3: Skriv inn 6-sifret SMS-kode → navigerer til steg 4
-   - Steg 3: Feil kode → feilmelding
-   - Steg 3: Send SMS på nytt → cooldown-timer
-   - Steg 4: Nytt passord med zod-validering — feil vises inline under felt (ikke toast)
-   - Steg 4: Passord stemmer ikke overens → inline feil på confirmPassword
-   - Steg 4: Vellykket reset → toast + navigerer til Login
-   - Steg 4: Vent 10 min etter SMS-verifisering → `SessionExpired` → toast + tilbake til steg 1
-
-### Steg 3b — Tema-gjennomgang av gjenværende skjermer
-Mange skjermer utenfor `features/auth/` har fortsatt hardkodede farger og mangler tema-støtte.
-Gå gjennom én etter én og migrer til `useUnistyles()`. Prioriter:
+### Steg 7 — Tema-gjennomgang av gjenværende skjermer
 - `CryptationScreen` — massivt avvik: hardkodede farger, ingen useUnistyles, ingen i18n, deprecated Clipboard, ingen Result-pattern
 - Alle komponenter i `components/common/` som ikke er migrert ennå
 
-### Steg 4 — Migrer features/messages/ til Feature Slice-arkitektur — VENT MED DENNE
-Messaging er kritisk og må gjøres manuelt med Claude.
-```
-features/messages/
-  screens/
-  hooks/
-  services/   ← Result-pattern
-  models/     ← DTOer
-```
-Bruk `FlashList` i stedet for `FlatList` fra start.
-Bruk `date-fns` for tidsstempler i meldinger.
+### Steg 8 — Migrer features/messages/ til Feature Slice-arkitektur — VENT MED DENNE
 
-### Steg 6 — Over-engineering og oppryddingsgjennomgang
+### Steg 9 — Over-engineering og oppryddingsgjennomgang
 
-**Kandidat 1 — `useConversationUpdate` er en unødvendig wrapper (ikke startet)**
-`hooks/common/useConversationUpdate.ts` inneholder én funksjon som bare videresender til
-`refreshConversationFromBackend()`. Ingen state, ingen logikk. Alle kallsteder kan importere
-utility-funksjonen direkte.
+**Kandidat 1 — `useConversationUpdate` er en unødvendig wrapper**
+**Kandidat 3 — `useGetDeletedConversations` og `useGetRejectedConversations` er identiske**
+**Kandidat 4 — `useMessageNotifications` har `loading` i dependency-array**
+**Kandidat 5 — `useBootstrap` eksponerer for mye data**
 
-**Kandidat 3 — `useGetDeletedConversations` og `useGetRejectedConversations` er identiske (ikke startet)**
-Begge hooks er nøyaktig samme kode, bare ulike service-funksjoner og variabelnavn.
-
-**Kandidat 4 — `useMessageNotifications` har `loading` i dependency-array (ikke startet)**
-Fix: fjern `loading` fra dependency-arrayen og bruk en `useRef` for å garde mot parallelle kall.
-
-**Kandidat 5 — `useBootstrap` eksponerer for mye data (ikke startet)**
-Bør gjennomgås: hva bruker faktisk `useBootstrap`, og hvilke returnerte verdier kan fjernes?
-
-### Steg 7 (fremtidig) — Push-varsler
-Sett opp `expo-notifications` ETTER at in-app notifikasjonssystemet er ferdig.
+### Steg 10 (fremtidig) — Push-varsler
 
 ---
 
@@ -135,17 +160,12 @@ backgroundColor: theme.colors.background
 import { throwProblemDetails, ApiError } from "@/core/errors/ProblemDetails";
 import { AppErrorCode } from "@shared/types/error/AppErrorCode";
 
-// I fetch-kall:
-if (!response.ok) {
-  await throwProblemDetails(response); // kaster ApiError med status + detail + appCode
-}
-
-// I mapXxxError — switch på appCode, IKKE status eller string-matching:
 if (error instanceof ApiError) {
   switch (error.appCode) {
     case AppErrorCode.EmailNotConfirmed: ...  // 2002
     case AppErrorCode.PhoneNotConfirmed: ...  // 2003
     case AppErrorCode.InvalidCredentials: ... // 2000
+    case AppErrorCode.MfaRequired: ...        // 2006
     case AppErrorCode.TooManyRequests: ...    // 1006
     case AppErrorCode.InvalidCode: ...        // 4000
     case AppErrorCode.ExpiredCode: ...        // 4001
@@ -161,17 +181,28 @@ if (!result.success) {
     case AuthErrorCode.InvalidCredentials: ...
     case AuthErrorCode.EmailNotVerified: ...
     case AuthErrorCode.PhoneNotVerified: ...
+    case AuthErrorCode.MfaRequired: ...
   }
   return;
 }
-// result.data er type-safe her
+```
+
+### E2EE-nøkkelflyt
+```
+Login → MFA → E2EESetupScreen
+  Scenario A (ingen nøkkel noe sted):   generer → storeEncryptionKeys → login()
+  Scenario B (server + lokal nøkkel):   ingen handling → login()
+  Scenario C (server-nøkkel, ingen lokal): vis UI → restore/ny nøkkel → login()
+
+POST /api/encryption/keys { publicKey, recoverySeed }  ← alltid ved ny eller rotert nøkkel
+GET  /api/encryption/public-key                        ← sjekk om server har nøkkel (404 = ingen)
 ```
 
 ### Globalisering
 ```tsx
 const { t } = useTranslation();
 t("auth.login")
-t("auth.resendIn", { time: "1:30" })
+t("e2ee.restoreTitle")
 // ALDRI: hardkodet tekst
 ```
 

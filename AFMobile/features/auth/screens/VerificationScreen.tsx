@@ -132,7 +132,10 @@ const VerificationScreen: React.FC<Props> = ({ route, navigation }) => {
         }}>
           {/* Tilbake-knapp */}
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.canGoBack()
+              ? navigation.goBack()
+              : navigation.reset({ index: 0, routes: [{ name: "Login" }] })
+            }
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={{
               flexDirection: "row",

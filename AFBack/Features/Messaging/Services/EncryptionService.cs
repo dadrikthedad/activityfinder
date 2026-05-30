@@ -6,6 +6,7 @@ using AFBack.Features.Messaging.DTOs.Response;
 using AFBack.Features.Messaging.Models;
 using AFBack.Features.Messaging.Repository;
 using AFBack.Infrastructure.KeyVault.Services;
+using AFBack.Infrastructure.Transactions;
 
 
 namespace AFBack.Features.Messaging.Services;
@@ -15,10 +16,12 @@ public class EncryptionService(
     ILogger<EncryptionService> logger,
     IConversationRepository conversationRepository,
     IConversationValidator conversationValidator,
-    IKeyVaultService keyVaultService) : IEncryptionService
+    IKeyVaultService keyVaultService,
+    ITransactionService transactionService) : IEncryptionService
 {
     /// <inheritdoc/>
-    public async Task<Result<StoreUserPublicKeyResponse>> StoreUserPublicKeyAsync(string userId, string publicKey)
+    public async Task<Result<StoreUserPublicKeyResponse>> StoreEncryptionKeysAsync(string userId, string publicKey,
+        string recoverySeed, CancellationToken ct = default)
     {
         var keyBytes = Convert.FromBase64String(publicKey);
         if (keyBytes.Length != 32)
@@ -27,39 +30,56 @@ public class EncryptionService(
             return Result<StoreUserPublicKeyResponse>.Failure("Invalid key format", AppErrorCode.InvalidPublicKey);
         }
         
-        // Sjekker om brukeren har en eksisterende key, og deaktiverer den isåfall
-        var existingKey = await userPublicKeyRepository.GetActiveUserPublicKeyAsync(userId);
-        if (existingKey != null)
-            existingKey.IsActive = false;
-        
-        // Inkrementer eller setter versjonen
-        var newVersion = existingKey == null ? 1 : existingKey.KeyVersion + 1;
-        
-        // Create new key
-        var newKey = new UserPublicKey
+        var seedBytes = Convert.FromBase64String(recoverySeed);
+        if (seedBytes.Length != 32)
         {
-            UserId = userId,
-            PublicKey = publicKey,
-            KeyVersion = newVersion,
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
-        };
-
-        await userPublicKeyRepository.AddAsync(newKey);
-        logger.LogInformation("Stored new Sodium public key for User {UserId}, version {Version}", 
-            userId, newKey.KeyVersion);
-
-        return Result<StoreUserPublicKeyResponse>.Success(new StoreUserPublicKeyResponse
+            logger.LogWarning("Invalid seed format. Seed bytes is {KeyBytesLength} bytes", seedBytes.Length);
+            return Result<StoreUserPublicKeyResponse>.Failure("Invalid recovery seed format", 
+                AppErrorCode.InvalidPublicKey);
+        }
+        
+        return await transactionService.ExecuteAsync(async (innerCt) =>
         {
-            KeyVersion = newKey.KeyVersion
-        });
+            // Sjekker om brukeren har en eksisterende key, og deaktiverer den isåfall
+            var existingKey = await userPublicKeyRepository.GetActiveUserPublicKeyAsync(userId, innerCt);
+            if (existingKey != null)
+                existingKey.IsActive = false;
+            
+            // Inkrementer eller setter versjonen
+            var newVersion = existingKey == null ? 1 : existingKey.KeyVersion + 1;
+            
+            // Create new key
+            var newKey = new UserPublicKey
+            {
+                UserId = userId,
+                PublicKey = publicKey,
+                KeyVersion = newVersion,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            await userPublicKeyRepository.AddAsync(newKey, innerCt);
+            logger.LogInformation("Stored new Sodium public key for User {UserId}, version {Version}", 
+                userId, newKey.KeyVersion);
+            
+            var storeRecoveryResult = await keyVaultService.StoreRecoverySeedAsync(userId, recoverySeed);
+            if (storeRecoveryResult.IsFailure)
+                return Result<StoreUserPublicKeyResponse>.Failure(storeRecoveryResult.Error,
+                    storeRecoveryResult.ErrorCode);
+
+            return Result<StoreUserPublicKeyResponse>.Success(new StoreUserPublicKeyResponse
+            {
+                KeyVersion = newKey.KeyVersion
+            });
+        }, ct);
     }
     
     /// <inheritdoc/>
-    public async Task<Result<ConversationKeysResponse>> GetConversationKeysAsync(string userId, int conversationId)
+    public async Task<Result<ConversationKeysResponse>> GetConversationKeysAsync(string userId, int conversationId,
+        CancellationToken ct = default)
     {
         // ===== Hetner samtalen og validerer at brukeren har tilgang til samtalen =====
-        var conversation = await conversationRepository.GetConversationAsync(conversationId);
+        var conversation = await conversationRepository.GetConversationAsync(conversationId, ct);
     
         var conversationResult = conversationValidator.ValidateConversationExists(userId, conversationId, conversation);
         if (conversationResult.IsFailure)
@@ -78,7 +98,7 @@ public class EncryptionService(
             .Select(p => p.UserId)
             .ToList();
         
-        var keys = await userPublicKeyRepository.GetActiveKeysForUsersAsync(participantIds);
+        var keys = await userPublicKeyRepository.GetActiveKeysForUsersAsync(participantIds, ct);
 
         return Result<ConversationKeysResponse>.Success(new ConversationKeysResponse
         {
@@ -92,9 +112,10 @@ public class EncryptionService(
     }
     
     /// <inheritdoc/>
-    public async Task<Result<List<UserPublicKeyResponse>>> GetPublicKeysForUsersAsync(List<string> userIds)
+    public async Task<Result<List<UserPublicKeyResponse>>> GetPublicKeysForUsersAsync(List<string> userIds,
+        CancellationToken ct = default)
     {
-        var keys = await userPublicKeyRepository.GetActiveKeysForUsersAsync(userIds);
+        var keys = await userPublicKeyRepository.GetActiveKeysForUsersAsync(userIds, ct);
 
         var response = keys.Select(k => new UserPublicKeyResponse
         {
@@ -107,9 +128,9 @@ public class EncryptionService(
     }
     
     /// <inheritdoc/>
-    public async Task<Result<UserPublicKeyResponse>> GetMyPublicKeyAsync(string userId)
+    public async Task<Result<UserPublicKeyResponse>> GetMyPublicKeyAsync(string userId, CancellationToken ct = default)
     {
-        var key = await userPublicKeyRepository.GetActiveUserPublicKeyAsync(userId);
+        var key = await userPublicKeyRepository.GetActiveUserPublicKeyAsync(userId, ct);
 
         if (key == null)
         {
@@ -124,15 +145,4 @@ public class EncryptionService(
             KeyVersion = key.KeyVersion
         });
     }
-    
-    /// <inheritdoc/>
-    public async Task<Result> StoreRecoverySeedAsync(string userId, int deviceId, string key)
-    {
-        var storeRecoveryResult = await keyVaultService.StoreRecoverySeedAsync(userId, deviceId, key);
-        if (storeRecoveryResult.IsFailure)
-            return Result.Failure(storeRecoveryResult.Error, storeRecoveryResult.ErrorCode);
-
-        return Result.Success();
-    }
-    
 }

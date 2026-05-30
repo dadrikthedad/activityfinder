@@ -9,6 +9,7 @@ using AFBack.Features.Support.Models;
 using AFBack.Features.Support.Repositories;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Templates;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Features.Support.Services;
 
@@ -17,8 +18,9 @@ public class UserReportService(
     ISupportRepository supportRepository,
     IEmailService emailService,
     IFileOrchestrator fileOrchestrator,
-    IConfiguration configuration) : IUserReportService
+    IOptions<EmailOptions> emailOptions) : IUserReportService
 {
+    private readonly string _supportAddress = emailOptions.Value.SupportAddress;
     
     /// <inheritdoc/>
     public async Task<Result<UserReportResponse>> CreateUserReportAsync(string submittedByUserId, 
@@ -134,7 +136,7 @@ public class UserReportService(
         {
             // Varselsmail til support-teamet
             var notificationBody = SupportTicketTemplates.UserReportNotification(report);
-            await emailService.SendAsync(configuration["Email:SupportAddress"]!, notificationBody);
+            await emailService.SendAsync(_supportAddress, notificationBody);
 
             logger.LogInformation("Notification email sent for user report {ReportId}", report.Id);
         }

@@ -1,5 +1,6 @@
 using AFBack.Common.Enum;
 using AFBack.Common.Results;
+using AFBack.Configurations.Options;
 using AFBack.Features.Auth.Models;
 using AFBack.Features.Auth.Services.Interfaces;
 using AFBack.Infrastructure.Email;
@@ -12,6 +13,7 @@ using AFBack.Infrastructure.Sms.Enums;
 using AFBack.Infrastructure.Sms.Services;
 using AFBack.Infrastructure.Transactions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 
 namespace AFBack.Features.Auth.Services;
 
@@ -19,7 +21,7 @@ public class AccountVerificationService(
     UserManager<AppUser> userManager,
     ILogger<AccountVerificationService> logger,
     IVerificationInfoService verificationInfoService,
-    IConfiguration configuration,
+    IOptions<AppOptions> appOptions,
     IEmailService emailService,
     ISmsService smsService,
     IEmailRateLimitService emailRateLimitService,
@@ -28,7 +30,11 @@ public class AccountVerificationService(
     IRateLimitGuardService rateLimitGuardService,
     ITransactionService transactionService) : IAccountVerificationService
 {
+    
+    private readonly string _baseUrl = appOptions.Value.BaseUrl;
+    
     // ======================== Email verifisiering ======================== 
+    
     
     /// <inheritdoc/>
    public async Task<Result> ResendVerificationEmailAsync(string email, string ipAddress,
@@ -67,7 +73,7 @@ public class AccountVerificationService(
            var emailDto = new EmailCodeDto(
                Email: email,
                Code: code,
-               BaseUrl: configuration["App:BaseUrl"]!);
+               BaseUrl: _baseUrl);
            
            var body = EmailTemplates.Verification(emailDto);
            

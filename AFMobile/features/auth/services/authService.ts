@@ -7,26 +7,41 @@ import { AppErrorCode } from "@shared/types/error/AppErrorCode";
 import authServiceNative from "@/core/auth/authServiceNative";
 
 /**
- * Logger inn brukeren via authServiceNative og returnerer Result.
- * Håndterer alle feiltilfeller uten å kaste exceptions.
+ * Steg 1 av innlogging — validerer passord og sender MFA-kode på epost.
+ * Ved suksess (200 OK) skal frontend navigere til LoginMfaScreen.
  */
 export async function loginUser(
   email: string,
   password: string,
-): Promise<Result<LoginResponseDTO, AuthErrorCode>> {
+): Promise<Result<void, AuthErrorCode>> {
   try {
-    const data = await authServiceNative.login(email, password);
-    return Result.ok(data);
+    await authServiceNative.login(email, password);
+    return Result.ok(undefined);
   } catch (error: unknown) {
     return mapLoginError(error);
   }
 }
 
 /**
- * Mapper ApiError til typed AuthErrorCode.
- * Bruker appCode (domenespesifikk kode fra AppProblemDetails) fremfor string-matching.
+ * Steg 2 av innlogging — verifiserer MFA-koden og henter tokens.
+ * Tokens lagres automatisk i Keychain av authServiceNative.
  */
-function mapLoginError(error: unknown): Result<LoginResponseDTO, AuthErrorCode> {
+export async function verifyMfaCode(
+  email: string,
+  code: string,
+): Promise<Result<LoginResponseDTO, AuthErrorCode>> {
+  try {
+    const data = await authServiceNative.verifyMfa(email, code);
+    return Result.ok(data);
+  } catch (error: unknown) {
+    return mapMfaError(error);
+  }
+}
+
+/**
+ * Mapper ApiError fra login-kallet til typed AuthErrorCode.
+ */
+function mapLoginError(error: unknown): Result<void, AuthErrorCode> {
   if (error instanceof ApiError) {
     switch (error.appCode) {
       case AppErrorCode.EmailNotConfirmed:
@@ -42,18 +57,46 @@ function mapLoginError(error: unknown): Result<LoginResponseDTO, AuthErrorCode> 
       case AppErrorCode.InternalError:
         return Result.fail("Server error. Please try again later.", AuthErrorCode.ServerError);
       default:
-        if (error.status >= 500) {
+        if (error.status >= 500)
           return Result.fail("Server error. Please try again later.", AuthErrorCode.ServerError);
-        }
         return Result.fail(error.message, AuthErrorCode.Unknown);
     }
   }
 
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
-    if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch")) {
+    if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch"))
       return Result.fail("Network error. Please check your connection.", AuthErrorCode.NetworkError);
+    return Result.fail(error.message, AuthErrorCode.Unknown);
+  }
+
+  return Result.fail("An unexpected error occurred.", AuthErrorCode.Unknown);
+}
+
+/**
+ * Mapper ApiError fra MFA-verifisering til typed AuthErrorCode.
+ */
+function mapMfaError(error: unknown): Result<LoginResponseDTO, AuthErrorCode> {
+  if (error instanceof ApiError) {
+    switch (error.appCode) {
+      case AppErrorCode.InvalidCode:
+      case AppErrorCode.ExpiredCode:
+        return Result.fail(error.message, AuthErrorCode.Unknown);
+      case AppErrorCode.TooManyRequests:
+        return Result.fail("Too many failed attempts. Please log in again.", AuthErrorCode.RateLimited);
+      case AppErrorCode.InternalError:
+        return Result.fail("Server error. Please try again later.", AuthErrorCode.ServerError);
+      default:
+        if (error.status >= 500)
+          return Result.fail("Server error. Please try again later.", AuthErrorCode.ServerError);
+        return Result.fail(error.message, AuthErrorCode.Unknown);
     }
+  }
+
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("network") || msg.includes("fetch") || msg.includes("failed to fetch"))
+      return Result.fail("Network error. Please check your connection.", AuthErrorCode.NetworkError);
     return Result.fail(error.message, AuthErrorCode.Unknown);
   }
 

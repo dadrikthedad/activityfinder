@@ -2,6 +2,12 @@
 
 React Native / Expo mobilapp for ActivityFinder. Ende-til-ende kryptert meldingsapp.
 
+## Regler for dette området
+
+Ved arbeid i AFMobile skal disse reglene alltid lastes:
+
+@.claude/rules/components.md
+
 ## Tech stack
 
 - **React Native** 0.79 + **Expo** 53 — New Architecture aktivert (påkrevd av Unistyles)
@@ -18,20 +24,6 @@ React Native / Expo mobilapp for ActivityFinder. Ende-til-ende kryptert meldings
 - **i18next + react-i18next + expo-localization** — globalisering (norsk/engelsk)
 - **date-fns** — datoformatering med i18n-støtte
 - **@shopify/flash-list** — høyytelseslister (erstatter FlatList)
-
-## Kommandoer
-
-```bash
-npx expo run:android           # Bygg og installer på tilkoblet Android-enhet (kreves ved nye native pakker)
-npx expo start --clear         # Start Metro med cache-reset (tilstrekkelig for JS-endringer)
-adb devices                    # Verifiser at enhet er koblet til
-adb reverse tcp:8081 tcp:8081  # Tunneling hvis Metro ikke kobler til enhet
-adb uninstall com.dadrikthedad.AFMobile  # Avinstaller hvis signaturkonflikt
-```
-
-**Når trengs `expo run:android` vs `expo start`?**
-- `expo run:android` — når nye pakker med native kode er installert (Unistyles, Nitro, Keychain osv.)
-- `expo start --clear` — ved alle JS/TS-endringer, nye rene JS-pakker (i18next, date-fns, flash-list)
 
 ## Nåværende mappestruktur
 
@@ -114,6 +106,8 @@ AFMobile/
     ├── splash-icon.png             # Splash screen (1024x1024, transparent)
     └── favicon.png                 # Web favicon
 ```
+
+Se @.claude/rules/components.md for komponentmønster, tema-tokens og UI-regler.
 
 ## Arkitekturmønster
 
@@ -273,146 +267,6 @@ resendVerificationEmail(email)      // POST /api/verification/resend-verificatio
 verifySmsCode(email, code)          // POST /api/verification/verify-phone
 resendSmsVerification(email)        // POST /api/verification/resend-phone-verification
 ```
-
-### ViewModel-mønster
-
-```
-LoginScreen.tsx        →  View       (kun JSX, ingen logikk)
-useLogin.ts            →  ViewModel  (state, rhf+zod, actions)
-useResetPassword.ts    →  ViewModel  (steg 1+2: lokal state, steg 3: rhf+zod)
-authService.ts         →  Model      (API-kall, returnerer Result<T>)
-LoginResponseDTO.ts    →  DTO        (typedefinisjoner)
-```
-
-### Passordfelt — PasswordFieldNative
-
-Én felles passordfelt-komponent for hele appen: `components/common/PasswordFieldNative.tsx`.
-Støtter `tooltip` (viser `LabelWithTooltipNative`) og `labelAlign` ("left" for signup, "center" for login/reset).
-
-```typescript
-// Login / ResetPassword — sentrert label, ingen tooltip:
-<PasswordFieldNative id="password" label={t("auth.password")} value={value} ... />
-
-// Signup — venstrejustert label med tooltip:
-<PasswordFieldNative id="password" label={t("auth.createPassword")} tooltip={t("auth.passwordTooltip")} labelAlign="left" value={value} ... />
-```
-
-### Signup — telefonnummer med landskode
-
-`SignUpContactFieldsNative` har innebygd landskode-picker (pill foran nummeret).
-Landskoden auto-foreslås fra valgt land via `useCountryAndRegion` → `core/data/phoneDialCodes.ts`.
-Brukeren kan overstyre. Fullt internasjonalt nummer lagres i `formData.phone` (f.eks. `+4799428069`).
-
-```typescript
-// useCountryAndRegion eksponerer dialCode:
-const { countries, countryCodes, dialCode } = useCountryAndRegion({ country, setFormData, editing: true });
-// dialCode = { dialCode: "+47", flag: "🇳🇴" } — oppdateres automatisk ved landvalg
-```
-
-### Zod-schemas — passordregler
-
-Matcher Identity-konfigurasjon i AFBack (`RequireDigit/Lower/Upper = true`, `RequiredLength = 8`, maks 128):
-
-```typescript
-// loginSchema: min 8 tegn (ingen regex — backend gir presis feilmelding ved feil credentials)
-// resetPasswordSchema: 8-128 tegn + regex for stor/liten bokstav + tall
-// Begge brukes med react-hook-form + zodResolver i useLogin og useResetPassword
-```
-
-### Tema — react-native-unistyles v3.1.1
-
-Fargeidentitet: **gull (#D4A017) + kull-svart (#1A1A1A)** — ingen grønt som primærfarge.
-
-```typescript
-import { useUnistyles } from "react-native-unistyles";
-const { theme } = useUnistyles();
-
-// ALDRI hardkodede farger:
-color: theme.colors.primary          // ✅ gull
-color: "#D4A017"                     // ❌
-
-// Tokens:
-theme.colors.primary / primaryDark / primaryLight / onPrimary
-theme.colors.accent / accentLight / accentDark
-theme.colors.background / backgroundAlt / backgroundInput
-theme.colors.surface / surfaceAlt / surfaceInverse
-theme.colors.textPrimary / textSecondary / textMuted / textDisabled / textPlaceholder
-theme.colors.border / borderFocus / borderError
-theme.colors.error / warning / success / info
-theme.colors.disabled / disabledText
-theme.colors.navbar / navbarText
-theme.spacing.xs/sm/md/lg/xl/xxl     // 4/8/16/24/32/48
-theme.radii.sm/md/lg/full            // 4/8/16/9999
-theme.typography.xs/sm/md/lg/xl/xxl  // 12/14/16/18/24/32
-theme.typography.regular/medium/semibold/bold
-
-// Bytte tema (trigger app-restart):
-const { setTheme } = useThemeStore();
-setTheme("dark");
-```
-
-### Globalisering — i18next
-
-```typescript
-import { useTranslation } from "react-i18next";
-const { t } = useTranslation();
-
-t("auth.login")                          // ✅
-"Logg inn"                               // ❌ aldri hardkodet
-
-// Bytte språk (umiddelbart, ingen restart):
-const { setLanguage } = useLanguageStore();
-setLanguage("en");
-```
-
-### Datoformatering — date-fns
-
-```typescript
-import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns";
-import { nb, enUS } from "date-fns/locale";
-const locale = language === "no" ? nb : enUS;
-format(date, "HH:mm", { locale })
-formatDistanceToNow(date, { addSuffix: true, locale })
-```
-
-### Lister — @shopify/flash-list v2.3.0
-
-```typescript
-import { FlashList } from "@shopify/flash-list";
-<FlashList
-  data={messages}
-  renderItem={({ item }) => <MessageItem message={item} />}
-  keyExtractor={(item) => item.id}
-/>
-```
-
-## Kritiske regler
-
-**Krypteringsgrense:** Backend lagrer KUN kryptert data. Dekrypter ALDRI i backend.
-
-**Transaksjonsmønster (SignalR):** Backend committer DB først, deretter SignalR.
-
-**Token-håndtering:** Tokens lagres via `authServiceNative` i Keychain — aldri direkte i AsyncStorage.
-
-**Result-pattern:** Services returnerer `Result<T, ErrorCode>` — ikke kast exceptions for forretningsfeil.
-
-**AppErrorCode:** Backend sender alltid `AppProblemDetails` med `code`-felt. Bruk `error.appCode` i alle `mapXxxError`-funksjoner — ALDRI `error.status` alene eller string-matching på meldingstekst. `AppErrorCode`-enumen i `shared/types/error/AppErrorCode.ts` er kontrakten — hold den synkronisert med AFBack.
-
-**ProblemDetails:** Backend bruker `detail`-feltet, ikke `message`. Les aldri `errorData.message`.
-
-**Tema:** ALDRI hardkodede farger. Alltid `theme.colors.*` fra `useUnistyles()`.
-Unntak: absolutt svart/hvit i mediaviser, `rgba(0,0,0,x)` overlays, tredjeparts komponenter.
-
-**Globalisering:** ALDRI hardkodede brukervendte strenger. Alltid `t("nøkkel")` fra `useTranslation()`.
-
-**Fil-organisering:** Én ting per fil. Delte modeller i `core/models/`, feature-spesifikke i `features/{feature}/models/`.
-
-**Modeller:** ALDRI opprett nye modeller eller legg til egenskaper uten eksplisitt bekreftelse fra Magee.
-
-**Kommentarer:** Norske kommentarer i kode, engelske identifikatorer og API-navn.
-
-**Pinnede pakker:** `react-native-unistyles` og `react-native-nitro-modules` er pinnet uten `^`.
-Ikke oppdater disse uten å sjekke kompatibilitetstabellen først.
 
 ## Android-bygg — kjente problemer
 

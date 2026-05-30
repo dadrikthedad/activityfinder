@@ -1,18 +1,20 @@
+using AFBack.Configurations.Options;
 using AFBack.Features.CanSend.Models;
 using AFBack.Features.CanSend.Repository;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
+
 namespace AFBack.Infrastructure.Cache;
 
 public class CanSendCache(
     IDistributedCache cache,
     IServiceScopeFactory scopeFactory,
     ILogger<CanSendCache> logger,
-    IConfiguration configuration) : ICanSendCache
+    IOptions<CacheOptions> cacheOptions) : ICanSendCache
 {
     private const string CAN_SEND_PREFIX = "cansend:";
 
-    private readonly int _cacheDurationMinutes = configuration.GetValue(
-        "CacheSettings:CanSendCacheDurationMinutes", 5);
+    private readonly int _cacheDurationMinutes = cacheOptions.Value.CanSendCacheDurationMinutes;
     
     
     // Metrics for måling

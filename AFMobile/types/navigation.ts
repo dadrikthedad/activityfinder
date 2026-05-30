@@ -10,7 +10,9 @@ export type RootStackParamList = {
   Signup: undefined;
   VerificationScreen: { email: string; fromRegistration?: boolean };
   PhoneSmsVerificationScreen: { email: string };
+  LoginMfaScreen: { email: string };
   ResetPasswordScreen: undefined;
+  E2EESetupScreen: { accessToken: string; refreshToken: string };
   Home: undefined;
   Profile: { id: string };
   EditProfile: undefined;
@@ -60,7 +62,9 @@ export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 
 export type SignupScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Signup'>;
 export type VerificationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VerificationScreen'>;
 export type PhoneSmsVerificationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PhoneSmsVerificationScreen'>;
+export type LoginMfaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginMfaScreen'>;
 export type ResetPasswordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ResetPasswordScreen'>;
+export type E2EESetupScreenNavigationProp = StackNavigationProp<RootStackParamList, 'E2EESetupScreen'>;
 
 //////////////////////////// APP ////////////////////////////
 
@@ -87,7 +91,9 @@ export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
 export type VerificationScreenRouteProp = RouteProp<RootStackParamList, 'VerificationScreen'>;
 export type PhoneSmsVerificationScreenRouteProp = RouteProp<RootStackParamList, 'PhoneSmsVerificationScreen'>;
+export type LoginMfaScreenRouteProp = RouteProp<RootStackParamList, 'LoginMfaScreen'>;
 export type ResetPasswordScreenRouteProp = RouteProp<RootStackParamList, 'ResetPasswordScreen'>;
+export type E2EESetupScreenRouteProp = RouteProp<RootStackParamList, 'E2EESetupScreen'>;
 export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;

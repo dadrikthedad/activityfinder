@@ -44,26 +44,56 @@ public class AuthController(IAuthService authService) : BaseController
     }
     
     // ======================== Login ======================== 
-    
+    /// <summary>
+    /// Steg 1 av innlogging. Validerer epost og passord, sjekker lockout og kontoverifisering.
+    /// Ved suksess sendes en 6-sifret MFA-kode til brukerens epostadresse.
+    /// Frontend navigerer til MFA-skjerm ved 200 OK.
+    /// </summary>
+    /// <param name="request">Email, Password og Device-info</param>
+    /// <param name="ct"></param>
+    /// <returns>200 OK (MFA-kode sendt), eller 400/401 ved feil</returns>
     [HttpPost("login")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct = default)
     {
         var ipAddress = GetIpAddress();
     
-        var userAgent = Request.Headers.UserAgent.ToString();
-    
-        var result = await authService.LoginAsync(request, ipAddress, userAgent, ct);
+        var result = await authService.LoginAsync(request, ipAddress, ct);
     
         if (result.IsFailure)
             return HandleFailure(result);
     
-        return Ok(result.Value);
+        return Ok();
     }
     
+    /// <summary>
+    /// Steg 2 av innlogging. Verifiserer den 6-sifrede MFA-koden sendt til brukerens epost.
+    /// Ved suksess utstedes access token og refresh token, og innloggingshistorikk registreres.
+    /// </summary>
+    /// <param name="request">Email, MFA-kode og Device-info</param>
+    /// <param name="ct"></param>
+    /// <returns>200 OK med <see cref="LoginResponse"/> (tokens), eller 400/401 ved feil eller utløpt kode</returns> 
+    [HttpPost("login/verify-mfa")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> VerifyMfa([FromBody] VerifyMfaRequest request, CancellationToken ct = default)
+    {
+        var ipAddress = GetIpAddress();
+        var userAgent = Request.Headers.UserAgent.ToString();
+
+        var result = await authService.VerifyMfaAsync(request, ipAddress, userAgent, ct);
+
+        if (result.IsFailure)
+            return HandleFailure(result);
+
+        return Ok(result.Value);
+    }
     
     
     // ======================== Logout ======================== 

@@ -6,8 +6,6 @@ using AFBack.Features.Messaging.Services;
 using AFBack.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-
-
 namespace AFBack.Features.Messaging.Controllers;
 
 [ApiController]
@@ -16,19 +14,20 @@ namespace AFBack.Features.Messaging.Controllers;
 public class EncryptionController(IEncryptionService encryptionService) : BaseController
 {
     /// <summary>
-    /// Lagre eller oppdatere PublicKey for en bruker
+    /// Lagre eller oppdatere PublicKey for en bruker og recovery seed lagres i keyvault.
     /// </summary>
-    [HttpPost("public-key")]
+    [HttpPost("keys")]
     [ProducesResponseType(typeof(StoreUserPublicKeyResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<StoreUserPublicKeyResponse>> StorePublicKey(StorePublicKeyRequest request)
+    public async Task<ActionResult<StoreUserPublicKeyResponse>> StoreEncryptionKeys(StoreEncryptionKeyRequest request)
     {
         var userId = User.GetUserId();
-        var result = await encryptionService.StoreUserPublicKeyAsync(userId, request.PublicKey);
+        var result = await encryptionService.StoreEncryptionKeysAsync(userId, request.PublicKey, 
+            request.RecoverySeed);
         
         if (result.IsFailure)
             return HandleFailure(result);
@@ -90,24 +89,4 @@ public class EncryptionController(IEncryptionService encryptionService) : BaseCo
     
         return Ok(result.Value);
     }
-    
-    /// <summary>
-    /// Lagre recovery seed i Azure Key Vault
-    /// </summary>
-    [HttpPost("recovery-seed")]
-    [ProducesResponseType( StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> StoreRecoverySeed(StoreRecoverySeedRequest request)
-    {
-        var userId = User.GetUserId();
-        var deviceId = User.GetDeviceId();
-
-        var result = await encryptionService.StoreRecoverySeedAsync(userId, deviceId, request.Key);
-
-        if (result.IsFailure)
-            return HandleFailure(result);
-
-        return Ok();
-    }
-    
 }

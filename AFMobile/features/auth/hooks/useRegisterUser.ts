@@ -56,6 +56,11 @@ export function useRegisterUser({
       switch (result.code) {
         case RegistrationErrorCode.EmailTaken:
           setErrors({ email: "An account with this email already exists." });
+          setMessage("An account with this email already exists.");
+          break;
+        case RegistrationErrorCode.PhoneTaken:
+          setErrors({ phone: "An account with this phone number already exists." });
+          setMessage("An account with this phone number already exists.");
           break;
         case RegistrationErrorCode.RateLimited:
         case RegistrationErrorCode.NetworkError:

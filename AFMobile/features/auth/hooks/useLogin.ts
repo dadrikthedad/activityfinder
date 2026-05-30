@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useAuth } from "@/context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import { loginUser } from "@/features/auth/services/authService";
 import { AuthErrorCode } from "@/core/errors/ErrorCode";
@@ -24,14 +23,13 @@ export interface UseLoginReturn {
  * Bruker react-hook-form + zod for validering,
  * og authService (Result-pattern) for API-kommunikasjon.
  *
+ * Ved suksess (200 OK) navigeres brukeren til LoginMfaScreen for å taste inn MFA-koden.
  * Ved EmailNotVerified navigeres brukeren til VerificationScreen (e-post).
  * Ved PhoneNotVerified navigeres brukeren til PhoneSmsVerificationScreen (SMS).
  * Backend sender ny kode automatisk ved begge tilfeller — frontend trenger bare å navigere.
  */
 export const useLogin = (): UseLoginReturn => {
   const [errorMessage, setErrorMessage] = useState("");
-
-  const { login } = useAuth();
   const navigation = useNavigation<RootStackNavigationProp>();
 
   const {
@@ -70,7 +68,8 @@ export const useLogin = (): UseLoginReturn => {
       return;
     }
 
-    await login(result.data.accessToken, result.data.refreshToken);
+    // 200 OK — MFA-kode er sendt, naviger til MFA-skjerm
+    navigation.navigate("LoginMfaScreen", { email: data.email.trim() });
     reset();
   };
 
