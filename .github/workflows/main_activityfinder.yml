@@ -1,10 +1,7 @@
 name: Build and deploy ASP.NET Core backend to Azure Web App - activityfinder
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+  workflow_dispatch: # Deaktivert — Azure-deployment ikke i bruk
 
 jobs:
   build:
