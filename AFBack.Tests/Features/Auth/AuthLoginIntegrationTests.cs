@@ -23,26 +23,19 @@ namespace AFBack.Tests.Features.Auth;
 /// Alle tester nullstiller databasen og Redis i DisposeAsync for å sikre isolasjon.
 /// </summary>
 [Collection(nameof(IntegrationTestsCollection))]
-public class AuthLoginTests : IAsyncLifetime
+public class AuthLoginTests(BackendApplicationFactory factory) : IAsyncLifetime
 {
-    private readonly BackendApplicationFactory _factory;
-    private readonly HttpClient                _client;
+    private readonly HttpClient                _client = factory.CreateClient();
 
     // System.Text.Json med Web-standarder (case-insensitive, camelCase)
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-
-    public AuthLoginTests(BackendApplicationFactory factory)
-    {
-        _factory = factory;
-        _client  = factory.CreateClient();
-    }
 
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()
     {
-        await _factory.ResetDatabaseAsync();
-        await _factory.ResetRedisAsync();
+        await factory.ResetDatabaseAsync();
+        await factory.ResetRedisAsync();
     }
 
     // ======================== Hjelpemetoder ========================
@@ -62,7 +55,7 @@ public class AuthLoginTests : IAsyncLifetime
     {
         const string password = "TestPass123!";
         var user = new UserBuilder().AsVerified().Build();
-        await _factory.SeedUserWithManagerAsync(user, password);
+        await factory.SeedUserWithManagerAsync(user, password);
         return (user.Email!, password, user.Id);
     }
 
@@ -73,7 +66,7 @@ public class AuthLoginTests : IAsyncLifetime
     {
         const string password = "TestPass123!";
         var user = new UserBuilder().AsEmailUnverified().Build();
-        await _factory.SeedUserWithManagerAsync(user, password);
+        await factory.SeedUserWithManagerAsync(user, password);
         return (user.Email!, password);
     }
 
@@ -84,7 +77,7 @@ public class AuthLoginTests : IAsyncLifetime
     {
         const string password = "TestPass123!";
         var user = new UserBuilder().AsPhoneUnverified().Build();
-        await _factory.SeedUserWithManagerAsync(user, password);
+        await factory.SeedUserWithManagerAsync(user, password);
         return (user.Email!, password);
     }
 
@@ -106,7 +99,7 @@ public class AuthLoginTests : IAsyncLifetime
         step1.StatusCode.Should().Be(HttpStatusCode.OK, "steg 1 skal gi 200 OK");
 
         // Les MFA-koden direkte fra databasen siden eposttjenesten er mocka
-        var mfaCode = await _factory.QueryAsync(async db =>
+        var mfaCode = await factory.QueryAsync(async db =>
         {
             var user = await db.AppUsers.AsNoTracking()
                                .FirstAsync(u => u.Email == email);
@@ -264,7 +257,7 @@ public class AuthLoginTests : IAsyncLifetime
 
         await PerformFullLoginAsync(email, password, fingerprint);
 
-        var device = await _factory.QueryAsync(async db =>
+        var device = await factory.QueryAsync(async db =>
             await db.UserDevices.AsNoTracking()
                     .FirstOrDefaultAsync(d => d.UserId == userId
                                            && d.DeviceFingerprint == fingerprint));
@@ -281,7 +274,7 @@ public class AuthLoginTests : IAsyncLifetime
         await PerformFullLoginAsync(email, password, fingerprint);
         await PerformFullLoginAsync(email, password, fingerprint);
 
-        var deviceCount = await _factory.QueryAsync(async db =>
+        var deviceCount = await factory.QueryAsync(async db =>
             await db.UserDevices.AsNoTracking()
                     .CountAsync(d => d.UserId == userId
                                   && d.DeviceFingerprint == fingerprint));
@@ -322,7 +315,7 @@ public class AuthLoginTests : IAsyncLifetime
         var login = await PerformFullLoginAsync(email, password, fingerprint);
 
         // Revoker token direkte i DB — simulerer at token er stjålet og allerede brukt
-        await _factory.SeedAsync(async db =>
+        await factory.SeedAsync(async db =>
         {
             var token = await db.RefreshTokens.FirstAsync(t => t.Token == login.RefreshToken);
             token.IsRevoked    = true;
@@ -342,7 +335,7 @@ public class AuthLoginTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
         // Alle refresh-tokens for brukeren skal nå være revokert (reuse detection)
-        var activeTokenCount = await _factory.QueryAsync(async db =>
+        var activeTokenCount = await factory.QueryAsync(async db =>
             await db.RefreshTokens.AsNoTracking()
                     .CountAsync(t => t.UserId == userId && !t.IsRevoked));
 
@@ -377,7 +370,7 @@ public class AuthLoginTests : IAsyncLifetime
         var fingerprint = Guid.NewGuid().ToString();
         var login = await PerformFullLoginAsync(email, password, fingerprint);
 
-        var authClient = _factory.CreateClient();
+        var authClient = factory.CreateClient();
         authClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", login.AccessToken);
 
@@ -387,7 +380,7 @@ public class AuthLoginTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var isRevoked = await _factory.QueryAsync(async db =>
+        var isRevoked = await factory.QueryAsync(async db =>
         {
             var token = await db.RefreshTokens.AsNoTracking()
                                 .FirstAsync(t => t.Token == login.RefreshToken);
@@ -404,7 +397,7 @@ public class AuthLoginTests : IAsyncLifetime
         var fingerprint = Guid.NewGuid().ToString();
         var login = await PerformFullLoginAsync(email, password, fingerprint);
 
-        var authClient = _factory.CreateClient();
+        var authClient = factory.CreateClient();
         authClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", login.AccessToken);
 
@@ -430,7 +423,7 @@ public class AuthLoginTests : IAsyncLifetime
         var login2 = await PerformFullLoginAsync(email, password, Guid.NewGuid().ToString());
 
         // Logg ut fra alle enheter med enhet 1 sitt access token
-        var authClient = _factory.CreateClient();
+        var authClient = factory.CreateClient();
         authClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", login1.AccessToken);
 
@@ -439,7 +432,7 @@ public class AuthLoginTests : IAsyncLifetime
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Alle tokens for brukeren skal nå være revokert
-        var activeTokenCount = await _factory.QueryAsync(async db =>
+        var activeTokenCount = await factory.QueryAsync(async db =>
             await db.RefreshTokens.AsNoTracking()
                     .CountAsync(t => t.UserId == userId && !t.IsRevoked));
 

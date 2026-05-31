@@ -45,7 +45,6 @@
 
    <ItemGroup>
      <Folder Include="Features\Account\DTOs\Responses\" />
-     <Folder Include="Features\Account\Repositories\" />
      <Folder Include="Features\Blocking\DTOs\" />
      <Folder Include="Features\Bootstrap\DTOs\Requests\" />
      <Folder Include="Features\Searching\Enum\" />

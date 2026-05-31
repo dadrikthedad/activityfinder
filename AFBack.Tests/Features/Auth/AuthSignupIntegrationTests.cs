@@ -18,14 +18,14 @@ namespace AFBack.Tests.Features.Auth;
 /// duplikat epost og telefon, og modelvalidering.
 /// </summary>
 [Collection(nameof(IntegrationTestsCollection))]
-public class AuthSignupTests : IAsyncLifetime
+public class AuthSignupIntegrationTests : IAsyncLifetime
 {
     private readonly BackendApplicationFactory _factory;
     private readonly HttpClient                _client;
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    public AuthSignupTests(BackendApplicationFactory factory)
+    public AuthSignupIntegrationTests(BackendApplicationFactory factory)
     {
         _factory = factory;
         _client  = factory.CreateClient();
