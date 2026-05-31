@@ -1,14 +1,12 @@
 // features/auth/hooks/useE2EESetup.ts
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useNavigation } from "@react-navigation/native";
 import * as Keychain from "react-native-keychain";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { CryptoService } from "@/components/ende-til-ende/CryptoService";
 import { CryptoServiceBackup } from "@/components/ende-til-ende/CryptoServiceBackup";
 import { getMyPublicKey, storeEncryptionKeys } from "@/features/auth/services/encryptionService";
 import { E2EESetupErrorCode } from "@/core/errors/ErrorCode";
-import { RootStackNavigationProp } from "@/types/navigation";
 
 export type E2EESetupScenario = "loading" | "creating" | "ready" | "restore-needed" | "error" | "error-new-key";
 
@@ -46,7 +44,6 @@ async function storeLocalPrivateKey(userId: string, seed: string): Promise<void>
 
 export const useE2EESetup = (accessToken: string, refreshToken: string): UseE2EESetupReturn => {
   const { login } = useAuth();
-  const navigation = useNavigation<RootStackNavigationProp>();
 
   const [scenario, setScenario] = useState<E2EESetupScenario>("loading");
   const [errorMessage, setErrorMessage] = useState("");

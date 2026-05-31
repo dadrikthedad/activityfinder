@@ -35,6 +35,7 @@ import LoginMfaScreen from './features/auth/screens/LoginMfaScreen';
 import ResetPasswordScreen from './features/auth/screens/ResetPasswordScreen';
 import CryptationScreen from './features/auth/screens/CryptationScreen';
 import E2EESetupScreen from './features/auth/screens/E2EESetupScreen';
+import { BootstrapLoadingScreen } from './features/bootstrap/screens/BootstrapLoadingScreen';
 
 // App screens
 import HomeScreen from './screens/HomeScreen';
@@ -159,6 +160,7 @@ function AuthenticatedApp() {
       >
         {isLoggedIn ? (
           <>
+            <Stack.Screen name="BootstrapLoadingScreen" component={BootstrapLoadingScreen} options={{ headerShown: false }} />
             <Stack.Screen name="MessagesScreen">
               {({ navigation }) => (<><MobileNavbarNative /><MessagesScreen navigation={navigation} /></>)}
             </Stack.Screen>

@@ -1,59 +1,49 @@
 import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { asyncStorage } from "./indexedNotificationDBStorage";
-import { CriticalBootstrapResponseDTO } from "@shared/types/bootstrap/CriticalBootstrapResponseDTO";
-import { SecondaryBootstrapResponseDTO } from "@shared/types/bootstrap/SecondaryBootstrapResponseDTO";
 
 type BootstrapStore = {
   syncToken: string | null;
-  
+
   // Loading states
   criticalLoading: boolean;
   secondaryLoading: boolean;
   isBootstrapped: boolean;
-  
+
   // Error states
   criticalError: string | null;
   secondaryError: string | null;
-  
-  // Cache timestamps (fra eksisterende store)
+
+  // Cache timestamps
   criticalCacheTimestamp: number;
   secondaryCacheTimestamp: number;
-  
-  // Loading flags (fra eksisterende store)
+
+  // Loading flags
   hasLoadedCritical: boolean;
   hasLoadedSecondary: boolean;
 
-  e2eeInitialized: boolean;
-  e2eeHasKeyPair: boolean;
-  e2eeError: string | null;
-  e2eeIsGeneratingKeys: boolean;
-  
-  
-  // Actions - Critical data
-  setCriticalData: (data: CriticalBootstrapResponseDTO) => void;
+  // Actions
+  setSyncToken: (token: string | null) => void;
   setCriticalLoading: (loading: boolean) => void;
   setCriticalError: (error: string | null) => void;
-  setSyncToken: (token: string | null) => void;
-  
-  // Actions - Secondary data  
-  setSecondaryData: (data: SecondaryBootstrapResponseDTO) => void;
   setSecondaryLoading: (loading: boolean) => void;
   setSecondaryError: (error: string | null) => void;
-  
-  // Cache management (fra eksisterende store)
+
+  // Oppdater cache-metadata etter vellykket critical bootstrap
+  markCriticalLoaded: (syncToken?: string | null) => void;
+  // Oppdater cache-metadata etter vellykket secondary bootstrap
+  markSecondaryLoaded: () => void;
+
+  // Cache management
   cleanupOldCache: () => void;
   isCriticalCacheValid: () => boolean;
   isSecondaryCacheValid: () => boolean;
-  
-  // Bootstrap state management
+
+  // Bootstrap state
   setBootstrapped: (value: boolean) => void;
   markCriticalAsLoaded: () => void;
   markSecondaryAsLoaded: () => void;
 
-  setE2EEState: (initialized: boolean, hasKeyPair: boolean, error?: string | null) => void;
-  setE2EEGenerating: (isGenerating: boolean) => void;
-  
   /** Tøm alt ved logout */
   reset: () => void;
 };
@@ -61,185 +51,118 @@ type BootstrapStore = {
 export const useBootstrapStore = create<BootstrapStore>()(
   persist(
     subscribeWithSelector((set, get) => ({
-      // --- Initial state ---
       syncToken: null,
-      
+
       criticalLoading: false,
       secondaryLoading: false,
       isBootstrapped: false,
-      
+
       criticalError: null,
       secondaryError: null,
-      
+
       criticalCacheTimestamp: 0,
       secondaryCacheTimestamp: 0,
-      
+
       hasLoadedCritical: false,
       hasLoadedSecondary: false,
 
-      e2eeInitialized: false,
-      e2eeHasKeyPair: false,
-      e2eeError: null,
-      e2eeIsGeneratingKeys: false,
+      setSyncToken: (token) => set({ syncToken: token }),
 
-      // --- Critical data actions ---
-      setCriticalData: (data: CriticalBootstrapResponseDTO) =>
-        set(() => ({
-          user: data.user,
-          settings: data.settings,
-          syncToken: data.syncToken,
+      setCriticalLoading: (loading) => set({ criticalLoading: loading }),
+
+      setCriticalError: (error) => set({ criticalError: error, criticalLoading: false }),
+
+      setSecondaryLoading: (loading) => set({ secondaryLoading: loading }),
+
+      setSecondaryError: (error) => set({ secondaryError: error, secondaryLoading: false }),
+
+      markCriticalLoaded: (syncToken) =>
+        set((state) => ({
+          syncToken: syncToken !== undefined ? syncToken : state.syncToken,
           criticalLoading: false,
           criticalError: null,
           criticalCacheTimestamp: Date.now(),
           hasLoadedCritical: true,
         })),
 
-      setCriticalLoading: (loading: boolean) =>
-        set(() => ({ criticalLoading: loading })),
-
-      setCriticalError: (error: string | null) =>
-        set(() => ({ 
-          criticalError: error, 
-          criticalLoading: false,
-        })),
-
-      setSyncToken: (token: string | null) =>
-        set(() => ({ syncToken: token })),
-
-      // --- Secondary data actions ---
-      setSecondaryData: (data: SecondaryBootstrapResponseDTO) =>
+      markSecondaryLoaded: () =>
         set((state) => ({
           secondaryLoading: false,
           secondaryError: null,
           secondaryCacheTimestamp: Date.now(),
           hasLoadedSecondary: true,
-          // isBootstrapped settes kun når BÅDE critical og secondary er loaded
-          isBootstrapped: state.hasLoadedCritical && true,
+          isBootstrapped: state.hasLoadedCritical,
         })),
 
-      setSecondaryLoading: (loading: boolean) =>
-        set(() => ({ secondaryLoading: loading })),
-
-      setSecondaryError: (error: string | null) =>
-        set(() => ({ 
-          secondaryError: error, 
-          secondaryLoading: false 
-        })),
-
-      // --- Cache management (fra eksisterende store) ---
       cleanupOldCache: () =>
         set((state) => {
-          // console.log("🧹 Cleaning up bootstrap cache at", new Date().toLocaleTimeString());
-          
           const now = Date.now();
-          const CRITICAL_TTL = 1000 * 60 * 60; // 1 time
-          const SECONDARY_TTL = 1000 * 60 * 60 * 6; // 6 timer
-          
-          let resetCritical = false;
-          let resetSecondary = false;
-          
-          // Sjekk om critical cache er for gammelt
-          if (state.criticalCacheTimestamp && (now - state.criticalCacheTimestamp > CRITICAL_TTL)) {
-            resetCritical = true;
-            // console.log("🧹 Critical cache expired, resetting");
-          }
-          
-          // Sjekk om secondary cache er for gammelt
-          if (state.secondaryCacheTimestamp && (now - state.secondaryCacheTimestamp > SECONDARY_TTL)) {
-            resetSecondary = true;
-            // console.log("🧹 Secondary cache expired, resetting");
-          }
-          
-          if (!resetCritical && !resetSecondary) {
-            // console.log("🧹 Cache still valid, no cleanup needed");
-            return {};
-          }
-          
+          const CRITICAL_TTL = 1000 * 60 * 60;
+          const SECONDARY_TTL = 1000 * 60 * 60 * 6;
+
+          const resetCritical =
+            state.criticalCacheTimestamp > 0 &&
+            now - state.criticalCacheTimestamp > CRITICAL_TTL;
+          const resetSecondary =
+            state.secondaryCacheTimestamp > 0 &&
+            now - state.secondaryCacheTimestamp > SECONDARY_TTL;
+
+          if (!resetCritical && !resetSecondary) return {};
+
           const updates: Partial<BootstrapStore> = {};
-          
+
           if (resetCritical) {
             updates.syncToken = null;
             updates.criticalCacheTimestamp = 0;
             updates.hasLoadedCritical = false;
             updates.isBootstrapped = false;
           }
-          
+
           if (resetSecondary) {
             updates.secondaryCacheTimestamp = 0;
             updates.hasLoadedSecondary = false;
-            // Kun reset isBootstrapped hvis critical også resettes
-            if (!resetCritical) {
-              updates.isBootstrapped = false;
-            }
+            if (!resetCritical) updates.isBootstrapped = false;
           }
-          
+
           return updates;
         }),
 
       isCriticalCacheValid: () => {
         const state = get();
-        const now = Date.now();
-        const TTL = 1000 * 60 * 60; // 1 time
-        
-        return state.criticalCacheTimestamp > 0 && 
-               (now - state.criticalCacheTimestamp < TTL) &&
-               state.hasLoadedCritical;
+        const TTL = 1000 * 60 * 60;
+        return (
+          state.criticalCacheTimestamp > 0 &&
+          Date.now() - state.criticalCacheTimestamp < TTL &&
+          state.hasLoadedCritical
+        );
       },
 
       isSecondaryCacheValid: () => {
         const state = get();
-        const now = Date.now();
-        const TTL = 1000 * 60 * 60 * 6; // 6 timer
-        
-        return state.secondaryCacheTimestamp > 0 && 
-               (now - state.secondaryCacheTimestamp < TTL) &&
-               state.hasLoadedSecondary;
+        const TTL = 1000 * 60 * 60 * 6;
+        return (
+          state.secondaryCacheTimestamp > 0 &&
+          Date.now() - state.secondaryCacheTimestamp < TTL &&
+          state.hasLoadedSecondary
+        );
       },
 
-      // --- Bootstrap state management ---
-      setBootstrapped: (value: boolean) =>
-        set(() => ({ isBootstrapped: value })),
+      setBootstrapped: (value) => set({ isBootstrapped: value }),
 
-      markCriticalAsLoaded: () =>
-        set(() => ({ hasLoadedCritical: true })),
+      markCriticalAsLoaded: () => set({ hasLoadedCritical: true }),
 
-      markSecondaryAsLoaded: () =>
-        set(() => ({ hasLoadedSecondary: true })),
+      markSecondaryAsLoaded: () => set({ hasLoadedSecondary: true }),
 
-      // E2EE actions
-      setE2EEState: (initialized: boolean, hasKeyPair: boolean, error?: string | null) =>
-        set(() => ({
-          e2eeInitialized: initialized,
-          e2eeHasKeyPair: hasKeyPair,
-          e2eeError: error || null
-        })),
-
-        setE2EEGenerating: (isGenerating: boolean) =>
-        set(() => ({
-          e2eeIsGeneratingKeys: isGenerating
-        })),
-
-      // --- Reset for logout ---
       reset: () =>
         set({
           syncToken: null,
-          
           criticalLoading: false,
           secondaryLoading: false,
           isBootstrapped: false,
-          
           criticalError: null,
           secondaryError: null,
-          
           criticalCacheTimestamp: 0,
           secondaryCacheTimestamp: 0,
-
-          // Reset E2EE state
-          e2eeInitialized: false,
-          e2eeHasKeyPair: false,
-          e2eeError: null,
-          e2eeIsGeneratingKeys: false, 
-          
           hasLoadedCritical: false,
           hasLoadedSecondary: false,
         }),
@@ -248,29 +171,28 @@ export const useBootstrapStore = create<BootstrapStore>()(
       name: "bootstrap-cache",
       storage: createJSONStorage(() => asyncStorage),
 
-      /**
-       * partialize fra eksisterende store - lagre alt som er nyttig for caching
-       */
       partialize: (state) => ({
-        // Critical data
         syncToken: state.syncToken,
         criticalCacheTimestamp: state.criticalCacheTimestamp,
         hasLoadedCritical: state.hasLoadedCritical,
-        
-        // Secondary data
         secondaryCacheTimestamp: state.secondaryCacheTimestamp,
         hasLoadedSecondary: state.hasLoadedSecondary,
-        
-        // Bootstrap state
         isBootstrapped: state.isBootstrapped,
       }),
 
-      version: 1,
-      migrate: (persisted: unknown) => {
-        // Håndter migrering fra eksisterende store
-        const state = persisted as Partial<BootstrapStore>;
-        return state as BootstrapStore;
-      },
+      version: 2,
+      migrate: () => ({
+        syncToken: null,
+        criticalLoading: false,
+        secondaryLoading: false,
+        isBootstrapped: false,
+        criticalError: null,
+        secondaryError: null,
+        criticalCacheTimestamp: 0,
+        secondaryCacheTimestamp: 0,
+        hasLoadedCritical: false,
+        hasLoadedSecondary: false,
+      }),
     }
   )
 );

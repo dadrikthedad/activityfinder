@@ -54,4 +54,8 @@ export const ApiRoutes = {
     myPublicKey: `${API_BASE_URL}/api/encryption/public-key`,
     keys:        `${API_BASE_URL}/api/encryption/keys`,
   },
+  bootstrap: {
+    critical:  `${API_BASE_URL}/api/bootstrap/critical`,
+    secondary: `${API_BASE_URL}/api/bootstrap/secondary`,
+  },
 } as const;

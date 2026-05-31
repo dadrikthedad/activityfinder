@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { CriticalBootstrapResponseDTO } from '@shared/types/bootstrap/CriticalBootstrapResponseDTO';
 import { SecondaryBootstrapResponseDTO } from '@shared/types/bootstrap/SecondaryBootstrapResponseDTO';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
-import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { mergeMessageNotifications, setMessageNotificationsInStore } from '@/utils/messages/MessageNotificationFunctions';
 import { useUserCacheStore } from '@/store/useUserCacheStore';
@@ -11,7 +11,7 @@ import { useNotificationStore } from '@/store/useNotificationStore';
 import { useBootstrapE2EEHandler } from '@/components/ende-til-ende/useBootstrapE2EEHandler';
 
 export const useBootstrapDistributor = () => {
-  const { setCriticalData, setSecondaryData } = useBootstrapStore();
+  const { markCriticalLoaded, markSecondaryLoaded } = useBootstrapStore();
   const { handleConversationMessages } = useBootstrapE2EEHandler();
  
   const {
@@ -22,7 +22,7 @@ export const useBootstrapDistributor = () => {
     setPendingMessageRequests,
     setHasLoadedPendingRequests,
     setCachedPendingRequests,
-  } = useChatStore();
+  } = useConversationStore();
 
   const {
     setHasLoadedNotifications: setHasLoadedMessageNotifications,
@@ -65,13 +65,13 @@ export const useBootstrapDistributor = () => {
   const distributeCriticalData = useCallback(async (data: CriticalBootstrapResponseDTO) => {
     console.log("📦 Distributing critical bootstrap data (no messages yet)...");
   
-    // 1. SyncToken til BootstrapStore
-    setCriticalData(data);
-  
+    // 1. SyncToken + cache-metadata til BootstrapStore
+    markCriticalLoaded(data.syncToken);
+
     // 2. KRITISK: Sett current user FØRST i UserCacheStore
     setCurrentUser(data.user);
 
-    // 3. Settings til UserCacheStore (flyttet fra secondary)
+    // 3. Settings til UserCacheStore
     setSettings(data.settings);
 
     console.log("✅ Critical data distributed:", {
@@ -81,7 +81,7 @@ export const useBootstrapDistributor = () => {
       stores: "BootstrapStore (syncToken) + UserCacheStore (currentUser + settings)"
     });
   }, [
-    setCriticalData,
+    markCriticalLoaded,
     setCurrentUser,
     setSettings
   ]);
@@ -90,7 +90,7 @@ export const useBootstrapDistributor = () => {
     console.log("📦 Distributing secondary bootstrap data with E2EE decryption...");
     
     // 1. Bootstrap timestamps til BootstrapStore
-    setSecondaryData(data);
+    markSecondaryLoaded();
 
     // 2. Conversations til ChatStore
     setConversations(data.recentConversations);
@@ -160,7 +160,7 @@ export const useBootstrapDistributor = () => {
       encryption: "Messages and attachments decrypted in secondary bootstrap"
     });
   }, [
-    setSecondaryData,
+    markSecondaryLoaded,
     setConversations,
     setHasLoadedConversations,
     setUnreadConversationIds,

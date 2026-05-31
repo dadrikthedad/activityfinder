@@ -215,4 +215,10 @@ export default {
       en: "🇬🇧  English",
     },
   },
+  bootstrap: {
+    loading:               "Loading...",
+    loadingProfile:        "Loading profile...",
+    loadingConversations:  "Loading conversations...",
+    decrypting:            "Decrypting messages...",
+  },
 } as const;

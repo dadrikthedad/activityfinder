@@ -2,7 +2,7 @@
 import * as Keychain from 'react-native-keychain';
 import { Buffer } from 'buffer';
 import sodium from "@s77rt/react-native-sodium";
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 
 
 export interface KeyPair {
@@ -22,7 +22,7 @@ export class CryptoService {
   private userSeed: string | null = null; // Store the 32-byte seed
   private userPublicKey: string | null = null; // Cache 32-byte public key
   private userSecretKey: string | null = null; // Cache 64-byte secret key
-  private keyCache: Map<number, { seed: string; publicKey: string; secretKey: string }> = new Map();
+  private keyCache: Map<string, { seed: string; publicKey: string; secretKey: string }> = new Map();
   private initialized = false;
 
   static getInstance(): CryptoService {
@@ -91,7 +91,7 @@ export class CryptoService {
   /**
    * Store private key (seed) securely using React Native Keychain
    */
-  async storePrivateKey(seedBase64: string, userId: number): Promise<void> {
+  async storePrivateKey(seedBase64: string, userId: string): Promise<void> {
     try {
       if (!seedBase64?.trim()) {
         throw new Error('Private key cannot be empty');
@@ -99,7 +99,7 @@ export class CryptoService {
 
       await Keychain.setInternetCredentials(
         `e2ee_private_key_${userId}`,
-        userId.toString(),
+        userId,
         seedBase64,
         {
           storage: Keychain.STORAGE_TYPE.AES_GCM_NO_AUTH,
@@ -156,7 +156,7 @@ export class CryptoService {
   /**
    * Retrieve private key (seed) from secure storage
    */
-  public async getPrivateKey(userId: number): Promise<string | null> {
+  public async getPrivateKey(userId: string): Promise<string | null> {
     try {
       // Check cache first
       if (this.keyCache.has(userId)) {
@@ -192,7 +192,7 @@ export class CryptoService {
   /**
    * Get cached keys for user
    */
-  public getCachedKeys(userId: number): { publicKey: ArrayBuffer; secretKey: ArrayBuffer } | null {
+  public getCachedKeys(userId: string): { publicKey: ArrayBuffer; secretKey: ArrayBuffer } | null {
     const cachedData = this.keyCache.get(userId);
     if (!cachedData) return null;
 
@@ -205,7 +205,7 @@ export class CryptoService {
   /**
    * Clear private key from memory and storage
    */
-  async clearPrivateKey(userId: number): Promise<void> {
+  async clearPrivateKey(userId: string): Promise<void> {
     try {
       await Keychain.resetInternetCredentials({
         server: `e2ee_private_key_${userId}`
@@ -223,7 +223,7 @@ export class CryptoService {
   /**
  * Ensure keys are cached for a user
  */
-  public async ensureKeysAreCached(userId: number, seedBase64?: string): Promise<void> {
+  public async ensureKeysAreCached(userId: string, seedBase64?: string): Promise<void> {
     try {
       // Check if already cached
       if (this.keyCache.has(userId)) {
@@ -258,7 +258,7 @@ export class CryptoService {
   /**
    * Rotate keys for forward secrecy
    */
-  async rotateKeys(userId: number): Promise<KeyPair> {
+  async rotateKeys(userId: string): Promise<KeyPair> {
     try {
       const newKeyPair = await this.generateKeyPair();
       await this.storePrivateKey(newKeyPair.privateKey, userId);
@@ -272,7 +272,7 @@ export class CryptoService {
   /**
    * Clear user cache
    */
-  public clearUserCache(userId: number): void {
+  public clearUserCache(userId: string): void {
     console.log(`🔐 Clearing cache for user ${userId}`);
     this.keyCache.delete(userId);
     this.userSeed = null;
@@ -284,7 +284,7 @@ export class CryptoService {
   /**
    * Initialize crypto service for user
    */
-  async initializeForUser(userId: number): Promise<void> {
+  async initializeForUser(userId: string): Promise<void> {
     try {
       await this.initializeSodium();
       
@@ -329,7 +329,7 @@ export class CryptoService {
   /**
    * Safe private key retrieval
    */
-  async getPrivateKeySafe(userId: number): Promise<string | null> {
+  async getPrivateKeySafe(userId: string): Promise<string | null> {
     try {
       return await this.getPrivateKey(userId);
     } catch (error) {

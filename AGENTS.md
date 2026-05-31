@@ -33,6 +33,12 @@ cd AFMobile
 npx expo run:android        # Kreves ved nye native pakker
 npx expo start --clear      # Tilstrekkelig for JS/TS-endringer
 adb reverse tcp:8081 tcp:8081
+
+# Mobilapp — tester
+npm test                    # Kjør alle tester
+npm test -- CryptoService   # Kjør spesifikk test-fil
+npm run test:watch          # Watch-modus
+npm run test:coverage       # Med dekningsrapport
 ```
 
 ## Kritiske regler
@@ -98,4 +104,5 @@ public async Task Method_WhenCondition_ShouldExpectedBehavior()
 
 - Backend: `AFBack/CLAUDE.md`
 - Mobilapp: `AFMobile/CLAUDE.md`
-- Testing: `AFBack/.claude/rules/testing.md`
+- Testing backend: `AFBack/.claude/rules/testing.md`
+- Testing mobilapp: `AFMobile/.claude/rules/testing.md`

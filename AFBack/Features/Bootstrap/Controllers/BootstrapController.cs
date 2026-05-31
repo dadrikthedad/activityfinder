@@ -36,12 +36,11 @@ public class BootstrapController(IBootstrapService bootstrapService) : BaseContr
     }
     
     /// <summary>
-    /// Hent Critical Bootstrap endepunkt
+    /// Hent Secondary Bootstrap endepunkt
     /// </summary>
     /// <returns>200 Ok</returns>
-    [HttpPost("signup")]
-    [AllowAnonymous]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [HttpGet("secondary")]
+    [ProducesResponseType(typeof(SecondaryBootstrapResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]

@@ -2,8 +2,8 @@
 import { Buffer } from 'buffer';
 import sodium from "@s77rt/react-native-sodium";
 import { CryptoService } from './CryptoService';
-import authServiceNative from '@/services/user/authServiceNative';
-import { getMyPublicKey, storePublicKey, storeRecoverySeed  } from '@/services/crypto/cryptoService';
+import { getMyPublicKey } from '@/features/auth/services/encryptionService';
+import { storeEncryptionKeys } from '@/features/auth/services/encryptionService';
 import { validateMnemonic, entropyToMnemonic, mnemonicToEntropy } from 'bip39';
 
 export interface KeyPair {
@@ -108,7 +108,7 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
   /**
    * Setup E2EE with backup phrase for new users
    */
-  async setupE2EEWithBackup(userId: number): Promise<E2EESetupResult> {
+  async setupE2EEWithBackup(userId: string): Promise<E2EESetupResult> {
     try {
       console.log(`Setting up E2EE with backup for user ${userId}`);
 
@@ -124,9 +124,6 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
       // Upload public key to backend for this user
       await this.uploadPublicKeyToBackend(userId, keyPair.publicKey);
 
-      // Upload backup phrase to vault
-      await this.storeBackupPhraseToVault(backupPhrase);
-      
       console.log(`E2EE setup complete for user ${userId}`);
       
       return { keyPair, backupPhrase };
@@ -139,8 +136,8 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
  * Restore E2EE from backup phrase on new device or from old phrase
  */
 async restoreE2EEFromBackup(
-  backupPhrase: string, 
-  userId: number, 
+  backupPhrase: string,
+  userId: string,
   skipServerValidation: boolean = false
 ): Promise<KeyPair> {
   try {
@@ -180,7 +177,7 @@ async restoreE2EEFromBackup(
   /**
    * Initialize crypto service for user with network timeout handling
    */
-  async initializeForUser(userId: number): Promise<{needsSetup: boolean, needsRestore: boolean}> {
+  async initializeForUser(userId: string): Promise<{needsSetup: boolean, needsRestore: boolean}> {
     try {
       console.log(`Initializing CryptoServiceBackup for user ${userId}...`);
       
@@ -235,7 +232,7 @@ async restoreE2EEFromBackup(
   /**
    * Check if user has local private key (offline check)
    */
-  private async checkLocalKey(userId: number): Promise<boolean> {
+  private async checkLocalKey(userId: string): Promise<boolean> {
     try {
       const cryptoService = CryptoService.getInstance();
       const privateKey = await cryptoService.getPrivateKeySafe(userId);
@@ -258,7 +255,7 @@ async restoreE2EEFromBackup(
   /**
    * Check if user has public key on server with timeout and retry
    */
-  private async checkServerKeyWithTimeout(userId: number): Promise<boolean> {
+  private async checkServerKeyWithTimeout(userId: string): Promise<boolean> {
     const MAX_RETRIES = 2; // Mindre retries for server check
     const RETRY_DELAY = 1000; // 1 sekund mellom forsøk
     
@@ -288,7 +285,7 @@ async restoreE2EEFromBackup(
    /**
    * Perform single server key check with timeout
    */
-  private async performServerKeyCheck(userId: number): Promise<boolean> {
+  private async performServerKeyCheck(userId: string): Promise<boolean> {
     try {
       // Race mellom getMyPublicKey og timeout
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -299,12 +296,8 @@ async restoreE2EEFromBackup(
         getMyPublicKey(),
         timeoutPromise
       ]);
-      
-      if (keyResult && keyResult.publicKey) {
-        return true;
-      } else {
-        return false;
-      }
+
+      return keyResult.success && !!keyResult.data.publicKey;
       
     } catch (error) {
       // Type guard for error handling
@@ -326,7 +319,7 @@ async restoreE2EEFromBackup(
   /**
    * Check if user has E2EE setup on any device (has public key on backend)
    */
- private async checkUserHasE2EESetup(userId: number): Promise<boolean> {
+ private async checkUserHasE2EESetup(userId: string): Promise<boolean> {
   try {
     console.log("🔍 Checking if user has E2EE setup for userId:", userId);
     
@@ -344,9 +337,9 @@ async restoreE2EEFromBackup(
   /**
    * Upload user's public key to backend
    */
-  private async uploadPublicKeyToBackend(userId: number, publicKey: string): Promise<void> {
+  private async uploadPublicKeyToBackend(userId: string, publicKey: string): Promise<void> {
     try {
-        await storePublicKey(publicKey);
+        await storeEncryptionKeys(publicKey, "");
         console.log(`Public key uploaded for user ${userId}`);
     } catch (error) {
         console.error('Failed to upload public key:', error);
@@ -357,36 +350,11 @@ async restoreE2EEFromBackup(
   /**
    * Verify that restored key matches user's backend public key
    */
-  private async verifyRestoredKey(userId: number, restoredPublicKey: string): Promise<boolean> {
+  private async verifyRestoredKey(userId: string, restoredPublicKey: string): Promise<boolean> {
     try {
-      console.log('🔍 Verifying restored key against server...');
-      console.log('🔍 Restored public key:', restoredPublicKey);
-      
-      // Get the user's own stored public key from backend - FIXED ENDPOINT
-      const response = await authServiceNative.fetchWithAuth(
-        `${authServiceNative['baseURL']}/api/e2ee/public-key`,  // Changed from /users/public-keys
-        {
-          method: 'GET'  // Changed from POST
-          // Removed body since it's GET request
-        }
-      );
-
-      if (!response.ok) {
-        console.log('🔍 Server response not OK:', response.status);
-        if (response.status === 404) {
-          console.log('🔍 No public key found for user - this should not happen during restore');
-        }
-        return false;
-      }
-
-      const userKeyData = await response.json();
-      console.log('🔍 Server response:', userKeyData);
-      console.log('🔍 Server public key:', userKeyData.publicKey);
-      
-      const matches = userKeyData.publicKey === restoredPublicKey;
-      console.log('🔍 Keys match:', matches);
-      
-      return matches;
+      const result = await getMyPublicKey();
+      if (!result.success) return false;
+      return result.data.publicKey === restoredPublicKey;
     } catch (error) {
       console.error('Failed to verify restored key:', error);
       return false;
@@ -423,29 +391,6 @@ public async getPublicKeyFromSeed(seedBase64: string): Promise<string> {
     throw error;
   }
 }
-
-/**
- * Store secret phrase in vault
- * @param buffer 
- * @returns 
- */
-private async storeBackupPhraseToVault(backupPhrase: string): Promise<void> {
-  try {
-    console.log('KEY VAULT: Storing backup phrase to server..')
-
-    const result = await storeRecoverySeed(backupPhrase);
-
-    if (result) {
-      console.log(`KEY VAULT: Backup phrase stored successfully on device ${result.deviceId}.`);
-    } else {
-      throw new Error('KEY VAULT: Failed to store backup phrase - no response');
-    }
-  } catch (error) {
-    console.error(`KEY VAULT: Failed to store backup phrase to server: `, error)
-    throw new Error(`KEY VAULT: Backup phrase storage failed: ${error}`);
-  }
-}
-
 
   // Utility methods
   private arrayBufferToBase64(buffer: ArrayBuffer): string {

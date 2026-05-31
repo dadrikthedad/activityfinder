@@ -95,8 +95,10 @@ class AuthService {
         } else if (this.refreshToken) {
           try {
             await this.refreshAccessToken();
-          } catch {
-            await this.clearTokens();
+          } catch (error) {
+            // clearTokens() kalles kun inne i _performActualRefresh ved 401
+            // Her logger vi bare feilen og fortsetter med eksisterende tokens
+            console.warn('⚠️ Token refresh ved oppstart feilet (keeping tokens):', (error as Error).message);
           }
         } else {
           await this.clearTokens();
@@ -104,8 +106,8 @@ class AuthService {
       } else if (this.refreshToken && !this.accessToken) {
         try {
           await this.refreshAccessToken();
-        } catch {
-          await this.clearTokens();
+        } catch (error) {
+          console.warn('⚠️ Token refresh ved oppstart feilet (keeping tokens):', (error as Error).message);
         }
       }
 
@@ -268,9 +270,10 @@ class AuthService {
         await this.refreshAccessToken();
         (headers as Record<string, string>)['Authorization'] = `Bearer ${this.accessToken}`;
         return fetch(url, { ...options, headers });
-      } catch {
-        await this.clearTokens();
-        throw new AuthError('Session expired - redirect to login');
+      } catch (error) {
+        // Hvis _performActualRefresh kastet pga 401 har clearTokens() allerede kjørt
+        // Hvis det var nettverksfeil kaster vi bare videre uten å logge ut
+        throw new AuthError((error as Error).message);
       }
     }
 
@@ -282,13 +285,13 @@ class AuthService {
     return this.accessToken;
   }
 
-  async getCurrentUserId(): Promise<number | null> {
+  async getCurrentUserId(): Promise<string | null> {
     const tokenToCheck = this.accessToken;
     if (!tokenToCheck) return null;
     try {
       const payload = JSON.parse(atob(tokenToCheck.split('.')[1]));
       const userId = payload.sub || payload.userId || payload.id || payload.user_id;
-      return userId ? parseInt(userId.toString()) : null;
+      return userId ? userId.toString() : null;
     } catch {
       return null;
     }
@@ -328,7 +331,9 @@ class AuthService {
     const refreshTime = expires.getTime() - Date.now() - 60_000;
     if (refreshTime > 0) {
       this.refreshTimer = setTimeout(() => {
-        this.refreshAccessToken().catch(() => this.clearTokens());
+        this.refreshAccessToken().catch((error) => {
+          console.warn('⚠️ Scheduled token refresh failed (keeping tokens):', error.message);
+        });
       }, refreshTime);
     }
   }
@@ -350,6 +355,7 @@ class AuthService {
   private async _performActualRefresh(): Promise<string> {
     if (!this.refreshToken) throw new Error('No refresh token available');
 
+    let response: Response;
     try {
       const deviceHeaders = await deviceInfoService.getDeviceHeaders();
       const body: RefreshTokenRequest = {
@@ -357,24 +363,30 @@ class AuthService {
         deviceFingerprint: deviceHeaders['X-Device-Fingerprint'],
       };
 
-      const response = await fetch(ApiRoutes.token.refresh, {
+      response = await fetch(ApiRoutes.token.refresh, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...deviceHeaders },
         body: JSON.stringify(body),
       });
-
-      if (!response.ok) {
-        await this.clearTokens();
-        throw new Error(`Session expired (${response.status})`);
-      }
-
-      const data: LoginResponseDTO = await response.json();
-      await this.setTokens(data);
-      return data.accessToken;
-    } catch (error) {
-      if (!this.isRefreshing) await this.clearTokens();
-      throw error;
+    } catch (networkError) {
+      // Nettverksfeil, timeout, DNS-feil — backend har ikke avvist tokenet
+      throw new Error('Network error during token refresh — keeping tokens');
     }
+
+    if (response.status === 401) {
+      // Backend sier eksplisitt at refresh token er ugyldig/revokert
+      await this.clearTokens();
+      throw new Error('Refresh token rejected by server (401) — logging out');
+    }
+
+    if (!response.ok) {
+      // 5xx, 503 osv — serverproblemer, ikke vår feil, behold tokens
+      throw new Error(`Token refresh failed with status ${response.status} — keeping tokens`);
+    }
+
+    const data: LoginResponseDTO = await response.json();
+    await this.setTokens(data);
+    return data.accessToken;
   }
 
   public async isTokenExpiringSoon(): Promise<boolean> {
@@ -393,9 +405,9 @@ class AuthService {
     const userId = await AsyncStorage.getItem('userId').catch(() => null);
     if (userId) {
       try {
-        CryptoService.getInstance().clearUserCache(parseInt(userId));
-        const { useBootstrapStore } = await import('@/store/useBootstrapStore');
-        useBootstrapStore.getState().setE2EEState(false, false, null);
+        CryptoService.getInstance().clearUserCache(userId);
+        const { useE2EEStore } = await import('@/store/useE2EEStore');
+        useE2EEStore.getState().setE2EEState(false, false, null);
       } catch (error) {
         console.error('⚠️ Failed to clear E2EE state:', error);
       }

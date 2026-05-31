@@ -4,7 +4,7 @@ import {
   getSecondaryBootstrap,
 } from '@/services/bootstrap/bootstrapService';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
-import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 import { useBootstrapDistributor } from './useBootstrapDistributor';
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -35,8 +35,8 @@ export const useBootstrap = () => {
     hasLoadedCritical
   } = useBootstrapStore();
 
-  // Conversations data fra ChatStore
-  const { conversations } = useChatStore();
+  // Conversations data fra ConversationStore
+  const { conversations } = useConversationStore();
 
   // MessageNotifications data fra MessageNotificationStore
   const { messageNotifications: messageNotifications } = useMessageNotificationStore();

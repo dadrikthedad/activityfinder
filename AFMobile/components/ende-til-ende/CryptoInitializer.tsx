@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useBootstrapStore } from '@/store/useBootstrapStore';
+import { useE2EEStore } from '@/store/useE2EEStore';
 import { CryptoServiceBackup } from '@/components/ende-til-ende/CryptoServiceBackup';
 import E2EERestoreModal from '@/features/crypto/components/E2EERestoreModal';
 
@@ -14,18 +14,18 @@ interface CryptoInitializerProps {
 export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoInitializerProps) {
   const { userId } = useAuth();
   const [showRestoreModal, setShowRestoreModal] = useState(false);
-  const initializationAttemptRef = useRef<number | null>(null);
+  const initializationAttemptRef = useRef<string | null>(null);
   const isInitializingRef = useRef(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const hasCalledCallbackRef = useRef(false);
   const hasShownRestoreModalRef = useRef(false);
   
-  const { 
-    e2eeInitialized, 
-    e2eeHasKeyPair, 
-    e2eeError,
-    setE2EEState 
-  } = useBootstrapStore();
+  const {
+    initialized: e2eeInitialized,
+    hasKeyPair: e2eeHasKeyPair,
+    error: e2eeError,
+    setE2EEState,
+  } = useE2EEStore();
 
   // Handle successful restore
   const handleRestoreSuccess = useCallback(() => {
@@ -91,8 +91,6 @@ export function CryptoInitializer({ shouldInitialize, onInitialized }: CryptoIni
           const setupResult = await backupService.setupE2EEWithBackup(userId);
           
           setE2EEState(true, true, null);
-          console.log("✅ CRYPTO: E2EE setup completed successfully");
-          console.log("🔑 CRYPTO: Backup phrase generated (should be shown to user):", setupResult.backupPhrase);
           
           hasCalledCallbackRef.current = true;
           onInitialized?.(true);

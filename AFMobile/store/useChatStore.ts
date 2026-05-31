@@ -2,9 +2,6 @@ import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { asyncStorage } from "./indexedNotificationDBStorage";
 import { MessageDTO, ReactionDTO } from "@shared/types/MessageDTO";
-import { ConversationDTO } from "@shared/types/ConversationDTO";
-import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
-import { SendEncryptedMessageWithFilesRequestDTO } from "@/features/OptimsticMessage/types/MessagesToBackendTypes";
 
 type ScrollData = {
   messageId: number;
@@ -14,99 +11,76 @@ type ScrollData = {
 };
 
 type ChatStore = {
-  conversations: ConversationDTO[];
+  // Meldinger
   liveMessages: Record<number, MessageDTO[]>;
+  cachedMessages: Record<number, MessageDTO[]>;
+  cacheTimestamps: Record<number, number>;
+
+  // Navigasjon
   currentConversationId: number | null;
   setCurrentConversationId: (id: number | null) => void;
-  setConversations: (conversations: ConversationDTO[]) => void;
-  conversationIds: Set<number>;
+  openConversation: (conversationId: number) => void;
+
+  // Meldings-actions
   addMessage: (message: MessageDTO) => void;
   addMessageOptimistic: (message: MessageDTO) => void;
-  clearLiveMessages: (conversationId: number) => void;
-  updateConversationTimestamp: (conversationId: number, timestamp: string) => void;
-  cachedMessages: Record<number, MessageDTO[]>;
-  setCachedMessages: (conversationId: number, messages: MessageDTO[]) => void;
-  scrollPositions: Record<number, number>;
-  setScrollPosition: (conversationId: number, position: number) => void;
-  cacheTimestamps: Record<number, number>;
-  searchMode: boolean;
-  setSearchMode: (value: boolean) => void;
   updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) => void;
   updateMessageOptimistic: (conversationId: number, optimisticId: string, updatedMessage: MessageDTO) => void;
-  softDeleteMessage: (conversationId: number, messageId: number) => void; 
+  softDeleteMessage: (conversationId: number, messageId: number) => void;
   updateMessageReactions: (reaction: ReactionDTO) => void;
-  cleanupOldCache: () => void;
-  pendingMessageRequests: MessageRequestDTO[];
-  setPendingMessageRequests: (requests: MessageRequestDTO[]) => void;
-  pendingRequestsCache: MessageRequestDTO[];
-  pendingRequestsCacheTimestamp: number;
-  setCachedPendingRequests: (requests: MessageRequestDTO[]) => void;
-  removePendingRequest: (conversationId: number) => void;
-  removeConversation: (conversationId: number) => void;
-  addConversation: (conversation: ConversationDTO) => void;
-  setPendingLockedConversationId: (id: number | null) => void;
-  pendingLockedConversationId: number | null;
+  setCachedMessages: (conversationId: number, messages: MessageDTO[]) => void;
+  clearLiveMessages: (conversationId: number) => void;
+  clearConversationCache: (conversationId: number) => void;
+
+  // Scroll
+  scrollPositions: Record<number, number>;
+  setScrollPosition: (conversationId: number, position: number) => void;
+  scrollMessageIds: Record<number, ScrollData>;
+  setScrollMessageId: (conversationId: number, scrollData: ScrollData) => void;
+  scrollToMessageId: number | null;
+  setScrollToMessageId: (id: number | null) => void;
+
+  // Søk
+  searchMode: boolean;
+  setSearchMode: (value: boolean) => void;
   searchResults: MessageDTO[];
   setSearchResults: (messages: MessageDTO[]) => void;
   updateSearchResultReactions: (reaction: ReactionDTO) => void;
-  unreadConversationIds: number[];
-  setUnreadConversationIds: (ids: number[]) => void;
-  markConversationAsReadLocally: (conversationId: number) => void;
-  clearAllUnreadConversations: () => void;
+
+  // UI
   isAtBottom: boolean;
   setIsAtBottom: (value: boolean) => void;
-  reactionsVersion: number;
-  bumpReactionsVersion: () => void;
   showNewMessageButton: boolean;
   setShowNewMessageButton: (value: boolean) => void;
-  scrollToMessageId: number | null;
-  setScrollToMessageId: (id: number | null) => void;
-  addPendingRequest: (request: MessageRequestDTO) => void;
-  updatePendingRequest: (conversationId: number, updates: Partial<MessageRequestDTO>) => void;
-  hasLoadedPendingRequests: boolean;
-  setHasLoadedPendingRequests: (value: boolean) => void;
-  hasLoadedConversations: boolean;
-  setHasLoadedConversations: (v: boolean) => void;
-  hasLoadedUnreadConversationIds: boolean;
-  setHasLoadedUnreadConversationIds: (v: boolean) => void;
-  openConversation: (conversationId: number) => void;
   showMessages: boolean;
   setShowMessages: (value: boolean) => void;
-  updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) => void;
+  reactionsVersion: number;
+  bumpReactionsVersion: () => void;
+
+  // Optimistisk mapping
   optimisticToServerIdMap: Record<string, number>;
-  // Lagre mapping uten å endre selve meldingen
+  optimisticToServerAttachmentMap: Record<string, string>;
   registerOptimisticMapping: (optimisticId: string, serverId: number) => void;
-  // Hent riktig ID for reaksjoner/sletting
-  getActualMessageId: (messageWithOptimisticId: MessageDTO) => number | null;
+  registerOptimisticAttachmentMapping: (optimisticAttachmentId: string, serverFileUrl: string) => void;
+  getActualMessageId: (message: MessageDTO) => number | null;
   convertOptimisticToReal: (conversationId: number) => void;
   convertAllOptimisticToReal: () => void;
   cleanupOptimisticMappings: () => void;
   cleanupOptimisticForConversation: (conversationId: number) => void;
-
-  optimisticToServerAttachmentMap: Record<string, string>; 
-  registerOptimisticAttachmentMapping: (optimisticAttachmentId: string, serverFileUrl: string) => void;
   updateAttachmentUploadStatus: (
-    conversationId: number, 
-    messageId: number, 
-    attachmentOptimisticId: string, 
+    conversationId: number,
+    messageId: number,
+    attachmentOptimisticId: string,
     status: { isUploading?: boolean; uploadError?: string }
   ) => void;
 
-
-
-  isPendingCollapsed: boolean;
-  setIsPendingCollapsed: (value: boolean) => void;
-
-  // Scroll til melding
-  scrollMessageIds: Record<number, ScrollData>; // New property
-  setScrollMessageId: (conversationId: number, scrollData: ScrollData) => void;
-
-
-
-  // Lagring av recetn emojies
+  // Nylige emojier
   recentEmojis: string[];
   addRecentEmoji: (emoji: string) => void;
-  
+
+  // Cache cleanup
+  cleanupOldCache: () => void;
+
   /** Tøm alt ved logout */
   reset: () => void;
 };
@@ -114,954 +88,51 @@ type ChatStore = {
 export const useChatStore = create<ChatStore>()(
   persist(
     subscribeWithSelector((set, get) => ({
-      // --- initial state ---
-      conversations: [],
       liveMessages: {},
-      currentConversationId: null,
       cachedMessages: {},
-      scrollPositions: {},
       cacheTimestamps: {},
+
+      currentConversationId: null,
+      scrollPositions: {},
+      scrollMessageIds: {},
+      scrollToMessageId: null,
+      searchMode: false,
       searchResults: [],
-      unreadConversationIds: [],
       isAtBottom: true,
       showNewMessageButton: false,
-      scrollToMessageId: null,
-      conversationIds: new Set<number>(),
-      searchMode: false,
-      reactionsVersion: 0,
-      pendingMessageRequests: [],
-      pendingLockedConversationId: null,
-      pendingRequestsCache: [],
-      pendingRequestsCacheTimestamp: 0,
-      hasLoadedPendingRequests: false,
-      hasLoadedUnreadConversationIds: false,
-      hasLoadedConversations: false,
       showMessages: false,
+      reactionsVersion: 0,
       optimisticToServerIdMap: {},
-      recentEmojis: [],
       optimisticToServerAttachmentMap: {},
+      recentEmojis: [],
 
-      // --- setters ---
+      setCurrentConversationId: (id) => set({ currentConversationId: id }),
+
+      openConversation: (conversationId) => set({ currentConversationId: conversationId }),
+
       setScrollToMessageId: (id) => set({ scrollToMessageId: id }),
-      setShowNewMessageButton: (value: boolean) => set({ showNewMessageButton: value }),
-      setIsAtBottom: (value) => set(() => ({ isAtBottom: value })),
-      setSearchMode: (value: boolean) => set(() => ({ searchMode: value })),
-      setSearchResults: (messages: MessageDTO[]) => set(() => ({ searchResults: messages })),
+      setShowNewMessageButton: (value) => set({ showNewMessageButton: value }),
+      setIsAtBottom: (value) => set({ isAtBottom: value }),
+      setSearchMode: (value) => set({ searchMode: value }),
+      setSearchResults: (messages) => set({ searchResults: messages }),
       bumpReactionsVersion: () => set((state) => ({ reactionsVersion: state.reactionsVersion + 1 })),
-      setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
-      setHasLoadedPendingRequests: (value) => set({ hasLoadedPendingRequests: value }),
-      setHasLoadedUnreadConversationIds: (v) => set({ hasLoadedUnreadConversationIds: v }),
-      setCurrentConversationId: (id) => set(() => ({ currentConversationId: id })),
-      setHasLoadedConversations: (v) => set({ hasLoadedConversations: v }),
-      setShowMessages: (value: boolean) => set({ showMessages: value }),
+      setShowMessages: (value) => set({ showMessages: value }),
 
-      setPendingMessageRequests: (requests) => set(() => ({
-        pendingMessageRequests: [...requests].sort(
-          (a, b) =>
-            new Date(b.requestedAt).getTime() -
-            new Date(a.requestedAt).getTime()
-        )
-      })),
-
-      setCachedPendingRequests: (requests: MessageRequestDTO[]) =>
-        set({
-          pendingRequestsCache: requests,
-          pendingRequestsCacheTimestamp: Date.now(),
-        }),
-
-      addPendingRequest: (request: MessageRequestDTO) =>
-        set((state) => {
-          const alreadyExists = state.pendingMessageRequests.some(
-            (r) => r.conversationId === request.conversationId
-          );
-
-          if (alreadyExists) return {};
-
-          const updated = [...state.pendingMessageRequests, request].sort(
-            (a, b) =>
-              new Date(b.requestedAt).getTime() -
-              new Date(a.requestedAt).getTime()
-          );
-
-          return {
-            pendingMessageRequests: updated,
-            pendingRequestsCache: updated,
-            pendingRequestsCacheTimestamp: Date.now(),
-          };
-        }),
-
-        updatePendingRequest: (conversationId: number, updates: Partial<MessageRequestDTO>) =>
-          set((state) => {
-            const updatedRequests = state.pendingMessageRequests.map(request => 
-              request.conversationId === conversationId 
-                ? { ...request, ...updates }
-                : request
-            );
-            
-            // Kun oppdater hvis faktisk endring skjedde
-            const hasChanges = updatedRequests.some((req, index) => 
-              req !== state.pendingMessageRequests[index]
-            );
-            
-            if (!hasChanges) return {};
-            
-            return {
-              pendingMessageRequests: updatedRequests,
-              pendingRequestsCache: updatedRequests,
-              pendingRequestsCacheTimestamp: Date.now(),
-            };
-          }),
-
-      removePendingRequest: (conversationId: number) =>
-        set((state) => ({
-          pendingMessageRequests: state.pendingMessageRequests.filter(
-            (r) => r.conversationId !== conversationId
-          ),
-          pendingRequestsCache: state.pendingRequestsCache.filter(
-            (r) => r.conversationId !== conversationId
-          )
-        })),
-
-      setUnreadConversationIds: (ids) => {
-        // console.log("🔔 Setter unreadConversationIds i store:", ids);
-        set({ unreadConversationIds: ids });
-      },
-
-      markConversationAsReadLocally: (conversationId) => {
-        set((state) => ({
-          unreadConversationIds: state.unreadConversationIds.filter((id) => id !== conversationId),
-        }));
-      },
-
-      clearAllUnreadConversations: () => {
-          set({ unreadConversationIds: [] });
-        },
-
-      setConversations: (conversations) =>
-        set(() => ({
-          conversations: [...conversations].sort(
-            (a, b) =>
-              new Date(b.lastMessageSentAt ?? 0).getTime() -
-              new Date(a.lastMessageSentAt ?? 0).getTime()
-          ),
-          conversationIds: new Set(conversations.map(c => c.id)),
-        })),
-
-      openConversation: (conversationId: number) => {
-        set(() => ({ currentConversationId: conversationId }));
-      },
-
-      updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) =>
-        set((state) => {
-          console.log(`📝 Updating conversation ${conversationId} with:`, updates);
-          
-          const updatedConversations = state.conversations.map((conv) =>
-            conv.id === conversationId 
-              ? { ...conv, ...updates }
-              : conv
-          );
-
-          // Sort conversations by lastMessageSentAt if that was updated
-          if (updates.lastMessageSentAt) {
-            updatedConversations.sort(
-              (a, b) =>
-                new Date(b.lastMessageSentAt ?? 0).getTime() -
-                new Date(a.lastMessageSentAt ?? 0).getTime()
-            );
-          }
-
-          return { 
-            conversations: updatedConversations,
-            conversationIds: new Set(updatedConversations.map(c => c.id))
-          };
-        }),
-
-      updateSearchResultReactions: (reaction: ReactionDTO) =>
-        set((state) => {
-          const updatedMessages = state.searchResults.map((m) => {
-            if (m.id !== reaction.messageId) return m;
-
-            const existing = m.reactions ?? [];
-            const filtered = existing.filter((r) => r.userId !== reaction.userId);
-
-            if (!reaction.isRemoved) {
-              filtered.push(reaction);
-            }
-
-            return { ...m, reactions: filtered };
-          });
-
-          return { searchResults: updatedMessages };
-        }),
-
-        updateMessage: (conversationId: number, messageId: number, updatedMessage: MessageDTO) =>
-          set((state) => {
-            console.log(`🔄 Oppdaterer melding ${messageId} i samtale ${conversationId}:`, updatedMessage);
-            
-            const updateMessages = (messages: MessageDTO[]) =>
-              messages.map((m) => m.id === messageId ? updatedMessage : m);
-
-            const liveMessages = { ...state.liveMessages };
-            const cachedMessages = { ...state.cachedMessages };
-
-            // Oppdater i liveMessages hvis meldingen finnes der
-            if (state.liveMessages[conversationId]) {
-              const hasMessage = state.liveMessages[conversationId].some(m => m.id === messageId);
-              if (hasMessage) {
-                liveMessages[conversationId] = updateMessages(state.liveMessages[conversationId]);
-                console.log(`✅ Oppdatert melding ${messageId} i liveMessages`);
-              }
-            }
-
-            // Oppdater i cachedMessages hvis meldingen finnes der
-            if (state.cachedMessages[conversationId]) {
-              const hasMessage = state.cachedMessages[conversationId].some(m => m.id === messageId);
-              if (hasMessage) {
-                cachedMessages[conversationId] = updateMessages(state.cachedMessages[conversationId]);
-                console.log(`✅ Oppdatert melding ${messageId} i cachedMessages`);
-              }
-            }
-
-            return {
-              liveMessages,
-              cachedMessages,
-            };
-          }),
-
-          updateMessageOptimistic: (conversationId: number, optimisticId: string, updatedMessage: MessageDTO) =>
-        set((state) => {
-          console.log(`🔄 Updating optimistic message ${optimisticId} in conversation ${conversationId}`);
-          
-          const updateMessages = (messages: MessageDTO[]) =>
-              messages.map((m) => m.optimisticId === optimisticId ? updatedMessage : m);
-
-            const liveMessages = { ...state.liveMessages };
-            const cachedMessages = { ...state.cachedMessages };
-
-            // Update in liveMessages if message exists there
-            if (state.liveMessages[conversationId]) {
-              const hasMessage = state.liveMessages[conversationId].some(m => m.optimisticId === optimisticId);
-              if (hasMessage) {
-                liveMessages[conversationId] = updateMessages(state.liveMessages[conversationId]);
-                console.log(`✅ Updated optimistic message ${optimisticId} in liveMessages`);
-              }
-            }
-
-            // Update in cachedMessages if message exists there
-            if (state.cachedMessages[conversationId]) {
-              const hasMessage = state.cachedMessages[conversationId].some(m => m.optimisticId === optimisticId);
-              if (hasMessage) {
-                cachedMessages[conversationId] = updateMessages(state.cachedMessages[conversationId]);
-                console.log(`✅ Updated optimistic message ${optimisticId} in cachedMessages`);
-              }
-            }
-
-            return {
-              liveMessages,
-              cachedMessages,
-            };
-          }),
-
-        softDeleteMessage: (conversationId: number, messageId: number) =>
-          set((state) => {
-            const markAsDeleted = (messages: MessageDTO[]) =>
-              messages.map((m) =>
-                m.id === messageId
-                  ? {
-                      ...m,
-                      isDeleted: true,
-                      attachments: []
-                    }
-                  : m
-              );
-
-            const liveMessages = { ...state.liveMessages };
-            const cachedMessages = { ...state.cachedMessages };
-
-            // Oppdater i liveMessages hvis meldingen finnes
-            if (liveMessages[conversationId]) {
-              const hasMessage = liveMessages[conversationId].some(m => m.id === messageId);
-              if (hasMessage) {
-                liveMessages[conversationId] = markAsDeleted(liveMessages[conversationId]);
-                console.log(`🗑️ Soft-deleted melding ${messageId} i liveMessages`);
-              }
-            }
-
-            // Oppdater i cachedMessages hvis meldingen finnes
-            if (cachedMessages[conversationId]) {
-              const hasMessage = cachedMessages[conversationId].some(m => m.id === messageId);
-              if (hasMessage) {
-                cachedMessages[conversationId] = markAsDeleted(cachedMessages[conversationId]);
-                console.log(`🗑️ Soft-deleted melding ${messageId} i cachedMessages`);
-              }
-            }
-
-            return {
-              liveMessages,
-              cachedMessages,
-            };
-          }),
-
-      updateMessageReactions: (reaction: ReactionDTO) =>
-  set((state) => {
-    console.log("🔁 Oppdaterer reaction i store:", reaction);
-    
-    // 🆕 VALIDERING: Sjekk at reaction har gyldig messageId
-    if (!reaction.messageId) {
-      return state; // Returner uendret state
-    }
-    
-    // 🔧 Oppdatert updateMessages som håndterer både direkte ID og optimistic mapping
-    const updateMessages = (messages: MessageDTO[]) =>
-      messages.map((m) => {
-        // Sjekk om denne meldingen er target for reaksjonen
-        const isDirectMatch = m.id === reaction.messageId;
-        const isOptimisticMatch = m.isOptimistic && 
-          state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId;
-        
-        if (!isDirectMatch && !isOptimisticMatch) return m;
-        
-        console.log(`🎯 Updating reactions for message:`, {
-          messageId: m.id,
-          isOptimistic: m.isOptimistic,
-          optimisticId: m.optimisticId,
-          reactionMessageId: reaction.messageId,
-          matchType: isDirectMatch ? 'direct' : 'optimistic'
-        });
-
-        const existing = m.reactions ?? [];
-        
-        // 🔧 ORIGINAL LOGIKK: Fjern alle reaksjoner fra samme bruker først
-        const filtered = existing.filter((r) => r.userId !== reaction.userId);
-        
-        // Så legg til ny reaksjon hvis den ikke er fjernet
-        if (!reaction.isRemoved) {
-          filtered.push(reaction);
-        }
-        
-        return { ...m, reactions: filtered };
-      });
-
-    const liveMessages = { ...state.liveMessages };
-    const cachedMessages = { ...state.cachedMessages };
-
-    // Oppdater liveMessages
-    for (const [convId, msgs] of Object.entries(state.liveMessages)) {
-      // Sjekk både direkte match og optimistic mapping
-      const hasTargetMessage = msgs.some((m) => 
-        m.id === reaction.messageId || 
-        (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
-      );
-      
-      if (hasTargetMessage) {
-        liveMessages[+convId] = updateMessages(msgs);
-        console.log(`📝 Updated liveMessages for conversation ${convId}`);
-      }
-    }
-
-    // Oppdater cachedMessages  
-    for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
-      // Sjekk både direkte match og optimistic mapping
-      const hasTargetMessage = msgs.some((m) => 
-        m.id === reaction.messageId || 
-        (m.isOptimistic && state.optimisticToServerIdMap[m.optimisticId || ''] === reaction.messageId)
-      );
-      
-      if (hasTargetMessage) {
-        cachedMessages[+convId] = updateMessages(msgs);
-        console.log(`💾 Updated cachedMessages for conversation ${convId}`);
-      }
-    }
-
-    return {
-      liveMessages,
-      cachedMessages,
-      reactionsVersion: state.reactionsVersion + 1,
-    };
-  }),
-  
       setCachedMessages: (conversationId, messages) =>
         set((state) => ({
-          cachedMessages: {
-            ...state.cachedMessages,
-            [conversationId]: messages,
-          },
-          cacheTimestamps: {
-            ...state.cacheTimestamps,
-            [conversationId]: Date.now(),
-          },
+          cachedMessages: { ...state.cachedMessages, [conversationId]: messages },
+          cacheTimestamps: { ...state.cacheTimestamps, [conversationId]: Date.now() },
         })),
 
       setScrollPosition: (conversationId, position) =>
         set((state) => ({
-          scrollPositions: {
-            ...state.scrollPositions,
-            [conversationId]: position,
-          },
+          scrollPositions: { ...state.scrollPositions, [conversationId]: position },
         })),
 
-      addConversation: (conversation) =>
-        set((state) => {
-          const exists = state.conversations.some((c) => c.id === conversation.id);
-          let updated;
-
-          if (exists) {
-            updated = state.conversations.map((c) =>
-              c.id === conversation.id ? { ...c, ...conversation } : c
-            );
-          } else {
-            updated = [...state.conversations, conversation];
-          }
-
-          updated.sort(
-            (a, b) =>
-              new Date(b.lastMessageSentAt ?? 0).getTime() -
-              new Date(a.lastMessageSentAt ?? 0).getTime()
-          );
-
-          return { conversations: updated, conversationIds: new Set(updated.map(c => c.id)) };
-        }),
-
-      updateConversationTimestamp: (conversationId: number, timestamp: string) =>
-        set((state) => {
-          const updatedConversations = state.conversations.map((conv) =>
-            conv.id === conversationId ? { ...conv, lastMessageSentAt: timestamp } : conv
-          );
-
-          updatedConversations.sort(
-            (a, b) =>
-              new Date(b.lastMessageSentAt ?? 0).getTime() -
-              new Date(a.lastMessageSentAt ?? 0).getTime()
-          );
-
-          return { conversations: updatedConversations };
-        }),
-
-      removeConversation: (conversationId: number) =>
+      setScrollMessageId: (conversationId, scrollData) =>
         set((state) => ({
-          conversations: state.conversations.filter((c) => c.id !== conversationId),
-          conversationIds: new Set(
-            Array.from(state.conversationIds).filter((id) => id !== conversationId)
-          ),
-          cachedMessages: Object.fromEntries(
-            Object.entries(state.cachedMessages).filter(([id]) => +id !== conversationId)
-          ),
-          scrollPositions: Object.fromEntries(
-            Object.entries(state.scrollPositions).filter(([id]) => +id !== conversationId)
-          ),
-          cacheTimestamps: Object.fromEntries(
-            Object.entries(state.cacheTimestamps).filter(([id]) => +id !== conversationId)
-          ),
-          liveMessages: Object.fromEntries(
-            Object.entries(state.liveMessages).filter(([id]) => +id !== conversationId)
-          ),
-          scrollMessageIds: Object.fromEntries( // 🆕 LEGG TIL DENNE LINJEN
-            Object.entries(state.scrollMessageIds).filter(([id]) => +id !== conversationId)
-          ),
-          unreadConversationIds: state.unreadConversationIds.filter(id => id !== conversationId),
+          scrollMessageIds: { ...state.scrollMessageIds, [conversationId]: scrollData },
         })),
-
-      cleanupOldCache: () =>
-        set((state) => {
-          console.log("🧹 Running cleanupOldCache at", new Date().toLocaleTimeString());
-
-          const now = Date.now();
-          const TTL = 1000 * 60 * 10; // 10 minutter
-
-          const newCachedMessages: typeof state.cachedMessages = {};
-          const newScrollPositions: typeof state.scrollPositions = {};
-          const newCacheTimestamps: typeof state.cacheTimestamps = {};
-          const currentId = state.currentConversationId;
-
-          for (const id in state.cacheTimestamps) {
-            const convId = +id;
-
-            if (convId === currentId) {
-              newCachedMessages[convId] = state.cachedMessages[convId];
-              newScrollPositions[convId] = state.scrollPositions[convId];
-              newCacheTimestamps[convId] = state.cacheTimestamps[convId];
-              continue;
-            }
-
-            if (now - state.cacheTimestamps[convId] < TTL) {
-              newCachedMessages[convId] = state.cachedMessages[convId];
-              newScrollPositions[convId] = state.scrollPositions[convId];
-              newCacheTimestamps[convId] = state.cacheTimestamps[convId];
-            }
-          }
-
-          const cacheAge = now - state.pendingRequestsCacheTimestamp;
-          const keepPendingCache = cacheAge < TTL;
-
-          return {
-            cachedMessages: newCachedMessages,
-            scrollPositions: newScrollPositions,
-            cacheTimestamps: newCacheTimestamps,
-            pendingRequestsCache: keepPendingCache ? state.pendingRequestsCache : [],
-            pendingRequestsCacheTimestamp: keepPendingCache ? state.pendingRequestsCacheTimestamp : 0,
-          };
-        }),
-
-    addMessage: (message) =>
-    set((state) => {
-      const current = state.liveMessages[message.conversationId] ?? [];
-   
-      // Hvis dette er en optimistisk melding, bare legg til
-      if (message.isOptimistic) {
-        const alreadyExists = current.some((m) => m.id === message.id);
-        if (alreadyExists) {
-          console.log("⚠️ Optimistic message already exists, skipping:", message.id);
-          return state;
-        }
-        const updated = {
-          ...state.liveMessages,
-          [message.conversationId]: [...current, message],
-        };
-        console.log("✨ Optimistic message added:", message.optimisticId);
-        return { liveMessages: updated };
-      }
-   
-      // For server-meldinger: kun legg til hvis det ikke er en optimistisk match
-      const optimisticMatch = current.find(m =>
-        m.isOptimistic &&
-        m.text === message.text &&
-        m.senderId === message.senderId &&
-        Math.abs(new Date(m.sentAt).getTime() - new Date(message.sentAt).getTime()) < 10000
-      );
-   
-      if (optimisticMatch) {
-        // IKKE endre meldingen - bare registrer mapping
-        console.log("🔗 Server message matches optimistic, registering mapping only");
-        return state; // Ingen visual endring!
-      } else {
-        // Vanlig ny melding fra andre
-        const alreadyExists = current.some((m) => m.id === message.id);
-        if (alreadyExists) {
-          console.log("⚠️ Message already exists, skipping:", message.id);
-          return state;
-        }
-     
-        const updated = [...current, message];
-        console.log("✅ New message added:", message.id);
-        
-        return {
-          liveMessages: {
-            ...state.liveMessages,
-            [message.conversationId]: updated,
-          }
-        };
-      }
-    }),
-
-    addMessageOptimistic: (message) =>
-  set((state) => {
-    console.log("🐛 ATTEMPTING TO ADD MESSAGE:", {
-      optimisticId: message.optimisticId,
-      id: message.id,
-      isOptimistic: message.isOptimistic,
-      stackTrace: new Error().stack?.split('\n').slice(1, 4)
-    });
-    
-    const current = state.liveMessages[message.conversationId] ?? [];
-    const alreadyExists = current.some((m) => 
-      m.optimisticId === message.optimisticId || 
-      (message.id && m.id === message.id)
-    );
-    
-    if (alreadyExists) {
-      console.log("⚠️ Message already exists, skipping:", message.optimisticId || message.id);
-      console.log("🐛 Existing messages:", current.map(m => ({ 
-        id: m.id, 
-        optimisticId: m.optimisticId 
-      })));
-      return state;
-        }
-        // Legg til melding
-        const updated = [...current, message];
-        console.log(`✅ Message added: ${message.optimisticId || message.id} (optimistic: ${message.isOptimistic})`);
-      
-        return {
-          liveMessages: {
-            ...state.liveMessages,
-            [message.conversationId]: updated,
-          }
-        };
-      }),
-
-
-      registerOptimisticMapping: (optimisticId, serverId) =>
-    set((state) => {
-      console.log(`🔗 Mapping optimistic ${optimisticId} → server ${serverId}`);
-      return {
-        optimisticToServerIdMap: {
-          ...state.optimisticToServerIdMap,
-          [optimisticId]: serverId,
-        }
-      };
-    }),
-
-  // 🆕 Hent riktig ID for API-kall
-  getActualMessageId: (message) => {
-    const state = get();
-  
-    // Hvis det er en optimistisk melding, bruk mapped ID
-    if (message.isOptimistic && message.optimisticId) {
-      const serverId = state.optimisticToServerIdMap[message.optimisticId];
-      if (serverId) {
-        return serverId; // 👈 returnerer number
-      }
-    
-      return null; // 👈 returnerer null
-    }
-  
-    // Fallback til vanlig ID for ikke-optimistiske meldinger
-    return message.id; // 👈 returnerer number
-  },
-
-  convertOptimisticToReal: (conversationId) =>
-    set((state) => {
-      const liveMessages = state.liveMessages[conversationId] || [];
-      const cachedMessages = state.cachedMessages[conversationId] || [];
-      
-      console.log(`🔄 Converting optimistic messages for conversation ${conversationId}`);
-      
-      const convertMessages = (messages: MessageDTO[], source: string) => {
-        return messages.map(m => {
-          // Skip hvis allerede konvertert
-          if (!m.isOptimistic) return m;
-          
-          if (m.optimisticId) {
-            const serverId = state.optimisticToServerIdMap[m.optimisticId];
-            
-            if (serverId) {
-              console.log(`✅ Converting ${source} optimistic message:`, {
-                optimisticId: m.optimisticId,
-                oldId: m.id,
-                newId: serverId,
-                text: m.text?.substring(0, 50) + '...'
-              });
-              
-              // FULLSTENDIG KONVERTERING - fjern alle optimistiske spor
-              const convertedMessage: MessageDTO = {
-                ...m,
-                id: serverId,                    // ✅ Bruk server ID
-                isOptimistic: false,             // ✅ Ikke optimistisk lenger
-                optimisticId: undefined,         // ✅ Fjern optimistic ID
-                isSending: false,                // ✅ Ikke sender lenger
-                sendError: null,                 // ✅ Ingen feil
-                // Behold alt annet som det var
-              };
-              
-              // Konverter attachments hvis de finnes
-              if (convertedMessage.attachments && convertedMessage.attachments.length > 0) {
-                convertedMessage.attachments = convertedMessage.attachments.map(attachment => {
-                  if (attachment.isOptimistic && attachment.optimisticId) {
-                    const serverFileUrl = state.optimisticToServerAttachmentMap[attachment.optimisticId];
-                    
-                    if (serverFileUrl) {
-                      console.log(`📎 Converting attachment for message ${serverId}`);
-                      return {
-                        ...attachment,
-                        fileUrl: serverFileUrl,
-                        isOptimistic: false,
-                        optimisticId: undefined,
-                        isUploading: false,
-                        uploadError: null,
-                        localUri: undefined,
-                      };
-                    }
-                  }
-                  return attachment;
-                });
-              }
-              
-              return convertedMessage;
-            } else {
-              console.warn(`⚠️ No server mapping found for optimistic message: ${m.optimisticId}`);
-            }
-          }
-          
-          // Returner original hvis ingen konvertering
-          return m;
-        });
-      };
-
-      const convertedLive = convertMessages(liveMessages, 'live');
-      const convertedCached = convertMessages(cachedMessages, 'cached');
-      
-      // Tell konverteringer
-      const liveConversions = convertedLive.filter(m => !m.isOptimistic).length - 
-                            liveMessages.filter(m => !m.isOptimistic).length;
-      const cachedConversions = convertedCached.filter(m => !m.isOptimistic).length - 
-                              cachedMessages.filter(m => !m.isOptimistic).length;
-      
-      console.log(`🎯 Converted ${liveConversions} live and ${cachedConversions} cached optimistic messages`);
-
-      return {
-        liveMessages: {
-          ...state.liveMessages,
-          [conversationId]: convertedLive
-        },
-        cachedMessages: {
-          ...state.cachedMessages,
-          [conversationId]: convertedCached
-        }
-      };
-    }),
-
-convertAllOptimisticToReal: () =>
-  set((state) => {
-    const newLiveMessages: Record<number, MessageDTO[]> = {};
-    let totalMessageConversions = 0;
-    let totalAttachmentConversions = 0;
-
-    // Convert optimistic messages and attachments in all conversations
-    for (const [convId, messages] of Object.entries(state.liveMessages)) {
-      const converted = messages.map(m => {
-        let convertedMessage = m;
-        
-        // Convert message
-        if (m.isOptimistic && m.optimisticId) {
-          const serverId = state.optimisticToServerIdMap[m.optimisticId];
-          
-          if (serverId) {
-            totalMessageConversions++;
-            convertedMessage = {
-              ...m,
-              id: serverId,
-              isOptimistic: false,
-              isSending: false,
-              sendError: null,
-            };
-          }
-        }
-        
-        // Convert attachments
-        if (convertedMessage.attachments && convertedMessage.attachments.length > 0) {
-          const convertedAttachments = convertedMessage.attachments.map(attachment => {
-            if (attachment.isOptimistic && attachment.optimisticId) {
-              const serverFileUrl = state.optimisticToServerAttachmentMap[attachment.optimisticId];
-              
-              if (serverFileUrl) {
-                totalAttachmentConversions++;
-                return {
-                  ...attachment,
-                  fileUrl: serverFileUrl,
-                  isOptimistic: false,
-                  isUploading: false,
-                  uploadError: null,
-                  localUri: undefined,
-                };
-              }
-            }
-            return attachment;
-          });
-          
-          const attachmentsChanged = convertedAttachments.some((att, index) => 
-            att !== convertedMessage.attachments[index]
-          );
-          
-          if (attachmentsChanged) {
-            convertedMessage = { ...convertedMessage, attachments: convertedAttachments };
-          }
-        }
-        
-        return convertedMessage;
-      });
-      
-      newLiveMessages[+convId] = converted;
-    }
-
-    if (totalMessageConversions > 0 || totalAttachmentConversions > 0) {
-      console.log(`✅ Converted ${totalMessageConversions} optimistic messages and ${totalAttachmentConversions} optimistic attachments across all conversations`);
-    }
-
-    return {
-      liveMessages: newLiveMessages
-    };
-  }),
-
-  registerOptimisticAttachmentMapping: (optimisticAttachmentId, serverFileUrl) =>
-    set((state) => {
-      console.log(`🔗 Mapping optimistic attachment ${optimisticAttachmentId} → server ${serverFileUrl}`);
-      return {
-        optimisticToServerAttachmentMap: {
-          ...state.optimisticToServerAttachmentMap,
-          [optimisticAttachmentId]: serverFileUrl,
-        }
-      };
-    }),
-
-  updateAttachmentUploadStatus: (conversationId, messageId, attachmentOptimisticId, status) =>
-    set((state) => {
-      const updateAttachments = (messages: MessageDTO[]) => 
-        messages.map(message => {
-          if (message.id !== messageId) return message;
-          
-          return {
-            ...message,
-            attachments: message.attachments.map(attachment => {
-              if (attachment.isOptimistic && attachment.optimisticId === attachmentOptimisticId) {
-                return {
-                  ...attachment,
-                  ...status
-                };
-              }
-              return attachment;
-            })
-          };
-        });
-
-      return {
-        ...state,
-        cachedMessages: {
-          ...state.cachedMessages,
-          [conversationId]: updateAttachments(state.cachedMessages[conversationId] || [])
-        },
-        liveMessages: {
-          ...state.liveMessages,
-          [conversationId]: updateAttachments(state.liveMessages[conversationId] || [])
-        }
-      };
-    }),
-
-    cleanupOptimisticMappings: () =>
-    set((state) => {
-      const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
-      let cleanedCount = 0;
-      let cleanedAttachmentCount = 0;
-
-      // Clean optimistic message mappings
-      const cleanedOptimisticMap: Record<string, number> = {};
-      for (const [optimisticId, serverId] of Object.entries(state.optimisticToServerIdMap || {})) {
-        const parts = optimisticId.split('_');
-        if (parts.length >= 2) {
-          const timestamp = parseInt(parts[1]);
-          if (timestamp && timestamp > twoHoursAgo) {
-            cleanedOptimisticMap[optimisticId] = serverId;
-          } else {
-            cleanedCount++;
-          }
-        } else {
-          cleanedOptimisticMap[optimisticId] = serverId;
-        }
-      }
-
-      // Clean optimistic attachment mappings
-      const cleanedAttachmentMap: Record<string, string> = {};
-      for (const [optimisticId, serverFileUrl] of Object.entries(state.optimisticToServerAttachmentMap || {})) {
-        const parts = optimisticId.split('_');
-        if (parts.length >= 2) {
-          const timestamp = parseInt(parts[1]);
-          if (timestamp && timestamp > twoHoursAgo) {
-            cleanedAttachmentMap[optimisticId] = serverFileUrl;
-          } else {
-            cleanedAttachmentCount++;
-          }
-        } else {
-          cleanedAttachmentMap[optimisticId] = serverFileUrl;
-        }
-      }
-
-      if (cleanedCount > 0 || cleanedAttachmentCount > 0) {
-        console.log(`🧹 Cleaned ${cleanedCount} optimistic mappings and ${cleanedAttachmentCount} attachment mappings`);
-      }
-
-      return {
-        optimisticToServerIdMap: cleanedOptimisticMap,
-        optimisticToServerAttachmentMap: cleanedAttachmentMap,
-      };
-    }),
-
-    cleanupOptimisticForConversation: (conversationId: number) =>
-  set((state) => {
-    const conversationMessages = [
-      ...(state.liveMessages[conversationId] || []),
-      ...(state.cachedMessages[conversationId] || [])
-    ];
-
-    // Find all optimistic IDs for this conversation
-    const conversationOptimisticIds = new Set(
-      conversationMessages
-        .filter(m => m.isOptimistic && m.optimisticId)
-        .map(m => m.optimisticId!)
-    );
-
-    // Find all attachment optimistic IDs for this conversation
-    const conversationAttachmentIds = new Set(
-      conversationMessages
-        .flatMap(m => m.attachments || [])
-        .filter(att => att.isOptimistic && att.optimisticId)
-        .map(att => att.optimisticId!)
-    );
-
-    // Remove mappings for this conversation's optimistic IDs
-    const cleanedOptimisticMap = { ...state.optimisticToServerIdMap };
-    const cleanedAttachmentMap = { ...state.optimisticToServerAttachmentMap };
-    
-    let removedCount = 0;
-    let removedAttachmentCount = 0;
-
-    // Remove message mappings
-    for (const optimisticId of conversationOptimisticIds) {
-      if (cleanedOptimisticMap[optimisticId]) {
-        delete cleanedOptimisticMap[optimisticId];
-        removedCount++;
-      }
-    }
-
-    // Remove attachment mappings
-    for (const optimisticId of conversationAttachmentIds) {
-      if (cleanedAttachmentMap[optimisticId]) {
-        delete cleanedAttachmentMap[optimisticId];
-        removedAttachmentCount++;
-      }
-    }
-
-    if (removedCount > 0 || removedAttachmentCount > 0) {
-      console.log(`🧹 Cleaned ${removedCount} message mappings and ${removedAttachmentCount} attachment mappings for conversation ${conversationId}`);
-    }
-
-    return {
-      optimisticToServerIdMap: cleanedOptimisticMap,
-      optimisticToServerAttachmentMap: cleanedAttachmentMap,
-    };
-  }),
-
-    isPendingCollapsed: false,
-    setIsPendingCollapsed: (value: boolean) => set({ isPendingCollapsed: value }),
-
-    scrollMessageIds: {},
-
-    setScrollMessageId: (conversationId, scrollData) =>
-      set((state) => ({
-        scrollMessageIds: {
-          ...state.scrollMessageIds,
-          [conversationId]: scrollData,
-        },
-      })),
-
-      addRecentEmoji: (emoji: string) =>
-        set((state) => {
-          console.log('💾 Adding recent emoji:', emoji);
-          
-          // Fjern emoji hvis den allerede finnes (for å flytte til toppen)
-          const filtered = state.recentEmojis.filter(e => e !== emoji);
-          
-          // Legg til på toppen
-          const updated = [emoji, ...filtered];
-          
-          // Behold kun de 10 siste
-          const limited = updated.slice(0, 10);
-          
-          console.log('📱 Updated recent emojis:', limited);
-          
-          return {
-            recentEmojis: limited
-          };
-        }),
-
-
 
       clearLiveMessages: (conversationId) =>
         set((state) => {
@@ -1070,122 +141,469 @@ convertAllOptimisticToReal: () =>
           return { liveMessages: copy };
         }),
 
+      clearConversationCache: (conversationId) =>
+        set((state) => ({
+          cachedMessages: Object.fromEntries(
+            Object.entries(state.cachedMessages).filter(([id]) => +id !== conversationId)
+          ),
+          liveMessages: Object.fromEntries(
+            Object.entries(state.liveMessages).filter(([id]) => +id !== conversationId)
+          ),
+          scrollPositions: Object.fromEntries(
+            Object.entries(state.scrollPositions).filter(([id]) => +id !== conversationId)
+          ),
+          cacheTimestamps: Object.fromEntries(
+            Object.entries(state.cacheTimestamps).filter(([id]) => +id !== conversationId)
+          ),
+          scrollMessageIds: Object.fromEntries(
+            Object.entries(state.scrollMessageIds).filter(([id]) => +id !== conversationId)
+          ),
+        })),
 
+      updateSearchResultReactions: (reaction) =>
+        set((state) => ({
+          searchResults: state.searchResults.map((m) => {
+            if (m.id !== reaction.messageId) return m;
+            const filtered = (m.reactions ?? []).filter((r) => r.userId !== reaction.userId);
+            if (!reaction.isRemoved) filtered.push(reaction);
+            return { ...m, reactions: filtered };
+          }),
+        })),
 
-      // --- full reset (bruk ved logout) ---
+      updateMessage: (conversationId, messageId, updatedMessage) =>
+        set((state) => {
+          const updateMessages = (messages: MessageDTO[]) =>
+            messages.map((m) => (m.id === messageId ? updatedMessage : m));
+
+          const liveMessages = { ...state.liveMessages };
+          const cachedMessages = { ...state.cachedMessages };
+
+          if (liveMessages[conversationId]?.some((m) => m.id === messageId)) {
+            liveMessages[conversationId] = updateMessages(liveMessages[conversationId]);
+          }
+          if (cachedMessages[conversationId]?.some((m) => m.id === messageId)) {
+            cachedMessages[conversationId] = updateMessages(cachedMessages[conversationId]);
+          }
+
+          return { liveMessages, cachedMessages };
+        }),
+
+      updateMessageOptimistic: (conversationId, optimisticId, updatedMessage) =>
+        set((state) => {
+          const updateMessages = (messages: MessageDTO[]) =>
+            messages.map((m) => (m.optimisticId === optimisticId ? updatedMessage : m));
+
+          const liveMessages = { ...state.liveMessages };
+          const cachedMessages = { ...state.cachedMessages };
+
+          if (liveMessages[conversationId]?.some((m) => m.optimisticId === optimisticId)) {
+            liveMessages[conversationId] = updateMessages(liveMessages[conversationId]);
+          }
+          if (cachedMessages[conversationId]?.some((m) => m.optimisticId === optimisticId)) {
+            cachedMessages[conversationId] = updateMessages(cachedMessages[conversationId]);
+          }
+
+          return { liveMessages, cachedMessages };
+        }),
+
+      softDeleteMessage: (conversationId, messageId) =>
+        set((state) => {
+          const markDeleted = (messages: MessageDTO[]) =>
+            messages.map((m) =>
+              m.id === messageId ? { ...m, isDeleted: true, attachments: [] } : m
+            );
+
+          const liveMessages = { ...state.liveMessages };
+          const cachedMessages = { ...state.cachedMessages };
+
+          if (liveMessages[conversationId]?.some((m) => m.id === messageId)) {
+            liveMessages[conversationId] = markDeleted(liveMessages[conversationId]);
+          }
+          if (cachedMessages[conversationId]?.some((m) => m.id === messageId)) {
+            cachedMessages[conversationId] = markDeleted(cachedMessages[conversationId]);
+          }
+
+          return { liveMessages, cachedMessages };
+        }),
+
+      updateMessageReactions: (reaction) =>
+        set((state) => {
+          if (!reaction.messageId) return state;
+
+          const updateMessages = (messages: MessageDTO[]) =>
+            messages.map((m) => {
+              const isDirectMatch = m.id === reaction.messageId;
+              const isOptimisticMatch =
+                m.isOptimistic &&
+                state.optimisticToServerIdMap[m.optimisticId || ""] === reaction.messageId;
+
+              if (!isDirectMatch && !isOptimisticMatch) return m;
+
+              const filtered = (m.reactions ?? []).filter((r) => r.userId !== reaction.userId);
+              if (!reaction.isRemoved) filtered.push(reaction);
+              return { ...m, reactions: filtered };
+            });
+
+          const liveMessages = { ...state.liveMessages };
+          const cachedMessages = { ...state.cachedMessages };
+
+          for (const [convId, msgs] of Object.entries(state.liveMessages)) {
+            const hasTarget = msgs.some(
+              (m) =>
+                m.id === reaction.messageId ||
+                (m.isOptimistic &&
+                  state.optimisticToServerIdMap[m.optimisticId || ""] === reaction.messageId)
+            );
+            if (hasTarget) liveMessages[+convId] = updateMessages(msgs);
+          }
+
+          for (const [convId, msgs] of Object.entries(state.cachedMessages)) {
+            const hasTarget = msgs.some(
+              (m) =>
+                m.id === reaction.messageId ||
+                (m.isOptimistic &&
+                  state.optimisticToServerIdMap[m.optimisticId || ""] === reaction.messageId)
+            );
+            if (hasTarget) cachedMessages[+convId] = updateMessages(msgs);
+          }
+
+          return { liveMessages, cachedMessages, reactionsVersion: state.reactionsVersion + 1 };
+        }),
+
+      addMessage: (message) =>
+        set((state) => {
+          const current = state.liveMessages[message.conversationId] ?? [];
+
+          if (message.isOptimistic) {
+            if (current.some((m) => m.id === message.id)) return state;
+            return {
+              liveMessages: {
+                ...state.liveMessages,
+                [message.conversationId]: [...current, message],
+              },
+            };
+          }
+
+          const optimisticMatch = current.find(
+            (m) =>
+              m.isOptimistic &&
+              m.text === message.text &&
+              m.senderId === message.senderId &&
+              Math.abs(
+                new Date(m.sentAt).getTime() - new Date(message.sentAt).getTime()
+              ) < 10000
+          );
+
+          if (optimisticMatch) return state;
+          if (current.some((m) => m.id === message.id)) return state;
+
+          return {
+            liveMessages: {
+              ...state.liveMessages,
+              [message.conversationId]: [...current, message],
+            },
+          };
+        }),
+
+      addMessageOptimistic: (message) =>
+        set((state) => {
+          const current = state.liveMessages[message.conversationId] ?? [];
+          const alreadyExists = current.some(
+            (m) =>
+              m.optimisticId === message.optimisticId ||
+              (message.id && m.id === message.id)
+          );
+          if (alreadyExists) return state;
+          return {
+            liveMessages: {
+              ...state.liveMessages,
+              [message.conversationId]: [...current, message],
+            },
+          };
+        }),
+
+      registerOptimisticMapping: (optimisticId, serverId) =>
+        set((state) => ({
+          optimisticToServerIdMap: { ...state.optimisticToServerIdMap, [optimisticId]: serverId },
+        })),
+
+      registerOptimisticAttachmentMapping: (optimisticAttachmentId, serverFileUrl) =>
+        set((state) => ({
+          optimisticToServerAttachmentMap: {
+            ...state.optimisticToServerAttachmentMap,
+            [optimisticAttachmentId]: serverFileUrl,
+          },
+        })),
+
+      getActualMessageId: (message) => {
+        const state = get();
+        if (message.isOptimistic && message.optimisticId) {
+          return state.optimisticToServerIdMap[message.optimisticId] ?? null;
+        }
+        return message.id;
+      },
+
+      convertOptimisticToReal: (conversationId) =>
+        set((state) => {
+          const convertMessages = (messages: MessageDTO[]) =>
+            messages.map((m) => {
+              if (!m.isOptimistic || !m.optimisticId) return m;
+              const serverId = state.optimisticToServerIdMap[m.optimisticId];
+              if (!serverId) return m;
+
+              const converted: MessageDTO = {
+                ...m,
+                id: serverId,
+                isOptimistic: false,
+                optimisticId: undefined,
+                isSending: false,
+                sendError: null,
+              };
+
+              if (converted.attachments?.length) {
+                converted.attachments = converted.attachments.map((att) => {
+                  if (!att.isOptimistic || !att.optimisticId) return att;
+                  const serverUrl = state.optimisticToServerAttachmentMap[att.optimisticId];
+                  if (!serverUrl) return att;
+                  return {
+                    ...att,
+                    fileUrl: serverUrl,
+                    isOptimistic: false,
+                    optimisticId: undefined,
+                    isUploading: false,
+                    uploadError: null,
+                    localUri: undefined,
+                  };
+                });
+              }
+
+              return converted;
+            });
+
+          return {
+            liveMessages: {
+              ...state.liveMessages,
+              [conversationId]: convertMessages(state.liveMessages[conversationId] || []),
+            },
+            cachedMessages: {
+              ...state.cachedMessages,
+              [conversationId]: convertMessages(state.cachedMessages[conversationId] || []),
+            },
+          };
+        }),
+
+      convertAllOptimisticToReal: () =>
+        set((state) => {
+          const newLive: Record<number, MessageDTO[]> = {};
+          for (const [convId, messages] of Object.entries(state.liveMessages)) {
+            newLive[+convId] = messages.map((m) => {
+              if (!m.isOptimistic || !m.optimisticId) return m;
+              const serverId = state.optimisticToServerIdMap[m.optimisticId];
+              if (!serverId) return m;
+              let converted: MessageDTO = {
+                ...m,
+                id: serverId,
+                isOptimistic: false,
+                isSending: false,
+                sendError: null,
+              };
+              if (converted.attachments?.length) {
+                converted.attachments = converted.attachments.map((att) => {
+                  if (!att.isOptimistic || !att.optimisticId) return att;
+                  const serverUrl = state.optimisticToServerAttachmentMap[att.optimisticId];
+                  if (!serverUrl) return att;
+                  return {
+                    ...att,
+                    fileUrl: serverUrl,
+                    isOptimistic: false,
+                    isUploading: false,
+                    uploadError: null,
+                  };
+                });
+              }
+              return converted;
+            });
+          }
+          return { liveMessages: newLive };
+        }),
+
+      cleanupOptimisticMappings: () =>
+        set((state) => {
+          const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+          const filterByTimestamp = <V>(map: Record<string, V>) =>
+            Object.fromEntries(
+              Object.entries(map).filter(([id]) => {
+                const ts = parseInt(id.split("_")[1]);
+                return !ts || ts > twoHoursAgo;
+              })
+            );
+          return {
+            optimisticToServerIdMap: filterByTimestamp(state.optimisticToServerIdMap),
+            optimisticToServerAttachmentMap: filterByTimestamp(
+              state.optimisticToServerAttachmentMap
+            ),
+          };
+        }),
+
+      cleanupOptimisticForConversation: (conversationId) =>
+        set((state) => {
+          const allMsgs = [
+            ...(state.liveMessages[conversationId] || []),
+            ...(state.cachedMessages[conversationId] || []),
+          ];
+          const msgOptIds = new Set(
+            allMsgs
+              .filter((m) => m.isOptimistic && m.optimisticId)
+              .map((m) => m.optimisticId!)
+          );
+          const attOptIds = new Set(
+            allMsgs
+              .flatMap((m) => m.attachments || [])
+              .filter((a) => a.isOptimistic && a.optimisticId)
+              .map((a) => a.optimisticId!)
+          );
+
+          const cleanedMsgMap = { ...state.optimisticToServerIdMap };
+          const cleanedAttMap = { ...state.optimisticToServerAttachmentMap };
+          msgOptIds.forEach((id) => delete cleanedMsgMap[id]);
+          attOptIds.forEach((id) => delete cleanedAttMap[id]);
+
+          return {
+            optimisticToServerIdMap: cleanedMsgMap,
+            optimisticToServerAttachmentMap: cleanedAttMap,
+          };
+        }),
+
+      updateAttachmentUploadStatus: (conversationId, messageId, attachmentOptimisticId, status) =>
+        set((state) => {
+          const updateAttachments = (messages: MessageDTO[]) =>
+            messages.map((msg) => {
+              if (msg.id !== messageId) return msg;
+              return {
+                ...msg,
+                attachments: msg.attachments.map((att) =>
+                  att.isOptimistic && att.optimisticId === attachmentOptimisticId
+                    ? { ...att, ...status }
+                    : att
+                ),
+              };
+            });
+
+          return {
+            cachedMessages: {
+              ...state.cachedMessages,
+              [conversationId]: updateAttachments(state.cachedMessages[conversationId] || []),
+            },
+            liveMessages: {
+              ...state.liveMessages,
+              [conversationId]: updateAttachments(state.liveMessages[conversationId] || []),
+            },
+          };
+        }),
+
+      addRecentEmoji: (emoji) =>
+        set((state) => {
+          const filtered = state.recentEmojis.filter((e) => e !== emoji);
+          return { recentEmojis: [emoji, ...filtered].slice(0, 10) };
+        }),
+
+      cleanupOldCache: () =>
+        set((state) => {
+          const now = Date.now();
+          const TTL = 1000 * 60 * 10;
+          const currentId = state.currentConversationId;
+
+          const newCached: typeof state.cachedMessages = {};
+          const newScrollPositions: typeof state.scrollPositions = {};
+          const newTimestamps: typeof state.cacheTimestamps = {};
+
+          for (const id in state.cacheTimestamps) {
+            const convId = +id;
+            if (convId === currentId || now - state.cacheTimestamps[convId] < TTL) {
+              newCached[convId] = state.cachedMessages[convId];
+              newScrollPositions[convId] = state.scrollPositions[convId];
+              newTimestamps[convId] = state.cacheTimestamps[convId];
+            }
+          }
+
+          return {
+            cachedMessages: newCached,
+            scrollPositions: newScrollPositions,
+            cacheTimestamps: newTimestamps,
+          };
+        }),
+
       reset: () =>
         set({
-          conversations: [],
           liveMessages: {},
-          currentConversationId: null,
           cachedMessages: {},
-          scrollPositions: {},
           cacheTimestamps: {},
-          pendingMessageRequests: [],
-          searchResults: [],
-          unreadConversationIds: [],
-          conversationIds: new Set<number>(),
-          pendingRequestsCache: [],
-          pendingRequestsCacheTimestamp: 0,
-          hasLoadedPendingRequests: false,
-          hasLoadedConversations: false,
-          hasLoadedUnreadConversationIds: false,
-          isAtBottom: true,
-          showNewMessageButton: false,
+          currentConversationId: null,
+          scrollPositions: {},
+          scrollMessageIds: {},
           scrollToMessageId: null,
           searchMode: false,
-          reactionsVersion: 0,
-          pendingLockedConversationId: null,
+          searchResults: [],
+          isAtBottom: true,
+          showNewMessageButton: false,
           showMessages: false,
-          scrollMessageIds: {},
-          recentEmojis: [],
+          reactionsVersion: 0,
+          optimisticToServerIdMap: {},
           optimisticToServerAttachmentMap: {},
+          recentEmojis: [],
         }),
     })),
     {
       name: "chat-cache",
       storage: createJSONStorage(() => asyncStorage),
 
-      /**
-       * partialize: begrens hvor mye som lagres.
-       * - conversations (alle)
-       * - cachedMessages (begrenset til siste 100 per samtale)
-       * - liveMessages (begrenset til siste 50 per samtale) ✅ LAGRES NÅ
-       * - scrollPositions (alle)
-       * - pendingRequestsCache (alle)
-       * - loading states
-       * - unreadConversationIds
-       * 
-       * IKKE lagre:
-       * - searchResults (midlertidige)
-       * - UI state (isAtBottom, showNewMessageButton, etc.)
-       */
       partialize: (state) => {
-        // Begrens cachedMessages til max 100 meldinger per samtale
-        const limitedCachedMessages: Record<number, MessageDTO[]> = {};
-        for (const [convId, messages] of Object.entries(state.cachedMessages)) {
-          limitedCachedMessages[+convId] = messages.slice(-100); // Behold siste 100
+        const limitedCached: Record<number, MessageDTO[]> = {};
+        for (const [id, msgs] of Object.entries(state.cachedMessages)) {
+          limitedCached[+id] = msgs.slice(-100);
         }
-
-        // Begrens liveMessages til max 50 meldinger per samtale
-        const limitedLiveMessages: Record<number, MessageDTO[]> = {};
-        for (const [convId, messages] of Object.entries(state.liveMessages)) {
-          limitedLiveMessages[+convId] = messages.slice(-50); // Behold siste 50
+        const limitedLive: Record<number, MessageDTO[]> = {};
+        for (const [id, msgs] of Object.entries(state.liveMessages)) {
+          limitedLive[+id] = msgs.slice(-50);
         }
-
-        const optimisticMap = state.optimisticToServerIdMap || {};
-        const attachmentMap = state.optimisticToServerAttachmentMap || {};
-
         return {
-          conversations: state.conversations,
-          cachedMessages: limitedCachedMessages,
-          liveMessages: limitedLiveMessages, // ✅ LAGRES NÅ
+          cachedMessages: limitedCached,
+          liveMessages: limitedLive,
           scrollPositions: state.scrollPositions,
           cacheTimestamps: state.cacheTimestamps,
-          optimisticToServerIdMap: optimisticMap,
-          pendingMessageRequests: state.pendingMessageRequests,
-          pendingRequestsCache: state.pendingRequestsCache,
-          pendingRequestsCacheTimestamp: state.pendingRequestsCacheTimestamp,
-          unreadConversationIds: state.unreadConversationIds,
-          conversationIds: Array.from(state.conversationIds), // Set kan ikke serialiseres direkte
-          hasLoadedPendingRequests: state.hasLoadedPendingRequests,
-          hasLoadedConversations: state.hasLoadedConversations,
-          hasLoadedUnreadConversationIds: state.hasLoadedUnreadConversationIds,
-          isPendingCollapsed: state.isPendingCollapsed,
           scrollMessageIds: state.scrollMessageIds,
+          optimisticToServerIdMap: state.optimisticToServerIdMap || {},
+          optimisticToServerAttachmentMap: state.optimisticToServerAttachmentMap || {},
           recentEmojis: state.recentEmojis,
-          optimisticToServerAttachmentMap: attachmentMap,
         };
       },
 
-      // Håndter deserialisering av Set
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // Handle conversationIds Set
-          if (Array.isArray(state.conversationIds)) {
-            state.conversationIds = new Set(state.conversationIds);
-          }
-          
-          // 🆕 Ensure optimisticToServerIdMap exists
-          if (!state.optimisticToServerIdMap) {
-            state.optimisticToServerIdMap = {};
-          }
-
-          if (!state.optimisticToServerAttachmentMap) {
-            state.optimisticToServerAttachmentMap = {};
-          }
+          if (!state.optimisticToServerIdMap) state.optimisticToServerIdMap = {};
+          if (!state.optimisticToServerAttachmentMap) state.optimisticToServerAttachmentMap = {};
         }
       },
 
-      version: 1,
-      migrate: (persisted: unknown) => {
-        // Sørg for at conversationIds er et Set
-        const state = persisted as Partial<ChatStore>;
-        if (state && Array.isArray(state.conversationIds)) {
-          state.conversationIds = new Set(state.conversationIds);
-        }
-        return state as ChatStore;
-      },
+      version: 2,
+      migrate: () => ({
+        liveMessages: {},
+        cachedMessages: {},
+        cacheTimestamps: {},
+        currentConversationId: null,
+        scrollPositions: {},
+        scrollMessageIds: {},
+        scrollToMessageId: null,
+        searchMode: false,
+        searchResults: [],
+        isAtBottom: true,
+        showNewMessageButton: false,
+        showMessages: false,
+        reactionsVersion: 0,
+        optimisticToServerIdMap: {},
+        optimisticToServerAttachmentMap: {},
+        recentEmojis: [],
+      }),
     }
   )
 );

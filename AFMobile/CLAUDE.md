@@ -7,6 +7,7 @@ React Native / Expo mobilapp for ActivityFinder. Ende-til-ende kryptert meldings
 Ved arbeid i AFMobile skal disse reglene alltid lastes:
 
 @.claude/rules/components.md
+@.claude/rules/testing.md
 
 ## Tech stack
 

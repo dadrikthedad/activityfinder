@@ -44,6 +44,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       "expo-video",
+      "@react-native-community/datetimepicker",
+      "expo-localization",
+      "expo-router",
       [
         "expo-media-library",
         {

@@ -215,4 +215,10 @@ export default {
       en: "🇬🇧  Engelsk",
     },
   },
+  bootstrap: {
+    loading:               "Laster...",
+    loadingProfile:        "Laster profil...",
+    loadingConversations:  "Laster samtaler...",
+    decrypting:            "Dekrypterer meldinger...",
+  },
 } as const;

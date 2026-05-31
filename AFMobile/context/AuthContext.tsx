@@ -5,16 +5,15 @@ import React, {
   useEffect,
   useContext,
 } from "react";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import authServiceNative from "@/services/user/authServiceNative";
-import { LogoutService } from "@/auth/services/logoutService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import authServiceNative from "@/core/auth/authServiceNative";
+import { logoutUser } from "@/features/auth/services/logoutService";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 
 interface AuthContextType {
   isLoggedIn: boolean;
   token: string | null;
-  userId: string | null;  // GUID-streng fra AFBack, ikke tall
+  userId: string | null;
   login: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
   isLoading: boolean;
@@ -27,25 +26,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigation = useNavigation();
-  const logoutService = LogoutService.getInstance();
 
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        console.log("🔄 Initializing auth state...");
-
         const isAuthenticated = await authServiceNative.isAuthenticated();
         const currentAccessToken = await authServiceNative.getAccessToken();
 
-        console.log("🔍 Auth check result:", {
-          isAuthenticated,
-          hasAccessToken: !!currentAccessToken,
-        });
-
         if (isAuthenticated && currentAccessToken) {
           const id = getUserIdFromToken(currentAccessToken);
-          console.log("✅ User authenticated, ID:", id);
 
           if (id) {
             await AsyncStorage.setItem("userId", id);
@@ -54,20 +43,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUserId(id);
           setIsLoggedIn(true);
         } else {
-          console.log("❌ No valid authentication found - user needs to login");
           await AsyncStorage.removeItem("userId");
           setToken(null);
           setUserId(null);
           setIsLoggedIn(false);
         }
-      } catch (error) {
-        console.error("❌ Error initializing auth state:", error);
+      } catch {
         await AsyncStorage.removeItem("userId");
         setToken(null);
         setUserId(null);
         setIsLoggedIn(false);
       } finally {
-        console.log("✅ Auth initialization complete, setting loading to false");
         setIsLoading(false);
       }
     };
@@ -76,51 +62,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (accessToken: string, refreshToken: string) => {
-    try {
-      const newUserId = getUserIdFromToken(accessToken);
+    const newUserId = getUserIdFromToken(accessToken);
 
-      if (!newUserId) {
-        console.error("❌ Could not extract user ID from access token");
-        throw new Error("Invalid access token - no user ID found");
-      }
-
-      const previousUserId = userId;
-      if (newUserId !== previousUserId) {
-        await AsyncStorage.removeItem("dropdown_convo");
-      }
-
-      await AsyncStorage.setItem("userId", newUserId);
-
-      setUserId(newUserId);
-      setIsLoggedIn(true);
-    } catch (error) {
-      console.error("❌ Error during login:", error);
+    if (!newUserId) {
+      throw new Error("Invalid access token - no user ID found");
     }
+
+    if (newUserId !== userId) {
+      await AsyncStorage.removeItem("dropdown_convo");
+    }
+
+    await AsyncStorage.setItem("userId", newUserId);
+    setUserId(newUserId);
+    setIsLoggedIn(true);
   };
 
   const logout = async () => {
-    try {
-      await logoutService.performLogout();
-      setToken(null);
-      setUserId(null);
-      setIsLoggedIn(false);
-    } catch (error) {
-      console.error("❌ Error during logout:", error);
-      setToken(null);
-      setUserId(null);
-      setIsLoggedIn(false);
-    }
+    await logoutUser(userId);
+    setToken(null);
+    setUserId(null);
+    setIsLoggedIn(false);
   };
 
   return (
-    <AuthContext.Provider value={{
-      isLoggedIn,
-      token,
-      userId,
-      login,
-      logout,
-      isLoading,
-    }}>
+    <AuthContext.Provider value={{ isLoggedIn, token, userId, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

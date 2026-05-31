@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { MessageDTO } from '@shared/types/MessageDTO';
 import { EncryptedMessageDTO } from '@/features/crypto/types/EncryptedMessageTypes';
-import { useBootstrapStore } from '@/store/useBootstrapStore';
+import { useE2EEStore } from '@/store/useE2EEStore';
 import { useChatStore } from '@/store/useChatStore';
 import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useBootstrapMessageDecryption } from '@/features/crypto/hooks/useBootstrapMessageDecryption';
@@ -125,15 +125,15 @@ export const useBootstrapE2EEHandler = () => {
   const handleConversationMessages = useCallback(async (
     conversationMessages: { [conversationId: string]: EncryptedMessageDTO[] }
   ): Promise<void> => {
-    const e2eeState = useBootstrapStore.getState();
+    const e2eeState = useE2EEStore.getState();
     
-    if (!e2eeState.e2eeInitialized) {
+    if (!e2eeState.initialized) {
       await handleE2EENotInitialized(conversationMessages);
-    } else if (e2eeState.e2eeError === 'needs_setup') {
+    } else if (e2eeState.error === 'needs_setup') {
       await handleE2EENeedsSetup(conversationMessages);
-    } else if (e2eeState.e2eeError === 'needs_restore') {
+    } else if (e2eeState.error === 'needs_restore') {
       await handleE2EENeedsRestore(conversationMessages);
-    } else if (e2eeState.e2eeHasKeyPair) {
+    } else if (e2eeState.hasKeyPair) {
       await handleE2EEReady(conversationMessages);
     }
   }, [

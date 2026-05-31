@@ -6,6 +6,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useBootstrap } from "@/hooks/bootstrap/useBootstrap";
 import { useOnlineStatus } from "@/hooks/bootstrap/useOnlineStatus";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
+import { useE2EEStore } from "@/store/useE2EEStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useNotificationStore } from '@/store/useNotificationStore';
@@ -13,13 +15,13 @@ import { useUserCacheStore } from '@/store/useUserCacheStore';
 import { useBootstrapDistributor } from "@/hooks/bootstrap/useBootstrapDistributor";
 import { useSyncNative } from "@/hooks/sync/useSyncNative";
 import { handleUserSwitch } from '@/utils/signalr/chatHub';
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 import { CryptoInitializer } from "../ende-til-ende/CryptoInitializer";
 import { useBackgroundImageDecryption } from "@/features/cryptoAttachments/BackgroundDecrypt/hooks/useBackgroundImageDecryption";
 
 export function AppInitializer() {
   const { userId } = useAuth();
-  const prevUserIdRef = useRef<number | null>(null);
+  const prevUserIdRef = useRef<string | null>(null);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const hasInitializedOnlineRef = useRef(false);
@@ -32,12 +34,12 @@ export function AppInitializer() {
   const { markCacheAsLoaded } = useBootstrapDistributor();
   
   // E2EE state for status checking
-  const { 
-    e2eeInitialized, 
-    e2eeHasKeyPair, 
-    e2eeError, 
-    setE2EEState 
-  } = useBootstrapStore();
+  const {
+    initialized: e2eeInitialized,
+    hasKeyPair: e2eeHasKeyPair,
+    error: e2eeError,
+    setE2EEState,
+  } = useE2EEStore();
   
   const { 
     isBootstrapped, 
@@ -92,7 +94,9 @@ export function AppInitializer() {
         );
 
         useBootstrapStore.getState().reset();
+        useE2EEStore.getState().reset();
         useChatStore.getState().reset();
+        useConversationStore.getState().reset();
         useMessageNotificationStore.getState().reset();
         useNotificationStore.getState().reset();
         useUserCacheStore.getState().reset();

@@ -13,6 +13,7 @@ export type RootStackParamList = {
   LoginMfaScreen: { email: string };
   ResetPasswordScreen: undefined;
   E2EESetupScreen: { accessToken: string; refreshToken: string };
+  BootstrapLoadingScreen: undefined;
   Home: undefined;
   Profile: { id: string };
   EditProfile: undefined;
