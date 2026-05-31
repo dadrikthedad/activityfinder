@@ -22,7 +22,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: AFMobile
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run tests
         working-directory: AFMobile
