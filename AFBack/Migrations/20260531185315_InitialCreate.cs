@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialMigration : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -224,7 +224,7 @@ namespace AFBack.Migrations
                 {
                     UserId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     CountryCode = table.Column<string>(type: "character varying(2)", maxLength: 2, nullable: false),
-                    DateOfBirth = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    DateOfBirth = table.Column<DateOnly>(type: "date", nullable: false),
                     Bio = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     WebsitesCsv = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     ContactEmail = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
@@ -463,11 +463,16 @@ namespace AFBack.Migrations
                     EmailPasswordResetCodeFailedAttempts = table.Column<int>(type: "integer", nullable: false),
                     LastEmailPasswordResetSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     EmailPasswordResetVerified = table.Column<bool>(type: "boolean", nullable: false),
+                    LoginMfaCode = table.Column<string>(type: "character varying(6)", maxLength: 6, nullable: true),
+                    LoginMfaCodeExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    LoginMfaCodeFailedAttempts = table.Column<int>(type: "integer", nullable: false),
+                    LastLoginMfaCodeSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     SmsPasswordResetCode = table.Column<string>(type: "character varying(6)", maxLength: 6, nullable: true),
                     SmsPasswordResetCodeExpiresAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     SmsPasswordResetCodeFailedAttempts = table.Column<int>(type: "integer", nullable: false),
                     LastSmsPasswordResetSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     SmsPasswordResetVerified = table.Column<bool>(type: "boolean", nullable: false),
+                    SmsPasswordResetVerifiedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     PendingEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     PreviousEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     CurrentEmailChangeVerified = table.Column<bool>(type: "boolean", nullable: false),

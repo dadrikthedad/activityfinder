@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AFBack.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260323224253_AddedPropertyToLimitTimeForPasswordreset")]
-    partial class AddedPropertyToLimitTimeForPasswordreset
+    [Migration("20260531185315_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -343,6 +343,9 @@ namespace AFBack.Migrations
                     b.Property<DateTime?>("LastEmailPasswordResetSentAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("LastLoginMfaCodeSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime?>("LastNewEmailChangeSentAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -363,6 +366,16 @@ namespace AFBack.Migrations
 
                     b.Property<DateTime?>("LastVerificationSmsSentAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LoginMfaCode")
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)");
+
+                    b.Property<DateTime?>("LoginMfaCodeExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LoginMfaCodeFailedAttempts")
+                        .HasColumnType("integer");
 
                     b.Property<string>("NewEmailChangeCode")
                         .HasMaxLength(6)

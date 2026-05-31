@@ -182,9 +182,29 @@ public class BackendApplicationFactory : WebApplicationFactory<Program>, IAsyncL
         await server.FlushDatabaseAsync();
     }
 
+    /// <summary>
+    /// Returnerer en klient som alltid sender X-Forwarded-For: 127.0.0.1,
+    /// slik at IpBanMiddleware ikke blokkerer testrequester uten RemoteIpAddress.
+    /// </summary>
+    public HttpClient CreateClientWithIp(string ip = "127.0.0.1")
+    {
+        var client = CreateDefaultClient(new IpForwardingHandler(ip));
+        return client;
+    }
+
     public new async Task DisposeAsync()
     {
         await _postgres.DisposeAsync();
         await _redis.DisposeAsync();
+    }
+
+    private sealed class IpForwardingHandler(string ip) : DelegatingHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            request.Headers.TryAddWithoutValidation("X-Forwarded-For", ip);
+            return base.SendAsync(request, cancellationToken);
+        }
     }
 }

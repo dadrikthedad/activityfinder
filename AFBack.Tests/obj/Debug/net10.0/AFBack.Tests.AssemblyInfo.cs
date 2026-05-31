@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AFBack.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+13aa698ab5d606b7c8b95b6be7a86ec6c9907667")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2fb49342fa9c1043a2b693e37db3e75981d727d2")]
 [assembly: System.Reflection.AssemblyProductAttribute("AFBack.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AFBack.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
