@@ -21,11 +21,13 @@ public static class TestConfiguration
         ["ConnectionStrings:Redis"] = redisConnectionString,
 
         // JWT
+        ["Jwt:Key"]                  = "test-jwt-secret-key-for-ci-at-least-32-chars",
+        ["Jwt:Issuer"]               = "afback-test",
+        ["Jwt:Audience"]             = "afback-test",
         ["Jwt:AccessSigningKey"]     = AccessSigningKey,
         ["Jwt:AccessEncryptionKey"]  = AccessEncryptionKey,
         ["Jwt:RefreshSigningKey"]    = RefreshSigningKey,
         ["Jwt:RefreshEncryptionKey"] = RefreshEncryptionKey,
-        ["Jwt:Issuer"]               = "afback-test",
 
         // Eksterne tjenester — dummy-verdier slik at tjenestene registreres uten feil.
         // Selve implementasjonene erstattes med mocker i BackendApplicationFactory.ConfigureWebHost.
