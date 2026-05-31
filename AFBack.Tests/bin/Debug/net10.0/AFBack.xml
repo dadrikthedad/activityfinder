@@ -1940,7 +1940,7 @@
         </member>
         <member name="M:AFBack.Features.Bootstrap.Controllers.BootstrapController.GetSecondaryBootstrap">
             <summary>
-            Hent Critical Bootstrap endepunkt
+            Hent Secondary Bootstrap endepunkt
             </summary>
             <returns>200 Ok</returns>
         </member>
@@ -3657,8 +3657,6 @@
             <summary>
             Henter container navnet fra appSettings utifra ønsket container
             </summary>
-            <param name="container">Enum til type container</param>
-            <returns>Container navnet som string</returns>
         </member>
         <member name="M:AFBack.Features.FileHandling.Validators.FileValidator.ValidateEncryptedFile(Microsoft.AspNetCore.Http.IFormFile,System.Int64)">
             <inheritdoc />
@@ -4282,9 +4280,9 @@
         <member name="M:AFBack.Features.MessageNotifications.Service.MessageNotificationStateService.DeleteAllAsync(System.String)">
             <inheritdoc />
         </member>
-        <member name="M:AFBack.Features.Messaging.Controllers.EncryptionController.StorePublicKey(AFBack.Features.Messaging.DTOs.Request.StorePublicKeyRequest)">
+        <member name="M:AFBack.Features.Messaging.Controllers.EncryptionController.StoreEncryptionKeys(AFBack.Features.Messaging.DTOs.Request.StoreEncryptionKeyRequest)">
             <summary>
-            Lagre eller oppdatere PublicKey for en bruker
+            Lagre eller oppdatere PublicKey for en bruker og recovery seed lagres i keyvault.
             </summary>
         </member>
         <member name="M:AFBack.Features.Messaging.Controllers.EncryptionController.GetConversationKeys(System.Int32)">
@@ -4300,11 +4298,6 @@
         <member name="M:AFBack.Features.Messaging.Controllers.EncryptionController.GetMyPublicKey">
             <summary>
             Hent egen public key (for å sjekke E2EE-status)
-            </summary>
-        </member>
-        <member name="M:AFBack.Features.Messaging.Controllers.EncryptionController.StoreRecoverySeed(AFBack.Features.Messaging.DTOs.Request.StoreRecoverySeedRequest)">
-            <summary>
-            Lagre recovery seed i Azure Key Vault
             </summary>
         </member>
         <member name="M:AFBack.Features.Messaging.Controllers.MessageController.GetMessages(System.Int32,AFBack.Common.DTOs.PaginationRequest)">
@@ -4589,21 +4582,23 @@
             Lagrer i databasen
             </summary>
         </member>
-        <member name="M:AFBack.Features.Messaging.Repository.IUserPublicKeyRepository.GetActiveUserPublicKeyAsync(System.String)">
+        <member name="M:AFBack.Features.Messaging.Repository.IUserPublicKeyRepository.GetActiveUserPublicKeyAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Henter forrige aktive PublicKey for en bruker. Kun lov med en aktive om gangen
             </summary>
             <param name="userId">Brukeren vi henter nøkler for</param>
+            <param name="ct"></param>
             <returns>UserPublicKey eller null</returns>
         </member>
-        <member name="M:AFBack.Features.Messaging.Repository.IUserPublicKeyRepository.GetActiveKeysForUsersAsync(System.Collections.Generic.List{System.String})">
+        <member name="M:AFBack.Features.Messaging.Repository.IUserPublicKeyRepository.GetActiveKeysForUsersAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <summary>
             
             </summary>
             <param name="userIds"></param>
+            <param name="ct"></param>
             <returns></returns>
         </member>
-        <member name="M:AFBack.Features.Messaging.Repository.IUserPublicKeyRepository.AddAsync(AFBack.Features.Messaging.Models.UserPublicKey)">
+        <member name="M:AFBack.Features.Messaging.Repository.IUserPublicKeyRepository.AddAsync(AFBack.Features.Messaging.Models.UserPublicKey,System.Threading.CancellationToken)">
             <summary>
             Legger til og lagrer
             </summary>
@@ -4644,63 +4639,60 @@
         <member name="M:AFBack.Features.Messaging.Repository.MessageRepository.SaveChangesAsync">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Repository.UserPublicKeyRepository.GetActiveUserPublicKeyAsync(System.String)">
+        <member name="M:AFBack.Features.Messaging.Repository.UserPublicKeyRepository.GetActiveUserPublicKeyAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Repository.UserPublicKeyRepository.AddAsync(AFBack.Features.Messaging.Models.UserPublicKey)">
+        <member name="M:AFBack.Features.Messaging.Repository.UserPublicKeyRepository.AddAsync(AFBack.Features.Messaging.Models.UserPublicKey,System.Threading.CancellationToken)">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.StoreUserPublicKeyAsync(System.String,System.String)">
+        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.StoreEncryptionKeysAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.GetConversationKeysAsync(System.String,System.Int32)">
+        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.GetConversationKeysAsync(System.String,System.Int32,System.Threading.CancellationToken)">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.GetPublicKeysForUsersAsync(System.Collections.Generic.List{System.String})">
+        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.GetPublicKeysForUsersAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.GetMyPublicKeyAsync(System.String)">
+        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.GetMyPublicKeyAsync(System.String,System.Threading.CancellationToken)">
             <inheritdoc/>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.EncryptionService.StoreRecoverySeedAsync(System.String,System.Int32,System.String)">
-            <inheritdoc/>
-        </member>
-        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.StoreUserPublicKeyAsync(System.String,System.String)">
+        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.StoreEncryptionKeysAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
             <summary>
             Lagrer en UserPublicKey som er knyttet mot brukerens Private Key for kryptering. Invaldierer forrige
             Key
             </summary>
             <param name="userId">Brukeren</param>
             <param name="publicKey">Ny PublicKey</param>
+            <param name="recoverySeed">Seed for å lagre backup phrasen</param>
+            <param name="ct"></param>
             <returns>StoreUserPublicKeyResponse med versjonsnr</returns>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.GetConversationKeysAsync(System.String,System.Int32)">
+        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.GetConversationKeysAsync(System.String,System.Int32,System.Threading.CancellationToken)">
             <summary>
             Henter PublicKeys for alle deltakerne i en samtale. Valdierer at brukeren er med i samtalen.
             </summary>
             <param name="userId">Brukeren som henter</param>
             <param name="conversationId">Samtalen vi skal hente</param>
+            <param name="ct"></param>
             <returns>ConversationKeysResponse med UserId, PublicKey og KeyVerison pr bruker</returns>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.GetPublicKeysForUsersAsync(System.Collections.Generic.List{System.String})">
+        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.GetPublicKeysForUsersAsync(System.Collections.Generic.List{System.String},System.Threading.CancellationToken)">
             <summary>
             Henter PublicKeys for en liste med brukere. Brukes ved opprettelse av nye samtaler
             der conversationId ikke eksisterer ennå.
             </summary>
             <param name="userIds">Brukere som skal opprettes i samtalen</param>
+            <param name="ct"></param>
             <returns>Liste med UserPublicKeyResponse</returns>
         </member>
-        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.GetMyPublicKeyAsync(System.String)">
+        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.GetMyPublicKeyAsync(System.String,System.Threading.CancellationToken)">
             <summary>
             Henter brukerens egen aktive PublicKey. Brukes for å sjekke om E2EE er satt opp
             </summary>
             <param name="userId">BrukerId</param>
+            <param name="ct"></param>
             <returns>UserPublicKeyResponse med UserId, PublicKey og KeyVersion</returns>
-        </member>
-        <member name="M:AFBack.Features.Messaging.Services.IEncryptionService.StoreRecoverySeedAsync(System.String,System.Int32,System.String)">
-            <summary>
-            Lagrer brukerens recovery seed i Azure Key Vault.
-            </summary>
         </member>
         <member name="M:AFBack.Features.Messaging.Services.IMessageQueryService.GetMessagesAsync(System.String,System.Int32,System.Int32,System.Int32)">
             <summary>
@@ -6518,12 +6510,18 @@
             <param name="app"></param>
             <returns></returns>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddDatabase(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="T:AFBack.Infrastructure.Extensions.BuilderExtensions.OptionExtensions">
+            <summary>
+            Register and validate the Option-classes for sections in AppSettings.
+            Lets us avoid magic strings and if something is missing we get an error at startup.
+            </summary>
+        </member>
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddDatabase(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             Konfigurerer PostgreSQL database med Entity Framework Core
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddCaching(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddCaching(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             Konfigurerer Redis distributed cache og in-memory cache
             </summary>
@@ -6533,25 +6531,20 @@
             Setter opp Identity, Jwt og policies
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddSecurityServices(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddSecurityServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
-            Legger til sikkerhetsrelatert servicer til Programmet
+            Legger til sikkerhetsrelaterte servicer
             </summary>
-            <param name="services"></param>
-            <param name="configuration"></param>
-            <returns></returns>
         </member>
         <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddSignalRServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
-            Konfigurer SignalR med å bruke camelCase og JSON-string på Enums
+            Konfigurer SignalR med camelCase og JSON-string på Enums
             </summary>
         </member>
         <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceCollectionExtensions.AddBackgroundServices(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
-            Legger til det som kjører i bakgrunn, cleanup og queuing
+            Legger til bakgrunnsjobber, cleanup og queuing
             </summary>
-            <param name="services"></param>
-            <returns></returns>
         </member>
         <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.ServiceRegistrationExtensions.AddRepositories(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
@@ -6563,22 +6556,22 @@
             Legger til forretningslogikk-servicer
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.AddS3Storage(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.AddS3Storage(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             S3-kompatibel Object Storage på UpCloud
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.AddBrevoEmail(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.AddBrevoEmail(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             Brevo e-post via HTTP API
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.Add46ElksSms(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.Add46ElksSms(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             46elks SMS via HTTP API
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.AddHashiCorpVault(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+        <member name="M:AFBack.Infrastructure.Extensions.BuilderExtensions.UpCloudBuilderExtensions.AddHashiCorpVault(Microsoft.Extensions.DependencyInjection.IServiceCollection)">
             <summary>
             HashiCorp Vault for lagring av recovery seeds
             </summary>
@@ -6652,16 +6645,15 @@
             <returns>DeviceId som int</returns>
             <exception cref="T:AFBack.Features.Exceptions.CustomExceptions.AuthorizationException">Ingen bruker i token eller ikke mulig å parse til int</exception>
         </member>
-        <member name="M:AFBack.Infrastructure.KeyVault.Services.IKeyVaultService.StoreRecoverySeedAsync(System.String,System.Int32,System.String)">
+        <member name="M:AFBack.Infrastructure.KeyVault.Services.IKeyVaultService.StoreRecoverySeedAsync(System.String,System.String)">
             <summary>
             Laster opp en Recovery Seed for en bruker. Brukes hvis en bruker har gjort noe alvorlig galt
             og vi må finne ut av meldingene av rettslige grunner
             </summary>
             <param name="userId">BrukerId</param>
-            <param name="deviceId">DeviceID-en til brukerne</param>
-            <param name="key">Nøkkelen som blir lagret</param>
+            <param name="recoverySeed">Nøkkelen som blir lagret</param>
         </member>
-        <member name="M:AFBack.Infrastructure.KeyVault.Services.KeyVaultService.StoreRecoverySeedAsync(System.String,System.Int32,System.String)">
+        <member name="M:AFBack.Infrastructure.KeyVault.Services.KeyVaultService.StoreRecoverySeedAsync(System.String,System.String)">
             <inheritdoc/>
         </member>
         <member name="F:AFBack.Infrastructure.Security.Enums.SuspiciousActivityType.RateLimitExceeded">
@@ -7206,7 +7198,7 @@
             Tilsvarer SmsService (Azure Communication Services)
             </summary>
         </member>
-        <member name="M:AFBack.Infrastructure.Sms.Services.SmsService.#ctor(System.Net.Http.HttpClient,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{AFBack.Infrastructure.Sms.Services.SmsService})">
+        <member name="M:AFBack.Infrastructure.Sms.Services.SmsService.#ctor(System.Net.Http.HttpClient,Microsoft.Extensions.Options.IOptions{AFBack.Configurations.Options.SmsOptions},Microsoft.Extensions.Logging.ILogger{AFBack.Infrastructure.Sms.Services.SmsService})">
             <summary>
             Håndterer sending av SMS via 46elks API.
             Tilsvarer SmsService (Azure Communication Services)
@@ -7239,52 +7231,16 @@
         <member name="M:AFBack.Infrastructure.Transactions.TransactionService.ExecuteAsync(System.Func{System.Threading.CancellationToken,System.Threading.Tasks.Task{AFBack.Common.Results.Result}},System.Threading.CancellationToken,System.String)">
             <inheritdoc/>
         </member>
-        <member name="T:AFBack.Migrations.InitialMigration">
+        <member name="T:AFBack.Migrations.InitialCreate">
             <inheritdoc />
         </member>
-        <member name="M:AFBack.Migrations.InitialMigration.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+        <member name="M:AFBack.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
             <inheritdoc />
         </member>
-        <member name="M:AFBack.Migrations.InitialMigration.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+        <member name="M:AFBack.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
             <inheritdoc />
         </member>
-        <member name="M:AFBack.Migrations.InitialMigration.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="T:AFBack.Migrations.DateOfBirth_DateOnly">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.DateOfBirth_DateOnly.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.DateOfBirth_DateOnly.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.DateOfBirth_DateOnly.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="T:AFBack.Migrations.AddedPropertyToLimitTimeForPasswordreset">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.AddedPropertyToLimitTimeForPasswordreset.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.AddedPropertyToLimitTimeForPasswordreset.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.AddedPropertyToLimitTimeForPasswordreset.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="T:AFBack.Migrations.CantRemember">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.CantRemember.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.CantRemember.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
-            <inheritdoc />
-        </member>
-        <member name="M:AFBack.Migrations.CantRemember.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+        <member name="M:AFBack.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.CreateDocumentationId(System.Type)">

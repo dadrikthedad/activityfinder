@@ -2,10 +2,28 @@
 
 ## Gjøremål neste økt — i rekkefølge
 
-### Steg 3b — GitHub Actions: kjør tester ved PR
-- Opprett `.github/workflows/test.yml` som kjører `dotnet test` (AFBack) og `jest` (AFMobile) på alle pull requests mot `main`
-- Blokkér merge hvis tester feiler (branch protection rule i GitHub)
-- Vurder om backend og frontend skal være separate jobber eller én workflow
+### Steg 3b — GitHub Actions: kjør tester ved PR ✅ FERDIG
+
+### Pågående — Tester for AFBack (repository-lag + integrasjonstester per endepunkt)
+
+**Status repository-tester (Testcontainers + ekte PostgreSQL):**
+- `UserRepositoryTests` ✅ — 10 tester (GetUnverifiedUsersAsync, GetUserSummaryAsync, GetUserSummariesAsync, GetUserWithProfileAndSettingsAsync)
+- `RefreshTokenRepositoryTests` ✅ — 8 tester (GetActiveTokensByUserId/DeviceId, GetByTokenWithDevice, DeleteExpiredAndOldRevoked)
+- `LoginHistoryRepositoryTests` ✅ — 5 tester (GetActiveLoginAsync, GetActiveLoginsByUserId)
+- `VerificationInfoRepository` — ingen testbar logikk, hoppet over
+- `UserDeviceRepository` — ingen testbar logikk, hoppet over
+
+**Gjenstående repositories:**
+- `UserBlockRepository` ✅ — 10 tester (GetAsync, IsFirstUserBlockedBySecondary, GetBlockedUsersAsync)
+- `SearchRepository`
+- `MessageRepository`
+- `ConversationRepository`
+- Andre med egendefinert query-logikk
+
+**Etter repositories — integrasjonstester og unit-tester per endepunkt:**
+Gå gjennom hvert endepunkt én etter én:
+- Integrasjonstest: HTTP-pipeline med ekte DB (én test per mulig HTTP-statuskode)
+- Unit-test: service-laget med mocks (én test per `Result.Failure`-gren + happy path)
 
 ### Steg 4 — Test gjenstående scenarioer (manuelt i appen)
 - **Scenario B** — logg inn på samme enhet igjen, verifiser at E2EESetupScreen passerer gjennom uten UI

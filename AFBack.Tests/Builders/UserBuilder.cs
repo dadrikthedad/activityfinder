@@ -10,12 +10,13 @@ public class UserBuilder
     private string _email                = $"test-{Guid.NewGuid():N}@test.no";
     private string _firstName            = "Test";
     private string _lastName             = "Bruker";
-    private string _phoneNumber          = "+4700000001";
+    private string _phoneNumber          = $"+47{Random.Shared.Next(10_000_000, 99_999_999)}";
     private bool   _emailConfirmed       = true;
     private bool   _phoneConfirmed       = true;
     private string? _passwordHash;
     private UserProfile?  _profile;
     private UserSettings? _settings;
+    private DateTime _createdAt = DateTime.UtcNow;
 
     public UserBuilder WithId(string id)                     { _id = id;                   return this; }
     public UserBuilder WithEmail(string email)               { _email = email;             return this; }
@@ -25,6 +26,7 @@ public class UserBuilder
     public UserBuilder WithPasswordHash(string hash)         { _passwordHash = hash;       return this; }
     public UserBuilder WithProfile(UserProfile profile)      { _profile = profile;         return this; }
     public UserBuilder WithSettings(UserSettings settings)   { _settings = settings;       return this; }
+    public UserBuilder WithCreatedAt(DateTime createdAt)     { _createdAt = createdAt;     return this; }
 
     // Brukeren er fullstendig verifisert (standard — de fleste tester trenger dette)
     public UserBuilder AsVerified()
@@ -70,6 +72,7 @@ public class UserBuilder
         PasswordHash         = _passwordHash,
         SecurityStamp        = Guid.NewGuid().ToString(),
         ConcurrencyStamp     = Guid.NewGuid().ToString(),
+        CreatedAt            = _createdAt,
         UserProfile          = _profile,
         UserSettings         = _settings,
     };
