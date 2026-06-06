@@ -1,4 +1,4 @@
-// components/navigation/MobileNavbarNative.tsx
+// components/navbar/MobilNavbarNative.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -15,20 +15,23 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
-import { 
-  Bell, 
-  MessageSquare, 
-  Menu, 
-  X, 
-  LogIn, 
-  User, 
-  Settings, 
-  Home, 
+import {
+  Bell,
+  MessageSquare,
+  Menu,
+  X,
+  LogIn,
+  LogOut,
+  User,
+  Settings,
+  Home,
   Trash2,
   Search,
   Users,
-  Bug
+  Bug,
 } from 'lucide-react-native';
+import { useUnistyles } from 'react-native-unistyles';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useNavigation } from '@react-navigation/native';
@@ -47,38 +50,38 @@ interface MobileNavbarNativeProps {
   onNavigateToNotifications?: () => void;
 }
 
-export default function MobileNavbarNative({ 
+export default function MobileNavbarNative({
   onNavigateToMessages,
-  onNavigateToNotifications 
+  onNavigateToNotifications,
 }: MobileNavbarNativeProps) {
+  const { theme } = useUnistyles();
+  const { t } = useTranslation();
   const { isLoggedIn, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false);
-  const [slideAnim] = useState(new Animated.Value(SCREEN_WIDTH)); // Start helt til høyre
+  const [slideAnim] = useState(new Animated.Value(SCREEN_WIDTH));
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
 
   const currentUser = useCurrentUser();
-  
+
   const { query, setQuery, results, loading } = useUserSearch();
-  
+
   const notifications = useNotificationStore((s) => s.notifications);
   const unreadNotifications = notifications.filter((n) => !n.isRead).length;
-  
+
   const unreadMessageNotifications = useMessageNotificationStore(
     (state) => state.messageNotifications.filter((n) => !n.isRead).length
   );
 
   const handleToggleMenu = useCallback(() => {
     if (!isMenuOpen) {
-      // Åpne menu - slide inn fra høyre
       setIsMenuOpen(true);
       Animated.timing(slideAnim, {
-        toValue: SCREEN_WIDTH * 0.15, // Slide til 15% fra venstre (85% bredde)
+        toValue: SCREEN_WIDTH * 0.15,
         duration: 300,
         useNativeDriver: false,
       }).start();
     } else {
-      // Lukk menu - slide ut til høyre
       Animated.timing(slideAnim, {
         toValue: SCREEN_WIDTH,
         duration: 300,
@@ -100,27 +103,28 @@ export default function MobileNavbarNative({
   }, [slideAnim]);
 
   const handleToggleSearch = useCallback(() => {
-    setIsSearchMode(prev => {
-      if (prev) {
-        setQuery("");
-      }
+    setIsSearchMode((prev) => {
+      if (prev) setQuery('');
       return !prev;
     });
   }, [setQuery]);
 
-  const handleUserSelect = useCallback((user: UserSummaryDTO) => {
-    navigation.navigate('Profile', { id: user.id.toString() });
-    setIsSearchMode(false);
-    setQuery("");
-  }, [navigation, setQuery]);
+  const handleUserSelect = useCallback(
+    (user: UserSummaryDTO) => {
+      navigation.navigate('Profile', { id: user.id.toString() });
+      setIsSearchMode(false);
+      setQuery('');
+    },
+    [navigation, setQuery]
+  );
 
   const handleNavigation = useCallback(
-  <T extends keyof RootStackParamList>(screenName: T, params?: RootStackParamList[T]) => {
-    handleCloseMenu();
-    (navigation as any).navigate(screenName, params);
-  },
-  [handleCloseMenu, navigation]
-);
+    <T extends keyof RootStackParamList>(screenName: T, params?: RootStackParamList[T]) => {
+      handleCloseMenu();
+      (navigation as any).navigate(screenName, params);
+    },
+    [handleCloseMenu, navigation]
+  );
 
   const handleLogout = useCallback(() => {
     handleCloseMenu();
@@ -145,7 +149,7 @@ export default function MobileNavbarNative({
 
   const renderUserItem = ({ item }: { item: UserSummaryDTO }) => (
     <TouchableOpacity
-      style={styles.userItem}
+      style={[styles.userItem, { borderBottomColor: theme.colors.border }]}
       onPress={() => handleUserSelect(item)}
     >
       <MiniAvatarNative
@@ -155,62 +159,55 @@ export default function MobileNavbarNative({
         withBorder
       />
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.fullName}</Text>
+        <Text style={[styles.userName, { color: theme.colors.textPrimary }]}>{item.fullName}</Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
     <>
-      {/* Main Navbar */}
-      <View style={styles.navbar}>
-        <StatusBar barStyle="light-content" backgroundColor="#1C6B1C" />
-        
+      <View style={[styles.navbar, { backgroundColor: theme.colors.navbar }]}>
+        <StatusBar barStyle="light-content" backgroundColor={theme.colors.navbar} />
+
         {isSearchMode ? (
           <>
             <View style={styles.searchContainer}>
               <TextInput
-                style={styles.searchInput}
-                placeholder="Search users..."
-                placeholderTextColor="#9CA3AF"
+                style={[
+                  styles.searchInput,
+                  { backgroundColor: theme.colors.backgroundInput, color: theme.colors.textPrimary },
+                ]}
+                placeholder={t('navbar.search')}
+                placeholderTextColor={theme.colors.textPlaceholder}
                 value={query}
                 onChangeText={setQuery}
                 autoFocus
               />
             </View>
-            <TouchableOpacity
-              onPress={handleToggleSearch}
-              style={styles.iconButton}
-            >
-              <X size={20} color="white" />
+            <TouchableOpacity onPress={handleToggleSearch} style={styles.iconButton}>
+              <X size={20} color={theme.colors.navbarText} />
             </TouchableOpacity>
           </>
         ) : (
           <>
             <TouchableOpacity onPress={() => handleNavigation('Home')}>
-              <Text style={styles.logo}>Magee.no</Text>
+              <Text style={[styles.logo, { color: theme.colors.navbarText }]}>Magee.no</Text>
             </TouchableOpacity>
 
             <View style={styles.rightIcons}>
               {isLoggedIn && (
-                <TouchableOpacity
-                  onPress={handleToggleSearch}
-                  style={styles.iconButton}
-                >
-                  <Search size={20} color="white" />
+                <TouchableOpacity onPress={handleToggleSearch} style={styles.iconButton}>
+                  <Search size={20} color={theme.colors.navbarText} />
                 </TouchableOpacity>
               )}
 
               {isLoggedIn && (
-                <TouchableOpacity
-                  onPress={handleMessagesPress}
-                  style={styles.iconButton}
-                >
-                  <MessageSquare size={20} color="white" />
+                <TouchableOpacity onPress={handleMessagesPress} style={styles.iconButton}>
+                  <MessageSquare size={20} color={theme.colors.navbarText} />
                   {unreadMessageNotifications > 0 && (
-                    <View style={styles.badge}>
+                    <View style={[styles.badge, { backgroundColor: theme.colors.error }]}>
                       <Text style={styles.badgeText}>
-                        {unreadMessageNotifications > 99 ? "99+" : unreadMessageNotifications.toString()}
+                        {unreadMessageNotifications > 99 ? '99+' : unreadMessageNotifications.toString()}
                       </Text>
                     </View>
                   )}
@@ -218,29 +215,23 @@ export default function MobileNavbarNative({
               )}
 
               {isLoggedIn && (
-                <TouchableOpacity
-                  onPress={handleNotificationsPress}
-                  style={styles.iconButton}
-                >
-                  <Bell size={20} color="white" />
+                <TouchableOpacity onPress={handleNotificationsPress} style={styles.iconButton}>
+                  <Bell size={20} color={theme.colors.navbarText} />
                   {unreadNotifications > 0 && (
-                    <View style={styles.badge}>
+                    <View style={[styles.badge, { backgroundColor: theme.colors.error }]}>
                       <Text style={styles.badgeText}>
-                        {unreadNotifications > 99 ? "99+" : unreadNotifications.toString()}
+                        {unreadNotifications > 99 ? '99+' : unreadNotifications.toString()}
                       </Text>
                     </View>
                   )}
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity
-                onPress={handleToggleMenu}
-                style={styles.iconButton}
-              >
+              <TouchableOpacity onPress={handleToggleMenu} style={styles.iconButton}>
                 {isMenuOpen ? (
-                  <X size={20} color="white" />
+                  <X size={20} color={theme.colors.navbarText} />
                 ) : (
-                  <Menu size={20} color="white" />
+                  <Menu size={20} color={theme.colors.navbarText} />
                 )}
               </TouchableOpacity>
             </View>
@@ -248,13 +239,14 @@ export default function MobileNavbarNative({
         )}
       </View>
 
-      {/* Search Results Dropdown */}
       {isSearchMode && query.trim() && (
-        <View style={styles.searchResults}>
+        <View style={[styles.searchResults, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#1C6B1C" />
-              <Text style={styles.loadingText}>Searching...</Text>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+                {t('navbar.searching')}
+              </Text>
             </View>
           ) : results.length > 0 ? (
             <FlatList
@@ -266,49 +258,43 @@ export default function MobileNavbarNative({
             />
           ) : (
             <View style={styles.noResultsContainer}>
-              <Text style={styles.noResultsText}>No users found</Text>
+              <Text style={[styles.noResultsText, { color: theme.colors.textSecondary }]}>
+                {t('navbar.noUsersFound')}
+              </Text>
             </View>
           )}
         </View>
       )}
 
-      {/* Slide-out Menu Modal - Animert fra høyre */}
       <Modal
         visible={isMenuOpen}
-        animationType="none" // Bruker vår egen animasjon
+        animationType="none"
         transparent={true}
         onRequestClose={handleCloseMenu}
       >
         <View style={styles.modalOverlay}>
-          {/* Backdrop */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backdrop}
             onPress={handleCloseMenu}
             activeOpacity={1}
           />
-          
-          {/* Animert Menu Panel */}
-          <Animated.View 
+
+          <Animated.View
             style={[
               styles.menuPanel,
-              {
-                transform: [{ translateX: slideAnim }]
-              }
+              { backgroundColor: theme.colors.surface, transform: [{ translateX: slideAnim }] },
             ]}
           >
             <SafeAreaView style={styles.menuContent}>
-              {/* Menu Header */}
-              <View style={styles.menuHeader}>
-                <Text style={styles.menuTitle}>Menu</Text>
-                <TouchableOpacity
-                  onPress={handleCloseMenu}
-                  style={styles.closeButton}
-                >
-                  <X size={20} color="white" />
+              <View style={[styles.menuHeader, { backgroundColor: theme.colors.navbar }]}>
+                <Text style={[styles.menuTitle, { color: theme.colors.navbarText }]}>
+                  {t('navbar.menu')}
+                </Text>
+                <TouchableOpacity onPress={handleCloseMenu} style={styles.closeButton}>
+                  <X size={20} color={theme.colors.navbarText} />
                 </TouchableOpacity>
               </View>
 
-              {/* Menu Content */}
               <ScrollView style={styles.menuScrollContent} showsVerticalScrollIndicator={false}>
                 {isLoggedIn ? (
                   <>
@@ -316,94 +302,100 @@ export default function MobileNavbarNative({
                       onPress={() => {
                         if (currentUser?.id) {
                           handleNavigation('Profile', { id: currentUser.id.toString() });
-                        } else {
-                          console.warn('No current user found for profile navigation');
                         }
                       }}
                       style={styles.menuItem}
                     >
-                      <User size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>My Profile</Text>
+                      <User size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.myProfile')}
+                      </Text>
                     </TouchableOpacity>
 
-                    <View style={styles.separator} />
+                    <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('Home')}
                       style={styles.menuItem}
                     >
-                      <Home size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Home</Text>
+                      <Home size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.home')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('MessagesScreen')}
                       style={styles.menuItem}
                     >
-                      <MessageSquare size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Messages</Text>
+                      <MessageSquare size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.messages')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('FriendScreen')}
                       style={styles.menuItem}
                     >
-                      <Users size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Friends</Text>
+                      <Users size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.friends')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('TrashcanScreen')}
                       style={styles.menuItem}
                     >
-                      <Trash2 size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Trashcan</Text>
+                      <Trash2 size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.trashcan')}
+                      </Text>
                     </TouchableOpacity>
 
-                    <View style={styles.separator} />
-                    
+                    <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
+
                     <TouchableOpacity
                       onPress={() => handleNavigation('EditProfileScreen')}
                       style={styles.menuItem}
                     >
-                      <User size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Edit Profile</Text>
+                      <User size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.editProfile')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('ProfileSettingsScreen')}
                       style={styles.menuItem}
                     >
-                      <Settings size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Settings</Text>
+                      <Settings size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.settings')}
+                      </Text>
                     </TouchableOpacity>
 
-                    <View style={styles.separator} />
+                    <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('ReportScreen', { type: 'bug' })}
                       style={styles.menuItem}
                     >
-                      <Bug size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Report a problem/issue</Text>
+                      <Bug size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.reportProblem')}
+                      </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                      onPress={() => handleNavigation('TestNavigator')}
-                      style={styles.menuItem}
-                    >
-                      <Bug size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>TEST</Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.separator} />
+                    <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
 
                     <TouchableOpacity
                       onPress={handleLogout}
-                      style={[styles.menuItem, styles.logoutItem]}
+                      style={[styles.menuItem, styles.logoutItem, { backgroundColor: theme.colors.error }]}
                     >
-                      <LogIn size={18} color="white" />
-                      <Text style={styles.logoutText}>Log Out</Text>
+                      <LogOut size={18} color="white" />
+                      <Text style={styles.logoutText}>{t('navbar.logOut')}</Text>
                     </TouchableOpacity>
                   </>
                 ) : (
@@ -412,26 +404,30 @@ export default function MobileNavbarNative({
                       onPress={() => handleNavigation('Home')}
                       style={styles.menuItem}
                     >
-                      <Home size={18} color="#374151" />
-                      <Text style={styles.menuItemText}>Home</Text>
+                      <Home size={18} color={theme.colors.textPrimary} />
+                      <Text style={[styles.menuItemText, { color: theme.colors.textPrimary }]}>
+                        {t('navbar.home')}
+                      </Text>
                     </TouchableOpacity>
 
-                    <View style={styles.separator} />
+                    <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('Login')}
                       style={styles.menuItem}
                     >
-                      <LogIn size={18} color="#1C6B1C" />
-                      <Text style={styles.loginText}>Log In</Text>
+                      <LogIn size={18} color={theme.colors.primary} />
+                      <Text style={[styles.loginText, { color: theme.colors.primary }]}>
+                        {t('navbar.logIn')}
+                      </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       onPress={() => handleNavigation('Signup')}
-                      style={[styles.menuItem, styles.signupItem]}
+                      style={[styles.menuItem, styles.signupItem, { backgroundColor: theme.colors.primary }]}
                     >
                       <User size={18} color="white" />
-                      <Text style={styles.signupText}>Create Account</Text>
+                      <Text style={styles.signupText}>{t('navbar.createAccount')}</Text>
                     </TouchableOpacity>
                   </>
                 )}
@@ -449,7 +445,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1C6B1C',
     paddingHorizontal: 16,
     paddingVertical: 8,
     shadowColor: '#000',
@@ -461,7 +456,6 @@ const styles = StyleSheet.create({
   logo: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: 'white',
   },
   rightIcons: {
     flexDirection: 'row',
@@ -477,7 +471,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#9CA3AF',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -495,17 +488,13 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   searchInput: {
-    backgroundColor: 'white',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 16,
-    color: '#374151',
   },
   searchResults: {
-    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
     maxHeight: 300,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -522,7 +511,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#6b7280',
   },
   resultsList: {
     maxHeight: 300,
@@ -533,7 +521,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
     gap: 12,
   },
   userInfo: {
@@ -542,7 +529,6 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1f2937',
   },
   noResultsContainer: {
     paddingVertical: 20,
@@ -550,12 +536,10 @@ const styles = StyleSheet.create({
   },
   noResultsText: {
     fontSize: 14,
-    color: '#6b7280',
   },
-  // Oppdaterte modal styles for høyre-til-venstre slide
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent backdrop
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   backdrop: {
     position: 'absolute',
@@ -569,9 +553,8 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     right: 0,
-    width: '85%', // Tar 85% av skjermen
+    width: '85%',
     maxWidth: 320,
-    backgroundColor: 'white',
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
     shadowOpacity: 0.25,
@@ -585,14 +568,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1C6B1C',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
   menuTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white',
   },
   closeButton: {
     padding: 4,
@@ -614,27 +595,25 @@ const styles = StyleSheet.create({
   },
   menuItemText: {
     fontSize: 16,
-    color: '#374151',
   },
   separator: {
     height: 1,
-    backgroundColor: '#e5e7eb',
     marginVertical: 12,
   },
   logoutItem: {
-    backgroundColor: '#9CA3AF',
+    // backgroundColor settes dynamisk via theme.colors.error
   },
   logoutText: {
     fontSize: 16,
     color: 'white',
+    fontWeight: '500',
   },
   loginText: {
     fontSize: 16,
-    color: '#1C6B1C',
     fontWeight: '500',
   },
   signupItem: {
-    backgroundColor: '#1C6B1C',
+    // backgroundColor settes dynamisk via theme.colors.primary
   },
   signupText: {
     fontSize: 16,

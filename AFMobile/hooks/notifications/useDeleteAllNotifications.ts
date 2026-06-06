@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 import { deleteAllNotifications } from "@/services/notifications/deleteAllNotifications";
 import { useNotificationStore } from "@/store/useNotificationStore";
 

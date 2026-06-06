@@ -17,7 +17,7 @@ public class SearchRepository(AppDbContext context) : ISearchRepository
             .Where(b => b.BlockedUserId == requestingUserId)
             .Select(b => b.BlockerId);
 
-        var dbQuery = context.Users
+        var joinQuery = context.Users
             .AsNoTracking()
             .Where(u => u.Id != requestingUserId)
             .Where(u => !blockedRequestingUserIds.Contains(u.Id))
@@ -25,36 +25,34 @@ public class SearchRepository(AppDbContext context) : ISearchRepository
             .Join(context.Profiles,
                 u => u.Id,
                 p => p.UserId,
-                (u, p) => new { User = u, Profile = p })
+                (u, p) => new { User = u, Profile = p });
+
+        // Cursor: "proximityLevel|fullName|userId"
+        // ProximityLevel er ikke implementert ennå (alltid 0) — cursor degraderer til fullName|userId
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            var parts = cursor.Split('|');
+            if (parts.Length == 3)
+            {
+                var cursorName = parts[1];
+                var cursorId = parts[2];
+                joinQuery = joinQuery.Where(x =>
+                    x.User.FullName.CompareTo(cursorName) > 0 ||
+                    (x.User.FullName == cursorName && x.User.Id.CompareTo(cursorId) > 0));
+            }
+        }
+
+        return await joinQuery
+            .OrderBy(x => x.User.FullName)
+            .ThenBy(x => x.User.Id)
+            .Take(pageSize + 1) // +1 for å sjekke HasMore
             .Select(x => new UserSearchResult
             {
                 Id = x.User.Id,
                 FullName = x.User.FullName,
                 ProfileImageUrl = x.User.ProfileImageUrl,
                 CountryCode = x.Profile.CountryCode
-            });
-
-        // Cursor: "proximityLevel|fullName|userId"
-        if (!string.IsNullOrEmpty(cursor))
-        {
-            var parts = cursor.Split('|');
-            if (parts.Length == 3 && int.TryParse(parts[0], out var cursorLevel))
-            {
-                var cursorName = parts[1];
-                var cursorId = parts[2];
-                dbQuery = dbQuery.Where(x =>
-                    x.ProximityLevel > cursorLevel ||
-                    (x.ProximityLevel == cursorLevel && x.FullName.CompareTo(cursorName) > 0) ||
-                    (x.ProximityLevel == cursorLevel && x.FullName == cursorName
-                                                     && x.Id.CompareTo(cursorId) > 0));
-            }
-        }
-
-        return await dbQuery
-            .OrderBy(x => x.ProximityLevel)
-            .ThenBy(x => x.FullName)
-            .ThenBy(x => x.Id)
-            .Take(pageSize + 1) // +1 for å sjekke HasMore
+            })
             .ToListAsync();
     }
 

@@ -16,7 +16,10 @@ import { ApiError } from "@/core/errors/ProblemDetails";
 
 export async function logoutUser(userId: string | null): Promise<Result<void, AuthErrorCode>> {
   try {
-    await markOfflineWithDefaults().catch(() => {});
+    await Promise.race([
+      markOfflineWithDefaults(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+    ]).catch(() => {});
 
     if (userId) {
       const cryptoService = CryptoService.getInstance();

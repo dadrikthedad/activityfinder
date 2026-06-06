@@ -18,7 +18,7 @@ import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "@/types/navigation";
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 
 interface PublicProfileViewProps {
   profile: PublicProfileDTO;

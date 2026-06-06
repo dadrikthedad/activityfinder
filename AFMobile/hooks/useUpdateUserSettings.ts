@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 import { updateUserSettings } from "@/services/user/settings";
 import { UserSettingsDTO } from "@shared/types/UserSettingsDTO";
 

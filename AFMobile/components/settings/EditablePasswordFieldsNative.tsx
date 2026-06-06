@@ -9,7 +9,7 @@ import ButtonNative from "../common/buttons/ButtonNative";
 import { validateSingleField } from "@shared/utils/validators";
 import { updatePassword } from "@/services/user/security";
 import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 
 export default function EditablePasswordFieldsNative() {

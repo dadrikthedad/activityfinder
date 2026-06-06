@@ -59,6 +59,7 @@ var app = builder.Build();
 
 // Setter opp hele HTTP-pipelinen med middlewares. Den kobler opp middlewaren i ritkig rekkefølge. Rekkefølgen er veldig viktig
 app.UseAppPipeline();
+await app.MigrateDatabaseAsync();
 
 Log.Information("Application started successfully!");
 Log.Information("Swagger: {Url}", "http://localhost:5058/swagger");

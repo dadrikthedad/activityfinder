@@ -1,6 +1,7 @@
+using AFBack.Data;
 using AFBack.Features.SignalR.Hubs;
 using AFBack.Infrastructure.Middleware;
-
+using Microsoft.EntityFrameworkCore;
 
 namespace AFBack.Infrastructure.Extensions.ApplicationExtensions;
 
@@ -61,5 +62,16 @@ public static class WebApplicationExtensions
         app.MapFallbackToFile("index.html");
 
         return app;
+    }
+
+    /// <summary>
+    /// Kjører EF Core-migrasjoner ved oppstart — sikrer at databasen alltid er oppdatert
+    /// før hosted services starter. Gjelder produksjon, UpCloud og tester.
+    /// </summary>
+    public static async Task MigrateDatabaseAsync(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
     }
 }

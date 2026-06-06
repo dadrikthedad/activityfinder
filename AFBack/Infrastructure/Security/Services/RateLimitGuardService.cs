@@ -18,7 +18,7 @@ public class RateLimitGuardService(
         if (rateLimitResult.IsSuccess)
             return Result.Success();
 
-        await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress, 
+        await suspiciousActivityService.ReportSuspiciousActivityAsync(ipAddress,
             SuspiciousActivityType.EmailRateLimitExceeded, $"{emailType} rate limit exceeded for {email}");
 
         return Result.Failure(rateLimitResult.Error, AppErrorCode.TooManyRequests);

@@ -25,6 +25,7 @@ using AFBack.Features.Reactions.Services;
 using AFBack.Features.Settings.Repositories;
 using AFBack.Features.Settings.Services;
 using AFBack.Features.SignalR.Repository;
+using AFBack.Features.Bootstrap.Services;
 using AFBack.Features.Support.Repositories;
 using AFBack.Features.Support.Services;
 using AFBack.Features.SyncEvents.Repository;
@@ -146,6 +147,9 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<IMessageNotificationQueryService, MessageNotificationQueryService>();
         services.AddScoped<IMessageNotificationStateService, MessageNotificationStateService>();
         
+        // ===== BOOTSTRAP SERVICES =====
+        services.AddScoped<IBootstrapService, BootstrapService>();
+
         // ===== SUPPORT SERVICES =====
         services.AddScoped<ISupportTicketService, SupportTicketService>();
         services.AddScoped<IUserReportService, UserReportService>();

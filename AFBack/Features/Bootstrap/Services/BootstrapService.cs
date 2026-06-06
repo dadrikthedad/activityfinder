@@ -15,30 +15,26 @@ namespace AFBack.Features.Bootstrap.Services;
 
 public class BootstrapService(
     IUserRepository userRepository,
-    IMessageNotificationQueryService messageNotificationQueryService,
     ILogger<BootstrapService> logger,
     IBlockingService blockingService,
-    GetConversationsService getConversationsService,
-    MessageQueryService messageQueryService) : IBootstrapService
+    IServiceScopeFactory scopeFactory) : IBootstrapService
 {
-    
     /// <inheritdoc/>
     public async Task<Result<CriticalBootstrapResponse>> GetCriticalBootstrapAsync(string userId)
     {
         logger.LogInformation("Starting critical bootstrap for user {UserId}", userId);
-        
+
         var user = await userRepository.GetUserWithProfileAndSettingsAsync(userId);
         if (user == null)
         {
             logger.LogError("User {UserId} retrieving bootstrap does not exist", userId);
             return Result<CriticalBootstrapResponse>.Failure("User does not exist", AppErrorCode.NotFound);
         }
-        
-        // Henter blokkerte brukere
+
         var blockedUsersResult = await blockingService.GetBlockedUsersAsync(userId);
         if (blockedUsersResult.IsFailure)
             return Result<CriticalBootstrapResponse>.Failure(blockedUsersResult.Error, blockedUsersResult.ErrorCode);
-        
+
         var response = new CriticalBootstrapResponse
         {
             User = user.ToUserResponse(),
@@ -51,10 +47,7 @@ public class BootstrapService(
         return Result<CriticalBootstrapResponse>.Success(response);
     }
 
-    /// <summary>
-    /// Sekundær bootstrap — hentes etter kritisk data er lastet.
-    /// Inneholder samtaler, meldinger, relasjoner, varsler, etc.
-    /// </summary>
+    /// <inheritdoc/>
     public async Task<Result<SecondaryBootstrapResponse>> GetSecondaryBootstrapAsync(string userId)
     {
         logger.LogInformation("Starting secondary bootstrap for user {UserId}", userId);
@@ -62,14 +55,26 @@ public class BootstrapService(
         var paginationRequest = new PaginationRequest { Page = 1, PageSize = 10 };
         var notificationPagination = new PaginationRequest { Page = 1, PageSize = 20 };
 
-        // Fase 1: Alt som kan kjøre parallelt
-        var activeConversationsTask = getConversationsService.GetActiveConversationsAsync(userId, paginationRequest);
-        var pendingConversationsTask = getConversationsService.GetPendingConversationsAsync(userId, paginationRequest);
-        var messageNotificationsTask = messageNotificationQueryService.GetNotificationsAsync(userId, 
-            notificationPagination);
-        var unreadMessageCountTask = messageNotificationQueryService.GetUnreadCountAsync(userId);
-        var unreadConversationIdsTask = messageNotificationQueryService.GetUnreadConversationIdsAsync(
-            userId);
+        // Hver task får sin egen scope og dermed sin egen DbContext-instans
+        var activeConversationsTask = RunInScopeAsync(scope =>
+            scope.GetRequiredService<IGetConversationsService>()
+                 .GetActiveConversationsAsync(userId, paginationRequest));
+
+        var pendingConversationsTask = RunInScopeAsync(scope =>
+            scope.GetRequiredService<IGetConversationsService>()
+                 .GetPendingConversationsAsync(userId, paginationRequest));
+
+        var messageNotificationsTask = RunInScopeAsync(scope =>
+            scope.GetRequiredService<IMessageNotificationQueryService>()
+                 .GetNotificationsAsync(userId, notificationPagination));
+
+        var unreadMessageCountTask = RunInScopeAsync(scope =>
+            scope.GetRequiredService<IMessageNotificationQueryService>()
+                 .GetUnreadCountAsync(userId));
+
+        var unreadConversationIdsTask = RunInScopeAsync(scope =>
+            scope.GetRequiredService<IMessageNotificationQueryService>()
+                 .GetUnreadConversationIdsAsync(userId));
 
         await Task.WhenAll(
             activeConversationsTask,
@@ -78,40 +83,32 @@ public class BootstrapService(
             unreadMessageCountTask,
             unreadConversationIdsTask);
 
-        var activeResult = await activeConversationsTask;
+        var activeResult = activeConversationsTask.Result;
         if (activeResult.IsFailure)
             return Result<SecondaryBootstrapResponse>.Failure(activeResult.Error, activeResult.ErrorCode);
 
-        var pendingResult = await pendingConversationsTask;
+        var pendingResult = pendingConversationsTask.Result;
         if (pendingResult.IsFailure)
             return Result<SecondaryBootstrapResponse>.Failure(pendingResult.Error, pendingResult.ErrorCode);
 
-        var messageNotificationsResult = await messageNotificationsTask;
+        var messageNotificationsResult = messageNotificationsTask.Result;
         if (messageNotificationsResult.IsFailure)
             return Result<SecondaryBootstrapResponse>.Failure(messageNotificationsResult.Error,
                 messageNotificationsResult.ErrorCode);
-        
-        var unreadConversationIds = await unreadConversationIdsTask;
-        
-        // Fase 2: Hent meldinger for aktive samtaler + pending 1v1-samtaler
-        var conversationIds = activeResult.Value!.Conversations
-            .Select(c => c.Id)
-            .ToList();
 
-        var pendingDirectIds = pendingResult.Value!.Conversations
-            .Where(c => c.Type != ConversationType.GroupChat)
+        var allMessageConversationIds = activeResult.Value!.Conversations
             .Select(c => c.Id)
-            .ToList();
-
-        var allMessageConversationIds = conversationIds
-            .Concat(pendingDirectIds)
+            .Concat(pendingResult.Value!.Conversations
+                .Where(c => c.Type != ConversationType.GroupChat)
+                .Select(c => c.Id))
             .ToList();
 
         Dictionary<int, List<MessageResponse>> conversationMessages = [];
         if (allMessageConversationIds.Count > 0)
         {
-            var messagesResult = await messageQueryService.GetMessagesForConversationsAsync(
-                userId, allMessageConversationIds, messagesPerConversation: 10);
+            var messagesResult = await RunInScopeAsync(scope =>
+                scope.GetRequiredService<IMessageQueryService>()
+                     .GetMessagesForConversationsAsync(userId, allMessageConversationIds, messagesPerConversation: 10));
 
             if (messagesResult.IsFailure)
                 return Result<SecondaryBootstrapResponse>.Failure(messagesResult.Error, messagesResult.ErrorCode);
@@ -125,14 +122,22 @@ public class BootstrapService(
             PendingConversations = pendingResult.Value!.Conversations,
             ConversationMessages = conversationMessages,
             MessageNotifications = messageNotificationsResult.Value!.Items,
-            UnreadMessageNotificationCount = await unreadMessageCountTask,
-            UnreadConversationIds = unreadConversationIds
+            UnreadMessageNotificationCount = unreadMessageCountTask.Result,
+            UnreadConversationIds = unreadConversationIdsTask.Result
         };
 
         logger.LogInformation(
-            "Secondary bootstrap completed — Active: {Active}, Pending: {Pending}, Messages: {Msgs}", response.ActiveConversations.Count, response.PendingConversations.Count,
+            "Secondary bootstrap completed — Active: {Active}, Pending: {Pending}, Messages: {Msgs}",
+            response.ActiveConversations.Count,
+            response.PendingConversations.Count,
             conversationMessages.Values.Sum(m => m.Count));
 
         return Result<SecondaryBootstrapResponse>.Success(response);
+    }
+
+    private async Task<T> RunInScopeAsync<T>(Func<IServiceProvider, Task<T>> work)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        return await work(scope.ServiceProvider);
     }
 }

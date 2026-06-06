@@ -1,7 +1,7 @@
 // Her markerer vi at alle notificaitons har blitt lest ved å fetche fra backend
 import { markAllNotificationsAsRead } from "@/services/notifications/markAllNotificationsAsRead";
 import { useCallback, useState } from "react";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useMarkAllNotificationsAsRead() {
   const [loading, setLoading] = useState(false);

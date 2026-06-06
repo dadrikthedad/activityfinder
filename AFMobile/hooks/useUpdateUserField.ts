@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 
 // Importer typen direkte fra updateUser-filen
 import type { UpdateFieldArgs } from "@/services/user/updateUser";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useUpdateUserField() {
  // Sjekker om vi er har riktig token

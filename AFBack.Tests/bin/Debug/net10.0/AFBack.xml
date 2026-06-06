@@ -6510,6 +6510,12 @@
             <param name="app"></param>
             <returns></returns>
         </member>
+        <member name="M:AFBack.Infrastructure.Extensions.ApplicationExtensions.WebApplicationExtensions.MigrateDatabaseAsync(Microsoft.AspNetCore.Builder.WebApplication)">
+            <summary>
+            Kjører EF Core-migrasjoner ved oppstart — sikrer at databasen alltid er oppdatert
+            før hosted services starter. Gjelder produksjon, UpCloud og tester.
+            </summary>
+        </member>
         <member name="T:AFBack.Infrastructure.Extensions.BuilderExtensions.OptionExtensions">
             <summary>
             Register and validate the Option-classes for sections in AppSettings.

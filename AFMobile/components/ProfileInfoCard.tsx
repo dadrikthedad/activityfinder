@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
 import ButtonNative from "@/components/common/buttons/ButtonNative";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 import { updateBio, updateWebsites } from "@/services/profile/profile";
 import { PlusCircle, Trash2 } from "lucide-react-native";
 

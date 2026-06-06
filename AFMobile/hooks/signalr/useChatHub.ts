@@ -11,7 +11,7 @@ import { GroupRequestCreatedDto } from "@shared/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO } from "@shared/types/GroupNotificationUpdateDTO";
 import { GroupDisbandedDto } from "@shared/types/GroupDisbandedDTO";
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useChatHub(
   onReceiveMessage?: (message: MessageDTO) => void,

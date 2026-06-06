@@ -8,7 +8,7 @@ import PublicProfileViewNative from '@/components/profile/PublicProfileViewNativ
 import SpinnerNative from '@/components/common/SpinnerNative';
 import { ProfileScreenRouteProp } from '@/types/navigation';
 import { useIsUserBlocked } from '@/store/useUserCacheStore';
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 
 export default function ProfileScreen() {
   const route = useRoute<ProfileScreenRouteProp>();

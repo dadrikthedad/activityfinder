@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { API_BASE_URL } from "@/constants/routes";
 import { User } from "@shared/types/UserDTO";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useFullCurrentUser() {
   const [user, setUser] = useState<User | null>(null);

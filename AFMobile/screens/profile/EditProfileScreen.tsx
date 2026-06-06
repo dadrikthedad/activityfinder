@@ -6,7 +6,7 @@ import { PublicProfileDTO } from '@shared/types/PublicProfileDTO';
 import PublicProfileViewNative from '@/components/profile/PublicProfileViewNative';
 import SpinnerNative from '@/components/common/SpinnerNative';
 import ButtonNative from '@/components/common/buttons/ButtonNative';
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 
 export default function EditProfileScreen() {
   const { userId } = useAuth();

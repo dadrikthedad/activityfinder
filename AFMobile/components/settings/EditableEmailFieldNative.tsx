@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { FieldName, validateSingleField } from "@shared/utils/validators";
 import ButtonNative from "../common/buttons/ButtonNative";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 import { updateEmail } from "@/services/user/security";
 import PasswordFieldNative from "@/components/common/PasswordFieldNative";
 import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";

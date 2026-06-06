@@ -1,29 +1,47 @@
 # AFMobile — Neste økt
 
+### Neste økt — Bootstrap-migrering til nye endepunkter
+
+Deretter migreres bootstrap-flyten:
+1. Les gjennom `services/bootstrap/` og kartlegg hvilke API-kall som gjøres i dag
+2. Sammenlign mot nye endepunkter i AFBack (`BootstrapController`)
+3. Oppdater kall ett for ett — hold E2EE-initialiseringen intakt (nøkkel må være i minnet før dekryptering starter)
+4. Test full flyt: login → MFA → E2EESetupScreen → bootstrap → meldinger dekryptert
+
 ## Gjøremål neste økt — i rekkefølge
 
-### Steg 3b — GitHub Actions: kjør tester ved PR ✅ FERDIG
+### Steg 3 — Test at bootstrap fungerer end-to-end
 
-### Pågående — Tester for AFBack (repository-lag + integrasjonstester per endepunkt)
+Bootstrap-endepunkter, DTOer og stores er oppdatert til å matche backend. Start med:
+1. Start backend (`dotnet run` i AFBack)
+2. Verifiser critical bootstrap: `user` (UserBootstrapDTO), `profile`, `settings`, `blockedUsers` populeres i `useUserCacheStore`
+3. Verifiser secondary bootstrap: `activeConversations`, `pendingConversations`, `messageNotifications`, `unreadConversationIds` populeres i storene
+4. Gå videre til SignalR — det var allerede `WRN: Mangler eller ugyldig bruker-ID ved tilkobling` i loggen
 
-**Status repository-tester (Testcontainers + ekte PostgreSQL):**
-- `UserRepositoryTests` ✅ — 10 tester (GetUnverifiedUsersAsync, GetUserSummaryAsync, GetUserSummariesAsync, GetUserWithProfileAndSettingsAsync)
-- `RefreshTokenRepositoryTests` ✅ — 8 tester (GetActiveTokensByUserId/DeviceId, GetByTokenWithDevice, DeleteExpiredAndOldRevoked)
-- `LoginHistoryRepositoryTests` ✅ — 5 tester (GetActiveLoginAsync, GetActiveLoginsByUserId)
-- `VerificationInfoRepository` — ingen testbar logikk, hoppet over
-- `UserDeviceRepository` — ingen testbar logikk, hoppet over
+#### Hva som ble gjort denne økten (bootstrap-migrering)
 
-**Gjenstående repositories:**
-- `UserBlockRepository` ✅ — 10 tester (GetAsync, IsFirstUserBlockedBySecondary, GetBlockedUsersAsync)
-- `SearchRepository`
-- `MessageRepository`
-- `ConversationRepository`
-- Andre med egendefinert query-logikk
+**Backend:**
+- `IBootstrapService` manglede DI-registrering — lagt til i `ServiceRegistrationExtensions.cs`
+- `BootstrapService` injiserte konkrete typer — fikset til `IGetConversationsService` / `IMessageQueryService`
+- `Task.WhenAll` krasjet fordi scoped DbContext ikke er thread-safe — løst med `IServiceScopeFactory` + `RunInScopeAsync` (hver parallell task får egen scope/DbContext)
 
-**Etter repositories — integrasjonstester og unit-tester per endepunkt:**
-Gå gjennom hvert endepunkt én etter én:
-- Integrasjonstest: HTTP-pipeline med ekte DB (én test per mulig HTTP-statuskode)
-- Unit-test: service-laget med mocks (én test per `Result.Failure`-gren + happy path)
+**Frontend DTOer (`shared/types`):**
+- Nye filer: `UserBootstrapDTO.ts` (id: string GUID), `UserProfileDTO.ts`, `BlockedUserDTO.ts`
+- `UserSettingsDTO.ts` — fikset skrivefeil, lagt til `showAge`/`showBirthday`/`showBio`, alle felt required
+- `ConversationDTO.ts` — `isGroup` → `type: ConversationType` enum, participant fikset (`conversationStatus→status`, lagt til `role`, `pendingMessagesReceived`)
+- `CriticalBootstrapResponseDTO.ts` — ny shape: `user/profile/settings/blockedUsers`, fjernet `syncToken`
+- `SecondaryBootstrapResponseDTO.ts` — ny shape: `activeConversations/pendingConversations/messageNotifications/unreadMessageNotificationCount`, fjernet felt som ikke finnes i backend
+- `MessageNotificationDTO.ts` — lagt til `senderUserDto: UserSummaryDTO` og `summary`
+
+**Stores:**
+- `useUserCacheStore` — `currentUser: UserBootstrapDTO`, lagt til `profile`/`blockedUsers`, migrert til v2
+- `useConversationStore` — `pendingMessageRequests` → `pendingConversations: ConversationDTO[]`, migrert til v2
+- `useBootstrapDistributor` — bruker riktige feltnavn, distribuerer profile/blockedUsers, fjernet dead references
+
+**Åpne punkter å ha i bakhodet:**
+- `syncToken` settes ikke lenger fra critical bootstrap — sync-mekanismen håndterer dette separat
+- `UserSummaryDTO.id` er fortsatt `number`, backend er GUID string — migreres i Steg 8
+- Ikke-refaktorerte filer som bruker `isGroup`, `conversationStatus`, `pendingMessageRequests` vil ha TS-feil
 
 ### Steg 4 — Test gjenstående scenarioer (manuelt i appen)
 - **Scenario B** — logg inn på samme enhet igjen, verifiser at E2EESetupScreen passerer gjennom uten UI
@@ -69,6 +87,30 @@ Når denne gjøres: migrer `services/crypto/cryptoService.ts` til `features/cryp
 **Kandidat 5 — `useBootstrap` eksponerer for mye data**
 
 ### Steg 10 (fremtidig) — Push-varsler
+
+---
+
+## Viktig teknisk info fra denne økten
+
+### MigrateAsync ved oppstart — lagt til i Program.cs
+`app.MigrateDatabaseAsync()` kjøres automatisk i `WebApplicationExtensions` etter `UseAppPipeline()`.
+Migrasjoner kjøres nå ved oppstart i alle miljøer (produksjon, UpCloud, tester) — `dotnet ef database update` er ikke lenger nødvendig manuelt.
+`BackendApplicationFactory` drar nytte av dette automatisk — race condition mellom `IpBanService` og tabellopprettelse er eliminert.
+
+### SearchRepository — bugfix i SearchUsersAsync
+`OrderBy(x => x.ProximityLevel)` etter `.Select()` til prosjektert POCO krasjer i EF Core/Npgsql.
+Fikset ved å flytte `.Select()` til etter `.OrderBy().Take()`.
+`ProximityLevel` er ikke implementert ennå (alltid 0) — cursor degraderer til `fullName|userId`-sortering.
+
+---
+
+## Gjort forrige økten ✅
+
+- Login og logout testet og fungerer i appen
+- `MobilNavbarNative.tsx` migrert til `useUnistyles` + `t()` — ingen hardkodede farger eller tekst
+- Logout-timeout fikset: `markOfflineWithDefaults()` wrappet med `Promise.race` (3 sek) — logger ut selv om backend er nede
+- 18 filer migrert fra `@/services/user/authServiceNative` → `@/core/auth/authServiceNative`
+- 5 deprecated shim-filer slettet (`services/user/authService.ts`, `authServiceNative.ts`, `signUpService.ts`, `services/security/verificationService.ts`, `hooks/useRegisterUser.ts`)
 
 ---
 

@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/constants/routes";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { PublicProfileDTO } from "@shared/types/PublicProfileDTO";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useUserSettings(refreshIndex: number = 0) {
   const { userId } = useAuth(); // Hent userId direkte fra AuthContext

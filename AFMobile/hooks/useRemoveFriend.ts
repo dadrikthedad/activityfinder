@@ -2,7 +2,7 @@
 import { removeFriend } from "@/services/friends/removeFriend";
 import { useState } from "react";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useRemoveFriend() {
   

@@ -6,7 +6,7 @@ import { AppState } from 'react-native';
 import { API_BASE_URL } from "@/constants/routes";
 import { API_ROUTES } from "@shared/constants/routes";
 import { generateDeviceId, getPlatform, getCapabilities } from "../device/UserOnlineFunctions";
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 
 let chatConnection: signalR.HubConnection | null = null;
 let networkUnsubscribe: (() => void) | null = null;

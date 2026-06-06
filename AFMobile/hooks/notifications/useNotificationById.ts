@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { getNotificationById } from "@/services/notifications/notificationService";
 import { useNotificationStore } from "@/store/useNotificationStore";
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 
 export function useNotificationById(id: number) {
 

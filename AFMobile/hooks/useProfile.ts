@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { API_BASE_URL } from "@/constants/routes";
 import { fetchWithAuth } from "@/utils/api/fetchWithAuthNative";
 import { Profile } from "@shared/types/profile";
-import authServiceNative from "@/services/user/authServiceNative";
+import authServiceNative from "@/core/auth/authServiceNative";
 
 export function useProfile() {
   const [profile, setProfile] = useState<Profile | null>(null); // Lagerer profilen

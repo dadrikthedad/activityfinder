@@ -3,7 +3,7 @@
 import { Buffer } from 'buffer';
 import sodium from "@s77rt/react-native-sodium";
 import { EncryptedMessage } from '@/components/ende-til-ende/CryptoService';
-import authServiceNative from '@/services/user/authServiceNative';
+import authServiceNative from '@/core/auth/authServiceNative';
 import { CryptoService } from '@/components/ende-til-ende/CryptoService';
 
 export class EncryptMessageService {

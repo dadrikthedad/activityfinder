@@ -83,6 +83,7 @@ public class BackendApplicationFactory : WebApplicationFactory<Program>, IAsyncL
 
             services.RemoveAll<IKeyVaultService>();
             services.AddScoped(_ => Mock.Of<IKeyVaultService>());
+
         });
     }
 
@@ -91,10 +92,9 @@ public class BackendApplicationFactory : WebApplicationFactory<Program>, IAsyncL
         // Start containere — ma skje for Services aksesseres
         await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
 
-        // Forste tilgang til Services bygger hosten og kjorer ConfigureWebHost
+        // Forste tilgang til Services bygger hosten, kjorer Program.cs (inkl. MigrateAsync),
+        // og starter hosted services. Migrasjoner er ferdig innen hosted services starter.
         await using var scope = Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
 
         // Sett opp Respawn for a nullstille databasen mellom tester
         await using var connection = new NpgsqlConnection(_postgres.GetConnectionString());

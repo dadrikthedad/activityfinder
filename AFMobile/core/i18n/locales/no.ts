@@ -199,6 +199,25 @@ export default {
     send:     "Send",
   },
 
+  // ========== Navbar ==========
+  navbar: {
+    menu:           "Meny",
+    search:         "Søk brukere...",
+    myProfile:      "Min profil",
+    home:           "Hjem",
+    messages:       "Meldinger",
+    friends:        "Venner",
+    trashcan:       "Papirkurv",
+    editProfile:    "Rediger profil",
+    settings:       "Innstillinger",
+    reportProblem:  "Rapporter et problem",
+    logOut:         "Logg ut",
+    logIn:          "Logg inn",
+    createAccount:  "Opprett konto",
+    searching:      "Søker...",
+    noUsersFound:   "Ingen brukere funnet",
+  },
+
   // ========== Innstillinger ==========
   settings: {
     title:    "Innstillinger",

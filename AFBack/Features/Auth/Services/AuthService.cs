@@ -67,6 +67,11 @@ public class AuthService(
         {
             logger.LogInformation("SignupAsync. Payload: {@Payload}", new { request.Email });
 
+            // ====== Grunnleggende feltvalidering — SuppressModelStateInvalidFilter = true betyr at
+            // modellvalidering ikke stopper requesten automatisk, så vi validerer kritiske felt her. ======
+            if (string.IsNullOrWhiteSpace(request.Email))
+                return Result<SignupResponse>.Failure("Email is required", AppErrorCode.Validation);
+
             // ====== IP-basert rate limit — stopp spam-registreringer tidlig ======
 
             // Sjekker om brukeren har spammet endepunktene våre tidligere

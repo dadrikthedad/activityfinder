@@ -1,22 +1,12 @@
-import { UserSummaryDTO } from "../UserSummaryDTO";
 import { ConversationDTO } from "../ConversationDTO";
 import { EncryptedMessageDTO } from "@/features/crypto/types/EncryptedMessageTypes";
-import { MessageRequestDTO } from "../MessageReqeustDTO";
 import { MessageNotificationDTO } from "../MessageNotificationDTO";
-import { FriendInvitationDTO } from "../FriendInvitationDTO";
-import { NotificationDTO } from "../NotificationEventDTO";
 
 export interface SecondaryBootstrapResponseDTO {
-  // Moved from Critical Bootstrap
-  recentConversations: ConversationDTO[];
-  // Key = conversationId, Value = array of messages
+  activeConversations: ConversationDTO[];
+  pendingConversations: ConversationDTO[];
   conversationMessages: Record<number, EncryptedMessageDTO[]>;
-  
-  // Existing secondary data
-  allUserSummaries: UserSummaryDTO[];
+  messageNotifications: MessageNotificationDTO[];
+  unreadMessageNotificationCount: number;
   unreadConversationIds: number[];
-  pendingMessageRequests: MessageRequestDTO[];
-  recentMessageNotifications: MessageNotificationDTO[];
-  pendingFriendInvitations: FriendInvitationDTO[];
-  recentNotifications: NotificationDTO[];
 }

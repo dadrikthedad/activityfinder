@@ -199,6 +199,25 @@ export default {
     send:     "Send",
   },
 
+  // ========== Navbar ==========
+  navbar: {
+    menu:           "Menu",
+    search:         "Search users...",
+    myProfile:      "My Profile",
+    home:           "Home",
+    messages:       "Messages",
+    friends:        "Friends",
+    trashcan:       "Trashcan",
+    editProfile:    "Edit Profile",
+    settings:       "Settings",
+    reportProblem:  "Report a problem",
+    logOut:         "Log Out",
+    logIn:          "Log In",
+    createAccount:  "Create Account",
+    searching:      "Searching...",
+    noUsersFound:   "No users found",
+  },
+
   // ========== Settings ==========
   settings: {
     title:    "Settings",

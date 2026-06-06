@@ -8,11 +8,13 @@ export interface MessageNotificationDTO {
   readAt?: string | null;
   messageId?: number | null;
   conversationId?: number | null;
-  senderId?: number | null;    
+  senderUserDto: UserSummaryDTO;
+  senderId?: number | null;
   senderName?: string | null;
   groupName?: string | null;
   groupImageUrl?: string;
   reactionEmoji?: string | null;
+  summary?: string | null;
   messagePreview?: string | null;
   messageCount?: number | null;
   isTemporary?: boolean;

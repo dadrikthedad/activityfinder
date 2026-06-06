@@ -2,23 +2,19 @@ import { create } from "zustand";
 import { persist, subscribeWithSelector, createJSONStorage } from "zustand/middleware";
 import { asyncStorage } from "./indexedNotificationDBStorage";
 import { ConversationDTO } from "@shared/types/ConversationDTO";
-import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
 
 type ConversationStore = {
   conversations: ConversationDTO[];
   conversationIds: Set<number>;
 
-  pendingMessageRequests: MessageRequestDTO[];
-  pendingRequestsCache: MessageRequestDTO[];
-  pendingRequestsCacheTimestamp: number;
-  pendingLockedConversationId: number | null;
+  pendingConversations: ConversationDTO[];
 
   unreadConversationIds: number[];
 
   isPendingCollapsed: boolean;
 
   hasLoadedConversations: boolean;
-  hasLoadedPendingRequests: boolean;
+  hasLoadedPendingConversations: boolean;
   hasLoadedUnreadConversationIds: boolean;
 
   // Conversation actions
@@ -28,13 +24,11 @@ type ConversationStore = {
   updateConversation: (conversationId: number, updates: Partial<ConversationDTO>) => void;
   updateConversationTimestamp: (conversationId: number, timestamp: string) => void;
 
-  // Pending request actions
-  setPendingMessageRequests: (requests: MessageRequestDTO[]) => void;
-  setCachedPendingRequests: (requests: MessageRequestDTO[]) => void;
-  addPendingRequest: (request: MessageRequestDTO) => void;
-  updatePendingRequest: (conversationId: number, updates: Partial<MessageRequestDTO>) => void;
-  removePendingRequest: (conversationId: number) => void;
-  setPendingLockedConversationId: (id: number | null) => void;
+  // Pending conversation actions
+  setPendingConversations: (conversations: ConversationDTO[]) => void;
+  addPendingConversation: (conversation: ConversationDTO) => void;
+  updatePendingConversation: (conversationId: number, updates: Partial<ConversationDTO>) => void;
+  removePendingConversation: (conversationId: number) => void;
 
   // Unread actions
   setUnreadConversationIds: (ids: number[]) => void;
@@ -43,11 +37,10 @@ type ConversationStore = {
 
   // Loading flags
   setHasLoadedConversations: (v: boolean) => void;
-  setHasLoadedPendingRequests: (v: boolean) => void;
+  setHasLoadedPendingConversations: (v: boolean) => void;
   setHasLoadedUnreadConversationIds: (v: boolean) => void;
   setIsPendingCollapsed: (value: boolean) => void;
 
-  /** Tøm alt ved logout */
   reset: () => void;
 };
 
@@ -64,17 +57,14 @@ export const useConversationStore = create<ConversationStore>()(
       conversations: [],
       conversationIds: new Set<number>(),
 
-      pendingMessageRequests: [],
-      pendingRequestsCache: [],
-      pendingRequestsCacheTimestamp: 0,
-      pendingLockedConversationId: null,
+      pendingConversations: [],
 
       unreadConversationIds: [],
 
       isPendingCollapsed: false,
 
       hasLoadedConversations: false,
-      hasLoadedPendingRequests: false,
+      hasLoadedPendingConversations: false,
       hasLoadedUnreadConversationIds: false,
 
       setConversations: (conversations) =>
@@ -132,61 +122,33 @@ export const useConversationStore = create<ConversationStore>()(
           return { conversations: sortByLastMessage(updated) };
         }),
 
-      setPendingMessageRequests: (requests) =>
+      setPendingConversations: (conversations) =>
         set(() => ({
-          pendingMessageRequests: [...requests].sort(
-            (a, b) =>
-              new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
-          ),
+          pendingConversations: sortByLastMessage(conversations),
         })),
 
-      setCachedPendingRequests: (requests) =>
-        set(() => ({
-          pendingRequestsCache: requests,
-          pendingRequestsCacheTimestamp: Date.now(),
-        })),
-
-      addPendingRequest: (request) =>
+      addPendingConversation: (conversation) =>
         set((state) => {
-          if (state.pendingMessageRequests.some((r) => r.conversationId === request.conversationId)) {
+          if (state.pendingConversations.some((c) => c.id === conversation.id)) {
             return {};
           }
-          const updated = [...state.pendingMessageRequests, request].sort(
-            (a, b) =>
-              new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
-          );
           return {
-            pendingMessageRequests: updated,
-            pendingRequestsCache: updated,
-            pendingRequestsCacheTimestamp: Date.now(),
+            pendingConversations: sortByLastMessage([...state.pendingConversations, conversation]),
           };
         }),
 
-      updatePendingRequest: (conversationId, updates) =>
+      updatePendingConversation: (conversationId, updates) =>
         set((state) => {
-          const updated = state.pendingMessageRequests.map((r) =>
-            r.conversationId === conversationId ? { ...r, ...updates } : r
+          const updated = state.pendingConversations.map((c) =>
+            c.id === conversationId ? { ...c, ...updates } : c
           );
-          const changed = updated.some((r, i) => r !== state.pendingMessageRequests[i]);
-          if (!changed) return {};
-          return {
-            pendingMessageRequests: updated,
-            pendingRequestsCache: updated,
-            pendingRequestsCacheTimestamp: Date.now(),
-          };
+          return { pendingConversations: updated };
         }),
 
-      removePendingRequest: (conversationId) =>
+      removePendingConversation: (conversationId) =>
         set((state) => ({
-          pendingMessageRequests: state.pendingMessageRequests.filter(
-            (r) => r.conversationId !== conversationId
-          ),
-          pendingRequestsCache: state.pendingRequestsCache.filter(
-            (r) => r.conversationId !== conversationId
-          ),
+          pendingConversations: state.pendingConversations.filter((c) => c.id !== conversationId),
         })),
-
-      setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
 
       setUnreadConversationIds: (ids) => set({ unreadConversationIds: ids }),
 
@@ -198,7 +160,7 @@ export const useConversationStore = create<ConversationStore>()(
       clearAllUnreadConversations: () => set({ unreadConversationIds: [] }),
 
       setHasLoadedConversations: (v) => set({ hasLoadedConversations: v }),
-      setHasLoadedPendingRequests: (v) => set({ hasLoadedPendingRequests: v }),
+      setHasLoadedPendingConversations: (v) => set({ hasLoadedPendingConversations: v }),
       setHasLoadedUnreadConversationIds: (v) => set({ hasLoadedUnreadConversationIds: v }),
       setIsPendingCollapsed: (value) => set({ isPendingCollapsed: value }),
 
@@ -206,14 +168,11 @@ export const useConversationStore = create<ConversationStore>()(
         set({
           conversations: [],
           conversationIds: new Set<number>(),
-          pendingMessageRequests: [],
-          pendingRequestsCache: [],
-          pendingRequestsCacheTimestamp: 0,
-          pendingLockedConversationId: null,
+          pendingConversations: [],
           unreadConversationIds: [],
           isPendingCollapsed: false,
           hasLoadedConversations: false,
-          hasLoadedPendingRequests: false,
+          hasLoadedPendingConversations: false,
           hasLoadedUnreadConversationIds: false,
         }),
     })),
@@ -224,13 +183,11 @@ export const useConversationStore = create<ConversationStore>()(
       partialize: (state) => ({
         conversations: state.conversations,
         conversationIds: Array.from(state.conversationIds),
-        pendingMessageRequests: state.pendingMessageRequests,
-        pendingRequestsCache: state.pendingRequestsCache,
-        pendingRequestsCacheTimestamp: state.pendingRequestsCacheTimestamp,
+        pendingConversations: state.pendingConversations,
         unreadConversationIds: state.unreadConversationIds,
         isPendingCollapsed: state.isPendingCollapsed,
         hasLoadedConversations: state.hasLoadedConversations,
-        hasLoadedPendingRequests: state.hasLoadedPendingRequests,
+        hasLoadedPendingConversations: state.hasLoadedPendingConversations,
         hasLoadedUnreadConversationIds: state.hasLoadedUnreadConversationIds,
       }),
 
@@ -240,14 +197,17 @@ export const useConversationStore = create<ConversationStore>()(
         }
       },
 
-      version: 1,
-      migrate: (persisted: unknown) => {
-        const state = persisted as Partial<ConversationStore>;
-        if (state && Array.isArray(state.conversationIds)) {
-          state.conversationIds = new Set(state.conversationIds);
-        }
-        return state as ConversationStore;
-      },
+      version: 2,
+      migrate: () => ({
+        conversations: [],
+        conversationIds: new Set<number>(),
+        pendingConversations: [],
+        unreadConversationIds: [],
+        isPendingCollapsed: false,
+        hasLoadedConversations: false,
+        hasLoadedPendingConversations: false,
+        hasLoadedUnreadConversationIds: false,
+      }),
     }
   )
 );
