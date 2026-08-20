@@ -1,9 +1,11 @@
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 
 
 export const preloadMessagesForConversation = async (conversationId: number) => {
-  const { cachedMessages, conversationIds, setCachedMessages } = useChatStore.getState();
+  const { cachedMessages, setCachedMessages } = useChatStore.getState();
+  const { conversationIds } = useConversationStore.getState();
   
   if (conversationIds.has(conversationId) && !cachedMessages[conversationId]) {
     console.log(`🚀 Preloader meldinger for samtale ${conversationId}...`);

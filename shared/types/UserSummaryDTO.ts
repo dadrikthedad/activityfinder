@@ -1,6 +1,6 @@
 // Interface til UserSummary som henter profilbilde, brukerid og fult navn
 export interface UserSummaryDTO {
-    id: number;
+    id: string;
     fullName: string;
     profileImageUrl: string | null;
 

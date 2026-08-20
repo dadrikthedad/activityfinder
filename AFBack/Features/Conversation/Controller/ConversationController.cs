@@ -294,7 +294,7 @@ public class ConversationController(
     {
         var userId = User.GetUserId();
 
-        var result = await directConversationService.AcceptPendingConversationRequestAsync(userId, conversationId);
+        var result = await directConversationService.RejectPendingConversationRequestAsync(userId, conversationId);
 
         if (result.IsFailure)
             return HandleFailure(result);

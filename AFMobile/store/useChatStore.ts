@@ -74,6 +74,10 @@ type ChatStore = {
     status: { isUploading?: boolean; uploadError?: string }
   ) => void;
 
+  // Pending locked conversation (venter på godkjenning fra motpart)
+  pendingLockedConversationId: number | null;
+  setPendingLockedConversationId: (id: number | null) => void;
+
   // Nylige emojier
   recentEmojis: string[];
   addRecentEmoji: (emoji: string) => void;
@@ -104,6 +108,7 @@ export const useChatStore = create<ChatStore>()(
       reactionsVersion: 0,
       optimisticToServerIdMap: {},
       optimisticToServerAttachmentMap: {},
+      pendingLockedConversationId: null,
       recentEmojis: [],
 
       setCurrentConversationId: (id) => set({ currentConversationId: id }),
@@ -501,6 +506,8 @@ export const useChatStore = create<ChatStore>()(
           };
         }),
 
+      setPendingLockedConversationId: (id) => set({ pendingLockedConversationId: id }),
+
       addRecentEmoji: (emoji) =>
         set((state) => {
           const filtered = state.recentEmojis.filter((e) => e !== emoji);
@@ -550,6 +557,7 @@ export const useChatStore = create<ChatStore>()(
           reactionsVersion: 0,
           optimisticToServerIdMap: {},
           optimisticToServerAttachmentMap: {},
+          pendingLockedConversationId: null,
           recentEmojis: [],
         }),
     })),
@@ -585,7 +593,7 @@ export const useChatStore = create<ChatStore>()(
         }
       },
 
-      version: 2,
+      version: 3,
       migrate: () => ({
         liveMessages: {},
         cachedMessages: {},
@@ -602,6 +610,7 @@ export const useChatStore = create<ChatStore>()(
         reactionsVersion: 0,
         optimisticToServerIdMap: {},
         optimisticToServerAttachmentMap: {},
+        pendingLockedConversationId: null,
         recentEmojis: [],
       }),
     }

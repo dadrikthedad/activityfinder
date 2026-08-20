@@ -34,9 +34,9 @@ export default function NotificationsModalNative({
   const { handleResponse, handlingId } = useFriendRequestHandlerNative();
   const totalFriendRequests = useNotificationStore((s) => s.friendRequestTotalCount);
 
-  const handleNavigateToProfile = useCallback((userId: number) => {
+  const handleNavigateToProfile = useCallback((userId: string) => {
     onClose();
-    navigation?.navigate('Profile', { userId });
+    navigation?.navigate('Profile', { id: userId.toString() });
   }, [onClose, navigation]);
 
   const handleViewAllFriends = useCallback(() => {

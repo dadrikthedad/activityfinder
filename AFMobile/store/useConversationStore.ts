@@ -197,7 +197,7 @@ export const useConversationStore = create<ConversationStore>()(
         }
       },
 
-      version: 2,
+      version: 4,
       migrate: () => ({
         conversations: [],
         conversationIds: new Set<number>(),

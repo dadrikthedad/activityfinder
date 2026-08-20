@@ -85,16 +85,13 @@ async function checkSignalRHealth(): Promise<void> {
     return;
   }
 
-  // SignalR ser ut til å være koblet til, men heartbeat feiler
-  // Dette kan indikere network issues eller zombie connection
+  // SignalR ser koblet ut, men heartbeat feiler — kan være zombie-connection
   console.log('🔍 SignalR - Connection shows as connected but heartbeat failing');
-  
   try {
-    // Quick lightweight check - bare se om vi kan invoke noe enkelt
-    await chatConnection.invoke('GetConnectionInfo');
-    console.log('✅ SignalR - Connection verified, heartbeat issue may be temporary');
+    await chatConnection.invoke('Heartbeat');
+    console.log('✅ SignalR - Heartbeat verified, connection is healthy');
   } catch (error) {
-    console.warn('❌ SignalR - Connection verification failed, forcing reconnect');
+    console.warn('❌ SignalR - Heartbeat invoke failed, forcing reconnect');
     await forceReconnect();
   }
 }

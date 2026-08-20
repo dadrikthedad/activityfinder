@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useUploadGroupImageNative } from '@/hooks/files/useUploadGroupImageNative';
 import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 import { useUpdateGroupName } from '@/hooks/messages/useUpdateGroupName';
 import { useAttachmentPicker } from '@/components/files/filepicker/useAttachmentPicker';
 import { RNFile } from '@/utils/files/FileFunctions';
@@ -19,11 +20,12 @@ export function useGroupSettingsPopoverNative({
   onClose,
 }: UseGroupSettingsPopoverNativeProps) {
   // Get current conversation from store
-  const currentConversation = useChatStore((state) =>
-    state.conversations.find((conv) => conv.id === conversationId)
+  const currentConversation = useConversationStore((state) =>
+    (state.conversations ?? []).find((conv) => conv.id === conversationId) ??
+    (state.pendingConversations ?? []).find((conv) => conv.id === conversationId)
   );
 
-  const updateConversation = useChatStore((state) => state.updateConversation);
+  const updateConversation = useConversationStore((state) => state.updateConversation);
 
   // Group image state and hooks
   const { upload: uploadGroupImage, uploading: uploadingImage, error: uploadError } = useUploadGroupImageNative();

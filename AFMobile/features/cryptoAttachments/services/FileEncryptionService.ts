@@ -173,7 +173,7 @@ export class FileEncryptionService {
    */
   async decryptFile(
     encryptedFile: EncryptedFile,
-    userId: number,
+    userId: string,
     userKeys: { publicKey: ArrayBuffer; secretKey: ArrayBuffer }
   ): Promise<ArrayBuffer | null> {
     try {

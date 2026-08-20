@@ -4,8 +4,8 @@ using AFBack.Features.FileHandling.Services;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.KeyVault.Services;
 using AFBack.Infrastructure.Sms.Services;
-using Amazon.S3;
 using Microsoft.Extensions.Options;
+using Minio;
 
 namespace AFBack.Infrastructure.Extensions.BuilderExtensions;
 
@@ -16,18 +16,16 @@ public static class UpCloudBuilderExtensions
     /// </summary>
     public static IServiceCollection AddS3Storage(this IServiceCollection services)
     {
-        services.AddSingleton<IAmazonS3>(sp =>
+        services.AddSingleton<IMinioClient>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<StorageOptions>>().Value;
-            return new AmazonS3Client(
-                options.AccessKey,
-                options.SecretKey,
-                new AmazonS3Config
-                {
-                    ServiceURL    = options.BlobAccountUrl,
-                    ForcePathStyle = true  // Påkrevd for ikke-AWS S3
-                }
-            );
+            var uri = new Uri(options.BlobAccountUrl);
+
+            return new MinioClient()
+                .WithEndpoint(uri.Host)
+                .WithCredentials(options.AccessKey, options.SecretKey)
+                .WithSSL(uri.Scheme == "https")
+                .Build();
         });
 
         services.AddScoped<IStorageService, S3StorageService>();

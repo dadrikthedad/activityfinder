@@ -1,22 +1,17 @@
-// components/crypto/E2EERestoreModal.tsx - Fixed scrolling version with BIP39 validation
-// Flow: Ny enhet login → Ingen lokal key → Server har key → Modal vises [VI ER HER] → User restores → Keys synced → E2EE ready
-
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   ScrollView,
   Modal,
   TouchableWithoutFeedback,
-  Alert,
-  Dimensions,
 } from 'react-native';
-import { LockKeyholeOpen } from 'lucide-react-native';
+import { useUnistyles } from 'react-native-unistyles';
+import { useTranslation } from 'react-i18next';
+import { LockKeyholeOpen, CheckCircle, XCircle } from 'lucide-react-native';
 import { validateMnemonic, wordlists } from 'bip39';
 import ButtonNative from '@/components/common/buttons/ButtonNative';
-import { showNotificationToastNative, LocalToastType } from '@/components/toast/NotificationToastNative';
 import { CryptoServiceBackup } from '@/components/ende-til-ende/CryptoServiceBackup';
 import { useAuth } from '@/context/AuthContext';
 
@@ -28,376 +23,317 @@ interface E2EERestoreModalProps {
   restoreMode?: 'normal' | 'old';
 }
 
-const { height: screenHeight } = Dimensions.get('window');
-
-export default function E2EERestoreModal({ 
+export default function E2EERestoreModal({
   visible,
-  onRestore, 
+  onRestore,
   onSkip,
   onClose,
-  restoreMode = 'normal'
+  restoreMode = 'normal',
 }: E2EERestoreModalProps) {
+  const { theme } = useUnistyles();
+  const { t } = useTranslation();
+  const { userId } = useAuth();
+
   const [backupPhrase, setBackupPhrase] = useState('');
   const [isRestoring, setIsRestoring] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const { userId } = useAuth();
+  const [result, setResult] = useState<'success' | 'error' | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const isOld = restoreMode === 'old';
 
   const findSimilarWords = (invalidWord: string, wordList: string[]): string[] => {
-    // Simple similarity check - find words that are close matches
-    const similar = wordList.filter(word => {
-      // Check if words are similar length and have similar characters
-      if (Math.abs(word.length - invalidWord.length) > 2) return false;
-      
-      // Calculate simple character overlap
-      let matches = 0;
-      const minLength = Math.min(word.length, invalidWord.length);
-      for (let i = 0; i < minLength; i++) {
-        if (word[i] === invalidWord[i]) matches++;
-      }
-      
-      return matches >= minLength * 0.6; // 60% character match
-    });
-    
-    return similar.slice(0, 3); // Return top 3 suggestions
+    return wordList
+      .filter((word) => {
+        if (Math.abs(word.length - invalidWord.length) > 2) return false;
+        let matches = 0;
+        const minLength = Math.min(word.length, invalidWord.length);
+        for (let i = 0; i < minLength; i++) {
+          if (word[i] === invalidWord[i]) matches++;
+        }
+        return matches >= minLength * 0.6;
+      })
+      .slice(0, 3);
   };
 
   const validatePhrase = (phrase: string): { isValid: boolean; error: string | null } => {
-    if (!phrase.trim()) {
-      return { isValid: false, error: null }; // Don't show error for empty input
-    }
+    if (!phrase.trim()) return { isValid: false, error: null };
 
-    const normalizedPhrase = phrase.trim().toLowerCase().replace(/\s+/g, ' '); // Normalize whitespace
-    const words = normalizedPhrase.split(' ');
-    
-    if (words.length === 1 && words[0] === '') {
-      return { isValid: false, error: null };
-    }
-    
+    const normalized = phrase.trim().toLowerCase().replace(/\s+/g, ' ');
+    const words = normalized.split(' ');
+
+    if (words.length === 1 && words[0] === '') return { isValid: false, error: null };
+
     if (words.length < 24) {
-      return { 
-        isValid: false, 
-        error: `Need ${24 - words.length} more word${24 - words.length === 1 ? '' : 's'} (${words.length}/24)` 
+      return {
+        isValid: false,
+        error: t('profile.encryption.restoreModal.validationTooFew', {
+          count: 24 - words.length,
+          current: words.length,
+        }),
       };
     }
-    
+
     if (words.length > 24) {
-      return { 
-        isValid: false, 
-        error: `Too many words. Remove ${words.length - 24} word${words.length - 24 === 1 ? '' : 's'} (${words.length}/24)` 
-      };
-    }
-    
-    // Check for empty words or invalid characters
-    const invalidWords = words.filter(word => word.length === 0 || !/^[a-z]+$/.test(word));
-    if (invalidWords.length > 0) {
-      return { 
-        isValid: false, 
-        error: "Words should only contain lowercase letters and be separated by single spaces" 
+      return {
+        isValid: false,
+        error: t('profile.encryption.restoreModal.validationTooMany', {
+          count: words.length - 24,
+          current: words.length,
+        }),
       };
     }
 
-    // Check if all words are in BIP39 wordlist
+    const invalidChars = words.filter((w) => w.length === 0 || !/^[a-z]+$/.test(w));
+    if (invalidChars.length > 0) {
+      return { isValid: false, error: t('profile.encryption.restoreModal.validationInvalidChars') };
+    }
+
     const bip39Words = wordlists.english;
-    const invalidBip39Words = words.filter(word => !bip39Words.includes(word));
-    
-    if (invalidBip39Words.length > 0) {
-      const firstInvalidWord = invalidBip39Words[0];
-      const suggestions = findSimilarWords(firstInvalidWord, bip39Words);
-      
-      if (suggestions.length > 0) {
-        return { 
-          isValid: false, 
-          error: `"${firstInvalidWord}" is not a valid word. Did you mean: ${suggestions.join(', ')}?` 
-        };
-      } else {
-        return { 
-          isValid: false, 
-          error: `"${firstInvalidWord}" is not a valid BIP39 word. Please check your backup phrase.` 
-        };
-      }
-    }
-
-    // Final BIP39 validation (checksum)
-    try {
-      if (!validateMnemonic(normalizedPhrase)) {
-        return { 
-          isValid: false, 
-          error: "Invalid backup phrase checksum. Please check that all words are correct and in the right order." 
-        };
-      }
-    } catch (bip39Error) {
-      console.warn('BIP39 validation error:', bip39Error);
-      return { 
-        isValid: false, 
-        error: "Invalid backup phrase format. Please check your words." 
+    const invalidBip39 = words.filter((w) => !bip39Words.includes(w));
+    if (invalidBip39.length > 0) {
+      const first = invalidBip39[0];
+      const suggestions = findSimilarWords(first, bip39Words);
+      return {
+        isValid: false,
+        error:
+          suggestions.length > 0
+            ? t('profile.encryption.restoreModal.validationUnknownWord', {
+                word: first,
+                suggestions: suggestions.join(', '),
+              })
+            : t('profile.encryption.restoreModal.validationUnknownWordNoSuggestion', { word: first }),
       };
     }
-    
+
+    try {
+      if (!validateMnemonic(normalized)) {
+        return { isValid: false, error: t('profile.encryption.restoreModal.validationChecksum') };
+      }
+    } catch {
+      return { isValid: false, error: t('profile.encryption.restoreModal.validationFormat') };
+    }
+
     return { isValid: true, error: null };
   };
 
   const handlePhraseChange = (text: string) => {
-    // Normalize input: lowercase, single spaces
-    const normalizedText = text.toLowerCase().replace(/\s+/g, ' ');
-    setBackupPhrase(normalizedText);
-    const validation = validatePhrase(normalizedText);
-    setValidationError(validation.error);
+    const normalized = text.toLowerCase().replace(/\s+/g, ' ');
+    setBackupPhrase(normalized);
+    setValidationError(validatePhrase(normalized).error);
+    setResult(null);
+    setErrorMessage(null);
   };
 
   const handleRestore = async () => {
     if (!userId) {
-      showNotificationToastNative({
-        type: LocalToastType.CustomSystemError,
-        customTitle: "Error",
-        customBody: "User not authenticated",
-        position: 'top'
-      });
+      setResult('error');
+      setErrorMessage(t('profile.encryption.restoreModal.errorNotAuthenticated'));
       return;
     }
 
-    const normalizedPhrase = backupPhrase.trim().toLowerCase().replace(/\s+/g, ' ');
-    
-    const validation = validatePhrase(normalizedPhrase);
+    const normalized = backupPhrase.trim().toLowerCase().replace(/\s+/g, ' ');
+    const validation = validatePhrase(normalized);
+
     if (!validation.isValid) {
-      showNotificationToastNative({
-        type: LocalToastType.CustomSystemError,
-        customTitle: "Invalid Backup Phrase",
-        customBody: validation.error || "Please enter exactly 24 valid BIP39 words separated by spaces",
-        position: 'top'
-      });
+      setResult('error');
+      setErrorMessage(validation.error ?? t('profile.encryption.restoreModal.errorInvalidPhrase'));
       return;
     }
 
     setIsRestoring(true);
-    
+    setResult(null);
+    setErrorMessage(null);
     try {
       const cryptoBackup = CryptoServiceBackup.getInstance();
-      
-      // Use skipServerValidation based on restore mode
-      const skipServerValidation = restoreMode === 'old';
-      await cryptoBackup.restoreE2EEFromBackup(normalizedPhrase, userId, skipServerValidation);
-      
-      const successMessage = restoreMode === 'old' 
-        ? "Old encryption keys restored! You can now access messages encrypted with your previous keys."
-        : "Encryption restored! You can now access your encrypted messages from all devices";
-      
-      showNotificationToastNative({
-        type: LocalToastType.CustomSystemNotice,
-        customTitle: "Encryption Restored!",
-        customBody: successMessage,
-        position: 'top'
-      });
-      
-      // Reset state and close modal
+      await cryptoBackup.restoreE2EEFromBackup(normalized, userId, isOld);
+      setResult('success');
       setBackupPhrase('');
       onClose();
-      onRestore();
-      
     } catch (error) {
-      console.error('E2EE restore failed:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      
-      let userFriendlyMessage = "Failed to restore encryption keys";
-      
-      if (restoreMode === 'old') {
-        if (errorMessage.includes('Invalid BIP39')) {
-          userFriendlyMessage = "Invalid backup phrase. Please check that all 24 words are correct BIP39 words and try again";
-        } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
-          userFriendlyMessage = "Network error. Please check your connection and try again";
-        } else {
-          userFriendlyMessage = "Failed to restore old encryption keys. Please try again.";
-        }
-      } else {
-        if (errorMessage.includes('Invalid BIP39')) {
-          userFriendlyMessage = "Invalid backup phrase. Please check that all 24 words are correct BIP39 words and try again";
-        } else if (errorMessage.includes('does not match')) {
-          userFriendlyMessage = "This backup phrase doesn't match your account";
-        } else if (errorMessage.includes('network') || errorMessage.includes('timeout')) {
-          userFriendlyMessage = "Network error. Please check your connection and try again";
-        }
+      const msg = error instanceof Error ? error.message : '';
+      let body = t('profile.encryption.restoreModal.errorGeneral');
+      if (msg.includes('Invalid BIP39')) {
+        body = t('profile.encryption.restoreModal.errorInvalidPhrase');
+      } else if (msg.includes('does not match')) {
+        body = t('profile.encryption.restoreModal.errorNoMatch');
+      } else if (msg.includes('network') || msg.includes('timeout')) {
+        body = t('profile.encryption.restoreModal.errorNetwork');
       }
-      
-      showNotificationToastNative({
-        type: LocalToastType.CustomSystemError,
-        customTitle: "Restore Failed",
-        customBody: userFriendlyMessage,
-        position: 'top'
-      });
+      setResult('error');
+      setErrorMessage(body);
     } finally {
       setIsRestoring(false);
     }
   };
 
-  const handleSkip = () => {
-    Alert.alert(
-      "Skip Encryption Restore?",
-      "You can restore your encrypted messages later in Settings. Without restoring, you won't be able to read encrypted messages from your other devices.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        {
-          text: "Skip for Now",
-          style: "default",
-          onPress: () => {
-            setBackupPhrase('');
-            onClose();
-            onSkip();
-          }
-        }
-      ]
-    );
-  };
-
-  const handleBackdropPress = () => {
-    // Only allow closing if not currently restoring
+  const handleClose = () => {
     if (!isRestoring) {
       setBackupPhrase('');
+      setValidationError(null);
+      setResult(null);
+      setErrorMessage(null);
       onClose();
+      onSkip();
     }
   };
-
-  const handleModalPress = (e: any) => {
-    // Prevent event bubbling to backdrop
-    e.stopPropagation();
-  };
-
-  const formatPlaceholder = () => {
-    return "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24";
-  };
-
-  const getHeaderContent = () => {
-    if (restoreMode === 'old') {
-      return {
-        title: "Restore Old Encryption Keys",
-        subtitle: "Enter your old 24-word backup phrase to restore access to previously encrypted messages. This will replace your current encryption keys."
-      };
-    }
-    return {
-      title: "Restore Encrypted Messages",
-      subtitle: "Enter your 24-word backup phrase to access encrypted messages from your other devices"
-    };
-  };
-
-  const headerContent = getHeaderContent();
 
   return (
     <Modal
       visible={visible}
-      transparent={true}
+      transparent
       animationType="fade"
-      onRequestClose={handleBackdropPress}
-      statusBarTranslucent={true}
+      onRequestClose={handleClose}
+      statusBarTranslucent
     >
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={handleBackdropPress}>
-          <View style={styles.backdrop} />
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
         </TouchableWithoutFeedback>
-        
-        <View style={styles.modalContainer}>
+
+        <View style={{
+          backgroundColor: theme.colors.surface,
+          borderRadius: theme.radii.lg,
+          borderWidth: 1,
+          borderColor: isOld ? theme.colors.error : theme.colors.border,
+          maxWidth: 500,
+          width: '90%',
+          maxHeight: '90%',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.25,
+          shadowRadius: 12,
+          elevation: 8,
+        }}>
           <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={{ padding: theme.spacing.lg, gap: theme.spacing.lg }}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={true}
-            bounces={true}
-            scrollEventThrottle={16}
-            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={false}
+            bounces
+            nestedScrollEnabled
           >
             {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.iconContainer}>
-                <LockKeyholeOpen size={32} color="rgba(255, 255, 255, 1)" />
+            <View style={{ alignItems: 'center', gap: theme.spacing.md }}>
+              <View style={{
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: isOld ? theme.colors.error : theme.colors.primary,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <LockKeyholeOpen size={32} color={theme.colors.onPrimary} />
               </View>
-              <Text style={styles.title}>{headerContent.title}</Text>
-              <Text style={styles.subtitle}>
-                {headerContent.subtitle}
+              <Text style={{ fontSize: theme.typography.xl, fontWeight: theme.typography.bold, color: isOld ? theme.colors.error : theme.colors.primary, textAlign: 'center' }}>
+                {isOld ? t('profile.encryption.restoreModal.titleOld') : t('profile.encryption.restoreModal.titleNormal')}
+              </Text>
+              <Text style={{ fontSize: theme.typography.md, color: theme.colors.textSecondary, textAlign: 'center', lineHeight: 24 }}>
+                {isOld ? t('profile.encryption.restoreModal.subtitleOld') : t('profile.encryption.restoreModal.subtitleNormal')}
               </Text>
             </View>
 
-            {/* Updated Info Box based on mode */}
-            <View style={[
-                styles.infoContainer,
-                restoreMode === 'old' && styles.warningInfoContainer
-                ]}>
-              <Text style={styles.infoTitle}>
-                {restoreMode === 'old' ? "⚠️ Important Warning" : "Why is this needed?"}
-              </Text>
-              <Text style={styles.infoText}>
-                {restoreMode === 'old' 
-                  ? "This will replace your current encryption keys with your old ones. You'll lose access to messages encrypted with your current keys, but regain access to messages encrypted with the old keys."
-                  : "Your encrypted messages are secured with keys that are unique to each device. To read messages from your other devices, we need to restore your encryption keys using your backup phrase."
-                }
-              </Text>
-            </View>
-
-            {/* Input Section */}
-           <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>
-                {restoreMode === 'old' ? "Old Backup Phrase (24 words)" : "Backup Phrase (24 words)"}
+            {/* Input */}
+            <View style={{ gap: theme.spacing.sm }}>
+              <Text style={{ fontSize: theme.typography.md, fontWeight: theme.typography.medium, color: theme.colors.textPrimary }}>
+                {isOld ? t('profile.encryption.restoreModal.inputLabelOld') : t('profile.encryption.restoreModal.inputLabelNormal')}
               </Text>
               <TextInput
-                style={[
-                  styles.textInput,
-                  validationError && styles.textInputError
-                ]}
+                style={{
+                  borderWidth: validationError ? 2 : 1,
+                  borderColor: validationError ? theme.colors.borderError : theme.colors.border,
+                  borderRadius: theme.radii.sm,
+                  padding: theme.spacing.md,
+                  fontSize: theme.typography.md,
+                  backgroundColor: theme.colors.backgroundInput,
+                  color: theme.colors.textPrimary,
+                  minHeight: 80,
+                  maxHeight: 120,
+                  textAlignVertical: 'top',
+                }}
                 value={backupPhrase}
                 onChangeText={handlePhraseChange}
-                placeholder={formatPlaceholder()}
-                placeholderTextColor="#9ca3af"
-                multiline={true}
+                placeholder={t('profile.encryption.restoreModal.inputPlaceholder')}
+                placeholderTextColor={theme.colors.textPlaceholder}
+                multiline
                 numberOfLines={3}
                 autoCapitalize="none"
                 autoCorrect={false}
                 spellCheck={false}
                 editable={!isRestoring}
-                textAlignVertical="top"
                 scrollEnabled={false}
               />
               {validationError && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>⚠️ {validationError}</Text>
-                </View>
+                <Text style={{ fontSize: theme.typography.sm, color: theme.colors.error, fontWeight: theme.typography.medium }}>
+                  {validationError}
+                </Text>
               )}
-              <Text style={styles.helpText}>
-                Enter each word separated by a single space. Words will be automatically converted to lowercase.
+              <Text style={{ fontSize: theme.typography.xs, color: theme.colors.textMuted, fontStyle: 'italic' }}>
+                {t('profile.encryption.restoreModal.inputHelp')}
               </Text>
             </View>
 
-            {/* Buttons */}
-            <View style={styles.buttonContainer}>
+            {/* Suksess / feil-feedback */}
+            {result === 'success' && (
+              <View style={{
+                flexDirection: 'row',
+                gap: theme.spacing.sm,
+                backgroundColor: theme.colors.backgroundAlt,
+                borderRadius: theme.radii.md,
+                padding: theme.spacing.md,
+                borderWidth: 1,
+                borderColor: theme.colors.success,
+                alignItems: 'center',
+              }}>
+                <CheckCircle size={18} color={theme.colors.success} />
+                <Text style={{ flex: 1, fontSize: theme.typography.sm, color: theme.colors.success, fontWeight: theme.typography.medium }}>
+                  {t('profile.encryption.restoreModal.successTitle')} — {isOld ? t('profile.encryption.restoreModal.successBodyOld') : t('profile.encryption.restoreModal.successBodyNormal')}
+                </Text>
+              </View>
+            )}
+            {result === 'error' && errorMessage && (
+              <View style={{
+                flexDirection: 'row',
+                gap: theme.spacing.sm,
+                backgroundColor: theme.colors.backgroundAlt,
+                borderRadius: theme.radii.md,
+                padding: theme.spacing.md,
+                borderWidth: 1,
+                borderColor: theme.colors.error,
+                alignItems: 'center',
+              }}>
+                <XCircle size={18} color={theme.colors.error} />
+                <Text style={{ flex: 1, fontSize: theme.typography.sm, color: theme.colors.error, fontWeight: theme.typography.medium }}>
+                  {errorMessage}
+                </Text>
+              </View>
+            )}
+
+            {/* Knapper */}
+            <View style={{ gap: theme.spacing.md }}>
               <ButtonNative
-                text={restoreMode === 'old' ? "Replace Current Keys" : "Restore Access"}
-                loadingText="Restoring..."
+                text={isOld ? t('profile.encryption.restoreModal.restoreButtonOld') : t('profile.encryption.restoreModal.restoreButtonNormal')}
+                loadingText={t('profile.encryption.restoreModal.restoring')}
                 onPress={handleRestore}
                 loading={isRestoring}
-                disabled={isRestoring || backupPhrase.trim().length === 0 || !!validationError}
-                variant={restoreMode === 'old' ? "danger" : "primary"}
+                disabled={isRestoring || result === 'success' || !backupPhrase.trim() || !!validationError}
+                variant={isOld ? 'danger' : 'primary'}
                 size="large"
                 fullWidth
-                style={styles.restoreButton}
               />
-
               <ButtonNative
-                text="Cancel"
-                onPress={handleSkip}
+                text={t('profile.encryption.restoreModal.cancelButton')}
+                onPress={handleClose}
                 disabled={isRestoring}
                 variant="secondary"
                 size="large"
                 fullWidth
-                style={styles.skipButton}
               />
             </View>
 
-            {/* Footer Note */}
-            <View style={styles.footerNote}>
-              <Text style={styles.footerText}>
-                {restoreMode === 'old' 
-                  ? "This action cannot be undone. Make sure you have your current backup phrase saved before proceeding."
-                  : "You can restore your encryption keys later in Settings if you skip now."
-                }
+            {/* Footer */}
+            <View style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: theme.spacing.md }}>
+              <Text style={{ fontSize: theme.typography.xs, color: theme.colors.textMuted, textAlign: 'center', fontStyle: 'italic' }}>
+                {isOld ? t('profile.encryption.restoreModal.footerOld') : t('profile.encryption.restoreModal.footerNormal')}
               </Text>
             </View>
           </ScrollView>
@@ -406,160 +342,3 @@ export default function E2EERestoreModal({
     </Modal>
   );
 }
-
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  modalContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#1C6B1C',
-    maxWidth: 500,
-    width: '90%',
-    maxHeight: screenHeight * 0.90, // 85% of screen height
-    minHeight: screenHeight * 0.80,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-    marginHorizontal: 20,
-    marginVertical: 40,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 30,
-    minHeight: 400, // Ensure minimum content height for scrolling
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#1C6B1C',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1C6B1C',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  infoContainer: {
-    backgroundColor: '#1C6B1C',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1C6B1C',
-  },
-    warningInfoContainer: {
-    backgroundColor: '#dc2626', // Red background for warning
-    borderLeftColor: '#dc2626',
-    },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffffff',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 1)',
-    lineHeight: 20,
-  },
-  inputSection: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    padding: 16,
-    fontSize: 16,
-    backgroundColor: '#ffffff',
-    color: '#111827',
-    minHeight: 80,
-    maxHeight: 120, // Limit height to prevent excessive growth
-    textAlignVertical: 'top',
-  },
-  textInputError: {
-    borderColor: '#ef4444',
-    borderWidth: 2,
-  },
-  errorContainer: {
-    marginTop: 8,
-    paddingHorizontal: 4,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#ef4444',
-    fontWeight: '500',
-  },
-  helpText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  buttonContainer: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  restoreButton: {
-    backgroundColor: '#1C6B1C',
-  },
-  skipButton: {
-    // Uses default ghost button styling
-  },
-  footerNote: {
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-});

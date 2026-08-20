@@ -65,8 +65,6 @@ public class AuthService(
 
         try
         {
-            logger.LogInformation("SignupAsync. Payload: {@Payload}", new { request.Email });
-
             // ====== Grunnleggende feltvalidering — SuppressModelStateInvalidFilter = true betyr at
             // modellvalidering ikke stopper requesten automatisk, så vi validerer kritiske felt her. ======
             if (string.IsNullOrWhiteSpace(request.Email))
@@ -534,5 +532,49 @@ public class AuthService(
             "Security alert email sent to {Email} for {ChangeType} change on UserId: {UserId}",
             user.Email, changeType, user.Id);
     }
+    
+    // ======================== Verify Password ======================== 
+    
+     /// <inheritdoc/>
+    public async Task<Result> VerifyPasswordAsync(string userId, string password)
+    {
+        logger.LogInformation("VerifyPasswordAsync. UserId: {UserId}", userId);
+        var sw = Stopwatch.StartNew();
+
+        try
+        {
+            // ====== Finn bruker ======
+            var user = await userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                logger.LogWarning("Change email requested for non-existent UserId: {UserId}", userId);
+                return Result.Failure("User not found", AppErrorCode.NotFound);
+            }
+            
+            // Valider lockedout
+            if (await userManager.IsLockedOutAsync(user))
+            {
+                logger.LogWarning("User with ID {UserId} is locked out", userId);
+                return Result.Failure("Account is locked out", AppErrorCode.AccountLocked);
+            }
+                
+            
+            // ====== Valider passord ======
+            var isPasswordValid = await userManager.CheckPasswordAsync(user, password);
+            if (!isPasswordValid)
+            {
+                await userManager.AccessFailedAsync(user);
+                logger.LogWarning("Email change failed — wrong password for UserId: {UserId}", userId);
+                return Result.Failure("Current password is incorrect", AppErrorCode.InvalidPassword);
+            }
+            
+            await userManager.ResetAccessFailedCountAsync(user); 
+            return Result.Success();
+        }
+        finally
+        {
+            await TimingGuard.EnforceMinimumTimeAsync(sw, 500);
+        }
+    }   
 }
 

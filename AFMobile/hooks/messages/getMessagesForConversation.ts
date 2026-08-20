@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { MessageDTO } from "@shared/types/MessageDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { useBootstrapStore } from "@/store/useBootstrapStore";
 
 export function usePaginatedMessages(conversationId: number, isVisible: boolean) {
@@ -14,7 +15,7 @@ export function usePaginatedMessages(conversationId: number, isVisible: boolean)
   } = useChatStore();
 
   const isBootstrapped = useBootstrapStore(state => state.isBootstrapped);
-  const hasLoadedConversations = useChatStore(state => state.hasLoadedConversations);
+  const hasLoadedConversations = useConversationStore(state => state.hasLoadedConversations);
  
   const [messages, setMessages] = useState<MessageDTO[]>([]);
   const [loading, setLoading] = useState(false);

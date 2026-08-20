@@ -19,7 +19,7 @@ export class AttachmentDecryptionService {
    */
   async decryptAttachment(
     encryptedAttachment: EncryptedAttachmentData,
-    currentUserId: number,
+    currentUserId: string,
   ): Promise<DecryptedAttachment> {
     // If no encryption info, return as-is
     if (!encryptedAttachment.keyInfo) {
@@ -132,7 +132,7 @@ export class AttachmentDecryptionService {
    */
   async decryptAttachments(
     encryptedAttachments: EncryptedAttachmentData[],
-    currentUserId: number
+    currentUserId: string
   ): Promise<DecryptedAttachment[]> {
     return Promise.all(
       (encryptedAttachments || []).map(async (encAttachment) => {
@@ -147,7 +147,7 @@ export class AttachmentDecryptionService {
   private async decryptFile(
     keyInfo: { [userId: string]: string },
     iv: string,
-    userId: number,
+    userId: string,
     version: number = 1,
     encryptedFileUrl: string
   ): Promise<ArrayBuffer | null> {

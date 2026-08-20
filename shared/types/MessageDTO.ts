@@ -31,7 +31,7 @@ export interface AttachmentDto {
 export interface ReactionDTO {
   messageId: number;
   emoji: string;
-  userId: number;
+  userId: string;
   isRemoved: boolean;
   userFullName?: string;
   conversationId: number; 
@@ -39,7 +39,7 @@ export interface ReactionDTO {
 
 export interface MessageDTO {
   id: number;
-  senderId: number | null;
+  senderId: string | null;
   text: string | null;
   sentAt: string; // ISO-dato som kommer fra backend
   conversationId: number;

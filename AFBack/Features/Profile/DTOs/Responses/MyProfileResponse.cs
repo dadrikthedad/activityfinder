@@ -2,11 +2,6 @@ namespace AFBack.Features.Profile.DTOs.Responses;
 
 public class MyProfileResponse
 {
-    // Fra AppUser (via cache)
-    public string Id { get; set; } = null!;
-    public string FullName { get; set; } = null!;
-    public string? ProfileImageUrl { get; set; }
-
     // Lokasjon
     public string CountryCode { get; set; } = null!;
     

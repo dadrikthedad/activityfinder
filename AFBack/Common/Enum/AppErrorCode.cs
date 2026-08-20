@@ -27,7 +27,8 @@ public enum AppErrorCode
     PhoneNotConfirmed   = 2003,
     TokenExpired        = 2004,
     InvalidToken        = 2005,
-
+    InvalidPassword = 2006, // Wrong password for chaning email, phone or password as authenticated
+    
     // ── Registrering (3xxx) ───────────────────────────
     EmailAlreadyExists      = 3000,
     InvalidRegistrationData = 3001,

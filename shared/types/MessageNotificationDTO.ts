@@ -9,7 +9,7 @@ export interface MessageNotificationDTO {
   messageId?: number | null;
   conversationId?: number | null;
   senderUserDto: UserSummaryDTO;
-  senderId?: number | null;
+  senderId?: string | null;
   senderName?: string | null;
   groupName?: string | null;
   groupImageUrl?: string;

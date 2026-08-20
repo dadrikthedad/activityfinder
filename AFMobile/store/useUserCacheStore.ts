@@ -16,7 +16,7 @@ interface UserCacheStore {
   blockedUsers: BlockedUserDTO[];
 
   // Andre brukere cachet fra samtaler etc.
-  users: Record<number, UserSummaryDTO>;
+  users: Record<string, UserSummaryDTO>;
 
   // Cache metadata
   lastUpdated: number;
@@ -33,18 +33,18 @@ interface UserCacheStore {
   removeBlockedUser: (userId: string) => void;
 
   // Core actions
-  setUser: (user: Partial<UserSummaryDTO> & { id: number }) => void;
+  setUser: (user: Partial<UserSummaryDTO> & { id: string }) => void;
   setUsers: (users: UserSummaryDTO[]) => void;
-  getUser: (userId: number) => UserSummaryDTO | null;
-  updateUser: (userId: number, updates: Partial<UserSummaryDTO>) => void;
+  getUser: (userId: string) => UserSummaryDTO | null;
+  updateUser: (userId: string, updates: Partial<UserSummaryDTO>) => void;
 
   // Relationship-specific actions
-  setUserFriendStatus: (userId: number, isFriend: boolean, isBlocked?: boolean) => void;
-  setUserBlockedStatus: (userId: number, isBlocked: boolean, isFriend?: boolean) => void;
+  setUserFriendStatus: (userId: string, isFriend: boolean, isBlocked?: boolean) => void;
+  setUserBlockedStatus: (userId: string, isBlocked: boolean, isFriend?: boolean) => void;
 
   // Quick relationship checks
-  isFriend: (userId: number) => boolean;
-  isBlocked: (userId: number) => boolean;
+  isFriend: (userId: string) => boolean;
+  isBlocked: (userId: string) => boolean;
 
   // Filtered getters
   getFriends: () => UserSummaryDTO[];
@@ -53,10 +53,10 @@ interface UserCacheStore {
   cacheUsersFromBootstrap: (secondaryData?: SecondaryBootstrapResponseDTO) => void;
 
   // Bulk operations
-  getUsersByIds: (userIds: number[]) => UserSummaryDTO[];
+  getUsersByIds: (userIds: string[]) => UserSummaryDTO[];
 
   // Cache management
-  cleanupOldUsers: () => void;
+
   isCacheValid: () => boolean;
   setHasLoadedFromBootstrap: (loaded: boolean) => void;
   reset: () => void;
@@ -109,7 +109,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
         }));
       },
 
-      setUser: (user: Partial<UserSummaryDTO> & { id: number }) =>
+      setUser: (user: Partial<UserSummaryDTO> & { id: string }) =>
         set(state => {
           const existingUser = state.users[user.id];
           const now = Date.now();
@@ -164,7 +164,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
 
       setUsers: (users: UserSummaryDTO[]) => {
         const now = Date.now();
-        const userMap = new Map<number, UserSummaryDTO>();
+        const userMap = new Map<string, UserSummaryDTO>();
         let duplicatesInInput = 0;
 
         users.forEach(user => {
@@ -210,9 +210,9 @@ export const useUserCacheStore = create<UserCacheStore>()(
         });
       },
 
-      getUser: (userId: number) => get().users[userId] || null,
+      getUser: (userId: string) => get().users[userId] || null,
 
-      updateUser: (userId: number, updates: Partial<UserSummaryDTO>) =>
+      updateUser: (userId: string, updates: Partial<UserSummaryDTO>) =>
         set(state => {
           const existingUser = state.users[userId];
           if (!existingUser) return state;
@@ -226,7 +226,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
           };
         }),
 
-      setUserFriendStatus: (userId: number, isFriend: boolean, isBlocked = false) => {
+      setUserFriendStatus: (userId: string, isFriend: boolean, isBlocked = false) => {
         set(state => {
           const user = state.users[userId];
           if (!user) return state;
@@ -241,7 +241,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
         });
       },
 
-      setUserBlockedStatus: (userId: number, isBlocked: boolean, isFriend = false) => {
+      setUserBlockedStatus: (userId: string, isBlocked: boolean, isFriend = false) => {
         set(state => {
           const user = state.users[userId];
           if (!user) return state;
@@ -256,12 +256,12 @@ export const useUserCacheStore = create<UserCacheStore>()(
         });
       },
 
-      isFriend: (userId: number) => {
+      isFriend: (userId: string) => {
         const user = get().users[userId];
         return user?.isFriend === true;
       },
 
-      isBlocked: (userId: number) => {
+      isBlocked: (userId: string) => {
         const user = get().users[userId];
         return user?.isBlocked === true;
       },
@@ -271,7 +271,7 @@ export const useUserCacheStore = create<UserCacheStore>()(
       },
 
       cacheUsersFromBootstrap: (secondaryData?: SecondaryBootstrapResponseDTO) => {
-        const userMap = new Map<number, UserSummaryDTO>();
+        const userMap = new Map<string, UserSummaryDTO>();
         const now = Date.now();
 
         // Cache deltakere fra aktive samtaler
@@ -312,39 +312,15 @@ export const useUserCacheStore = create<UserCacheStore>()(
         }
       },
 
-      getUsersByIds: (userIds: number[]) => {
+      getUsersByIds: (userIds: string[]) => {
         const state = get();
         return userIds.map(id => state.users[id]).filter(Boolean);
       },
 
-      cleanupOldUsers: () => {
-        const now = Date.now();
-        const TTL = 1000 * 60 * 60 * 24;
-
-        set(state => {
-          if (!state.lastUpdated || (now - state.lastUpdated < TTL)) return state;
-
-          console.log("👤 Cleaning up old user cache");
-          return {
-            currentUser: null,
-            profile: null,
-            settings: null,
-            blockedUsers: [],
-            users: {},
-            lastUpdated: 0,
-            hasLoadedFromBootstrap: false
-          };
-        });
-      },
 
       isCacheValid: () => {
         const state = get();
-        const now = Date.now();
-        const TTL = 1000 * 60 * 60 * 24;
-
-        return state.lastUpdated > 0 &&
-          (now - state.lastUpdated < TTL) &&
-          state.hasLoadedFromBootstrap;
+        return state.hasLoadedFromBootstrap && state.currentUser !== null;
       },
 
       setHasLoadedFromBootstrap: (loaded: boolean) =>
@@ -375,9 +351,9 @@ export const useUserCacheStore = create<UserCacheStore>()(
         hasLoadedFromBootstrap: state.hasLoadedFromBootstrap
       }),
 
-      version: 2,
+      version: 3,
       migrate: () => {
-        console.log("👤 Migrating UserCache to v2 - clearing old data");
+        console.log("Migrating UserCache to v3 - clearing old data (user-id number to string)");
         return {
           currentUser: null,
           profile: null,
@@ -404,14 +380,18 @@ export const useFriends = () => {
   return useUserCacheStore(state => state.getFriends());
 };
 
-export const useUserById = (userId: number) => {
+export const useUserById = (userId: string) => {
   return useUserCacheStore(state => state.getUser(userId));
 };
 
-export const useIsUserFriend = (userId: number) => {
+export const useIsUserFriend = (userId: string) => {
   return useUserCacheStore(state => state.isFriend(userId));
 };
 
-export const useIsUserBlocked = (userId: number) => {
+export const useIsUserBlocked = (userId: string) => {
   return useUserCacheStore(state => state.isBlocked(userId));
+};
+
+export const useIsUserBlockedByGuid = (userId: string) => {
+  return useUserCacheStore(state => state.blockedUsers.some(u => u.userId === userId));
 };

@@ -3,7 +3,7 @@ import { UserSummaryDTO } from "./UserSummaryDTO";
 
 export interface FriendInvitationDTO {
   id: number;
-  receiverId: number;
+  receiverId: string;
   userSummary: UserSummaryDTO;
   status: "pending" | "accepted" | "declined";
   sentAt: string;

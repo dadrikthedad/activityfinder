@@ -6,6 +6,18 @@ import { Result } from "@/core/errors/Result";
 import { CriticalBootstrapResponseDTO } from "@shared/types/bootstrap/CriticalBootstrapResponseDTO";
 import { SecondaryBootstrapResponseDTO } from "@shared/types/bootstrap/SecondaryBootstrapResponseDTO";
 
+const BOOTSTRAP_TIMEOUT_MS = 10000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Bootstrap timeout after ${ms}ms`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
 export enum BootstrapErrorCode {
   Unknown = "Unknown",
   NetworkError = "NetworkError",
@@ -27,7 +39,10 @@ function mapBootstrapError(error: unknown): Result<never, BootstrapErrorCode> {
 
 export async function getCriticalBootstrap(): Promise<Result<CriticalBootstrapResponseDTO, BootstrapErrorCode>> {
   try {
-    const data = await getRequest<CriticalBootstrapResponseDTO>(ApiRoutes.bootstrap.critical);
+    const data = await withTimeout(
+      getRequest<CriticalBootstrapResponseDTO>(ApiRoutes.bootstrap.critical),
+      BOOTSTRAP_TIMEOUT_MS
+    );
     if (!data) return Result.fail("Ingen data", BootstrapErrorCode.NetworkError);
     return Result.ok(data);
   } catch (error) {
@@ -37,7 +52,10 @@ export async function getCriticalBootstrap(): Promise<Result<CriticalBootstrapRe
 
 export async function getSecondaryBootstrap(): Promise<Result<SecondaryBootstrapResponseDTO, BootstrapErrorCode>> {
   try {
-    const data = await getRequest<SecondaryBootstrapResponseDTO>(ApiRoutes.bootstrap.secondary);
+    const data = await withTimeout(
+      getRequest<SecondaryBootstrapResponseDTO>(ApiRoutes.bootstrap.secondary),
+      BOOTSTRAP_TIMEOUT_MS
+    );
     if (!data) return Result.fail("Ingen data", BootstrapErrorCode.NetworkError);
     return Result.ok(data);
   } catch (error) {

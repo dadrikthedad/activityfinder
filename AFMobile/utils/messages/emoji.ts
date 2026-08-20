@@ -5,7 +5,7 @@ import { ReactionDTO } from "@shared/types/MessageDTO";
 
 type GroupedReactions = Record<
   string,
-  { count: number; userIds: number[]; userNames: string[] }
+  { count: number; userIds: string[]; userNames: string[] }
 >;
 
 export function groupReactionsDetailed(reactions: ReactionDTO[]): GroupedReactions {

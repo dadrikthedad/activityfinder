@@ -2,12 +2,12 @@
 
   
 export interface FriendDTO {
-    currentUserId: number;
+    currentUserId: string;
     createdAt: string;
     userToFriendUserScore: number;
     friendUserToUserScore: number;
     friend: {
-      id: number;
+      id: string;
       fullName: string;
       profileImageUrl: string | null;
     };

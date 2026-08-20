@@ -17,6 +17,6 @@ public interface ISupportTicketService
     /// <param name="ct"></param>
     /// <returns>Result med SupportTicketResponse eller failure</returns>
     Task<Result<SupportTicketResponse>> CreateSupportTicketAsync(string? userId,
-        string ipAddress, string userAgent, SupportTicketRequest ticketRequest, List<IFormFile>?
-            attachments, CancellationToken ct = default);
+        string? userEmail, string ipAddress, string userAgent, SupportTicketRequest ticketRequest,
+        List<IFormFile>? attachments, CancellationToken ct = default);
 }

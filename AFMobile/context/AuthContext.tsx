@@ -9,6 +9,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import authServiceNative from "@/core/auth/authServiceNative";
 import { logoutUser } from "@/features/auth/services/logoutService";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
+import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
+import { useBootstrapStore } from "@/store/useBootstrapStore";
+import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
+import { useNotificationStore } from "@/store/useNotificationStore";
+import { useE2EEStore } from "@/store/useE2EEStore";
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -79,6 +86,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await logoutUser(userId);
+
+    // Tøm all brukerdata fra storer — privat E2EE-nøkkel i Keychain beholdes
+    useUserCacheStore.getState().reset();
+    useChatStore.getState().reset();
+    useConversationStore.getState().reset();
+    useBootstrapStore.getState().reset();
+    useMessageNotificationStore.getState().reset();
+    useNotificationStore.getState().reset();
+    useE2EEStore.getState().reset();
+
     setToken(null);
     setUserId(null);
     setIsLoggedIn(false);

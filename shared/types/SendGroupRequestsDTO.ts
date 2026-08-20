@@ -2,7 +2,7 @@ export interface SendGroupRequestsDTO {
   conversationId?: number; // Null for new group
   groupName?: string; // Required for new groups, max 100 chars
   groupImageUrl?: string; // Max 512 chars
-  invitedUserIds: number[]; // Required
+  invitedUserIds: string[]; // Required
   initialMessage?: string; // Optional
 }
 

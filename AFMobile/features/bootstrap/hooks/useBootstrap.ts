@@ -5,8 +5,9 @@ import { useUserCacheStore } from "@/store/useUserCacheStore";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { useBootstrapE2EEHandler } from "@/components/ende-til-ende/useBootstrapE2EEHandler";
+import { mergeMessageNotifications, setMessageNotificationsInStore } from "@/utils/messages/MessageNotificationFunctions";
 
-export type BootstrapPhase = "critical" | "secondary" | "decrypting" | "done" | "error";
+export type BootstrapPhase = "idle" | "critical" | "secondary" | "decrypting" | "done" | "error";
 
 export interface UseBootstrapReturn {
   phase: BootstrapPhase;
@@ -15,7 +16,7 @@ export interface UseBootstrapReturn {
 }
 
 export const useBootstrap = (): UseBootstrapReturn => {
-  const [phase, setPhase] = useState<BootstrapPhase>("critical");
+  const [phase, setPhase] = useState<BootstrapPhase>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const {
@@ -27,11 +28,24 @@ export const useBootstrap = (): UseBootstrapReturn => {
     markSecondaryLoaded,
   } = useBootstrapStore();
 
-  const { setCurrentUser, setSettings } = useUserCacheStore();
+  const {
+    setCurrentUser,
+    setProfile,
+    setSettings,
+    setBlockedUsers,
+    cacheUsersFromBootstrap,
+  } = useUserCacheStore();
 
-  const { setConversations, setUnreadConversationIds } = useConversationStore();
+  const {
+    setConversations,
+    setPendingConversations,
+    setUnreadConversationIds,
+    setHasLoadedConversations,
+    setHasLoadedPendingConversations,
+    setHasLoadedUnreadConversationIds,
+  } = useConversationStore();
 
-  const { setMessageNotifications, setHasLoadedNotifications } = useMessageNotificationStore();
+  const { setHasLoadedNotifications } = useMessageNotificationStore();
 
   const { handleConversationMessages } = useBootstrapE2EEHandler();
 
@@ -49,11 +63,11 @@ export const useBootstrap = (): UseBootstrapReturn => {
     }
 
     const critical = criticalResult.data;
-
-    // Typer stemmer nå med @shared/types/bootstrap/ — ingen as any
     setCurrentUser(critical.user);
+    setProfile(critical.profile);
     setSettings(critical.settings);
-    markCriticalLoaded(critical.syncToken);
+    setBlockedUsers(critical.blockedUsers);
+    markCriticalLoaded();
 
     setPhase("secondary");
     setSecondaryLoading(true);
@@ -68,14 +82,23 @@ export const useBootstrap = (): UseBootstrapReturn => {
 
     const secondary = secondaryResult.data;
 
-    setConversations(secondary.recentConversations);
-    setUnreadConversationIds(secondary.unreadConversationIds ?? []);
+    setConversations(secondary.activeConversations);
+    setHasLoadedConversations(true);
 
-    if (secondary.recentMessageNotifications?.length) {
-      setMessageNotifications(secondary.recentMessageNotifications);
+    setPendingConversations(secondary.pendingConversations);
+    setHasLoadedPendingConversations(true);
+
+    setUnreadConversationIds(secondary.unreadConversationIds);
+    setHasLoadedUnreadConversationIds(true);
+
+    if (secondary.messageNotifications?.length) {
+      const merged = mergeMessageNotifications(secondary.messageNotifications);
+      setMessageNotificationsInStore(merged, "bootstrap");
+    } else {
+      setHasLoadedNotifications(true);
     }
-    setHasLoadedNotifications(true);
 
+    cacheUsersFromBootstrap(secondary);
     markSecondaryLoaded();
 
     setPhase("decrypting");
@@ -89,14 +112,20 @@ export const useBootstrap = (): UseBootstrapReturn => {
     setCriticalError,
     markCriticalLoaded,
     setCurrentUser,
+    setProfile,
     setSettings,
+    setBlockedUsers,
     setSecondaryLoading,
     setSecondaryError,
     markSecondaryLoaded,
     setConversations,
+    setPendingConversations,
     setUnreadConversationIds,
-    setMessageNotifications,
+    setHasLoadedConversations,
+    setHasLoadedPendingConversations,
+    setHasLoadedUnreadConversationIds,
     setHasLoadedNotifications,
+    cacheUsersFromBootstrap,
     handleConversationMessages,
   ]);
 

@@ -8,7 +8,7 @@ export function useConfirmRemoveFriend() {
   const { handleRemoveFriend } = useRemoveFriend();
 
   const confirmAndRemove = async (
-    friendId: number,
+    friendId: string,
     friendName: string,
     onSuccess?: () => void
   ) => {

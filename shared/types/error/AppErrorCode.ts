@@ -31,7 +31,7 @@ export enum AppErrorCode {
   PhoneNotConfirmed  = 2003,
   TokenExpired       = 2004,
   InvalidToken       = 2005,
-  MfaRequired        = 2006,
+  InvalidPassword    = 2006,  // Feil passord ved kontoendring (e-post/telefon/passord) — sendes som 400
 
   // ── Registrering (3xxx) ───────────────────────────
   EmailAlreadyExists        = 3000,
@@ -48,8 +48,8 @@ export enum AppErrorCode {
   ResetSessionNotVerified    = 5001,  // SMS-koden er ikke verifisert (steg 3b ikke fullført)
   ResetSessionExpired        = 5002,  // 10-minuttersvinduet etter SMS-verifisering er utløpt
 
-  // ── Kryptografi (7xxx) ────────────────────────────
-  InvalidPublicKey = 7000,
+  // ── Kryptografi (6xxx) ────────────────────────────
+  InvalidPublicKey = 6000,
 
   // ── Frontend-only (9xxx) ──────────────────────────
   // Disse sendes aldri fra backend — brukes kun i mapXxxError for nettverksfeil

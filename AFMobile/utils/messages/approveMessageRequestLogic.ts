@@ -1,6 +1,7 @@
 import { approveMessageRequest } from "@/services/messages/messageService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { getConversationById } from "@/services/messages/conversationService";
 
 export async function approveMessageRequestLogic(
@@ -17,7 +18,7 @@ export async function approveMessageRequestLogic(
     const conversation = await getConversationById(conversationId);
     if (conversation) {
       const unlockedConversation = { ...conversation, isPendingApproval: false };
-      useChatStore.getState().addConversation(unlockedConversation);
+      useConversationStore.getState().addConversation(unlockedConversation);
     }
 
     // 3) Hent de siste meldingene, og cache dem
@@ -25,20 +26,21 @@ export async function approveMessageRequestLogic(
     useChatStore.getState().setCachedMessages(conversationId, messages ?? []);
 
     // 4) Fjern pending-forespørselen
-    useChatStore.getState().removePendingRequest(conversationId);
+    useConversationStore.getState().removePendingConversation(conversationId);
 
-    const state = useChatStore.getState();
-    const pendingId = state.pendingLockedConversationId;
+    const chatState = useChatStore.getState();
+    const convState = useConversationStore.getState();
+    const pendingId = chatState.pendingLockedConversationId;
     if (pendingId === conversationId) {
-      state.setCurrentConversationId(conversationId);
+      chatState.setCurrentConversationId(conversationId);
     } else {
-      if (!state.unreadConversationIds.includes(conversationId)) {
-        state.setUnreadConversationIds([...state.unreadConversationIds, conversationId]);
+      if (!convState.unreadConversationIds.includes(conversationId)) {
+        convState.setUnreadConversationIds([...convState.unreadConversationIds, conversationId]);
       }
     }
 
     // 5) "Lås opp" og sett aktiv samtal
-    state.setPendingLockedConversationId(null);
+    chatState.setPendingLockedConversationId(null);
 
     const logMessage = isSync 
       ? "✅ Meldingsforespørsel godkjenning synkronisert:" 

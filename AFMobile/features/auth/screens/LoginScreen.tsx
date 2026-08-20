@@ -288,6 +288,19 @@ export default function LoginScreen() {
                 />
               </View>
             </View>
+
+            {/* Dev-innlogging — kun i development-bygg */}
+            {__DEV__ && (
+              <View style={{ maxWidth: 400, alignSelf: "center", width: "100%", marginTop: theme.spacing.lg }}>
+                <ButtonNative
+                  text={t("dev.openButton")}
+                  onPress={() => navigation.navigate("DevUserListScreen")}
+                  variant="outline"
+                  size="medium"
+                  fullWidth
+                />
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

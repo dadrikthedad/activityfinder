@@ -28,12 +28,15 @@ public class SupportTicketService(
 
     /// <inheritdoc/>
     public async Task<Result<SupportTicketResponse>> CreateSupportTicketAsync(string? userId,
-        string ipAddress, string userAgent, SupportTicketRequest ticketRequest, List<IFormFile>?
-            attachments, CancellationToken ct = default)
+        string? userEmail, string ipAddress, string userAgent, SupportTicketRequest ticketRequest,
+        List<IFormFile>? attachments, CancellationToken ct = default)
     {
+        // Bruk e-post fra JWT hvis innlogget, ellers fra request-body
+        string email = userEmail ?? ticketRequest.Email!;
+
         // ====== Rate limit — stopp spam av eposter ======
         var rateLimitResult = await limitGuardService.CheckEmailRateLimitAsync(EmailType.SupportTicket,
-            ticketRequest.Email, ipAddress);
+            email, ipAddress);
         if (rateLimitResult.IsFailure)
             return Result<SupportTicketResponse>.Failure(rateLimitResult.Error, rateLimitResult.ErrorCode);
 
@@ -41,7 +44,7 @@ public class SupportTicketService(
         var ticket = new SupportTicket
         {
             SubmittedByUserId = userId,
-            Email = ticketRequest.Email,
+            Email = email,
             Type = ticketRequest.Type,
             Title = ticketRequest.Title,
             Description = ticketRequest.Description,
@@ -88,10 +91,9 @@ public class SupportTicketService(
                 AppErrorCode.InternalError);
         }
 
-        // Send e-poster (ikke kritisk - feiler stille)
+        // Send e-poster 
         await SendEmailNotificationsAsync(ipAddress, ticket.Email, ticket);
-
-
+        
         return Result<SupportTicketResponse>.Success(new SupportTicketResponse
         {
             SupportTicketId = ticket.Id,

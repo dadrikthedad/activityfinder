@@ -19,13 +19,13 @@ import {
 
 interface ReactionHandlerNativeProps {
   targetId: number;
-  userId: number;
+  userId: string;
   existingReactions: ReactionDTO[];
   children: React.ReactNode;
   disabled?: boolean;
   message?: MessageDTO;
   onReply?: (message: MessageDTO) => void;
-  currentUserId?: number;
+  currentUserId?: string;
   onDelete?: (message: MessageDTO) => void;
 }
 

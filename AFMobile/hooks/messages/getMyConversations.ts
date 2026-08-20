@@ -1,21 +1,41 @@
 // Her henter vi samtaler med paginering
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { getMyConversations } from "@/services/messages/conversationService";
-import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 
 export const take = 20;
 
 export function usePaginatedConversations() {
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const conversations = useChatStore((state) => state.conversations);
-  const hasLoaded = useChatStore((s) => s.hasLoadedConversations);
+  const conversations = useConversationStore((state) => state.conversations);
+  const hasLoaded = useConversationStore((s) => s.hasLoadedConversations);
+  const hasFetchedInitial = useRef(false);
+
+  // Initiell henting ved mount: synk listen mot backend (GET /api/conversation/active) slik at en
+  // stale/tom persistert store selvhelbreder. Bootstrap kjorer ikke alltid pa nytt ved reload, og
+  // addConversation dedup-er — sa dette legger kun til samtaler som mangler lokalt.
+  useEffect(() => {
+    if (hasFetchedInitial.current) return;
+    hasFetchedInitial.current = true;
+
+    (async () => {
+      try {
+        const response = await getMyConversations(0, take);
+        const fetched = response?.conversations ?? [];
+        const addConversation = useConversationStore.getState().addConversation;
+        fetched.forEach(addConversation);
+      } catch (err) {
+        console.error("❌ Initiell henting av samtaler feilet:", err);
+      }
+    })();
+  }, []);
 
   const loadMore = useCallback(async () => {
     setLoading(true);
-    
+
     // 🎯 SMART SKIP: Start fra conversations.length, men bootstrap har allerede 10
-    const currentCount = useChatStore.getState().conversations.length;
+    const currentCount = useConversationStore.getState().conversations.length;
     let skip = currentCount;
     
     // 👈 BOOTSTRAP-AWARE: Hvis vi har færre enn 10, kan det være fra bootstrap
@@ -32,7 +52,7 @@ export function usePaginatedConversations() {
       const newConversations = response?.conversations || [];
       
       // Legg til nye conversations (addConversation håndterer duplicates)
-      newConversations.forEach(useChatStore.getState().addConversation);
+      newConversations.forEach(useConversationStore.getState().addConversation);
       
       // Justér hasMore basert på resultat
       if (newConversations.length < take) {

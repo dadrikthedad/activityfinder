@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Plus } from 'lucide-react-native';
+import { useUnistyles } from 'react-native-unistyles';
 
 interface AttachmentPickerButtonProps {
   onPress: () => void;
@@ -16,22 +17,24 @@ export const AttachmentPickerButton: React.FC<AttachmentPickerButtonProps> = ({
   onPress,
   disabled = false,
   size = 24,
-  color = "#ffffff",
-  backgroundColor = "#1C6B1C",
+  color,
+  backgroundColor,
   style,
   icon,
 }) => {
+  const { theme } = useUnistyles();
+
   return (
     <TouchableOpacity
       style={[
         styles.button,
-        { backgroundColor: disabled ? '#9CA3AF' : backgroundColor },
-        style
+        { backgroundColor: disabled ? theme.colors.disabled : (backgroundColor ?? theme.colors.primary) },
+        style,
       ]}
       onPress={onPress}
       disabled={disabled}
     >
-      {icon || <Plus size={size} color={color} />}
+      {icon || <Plus size={size} color={color ?? theme.colors.onPrimary} />}
     </TouchableOpacity>
   );
 };

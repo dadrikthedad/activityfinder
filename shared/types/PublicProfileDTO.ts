@@ -1,7 +1,7 @@
 // Her henter vi infromasjon fra alle klassene User, Profile og Settings for å vise i profil samt innstillinger til profil. Henter tilsvarende fra Backend med samme navn
 export interface PublicProfileDTO {
     // User
-    userId: number;
+    userId: string;
     firstName?: string;
     middleName?: string;
     lastName?: string;

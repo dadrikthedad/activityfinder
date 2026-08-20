@@ -35,28 +35,36 @@ import LoginMfaScreen from './features/auth/screens/LoginMfaScreen';
 import ResetPasswordScreen from './features/auth/screens/ResetPasswordScreen';
 import CryptationScreen from './features/auth/screens/CryptationScreen';
 import E2EESetupScreen from './features/auth/screens/E2EESetupScreen';
+import DevUserListScreen from './features/dev/screens/DevUserListScreen';
 import { BootstrapLoadingScreen } from './features/bootstrap/screens/BootstrapLoadingScreen';
 
 // App screens
 import HomeScreen from './screens/HomeScreen';
-import MessagesScreen from './screens/messages/MessageScreen';
-import ConversationScreen from './screens/messages/ConversationScreen';
+import MessagesScreen from './features/conversation/screens/MessageScreen';
+import ConversationScreen from './features/messaging/screens/ConversationScreen';
 import GroupSettingsScreen from './screens/messages/GroupSettingsScreen';
-import NewConversationScreen from './screens/messages/NewConversationScreen';
+import NewMessageScreen from './features/messages/screens/NewMessageScreen';
 import MessageNotificationScreen from './screens/messages/MessageNotificationScreen';
 import TrashcanScreen from './screens/messages/TrashcanScreen';
 import PendingConversationsScreen from './screens/messages/PendingConversationsScreen';
 import ProfileScreen from './screens/profile/ProfileScreen';
+import MyProfileScreen from './features/profile/screens/MyProfileScreen';
 import EditProfileScreen from './screens/profile/EditProfileScreen';
-import ProfileSettingsScreen from './screens/profile/ProfileSettingsScreen';
-import SecurityCredsScreen from './screens/profile/SecurityCredsScreen';
-import ReportScreen from './screens/support/ReportScreen';
+import ProfileSettingsScreen from './features/profile/screens/ProfileSettingsScreen';
+import ChangeEmailScreen from './features/account/screens/ChangeEmailScreen';
+import VerifyCurrentEmailForChangeScreen from './features/account/screens/VerifyCurrentEmailForChangeScreen';
+import VerifyNewEmailScreen from './features/account/screens/VerifyNewEmailScreen';
+import ChangePhoneScreen from './features/account/screens/ChangePhoneScreen';
+import VerifyEmailForPhoneChangeScreen from './features/account/screens/VerifyEmailForPhoneChangeScreen';
+import VerifyNewPhoneScreen from './features/account/screens/VerifyNewPhoneScreen';
+import ReportUserScreen from './features/reporting/screens/ReportUserScreen';
+import ReportBugScreen from './features/reporting/screens/ReportBugScreen';
 import MediaViewerScreen from './screens/files/MediaViewerScreen';
 import { TestNavigator } from './screens/test/TestNavigation';
 
 // Shared components
-import MobileNavbarNative from './components/navbar/MobilNavbarNative';
-import { AppInitializer } from './components/bootstrap/AppInitializerNative';
+import MobileNavbarNative from './features/navbar/MobilNavbarNative';
+import { AppInitializer } from './features/bootstrap/AppInitializerNative';
 import SignalRClientNative from './components/signalr/SignalRClientNative';
 import { toastConfig } from './components/toast/NotificationToastNative';
 
@@ -167,6 +175,9 @@ function AuthenticatedApp() {
             <Stack.Screen name="Home">
               {() => (<><MobileNavbarNative /><HomeScreen /></>)}
             </Stack.Screen>
+            <Stack.Screen name="MyProfile">
+              {() => (<><MobileNavbarNative /><MyProfileScreen /></>)}
+            </Stack.Screen>
             <Stack.Screen name="Profile">
               {() => (<><MobileNavbarNative /><ProfileScreen /></>)}
             </Stack.Screen>
@@ -185,12 +196,18 @@ function AuthenticatedApp() {
             <Stack.Screen name="ConversationScreen" component={ConversationScreen} options={{ cardStyleInterpolator: () => ({}) }} />
             <Stack.Screen name="MediaViewer" component={MediaViewerScreen} options={{ headerShown: false, cardStyleInterpolator: ({ current: { progress } }) => ({ cardStyle: { opacity: progress, backgroundColor: 'black' } }) }} />
             <Stack.Screen name="GroupSettingsScreen" component={GroupSettingsScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="NewConversationScreen" component={NewConversationScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="NewMessageScreen" component={NewMessageScreen} options={{ headerShown: false }} />
             <Stack.Screen name="MessageNotificationScreen" component={MessageNotificationScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="ReportScreen" component={ReportScreen} />
-            <Stack.Screen name="SecurityCredsScreen" component={SecurityCredsScreen} />
+            <Stack.Screen name="ReportUserScreen" component={ReportUserScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="ReportBugScreen" component={ReportBugScreen} options={{ headerShown: false }} />
             <Stack.Screen name="TestNavigator" component={TestNavigator} />
             <Stack.Screen name="CryptationScreen" component={CryptationScreen} />
+            <Stack.Screen name="ChangeEmailScreen" component={ChangeEmailScreen} />
+            <Stack.Screen name="VerifyCurrentEmailForChangeScreen" component={VerifyCurrentEmailForChangeScreen} />
+            <Stack.Screen name="VerifyNewEmailScreen" component={VerifyNewEmailScreen} />
+            <Stack.Screen name="ChangePhoneScreen" component={ChangePhoneScreen} />
+            <Stack.Screen name="VerifyEmailForPhoneChangeScreen" component={VerifyEmailForPhoneChangeScreen} />
+            <Stack.Screen name="VerifyNewPhoneScreen" component={VerifyNewPhoneScreen} />
           </>
         ) : (
           <>
@@ -201,7 +218,7 @@ function AuthenticatedApp() {
             <Stack.Screen name="LoginMfaScreen" component={LoginMfaScreen} />
             <Stack.Screen name="ResetPasswordScreen" component={ResetPasswordScreen} />
             <Stack.Screen name="E2EESetupScreen" component={E2EESetupScreen} />
-            <Stack.Screen name="ReportScreen" component={ReportScreen} />
+            {__DEV__ && <Stack.Screen name="DevUserListScreen" component={DevUserListScreen} />}
           </>
         )}
       </Stack.Navigator>

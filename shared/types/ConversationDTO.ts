@@ -13,11 +13,11 @@ export enum ParticipantRole {
   Creator = 3,
 }
 
+// Speiler ConversationStatus i AFBack (Features/Conversation/Enums/ConversationStatus.cs)
 export enum ConversationStatus {
   Pending = 0,
-  Approved = 1,
+  Accepted = 1,
   Rejected = 2,
-  Creator = 3,
 }
 
 export interface ConversationDTO {

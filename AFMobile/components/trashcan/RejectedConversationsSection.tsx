@@ -12,7 +12,7 @@ import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useApproveMessageRequest } from '@/hooks/messages/useApproveMessageRequest';
 import { useDeleteGroupRequest } from '@/hooks/messages/useDeleteGroupRequest';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
-import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
+import { ConversationListItemNative } from '@/features/conversation/components/ConversationListItemNative';
 import SearchInput from './SearchInput';
 import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
 
@@ -21,7 +21,7 @@ interface RejectedConversationsSectionProps {
   isLoading: boolean;
   error: string | null;
   deleteError: string | null;
-  currentUserId?: number;
+  currentUserId?: string;
   navigation: any;
   onError: (message: string) => void;
   onRefetch: () => void;
@@ -44,7 +44,7 @@ export default function RejectedConversationsSection({
   const { deleteRequest, isLoading: isDeletingGroupRequest } = useDeleteGroupRequest();
   const { confirm } = useConfirmModalNative();
 
-  const getOtherParticipant = useCallback((participants: UserSummaryDTO[], currentUserId?: number): UserSummaryDTO | null => {
+  const getOtherParticipant = useCallback((participants: UserSummaryDTO[], currentUserId?: string): UserSummaryDTO | null => {
     if (!participants?.length) {
       return null;
     }

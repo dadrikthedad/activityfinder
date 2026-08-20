@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     marginBottom: 6,
-    textAlign: "center",
+    textAlign: "left",
   },
   input: {
     height: 48,

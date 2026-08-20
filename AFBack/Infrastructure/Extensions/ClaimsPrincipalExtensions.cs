@@ -31,8 +31,14 @@ public static class ClaimsPrincipalExtensions
     /// </summary>
     /// <param name="user">Tokenet</param>
     /// <returns>UserId som en string</returns>
-    public static string? GetUserIdOrDefault(this ClaimsPrincipal user) => 
+    public static string? GetUserIdOrDefault(this ClaimsPrincipal user) =>
         user.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+
+    /// <summary>
+    /// Henter ut e-post fra token eller null hvis ingen finnes.
+    /// </summary>
+    public static string? GetEmailOrDefault(this ClaimsPrincipal user) =>
+        user.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
     
     
     /// <summary>

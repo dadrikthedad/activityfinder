@@ -1,6 +1,6 @@
 // components/settings/ThemeSelector.tsx
 import React from "react";
-import { View, Text, TouchableOpacity, Alert, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useUnistyles, UnistylesRuntime } from "react-native-unistyles";
 import { useThemeStore } from "@/store/useThemeStore";
 import { type ThemeName } from "@/core/theme/themes";
@@ -10,25 +10,13 @@ const themeLabels: Record<ThemeName, string> = {
   dark:  "🌙  Mørkt",
 };
 
-/**
- * Viser tilgjengelige temaer som trykkbare alternativer.
- * Aktivt tema er markert. Bytte trigger app-restart.
- */
 export default function ThemeSelector() {
   const { themeName, setTheme } = useThemeStore();
   const { theme } = useUnistyles();
 
   const handleThemeChange = (name: ThemeName) => {
     if (name === themeName) return;
-
-    Alert.alert(
-      "Bytt tema",
-      `Bytte til "${themeLabels[name]}" vil starte appen på nytt.`,
-      [
-        { text: "Avbryt", style: "cancel" },
-        { text: "Bytt", onPress: () => setTheme(name) },
-      ]
-    );
+    setTheme(name);
   };
 
   return (

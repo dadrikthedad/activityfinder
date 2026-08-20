@@ -7,6 +7,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Camera, Image as ImageLucid, FileText, Trash2 } from 'lucide-react-native';
+import { useUnistyles } from 'react-native-unistyles';
+import { useTranslation } from 'react-i18next';
 
 interface AttachmentPickerModalProps {
   visible: boolean;
@@ -16,8 +18,6 @@ interface AttachmentPickerModalProps {
   onDocumentPicker: () => void;
   showDocuments?: boolean;
   title?: string;
-  accentColor?: string;
-  // NEW: Remove functionality
   showRemove?: boolean;
   onRemove?: () => void;
   removeText?: string;
@@ -30,16 +30,17 @@ export const AttachmentPickerModal: React.FC<AttachmentPickerModalProps> = ({
   onImagePicker,
   onDocumentPicker,
   showDocuments = true,
-  title = "Choose Attachment",
-  accentColor = "#1C6B1C",
-  // NEW props with defaults
+  title,
   showRemove = false,
   onRemove,
-  removeText = "Remove Image"
+  removeText,
 }) => {
+  const { theme } = useUnistyles();
+  const { t } = useTranslation();
+
   const handleRemove = () => {
     onRemove?.();
-    onClose(); // Close modal after remove action
+    onClose();
   };
 
   return (
@@ -54,50 +55,45 @@ export const AttachmentPickerModal: React.FC<AttachmentPickerModalProps> = ({
         activeOpacity={1}
         onPress={onClose}
       >
-        <View style={styles.modalContent}>
+        <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
           {title && (
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{title}</Text>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.colors.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.colors.textPrimary, fontSize: theme.typography.lg, fontWeight: theme.typography.semibold }]}>
+                {title}
+              </Text>
             </View>
           )}
-         
-          <TouchableOpacity
-            style={styles.modalOption}
-            onPress={onCamera}
-          >
-            <Camera size={24} color={accentColor} />
-            <Text style={styles.modalOptionText}>Take Photo</Text>
+
+          <TouchableOpacity style={styles.modalOption} onPress={onCamera}>
+            <Camera size={24} color={theme.colors.primary} />
+            <Text style={[styles.modalOptionText, { color: theme.colors.textPrimary, fontSize: theme.typography.md, fontWeight: theme.typography.medium }]}>
+              {t('common.takePhoto')}
+            </Text>
           </TouchableOpacity>
-         
-          <TouchableOpacity
-            style={styles.modalOption}
-            onPress={onImagePicker}
-          >
-            <ImageLucid size={24} color={accentColor} />
-            <Text style={styles.modalOptionText}>Choose from Library</Text>
+
+          <TouchableOpacity style={styles.modalOption} onPress={onImagePicker}>
+            <ImageLucid size={24} color={theme.colors.primary} />
+            <Text style={[styles.modalOptionText, { color: theme.colors.textPrimary, fontSize: theme.typography.md, fontWeight: theme.typography.medium }]}>
+              {t('common.chooseFromLibrary')}
+            </Text>
           </TouchableOpacity>
-         
+
           {showDocuments && (
-            <TouchableOpacity
-              style={styles.modalOption}
-              onPress={onDocumentPicker}
-            >
-              <FileText size={24} color={accentColor} />
-              <Text style={styles.modalOptionText}>Select File</Text>
+            <TouchableOpacity style={styles.modalOption} onPress={onDocumentPicker}>
+              <FileText size={24} color={theme.colors.primary} />
+              <Text style={[styles.modalOptionText, { color: theme.colors.textPrimary, fontSize: theme.typography.md, fontWeight: theme.typography.medium }]}>
+                {t('common.selectFile')}
+              </Text>
             </TouchableOpacity>
           )}
 
-          {/* NEW: Remove option */}
           {showRemove && onRemove && (
             <>
-              <View style={styles.separator} />
-              <TouchableOpacity
-                style={styles.modalOption}
-                onPress={handleRemove}
-              >
-                <Trash2 size={24} color="#EF4444" />
-                <Text style={[styles.modalOptionText, styles.removeText]}>
-                  {removeText}
+              <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
+              <TouchableOpacity style={styles.modalOption} onPress={handleRemove}>
+                <Trash2 size={24} color={theme.colors.error} />
+                <Text style={[styles.modalOptionText, { color: theme.colors.error, fontSize: theme.typography.md, fontWeight: theme.typography.medium }]}>
+                  {removeText ?? t('common.delete')}
                 </Text>
               </TouchableOpacity>
             </>
@@ -115,7 +111,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingVertical: 20,
@@ -124,13 +119,9 @@ const styles = StyleSheet.create({
   modalHeader: {
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
     marginBottom: 8,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
     textAlign: 'center',
   },
   modalOption: {
@@ -140,19 +131,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 16,
   },
-  modalOptionText: {
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '500',
-  },
-  // NEW styles
+  modalOptionText: {},
   separator: {
     height: 1,
-    backgroundColor: '#E5E7EB',
     marginHorizontal: 16,
     marginVertical: 8,
-  },
-  removeText: {
-    color: '#EF4444',
   },
 });

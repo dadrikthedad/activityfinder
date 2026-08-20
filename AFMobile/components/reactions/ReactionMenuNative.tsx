@@ -34,7 +34,7 @@ interface ReactionMenuNativeProps {
   onReactionSelect: (emoji: string) => void;
   quickActions: QuickAction[];
   existingReactions: ReactionDTO[];
-  userId: number;
+  userId: string;
   message?: MessageDTO;
   actualMessageId?: number | null;
   reactionsDisabled?: boolean; // 🆕 NY: Separat kontroll for reaksjoner

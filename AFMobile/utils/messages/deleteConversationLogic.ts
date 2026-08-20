@@ -1,14 +1,15 @@
 // services/messages/deleteConversationService.ts
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 
 export function deleteConversationLogic(conversationId: number, isSync: boolean = false): void {
-  const { 
-    removeConversation, 
-    setCurrentConversationId, 
-    setCachedMessages, 
+  const {
+    setCurrentConversationId,
+    setCachedMessages,
     clearLiveMessages,
-    currentConversationId 
+    currentConversationId
   } = useChatStore.getState();
+  const { removeConversation } = useConversationStore.getState();
   
   // Rydd opp i alle message caches
   setCachedMessages(conversationId, []);

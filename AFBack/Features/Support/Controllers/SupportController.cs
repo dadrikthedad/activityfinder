@@ -38,10 +38,11 @@ public class SupportController(
         [FromForm] List<IFormFile>? attachments)
     {
         var userId = User.GetUserIdOrDefault();
+        var userEmail = User.GetEmailOrDefault();
         var ipAddress = GetIpAddress();
         var userAgent = Request.Headers.UserAgent.ToString();
-        var result = await supportTicketService.CreateSupportTicketAsync(userId, ipAddress, userAgent,
-        ticketRequest, attachments);
+        var result = await supportTicketService.CreateSupportTicketAsync(userId, userEmail, ipAddress,
+            userAgent, ticketRequest, attachments);
         
         if (result.IsFailure)
             return HandleFailure(result);

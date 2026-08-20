@@ -87,8 +87,38 @@ resource "upcloud_managed_object_storage_user" "app" {
 
 resource "upcloud_managed_object_storage_user_access_key" "app" {
     service_uuid = upcloud_managed_object_storage.main.id
-    username = upcloud_managed_object_storage_user.app.username
-    status = "Active"
+    username     = upcloud_managed_object_storage_user.app.username
+    status       = "Active"
+}
+
+# IAM-policy som gir app-brukeren full tilgang til alle buckets
+resource "upcloud_managed_object_storage_policy" "app" {
+    service_uuid = upcloud_managed_object_storage.main.id
+    name         = "${var.project_name}-${var.environment}-app-policy"
+    description  = "Full access to all application buckets"
+    document     = jsonencode({
+        Version = "2012-10-17"
+        Statement = [
+            {
+                Effect   = "Allow"
+                Action   = ["s3:*"]
+                Resource = [
+                    "arn:aws:s3:::encrypted-files",
+                    "arn:aws:s3:::encrypted-files/*",
+                    "arn:aws:s3:::public-images",
+                    "arn:aws:s3:::public-images/*",
+                    "arn:aws:s3:::private-files",
+                    "arn:aws:s3:::private-files/*"
+                ]
+            }
+        ]
+    })
+}
+
+resource "upcloud_managed_object_storage_user_policy" "app" {
+    service_uuid = upcloud_managed_object_storage.main.id
+    username     = upcloud_managed_object_storage_user.app.username
+    name         = upcloud_managed_object_storage_policy.app.name
 }
 
 # ============================================================================

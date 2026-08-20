@@ -1,6 +1,7 @@
 /* // UserActionPopoverContentNative.tsx - Updated for ModalContext
 import { UserSummaryDTO } from "@shared/types/UserSummaryDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { useModal } from "@/context/ModalContext";
 import { useCallback } from "react";
 import GroupSettingsScreen from "@/screens/messages/GroupSettingsScreen";
@@ -71,9 +72,10 @@ export default function UserActionPopoverContentNative({
 }: Props) {
 
   // Get current group name from store for groups
-  const currentConversation = useChatStore((state) => 
-    isGroup && conversationId 
-      ? state.conversations.find(conv => conv.id === conversationId)
+  const currentConversation = useConversationStore((state) =>
+    isGroup && conversationId
+      ? ((state.conversations ?? []).find((conv) => conv.id === conversationId) ??
+         (state.pendingConversations ?? []).find((conv) => conv.id === conversationId))
       : null
   );
   

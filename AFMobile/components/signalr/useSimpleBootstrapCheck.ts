@@ -1,17 +1,17 @@
 import { useCallback } from 'react';
 import { useBootstrapStore } from '@/store/useBootstrapStore';
-import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 
 export const useSimpleBootstrapCheck = () => {
-  
+
   const checkAndExecute = useCallback(async (
     handler: () => Promise<void>
   ) => {
     const { isBootstrapped } = useBootstrapStore.getState();
-    const { hasLoadedPendingRequests } = useChatStore.getState();
-    
-    // ✅ ENKEL SJEKK: Kun kjør hvis bootstrap har levert pending requests
-    if (isBootstrapped && hasLoadedPendingRequests) {
+    const { hasLoadedPendingConversations } = useConversationStore.getState();
+
+    // ✅ ENKEL SJEKK: Kun kjør hvis bootstrap har levert pending samtaler
+    if (isBootstrapped && hasLoadedPendingConversations) {
       console.log("✅ Bootstrap har levert pending requests, kjører SignalR handler");
       await handler();
     } else {

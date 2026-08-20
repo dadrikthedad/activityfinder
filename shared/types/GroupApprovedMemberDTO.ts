@@ -1,5 +1,5 @@
 export interface GroupApprovedMember {
-  userId: number;
+  userId: string;
   fullName: string;
   profileImageUrl?: string;
   joinedAt: string;

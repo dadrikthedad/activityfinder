@@ -65,7 +65,6 @@ export const ReactionUsersModal: React.FC<ReactionUsersModalProps> = ({
               isBlocked: undefined,
               hasBlockedMe: undefined,
               lastUpdated: undefined,
-              groupRequestStatus: undefined
             };
             users.push(fallbackUser);
           }

@@ -20,24 +20,18 @@ export async function getMessageNotifications(page = 1, pageSize = 20): Promise<
 
 // Setter en melding som lest
 export async function markMessageNotificationAsRead(id: number): Promise<void> {
-    const url = `${API_BASE_URL}/api/MessageNotifications/mark-as-read/${id}`;
-    await fetchWithAuth<void>(url, { method: "POST" }); // 👈 ikke returner
+    const url = `${API_BASE_URL}/api/MessageNotifications/${id}`;
+    await fetchWithAuth<void>(url, { method: "PATCH" }); // 👈 ikke returner
 }
 
 // Setter alle notifikasjoner som lest
 export async function markAllMessageNotificationsAsRead(): Promise<void> {
-  const url = `${API_BASE_URL}/api/MessageNotifications/mark-all-as-read`;
-  await fetchWithAuth<void>(url, { method: "POST" });
+  const url = `${API_BASE_URL}/api/MessageNotifications/read-all`;
+  await fetchWithAuth<void>(url, { method: "PATCH" });
 }
 
-// 🔔 Henter ID-er til samtaler med uleste notifications
-export async function getUnreadConversationIds(): Promise<number[]> {
-  const url = `${API_BASE_URL}/api/MessageNotifications/unread-conversations`;
-  const ids = await fetchWithAuth<number[]>(url);
-  return ids ?? [];
-}
 // Setter alle notifikasjoner til en samtale lest ved å være i bunn av en samtale
 export async function markConversationNotificationsAsRead(conversationId: number): Promise<void> {
-  const url = `${API_BASE_URL}/api/MessageNotifications/mark-conversation-as-read/${conversationId}`;
-  await fetchWithAuth<void>(url, { method: "POST" });
+  const url = `${API_BASE_URL}/api/MessageNotifications/conversation/${conversationId}/read`;
+  await fetchWithAuth<void>(url, { method: "PATCH" });
 }

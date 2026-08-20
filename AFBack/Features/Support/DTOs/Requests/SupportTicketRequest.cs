@@ -5,10 +5,9 @@ namespace AFBack.Features.Support.DTOs.Requests;
 
 public class SupportTicketRequest
 {
-    [Required(ErrorMessage = "Email is required")]
     [EmailAddress(ErrorMessage = "Invalid email")]
     [MaxLength(255)]
-    public string Email { get; init => field = value.Trim().ToLowerInvariant(); } = string.Empty;
+    public string? Email { get; init => field = value?.Trim().ToLowerInvariant(); }
 
     [Required(ErrorMessage = "SupportTicketType is required")]
     public SupportTicketType Type { get; set; }

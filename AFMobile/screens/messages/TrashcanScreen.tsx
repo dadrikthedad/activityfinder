@@ -36,10 +36,7 @@ export default function TrashcanScreen({ navigation }: TrashcanScreenProps) {
     refetch: refetchRejected 
   } = useGetRejectedConversations();
 
-  const allUsers = useUserCacheStore(state => state.users);
-  const blockedUsers = useMemo(() => {
-    return Object.values(allUsers).filter(user => user.isBlocked === true);
-  }, [allUsers]);
+  const blockedUsers = useUserCacheStore(state => state.blockedUsers);
 
   const { userId: currentUserId } = useAuth();
 

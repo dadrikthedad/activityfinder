@@ -1,6 +1,7 @@
 import { ReactionDTO } from "@shared/types/MessageDTO";
 import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { showNotificationToastNative } from "../toast/NotificationToastNative";
 import { NotificationType } from "@shared/types/MessageNotificationDTO";
 import { handleIncomingReactionNotification } from "@/utils/messages/getNotificationsBeforeSignalr";
@@ -14,17 +15,21 @@ import { LocalToastType } from "../toast/NotificationToastNative";
  */
 export async function handleIncomingReaction(
   reaction: ReactionDTO,
-  currentUserId: number | null,
+  currentUserId: string | null,
   notification?: MessageNotificationDTO
 ) {
   const {
     currentConversationId,
     isAtBottom,
+    bumpReactionsVersion,
+  } = useChatStore.getState();
+
+  // markConversationAsReadLocally + unread-feltene bor på useConversationStore etter store-split
+  const {
     markConversationAsReadLocally,
     unreadConversationIds,
     setUnreadConversationIds,
-    bumpReactionsVersion,
-  } = useChatStore.getState();
+  } = useConversationStore.getState();
 
   // 👤 Ikke håndter egne reaksjoner
   if (reaction.userId === currentUserId) return;

@@ -44,6 +44,9 @@ type BootstrapStore = {
   markCriticalAsLoaded: () => void;
   markSecondaryAsLoaded: () => void;
 
+  /** Brukes av sync-strategi: merk all cache som lastet uten API-kall */
+  markAllCacheAsLoaded: () => void;
+
   /** Tøm alt ved logout */
   reset: () => void;
 };
@@ -115,13 +118,12 @@ export const useBootstrapStore = create<BootstrapStore>()(
             updates.syncToken = null;
             updates.criticalCacheTimestamp = 0;
             updates.hasLoadedCritical = false;
-            updates.isBootstrapped = false;
+            // isBootstrapped beholdes — bruker skal alltid slippe inn med stale data
           }
 
           if (resetSecondary) {
             updates.secondaryCacheTimestamp = 0;
             updates.hasLoadedSecondary = false;
-            if (!resetCritical) updates.isBootstrapped = false;
           }
 
           return updates;
@@ -152,6 +154,13 @@ export const useBootstrapStore = create<BootstrapStore>()(
       markCriticalAsLoaded: () => set({ hasLoadedCritical: true }),
 
       markSecondaryAsLoaded: () => set({ hasLoadedSecondary: true }),
+
+      markAllCacheAsLoaded: () =>
+        set({
+          hasLoadedCritical: true,
+          hasLoadedSecondary: true,
+          isBootstrapped: true,
+        }),
 
       reset: () =>
         set({

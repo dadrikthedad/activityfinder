@@ -1,6 +1,7 @@
 // components/common/MiniAvatarNative.tsx
 import React, { useState } from "react";
 import { View, Image, StyleSheet, TouchableOpacity } from "react-native";
+import { useUnistyles } from "react-native-unistyles";
 import ImageViewerNative from "../files/ImageViewerNative";
 
 interface MiniAvatarProps {
@@ -20,6 +21,7 @@ export default function MiniAvatarNative({
   enlargeable = false,
   isGroup = false,
 }: MiniAvatarProps) {
+  const { theme } = useUnistyles();
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [hasError, setHasError] = useState(false);
 
@@ -61,6 +63,7 @@ export default function MiniAvatarNative({
       borderWidth: borderWidth,
     },
     withBorder ? styles.withBorder : styles.withoutBorder,
+    { borderColor: withBorder ? theme.colors.primary : theme.colors.border },
   ];
  
   const imageStyle = [
@@ -125,7 +128,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   withBorder: {
-    borderColor: '#1C6B1C',
+    // borderColor settes inline via theme.colors.primary
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -133,7 +136,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   withoutBorder: {
-    borderColor: '#d1d5db',
+    // borderColor settes inline via theme.colors.border
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,

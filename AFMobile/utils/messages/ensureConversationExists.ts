@@ -1,9 +1,11 @@
 // ensureConversationExists.ts
-import { useChatStore } from "@/store/useChatStore"; // 🚀 LEGG TIL DENNE IMPORTEN
+import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { getConversationById, getMessagesForConversation } from "@/services/messages/conversationService";
 
 export const ensureConversationExists = async (conversationId: number, shouldCacheMessages = true) => {
-  const { conversationIds, pendingMessageRequests, cachedMessages, addConversation, setCachedMessages } = useChatStore.getState();
+  const { cachedMessages, setCachedMessages } = useChatStore.getState();
+  const { conversationIds, pendingConversations, addConversation } = useConversationStore.getState();
   
   if (conversationIds.has(conversationId)) {
     if (shouldCacheMessages && !cachedMessages[conversationId]) {
@@ -21,8 +23,8 @@ export const ensureConversationExists = async (conversationId: number, shouldCac
     return;
   }
   
-  const isPending = pendingMessageRequests.some(
-    (request) => request.conversationId === conversationId
+  const isPending = pendingConversations.some(
+    (conversation) => conversation.id === conversationId
   );
   
   if (isPending) {

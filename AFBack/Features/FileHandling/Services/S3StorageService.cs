@@ -2,13 +2,14 @@ using AFBack.Common.Enum;
 using AFBack.Common.Results;
 using AFBack.Configurations.Options;
 using AFBack.Features.FileHandling.Enums;
-using Amazon.S3;
-using Amazon.S3.Model;
+using Minio;
+using Minio.DataModel.Args;
+using Minio.Exceptions;
 
 namespace AFBack.Features.FileHandling.Services;
 
 public class S3StorageService(
-    IAmazonS3 s3Client,
+    IMinioClient s3Client,
     ILogger<S3StorageService> logger,
     IBlobUrlBuilder blobUrlBuilder) : IStorageService
 {
@@ -16,60 +17,64 @@ public class S3StorageService(
     public async Task<Result<string>> UploadAsync(Stream? stream, string storageKey, string contentType,
         BlobContainer container, Dictionary<string, string>? metadata = null, CancellationToken ct = default)
     {
-        // Validerer stream først
         if (stream is null || !stream.CanRead)
         {
             logger.LogError("Invalid stream provided for upload: {Key}", storageKey);
             return Result<string>.Failure("Invalid file stream", AppErrorCode.InternalError);
         }
 
-        // Network streams så fungerer ikke alltid Length, derfor sjekker vi med CanSeek også
-        if (stream.CanSeek && stream.Length == 0)
-        {
-            logger.LogError("Empty stream provided for upload: {Key}", storageKey);
-            return Result<string>.Failure("File is empty", AppErrorCode.InternalError);
-        }
-
         try
         {
-            // Henter bucket-navnet
             var bucketName = blobUrlBuilder.GetContainerName(container);
 
-            // Setter content type og metadata på bloben - "application/octet-stream" hvis kryptert
-            var request = new PutObjectRequest
+            // Minio krever kjent størrelse — buffer til MemoryStream hvis stream ikke er søkbar
+            Stream uploadStream = stream;
+            long streamSize;
+
+            if (stream.CanSeek)
             {
-                BucketName = bucketName,
-                Key = storageKey,
-                InputStream = stream,
-                ContentType = contentType,
-                AutoCloseStream = false
-            };
-            
-            // Metadata
+                streamSize = stream.Length - stream.Position;
+            }
+            else
+            {
+                var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer, ct);
+                buffer.Position = 0;
+                uploadStream = buffer;
+                streamSize = buffer.Length;
+            }
+
+            if (streamSize == 0)
+            {
+                logger.LogError("Empty stream provided for upload: {Key}", storageKey);
+                return Result<string>.Failure("File is empty", AppErrorCode.InternalError);
+            }
+
+            var args = new PutObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(storageKey)
+                .WithStreamData(uploadStream)
+                .WithObjectSize(streamSize)
+                .WithContentType(contentType);
+
             if (metadata != null)
-                foreach (var (key, value) in metadata)
-                    request.Metadata[key] = value;
-            
-            // Laster opp filen
-            await s3Client.PutObjectAsync(request, ct);
-            
+                args = args.WithHeaders(metadata);
+
+            await s3Client.PutObjectAsync(args, ct);
+
             var url = blobUrlBuilder.GetBlobUrl(storageKey, container);
-
             logger.LogInformation("Successfully uploaded file to S3: {Key}", storageKey);
-
             return Result<string>.Success(url);
         }
-        catch (AmazonS3Exception ex)
+        catch (MinioException ex)
         {
-            logger.LogError(ex, "S3 error uploading file: {Key}. Status: {Status}", storageKey, ex.StatusCode);
-            return Result<string>.Failure($"Failed to upload file: {ex.Message}",
-                AppErrorCode.InternalError);
+            logger.LogError(ex, "S3 error uploading file: {Key}", storageKey);
+            return Result<string>.Failure($"Failed to upload file: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error uploading file to S3: {Key}", storageKey);
-            return Result<string>.Failure("An unexpected error occurred while uploading the file", 
-                AppErrorCode.InternalError);
+            return Result<string>.Failure("An unexpected error occurred while uploading the file", AppErrorCode.InternalError);
         }
     }
 
@@ -79,38 +84,43 @@ public class S3StorageService(
     {
         try
         {
-            // Oppretter en peker på filen/stien
             var bucketName = blobUrlBuilder.GetContainerName(container);
-            
-            var response = await s3Client.GetObjectAsync(bucketName, storageKey, ct);
+            var output = new MemoryStream();
 
-            // Sjekker at filen ikke er tom
-            if (response.ContentLength == 0)
+            var args = new GetObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(storageKey)
+                .WithCallbackStream(async (s, token) =>
+                {
+                    await s.CopyToAsync(output, token);
+                });
+
+            await s3Client.GetObjectAsync(args, ct);
+            output.Position = 0;
+
+            if (output.Length == 0)
             {
                 logger.LogWarning("Empty file downloaded from S3: {Key}", storageKey);
                 return Result<Stream>.Failure("File is empty", AppErrorCode.InternalError);
             }
 
             logger.LogInformation("Successfully downloaded file from S3: {Key}", storageKey);
-
-            return Result<Stream>.Success(response.ResponseStream);
+            return Result<Stream>.Success(output);
         }
-        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (ObjectNotFoundException)
         {
             logger.LogWarning("File not found in S3: {Key}", storageKey);
             return Result<Stream>.Failure("File not found", AppErrorCode.NotFound);
         }
-        catch (AmazonS3Exception  ex)
+        catch (MinioException ex)
         {
-            logger.LogError(ex, "S3 error downloading file: {Key}. Status: {Status}", 
-                storageKey, ex.StatusCode);
+            logger.LogError(ex, "S3 error downloading file: {Key}", storageKey);
             return Result<Stream>.Failure($"Failed to download file: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error downloading file from S3: {Key}", storageKey);
-            return Result<Stream>.Failure("An unexpected error occurred while downloading the file", 
-                AppErrorCode.InternalError);
+            return Result<Stream>.Failure("An unexpected error occurred while downloading the file", AppErrorCode.InternalError);
         }
     }
 
@@ -122,35 +132,24 @@ public class S3StorageService(
         {
             var bucketName = blobUrlBuilder.GetContainerName(container);
 
-            // En tidsbegrenset URL kun for denne filen
-            var request = new GetPreSignedUrlRequest
-            {
-                BucketName = bucketName,
-                Key        = storageKey,
-                Verb       = HttpVerb.GET,
-                Expires    = DateTime.UtcNow.AddMinutes(FileConfig.SasExpiryMinutes),
-                Protocol   = Protocol.HTTPS
-            };
+            var args = new PresignedGetObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(storageKey)
+                .WithExpiry(FileConfig.SasExpiryMinutes * 60);
 
-            // Få en SAS URL-lenke
-            var url = await s3Client.GetPreSignedURLAsync(request);
-
+            var url = await s3Client.PresignedGetObjectAsync(args);
             logger.LogInformation("Successfully generated presigned URL for S3: {Key}", storageKey);
-
             return Result<string>.Success(url);
         }
-        catch (AmazonS3Exception ex)
+        catch (MinioException ex)
         {
-            logger.LogError(ex, "S3 error generating presigned URL: {Key}. Status: {Status}",
-                storageKey, ex.StatusCode);
-            return Result<string>.Failure($"Failed to generate download URL: {ex.Message}", 
-                AppErrorCode.InternalError);
+            logger.LogError(ex, "S3 error generating presigned URL: {Key}", storageKey);
+            return Result<string>.Failure($"Failed to generate download URL: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error generating presigned URL: {Key}", storageKey);
-            return Result<string>.Failure("An unexpected error occurred while generating the download URL", 
-                AppErrorCode.InternalError);
+            return Result<string>.Failure("An unexpected error occurred while generating the download URL", AppErrorCode.InternalError);
         }
     }
 
@@ -162,22 +161,23 @@ public class S3StorageService(
         {
             var bucketName = blobUrlBuilder.GetContainerName(container);
 
-            await s3Client.DeleteObjectAsync(bucketName, storageKey, ct);
+            var args = new RemoveObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(storageKey);
 
+            await s3Client.RemoveObjectAsync(args, ct);
             logger.LogInformation("Successfully deleted file from S3: {Key}", storageKey);
-
             return Result.Success();
         }
-        catch (AmazonS3Exception ex)
+        catch (MinioException ex)
         {
-            logger.LogError(ex, "S3 error deleting file: {Key}. Status: {Status}", storageKey, ex.StatusCode);
+            logger.LogError(ex, "S3 error deleting file: {Key}", storageKey);
             return Result.Failure($"Failed to delete file: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error deleting file from S3: {Key}", storageKey);
-            return Result.Failure("An unexpected error occurred while deleting the file", 
-                AppErrorCode.InternalError);
+            return Result.Failure("An unexpected error occurred while deleting the file", AppErrorCode.InternalError);
         }
     }
 
@@ -189,27 +189,26 @@ public class S3StorageService(
         {
             var bucketName = blobUrlBuilder.GetContainerName(container);
 
-            await s3Client.GetObjectMetadataAsync(bucketName, storageKey, ct);
+            var args = new StatObjectArgs()
+                .WithBucket(bucketName)
+                .WithObject(storageKey);
 
+            await s3Client.StatObjectAsync(args, ct);
             return Result<bool>.Success(true);
         }
-        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (ObjectNotFoundException)
         {
             return Result<bool>.Success(false);
         }
-        catch (AmazonS3Exception ex)
+        catch (MinioException ex)
         {
-            logger.LogError(ex, "S3 error checking file existence: {Key}. Status: {Status}",
-                storageKey, ex.StatusCode);
-            return Result<bool>.Failure($"Failed to check file existence: {ex.Message}", 
-                AppErrorCode.InternalError);
+            logger.LogError(ex, "S3 error checking file existence: {Key}", storageKey);
+            return Result<bool>.Failure($"Failed to check file existence: {ex.Message}", AppErrorCode.InternalError);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unexpected error checking file existence in S3: {Key}", storageKey);
-            return Result<bool>.Failure("An unexpected error occurred while checking file existence", 
-                AppErrorCode.InternalError);
+            return Result<bool>.Failure("An unexpected error occurred while checking file existence", AppErrorCode.InternalError);
         }
     }
-    
 }

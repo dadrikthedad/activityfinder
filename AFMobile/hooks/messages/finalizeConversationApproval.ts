@@ -1,4 +1,5 @@
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { getConversationById } from "@/services/messages/conversationService";
 import { getMessagesForConversation } from "@/services/messages/conversationService";
@@ -11,15 +12,18 @@ export async function finalizeConversationApproval(
   notification?: MessageNotificationDTO
 ) {
   const {
-    removePendingRequest,
-    addConversation,
     setCachedMessages,
     setCurrentConversationId,
     setPendingLockedConversationId,
     currentConversationId,
+  } = useChatStore.getState();
+
+  const {
+    removePendingConversation,
+    addConversation,
     unreadConversationIds,
     setUnreadConversationIds,
-  } = useChatStore.getState();
+  } = useConversationStore.getState();
 
   const conv = await getConversationById(conversationId);
   if (!conv) return;
@@ -30,7 +34,7 @@ export async function finalizeConversationApproval(
   const messages = await getMessagesForConversation(conversationId, 0, 20);
   setCachedMessages(conversationId, messages ?? []);
 
-  removePendingRequest(conversationId);
+  removePendingConversation(conversationId);
   setPendingLockedConversationId(null);
 
   if (currentConversationId === conversationId) {

@@ -1,218 +1,171 @@
-// hooks/usePendingMessageRequests.ts
-import { useState, useCallback} from 'react';
-import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
-import { getPendingMessageRequests } from '@/services/messages/messageService';
-import { useChatStore } from '@/store/useChatStore';
+// hooks/messages/usePendingMessageRequests.ts
+import { useState, useCallback } from 'react';
+import { ConversationDTO } from '@shared/types/ConversationDTO';
+import { getPendingConversations } from '@/services/messages/conversationService';
+import { useConversationStore } from '@/store/useConversationStore';
 
 interface PaginationState {
   currentPage: number;
   pageSize: number;
   totalCount: number;
-  totalPages: number;
   hasMore: boolean;
   isLoading: boolean;
   error: string | null;
 }
 
+// Pending (uavklarte) samtaler. Data ligger i useConversationStore.pendingConversations
+// (fylt av bootstrap); denne hooken håndterer paginert lasting/refresh fra backend
+// (GET /api/conversation/pending → ConversationsResponse med totalCount + conversations).
 export const usePendingMessageRequests = () => {
-  // ✅ HOOK HÅNDTERER PAGINATION STATE
   const [pagination, setPagination] = useState<PaginationState>({
     currentPage: 1,
     pageSize: 10,
     totalCount: 0,
-    totalPages: 0,
     hasMore: false,
     isLoading: false,
     error: null,
   });
 
-  // ✅ CHATSTORE KUN FOR BASIC REQUESTS DATA
-  const { 
-    pendingMessageRequests,
-    setPendingMessageRequests,
-    hasLoadedPendingRequests,
-    setHasLoadedPendingRequests,
-    removePendingRequest,
-    addPendingRequest,
-  } = useChatStore();
+  const {
+    pendingConversations,
+    setPendingConversations,
+    hasLoadedPendingConversations,
+    setHasLoadedPendingConversations,
+    removePendingConversation,
+    addPendingConversation,
+  } = useConversationStore();
 
-  // ✅ LOAD FIRST PAGE (for initialization)
+  const setError = (error: unknown) =>
+    setPagination(prev => ({
+      ...prev,
+      isLoading: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+
+  // Last første side (kun hvis ikke allerede lastet via bootstrap)
   const loadFirstPage = useCallback(async () => {
-    if (hasLoadedPendingRequests && pendingMessageRequests.length > 0) {
-      console.log("✅ Pending requests already loaded from bootstrap");
+    if (hasLoadedPendingConversations && pendingConversations.length > 0) {
+      console.log("✅ Pending conversations already loaded from bootstrap");
       return;
     }
 
     setPagination(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const result = await getPendingMessageRequests(1, 10);
-      
+      const result = await getPendingConversations(1, pagination.pageSize);
       if (result) {
-        setPendingMessageRequests(result.requests);
-        setHasLoadedPendingRequests(true);
-        
-        setPagination({
-          currentPage: result.page,
-          pageSize: result.pageSize,
+        setPendingConversations(result.conversations);
+        setHasLoadedPendingConversations(true);
+        setPagination(prev => ({
+          ...prev,
+          currentPage: 1,
           totalCount: result.totalCount,
-          totalPages: result.totalPages,
-          hasMore: result.hasMore,
+          hasMore: result.conversations.length < result.totalCount,
           isLoading: false,
           error: null,
-        });
-        
-        console.log("✅ Loaded first page of pending requests:", result.requests.length);
+        }));
       }
     } catch (error) {
-      console.error('❌ Error loading first page of pending requests:', error);
-      setPagination(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      }));
+      console.error('❌ Error loading first page of pending conversations:', error);
+      setError(error);
     }
-  }, [hasLoadedPendingRequests, pendingMessageRequests.length, setPendingMessageRequests, setHasLoadedPendingRequests]);
+  }, [hasLoadedPendingConversations, pendingConversations.length, pagination.pageSize, setPendingConversations, setHasLoadedPendingConversations]);
 
-  // ✅ LOAD MORE PAGES
+  // Last flere sider
   const loadMore = useCallback(async () => {
-    if (pagination.isLoading || !pagination.hasMore) {
-      return;
-    }
+    if (pagination.isLoading || !pagination.hasMore) return;
 
     setPagination(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const nextPage = pagination.currentPage + 1;
-      const result = await getPendingMessageRequests(nextPage, pagination.pageSize);
-      
-      if (result && result.requests.length > 0) {
-        // ✅ APPEND NEW REQUESTS TO EXISTING
-        const combined = [...pendingMessageRequests, ...result.requests];
-        const sorted = combined.sort(
-          (a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
-        );
-        
-        setPendingMessageRequests(sorted);
-        
-        setPagination({
-          currentPage: result.page,
-          pageSize: result.pageSize,
+      const result = await getPendingConversations(nextPage, pagination.pageSize);
+
+      if (result && result.conversations.length > 0) {
+        // Slå sammen og dedupliser på id
+        const byId = new Map<number, ConversationDTO>();
+        [...pendingConversations, ...result.conversations].forEach(c => byId.set(c.id, c));
+        const combined = Array.from(byId.values());
+
+        setPendingConversations(combined);
+        setPagination(prev => ({
+          ...prev,
+          currentPage: nextPage,
           totalCount: result.totalCount,
-          totalPages: result.totalPages,
-          hasMore: result.hasMore,
+          hasMore: combined.length < result.totalCount,
           isLoading: false,
           error: null,
-        });
-        
-        console.log(`✅ Loaded page ${result.page} of pending requests:`, result.requests.length);
-      } else {
-        // No more data
-        setPagination(prev => ({ 
-          ...prev, 
-          hasMore: false, 
-          isLoading: false 
         }));
+      } else {
+        setPagination(prev => ({ ...prev, hasMore: false, isLoading: false }));
       }
     } catch (error) {
-      console.error('❌ Error loading more pending requests:', error);
-      setPagination(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      }));
+      console.error('❌ Error loading more pending conversations:', error);
+      setError(error);
     }
-  }, [pagination.isLoading, pagination.hasMore, pagination.currentPage, pagination.pageSize, pendingMessageRequests, setPendingMessageRequests]);
+  }, [pagination.isLoading, pagination.hasMore, pagination.currentPage, pagination.pageSize, pendingConversations, setPendingConversations]);
 
-  // ✅ REFRESH (reload first page)
+  // Refresh (last side 1 på nytt)
   const refresh = useCallback(async () => {
     setPagination(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const result = await getPendingMessageRequests(1, pagination.pageSize);
-      
+      const result = await getPendingConversations(1, pagination.pageSize);
       if (result) {
-        setPendingMessageRequests(result.requests);
-        
-        setPagination({
-          currentPage: result.page,
-          pageSize: result.pageSize,
+        setPendingConversations(result.conversations);
+        setPagination(prev => ({
+          ...prev,
+          currentPage: 1,
           totalCount: result.totalCount,
-          totalPages: result.totalPages,
-          hasMore: result.hasMore,
+          hasMore: result.conversations.length < result.totalCount,
           isLoading: false,
           error: null,
-        });
-        
-        console.log("🔄 Refreshed pending requests:", result.requests.length);
+        }));
       }
     } catch (error) {
-      console.error('❌ Error refreshing pending requests:', error);
-      setPagination(prev => ({ 
-        ...prev, 
-        isLoading: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      }));
+      console.error('❌ Error refreshing pending conversations:', error);
+      setError(error);
     }
-  }, [pagination.pageSize, setPendingMessageRequests]);
+  }, [pagination.pageSize, setPendingConversations]);
 
-  // ✅ REMOVE REQUEST (with pagination update)
   const removeRequest = useCallback((conversationId: number) => {
-    removePendingRequest(conversationId);
-    setPagination(prev => ({ 
-      ...prev, 
-      totalCount: Math.max(0, prev.totalCount - 1) 
-    }));
-  }, [removePendingRequest]);
+    removePendingConversation(conversationId);
+    setPagination(prev => ({ ...prev, totalCount: Math.max(0, prev.totalCount - 1) }));
+  }, [removePendingConversation]);
 
-  // ✅ ADD REQUEST (with pagination update)
-  const addRequest = useCallback((request: MessageRequestDTO) => {
-    addPendingRequest(request);
-    setPagination(prev => ({ 
-      ...prev, 
-      totalCount: prev.totalCount + 1 
-    }));
-  }, [addPendingRequest]);
+  const addRequest = useCallback((conversation: ConversationDTO) => {
+    addPendingConversation(conversation);
+    setPagination(prev => ({ ...prev, totalCount: prev.totalCount + 1 }));
+  }, [addPendingConversation]);
 
-  // ✅ RESET
   const reset = useCallback(() => {
-    setPendingMessageRequests([]);
-    setHasLoadedPendingRequests(false);
+    setPendingConversations([]);
+    setHasLoadedPendingConversations(false);
     setPagination({
       currentPage: 1,
       pageSize: 10,
       totalCount: 0,
-      totalPages: 0,
       hasMore: false,
       isLoading: false,
       error: null,
     });
-  }, [setPendingMessageRequests, setHasLoadedPendingRequests]);
+  }, [setPendingConversations, setHasLoadedPendingConversations]);
 
   return {
-    // ✅ DATA
-    requests: pendingMessageRequests,
-    
-    // ✅ PAGINATION STATE
+    requests: pendingConversations,
     pagination,
-    
-    // ✅ ACTIONS
     loadFirstPage,
     loadMore,
     refresh,
     removeRequest,
     addRequest,
     reset,
-    
-    // ✅ CONVENIENCE PROPERTIES
     hasMore: pagination.hasMore,
     isLoading: pagination.isLoading,
     totalCount: pagination.totalCount,
     currentPage: pagination.currentPage,
     error: pagination.error,
-    
-    // ✅ COMPUTED PROPERTIES
-    isEmpty: pendingMessageRequests.length === 0 && !pagination.isLoading,
+    isEmpty: pendingConversations.length === 0 && !pagination.isLoading,
     hasError: !!pagination.error,
   };
 };

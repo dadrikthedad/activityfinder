@@ -1,9 +1,9 @@
 import { MessageNotificationDTO } from "./MessageNotificationDTO";
 export interface GroupMemberInvitedDto {
   conversationId: number;
-  inviterUserId: number;
+  inviterUserId: string;
   inviterName: string;
-  invitedUserIds: number[];
+  invitedUserIds: string[];
   invitedUserNames: string[];
   invitedAt: Date;
   notification?: MessageNotificationDTO;

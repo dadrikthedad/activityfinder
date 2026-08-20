@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { leaveGroup } from '@/services/messages/groupService';
 import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 import { useMessageNotificationStore } from '@/store/useMessageNotificationStore';
 
 interface UseLeaveGroupReturn {
@@ -14,8 +15,8 @@ export function useLeaveGroup(): UseLeaveGroupReturn {
   const [error, setError] = useState<string | null>(null);
 
   // 🆕 Store actions - samme som useRejectMessageRequest
-  const removeRequest = useChatStore((state) => state.removePendingRequest); 
-  const removeConversation = useChatStore((state) => state.removeConversation);
+  const removeRequest = useConversationStore((state) => state.removePendingConversation);
+  const removeConversation = useConversationStore((state) => state.removeConversation);
   const setCurrentConversationId = useChatStore((state) => state.setCurrentConversationId);
   const currentConversationId = useChatStore((state) => state.currentConversationId);
   const updateNotificationsForRejectedConversation = useMessageNotificationStore(

@@ -1,5 +1,6 @@
 // messageHandlers.ts - Alle message-relaterte handlers (med riktige eksisterende types)
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { MessageDTO, ReactionDTO } from "@shared/types/MessageDTO";
 import { MessageRequestCreatedDto } from "@shared/types/MessageRequestCreatedDto";
 import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
@@ -11,6 +12,7 @@ import { NotificationType } from "@shared/types/MessageNotificationDTO";
 import truncateText from "@shared/utils/text/truncateMsgTextForToast";
 import { preloadMessagesForConversation } from "@/utils/messages/PreloadMessagesForConversation";
 import { finalizeConversationApproval } from "@/hooks/messages/finalizeConversationApproval";
+import { isGroupConversation } from "@/features/conversation/utils/conversationHelpers";
 
 // Types for function parameters
 type CheckAndExecuteFunction = (callback: () => Promise<void>) => Promise<void>;
@@ -18,7 +20,7 @@ type SyncPendingConversationFunction = (conversationId: number, forceRefresh?: b
 
 export const handleMessage = async (
   message: MessageDTO,
-  userId: number | null,
+  userId: string | null,
   currentConversationId: number | null, // Dette kan være utdatert
   showMessages: boolean, // Dette kan være utdatert
   ensureConversationExists: (conversationId: number, shouldCache?: boolean) => Promise<void>,
@@ -28,13 +30,12 @@ export const handleMessage = async (
     addMessageOptimistic: addMessage,
     registerOptimisticMapping,
     registerOptimisticAttachmentMapping,
-    updateConversationTimestamp,
-    conversations,
     liveMessages,
     // 🆕 Hent den faktiske tilstanden fra store
     currentConversationId: actualCurrentConversationId,
     isAtBottom
   } = useChatStore.getState();
+  const { updateConversationTimestamp, conversations } = useConversationStore.getState();
  
   try {
     await ensureConversationExists(message.conversationId, true);
@@ -91,11 +92,11 @@ export const handleMessage = async (
   }
 
   const conversation = conversations.find(c => c.id === message.conversationId);
-  const userIdAsNumber = userId ?? null;
+  const currentUserId = userId ?? null;
  
   // 🔧 FIX: Bruk faktisk store-tilstand i stedet for parametere
   const isInCurrentConversation = message.conversationId === actualCurrentConversationId;
-  const shouldShowToast = message.senderId !== userIdAsNumber &&
+  const shouldShowToast = message.senderId !== currentUserId &&
     (!isInCurrentConversation || !isAtBottom) && // 🆕 Sjekk faktisk tilstand
     !message.isSilent &&
     !message.isSystemMessage;
@@ -108,8 +109,8 @@ export const handleMessage = async (
       conversationId: message.conversationId,
       type: NotificationType.NewMessage,
       attachments: message.attachments,
-      groupName: conversation?.isGroup ? conversation?.groupName : null,
-      groupImage: conversation?.isGroup ? conversation?.groupImageUrl : null,
+      groupName: conversation && isGroupConversation(conversation) ? conversation.groupName : null,
+      groupImage: conversation && isGroupConversation(conversation) ? conversation.groupImageUrl : null,
     });
   }
 };
@@ -117,8 +118,8 @@ export const handleMessage = async (
 
 export const handleReaction = async (
   reaction: ReactionDTO, 
-  notification: MessageNotificationDTO | undefined, 
-  userId: number | null
+  notification: MessageNotificationDTO | undefined,
+  userId: string | null
 ) => {
   console.log("🎉 Mottatt reaksjon via useChatHub:", reaction);
 
@@ -153,7 +154,7 @@ export const handleRequestApproved = async (notification: MessageNotificationDTO
 
 export const handleMessageRequestReceived = async (
   data: MessageRequestCreatedDto,
-  userId: number | null,
+  userId: string | null,
   checkAndExecute: CheckAndExecuteFunction,
   syncPendingConversation: SyncPendingConversationFunction,
 ) => {
@@ -162,10 +163,9 @@ export const handleMessageRequestReceived = async (
       await handleIncomingNotification(data.notification);
       await syncPendingConversation(data.conversationId);
       
-      // Convert userId to number for comparison
-      const userIdAsNumber = userId ?? null;
+      const currentUserId = userId ?? null;
       
-      if (data.notification.senderId !== userIdAsNumber) {
+      if (data.notification.senderId !== currentUserId) {
         showNotificationToastNative({
           senderName: data.notification.senderName,
           messagePreview: data.notification.messagePreview,
@@ -181,7 +181,8 @@ export const handleMessageDeleted = async (data: { conversationId: number; messa
   console.log("🗑️ Mottatt slettet melding via useChatHub:", data);
   
   const { conversationId, message } = data;
-  const { conversationIds, updateMessage } = useChatStore.getState();
+  const { updateMessage } = useChatStore.getState();
+  const { conversationIds } = useConversationStore.getState();
   
   if (conversationIds.has(conversationId)) {
     console.log(`✅ Oppdaterer slettet melding ${message.id} i samtale ${conversationId}`);

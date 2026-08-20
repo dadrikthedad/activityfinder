@@ -24,7 +24,7 @@ public class ProfileService(
         var profile = await profileRepository.GetProfileByUserAsync(userId);
         if (profile == null)
             return Result<MyProfileResponse>.Failure("Profile not found", AppErrorCode.NotFound);
-        
+
         return Result<MyProfileResponse>.Success(profile.ToMyProfileResponse());
     }
 

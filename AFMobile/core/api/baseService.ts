@@ -73,6 +73,13 @@ export async function postFormDataRequest<T>(url: string, formData: FormData): P
   return await fetchWithAuth<T>(url, { method: "POST", body: formData });
 }
 
+/**
+ * Sender en autentisert PUT-forespørsel med FormData (multipart).
+ */
+export async function putFormDataRequest<T>(url: string, formData: FormData): Promise<T | null> {
+  return await fetchWithAuth<T>(url, { method: "PUT", body: formData });
+}
+
 // ========== OFFENTLIGE REQUESTS ==========
 
 /**

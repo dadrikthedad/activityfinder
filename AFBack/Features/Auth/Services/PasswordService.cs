@@ -55,7 +55,7 @@ public class PasswordService(
         if (!isCurrentPasswordValid)
         {
             logger.LogWarning("Change password failed — wrong current password for UserId: {UserId}", userId);
-            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidCredentials);
+            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidPassword);
         }
     
         // Bytt passord via Identity
@@ -63,9 +63,9 @@ public class PasswordService(
         if (!changeResult.Succeeded)
         {
             var errors = string.Join(" ", changeResult.Errors.Select(e => e.Description));
-            logger.LogWarning("Failed to change password for UserId: {UserId}. Errors: {Errors}", 
+            logger.LogWarning("Failed to change password for UserId: {UserId}. Errors: {Errors}",
                 userId, errors);
-            return Result.Failure(errors, AppErrorCode.InternalError);
+            return Result.Failure(errors, AppErrorCode.InvalidRegistrationData);
         }
     
         logger.LogInformation("Password changed successfully for UserId: {UserId}", userId);

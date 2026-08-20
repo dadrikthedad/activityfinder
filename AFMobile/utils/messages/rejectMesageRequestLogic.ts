@@ -1,11 +1,13 @@
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 
 export function rejectMessageRequestLogic(conversationId: number, isSync: boolean = false): void {
-  const { removePendingRequest, removeConversation, setCurrentConversationId } = useChatStore.getState();
+  const { setCurrentConversationId } = useChatStore.getState();
+  const { removePendingConversation, removeConversation } = useConversationStore.getState();
   
   // Fjern fra alle relevante steder i store
   removeConversation(conversationId);
-  removePendingRequest(conversationId); // ✅ Riktig navn
+  removePendingConversation(conversationId); // ✅ Riktig navn
   setCurrentConversationId(null);
   
   const logMessage = isSync 

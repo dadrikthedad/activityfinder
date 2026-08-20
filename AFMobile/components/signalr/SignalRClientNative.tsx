@@ -3,7 +3,7 @@ import React from 'react';
 import { useAuth } from "@/context/AuthContext";
 import { useChatStore } from "@/store/useChatStore";
 import { useStore } from "zustand";
-import { useChatHub } from "@/hooks/signalr/useChatHub";
+import { useChatHub } from "@/features/signalr/hooks/useChatHub";
 import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 import {

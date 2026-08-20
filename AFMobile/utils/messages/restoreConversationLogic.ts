@@ -1,9 +1,11 @@
 // services/messages/restoreConversationService.ts
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { getConversationById, getMessagesForConversation } from "@/services/messages/conversationService";
 
 export async function restoreConversationLogic(conversationId: number, isSync: boolean = false): Promise<void> {
-  const { addConversation, setCachedMessages, setCurrentConversationId } = useChatStore.getState();
+  const { setCachedMessages, setCurrentConversationId } = useChatStore.getState();
+  const { addConversation } = useConversationStore.getState();
   
   try {
     // Hent hele samtalen fra backend

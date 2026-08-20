@@ -1,6 +1,6 @@
 // henter fra ProfileDTO.cs i backend
 export interface Profile {
-    userId: number;
+    userId: string;
     profileImageUrl: string;
     bio: string;
     websites: string[];

@@ -8,6 +8,7 @@ Ved arbeid i AFMobile skal disse reglene alltid lastes:
 
 @.claude/rules/components.md
 @.claude/rules/testing.md
+@.claude/rules/refactoring.md
 
 ## Tech stack
 

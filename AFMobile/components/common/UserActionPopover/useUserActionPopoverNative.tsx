@@ -109,7 +109,7 @@ export function useUserActionPopoverNative({
   // Core handlers
    const handleVisitProfile = useCallback(() => {
     if (navigation) {
-      navigation.navigate('Profile', { userId: user.id });
+      navigation.navigate('Profile', { id: user.id.toString() });
       handleClose(); // Close after navigation
     } else {
       handleClose(); // Close if no navigation

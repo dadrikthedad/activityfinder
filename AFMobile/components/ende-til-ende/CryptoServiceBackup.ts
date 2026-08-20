@@ -122,7 +122,7 @@ async restorePrivateKeyFromPhrase(backupPhrase: string): Promise<string> {
       await this.cryptoService.storePrivateKey(keyPair.privateKey, userId);
       
       // Upload public key to backend for this user
-      await this.uploadPublicKeyToBackend(userId, keyPair.publicKey);
+      await this.uploadPublicKeyToBackend(userId, keyPair.publicKey, keyPair.privateKey);
 
       console.log(`E2EE setup complete for user ${userId}`);
       
@@ -158,9 +158,9 @@ async restoreE2EEFromBackup(
     } else {
       // Skip validation mode - replace server public key with restored key
       console.log('🔄 Skipping validation, uploading restored public key to server');
-      await this.uploadPublicKeyToBackend(userId, publicKey);
+      await this.uploadPublicKeyToBackend(userId, publicKey, privateKey);
     }
-    
+
     // Store restored key
     await this.cryptoService.storePrivateKey(privateKey, userId);
     
@@ -187,23 +187,20 @@ async restoreE2EEFromBackup(
       
       if (hasLocalKey) {
         console.log(`Existing key pair found for user ${userId}`);
-        
-        // Try to verify with server, but don't let it block if network is slow
-        try {
-          const hasServerKey = await this.checkServerKeyWithTimeout(userId);
-          
-          if (hasServerKey) {
-            return { needsSetup: false, needsRestore: false };
-          } else {
-            // Local key exists but not on server - needs setup (upload to server)
-            return { needsSetup: true, needsRestore: false };
-          }
-        } catch (networkError) {
-          console.warn('🔶 Network check failed, proceeding with local keys:', networkError);
-          // If network fails, assume local keys are valid and continue
-          // This allows offline usage when we have local keys
-          return { needsSetup: false, needsRestore: false };
-        }
+
+        // Lokal nøkkel finnes — returner umiddelbart uten å blokkere på nettverket.
+        // Server-sjekken kjøres i bakgrunnen for å fange opp nøkkelmismatch.
+        this.checkServerKeyWithTimeout(userId)
+          .then(hasServerKey => {
+            if (!hasServerKey) {
+              console.warn('🔶 Local key exists but not on server — will re-upload on next online session');
+            }
+          })
+          .catch(err => {
+            console.log('🔶 Background server key check failed (offline?):', err?.message ?? err);
+          });
+
+        return { needsSetup: false, needsRestore: false };
       } else {
         // No local key - check if user has keys on server
         try {
@@ -337,15 +334,15 @@ async restoreE2EEFromBackup(
   /**
    * Upload user's public key to backend
    */
-  private async uploadPublicKeyToBackend(userId: string, publicKey: string): Promise<void> {
+  private async uploadPublicKeyToBackend(userId: string, publicKey: string, privateKey: string): Promise<void> {
     try {
-        await storeEncryptionKeys(publicKey, "");
-        console.log(`Public key uploaded for user ${userId}`);
+      await storeEncryptionKeys(publicKey, privateKey);
+      console.log(`Public key uploaded for user ${userId}`);
     } catch (error) {
-        console.error('Failed to upload public key:', error);
-        throw error;
+      console.error('Failed to upload public key:', error);
+      throw error;
     }
-    }
+  }
 
   /**
    * Verify that restored key matches user's backend public key

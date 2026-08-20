@@ -80,8 +80,16 @@ public interface IAuthService
     /// <param name="ipAddress">IP-adressen til den som klikket lenken</param>
     /// <returns>Result med Success eller Failure</returns>
     Task<Result> ReportUnauthorizedChangeAsync(string token, string ipAddress);
-    
-    
-    
-   
+
+    /// <summary>
+    /// Verifiserer passord for å kunne gjøre kritiske handlinger i frontend
+    /// </summary>
+    /// <param name="userId">Brukerens ID</param>
+    /// <param name="password">Brukerens passord</param>
+    /// <returns>Result med Success eller failure</returns>
+    Task<Result> VerifyPasswordAsync(string userId, string password);
+
+
+
+
 }

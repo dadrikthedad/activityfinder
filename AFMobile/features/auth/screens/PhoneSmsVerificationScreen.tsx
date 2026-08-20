@@ -1,7 +1,7 @@
 // features/auth/screens/PhoneSmsVerificationScreen.tsx
 import React, { useState, useEffect, useRef } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TouchableOpacity,
   SafeAreaView, ScrollView, Animated, KeyboardAvoidingView,
   Platform, StatusBar,
 } from "react-native";
@@ -9,9 +9,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { useUnistyles } from "react-native-unistyles";
-import { formatTime } from "@/utils/formatTime";
 import { showNotificationToastNative, LocalToastType } from "@/components/toast/NotificationToastNative";
-import ButtonNative from "@/components/common/buttons/ButtonNative";
+import VerifyCodeCard from "@/components/common/VerifyCodeCard";
 import { PhoneSmsVerificationScreenNavigationProp, PhoneSmsVerificationScreenRouteProp } from "@/types/navigation";
 import { verifySmsCode, resendSmsVerification } from "@/features/auth/services/verificationService";
 
@@ -24,9 +23,7 @@ const PhoneSmsVerificationScreen: React.FC<Props> = ({ route, navigation }) => {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
 
-  const [code, setCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
   const [isVerified, setIsVerified] = useState(false);
 
   const email = route.params?.email || "";
@@ -41,39 +38,18 @@ const PhoneSmsVerificationScreen: React.FC<Props> = ({ route, navigation }) => {
     ]).start();
   }, []);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (resendCooldown > 0) {
-      timer = setInterval(() => setResendCooldown((prev) => prev - 1), 1000);
-    }
-    return () => clearInterval(timer);
-  }, [resendCooldown]);
-
   // Send SMS automatisk ved mount — backend sin rate limit hindrer dobbelsending
   useEffect(() => {
     const sendInitialSms = async () => {
       if (!email) return;
-      setIsLoading(true);
       await resendSmsVerification(email);
-      setResendCooldown(120);
-      setIsLoading(false);
     };
     sendInitialSms();
   }, []);
 
   // ========== Verifiser SMS-kode ==========
 
-  const handleVerify = async () => {
-    if (code.length !== 6) {
-      showNotificationToastNative({
-        type: LocalToastType.CustomSystemError,
-        customTitle: t("auth.invalidCodeTitle"),
-        customBody: t("auth.invalidCodeBody"),
-        position: "top",
-      });
-      return;
-    }
-
+  const handleVerify = async (code: string) => {
     setIsLoading(true);
     const result = await verifySmsCode(email, code);
 
@@ -102,9 +78,6 @@ const PhoneSmsVerificationScreen: React.FC<Props> = ({ route, navigation }) => {
   // ========== Send SMS på nytt ==========
 
   const handleResend = async () => {
-    if (resendCooldown > 0) return;
-    setIsLoading(true);
-
     const result = await resendSmsVerification(email);
 
     if (result.success) {
@@ -114,7 +87,6 @@ const PhoneSmsVerificationScreen: React.FC<Props> = ({ route, navigation }) => {
         customBody: t("auth.smsSentBody"),
         position: "top",
       });
-      setResendCooldown(120);
     } else {
       showNotificationToastNative({
         type: LocalToastType.CustomSystemError,
@@ -123,8 +95,6 @@ const PhoneSmsVerificationScreen: React.FC<Props> = ({ route, navigation }) => {
         position: "top",
       });
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -226,106 +196,14 @@ const PhoneSmsVerificationScreen: React.FC<Props> = ({ route, navigation }) => {
               width: "100%",
             }}>
               {!isVerified && (
-                <View style={{
-                  backgroundColor: theme.colors.surface,
-                  borderRadius: theme.radii.lg,
-                  padding: theme.spacing.lg,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  elevation: 4,
-                }}>
-                  <Text style={{
-                    fontSize: theme.typography.md,
-                    fontWeight: theme.typography.semibold,
-                    color: theme.colors.textPrimary,
-                    marginBottom: theme.spacing.sm,
-                    textAlign: "center",
-                  }}>
-                    {t("auth.enterSmsCode")}
-                  </Text>
-
-                  <TextInput
-                    style={{
-                      borderWidth: 2,
-                      borderColor: theme.colors.border,
-                      borderRadius: theme.radii.md,
-                      padding: theme.spacing.md,
-                      fontSize: 24,
-                      textAlign: "center",
-                      letterSpacing: 4,
-                      marginBottom: theme.spacing.md,
-                      backgroundColor: theme.colors.backgroundInput,
-                      color: theme.colors.textPrimary,
-                    }}
-                    value={code}
-                    onChangeText={(text) => setCode(text.replace(/[^0-9]/g, ""))}
-                    placeholder="123456"
-                    placeholderTextColor={theme.colors.textPlaceholder}
-                    keyboardType="numeric"
-                    maxLength={6}
-                    textAlign="center"
-                  />
-
-                  <ButtonNative
-                    text={t("auth.verifySmsCode")}
-                    loadingText={t("auth.verifyingSms")}
-                    onPress={handleVerify}
-                    loading={isLoading}
-                    disabled={code.length !== 6 || isLoading}
-                    variant="primary"
-                    size="large"
-                    fullWidth
-                  />
-
-                  {/* Send på nytt */}
-                  <View style={{
-                    alignItems: "center",
-                    marginTop: theme.spacing.lg,
-                    paddingTop: theme.spacing.md,
-                    borderTopWidth: 1,
-                    borderTopColor: theme.colors.border,
-                  }}>
-                    <Text style={{
-                      fontSize: theme.typography.sm,
-                      color: theme.colors.textSecondary,
-                      marginBottom: theme.spacing.sm,
-                    }}>
-                      {t("auth.didntReceiveSms")}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        padding: theme.spacing.sm,
-                        borderRadius: theme.radii.md,
-                        borderWidth: 1,
-                        borderColor: resendCooldown > 0 ? theme.colors.border : theme.colors.primary,
-                        backgroundColor: resendCooldown > 0 ? theme.colors.backgroundAlt : theme.colors.surface,
-                      }}
-                      onPress={handleResend}
-                      disabled={resendCooldown > 0 || isLoading}
-                    >
-                      <Ionicons
-                        name="refresh"
-                        size={16}
-                        color={resendCooldown > 0 ? theme.colors.textMuted : theme.colors.primary}
-                        style={{ marginRight: 5 }}
-                      />
-                      <Text style={{
-                        color: resendCooldown > 0 ? theme.colors.textMuted : theme.colors.primary,
-                        fontSize: theme.typography.sm,
-                        fontWeight: theme.typography.medium,
-                      }}>
-                        {resendCooldown > 0
-                          ? t("auth.resendIn", { time: formatTime(resendCooldown) })
-                          : t("auth.sendAgain")}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                <VerifyCodeCard
+                  title={t("auth.enterSmsCode")}
+                  description={t("auth.didntReceiveSms")}
+                  onVerify={handleVerify}
+                  onResend={handleResend}
+                  isSubmitting={isLoading}
+                  initialCooldown={120}
+                />
               )}
             </Animated.View>
           </View>

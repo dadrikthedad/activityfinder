@@ -29,6 +29,7 @@ export const lightTheme = {
 
     surface:          Palette.white,
     surfaceAlt:       Palette.gray[100],
+    surfaceMuted:     Palette.gray[300],     // #d4d4d4 — dempet knapp/flate
     surfaceInverse:   Palette.charcoal[800],
 
     textPrimary:      Palette.charcoal[800], // #1A1A1A
@@ -107,6 +108,7 @@ export const darkTheme = {
 
     surface:          Palette.gray[750],    // #2a2a2a
     surfaceAlt:       Palette.gray[700],    // #404040
+    surfaceMuted:     Palette.gray[600],    // #525252 — dempet knapp/flate
     surfaceInverse:   Palette.gray[100],
 
     textPrimary:      Palette.gray[50],     // #fafafa

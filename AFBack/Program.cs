@@ -18,7 +18,7 @@ builder.ConfigureLogging();
 // ======= Web konfigurering =======
 builder.ConfigureForwardHeaders();
 builder.ConfigureCors();
-builder.ConfigureControllers();
+builder.ConfigureControllers(builder.Environment);
 builder.ConfigureSwagger();
 
 // ======= Azure services =======
@@ -49,7 +49,7 @@ builder.Services.AddBackgroundServices();
 
 // ======= Service registrations =======
 builder.Services.AddRepositories();
-builder.Services.AddBusinessServices();
+builder.Services.AddBusinessServices(builder.Environment);
 
 
 // Kjører applikasjonen med alle tjenester, middleware og avhengigheter. Alle servicesene og alt vi har lagt til blir låst

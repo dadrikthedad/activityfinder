@@ -14,7 +14,7 @@ export const useDecryptMessage = () => {
   // Decrypt message for display
   const decryptMessage = useCallback(async (
     encryptedMessage: EncryptedMessageDTO,
-    userId?: number 
+    userId?: string
   ): Promise<DecryptedMessageDTO | null> => {
     const userIdToUse = userId || currentUser?.id;
     

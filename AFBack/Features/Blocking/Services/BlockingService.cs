@@ -49,9 +49,9 @@ public class BlockingService(
         }
         
         // Har vi allerede blokkert brukeren
-        if (await userBlockRepository.IsFirstUserBlockedBySecondary(userId, targetUserId))
+        if (await userBlockRepository.GetAsync(userId, targetUserId) != null)
         {
-            logger.LogWarning("User {UserId} tried to block already blocked user {TargetUserId}", 
+            logger.LogWarning("User {UserId} tried to block already blocked user {TargetUserId}",
                 userId, targetUserId);
             return Result.Failure("You have already blocked this user", AppErrorCode.Conflict);
         }

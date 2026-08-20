@@ -26,10 +26,13 @@ using AFBack.Features.Settings.Repositories;
 using AFBack.Features.Settings.Services;
 using AFBack.Features.SignalR.Repository;
 using AFBack.Features.Bootstrap.Services;
+using AFBack.Features.Dev.Services;
 using AFBack.Features.Support.Repositories;
 using AFBack.Features.Support.Services;
 using AFBack.Features.SyncEvents.Repository;
 using AFBack.Features.SyncEvents.Services;
+using AFBack.Features.Searching.Repositories;
+using AFBack.Features.Searching.Services;
 using AFBack.Infrastructure.Security.Repositories;
 
 namespace AFBack.Infrastructure.Extensions.BuilderExtensions;
@@ -83,14 +86,18 @@ public static class ServiceRegistrationExtensions
         
         // ===== SIGNALR =====
         services.AddScoped<IUserConnectionRepository, UserConnectionRepository>();
-        
+
+        // ===== SEARCH =====
+        services.AddScoped<ISearchRepository, SearchRepository>();
+
         return services;
     }
     
     /// <summary>
     /// Legger til forretningslogikk-servicer
     /// </summary>
-    public static IServiceCollection AddBusinessServices(this IServiceCollection services)
+    public static IServiceCollection AddBusinessServices(this IServiceCollection services, 
+        IWebHostEnvironment environment)
     {
         // ===== AUTHENTICATION SERVICES =====
         services.AddScoped<IAuthService, AuthService>();
@@ -122,8 +129,9 @@ public static class ServiceRegistrationExtensions
         services.AddScoped<IDirectConversationService, DirectConversationService>();
         services.AddScoped<IGroupConversationService, GroupConversationService>(); 
         services.AddScoped<IArchiveConversationService, ArchiveConversationService>(); 
-        services.AddScoped<ISearchConversationsService, SearchConversationsService>(); 
-        
+        services.AddScoped<ISearchConversationsService, SearchConversationsService>();
+        services.AddScoped<ISearchService, SearchService>();
+
         // ===== BROADCAST SERVICES =====
         services.AddScoped<ISyncService, SyncService>();
         services.AddScoped<IMessageBroadcastService, MessageBroadcastService>(); 
@@ -162,6 +170,11 @@ public static class ServiceRegistrationExtensions
    
         // ===== Orchestrators =====
         services.AddScoped<IFileOrchestrator, FileOrchestrator>();
+        
+        // ===== DEV =====
+        if (environment.IsDevelopment())
+            services.AddScoped<IDevService, DevService>();
+        
         
         
         return services;

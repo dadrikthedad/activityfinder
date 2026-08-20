@@ -26,6 +26,7 @@ public class PasswordController(IPasswordService passwordService) : BaseControll
     /// Krever at brukeren oppgir riktig nåværende passord.
     /// </summary>
     [HttpPost("change-password")]
+    [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]

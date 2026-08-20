@@ -2,7 +2,7 @@ import { MessageNotificationDTO } from "./MessageNotificationDTO";
 import { UserSummaryDTO } from "./UserSummaryDTO";
 
 export interface GroupNotificationUpdateDTO {
-  userId: number;
+  userId: string;
   notification: MessageNotificationDTO;
   isNewNotification: boolean;
   groupEventType: GroupEventType;

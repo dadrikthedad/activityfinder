@@ -16,8 +16,7 @@ interface AttachmentPickerProps extends UseAttachmentPickerOptions {
  
   // Modal props
   modalTitle?: string;
-  accentColor?: string;
- 
+
   // ButtonNative integration
   useNativeButton?: boolean;
   nativeButtonProps?: Partial<ButtonNativeProps>;
@@ -33,12 +32,12 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
   // Original props
   disabled = false,
   buttonSize = 24,
-  buttonColor = "#ffffff",
-  buttonBackgroundColor = "#1C6B1C",
+  buttonColor,
+  buttonBackgroundColor,
   buttonStyle,
   buttonIcon,
   modalTitle,
-  accentColor = "#1C6B1C",
+  accentColor,
  
   // ButtonNative props
   useNativeButton = false,
@@ -100,8 +99,7 @@ export const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
         onDocumentPicker={handleDocumentPicker}
         showDocuments={allowDocuments}
         title={modalTitle}
-        accentColor={accentColor}
-        // NEW: Remove props
+        // Remove props
         showRemove={showRemove}
         onRemove={onRemove}
         removeText={removeText}

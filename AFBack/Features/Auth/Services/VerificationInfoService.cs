@@ -30,7 +30,6 @@ public class VerificationInfoService(
         // Hent eller opprett VerificationInfo
         var verificationInfo = await GetVerificationInfoOrThrow(userId, ct);
         
-        
         // Oppdaterer VerificationInfo og nullstiller forsøksteller
         verificationInfo.EmailConfirmationCode = code;
         verificationInfo.EmailCodeExpiresAt = DateTime.UtcNow.Add(EmailCodeExpiry);

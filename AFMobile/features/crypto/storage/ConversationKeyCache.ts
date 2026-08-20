@@ -5,7 +5,7 @@ import { getConversationKeys } from '@/services/crypto/cryptoService';
 interface ConversationKeys {
   conversationId: number;
   participantKeys: Array<{
-    userId: number;
+    userId: string;
     publicKey: string;
     keyVersion: number;
     createdAt: string;

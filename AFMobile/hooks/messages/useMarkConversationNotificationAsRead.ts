@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { markConversationNotificationsAsRead } from "@/services/messages/messageNotificationService";
-import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 
 export function useMarkConversationNotificationsAsRead() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const markLocally = useChatStore(state => state.markConversationAsReadLocally);
+  const markLocally = useConversationStore(state => state.markConversationAsReadLocally);
 
   const markAsReadForConversation = async (
     conversationId: number,

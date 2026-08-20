@@ -66,7 +66,7 @@ export default function InviteUsersModalNative({
     searchInputRef.current?.focus();
   }, [selectedUsers, setQuery]);
 
-  const handleRemoveUser = useCallback((userId: number) => {
+  const handleRemoveUser = useCallback((userId: string) => {
     setSelectedUsers(prev => prev.filter(user => user.id !== userId));
   }, []);
 

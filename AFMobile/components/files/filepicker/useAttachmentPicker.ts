@@ -29,12 +29,18 @@ export const useAttachmentPicker = (options: UseAttachmentPickerOptions = {}) =>
 
   const handleCamera = async () => {
     if (isCameraActive) return;
-    
-    setIsCameraActive(true);
+
     setShowModal(false);
-    
+
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera permission is required to take photos.');
+      return;
+    }
+
+    setIsCameraActive(true);
     console.log('🎯 Opening camera with optimized settings...');
-    
+
     launchCamera(
       {
         mediaType: 'photo',

@@ -44,7 +44,7 @@ export class BackgroundDecryptionManager {
   private isPaused = false;
   private currentItem: QueueItem | null = null;
   private currentDecryptionPromise: Promise<any> | null = null;
-  private currentUserId: number | null = null;
+  private currentUserId: string | null = null;
   private hasValidKeys = false; // Track if we have valid encryption keys
   
   // Services
@@ -78,7 +78,7 @@ export class BackgroundDecryptionManager {
   /**
    * Initialize current user - should be called when user logs in
    */
-  public setCurrentUser(userId: number): void {
+  public setCurrentUser(userId: string): void {
     this.currentUserId = userId;
     this.validateUserKeys();
     console.log(`📦 BACKGROUND: User set to ${userId}, has valid keys: ${this.hasValidKeys}`);
@@ -129,9 +129,11 @@ export class BackgroundDecryptionManager {
     try {
       // You'll need to implement a way to get current user ID
       // This is a placeholder - replace with your actual user retrieval
-      const userKeys = this.cryptoService.getCachedKeys(1); // Replace with actual user ID
+      // Bruker-ID er nå en streng (GUID) — placeholder erstattes med faktisk bruker-ID
+      const placeholderUserId = "1"; // Replace with actual user ID
+      const userKeys = this.cryptoService.getCachedKeys(placeholderUserId);
       if (userKeys) {
-        this.currentUserId = 1; // Replace with actual user ID
+        this.currentUserId = placeholderUserId;
         this.validateUserKeys();
       }
     } catch (error) {

@@ -5,16 +5,16 @@ import { EncryptedAttachmentData, DecryptedAttachment } from '../types/cryptoAtt
 
 export const useAttachmentDecryption = () => {
   const decryptAttachments = useCallback(async (
-    encryptedAttachments: EncryptedAttachmentData[], 
-    currentUserId: number
+    encryptedAttachments: EncryptedAttachmentData[],
+    currentUserId: string
   ): Promise<DecryptedAttachment[]> => {
     const decryptionService = AttachmentDecryptionService.getInstance();
     return decryptionService.decryptAttachments(encryptedAttachments, currentUserId);
   }, []);
 
   const decryptSingleAttachment = useCallback(async (
-    encryptedAttachment: EncryptedAttachmentData, 
-    currentUserId: number
+    encryptedAttachment: EncryptedAttachmentData,
+    currentUserId: string
   ): Promise<DecryptedAttachment> => {
     const decryptionService = AttachmentDecryptionService.getInstance();
     return decryptionService.decryptAttachment(encryptedAttachment, currentUserId);

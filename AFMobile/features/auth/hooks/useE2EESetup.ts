@@ -5,21 +5,23 @@ import * as Keychain from "react-native-keychain";
 import { getUserIdFromToken } from "@/utils/auth/getUserIdFromToken";
 import { CryptoService } from "@/components/ende-til-ende/CryptoService";
 import { CryptoServiceBackup } from "@/components/ende-til-ende/CryptoServiceBackup";
-import { getMyPublicKey, storeEncryptionKeys } from "@/features/auth/services/encryptionService";
+import { getMyPublicKey } from "@/features/auth/services/encryptionService";
 import { E2EESetupErrorCode } from "@/core/errors/ErrorCode";
 
-export type E2EESetupScenario = "loading" | "creating" | "ready" | "restore-needed" | "error" | "error-new-key";
+export type E2EESetupScenario = "loading" | "creating" | "ready" | "restore-needed" | "show-backup-phrase" | "error" | "error-new-key";
 
 export interface UseE2EESetupReturn {
   scenario: E2EESetupScenario;
   errorMessage: string;
   backupPhrase: string;
+  newBackupPhrase: string;
   setBackupPhrase: (v: string) => void;
   isRestoring: boolean;
   isCreatingNew: boolean;
   handleRestoreFromPhrase: () => Promise<void>;
   handleCreateNewKeys: () => Promise<void>;
   handleRetryCreate: () => Promise<void>;
+  handleContinueAfterBackup: () => Promise<void>;
 }
 
 const KEYCHAIN_KEY = (userId: string) => `e2ee_private_key_${userId}`;
@@ -47,7 +49,8 @@ export const useE2EESetup = (accessToken: string, refreshToken: string): UseE2EE
 
   const [scenario, setScenario] = useState<E2EESetupScenario>("loading");
   const [errorMessage, setErrorMessage] = useState("");
-  const [backupPhrase, setBackupPhrase] = useState("");
+  const [backupPhrase, setBackupPhrase] = useState(""); // restore-input
+  const [newBackupPhrase, setNewBackupPhrase] = useState(""); // generert ved Scenario A
   const [isRestoring, setIsRestoring] = useState(false);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
@@ -86,15 +89,10 @@ export const useE2EESetup = (accessToken: string, refreshToken: string): UseE2EE
       if (!hasServerKey) {
         setScenario("creating");
         try {
-          const keyPair = await cryptoService.generateKeyPair();
-          await storeLocalPrivateKey(userId, keyPair.privateKey);
-          const storeResult = await storeEncryptionKeys(keyPair.publicKey, keyPair.privateKey);
-          if (!storeResult.success) {
-            setScenario("error-new-key");
-            setErrorMessage(storeResult.error);
-            return;
-          }
-          await completeSetup();
+          const cryptoBackup = CryptoServiceBackup.getInstance();
+          const result = await cryptoBackup.setupE2EEWithBackup(userId);
+          setNewBackupPhrase(result.backupPhrase);
+          setScenario("show-backup-phrase");
         } catch {
           setScenario("error-new-key");
           setErrorMessage("Nøkkelgenerering feilet. Prøv igjen.");
@@ -128,20 +126,18 @@ export const useE2EESetup = (accessToken: string, refreshToken: string): UseE2EE
     setScenario("creating");
     setErrorMessage("");
     try {
-      const cryptoService = CryptoService.getInstance();
-      const keyPair = await cryptoService.generateKeyPair();
-      await storeLocalPrivateKey(userId, keyPair.privateKey);
-      const storeResult = await storeEncryptionKeys(keyPair.publicKey, keyPair.privateKey);
-      if (!storeResult.success) {
-        setScenario("error-new-key");
-        setErrorMessage(storeResult.error);
-        return;
-      }
-      await completeSetup();
+      const cryptoBackup = CryptoServiceBackup.getInstance();
+      const result = await cryptoBackup.setupE2EEWithBackup(userId);
+      setNewBackupPhrase(result.backupPhrase);
+      setScenario("show-backup-phrase");
     } catch {
       setScenario("error-new-key");
       setErrorMessage("Nøkkelgenerering feilet. Prøv igjen.");
     }
+  };
+
+  const handleContinueAfterBackup = async () => {
+    await completeSetup();
   };
 
   const handleCreateNewKeys = async () => {
@@ -167,11 +163,13 @@ export const useE2EESetup = (accessToken: string, refreshToken: string): UseE2EE
     scenario,
     errorMessage,
     backupPhrase,
+    newBackupPhrase,
     setBackupPhrase,
     isRestoring,
     isCreatingNew,
     handleRestoreFromPhrase,
     handleCreateNewKeys,
     handleRetryCreate,
+    handleContinueAfterBackup,
   };
 };

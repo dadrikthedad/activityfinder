@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using AFBack.Configurations.Options;
+using AFBack.Infrastructure.Dev;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -107,7 +108,7 @@ public static class WebApplicationBuilderExtensions
     /// <summary>
     ///  Setter opp kontrollerne med Json Options og validering
     /// </summary>
-    public static void ConfigureControllers(this WebApplicationBuilder builder)
+    public static void ConfigureControllers(this WebApplicationBuilder builder, IWebHostEnvironment environment)
     {
         // Supresser ASP.NET Core sin vanlige validering slik at vi kan bruke vårt eget filter
         builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -122,7 +123,9 @@ public static class WebApplicationBuilderExtensions
             {   
                 // Gjør at vi kan ha Enums som både int og string
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-            });
+            })
+            .ConfigureApplicationPartManager(apm =>
+                apm.FeatureProviders.Add(new DevControllerFeatureProvider(environment.IsDevelopment())));
     }
     
     

@@ -1,94 +1,123 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import ActionSheetModalNative from "../common/modal/ActionSheetModalNative";
 import { useConfirmModalNative } from "@/hooks/useConfirmModalNative";
-import { useBlockUser } from "@/hooks/block/useBlockUser";
-import { useUnblockUser } from "@/hooks/block/useUnblockUser";
-import { useIsUserBlocked } from "@/store/useUserCacheStore";
-import { showNotificationToastNative } from "../toast/NotificationToastNative";
-import { LocalToastType } from "../toast/NotificationToastNative";
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '@/types/navigation';
+import { useBlockUser } from "@/features/blocking/hooks/useBlockUser";
+import { useUnblockUser } from "@/features/blocking/hooks/useUnblockUser";
+import { BlockingErrorCode } from "@/core/errors/ErrorCode";
+import { useIsUserBlockedByGuid } from "@/store/useUserCacheStore";
+import { showNotificationToastNative, LocalToastType } from "../toast/NotificationToastNative";
 import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
+import { RootStackParamList } from "@/types/navigation";
 
 interface Props {
-  userId: number;
+  userId: string;
   userName?: string;
 }
 
 export default function ProfileActionMenuNative({ userId, userName }: Props) {
+  const { t } = useTranslation();
   const { confirm } = useConfirmModalNative();
   const { blockUser, isLoading: isBlocking } = useBlockUser();
   const { unblockUser, isLoading: isUnblocking } = useUnblockUser();
   const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-  const isBlocked = useIsUserBlocked(userId);
+  const isBlocked = useIsUserBlockedByGuid(userId);
 
   const handleBlockUser = async () => {
     const confirmed = await confirm({
-      title: "Block User",
-      message: "Are you sure you want to block this user? They will no longer be able to contact you, and you won't see their content."
+      title: t("profile.blockConfirmTitle"),
+      message: t("profile.blockConfirmMessage"),
     });
-    if (confirmed) {
-      const result = await blockUser(userId);
-      if (result) {
-        showNotificationToastNative({
-          type: LocalToastType.CustomSystemNotice,
-          customTitle: "User Blocked",
-          customBody: "User has been blocked successfully! 🚫",
-          position: 'top'
-        });
-      }
+    if (!confirmed) return;
+
+    const result = await blockUser(userId, { fullName: userName ?? userId });
+    if (result.success) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.blockedTitle"),
+        customBody: t("profile.blockedBody"),
+        position: "top",
+      });
+    } else if (result.code === BlockingErrorCode.AlreadyBlocked) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.blockErrorTitle"),
+        customBody: t("profile.alreadyBlockedBody"),
+        position: "top",
+      });
+    } else {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.blockErrorTitle"),
+        customBody: result.error,
+        position: "top",
+      });
     }
   };
 
   const handleUnblockUser = async () => {
     const confirmed = await confirm({
-      title: "Unblock User",
-      message: "Are you sure you want to unblock this user? They will be able to contact you again."
+      title: t("profile.unblockConfirmTitle"),
+      message: t("profile.unblockConfirmMessage"),
     });
-    if (confirmed) {
-      const result = await unblockUser(userId);
-      if (result) {
-        showNotificationToastNative({
-          type: LocalToastType.CustomSystemNotice,
-          customTitle: "User Unblocked",
-          customBody: "User has been unblocked successfully! ✅",
-          position: 'top'
-        });
-      }
+    if (!confirmed) return;
+
+    const result = await unblockUser(userId);
+    if (result.success) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.unblockedTitle"),
+        customBody: t("profile.unblockedBody"),
+        position: "top",
+      });
+    } else if (result.code === BlockingErrorCode.AlreadyBlocked) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.unblockErrorTitle"),
+        customBody: t("profile.notBlockedBody"),
+        position: "top",
+      });
+    } else {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.unblockErrorTitle"),
+        customBody: result.error,
+        position: "top",
+      });
     }
   };
 
   const handleReportUser = () => {
-    navigation.navigate('ReportScreen', {
-      type: 'user',
-      userId: userId.toString(),
-      userName: userName || `User ${userId}`
+    navigation.navigate("ReportUserScreen", {
+      reportedUserId: userId,
+      reportedUserName: userName,
     });
   };
 
   const actions = [
     {
-      label: isBlocked ? "Unblock User" : "Block User",
+      label: isBlocked ? t("profile.unblockUser") : t("profile.blockUser"),
       onPress: isBlocked ? handleUnblockUser : handleBlockUser,
-      variant: "danger" as const,
-      loading: isBlocking || isUnblocking
+      variant: "muted" as const,
+      loading: isBlocking || isUnblocking,
     },
     {
-      label: "Report User",
+      label: t("profile.reportUser"),
       onPress: handleReportUser,
-      variant: "danger" as const
-    }
+      variant: "muted" as const,
+    },
   ];
 
   return (
     <ActionSheetModalNative
-      title="More Options"
+      title={t("profile.moreOptions")}
       actions={actions}
       trigger={{
         type: "button",
-        text: "More Options",
+        text: t("profile.moreOptions"),
         variant: "primary",
-        fullWidth: true
+        fullWidth: true,
       }}
       blurBackground={false}
     />

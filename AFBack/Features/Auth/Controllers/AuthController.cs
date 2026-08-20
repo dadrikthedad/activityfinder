@@ -164,4 +164,21 @@ public class AuthController(IAuthService authService) : BaseController
     
         return Ok();
     }
+    
+    // ======================== Verify Password ======================== 
+    [HttpPost("verify")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> VerifyPassword([FromBody] VerifyPasswordRequest request)
+    {
+        var userId = User.GetUserId();
+    
+        var result = await authService.VerifyPasswordAsync(userId, request.Password);
+        if (result.IsFailure)
+            return HandleFailure(result);
+        
+        return Ok();
+    }
 }

@@ -28,7 +28,7 @@ export interface EncryptedAttachmentDto {
 
 export interface EncryptedMessageDTO {
   id: number;
-  senderId: number | null;
+  senderId: string | null;
  
   // Encrypted content
   encryptedText: string | null;
@@ -71,7 +71,7 @@ export interface EncryptedMessageDTO {
 // Decrypted message for local use
 export interface DecryptedMessageDTO {
   id: number;
-  senderId: number | null;
+  senderId: string | null;
   text: string | null;
   sentAt: string;
   conversationId: number;
@@ -112,7 +112,7 @@ export interface SendEncryptedMessageRequestDTO {
 
 // User's public key info
 export interface UserPublicKeyDTO {
-  userId: number;
+  userId: string;
   publicKey: string;
   keyVersion: number; // For key rotation
   createdAt: string;

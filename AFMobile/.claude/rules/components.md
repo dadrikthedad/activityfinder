@@ -83,6 +83,41 @@ format(date, "HH:mm", { locale })
 formatDistanceToNow(date, { addSuffix: true, locale })
 ```
 
+## Skjerm-layout — obligatorisk struktur
+
+Alle nye skjermer med tekstfelt eller ScrollView **skal** bruke `KeyboardAvoidingView` slik at innhold ikke skjules bak tastaturet.
+
+```typescript
+import { SafeAreaView, KeyboardAvoidingView, ScrollView, Platform } from "react-native";
+
+export default function MyScreen() {
+  const { theme } = useUnistyles();
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <AppHeader ... />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={{ padding: theme.spacing.md, gap: theme.spacing.lg }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* innhold */}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+```
+
+**Sjekk:**
+- [ ] `KeyboardAvoidingView` med `behavior={Platform.OS === "ios" ? "padding" : "height"}` wraper `ScrollView`
+- [ ] `keyboardShouldPersistTaps="handled"` på `ScrollView` (hindrer at tastatur lukkes ved trykk på knapper)
+- [ ] `SafeAreaView` ytterst, `KeyboardAvoidingView` innenfor header, `ScrollView` innerst
+
+Unntak: skjermer uten tekstfelt og uten scrollbart innhold (f.eks. `BootstrapLoadingScreen`).
+
 ## Lister — @shopify/flash-list v2.3.0
 
 ```typescript

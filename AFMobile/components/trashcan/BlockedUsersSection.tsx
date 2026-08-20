@@ -1,257 +1,205 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-} from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { UserX } from 'lucide-react-native';
-import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
-import { useUnblockUser } from '@/hooks/block/useUnblockUser';
+import { useUnistyles } from 'react-native-unistyles';
+import { useTranslation } from 'react-i18next';
+import { BlockedUserDTO } from '@shared/types/BlockedUserDTO';
+import { useUnblockUser } from '@/features/blocking/hooks/useUnblockUser';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
-import ClickableAvatarNative from '@/components/common/ClickableAvatarNative';
+import ProfileAvatarNative from '@/features/profile/components/ProfileAvatarNative';
 import SearchInput from './SearchInput';
 import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
+import { BlockingErrorCode } from '@/core/errors/ErrorCode';
 
 interface BlockedUsersSectionProps {
-  blockedUsers: UserSummaryDTO[];
+  blockedUsers: BlockedUserDTO[];
   navigation: any;
   onError: (message: string) => void;
 }
 
-export default function BlockedUsersSection({
-  blockedUsers,
-  navigation,
-  onError,
-}: BlockedUsersSectionProps) {
+export default function BlockedUsersSection({ blockedUsers, navigation, onError }: BlockedUsersSectionProps) {
+  const { theme } = useUnistyles();
+  const { t } = useTranslation();
   const [searchText, setSearchText] = useState('');
   const { unblockUser, isLoading: isUnblocking } = useUnblockUser();
   const { confirm } = useConfirmModalNative();
 
-  // Filter blocked users based on search
   const filteredUsers = useMemo(() => {
     if (!searchText.trim()) return blockedUsers;
     const searchLower = searchText.toLowerCase();
-    return blockedUsers.filter(user => 
-      user.fullName.toLowerCase().includes(searchLower)
-    );
+    return blockedUsers.filter(user => user.fullName.toLowerCase().includes(searchLower));
   }, [blockedUsers, searchText]);
 
-  const handleUnblockUser = useCallback(async (userId: number, userName: string) => {
+  const handleUnblockUser = useCallback(async (userId: string, userName: string) => {
     const confirmed = await confirm({
-      title: 'Unblock User',
-      message: `Are you sure you want to unblock ${userName}? They will be able to contact you again.`
+      title: t("profile.unblockConfirmTitle"),
+      message: t("profile.unblockConfirmMessage"),
     });
+    if (!confirmed) return;
 
-    if (confirmed) {
-      try {
-        const result = await unblockUser(userId);
-        
-        if (result) {
-          showNotificationToastNative({
-            type: LocalToastType.CustomSystemNotice,
-            customTitle: "User Unblocked",
-            customBody: `${userName} can now contact you again`,
-            position: 'top'
-          });
-        }
-      } catch (error) {
-        console.error('❌ Could not unblock user:', error);
-        onError('Could not unblock user');
-      }
+    const result = await unblockUser(userId);
+    if (result.success) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.unblockedTitle"),
+        customBody: t("profile.unblockedBody"),
+        position: 'top',
+      });
+    } else if (result.code === BlockingErrorCode.AlreadyBlocked) {
+      showNotificationToastNative({
+        type: LocalToastType.CustomSystemNotice,
+        customTitle: t("profile.unblockErrorTitle"),
+        customBody: t("profile.notBlockedBody"),
+        position: 'top',
+      });
+    } else {
+      onError(result.error ?? t("profile.unblockErrorTitle"));
     }
-  }, [confirm, unblockUser, onError]);
+  }, [confirm, unblockUser, onError, t]);
 
-  const renderBlockedUserItem = useCallback((user: UserSummaryDTO) => {
-    return (
-      <View key={user.id} style={styles.blockedUserContainer}>
-        <View style={styles.blockedUserContent}>
-          <ClickableAvatarNative
-            user={user}
-            size={60}
-            navigation={navigation}
-          />
-          
-          <View style={styles.blockedUserInfo}>
-            <View style={styles.blockedUserNameContainer}>
-              <Text style={styles.blockedUserName}>{user.fullName}</Text>
-              <View style={styles.blockedBadge}>
-                <Text style={styles.blockedBadgeText}>BLOCKED</Text>
-              </View>
-            </View>
-            <Text style={styles.blockedUserSubtitle}>
-              This user is blocked and cannot contact you
-            </Text>
-          </View>
-        </View>
-        
-        {/* Unblock button */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            onPress={() => handleUnblockUser(user.id, user.fullName)}
-            disabled={isUnblocking}
-            style={[styles.button, styles.unblockButton]}
-          >
-            {isUnblocking ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <>
-                <UserX size={16} color="white" />
-                <Text style={styles.buttonText}>Unblock</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }, [navigation, handleUnblockUser, isUnblocking]);
-
-  if (blockedUsers.length === 0) {
-    return null;
-  }
+  if (blockedUsers.length === 0) return null;
 
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>
-        Blocked Users ({blockedUsers.length})
+    <View style={{ marginBottom: theme.spacing.xl }}>
+      <Text style={{
+        fontSize: theme.typography.lg,
+        fontWeight: theme.typography.semibold,
+        color: theme.colors.textPrimary,
+        marginBottom: theme.spacing.xs,
+        textAlign: 'center',
+      }}>
+        {t("profile.blockedUsersTitle")} ({blockedUsers.length})
       </Text>
-      <Text style={styles.sectionSubtitle}>
-        Users you have blocked cannot contact you
+      <Text style={{
+        fontSize: theme.typography.sm,
+        color: theme.colors.textMuted,
+        textAlign: 'center',
+        marginBottom: theme.spacing.md,
+      }}>
+        {t("profile.blockedUsersSubtitle")}
       </Text>
-      
+
       <SearchInput
         value={searchText}
         onChangeText={setSearchText}
-        placeholder="Search blocked users..."
+        placeholder={t("profile.searchBlockedUsers")}
       />
-      
+
       {filteredUsers.length === 0 && searchText.trim() ? (
-        <Text style={styles.noResultsText}>
-          No blocked users match "{searchText}"
+        <Text style={{
+          fontSize: theme.typography.sm,
+          color: theme.colors.textMuted,
+          fontStyle: 'italic',
+          textAlign: 'center',
+          paddingVertical: theme.spacing.lg,
+        }}>
+          {t("profile.noBlockedUsersMatch", { search: searchText })}
         </Text>
       ) : (
-        <View style={styles.scrollableContainer}>
-          <ScrollView 
-            style={styles.scrollView}
-            showsVerticalScrollIndicator={true}
-            nestedScrollEnabled={true}
-          >
-            {filteredUsers.map((user) => renderBlockedUserItem(user))}
+        <View style={{
+          maxHeight: 500,
+          borderRadius: theme.radii.md,
+          borderWidth: 1,
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.surface,
+          overflow: 'hidden',
+        }}>
+          <ScrollView showsVerticalScrollIndicator nestedScrollEnabled>
+            {filteredUsers.map(user => (
+              <View
+                key={user.userId}
+                style={{
+                  borderBottomWidth: 1,
+                  borderBottomColor: theme.colors.border,
+                }}
+              >
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: theme.spacing.md,
+                  paddingVertical: theme.spacing.md,
+                  gap: theme.spacing.sm,
+                }}>
+                  <ProfileAvatarNative
+                    imageUrl={user.profileImageUrl ?? ''}
+                    isEditable={false}
+                  />
+
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, marginBottom: 4 }}>
+                      <Text style={{
+                        fontSize: theme.typography.md,
+                        fontWeight: theme.typography.semibold,
+                        color: theme.colors.textPrimary,
+                      }}>
+                        {user.fullName}
+                      </Text>
+                      <View style={{
+                        backgroundColor: theme.colors.backgroundAlt,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: theme.radii.sm,
+                        borderWidth: 1,
+                        borderColor: theme.colors.border,
+                      }}>
+                        <Text style={{
+                          color: theme.colors.textMuted,
+                          fontSize: 10,
+                          fontWeight: theme.typography.bold,
+                          letterSpacing: 0.5,
+                        }}>
+                          {t("profile.blockedBadge")}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={{ fontSize: theme.typography.xs, color: theme.colors.textMuted }}>
+                      {t("profile.blockedUserSubtitle")}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{
+                  paddingHorizontal: theme.spacing.md,
+                  paddingVertical: theme.spacing.sm,
+                  backgroundColor: theme.colors.backgroundAlt,
+                }}>
+                  <TouchableOpacity
+                    onPress={() => handleUnblockUser(user.userId, user.fullName)}
+                    disabled={isUnblocking}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingVertical: theme.spacing.sm,
+                      paddingHorizontal: theme.spacing.md,
+                      borderRadius: theme.radii.md,
+                      backgroundColor: theme.colors.surface,
+                      borderWidth: 1,
+                      borderColor: theme.colors.border,
+                      gap: theme.spacing.xs,
+                    }}
+                  >
+                    {isUnblocking ? (
+                      <ActivityIndicator size="small" color={theme.colors.textSecondary} />
+                    ) : (
+                      <>
+                        <UserX size={16} color={theme.colors.textSecondary} />
+                        <Text style={{
+                          color: theme.colors.textSecondary,
+                          fontWeight: theme.typography.medium,
+                          fontSize: theme.typography.sm,
+                        }}>
+                          {t("profile.unblockUser")}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
           </ScrollView>
         </View>
       )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  blockedUserContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  blockedUserContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  blockedUserInfo: {
-    flex: 1,
-  },
-  blockedUserNameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-  },
-  blockedUserName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  blockedBadge: {
-    backgroundColor: '#9CA3AF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  blockedBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  blockedUserSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#F9FAFB',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  unblockButton: {
-    backgroundColor: '#6B7280',
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: '500',
-    fontSize: 14,
-    marginLeft: 6,
-  },
-  noResultsText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 24,
-  },
-  // ✅ Scrollable container styles
-  scrollableContainer: {
-    maxHeight: 500, // Increased height to show more content
-    minHeight: 200, // Minimum height to ensure content is visible
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  scrollView: {
-    flex: 1,
-  },
-});

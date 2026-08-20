@@ -239,6 +239,36 @@ class AuthService {
     await this.setTokens(tokenData);
   }
 
+  /**
+   * DEV ONLY — logger inn som vilkårlig bruker uten passord/MFA.
+   * Speiler verifyMfa: bygger device-info, henter token-par fra dev-endepunktet
+   * og lagrer det i Keychain. Backend-endepunktet finnes kun i Development
+   * (DevController fjernes fra ruting i prod), men vi gater også her som ekstra sikring.
+   */
+  async devLoginAs(email: string): Promise<LoginResponseDTO> {
+    if (!__DEV__) {
+      throw new Error('devLoginAs er kun tilgjengelig i development');
+    }
+
+    const deviceHeaders = await deviceInfoService.getDeviceHeaders();
+    const device = await this.buildDeviceInfo();
+
+    const response = await fetch(ApiRoutes.dev.login, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...deviceHeaders },
+      // Backend bruker VerifyMfaRequest — code er påkrevd av serialiseringen men ignoreres
+      body: JSON.stringify({ email, code: '000000', device }),
+    });
+
+    if (!response.ok) {
+      await throwProblemDetails(response);
+    }
+
+    const data: LoginResponseDTO = await response.json();
+    await this.setTokens(data);
+    return data;
+  }
+
   async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
     await this.ensureInitialized();
 

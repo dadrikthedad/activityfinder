@@ -1,5 +1,6 @@
 // groupHandlers.ts - Alle group-relaterte handlers (uten any types)
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
 import { GroupRequestCreatedDto } from "@shared/types/GroupRequestDTO";
 import { GroupNotificationUpdateDTO, GroupEventType } from "@shared/types/GroupNotificationUpdateDTO";
@@ -17,7 +18,7 @@ type RefreshConversationFunction = (conversationId: number, options?: { logPrefi
 // Mottat en gruppeforespørsler
 export const handleGroupRequestCreated = async (
   data: GroupRequestCreatedDto,
-  userId: number | null,
+  userId: string | null,
   checkAndExecute: CheckAndExecuteFunction,
   syncPendingConversation: SyncPendingConversationFunction
 ) => {
@@ -43,7 +44,7 @@ export const handleGroupRequestCreated = async (
 
 export const handleGroupNotificationUpdated = async (
   data: GroupNotificationUpdateDTO,
-  userId: number | null,
+  userId: string | null,
   refreshConversation: RefreshConversationFunction
 ) => {
   console.log("🔔 GroupNotification oppdatert i SignalRClient:", data);
@@ -97,16 +98,13 @@ export const handleGroupDisbanded = async (
   console.log("💥 Gruppe disbanded via useChatHub:", data);
   const { conversationId, groupName, notification } = data;
   
-  const { 
-    removeConversation, 
-    removePendingRequest, 
-    setCurrentConversationId 
-  } = useChatStore.getState();
+  const { setCurrentConversationId } = useChatStore.getState();
+  const { removeConversation, removePendingConversation } = useConversationStore.getState();
 
   const { updateNotificationsForRejectedConversation } = useMessageNotificationStore.getState();
   
   removeConversation(conversationId);
-  removePendingRequest(conversationId); 
+  removePendingConversation(conversationId); 
   
   if (currentConversationId === conversationId) {
     setCurrentConversationId(null);

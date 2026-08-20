@@ -128,8 +128,18 @@ public class TokenService(
                 AppErrorCode.InvalidToken);
         }
         
+        
         // ====== Token rotation: Revoker gammelt, generer nytt ======
         var user = storedToken.AppUser;
+        
+        // Sjekker lockout
+        if (user.LockoutEnabled && user.LockoutEnd.HasValue && user.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            logger.LogWarning("Refresh attempted for locked out user {UserId}", user.Id);
+            return Result<LoginResponse>.Failure("Account is temporarily locked. Please try again later.", 
+                AppErrorCode.AccountLocked);
+        }
+        
         var device = storedToken.UserDevice;
         
         // Revoker gammelt refresh token

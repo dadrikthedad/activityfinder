@@ -1,66 +1,55 @@
-// services/messages/conversationUpdateService.ts
+// utils/messages/refreshConversationFromBackend.ts
 import { getConversationById } from "@/services/messages/conversationService";
-import { useChatStore } from "@/store/useChatStore";
-import { getPendingMessageRequestById } from "@/services/messages/messageService";
+import { useConversationStore } from "@/store/useConversationStore";
 import { ConversationDTO } from "@shared/types/ConversationDTO";
-import { MessageRequestDTO } from "@shared/types/MessageReqeustDTO";
+import { isPendingConversation } from "@/features/conversation/utils/conversationHelpers";
 
+// Henter ferske samtaledata fra backend og legger dem i riktig liste (vanlig vs pending).
+// Pending-samtaler hentes via samme endepunkt som vanlige (GET /api/conversation/{id});
+// pending utledes av ConversationType.PendingRequest.
 export async function refreshConversationFromBackend(
   conversationId: number,
   logPrefix: string = "🔄"
-): Promise<{ type: 'conversation'; data: ConversationDTO } | { type: 'pending'; data: MessageRequestDTO } | null> {
+): Promise<{ type: 'conversation' | 'pending'; data: ConversationDTO } | null> {
   console.log(`${logPrefix} Refreshing conversation ${conversationId} from backend`);
-  
+
   const {
     conversations,
     updateConversation,
-    pendingMessageRequests,
-    setPendingMessageRequests,
     addConversation,
-    addPendingRequest
-  } = useChatStore.getState();
-  
-  try {
-    // Prøv først å hente som vanlig samtale
-    const freshConversation = await getConversationById(conversationId);
-    if (freshConversation) {
-      console.log(`✅ Refreshed conversation ${conversationId} from backend`);
-      
-      const existingConversation = conversations.find(c => c.id === conversationId);
-      if (existingConversation) {
-        updateConversation(conversationId, freshConversation);
-      } else {
-        addConversation(freshConversation);
-      }
-      
-      return { type: 'conversation', data: freshConversation };
-    }
-  } catch (error) {
-    console.log(`⚠️ Failed to refresh as regular conversation, trying pending: ${error}`);
-  }
+    pendingConversations,
+    addPendingConversation,
+    updatePendingConversation,
+  } = useConversationStore.getState();
 
   try {
-    // Prøv deretter å hente som pending request
-    const freshPendingRequest = await getPendingMessageRequestById(conversationId);
-    if (freshPendingRequest) {
-      console.log(`✅ Refreshed pending request ${conversationId} from backend`);
-      
-      const existingPending = pendingMessageRequests.find(r => r.conversationId === conversationId);
+    const fresh = await getConversationById(conversationId);
+    if (!fresh) {
+      console.error(`❌ Could not refresh conversation ${conversationId} from backend`);
+      return null;
+    }
+
+    if (isPendingConversation(fresh)) {
+      console.log(`✅ Refreshed pending conversation ${conversationId} from backend`);
+      const existingPending = pendingConversations.find((c) => c.id === conversationId);
       if (existingPending) {
-        const updatedRequests = pendingMessageRequests.map(r =>
-          r.conversationId === conversationId ? freshPendingRequest : r
-        );
-        setPendingMessageRequests(updatedRequests);
+        updatePendingConversation(conversationId, fresh);
       } else {
-        addPendingRequest(freshPendingRequest);
+        addPendingConversation(fresh);
       }
-      
-      return { type: 'pending', data: freshPendingRequest };
+      return { type: 'pending', data: fresh };
     }
-  } catch (error) {
-    console.error(`❌ Failed to refresh conversation ${conversationId} as pending request:`, error);
-  }
 
-  console.error(`❌ Could not refresh conversation ${conversationId} from backend`);
-  return null;
+    console.log(`✅ Refreshed conversation ${conversationId} from backend`);
+    const existing = conversations.find((c) => c.id === conversationId);
+    if (existing) {
+      updateConversation(conversationId, fresh);
+    } else {
+      addConversation(fresh);
+    }
+    return { type: 'conversation', data: fresh };
+  } catch (error) {
+    console.error(`❌ Failed to refresh conversation ${conversationId} from backend:`, error);
+    return null;
+  }
 }

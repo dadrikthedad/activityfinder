@@ -1,12 +1,12 @@
 import { getConversationById } from "@/services/messages/conversationService";
-import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { MessageDTO } from "@shared/types/MessageDTO";
 
 // En hook som kan brukes hvor som helst for å sikre at ny samtale legges til i zustand når melding kommer
 type SyncInput = { conversationId: number } | MessageDTO;
 
 export function useConversationSyncOnMessage() {
-  const { conversations, addConversation } = useChatStore();
+  const { conversations, addConversation } = useConversationStore();
 
   const syncConversation = async (input: SyncInput) => {
     const conversationId = input.conversationId;

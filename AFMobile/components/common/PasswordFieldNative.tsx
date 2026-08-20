@@ -17,7 +17,7 @@ interface PasswordFieldNativeProps {
   touched?: boolean;
   placeholder?: string;
   disabled?: boolean;
-  // "left" brukes i Signup-skjemaer, "center" brukes i Login/ResetPassword — default center
+  // "left" er default — "center" kan sendes inn ved behov
   labelAlign?: "left" | "center";
   maxLength?: number;
   style?: any;
@@ -34,7 +34,7 @@ export default function PasswordFieldNative({
   touched,
   placeholder,
   disabled = false,
-  labelAlign = "center",
+  labelAlign = "left",
   maxLength = 128,
   style,
 }: PasswordFieldNativeProps) {

@@ -1,16 +1,18 @@
 // syncPendingConversation.ts
-import { getPendingMessageRequestById } from "@/services/messages/messageService";
+import { getConversationById } from "@/services/messages/conversationService";
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 
 export async function syncPendingConversation(conversationId: number, forceUpdate = false) {
   const {
-    addPendingRequest,
-    pendingMessageRequests,
-    setPendingLockedConversationId,
-    setPendingMessageRequests,
-  } = useChatStore.getState();
+    addPendingConversation,
+    pendingConversations,
+    updatePendingConversation,
+  } = useConversationStore.getState();
 
-  const alreadyExists = pendingMessageRequests.some(r => r.conversationId === conversationId);
+  const { setPendingLockedConversationId } = useChatStore.getState();
+
+  const alreadyExists = pendingConversations.some((c) => c.id === conversationId);
 
   if (alreadyExists && !forceUpdate) {
     console.log(`⏳ Pending conversation ${conversationId} already exists, skipping`);
@@ -18,20 +20,18 @@ export async function syncPendingConversation(conversationId: number, forceUpdat
   }
 
   try {
-    const request = await getPendingMessageRequestById(conversationId);
-    if (request) {
+    // Pending-samtale hentes via samme endepunkt som vanlige samtaler (GET /api/conversation/{id}).
+    const conversation = await getConversationById(conversationId);
+    if (conversation) {
       if (alreadyExists) {
-        const updatedRequests = pendingMessageRequests.map(r =>
-          r.conversationId === conversationId ? request : r
-        );
-        setPendingMessageRequests(updatedRequests);
+        updatePendingConversation(conversationId, conversation);
         console.log(`✅ Updated existing pending conversation ${conversationId}`);
       } else {
-        addPendingRequest(request);
+        addPendingConversation(conversation);
         setPendingLockedConversationId(conversationId);
         console.log(`✅ Added new pending conversation ${conversationId}`);
       }
-      return request;
+      return conversation;
     }
   } catch (err) {
     console.error("❌ Klarte ikke hente/oppdatere pending-samtale:", err);

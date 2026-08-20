@@ -11,7 +11,7 @@ import { RefreshCw } from 'lucide-react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useRestoreConversation } from '@/hooks/messages/useRestoreConversation';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
-import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
+import { ConversationListItemNative } from '@/features/conversation/components/ConversationListItemNative';
 import SearchInput from './SearchInput';
 import { showNotificationToastNative, LocalToastType } from '../toast/NotificationToastNative';
 
@@ -19,7 +19,7 @@ interface DeletedConversationsSectionProps {
   deletedConversations: any[];
   isLoading: boolean;
   error: string | null;
-  currentUserId?: number;
+  currentUserId?: string;
   navigation: any;
   onError: (message: string) => void;
   onRefetch: () => void;
@@ -38,7 +38,7 @@ export default function DeletedConversationsSection({
   const { restoreConversationMutation, isRestoring } = useRestoreConversation();
   const { confirm } = useConfirmModalNative();
 
-  const getOtherParticipant = useCallback((participants: UserSummaryDTO[], currentUserId?: number): UserSummaryDTO | null => {
+  const getOtherParticipant = useCallback((participants: UserSummaryDTO[], currentUserId?: string): UserSummaryDTO | null => {
     if (!participants?.length) {
       return null;
     }

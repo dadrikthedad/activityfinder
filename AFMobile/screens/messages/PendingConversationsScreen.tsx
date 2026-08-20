@@ -17,9 +17,11 @@ import { usePendingMessageRequests } from '@/hooks/messages/usePendingMessageReq
 import { useApproveMessageRequest } from '@/hooks/messages/useApproveMessageRequest';
 import { useRejectMessageRequest } from '@/hooks/messages/useRejectMessageRequest';
 import { useConfirmModalNative } from '@/hooks/useConfirmModalNative';
-import { MessageRequestDTO } from '@shared/types/MessageReqeustDTO';
+import { ConversationDTO } from '@shared/types/ConversationDTO';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
-import { ConversationListItemNative } from '@/components/messages/ConversationListItemNative';
+import { ConversationListItemNative } from '@/features/conversation/components/ConversationListItemNative';
+import { isGroupConversation, getOtherParticipant } from '@/features/conversation/utils/conversationHelpers';
+import { useCurrentUser } from '@/store/useUserCacheStore';
 import SpinnerNative from '@/components/common/SpinnerNative';
 
 interface PendingConversationsScreenProps {
@@ -45,7 +47,18 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
   const [processingRequestId, setProcessingRequestId] = useState<number | null>(null);
   const [processingType, setProcessingType] = useState<'approve' | 'reject' | null>(null);
   
-  const conversations = useChatStore((s) => s.conversations);
+  const currentUser = useCurrentUser();
+
+  // Utleder visningsdata (navn/avatar/deltakere) fra ConversationDTO via helperne.
+  const deriveDisplay = (c: ConversationDTO) => {
+    const group = isGroupConversation(c);
+    const other = getOtherParticipant(c, currentUser?.id);
+    const user: UserSummaryDTO = group
+      ? { id: String(c.id), fullName: c.groupName ?? "Gruppe", profileImageUrl: c.groupImageUrl ?? null }
+      : other?.user ?? { id: String(c.id), fullName: "Ukjent", profileImageUrl: null };
+    const participants = c.participants.map((p) => p.user);
+    return { group, user, participants };
+  };
 
   // Handle back navigation
   const handleGoBack = useCallback(() => {
@@ -74,24 +87,24 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
   }, [navigation, setCurrentConversationId]);
 
   // Handle reject request
-  const handleReject = async (r: MessageRequestDTO) => {
-    if (r.conversationId == null) return;
+  const handleReject = async (c: ConversationDTO) => {
+    const { group, user } = deriveDisplay(c);
 
-    const requestType = r.isGroup ? "group invitation" : "message request";
-    const actionText = r.isGroup ? "decline" : "reject";
+    const requestType = group ? "group invitation" : "message request";
+    const actionText = group ? "decline" : "reject";
 
     const confirmed = await confirm({
-      title: r.isGroup ? "Decline Group Invitation" : "Reject Message Request",
-      message: `Are you sure you want to ${actionText} the ${requestType} from ${r.senderName}${r.isGroup && r.groupName ? ` to join ${r.groupName}` : ''}?`
+      title: group ? "Decline Group Invitation" : "Reject Message Request",
+      message: `Are you sure you want to ${actionText} the ${requestType} from ${user.fullName}${group && c.groupName ? ` to join ${c.groupName}` : ''}?`
     });
 
     if (confirmed) {
-      setProcessingRequestId(r.conversationId!);
+      setProcessingRequestId(c.id);
       setProcessingType('reject');
-      
+
       try {
-        await reject(r.senderId, r.conversationId!, r.isGroup || false);
-        removeRequest(r.conversationId!);
+        await reject(c.id);
+        removeRequest(c.id);
       } catch (error) {
         console.error('❌ Error rejecting request:', error);
       } finally {
@@ -102,21 +115,19 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
   };
 
   // Handle approve request
-  const handleApprove = async (r: MessageRequestDTO) => {
-    if (r.conversationId !== null && r.conversationId !== undefined) {
-      setProcessingRequestId(r.conversationId);
-      setProcessingType('approve');
-      
-      try {
-        await approve(r.conversationId);
-        console.log("✔ Approved conversation:", r.conversationId);
-        removeRequest(r.conversationId);
-      } catch (error) {
-        console.error('❌ Error approving request:', error);
-      } finally {
-        setProcessingRequestId(null);
-        setProcessingType(null);
-      }
+  const handleApprove = async (c: ConversationDTO) => {
+    setProcessingRequestId(c.id);
+    setProcessingType('approve');
+
+    try {
+      await approve(c.id);
+      console.log("✔ Approved conversation:", c.id);
+      removeRequest(c.id);
+    } catch (error) {
+      console.error('❌ Error approving request:', error);
+    } finally {
+      setProcessingRequestId(null);
+      setProcessingType(null);
     }
   };
 
@@ -126,19 +137,10 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
   };
 
   // Render pending request item
-  const renderPendingRequest = ({ item: r }: { item: MessageRequestDTO }) => {
-    const conversationFromStore = r.conversationId ? conversations.find(c => c.id === r.conversationId) : null;
-    const storeParticipants = conversationFromStore?.participants || [];
-    
-    let participants: UserSummaryDTO[] = [];
-    if (r.participants && Array.isArray(r.participants) && r.participants.length > 0) {
-      participants = r.participants;
-    } else if (storeParticipants.length > 0) {
-      participants = storeParticipants;
-    }
-    
-    const memberCount = r.isGroup ? (participants.length > 0 ? participants.length : 2) : undefined;
-    const isProcessing = isRequestProcessing(r.conversationId!);
+  const renderPendingRequest = ({ item: c }: { item: ConversationDTO }) => {
+    const { group, user, participants } = deriveDisplay(c);
+    const memberCount = group ? (participants.length > 0 ? participants.length : 2) : undefined;
+    const isProcessing = isRequestProcessing(c.id);
 
     return (
       <View style={styles.pendingRequestContainer}>
@@ -159,24 +161,16 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
           {/* Conversation card - takes up most of the space */}
           <View style={styles.conversationSection}>
             <ConversationListItemNative
-              user={{
-                id: r.isGroup ? r.conversationId ?? 0 : r.senderId,
-                fullName: r.isGroup ? r.groupName ?? "Gruppe" : r.senderName,
-                profileImageUrl: r.isGroup
-                  ? r.groupImageUrl || null
-                  : r.profileImageUrl || null,
-              }}
+              user={user}
               isClickable={!isProcessing}
               isPendingApproval={true}
               onClick={() => {
                 if (!isProcessing) {
-                  console.log("✅ Clicked on conversation:", r.conversationId);
-                  if (r.conversationId) {
-                    handleSelectConversation(r.conversationId);
-                  }
+                  console.log("✅ Clicked on conversation:", c.id);
+                  handleSelectConversation(c.id);
                 }
               }}
-              isGroup={r.isGroup || false}
+              isGroup={group}
               memberCount={memberCount}
               participants={participants}
               navigation={navigation}
@@ -191,7 +185,7 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
                 styles.approveButton,
                 isProcessing && styles.disabledButton
               ]}
-              onPress={() => handleApprove(r)}
+              onPress={() => handleApprove(c)}
               disabled={isProcessing}
             >
               {isProcessing && processingType === 'approve' ? (
@@ -206,7 +200,7 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
                 styles.rejectButton,
                 isProcessing && styles.disabledButton
               ]}
-              onPress={() => handleReject(r)}
+              onPress={() => handleReject(c)}
               disabled={isProcessing}
             >
               {isProcessing && processingType === 'reject' ? (
@@ -296,7 +290,7 @@ export default function PendingConversationsScreen({ navigation }: PendingConver
             <FlatList
               data={requests}
               renderItem={renderPendingRequest}
-              keyExtractor={(item) => `${item.senderId}-${item.conversationId ?? "private"}`}
+              keyExtractor={(item) => String(item.id)}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContainer}
               scrollEnabled={!processingRequestId} // Disable scrolling when processing

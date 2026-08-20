@@ -133,7 +133,7 @@ function NotificationToastComponent({
         break;
       case LocalToastType.FriendInvAccepted:
         if (relatedUser?.id) {
-          (navigation as any).navigate('Profile', { userId: relatedUser.id });
+          (navigation as any).navigate('Profile', { id: relatedUser.id.toString() });
         }
         break;
     }

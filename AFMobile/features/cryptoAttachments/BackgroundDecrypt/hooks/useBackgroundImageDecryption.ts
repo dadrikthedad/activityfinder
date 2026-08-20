@@ -1,16 +1,13 @@
 // hooks/crypto/useBackgroundImageDecryption.ts
 import { useCallback } from 'react';
 import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 import { backgroundDecryptionManager } from '../BackgroundDecryptionManager';
 import { AttachmentDto } from '@shared/types/MessageDTO';
 
 export const useBackgroundImageDecryption = () => {
-  const { 
-    conversations, 
-    unreadConversationIds, 
-    liveMessages,
-    cachedMessages 
-  } = useChatStore();
+  const { liveMessages, cachedMessages } = useChatStore();
+  const { conversations, unreadConversationIds } = useConversationStore();
 
   const startBackgroundDecryption = useCallback(async () => {
     console.log('🖼️ Starting background image decryption for unread conversations...');

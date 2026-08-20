@@ -8,6 +8,7 @@ using AFBack.Features.Broadcast.Services.Interfaces;
 using AFBack.Features.FileHandling.Constants;
 using AFBack.Features.FileHandling.DTOs.Responses;
 using AFBack.Features.FileHandling.Services;
+using AFBack.Infrastructure.Cache;
 using AFBack.Infrastructure.Email;
 using AFBack.Infrastructure.Email.Enums;
 using AFBack.Infrastructure.Email.Models;
@@ -35,7 +36,8 @@ public class AccountChangeService(
     ISuspiciousActivityService suspiciousActivityService,
     IProfileBroadcastService profileBroadcastService,
     IFileOrchestrator fileOrchestrator,
-    IRateLimitGuardService rateLimitGuardService) : IAccountChangeService
+    IRateLimitGuardService rateLimitGuardService,
+    IUserSummaryCacheService userSummaryCache) : IAccountChangeService
 {
     private readonly string _baseUrl = appOptions.Value.BaseUrl;
     
@@ -66,7 +68,7 @@ public class AccountChangeService(
         if (!isPasswordValid)
         {
             logger.LogWarning("Email change failed — wrong password for UserId: {UserId}", userId);
-            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidCredentials);
+            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidPassword);
         }
         
         // ====== Sjekk at ny epost ikke er i bruk ======
@@ -258,7 +260,7 @@ public class AccountChangeService(
         if (!isPasswordValid)
         {
             logger.LogWarning("Phone change failed — wrong password for UserId: {UserId}", userId);
-            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidCredentials);
+            return Result.Failure("Current password is incorrect", AppErrorCode.InvalidPassword);
         }
         
         // ====== Sjekk at nytt nummer ikke er i bruk ======
@@ -487,6 +489,8 @@ public class AccountChangeService(
             return Result<FileUrlResponse>.Failure("Failed to update profile image", AppErrorCode.InternalError);
         }
 
+        await userSummaryCache.RefreshUserSummaryAsync(userId);
+
         // ====== Broadcaster til alle samtalepartnere + egne enheter ======
         await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl, ct);
 
@@ -535,7 +539,9 @@ public class AccountChangeService(
             return Result.Failure("Failed to remove profile image", AppErrorCode.InternalError);
         }
 
-        // ====== Broadcaster til alle amtalepartnere + egne enheter ======
+        await userSummaryCache.RefreshUserSummaryAsync(userId);
+
+        // ====== Broadcaster til alle samtalepartnere + egne enheter ======
         await profileBroadcastService.BroadcastProfileUpdatedAsync(userId, user.FullName, user.ProfileImageUrl, ct);
 
         logger.LogInformation("ProfileImage removed for UserId: {UserId}", userId);

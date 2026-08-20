@@ -4,6 +4,7 @@ import { RouteProp } from '@react-navigation/native';
 import { RNFile } from '@/utils/files/FileFunctions';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { AttachmentDto } from '@shared/types/MessageDTO';
+import { UserSearchResultDTO } from '@/features/messages/models/UserSearchResultDTO';
 
 export type RootStackParamList = {
   Login: { fromVerification?: boolean } | undefined;
@@ -13,8 +14,10 @@ export type RootStackParamList = {
   LoginMfaScreen: { email: string };
   ResetPasswordScreen: undefined;
   E2EESetupScreen: { accessToken: string; refreshToken: string };
+  DevUserListScreen: undefined;
   BootstrapLoadingScreen: undefined;
   Home: undefined;
+  MyProfile: undefined;
   Profile: { id: string };
   EditProfile: undefined;
   Settings: undefined;
@@ -39,22 +42,24 @@ export type RootStackParamList = {
     user: UserSummaryDTO;
     conversationId: number;
   };
-  NewConversationScreen: {
-    initialReceiver?: UserSummaryDTO;
+  NewMessageScreen: {
+    initialReceiver?: UserSearchResultDTO;
   };
   MessageNotificationScreen: undefined;
   TrashcanScreen: undefined;
   EditProfileScreen: undefined;
   ProfileSettingsScreen: undefined;
   PendingConversationsScreen: undefined;
-  ReportScreen: {
-    type?: 'bug' | 'user';
-    userId?: string;
-    userName?: string;
-  } | undefined;
-  SecurityCredsScreen: undefined;
   TestNavigator: undefined;
   CryptationScreen: undefined;
+  ChangeEmailScreen: undefined;
+  VerifyCurrentEmailForChangeScreen: { newEmail: string; currentPassword: string };
+  VerifyNewEmailScreen: { newEmail: string };
+  ChangePhoneScreen: undefined;
+  VerifyEmailForPhoneChangeScreen: { newPhone: string; currentPassword: string };
+  VerifyNewPhoneScreen: { newPhone: string };
+  ReportUserScreen: { reportedUserId: string; reportedUserName?: string };
+  ReportBugScreen: undefined;
 };
 
 //////////////////////////// AUTH ////////////////////////////
@@ -66,25 +71,28 @@ export type PhoneSmsVerificationScreenNavigationProp = StackNavigationProp<RootS
 export type LoginMfaScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LoginMfaScreen'>;
 export type ResetPasswordScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ResetPasswordScreen'>;
 export type E2EESetupScreenNavigationProp = StackNavigationProp<RootStackParamList, 'E2EESetupScreen'>;
+export type DevUserListScreenNavigationProp = StackNavigationProp<RootStackParamList, 'DevUserListScreen'>;
 
 //////////////////////////// APP ////////////////////////////
 
 export type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
+export type MyProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MyProfile'>;
 export type ProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenNavigationProp = StackNavigationProp<RootStackParamList, 'EditProfileScreen'>;
 export type ProfileSettingsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ProfileSettingsScreen'>;
-export type SecurityCredsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SecurityCredsScreen'>;
 export type MessageScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MessagesScreen'>;
 export type ConversationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ConversationScreen'>;
 export type PendingConversationsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PendingConversationsScreen'>;
 export type MediaViewerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaViewer'>;
 export type GroupSettingsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'GroupSettingsScreen'>;
-export type NewConversationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'NewConversationScreen'>;
+export type NewMessageScreenNavigationProp = StackNavigationProp<RootStackParamList, 'NewMessageScreen'>;
 export type MessageNotificationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MessageNotificationScreen'>;
 export type TrashcanScreenNavigationProp = StackNavigationProp<RootStackParamList, 'TrashcanScreen'>;
-export type ReportScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ReportScreen'>;
 export type TestNavigatorNavigationProp = StackNavigationProp<RootStackParamList, 'TestNavigator'>;
 export type CryptationScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CryptationScreen'>;
+export type ChangeEmailScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ChangeEmailScreen'>;
+export type VerifyCurrentEmailForChangeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VerifyCurrentEmailForChangeScreen'>;
+export type VerifyNewEmailScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VerifyNewEmailScreen'>;
 
 //////////////////////////// ROUTE PROPS ////////////////////////////
 
@@ -99,17 +107,17 @@ export type HomeScreenRouteProp = RouteProp<RootStackParamList, 'Home'>;
 export type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
 export type EditProfileScreenRouteProp = RouteProp<RootStackParamList, 'EditProfileScreen'>;
 export type ProfileSettingsScreenRouteProp = RouteProp<RootStackParamList, 'ProfileSettingsScreen'>;
-export type SecurityCredsScreenRouteProp = RouteProp<RootStackParamList, 'SecurityCredsScreen'>;
 export type MessagesScreenRouteProp = RouteProp<RootStackParamList, 'MessagesScreen'>;
 export type ConversationScreenRouteProp = RouteProp<RootStackParamList, 'ConversationScreen'>;
 export type PendingConversationsScreenRouteProp = RouteProp<RootStackParamList, 'PendingConversationsScreen'>;
 export type MediaViewerScreenRouteProp = RouteProp<RootStackParamList, 'MediaViewer'>;
 export type GroupSettingsScreenRouteProp = RouteProp<RootStackParamList, 'GroupSettingsScreen'>;
-export type NewConversationScreenRouteProp = RouteProp<RootStackParamList, 'NewConversationScreen'>;
+export type NewMessageScreenRouteProp = RouteProp<RootStackParamList, 'NewMessageScreen'>;
 export type MessageNotificationScreenRouteProp = RouteProp<RootStackParamList, 'MessageNotificationScreen'>;
 export type TrashcanScreenRouteProp = RouteProp<RootStackParamList, 'TrashcanScreen'>;
-export type ReportScreenRouteProp = RouteProp<RootStackParamList, 'ReportScreen'>;
 export type TestNavigatorRouteProp = RouteProp<RootStackParamList, 'TestNavigator'>;
 export type CryptationScreenRouteProp = RouteProp<RootStackParamList, 'CryptationScreen'>;
+export type VerifyCurrentEmailForChangeScreenRouteProp = RouteProp<RootStackParamList, 'VerifyCurrentEmailForChangeScreen'>;
+export type VerifyNewEmailScreenRouteProp = RouteProp<RootStackParamList, 'VerifyNewEmailScreen'>;
 
 export type RootStackNavigationProp = StackNavigationProp<RootStackParamList>;

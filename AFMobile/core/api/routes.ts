@@ -15,6 +15,7 @@ export const ApiRoutes = {
     logout:             `${API_BASE_URL}/api/auth/logout`,
     logoutAll:          `${API_BASE_URL}/api/auth/logout-all`,
     reportUnauthorized: `${API_BASE_URL}/api/auth/report-unauthorized-change`,
+    verifyPassword:     `${API_BASE_URL}/api/auth/verify`,
   },
   token: {
     refresh: `${API_BASE_URL}/api/token/refresh`,
@@ -51,11 +52,61 @@ export const ApiRoutes = {
     removeProfileImage:      `${API_BASE_URL}/api/account/profileimage`,
   },
   encryption: {
-    myPublicKey: `${API_BASE_URL}/api/encryption/public-key`,
-    keys:        `${API_BASE_URL}/api/encryption/keys`,
+    myPublicKey:     `${API_BASE_URL}/api/encryption/public-key`,
+    keys:            `${API_BASE_URL}/api/encryption/keys`,
+    usersPublicKeys: `${API_BASE_URL}/api/encryption/users/public-keys`,
+    conversationKeys: (conversationId: number) =>
+      `${API_BASE_URL}/api/encryption/conversation/${conversationId}/keys`,
+  },
+  search: {
+    usersQuick: (query: string) =>
+      `${API_BASE_URL}/api/search/users/quick?SearchQuery=${encodeURIComponent(query)}`,
+  },
+  conversation: {
+    sendToUser: `${API_BASE_URL}/api/conversation/send-to-user`,
+    active:     `${API_BASE_URL}/api/conversation/active`,
+    pending:    `${API_BASE_URL}/api/conversation/pending`,
+    archived:   `${API_BASE_URL}/api/conversation/archived`,
+    rejected:   `${API_BASE_URL}/api/conversation/rejected`,
+    search:     `${API_BASE_URL}/api/conversation/search`,
+    byId:       (conversationId: number) => `${API_BASE_URL}/api/conversation/${conversationId}`,
+    restore:    (conversationId: number) => `${API_BASE_URL}/api/conversation/${conversationId}/restore`,
+    accept:     (conversationId: number) => `${API_BASE_URL}/api/conversation/${conversationId}/accept`,
+    reject:     (conversationId: number) => `${API_BASE_URL}/api/conversation/${conversationId}/reject`,
+  },
+  groupConversation: {
+    create: `${API_BASE_URL}/api/groupconversation/create`,
+  },
+  message: {
+    send:           `${API_BASE_URL}/api/message`,
+    byConversation: (conversationId: number) => `${API_BASE_URL}/api/message/${conversationId}`,
+    byId:           (messageId: number) => `${API_BASE_URL}/api/message/${messageId}`,
+  },
+  profile: {
+    me:     `${API_BASE_URL}/api/profile`,
+    update: `${API_BASE_URL}/api/profile`,
+    public: (userId: string) => `${API_BASE_URL}/api/profile/${encodeURIComponent(userId)}`,
+  },
+  settings: {
+    get:    `${API_BASE_URL}/api/settings`,
+    update: `${API_BASE_URL}/api/settings`,
+  },
+  blocking: {
+    block:         (userId: string) => `${API_BASE_URL}/api/blocking/${encodeURIComponent(userId)}`,
+    unblock:       (userId: string) => `${API_BASE_URL}/api/blocking/unblock/${encodeURIComponent(userId)}`,
+    blockedUsers:  `${API_BASE_URL}/api/blocking`,
   },
   bootstrap: {
     critical:  `${API_BASE_URL}/api/bootstrap/critical`,
     secondary: `${API_BASE_URL}/api/bootstrap/secondary`,
+  },
+  support: {
+    report: `${API_BASE_URL}/api/support/report`,
+    ticket: `${API_BASE_URL}/api/support`,
+  },
+  // Kun tilgjengelig i Development — DevController fjernes fra ruting i prod
+  dev: {
+    login: `${API_BASE_URL}/api/dev/login`,
+    users: `${API_BASE_URL}/api/dev/users`,
   },
 } as const;

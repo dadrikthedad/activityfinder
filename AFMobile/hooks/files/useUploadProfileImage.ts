@@ -1,50 +1,40 @@
-"use client";
 import { useState } from "react";
-import { uploadProfileImage } from "@/services/files/fileService";
-
-interface FileUpload {
-  uri: string;
-  type: string;
-  name: string;
-}
+import { uploadProfileImage, removeProfileImage } from "@/services/files/fileService";
+import { RNFile } from "@/utils/files/FileFunctions";
+import { useUserCacheStore } from "@/store/useUserCacheStore";
 
 export function useUploadProfileImage() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const { currentUser, setCurrentUser } = useUserCacheStore();
 
-  // Oppdater til å akseptere både FileUpload og "delete" string
-  const upload = async (file: FileUpload | "delete"): Promise<string | null> => {
+  const upload = async (file: RNFile | "delete"): Promise<string | null> => {
     setUploading(true);
     setError(null);
-    setImageUrl(null);
 
     try {
-      const uploadedUrl = await uploadProfileImage(file);
-      setImageUrl(uploadedUrl);
-      return uploadedUrl;
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Unknown error occurred");
+      if (file === "delete") {
+        await removeProfileImage();
+        if (currentUser) {
+          setCurrentUser({ ...currentUser, profileImageUrl: null });
+        }
+        return null;
       }
+
+      const url = await uploadProfileImage(file);
+      if (currentUser && url) {
+        setCurrentUser({ ...currentUser, profileImageUrl: url });
+      }
+      return url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
       return null;
     } finally {
       setUploading(false);
     }
   };
 
-  const reset = () => {
-    setImageUrl(null);
-    setError(null);
-  };
+  const reset = () => setError(null);
 
-  return {
-    upload,
-    uploading,
-    error,
-    imageUrl,
-    reset,
-  };
+  return { upload, uploading, error, reset };
 }

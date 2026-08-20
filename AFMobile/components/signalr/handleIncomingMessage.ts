@@ -1,21 +1,19 @@
 import { MessageDTO } from "@shared/types/MessageDTO";
 import { MessageNotificationDTO } from "@shared/types/MessageNotificationDTO";
 import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 import { handleIncomingNotification } from "@/utils/messages/getNotificationsBeforeSignalr";
+import { isGroupConversation } from "@/features/conversation/utils/conversationHelpers";
 
 /**
  * Håndter innkommende melding i frontend – oppdater notifications og unread-status
  * @param message Meldingen som kom inn via SignalR
  * @param currentUserId ID-en til brukeren som er logget inn
  */
-export async function handleIncomingMessage(message: MessageDTO, currentUserId: number | null) {
-  const {
-    unreadConversationIds,
-    currentConversationId,
-    isAtBottom,
-    setUnreadConversationIds,
-    conversations,
-  } = useChatStore.getState();
+export async function handleIncomingMessage(message: MessageDTO, currentUserId: string | null) {
+  const { currentConversationId, isAtBottom } = useChatStore.getState();
+  const { unreadConversationIds, setUnreadConversationIds, conversations } =
+    useConversationStore.getState();
   
   // Ikke lag notification for egne meldinger
   if (message.senderId === currentUserId) return;
@@ -27,7 +25,7 @@ export async function handleIncomingMessage(message: MessageDTO, currentUserId: 
 
   // Finn conversation for å sjekke om det er en gruppe
   const conversation = conversations.find(c => c.id === message.conversationId);
-  const isGroup = conversation?.isGroup ?? false;
+  const isGroup = conversation ? isGroupConversation(conversation) : false;
 
   // Generer riktig messagePreview basert på type
   const getTruncatedText = (text: string | null | undefined): string => {
@@ -53,6 +51,11 @@ export async function handleIncomingMessage(message: MessageDTO, currentUserId: 
     conversationId: message.conversationId,
     senderId: message.senderId,
     senderName: message.sender?.fullName ?? "Unknown",
+    senderUserDto: message.sender ?? {
+      id: message.senderId ?? "",
+      fullName: "Unknown",
+      profileImageUrl: null,
+    },
     senderProfileImageUrl: message.sender?.profileImageUrl,
     groupName: isGroup ? conversation?.groupName : undefined,
     groupImageUrl: isGroup ? conversation?.groupImageUrl : undefined,

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { UserSummaryDTO } from '@shared/types/UserSummaryDTO';
 import { useChatStore } from '@/store/useChatStore';
+import { useConversationStore } from '@/store/useConversationStore';
 import { useGroupSettingsPopoverNative } from '@/components/groupmessages/useGroupSettingsPopoverNative';
 import ButtonNative from '@/components/common/buttons/ButtonNative';
 import { ArrowBigLeft, Camera } from 'lucide-react-native';
@@ -40,8 +41,9 @@ export default function GroupSettingsScreen({
   const { user, conversationId } = route.params;
 
   // Get current conversation to access participants
-  const currentConversation = useChatStore((state) =>
-    state.conversations.find((conv) => conv.id === conversationId)
+  const currentConversation = useConversationStore((state) =>
+    (state.conversations ?? []).find((conv) => conv.id === conversationId) ??
+    (state.pendingConversations ?? []).find((conv) => conv.id === conversationId)
   );
 
   const {
@@ -314,7 +316,7 @@ export default function GroupSettingsScreen({
         visible={showInviteModal}
         conversationId={conversationId}
         groupName={displayName}
-        existingParticipants={currentConversation?.participants || []}
+        existingParticipants={(currentConversation?.participants || []).map((p) => p.user)}
         onClose={handleInviteModalClose}
         onInvitesSent={handleInvitesSent}
       />

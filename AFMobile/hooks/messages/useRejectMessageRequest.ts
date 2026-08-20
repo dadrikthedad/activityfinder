@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { rejectRequest } from "@/services/messages/messageService";
 import { rejectMessageRequestLogic } from "@/utils/messages/rejectMesageRequestLogic";
 import { useMessageNotificationStore } from "@/store/useMessageNotificationStore";
-import { RejectRequestDTO } from "@shared/types/RejectRequestDTO";
 
 export function useRejectMessageRequest() {
   const [loading, setLoading] = useState(false);
@@ -11,20 +10,17 @@ export function useRejectMessageRequest() {
     (state) => state.updateNotificationsForRejectedConversation
   );
 
+  // Backend rejecter alltid på conversationId. Gruppe-reject (eget endepunkt
+  // i GroupConversationController) tas i gruppe-batchen.
   const reject = useCallback(
-    async (senderId: number, conversationId: number, isGroupRequest: boolean = false) => {
+    async (conversationId: number) => {
       setLoading(true);
       setError(null);
-      
+
       try {
-        const dto: RejectRequestDTO = {
-          senderId,
-          conversationId: isGroupRequest ? conversationId : undefined
-        };
-       
-        // API kall
-        await rejectRequest(dto);
-        
+        // API kall — backend: POST /api/conversation/{conversationId}/reject
+        await rejectRequest(conversationId);
+
         // UI oppdateringer (gjenbrukbar logikk)
         rejectMessageRequestLogic(conversationId, false);
         

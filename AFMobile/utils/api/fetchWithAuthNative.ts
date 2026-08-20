@@ -1,5 +1,6 @@
 // utils/api/fetchWithAuthNative.ts
 import authServiceNative from '@/core/auth/authServiceNative';
+import { throwProblemDetails } from '@/core/errors/ProblemDetails';
 import type { FetchWithAuthFunction, LogLevel } from '../../../shared/utils/api/fetchWithAuth.types';
 
 export const fetchWithAuth: FetchWithAuthFunction = async <T>(
@@ -28,24 +29,15 @@ async function handleResponse<T>(
   url: string,
   logLevel: LogLevel
 ): Promise<T | null> {
-  const text = await response.text();
-
   if (!response.ok) {
     if (logLevel !== "none") {
+      const text = await response.clone().text();
       console.error(`🔴 API error (${response.status}) from ${url}:`, text);
     }
-
-    let errorMessage: string;
-    try {
-      const json = JSON.parse(text);
-      errorMessage = (typeof json === "object" && json !== null && "message" in json)
-        ? json.message
-        : "Something went wrong.";
-    } catch {
-      errorMessage = text || "Something went wrong.";
-    }
-    throw new Error(errorMessage);
+    await throwProblemDetails(response);
   }
+
+  const text = await response.text();
 
   if (!text || text.trim() === "") {
     if (logLevel === "verbose") console.warn("⚠️ Empty response body");

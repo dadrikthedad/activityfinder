@@ -26,7 +26,7 @@ export class BackgroundAttachmentDecryptionService {
    */
   async decryptAttachment(
     encryptedAttachment: EncryptedAttachmentData,
-    currentUserId: number,
+    currentUserId: string,
     onProgress?: (progress: number, message: string) => void
   ): Promise<DecryptedAttachment> {
     try {
@@ -55,7 +55,7 @@ export class BackgroundAttachmentDecryptionService {
 
   private async performBackgroundDecryption(
     encryptedAttachment: EncryptedAttachmentData,
-    currentUserId: number,
+    currentUserId: string,
     onProgress?: (progress: number, message: string) => void
   ): Promise<DecryptedAttachment | null> {
     if (!encryptedAttachment.keyInfo) {

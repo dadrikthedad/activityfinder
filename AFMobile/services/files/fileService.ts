@@ -1,6 +1,6 @@
 // AFMobile/services/fileService.ts
-import { postFormDataRequest } from "@/services/baseService";
-import { API_BASE_URL } from "@/constants/routes";
+import { postFormDataRequest, putFormDataRequest, deleteRequest } from "@/core/api/baseService";
+import { ApiRoutes } from "@/core/api/routes";
 import { UploadAttachmentsRequestDTO } from "@shared/types/MessageDTO";
 import { MessageDTO } from "@shared/types/MessageDTO";
 
@@ -11,30 +11,18 @@ interface RNFile {
   name: string;
 }
 
-// Upload profilbilde
-export async function uploadProfileImage(file: RNFile | "delete"): Promise<string | null> {
+export async function uploadProfileImage(file: RNFile): Promise<string> {
   const formData = new FormData();
-  
-  if (file === "delete") {
-    // Send delete-kommando
-    formData.append('action', 'delete');
-  } else {
-    // Normal upload
-    formData.append("file", {
-      uri: file.uri,
-      type: file.type,
-      name: file.name,
-    } as any);
-  }
- 
-  const url = `${API_BASE_URL}/api/file/upload-profile-image`;
-  const response = await postFormDataRequest<{ imageUrl: string | null }>(url, formData);
- 
-  if (!response) {
-    throw new Error("Failed to process profile image");
-  }
- 
-  return response.imageUrl; // null for delete, string for upload
+  formData.append("file", { uri: file.uri, type: file.type, name: file.name } as any);
+
+  const response = await putFormDataRequest<{ fileUrl: string }>(ApiRoutes.account.updateProfileImage, formData);
+
+  if (!response?.fileUrl) throw new Error("Failed to upload profile image");
+  return response.fileUrl;
+}
+
+export async function removeProfileImage(): Promise<void> {
+  await deleteRequest<void>(ApiRoutes.account.removeProfileImage);
 }
 
 // Upload gruppebilde

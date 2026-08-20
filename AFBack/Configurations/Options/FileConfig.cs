@@ -6,12 +6,6 @@ public static class FileConfig
     /// Hvor lenge en SAS URL er gyldig i minutter. Klienten må laste ned filen innen denne tiden.
     /// </summary>
     public const int SasExpiryMinutes = 10;
-
-    /// <summary>
-    /// Klokke-buffer i minutter for delegation key start-tidspunkt.
-    /// Negativt tall for å kompensere for klokke-skew mellom servere.
-    /// </summary>
-    public const int DelegationKeyDelayMinutes = -5;
     
     /// <summary>
     /// Maks størrelse for krypterte meldingsfiler (25 MB)

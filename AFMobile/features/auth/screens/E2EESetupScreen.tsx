@@ -12,6 +12,7 @@ import ButtonNative from "@/components/common/buttons/ButtonNative";
 import FormFieldNative from "@/components/common/FormFieldNative";
 import { useE2EESetup } from "@/features/auth/hooks/useE2EESetup";
 import { E2EESetupScreenRouteProp } from "@/types/navigation";
+import BackupPhraseModal from "@/features/crypto/components/BackupPhraseModal";
 
 export default function E2EESetupScreen() {
   const route = useRoute<E2EESetupScreenRouteProp>();
@@ -24,12 +25,14 @@ export default function E2EESetupScreen() {
     scenario,
     errorMessage,
     backupPhrase,
+    newBackupPhrase,
     setBackupPhrase,
     isRestoring,
     isCreatingNew,
     handleRestoreFromPhrase,
     handleCreateNewKeys,
     handleRetryCreate,
+    handleContinueAfterBackup,
   } = useE2EESetup(accessToken, refreshToken);
 
   const handleCreateNewKeysPress = () => {
@@ -118,6 +121,23 @@ export default function E2EESetupScreen() {
             {scenario === "creating" ? t("e2ee.generatingKeys") : t("e2ee.checkingKeys")}
           </Text>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Scenario A — nøkler opprettet, vis backup-frase-modal
+  if (scenario === "show-backup-phrase") {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <StatusBar backgroundColor={theme.colors.navbar} barStyle="light-content" />
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+        <BackupPhraseModal
+          visible
+          phrase={newBackupPhrase}
+          onContinue={handleContinueAfterBackup}
+        />
       </SafeAreaView>
     );
   }

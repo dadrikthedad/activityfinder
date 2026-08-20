@@ -1,8 +1,8 @@
-import { useChatStore } from "@/store/useChatStore";
+import { useConversationStore } from "@/store/useConversationStore";
 
 export function useUnreadConversationIds() {
-  const ids = useChatStore((s) => s.unreadConversationIds);
-  const hasLoaded = useChatStore((s) => s.hasLoadedUnreadConversationIds);
+  const ids = useConversationStore((s) => s.unreadConversationIds);
+  const hasLoaded = useConversationStore((s) => s.hasLoadedUnreadConversationIds);
 
   return {
     ids,

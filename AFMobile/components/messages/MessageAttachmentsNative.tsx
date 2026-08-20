@@ -354,7 +354,7 @@ export default function MessageAttachmentsNative({
         onReactionSelect={handleReactionSelect}
         quickActions={getQuickActions()}
         existingReactions={message.reactions || []}
-        userId={currentUser.id || 0}
+        userId={currentUser.id ?? ""}
         message={message}
         actualMessageId={useChatStore.getState().getActualMessageId(message)}
         reactionsDisabled={false}

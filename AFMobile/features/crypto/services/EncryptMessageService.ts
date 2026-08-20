@@ -155,7 +155,7 @@ export class EncryptMessageService {
   /**
    * Decrypt message using crypto_box_seal_open - CORRECTED VERSION
    */
-  public async decryptMessage(encryptedMessage: EncryptedMessage, userId?: number): Promise<string | null> {
+  public async decryptMessage(encryptedMessage: EncryptedMessage, userId?: string): Promise<string | null> {
     try {
       await this.initializeSodium();
       
@@ -285,7 +285,7 @@ export class EncryptMessageService {
   /**
  * Debug method to verify key consistency and test encryption/decryption
  */
-async debugKeyConsistency(userId: number): Promise<void> {
+async debugKeyConsistency(userId: string): Promise<void> {
   try {
     console.log('🔐🐛 === KEY CONSISTENCY DEBUG START ===');
     

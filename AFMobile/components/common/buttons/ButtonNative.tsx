@@ -9,6 +9,7 @@ export interface ButtonNativeProps {
   variant?:
     | "primary"     // Primærfarge (gull i begge temaer)
     | "secondary"   // Grå sekundærknapp
+    | "muted"       // Dempet grå — mørkere enn secondary, for handlingsmenyer o.l.
     | "danger"      // Rød fareknapp
     | "outline"     // Konturknapp
     | "ghost"       // Kun tekst
@@ -59,6 +60,11 @@ export default function ButtonNative({
       case "secondary":
         return {
           bg:        isDisabled ? theme.colors.disabled     : theme.colors.surfaceAlt,
+          textColor: isDisabled ? theme.colors.disabledText : theme.colors.textSecondary,
+        };
+      case "muted":
+        return {
+          bg:        isDisabled ? theme.colors.disabled     : theme.colors.surfaceMuted,
           textColor: isDisabled ? theme.colors.disabledText : theme.colors.textSecondary,
         };
       case "danger":
@@ -127,6 +133,7 @@ export default function ButtonNative({
     fontSize: sizeStyles.fontSize,
     fontWeight: theme.typography.semibold,
     color: colors.textColor,
+    textAlign: "center",
     ...textStyle,
   };
 

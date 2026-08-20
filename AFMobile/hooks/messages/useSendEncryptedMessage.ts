@@ -296,9 +296,9 @@ export function useSendEncryptedMessage(onSuccess?: (message: DecryptedMessageDT
     }
 
     return {
-      messageId: response.id,
+      messageId: response.messageId,
       sentAt: response.sentAt,
-      conversationId: response.conversationId,
+      conversationId: payload.conversationId,
       attachments: [],
       encryptionMetadata: new Map()
     };

@@ -8,15 +8,15 @@ public static class ProfileMapperExtension
 {
     public static MyProfileResponse ToMyProfileResponse(this UserProfile profile) => new()
     {
-            CountryCode = profile.CountryCode,
-            DateOfBirth = profile.DateOfBirth,
-            Age = profile.Age,
-            Bio = profile.Bio,
-            Websites = profile.Websites,
-            ContactEmail = profile.ContactEmail,
-            ContactPhone = profile.ContactPhone,
-            UpdatedAt = profile.UpdatedAt
-        };
+        CountryCode = profile.CountryCode,
+        DateOfBirth = profile.DateOfBirth,
+        Age = profile.Age,
+        Bio = profile.Bio,
+        Websites = profile.Websites,
+        ContactEmail = profile.ContactEmail,
+        ContactPhone = profile.ContactPhone,
+        UpdatedAt = profile.UpdatedAt,
+    };
 
 
     public static PublicProfileResponse ToPublicResponse(this UserProfile profile, UserSettings settings)
